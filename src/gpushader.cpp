@@ -14,6 +14,7 @@
 
 #include "bhed/gpuconst.h"
 #include "bhed/gpustate.h"
+#include "bhed/wave.h"
 
 namespace bhed::gpu {
 
@@ -84,14 +85,17 @@ cbuffer JeStapel : register(b1) {
     // nach 32, der Shader las fuer den Ortsanteil der Welle null: der
     // Lavafall in md_am_sith pulsierte im Gleichtakt, statt zu wogen.
     // Mit float4 gibt es keine Packregel zu erraten: 16..19, dann 20.
-    float4 gDeform;        // base, amplitude, phase, frequency
+    // FIX5: die deformVertexes wie gpu::verformung (gpuconst.h) sie packt - d0 gDeform, d1 (gDeformSpread, gDeformArt,
+    // gDeformNormal.xy), d2 gBulge, d3 gDeformMove.
+    float4 gDeform;        // base (bei frequency 0 EvalWaveForm), amplitude, phase, floatTime * frequency
     float  gDeformSpread;
     float  gWolkenHoehe;   // Wolkenkuppel, siehe gpuconst.h (21)
     float  gPortalWeite;   // alphaGen portal, siehe gpuconst.h (22)
+    float  gDeformArt;     // FIX5: Tafel der Welle (0 = fester Wert, 1..5 WaveFunc), 23
     // rc592, siehe gpuconst.h: jedes ein eigener Viererblock (24, 28, 32).
-    float4 gDeformMove;    // xyz Versatz
-    float4 gBulge;         // breite, hoehe, tempo
-    float4 gDeformNormal;  // amplitude, frequenz
+    float4 gDeformMove;    // xyz Versatz, .w die Folge (FIX5)
+    float4 gBulge;         // breite, hoehe, tempo, now (FIX5)
+    float4 gDeformNormal;  // amplitude, floatTime * frequenz (FIX5)
     float4 gTcGenS;        // rc605: tcGen vector, s-Vektor (gpuconst.h 36)
     float4 gTcGenT;        // rc605: tcGen vector, t-Vektor (40)
     float4 gTcM1;          // FIX4 P33: zweiter bis vierter Schritt der tcMod-Kette (44, 48, 52)
@@ -186,6 +190,174 @@ const std::string& tcTextMitTafel() {
     return text;
 }
 
+// FIX5: deformVertexes wave, normal, bulge und move je Ecke wie rd-vanilla RB_DeformTessGeometry (code/rd-vanilla/tr_shade_calc.cpp:553,
+// MD9 gleich), fuer die Karte (vertexShaderHlsl) und die Figurenstufe (figurVertexShaderHlsl) dieselben Funktionen. Die Werte packt
+// gpu::verformung (gpuconst.h: d0..d3); alles in float wie im Spiel (precise: kein mad, nichts umgestellt). Davor stehen die Tafel
+// tr.sinTable (kSinTafel, tcTextMitTafel) und die Zufallstafel aus R_NoiseInit (kRauschTafel, kRauschPerm, wave.cpp).
+const char* kVerformText = R"(
+// (int) einer float wie cvttss2si im Spiel: zur Null hin, ausserhalb von int (auch NaN) 0x80000000
+int ganzWieX86(float x) {
+    return (abs(x) < 2147483648.0) ? (int)x : (int)0x80000000;
+}
+// Q_ftol(x) & FUNCTABLE_MASK (WAVEVALUE, tr_shade_calc.cpp:30)
+int funcIndex(float x) {
+    return ganzWieX86(x) & 1023;
+}
+// R_InitFuncTables (tr_init.cpp:1724-1747): art = WaveFunc (1 sin, 2 triangle, 3 square, 4 sawtooth, 5 inversesawtooth). Ausser sin
+// sind alle Eintraege in float exakt: i / 256, 1 - i / 256, i / 1024 (mal einer Zweierpotenz).
+float funcTafel(float art, int i) {
+    i = i & 1023;
+    if (art < 1.5) { return asfloat(kSinTafel[i]); }
+    if (art < 2.5) {
+        precise float v = (float)(i & 255) * 0.00390625;
+        if ((i & 256) != 0) { v = 1.0 - v; }
+        return (i < 512) ? v : -v;
+    }
+    if (art < 3.5) { return (i < 512) ? 1.0 : -1.0; }
+    precise float saege = (float)i * 0.0009765625;
+    if (art < 4.5) { return saege; }
+    precise float invers = 1.0 - saege;
+    return invers;
+}
+// WAVEVALUE(table, base, amplitude, phase, freq) mit w = (base, amplitude, phase, floatTime * freq) und phase + zusatz
+float wellenWert(float4 w, float art, float zusatz) {
+    precise float p = w.z + zusatz;
+    precise float x = (p + w.w) * 1024.0;
+    precise float r = w.x + funcTafel(art, funcIndex(x)) * w.y;
+    return r;
+}
+// R_NoiseGet4f (rd-common/tr_noise.cpp:60): VAL/INDEX ueber s_noise_perm, LERP(a, b, w) = a * (1.0f - w) + b * w
+uint rauschVal(uint a) { return kRauschPerm[a & 255u]; }
+float rauschWert(uint x, uint y, uint z, uint t) {
+    return asfloat(kRauschTafel[rauschVal(x + rauschVal(y + rauschVal(z + rauschVal(t))))]);
+}
+float rauschLerp(float a, float b, float w) {
+    precise float r = a * (1.0 - w) + b * w;
+    return r;
+}
+float rauschen4(float x, float y, float z, float t) {
+    int ix = ganzWieX86(floor(x));
+    precise float fx = x - (float)ix;
+    int iy = ganzWieX86(floor(y));
+    precise float fy = y - (float)iy;
+    int iz = ganzWieX86(floor(z));
+    precise float fz = z - (float)iz;
+    int it = ganzWieX86(floor(t));
+    precise float ft = t - (float)it;
+    uint ux = (uint)ix;
+    uint uy = (uint)iy;
+    uint uz = (uint)iz;
+    precise float wert[2];
+    [unroll] for (uint i = 0; i < 2; ++i) {
+        uint ut = (uint)it + i;
+        precise float fv = rauschLerp(rauschLerp(rauschWert(ux, uy, uz, ut), rauschWert(ux + 1u, uy, uz, ut), fx),
+                                      rauschLerp(rauschWert(ux, uy + 1u, uz, ut), rauschWert(ux + 1u, uy + 1u, uz, ut), fx), fy);
+        precise float bv = rauschLerp(rauschLerp(rauschWert(ux, uy, uz + 1u, ut), rauschWert(ux + 1u, uy, uz + 1u, ut), fx),
+                                      rauschLerp(rauschWert(ux, uy + 1u, uz + 1u, ut), rauschWert(ux + 1u, uy + 1u, uz + 1u, ut), fx), fy);
+        wert[i] = rauschLerp(fv, bv, fz);
+    }
+    return rauschLerp(wert[0], wert[1], ft);
+}
+// Q_rsqrt (shared/qcommon/q_math.cpp:360): 0x5f3759df und eine Newton-Stufe, y * (1.5f - ((x2 * y) * y))
+float qRsqrtSpiel(float zahl) {
+    precise float x2 = zahl * 0.5;
+    precise float y = asfloat(0x5f3759df - (asint(zahl) >> 1));
+    precise float r = y * (1.5 - ((x2 * y) * y));
+    return r;
+}
+// Die Verformung einer Ecke (xyz und Normale im Raum von tess.xyz, st = tess.texCoords[0]); d0..d3 aus gpu::verformung. Die Folge
+// (d3.w, je drei Bit) wie die deformVertexes im Shader.
+float3 verformeEcke(float3 xyz, inout float3 nrm, float2 st, float4 d0, float4 d1, float4 d2, float4 d3) {
+    precise float3 p = xyz;
+    precise float3 n = nrm;
+    uint folge = (uint)d3.w;
+    // [loop]: jede Art steht einmal im Code (abgerollt wuerde das Rauschen viermal eingesetzt - die Uebersetzung dauerte Minuten)
+    [loop] for (int k = 0; k < 4; ++k) {
+        uint art = (folge >> (3 * k)) & 7u;
+        if (art == 1u) {
+            // RB_CalcDeformVertexes (:129): bei frequency 0 EvalWaveForm fuer alle (d0.x), sonst
+            // off = (x + y + z) * deformationSpread, WAVEVALUE(table, base, amplitude, phase + off, frequency)
+            precise float scale = d0.x;
+            if (d1.y > 0.5) {
+                precise float off = (p.x + p.y + p.z) * d1.x;
+                scale = wellenWert(d0, d1.y, off);
+            }
+            precise float3 v = n * scale;
+            p = p + v;
+        } else if (art == 2u) {
+            // RB_CalcDeformNormals (:182): normal += amplitude * R_NoiseGet4f(xyz * 0.98f (+100/+200), floatTime * frequency),
+            // dann VectorNormalizeFast (q_math.cpp:1147) mit Q_rsqrt
+            precise float3 q = p * kNormalSchritt;
+            precise float3 rr = float3(0.0, 0.0, 0.0);
+            [loop] for (int a = 0; a < 3; ++a) {
+                precise float x = (a == 0) ? q.x : (((a == 1) ? 100.0 : 200.0) + q.x);
+                precise float v = rauschen4(x, q.y, q.z, d1.w);
+                if (a == 0) { rr.x = v; } else if (a == 1) { rr.y = v; } else { rr.z = v; }
+            }
+            precise float n0 = n.x + d1.z * rr.x;
+            precise float n1 = n.y + d1.z * rr.y;
+            precise float n2 = n.z + d1.z * rr.z;
+            precise float il = qRsqrtSpiel(n0 * n0 + n1 * n1 + n2 * n2);
+            n = float3(n0 * il, n1 * il, n2 * il);
+        } else if (art == 3u) {
+            // RB_CalcBulgeVertexes (:216): ohne speed und width xyz += normal * height, sonst
+            // off = (int)(FUNCTABLE_SIZE / (M_PI * 2) * (st[0] * width + now)), scale = sinTable[off & MASK] * height
+            precise float scale = d2.y;
+            if (!(d2.z == 0.0 && d2.x == 0.0)) {
+                precise float a = st.x * d2.x + d2.w;
+                precise float o = kBeulenFaktor * a;
+                precise float t = asfloat(kSinTafel[ganzWieX86(o) & 1023]) * d2.y;
+                scale = t;
+            }
+            precise float3 v = n * scale;
+            p = p + v;
+        } else if (art == 4u) {
+            // RB_CalcMoveVertexes (:263): xyz += moveVector * WAVEVALUE (d3.xyz von der CPU)
+            p = p + d3.xyz;
+        }
+    }
+    nrm = n;
+    return p;
+}
+)";
+
+// Der Text oben mit seinen Tafeln: die Zufallstafel aus R_NoiseInit (wave.cpp), FUNCTABLE_SIZE / (M_PI * 2) in float wie im Spiel
+// (M_PI ist dort 3.14159265358979323846f, shared/qcommon/q_math.h:40; OpenJK castet auf float, MD9 rechnet ohne Cast gleich in float)
+// und 0.98f (RB_CalcDeformNormals). kSinTafel muss davor stehen (tcTextMitTafel).
+const std::string& verformText() {
+    static const std::string text = [] {
+        std::string t = "// FIX5: s_noise_table und s_noise_perm (R_NoiseInit, rd-common/tr_noise.cpp:50), Bit fuer Bit von der CPU (wave.cpp)\n";
+        const auto bits = [](float w) {
+            std::uint32_t b = 0;
+            std::memcpy(&b, &w, sizeof b);
+            return b;
+        };
+        const auto feld = [&t](const char* name, const auto& wert) {
+            t += "static const uint ";
+            t += name;
+            t += "[256] = {";
+            for (int i = 0; i < 256; ++i) {
+                char z[16];
+                std::snprintf(z, sizeof z, "%s0x%08xu", (i % 8 == 0) ? "\n    " : " ", static_cast<unsigned>(wert(i)));
+                t += z;
+                if (i < 255) { t += ','; }
+            }
+            t += "\n};\n";
+        };
+        feld("kRauschTafel", [&bits](int i) { return bits(rauschTafel()[i]); });
+        feld("kRauschPerm", [](int i) { return static_cast<std::uint32_t>(rauschPerm()[i]); });
+        const float faktor = 1024.0F / (3.14159265358979323846F * 2.0F);
+        char z[96];
+        std::snprintf(z, sizeof z, "static const float kBeulenFaktor = asfloat(0x%08xu);\n", static_cast<unsigned>(bits(faktor)));
+        t += z;
+        std::snprintf(z, sizeof z, "static const float kNormalSchritt = asfloat(0x%08xu);\n", static_cast<unsigned>(bits(0.98F)));
+        t += z;
+        t += kVerformText;
+        return t;
+    }();
+    return text;
+}
+
 // Eine Zeile nur anhaengen, wenn das Bit gesetzt ist. Die Pruefung liest
 // sich dadurch wie die Merkmalsliste, und ein vergessenes Bit faellt beim
 // Lesen auf.
@@ -238,6 +410,7 @@ VSOut main(uint id : SV_VertexID) {
 
 std::string vollbildVertexShaderHlsl() { return kVollbildVs; }
 std::string tcModHlsl() { return tcTextMitTafel(); }   // FIX3, FIX4 P33
+std::string verformHlsl() { return tcTextMitTafel() + verformText(); }   // FIX5
 
 // --- Die Klinge eines Lichtschwerts --------------------------------------
 //
@@ -899,6 +1072,7 @@ std::string figurVertexShaderHlsl(std::uint32_t features) {
     s += kKonstanten;
     s += kKnochen;
     s += tcTextMitTafel();   // FIX3, FIX4 P33
+    s += verformText();      // FIX5: deformVertexes wie an der Karte (verformeEcke)
     // rc602 kartenpruefung: die Shaderstufe einer Figurenflaeche (b3), siehe
     // bhed/figurstufen.h. gStufe.x Farbe (0 wie bisher, 1 weiss, 2 gStufeFarbe,
     // 3 schwarz), .y Alpha (0 eins, 1 lightingSpecular, 2 gStufeFarbe.a),
@@ -915,33 +1089,18 @@ cbuffer JeStufe : register(b3) {
     float4 gAchse2;
     float4 gStufeTcM0;    // FIX4 P33: die tcMod-Kette je Schritt wie gTcM0.. der Karte
     float4 gStufeTcO01;
-    // rc604: deformVertexes (RB_DeformTessGeometry) - siehe deformWerte
-    // (gpumap_win32.cpp).
-    float4 gDefWelle;     // base, amplitude, phase, frequency
-    float4 gDefArt;       // deformationSpread, Tabelle, an, -
-    float4 gDefBeule;     // bulge width, height, speed; Tabelle der move-Welle
-    float4 gDefWeg;       // moveVector, refdef.floatTime
-    float4 gDefWegWelle;  // base, amplitude, phase, frequency der move-Welle
+    // rc604: deformVertexes (RB_DeformTessGeometry). FIX5: d0..d3 aus gpu::verformung wie an der Karte
+    // (deformWerte, gpumap_win32.cpp); gDef3.w 0 = keine.
+    float4 gDef0;
+    float4 gDef1;
+    float4 gDef2;
+    float4 gDef3;
     float4 gStufeTcM1;    // FIX4 P33: zweiter bis vierter Schritt, Verschiebungen, Arten (wie gTcM1.. der Karte)
     float4 gStufeTcM2;
     float4 gStufeTcM3;
     float4 gStufeTcO23;
     float4 gStufeTcArt;
 };
-// rc604: die Tabellen der Engine (R_InitFuncTables, code/rd-vanilla/
-// tr_init.cpp:1724-1747 OpenJK), FUNCTABLE_SIZE 1024; i schon & FUNCTABLE_MASK.
-float defTabelle(float art, int i) {
-    i = i & 1023;
-    if (art < 1.5) { return sin(radians((float)i * 360.0 / 1023.0)); }
-    if (art < 2.5) {
-        int j = i & 511;
-        float v = (j < 256) ? (float)j / 256.0 : 1.0 - (float)(j - 256) / 256.0;
-        return (i < 512) ? v : -v;
-    }
-    if (art < 3.5) { return (i < 512) ? 1.0 : -1.0; }
-    if (art < 4.5) { return (float)i / 1024.0; }
-    return 1.0 - (float)i / 1024.0;
-}
 // rc603 Durchsicht: Q_rsqrt (q_math.c:375 MD / 360 OJ) - 0x5f3759df und EINE
 // Newton-Stufe, bis zu 0.175 Prozent zu klein. RB_CalcSpecularAlpha und
 // VectorNormalizeFast in RB_CalcEnvironmentTexCoords rechnen damit, nicht
@@ -1000,29 +1159,11 @@ VSOut main(VSIn ein) {
         welt += p * w;
         nrm += n * w;
     }
-    // --- rc604: deformVertexes, im Raum des Modells wie tess.xyz/tess.normal
-    // (RB_CalcDeformVertexes / RB_CalcBulgeVertexes / RB_CalcMoveVertexes,
-    // code/rd-vanilla/tr_shade_calc.cpp:129-276 OpenJK; WAVEVALUE: Tabelle an
-    // Q_ftol((phase + floatTime * freq) * FUNCTABLE_SIZE) & FUNCTABLE_MASK).
-    if (gDefArt.z > 0.5) {
-        float zeit = gDefWeg.w;
-        if (gDefArt.y > 0.5) {
-            float off = (gDefWelle.w == 0.0) ? 0.0 : (welt.x + welt.y + welt.z) * gDefArt.x;
-            int i = (int)((gDefWelle.z + off + zeit * gDefWelle.w) * 1024.0);
-            welt += nrm * (gDefWelle.x + defTabelle(gDefArt.y, i) * gDefWelle.y);
-        }
-        if (gDefBeule.y != 0.0) {
-            if (gDefBeule.z == 0.0 && gDefBeule.x == 0.0) {
-                welt += nrm * gDefBeule.y;
-            } else {
-                int o = (int)(162.974661726 * (ein.uv.x * gDefBeule.x + zeit * gDefBeule.z));
-                welt += nrm * (defTabelle(1.0, o) * gDefBeule.y);
-            }
-        }
-        if (gDefBeule.w > 0.5) {
-            int i = (int)((gDefWegWelle.z + zeit * gDefWegWelle.w) * 1024.0);
-            welt += gDefWeg.xyz * (gDefWegWelle.x + defTabelle(gDefBeule.w, i) * gDefWegWelle.y);
-        }
+    // --- rc604: deformVertexes, im Raum des Modells wie tess.xyz/tess.normal. FIX5: dieselbe Rechnung wie an der Karte
+    // (verformeEcke: RB_DeformTessGeometry je Ecke in der Reihenfolge des Shaders, Tafeln und Rauschen des Spiels); bis FIX5 eine
+    // eigene Fassung mit sin der Grafikkarte, bulge mit Sekunden statt ms, ohne normal.
+    if (gDef3.w > 0.5) {
+        welt = verformeEcke(welt, nrm, ein.uv, gDef0, gDef1, gDef2, gDef3);
     }
     // Danach die Stellung der Figur in der Welt.
     float4 w4 = mul(gFigurWelt, float4(welt, 1.0));
@@ -1168,35 +1309,8 @@ struct VSOut {
     float  clip   : SV_ClipDistance0;
 };
 )";
-    // deformVertexes normal: Wertrauschen in vier Dimensionen, linear
-    // zwischen den Gitterpunkten - wie R_NoiseGet4f. Die Werte an den
-    // Gitterpunkten kommen aus einer Streufunktion statt aus der
-    // Zufallstabelle der Engine.
-    wenn(s, features, kDeformNormal, R"(float rauschWert(int4 p) {
-    uint h = asuint(p.x) * 73856093u ^ asuint(p.y) * 19349663u ^
-             asuint(p.z) * 83492791u ^ asuint(p.w) * 2654435761u;
-    h ^= h >> 13;
-    h *= 1274126177u;
-    h ^= h >> 16;
-    return (float)(h & 65535u) / 32767.5 - 1.0;
-}
-float rausch4(float4 q) {
-    float4 f = floor(q);
-    float4 t = q - f;
-    int4 i = (int4)f;
-    float wert[2];
-    [unroll] for (int w = 0; w < 2; ++w) {
-        float v[2];
-        [unroll] for (int z = 0; z < 2; ++z) {
-            float a = lerp(rauschWert(i + int4(0, 0, z, w)), rauschWert(i + int4(1, 0, z, w)), t.x);
-            float b = lerp(rauschWert(i + int4(0, 1, z, w)), rauschWert(i + int4(1, 1, z, w)), t.x);
-            v[z] = lerp(a, b, t.y);
-        }
-        wert[w] = lerp(v[0], v[1], t.z);
-    }
-    return lerp(wert[0], wert[1], t.w);
-}
-)");
+    // FIX5: deformVertexes (verformeEcke) - die Funktionen samt Zufallstafel nur in den Varianten, die sie brauchen
+    if ((features & (kDeform | kDeformNormal | kBulge | kDeformMove)) != 0U) { s += verformText(); }
     // rc608: R_SetupEntityLighting legt ambientLight, directedLight und lightDir an die
     // Entity. lightDir ist im Raum des Modells: das Punktprodukt mit e.axis, und die Achsen
     // tragen den Massstab (ScaleModelAxis), die Normalen nicht.
@@ -1212,62 +1326,13 @@ float rausch4(float4 q) {
     float3 nrm = ein.normal;
 )";
 
-    // deformVertexes wave - RB_CalcDeformVertexes: die Ecke wandert entlang
-    // ihrer Normalen. Der Versatz haengt vom ORT ab, deshalb hier und nicht
-    // im Pixel-Shader.
-    // --- Die Phase ZUERST kuerzen, dann den Sinus ----------------------
-    //
-    // `waveValue` im Rasterer rechnet (wave.cpp:59):
-    //
-    //     t = fraction(phase + zeit * frequenz);      // immer in [0,1)
-    //     wert = base + shape(func, t) * amplitude;
-    //
-    // Hier stand der volle Wert im Sinus. Das ist mathematisch dasselbe -
-    // aber nicht numerisch. Der Ortsanteil `off` wird gross: an der
-    // Lavaflaeche von md_am_sith spannen die Koordinaten ueber 7168 x 9456
-    // x 2078 Einheiten, und mit `deformSpread = 1/180` laeuft `off` bis
-    // ueber hundert. Das Argument des Sinus erreicht damit rund 630.
-    //
-    // Der Unterschied zwischen zwei benachbarten Ecken betraegt dort im
-    // Mittel 0,053 Wellen - gemessen ueber alle 19617 Kanten der Flaeche,
-    // also knapp 19 Ecken je Wellenlaenge. Das ist eine gut darstellbare
-    // Welle. Sie ueberlebt aber nicht, wenn 0,33 Bogenmass Unterschied aus
-    // einem Argument von 630 herausgerechnet werden muessen: die
-    // Bereichsreduktion von `sin` arbeitet auf der Grafikkarte einfach
-    // genau, und was bleibt, ist eine Bewegung im Gleichtakt - ein
-    // Pulsieren statt einer Welle.
-    //
-    // `frac` kuerzt genau wie `fraction(x) = x - floor(x)`, auch bei
-    // negativen Werten.
-    wenn(s, features, kDeform, R"(    {
-        float off = (welt.x + welt.y + welt.z) * gDeformSpread;
-        float t = frac(gDeform[2] + off + gZeit * gDeform[3]);
-        float w = gDeform[0] + gDeform[1] * sin(t * 6.2831853);
-        welt += ein.normal * w;
+    // deformVertexes wave, normal, bulge, move - FIX5: je Ecke wie RB_DeformTessGeometry in der Reihenfolge des Shaders
+    // (verformeEcke, kVerformText), die Welle aus den Tafeln des Spiels, normal mit R_NoiseGet4f, bulge mit refdef.time. Bis FIX5
+    // stand hier je Art ein eigener Block: wave mit frac() und sin(t * 2 pi) der Grafikkarte (jede Form als Sinus, frequency 0 wie
+    // jede andere), normal mit einer Streufunktion, bulge mit sin(s * breite + Sekunden * tempo), feste Reihenfolge.
+    if ((features & (kDeform | kDeformNormal | kBulge | kDeformMove)) != 0U) {
+        s += "    welt = verformeEcke(welt, nrm, ein.uv, gDeform, float4(gDeformSpread, gDeformArt, gDeformNormal.xy), gBulge, gDeformMove);\n";
     }
-)");
-
-    // deformVertexes normal - RB_CalcDeformNormals: drei Rauschwerte, je
-    // um 100 Einheiten versetzt, auf die Normale, dann normiert.
-    wenn(s, features, kDeformNormal, R"(    {
-        float3 p = welt * 0.98;
-        float zt = gZeit * gDeformNormal.y;
-        nrm.x += gDeformNormal.x * rausch4(float4(p, zt));
-        nrm.y += gDeformNormal.x * rausch4(float4(100.0 + p.x, p.yz, zt));
-        nrm.z += gDeformNormal.x * rausch4(float4(200.0 + p.x, p.yz, zt));
-        nrm = normalize(nrm);
-    }
-)");
-
-    // deformVertexes bulge - RB_CalcBulgeVertexes: der Winkel ist
-    // s * breite + zeit * tempo (die Tabelle der Engine laeuft ueber 2 pi).
-    wenn(s, features, kBulge, R"(    {
-        welt += ein.normal * (sin(ein.uv.x * gBulge.x + gZeit * gBulge.z) * gBulge.y);
-    }
-)");
-
-    // deformVertexes move - der Versatz kommt fertig aus gpuconst.cpp.
-    wenn(s, features, kDeformMove, "    welt += gDeformMove.xyz;\n");
 
     // autosprite: die Ecke zur Kamera drehen. Nur 34 Vorkommen in allen 43
     // Karten, aber ohne sie stehen Flammen und Rauchfahnen quer.

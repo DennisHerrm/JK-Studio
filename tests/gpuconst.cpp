@@ -345,12 +345,15 @@ int main() {
         bs.deformWave.phase = 3.0F;
         bs.deformWave.frequency = 4.0F;
         bs.deformSpread = 0.4F;
-        packeKonstanten(bs, buf.data(), 0.0F);
+        packeKonstanten(bs, buf.data(), 1.25F);
         erwarte("base bei +0", buf[kDeformAt + 0] == 1.0F);
         erwarte("amplitude bei +1", buf[kDeformAt + 1] == 2.0F);
         erwarte("phase bei +2", buf[kDeformAt + 2] == 3.0F);
-        erwarte("frequency bei +3", buf[kDeformAt + 3] == 4.0F);
+        // FIX5: floatTime * frequency (fuer alle Ecken dasselbe Produkt, gpu::verformung)
+        erwarte("floatTime * frequency bei +3", buf[kDeformAt + 3] == 1.25F * 4.0F);
         erwarte("spread dahinter bei 20", buf[kDeformSpreadAt] == 0.4F);
+        erwarte("FIX5: die Tafel (sin = 1) bei 23", buf[kDeformArtAt] == 1.0F);
+        erwarte("FIX5: die Folge (nur wave) in gDeformMove.w", buf[kDeformMoveAt + 3] == 1.0F);
     }
     {
         // Ohne Welle darf nichts stehenbleiben.

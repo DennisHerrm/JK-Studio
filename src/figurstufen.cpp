@@ -102,8 +102,9 @@ void figurUmgebungsUV(const float nLokal[3], const float zumAugeLokal[3], float 
     uv[1] = static_cast<float>(static_cast<double>(nLokal[1] * d) - 0.5 * static_cast<double>(v[1]));
 }
 
+// FIX5: RB_CalcWaveAlpha - geklemmt und als Byte wie im Spiel (waveFarbe, wave.h)
 float figurWelle(const Wave& w, float zeitSekunden) {
-    return std::clamp(waveValue(w, zeitSekunden), 0.0F, 1.0F);
+    return waveFarbe(w, zeitSekunden);
 }
 
 // rc604: siehe bhed/figurstufen.h.

@@ -392,22 +392,44 @@ enum class AlphaGen : std::uint8_t {
 //                aus Licht. 98 Vorkommen in den pk3.
 //   bulge        Beulen laufen entlang der Texturkoordinate s
 //                (RB_CalcBulgeVertexes):
-//                    xyz += normal * sin(s * breite + t * tempo) * hoehe
+//                    xyz += normal * sinTable[(int)(1024 / 2pi * (s * breite
+//                           + refdef.time * tempo * 0.001))] * hoehe
 //   move         die ganze Flaeche verschiebt sich um vektor * Welle
 //                (RB_CalcMoveVertexes)
 //   normal       nur die Normalen wackeln (RB_CalcDeformNormals) - sichtbar
-//                an tcGen environment. Die Engine nimmt Wertrauschen aus
-//                einer Zufallstabelle; der Shader nimmt Wertrauschen aus
-//                einer Streufunktion - dieselbe Art, andere Zufallszahlen.
+//                an tcGen environment. FIX5: mit R_NoiseGet4f und der
+//                Zufallstafel des Spiels (wave.h rauschen4), vorher eine
+//                Streufunktion.
+//
+// FIX5: Die Engine wendet die deformVertexes in der Reihenfolge des Shaders
+// an (RB_DeformTessGeometry, tr_shade_calc.cpp:553) - eine Welle nach
+// "normal" wandert entlang der gewackelten Normalen. `folge` haelt diese
+// Reihenfolge (wave steht in ShaderInfo::deformWave, zaehlt hier mit).
+inline constexpr std::uint8_t kFolgeWelle = 1;
+inline constexpr std::uint8_t kFolgeNormal = 2;
+inline constexpr std::uint8_t kFolgeBeule = 3;
+inline constexpr std::uint8_t kFolgeWeg = 4;
 struct DeformZusatz {
     bool autosprite2 = false;
     float bulge[3]{};      // breite, hoehe, tempo - hoehe 0 heisst keine
     float move[3]{};       // Richtung, die Laenge zaehlt mit
     Wave moveWave;
     float normal[2]{};     // amplitude, frequenz - amplitude 0 heisst keins
+    // FIX5: je Platz 0 (leer) oder kFolgeWelle ... kFolgeWeg; jede Art einmal, an ihrer ersten Stelle (eine zweite Zeile
+    // derselben Art ersetzt hier nur die Werte). Leer: wave, normal, bulge, move.
+    std::uint8_t folge[4]{};
 
     [[nodiscard]] bool bulgeAn() const noexcept { return bulge[1] != 0.0F; }
     [[nodiscard]] bool normalAn() const noexcept { return normal[0] != 0.0F; }
+    void merkeFolge(std::uint8_t art) noexcept {
+        for (std::uint8_t& f : folge) {
+            if (f == art) { return; }
+            if (f == 0U) {
+                f = art;
+                return;
+            }
+        }
+    }
 };
 
 // --- surfaceSprites: Gras, Buesche, Blumen, Regenspritzer (rc604) ----------

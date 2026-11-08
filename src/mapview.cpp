@@ -500,7 +500,8 @@ void batchStateAus(const TextureSet::Tex& t, float zeitSekunden,
         bs.haveRgbConst = true;
     }
     if (t.rgbWave.active()) {
-        bs.rgbGlow = std::clamp(waveValue(t.rgbWave, zeitSekunden), 0.0F, 1.0F);
+        // FIX5: RB_CalcWaveColor - geklemmt, als Byte (Q_ftol(255 * glow)) wie im Spiel (waveFarbe)
+        bs.rgbGlow = waveFarbe(t.rgbWave, zeitSekunden);
         bs.haveRgbWave = true;
     }
     // Der Himmel braucht den ganzen Satz, weil die sechs Seiten ueber ihn
@@ -527,9 +528,9 @@ void batchStateAus(const TextureSet::Tex& t, float zeitSekunden,
         bs.tcGenVec[k] = t.tcGenVec[k];
     }
     bs.alphaConst = t.alphaConst;
-    // alphaGen wave (rc592): RB_CalcWaveAlpha - EvalWaveFormClamped.
+    // alphaGen wave (rc592): RB_CalcWaveAlpha - EvalWaveFormClamped, FIX5 als Byte (v = 255 * glow) wie im Spiel.
     if (t.alphaWave.active()) {
-        bs.alphaConst = std::clamp(waveValue(t.alphaWave, zeitSekunden), 0.0F, 1.0F);
+        bs.alphaConst = waveFarbe(t.alphaWave, zeitSekunden);
     }
     bs.depthWrite = t.depthWrite;
     bs.autosprite = t.autosprite;

@@ -932,12 +932,12 @@ void stufeJetzt(const SpielStufe& w, double zeit, kartegpu::Zustand3& z, bool fa
     gpu::tcKetteLegen(gpu::tcKette(w.texMods, w.numTexMods, t), z.tcVorn, z.tcHinten);
     if (!farbeAuch) { return; }
     // ComputeColors: rgbGen wave (RB_CalcWaveColor) ersetzt die Farbe, auf 0..1 geklemmt; alphaGen wave (RB_CalcWaveAlpha,
-    // EvalWaveFormClamped) - wie die Vorschau (mapview.cpp batchStateAus)
+    // EvalWaveFormClamped) - wie die Vorschau (mapview.cpp batchStateAus), FIX5 als Byte wie im Spiel (waveFarbe)
     if (w.rgbWave.active()) {
-        const float g = std::clamp(waveValue(w.rgbWave, t), 0.0F, 1.0F);
+        const float g = waveFarbe(w.rgbWave, t);
         z.farbe[0] = z.farbe[1] = z.farbe[2] = g;
     }
-    if (w.alphaWave.active()) { z.farbe[3] = std::clamp(waveValue(w.alphaWave, t), 0.0F, 1.0F); }
+    if (w.alphaWave.active()) { z.farbe[3] = waveFarbe(w.alphaWave, t); }
 }
 
 namespace {

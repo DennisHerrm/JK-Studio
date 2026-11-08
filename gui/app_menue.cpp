@@ -1942,7 +1942,7 @@ bool zeichneShaderStufen(ImDrawList* dl, const std::string& shaderName, ImVec2 a
                 for (int k = 0; k < 3; ++k) { rgb[k] = s.rgbConst[k]; }
                 break;
             case RgbGenArt::Wave: {
-                const float w = std::clamp(waveValue(s.rgbWave, zeit), 0.0F, 1.0F);
+                const float w = waveFarbe(s.rgbWave, zeit);   // FIX5: RB_CalcWaveColor, Byte wie im Spiel
                 rgb[0] = rgb[1] = rgb[2] = w;
                 break;
             }
@@ -1954,7 +1954,7 @@ bool zeichneShaderStufen(ImDrawList* dl, const std::string& shaderName, ImVec2 a
         else if (s.alphaGen == AlphaGen::Vertex || (s.alphaGen == AlphaGen::FromImage && s.rgbArt == RgbGenArt::Vertex)) {
             alpha = p.farbe.a;   // rgbGen vertex setzt ohne alphaGen AGEN_VERTEX
         } else if (s.alphaGen == AlphaGen::OneMinusVertex) { alpha = 1 - p.farbe.a; }
-        if (s.alphaWave.active()) { alpha = std::clamp(waveValue(s.alphaWave, zeit), 0.0F, 1.0F); }
+        if (s.alphaWave.active()) { alpha = waveFarbe(s.alphaWave, zeit); }   // FIX5: RB_CalcWaveAlpha
         // tcMod: dieselbe Kette wie die Karte (gpu::tcKette, FIX4 P33 je Schritt); turb wie bisher aussen vor
         const gpu::TcKette kette = gpu::tcKette(s.texMods, std::min(s.numTexMods, kMaxTexMods), zeit);
         ImVec2 uv[4];

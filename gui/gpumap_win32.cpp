@@ -254,7 +254,7 @@ int g_figurGluehen = 0;             // Aufrufe in diesem Bild
 // der Ring voll ist. Ohne D3D11.1 (oder ohne die beiden Merkmale) bleibt
 // der alte Weg.
 // rc604: die Werte einer Figurstufe in b3 (JeStufe) - 13 float4.
-constexpr UINT kStufeFloats = 72;   // FIX4 P33: + gStufeTcM1..3, gStufeTcO23, gStufeTcArt (die tcMod-Kette je Schritt)
+constexpr UINT kStufeFloats = 68;   // FIX4 P33: + gStufeTcM1..3, gStufeTcO23, gStufeTcArt; FIX5: deformVertexes vier statt fuenf float4
 constexpr UINT kRingEintrag = 256;              // 16 Konstanten, die Teilung von *SetConstantBuffers1
 // FIX3: eine Figurenstufe belegt im Ring so viele Eintraege, wie ihre kStufeFloats brauchen (72 float: zwei)
 constexpr UINT kStufeRingEintraege = (kStufeFloats * 4U + kRingEintrag - 1U) / kRingEintrag;
@@ -737,7 +737,7 @@ void pruefeStapelLagen(ID3DBlob* vsBlob) {
                              {"gRgb", kRgbAt}, {"gAlphaSchwelle", kAlphaAt},
                              {"gDeform", kDeformAt}, {"gDeformSpread", kDeformSpreadAt},
                              {"gWolkenHoehe", kWolkenAt}, {"gPortalWeite", kPortalWeiteAt},
-                             {"gDeformMove", kDeformMoveAt}, {"gBulge", kBulgeAt},
+                             {"gDeformArt", kDeformArtAt}, {"gDeformMove", kDeformMoveAt}, {"gBulge", kBulgeAt},
                              {"gDeformNormal", kDeformNormalAt},
                              {"gTcGenS", kTcGenSAt}, {"gTcGenT", kTcGenTAt}, {"gTcM1", kTcM1At},
                              {"gTcM2", kTcM2At}, {"gTcM3", kTcM3At}, {"gTcO23", kTcO23At}, {"gTcArt", kTcArtAt}};
@@ -4909,46 +4909,17 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                 packeKonstanten(batchStateFor(tex, zeitS), k, zeitS);
                 sd[3] = 1.0F;
                 for (int q = 0; q < 8; ++q) { sd[24 + q] = k[q]; }
-                // FIX4 P33: [52..71] gStufeTcM1..3, gStufeTcO23, gStufeTcArt - im Stapelblock am Stueck ab kTcM1At
-                for (std::size_t q = 0; q < 20; ++q) { sd[52 + q] = k[kTcM1At + q]; }
+                // FIX4 P33: [48..67] gStufeTcM1..3, gStufeTcO23, gStufeTcArt - im Stapelblock am Stueck ab kTcM1At
+                for (std::size_t q = 0; q < 20; ++q) { sd[48 + q] = k[kTcM1At + q]; }
             };
-            // rc604: deformVertexes des Shaders (RB_DeformTessGeometry,
-            // code/rd-vanilla/tr_shade_calc.cpp OpenJK) - [32..35] wave base,
-            // amplitude, phase, frequency; [36] deformationSpread, [37] Tabelle
-            // (WaveFunc), [38] an; [40..42] bulge width, height, speed, [43]
-            // Tabelle der move-Welle; [44..46] moveVector, [47] refdef.floatTime;
-            // [48..51] die move-Welle. noise (RB_CalcDeformNormals) und die
-            // autosprites bleiben aussen vor.
+            // rc604: deformVertexes des Shaders (RB_DeformTessGeometry, code/rd-vanilla/tr_shade_calc.cpp OpenJK). FIX5: [32..47]
+            // gDef0..3 aus gpu::verformung, dieselben Werte und dieselbe Rechnung (verformeEcke) wie an der Karte - wave, normal, bulge,
+            // move in der Reihenfolge des Shaders; die autosprites bleiben aussen vor. Zeit der Stufe: refdef.floatTime.
             auto deformWerte = [&](const TextureSet::Tex& tex, float* sd) {
                 if (g_figurDeformAus) { return; }
-                bool an = false;
-                const Wave& w = tex.deformWave;
-                if (w.active() && w.func != WaveFunc::Noise) {
-                    sd[32] = w.base;
-                    sd[33] = w.amplitude;
-                    sd[34] = w.phase;
-                    sd[35] = w.frequency;
-                    sd[36] = tex.deformSpread;
-                    sd[37] = static_cast<float>(w.func);
-                    an = true;
-                }
-                if (tex.deform2.bulgeAn()) {
-                    for (int q = 0; q < 3; ++q) { sd[40 + q] = tex.deform2.bulge[q]; }
-                    an = true;
-                }
-                const Wave& mw = tex.deform2.moveWave;
-                if (mw.active() && mw.func != WaveFunc::Noise) {
-                    for (int q = 0; q < 3; ++q) { sd[44 + q] = tex.deform2.move[q]; }
-                    sd[43] = static_cast<float>(mw.func);
-                    sd[48] = mw.base;
-                    sd[49] = mw.amplitude;
-                    sd[50] = mw.phase;
-                    sd[51] = mw.frequency;
-                    an = true;
-                }
-                if (!an) { return; }
-                sd[38] = 1.0F;
-                sd[47] = static_cast<float>(zeitS);
+                const Verformung v = verformung(tex.deformWave, tex.deformSpread, tex.deform2, zeitS);
+                if (!v.an) { return; }
+                std::copy(v.d, v.d + 16, sd + 32);
                 ++g_figurDeformAufrufe;
             };
             // --- rc603: der schnelle Stufenweg ------------------------------

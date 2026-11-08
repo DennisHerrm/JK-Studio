@@ -84,12 +84,16 @@ inline constexpr std::size_t kDeformSpreadAt = kDeformAt + 4U;  // 20
 inline constexpr std::size_t kWolkenAt = kDeformSpreadAt + 1U;  // 21
 // Die Weite aus alphaGen portal (rc593), gleich dahinter.
 inline constexpr std::size_t kPortalWeiteAt = kWolkenAt + 1U;  // 22
+// FIX5: die Tafel der Welle von deformVertexes wave (gDeformArt, siehe Verformung), im Rest desselben Viererblocks.
+inline constexpr std::size_t kDeformArtAt = kPortalWeiteAt + 1U;  // 23
 // Die Stellung eines Movers steht NICHT hier: sie wird vor dem Zeichnen in
 // die Kameramatrix multipliziert (siehe gpushader.cpp). Eine eigene Matrix
 // im Stapelpuffer hatte 16 Felder gekostet und ein Bild erzeugt, in dem alle
 // Ecken in einen Punkt liefen.
 // rc592: deformVertexes move (Versatz, auf der CPU aus der Welle), bulge
 // (breite, hoehe, tempo) und normal (amplitude, frequenz) - je ein float4.
+// FIX5: so belegt, wie `Verformung` es beschreibt (gDeformMove.w die Folge,
+// gBulge.w now, gDeformNormal amplitude und floatTime * frequency).
 inline constexpr std::size_t kDeformMoveAt = kDeformSpreadAt + 4U;    // 24
 inline constexpr std::size_t kBulgeAt = kDeformMoveAt + 4U;           // 28
 inline constexpr std::size_t kDeformNormalAt = kBulgeAt + 4U;         // 32
@@ -144,6 +148,25 @@ void tcKetteLegen(const TcKette& k, float vorn[8], float hinten[20]);
 void tcKetteOhneTurb(const TcKette& k, float st[2]);
 // FIX2 P16: tr.sinTable[i & 1023] (R_InitFuncTables, code/rd-vanilla/tr_init.cpp:1727)
 [[nodiscard]] float sinTafel(int i);
+
+// FIX5: die deformVertexes eines Shaders (wave, normal, bulge, move) zur Zeit `zeitSekunden`, so gepackt, wie die Shader sie lesen
+// (verformeEcke, gpushader.cpp; Karte und Figurenstufe gleich). Je Ecke rechnet der Shader wie RB_DeformTessGeometry
+// (code/rd-vanilla/tr_shade_calc.cpp:553, MD9 gleich) in der Reihenfolge des Shaders; was fuer alle Ecken gleich ist, rechnet die
+// CPU hier in float wie das Spiel:
+//
+//   d0  wave: base, amplitude, phase, floatTime * frequency - bei frequency 0 steht in .x EvalWaveForm (RB_CalcDeformVertexes
+//       nimmt dann fuer alle Ecken diesen Wert, auch noise und random)
+//   d1  wave: deformationSpread, Tafel (0 = der feste Wert aus .x, sonst WaveFunc sin ... inversesawtooth);
+//       normal: amplitude, floatTime * frequency (RB_CalcDeformNormals)
+//   d2  bulge: width, height, speed, now = refdef.time * speed * 0.001f (RB_CalcBulgeVertexes, ganze ms)
+//   d3  move: moveVector * WAVEVALUE (RB_CalcMoveVertexes); .w die Folge: je drei Bit kFolgeWelle ... kFolgeWeg
+//
+// wave mit frequency ungleich 0 und move mit noise/random bleiben weg: TableForFunc bricht dort im Spiel mit ERR_DROP ab.
+struct Verformung {
+    float d[16]{};
+    bool an = false;
+};
+[[nodiscard]] Verformung verformung(const Wave& welle, float spread, const DeformZusatz& zusatz, float zeitSekunden);
 
 }  // namespace bhed::gpu
 

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 
 #include "bhed/wave.h"
 
@@ -15,13 +16,9 @@ namespace bhed::gpu {
 // kuerzt so, damit die Koordinaten nicht unbegrenzt wachsen.
 float kuerze(float x) { return x - std::floor(x); }
 
-// FIX2 P16: tr.sinTable (R_InitFuncTables, code/rd-vanilla/tr_init.cpp:1727): sin(DEG2RAD(i * 360.0f / ((float)(FUNCTABLE_SIZE - 1)))).
-// FIX4 P33: alles in float wie dort - DEG2RAD mit PI_DIV_180 als float (shared/qcommon/q_math.h:85-88), sin ueber die
-// float-Ueberladung aus <cmath> (code/qcommon/q_shared.h:120), also sinf; vorher in double mit genauem pi (580 von 1024 Eintraegen
-// um eine float-Stelle daneben).
-float sinTafel(int i) {
-    return std::sin(static_cast<float>(i & 1023) * 360.0F / static_cast<float>(1024 - 1) * 0.017453292519943295769236907684886F);
-}
+// FIX2 P16: tr.sinTable (R_InitFuncTables, code/rd-vanilla/tr_init.cpp:1727). FIX4 P33: alles in float wie dort. FIX5: die Tafeln
+// stehen in wave.cpp (funcTafel), fuer WAVEVALUE und die Shader dieselben.
+float sinTafel(int i) { return funcTafel(WaveFunc::Sin, i); }
 
 TcKette tcKette(const TexMod* mods, int anzahl, float zeitSekunden) {
     TcKette k;
@@ -89,6 +86,73 @@ TcKette tcKette(const TexMod* mods, int anzahl, float zeitSekunden) {
         }
     }
     return k;
+}
+
+Verformung verformung(const Wave& welle, float spread, const DeformZusatz& zusatz, float zeitSekunden) {
+    Verformung v;
+    const bool welleAn = welle.active() && (welle.frequency == 0.0F || welle.mitTafel());
+    const bool wegAn = zusatz.moveWave.mitTafel();
+    const auto dabei = [&](std::uint8_t art) {
+        switch (art) {
+            case kFolgeWelle: return welleAn;
+            case kFolgeNormal: return zusatz.normalAn();
+            case kFolgeBeule: return zusatz.bulgeAn();
+            case kFolgeWeg: return wegAn;
+            default: return false;
+        }
+    };
+    // Die Folge: wie im Shader, sonst (ohne Folge, z. B. von Hand gebaute Zustaende) wave, normal, bulge, move
+    std::uint8_t folge[4] = {zusatz.folge[0], zusatz.folge[1], zusatz.folge[2], zusatz.folge[3]};
+    if (folge[0] == 0U) {
+        folge[0] = kFolgeWelle;
+        folge[1] = kFolgeNormal;
+        folge[2] = kFolgeBeule;
+        folge[3] = kFolgeWeg;
+    }
+    std::uint32_t code = 0;
+    int platz = 0;
+    for (const std::uint8_t art : folge) {
+        if (dabei(art)) {
+            code |= static_cast<std::uint32_t>(art) << (3 * platz);
+            ++platz;
+        }
+    }
+    if (code == 0U) { return v; }
+    v.an = true;
+    if (welleAn) {
+        // RB_CalcDeformVertexes (tr_shade_calc.cpp:129): frequency 0 -> EvalWaveForm fuer alle Ecken, sonst WAVEVALUE mit
+        // phase + off je Ecke; floatTime * frequency ist fuer alle Ecken dasselbe Produkt in float
+        if (welle.frequency == 0.0F) {
+            v.d[0] = waveValue(welle, zeitSekunden);
+            v.d[5] = 0.0F;
+        } else {
+            v.d[0] = welle.base;
+            v.d[1] = welle.amplitude;
+            v.d[2] = welle.phase;
+            v.d[3] = zeitSekunden * welle.frequency;
+            v.d[5] = static_cast<float>(welle.func);
+        }
+        v.d[4] = spread;
+    }
+    if (zusatz.normalAn()) {
+        // RB_CalcDeformNormals (:182): amplitude, floatTime * frequency
+        v.d[6] = zusatz.normal[0];
+        v.d[7] = zeitSekunden * zusatz.normal[1];
+    }
+    if (zusatz.bulgeAn()) {
+        // RB_CalcBulgeVertexes (:216): now = backEnd.refdef.time * bulgeSpeed * 0.001f - refdef.time ist int (ms)
+        v.d[8] = zusatz.bulge[0];
+        v.d[9] = zusatz.bulge[1];
+        v.d[10] = zusatz.bulge[2];
+        v.d[11] = static_cast<float>(spielZeitMs(zeitSekunden)) * zusatz.bulge[2] * 0.001F;
+    }
+    if (wegAn) {
+        // RB_CalcMoveVertexes (:263): VectorScale(moveVector, WAVEVALUE, offset) - fuer alle Ecken derselbe Versatz
+        const float w = waveValue(zusatz.moveWave, zeitSekunden);
+        for (int k = 0; k < 3; ++k) { v.d[12 + k] = zusatz.move[k] * w; }
+    }
+    v.d[15] = static_cast<float>(code);
+    return v;
 }
 
 void tcKetteLegen(const TcKette& k, float vorn[8], float hinten[20]) {
@@ -183,35 +247,20 @@ void packeKonstanten(const BatchState& bs, float* ziel,
 
     // --- deformVertexes ---------------------------------------------------
     //
-    // Vier Werte in EINEM float4 (gDeform), der Spread gleich dahinter.
-    // Frueher ein `float gDeform[4]` mit Schritt vier - und der Spread lag
-    // dabei nicht, wo er hier hingeschrieben wurde (siehe gpuconst.h).
-    if (bs.deformWave.active()) {
-        ziel[kDeformAt + 0] = bs.deformWave.base;
-        ziel[kDeformAt + 1] = bs.deformWave.amplitude;
-        ziel[kDeformAt + 2] = bs.deformWave.phase;
-        ziel[kDeformAt + 3] = bs.deformWave.frequency;
-        ziel[kDeformSpreadAt] = bs.deformSpread;
+    // FIX5: wave, normal, bulge und move wie RB_DeformTessGeometry - die Werte aus `verformung` (gpuconst.h), verteilt auf die
+    // Felder, die es seit rc592 gibt: d0 gDeform, d1 gDeformSpread/gDeformArt/gDeformNormal.xy, d2 gBulge, d3 gDeformMove.
+    {
+        const Verformung v = verformung(bs.deformWave, bs.deformSpread, bs.deform2, zeitSekunden);
+        std::copy(v.d, v.d + 4, ziel + kDeformAt);
+        ziel[kDeformSpreadAt] = v.d[4];
+        ziel[kDeformArtAt] = v.d[5];
+        ziel[kDeformNormalAt + 0] = v.d[6];
+        ziel[kDeformNormalAt + 1] = v.d[7];
+        std::copy(v.d + 8, v.d + 12, ziel + kBulgeAt);
+        std::copy(v.d + 12, v.d + 16, ziel + kDeformMoveAt);
     }
     ziel[kWolkenAt] = bs.wolkenHoehe;
     ziel[kPortalWeiteAt] = bs.portalWeite;
-    // move: RB_CalcMoveVertexes - der Versatz ist fuer alle Ecken gleich,
-    // also hier einmal gerechnet statt in jeder Ecke.
-    if (bs.deform2.moveWave.active()) {
-        const float w = waveValue(bs.deform2.moveWave, zeitSekunden);
-        for (int k = 0; k < 3; ++k) {
-            ziel[kDeformMoveAt + static_cast<std::size_t>(k)] = bs.deform2.move[k] * w;
-        }
-    }
-    if (bs.deform2.bulgeAn()) {
-        for (int k = 0; k < 3; ++k) {
-            ziel[kBulgeAt + static_cast<std::size_t>(k)] = bs.deform2.bulge[k];
-        }
-    }
-    if (bs.deform2.normalAn()) {
-        ziel[kDeformNormalAt + 0] = bs.deform2.normal[0];
-        ziel[kDeformNormalAt + 1] = bs.deform2.normal[1];
-    }
     // rc605: tcGen vector (ComputeTexCoords TCGEN_VECTOR, tr_shade.cpp:1675-1680 MD).
     if (bs.texGen == TexGen::Vector) {
         for (int k = 0; k < 3; ++k) {

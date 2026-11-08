@@ -68,16 +68,17 @@ int main() {
                                                                          nebelPixelShaderHlsl().find("floor(255.0 * sqrt(floor(s * 255.0) / 255.0)) / 255.0") != std::string::npos);
 
     // --- Jedes Merkmal, in beide Richtungen ------------------------------
-    beideRichtungen("deformVertexes", kDeform, "ein.normal * w", true);
+    // FIX5: alle deformVertexes ueber verformeEcke (RB_DeformTessGeometry je Ecke, Tafeln des Spiels)
+    beideRichtungen("deformVertexes", kDeform, "welt = verformeEcke(welt, nrm, ein.uv,", true);
     // Wie AutospriteDeform: entlang der Kameraachsen, Richtung und Radius
     // aus der Normalen (baueAutosprites beim Hochladen).
     beideRichtungen("autosprite", kAutosprite, "links * ein.normal.x + gHoch * ein.normal.y", true);
     beideRichtungen("tcGen environment", kTexGenEnv, "nrm.x * d - 0.5 * v.x", true);
     // rc592: die uebrigen deformVertexes-Formen (RB_DeformTessGeometry).
     beideRichtungen("autosprite2", kAutosprite2, "cross(ein.normal, gVorn)", true);
-    beideRichtungen("deformVertexes bulge", kBulge, "sin(ein.uv.x * gBulge.x", true);
-    beideRichtungen("deformVertexes move", kDeformMove, "welt += gDeformMove.xyz", true);
-    beideRichtungen("deformVertexes normal", kDeformNormal, "rausch4(", true);
+    beideRichtungen("deformVertexes bulge", kBulge, "welt = verformeEcke(welt, nrm, ein.uv,", true);
+    beideRichtungen("deformVertexes move", kDeformMove, "welt = verformeEcke(welt, nrm, ein.uv,", true);
+    beideRichtungen("deformVertexes normal", kDeformNormal, "welt = verformeEcke(welt, nrm, ein.uv,", true);
     // Wolkenschicht (R_InitSkyTexCoords): Kuppel mit Radius 4096.
     beideRichtungen("Wolkenschicht", kWolke, "float h = gWolkenHoehe;", false);
     // rc608 Teil 7: Stufe 0 und halber Texel am Rand, sonst eine Haarlinie an der Kante zweier Himmelsseiten.
@@ -333,22 +334,19 @@ int main() {
         erwarte("bei beiden Bits steht die Zeile genau einmal", n == 1);
     }
 
-    // --- Die Phase wird VOR dem Sinus gekuerzt ---------------------------
+    // --- Die Welle aus der Tafel des Spiels (FIX5) ------------------------
     //
-    // `waveValue` im Rasterer: t = fraction(phase + zeit*freq), dann
-    // shape(func, t). Der Shader warf den vollen Wert in den Sinus.
-    //
-    // An der Lavaflaeche von md_am_sith erreicht das Argument rund 630
-    // (Ausdehnung 7168 x 9456 x 2078, deformSpread 1/180). Der Abstand
-    // zweier benachbarter Ecken betraegt dort 0,053 Wellen - eine gut
-    // darstellbare Welle, die aber nicht ueberlebt, wenn sie aus einem
-    // Argument von 630 herausgerechnet werden muss.
+    // Bis FIX5 kuerzte der Shader die Phase mit frac() und nahm sin(t * 2 pi) der Grafikkarte - fuer jede Form ein Sinus.
+    // RB_CalcDeformVertexes nimmt WAVEVALUE: der Index Q_ftol((phase + off + floatTime * freq) * 1024) & 1023 in float, der Wert
+    // aus der Tafel der Form (an der Lavaflaeche von md_am_sith mit einem Argument um 630 so grob wie im Spiel). Bitgleich geprueft
+    // in tests/defgpu.cpp; hier nur, dass der Text diesen Weg nimmt.
     {
         const std::string d = vertexShaderHlsl(kDeform, 0);
-        erwarte("deformVertexes kuerzt die Phase vor dem Sinus",
-                d.find("frac(gDeform[2] + off") != std::string::npos);
-        erwarte("und wirft nicht mehr den vollen Wert hinein",
-                d.find("sin((gDeform[2] + off") == std::string::npos);
+        erwarte("deformVertexes: Index wie Q_ftol & 1023, Wert aus der Tafel",
+                d.find("precise float x = (p + w.w) * 1024.0;") != std::string::npos &&
+                    d.find("funcTafel(art, funcIndex(x))") != std::string::npos);
+        erwarte("und kein sin der Grafikkarte mehr",
+                d.find("sin(t * 6.2831853)") == std::string::npos && d.find("frac(gDeform[2]") == std::string::npos);
 
         // turb: FIX4 P33 der Index wie (int)(double) & FUNCTABLE_MASK (turbIndex), der Wert aus der Tafel des Spiels
         const std::string t = vertexShaderHlsl(kTexMod, 1);

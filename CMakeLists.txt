@@ -785,7 +785,7 @@ if(BEHAVED_TESTS)
   # Die Proben des GPU-Wegs und des Gluehens. Sie lagen in tests/, wurden
   # aber nicht gebaut - Aenderungen an Konstantenlagen, Shadertext und
   # Zeichenliste liefen damit ungeprueft durch (rc568, gDeformSpread).
-  foreach(t gpuconst gpudraw gpushader gpustate gpucam gpuskin efxtest ersetzen mover leiche schmerz himmelbox arbeiter saberkontakt saberspuren npcklasse kartenpruefung figurstufen grasflaechen fenster tabfenster)
+  foreach(t gpuconst gpudraw gpushader gpustate gpucam gpuskin wavetest efxtest ersetzen mover leiche schmerz himmelbox arbeiter saberkontakt saberspuren npcklasse kartenpruefung figurstufen grasflaechen fenster tabfenster)
     add_executable(${t}_probe tests/${t}.cpp)
     target_link_libraries(${t}_probe PRIVATE bhed_core)
     add_test(NAME ${t} COMMAND ${t}_probe)
@@ -799,6 +799,10 @@ if(BEHAVED_TESTS)
     add_executable(turbgpu_probe tests/turbgpu.cpp)
     target_link_libraries(turbgpu_probe PRIVATE bhed_core d3d11 d3dcompiler)
     add_test(NAME turbgpu COMMAND turbgpu_probe)
+    # FIX5: deformVertexes (wave, normal, bulge, move) der Karte und der Figuren als Compute-Shader gegen rd-vanilla, bitgleich
+    add_executable(defgpu_probe tests/defgpu.cpp)
+    target_link_libraries(defgpu_probe PRIVATE bhed_core d3d11 d3dcompiler)
+    add_test(NAME defgpu COMMAND defgpu_probe)
   endif()
   # Alle Modelle und Karten der Spielordner laden und pruefen (lange Probe).
   # Ohne Ordner meldet sie "uebersprungen". Setzen mit:
