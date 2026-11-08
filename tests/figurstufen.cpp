@@ -100,8 +100,9 @@ int main() {
         pruefe(ch[2].glow && ch[2].farbe == FigurFarbe::Schwarz && ch[2].alpha == FigurAlpha::Fest &&
                    nah(ch[2].a, 0.25F),
                "glow, oneMinusEntity (schwarz), alphaGen const 0.25");
-        pruefe(nah(figurWelle(ch[1].rgbWelle, 0.25F), 1.0F) && nah(figurWelle(ch[1].rgbWelle, 0.0F), 0.5F),
-               "rgbGen wave sin 0.5 0.5 0 1: 0.5 bei 0 s, 1.0 bei 0.25 s");
+        // FIX5: wie RB_CalcWaveColor - sinTable[256] (knapp unter 1), als Byte: 0,5 -> 127/255, 0,99999 -> 254/255
+        pruefe(figurWelle(ch[1].rgbWelle, 0.25F) == 254.0F / 255.0F && figurWelle(ch[1].rgbWelle, 0.0F) == 127.0F / 255.0F,
+               "rgbGen wave sin 0.5 0.5 0 1: 127/255 bei 0 s, 254/255 bei 0.25 s (Byte wie im Spiel)");
     }
     // RB_CalcSpecularAlpha (tr_shade_calc.cpp:994 MD / 1046 OJ): Licht von
     // oben, Auge von oben. rc603 Durchsicht: ilength = Q_rsqrt(viewer.viewer)

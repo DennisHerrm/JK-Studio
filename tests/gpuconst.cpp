@@ -12,13 +12,18 @@
 // ist es eine Zahl, die man vergleichen kann.
 
 #include "bhed/gpuconst.h"
+#include "bhed/wave.h"
 
 #include "bhed/gpushader.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <cstdlib>
 #include <cstdio>
+#include <cstring>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -38,9 +43,21 @@ void erwarte(const char* was, bool ok) {
 
 // FIX2 P16: die tcMod-Kette wie rd-vanilla - ComputeTexCoords (code/rd-vanilla/tr_shade.cpp:1725ff) wendet jeden Schritt der
 // Reihe nach an, turb (RB_CalcTurbulentTexCoords, tr_shade_calc.cpp:936) und rotate (RB_CalcRotateTexCoords :1009) ueber
-// tr.sinTable (tr_init.cpp:1727: sin(DEG2RAD(i * 360 / (FUNCTABLE_SIZE - 1))), 1024 Eintraege, Index & FUNCTABLE_MASK).
+// tr.sinTable (tr_init.cpp:1727: sin(DEG2RAD(i * 360.0f / ((float)(FUNCTABLE_SIZE - 1)))), 1024 Eintraege, Index & FUNCTABLE_MASK).
+// FIX4 P33: alles in float wie dort - DEG2RAD mit PI_DIV_180 als float (shared/qcommon/q_math.h:85-88), sin ueber die
+// float-Ueberladung aus <cmath> (code/qcommon/q_shared.h:120) = sinf.
 float sinTab(int i) {
-    return static_cast<float>(std::sin(static_cast<double>(static_cast<float>(i & 1023) * 360.0F / 1023.0F) * 3.14159265358979323846 / 180.0));
+    return std::sin(static_cast<float>(i & 1023) * 360.0F / static_cast<float>(1024 - 1) * 0.017453292519943295769236907684886F);
+}
+// FIX4 P33: der Versatz EINES turb an einer Ecke wie RB_CalcTurbulentTexCoords (tr_shade_calc.cpp:948): p = x + z (float) bzw. y,
+// ((p * 1.0/128 * 0.125 + now) * FUNCTABLE_SIZE) in double, (int), & MASK, mal amplitude in float
+float spielTurb(float p, float now, float amp) { return sinTab(static_cast<int>((p * 1.0 / 128 * 0.125 + now) * 1024)) * amp; }
+bool bitgleich(float a, float b) {
+    std::uint32_t x = 0;
+    std::uint32_t y = 0;
+    std::memcpy(&x, &a, 4);
+    std::memcpy(&y, &b, 4);
+    return x == y;
 }
 void spielSt(const TexMod* m, int n, float zeit, const float xyz[3], float st[2]) {
     for (int k = 0; k < n; ++k) {
@@ -74,49 +91,86 @@ void spielSt(const TexMod* m, int n, float zeit, const float xyz[3], float st[2]
                 const float cs = sinTab(index + 1024 / 4);
                 const float s = st[0];
                 const float u = st[1];
-                st[0] = s * cs + u * -sn + (0.5F - 0.5F * cs + 0.5F * sn);
-                st[1] = s * sn + u * cs + (0.5F - 0.5F * sn - 0.5F * cs);
+                // tmi.translate in double gerechnet, als float abgelegt; RB_CalcTransformTexCoords (:997) s * m00 + t * m10 + tr
+                const auto tr0 = static_cast<float>(0.5 - 0.5 * cs + 0.5 * sn);
+                const auto tr1 = static_cast<float>(0.5 - 0.5 * sn - 0.5 * cs);
+                st[0] = s * cs + u * -sn + tr0;
+                st[1] = s * sn + u * cs + tr1;
+                break;
+            }
+            case TexModKind::Transform: {
+                const float s = st[0];
+                const float u = st[1];
+                st[0] = s * t.a[0] + u * t.a[2] + t.a[4];
+                st[1] = s * t.a[1] + u * t.a[3] + t.a[5];
                 break;
             }
             default: break;
         }
     }
 }
-// Was die Shader aus dem gepackten Block machen (gpushader.cpp kTexMod und turbVersatz; JeStufe und karte_gpu_win32.cpp stufeSt
-// lesen dieselben Werte): die Matrix und die Verschiebung, dazu FIX3 jeder turb an seinem Platz (der erste in gTexOffTurb.zw und
-// gTexTurbMat, der zweite bis vierte in gTurbQ23/gTurbQ4 und gTurbMat2..4) mit seinem Versatz am Ort
+// Der Shader (gpushader.cpp turbIndex), Zeile fuer Zeile in float; die Grafikkarte selbst prueft tests/turbgpu.cpp
+int shaderIndex(float p, float q) {
+    const float s = p + q;
+    const float b = s - p;
+    const float e = (p - (s - b)) + (q - b);
+    const float a = std::fabs(s);
+    const float ea = (s < 0.0F) ? -e : e;
+    if (!(a < 2147483648.0F)) { return 0; }
+    const float g = std::floor(a);
+    auto r = static_cast<std::uint32_t>(g);
+    if (a == g && a > 0.0F) {
+        const float f = std::floor(ea);
+        const float c = f + 1.0F;
+        std::uint32_t u = 0;
+        std::memcpy(&u, &a, 4);
+        const std::uint32_t h = ((u >> 23U) - ((((u & 0x7FFFFFU) == 0U) && (c <= 0.0F)) ? 54U : 53U)) << 23U;
+        float hf = 0.0F;
+        std::memcpy(&hf, &h, 4);
+        r += static_cast<std::uint32_t>(static_cast<int>((c - ea <= hf) ? c : f));
+        if (r >= 0x80000000U) { return 0; }
+    }
+    const auto i = static_cast<int>(r);
+    return ((s < 0.0F) ? -i : i) & 1023;
+}
+// Der Shader (gpushader.cpp turbVersatz): sinTable[index] * amp
+void shaderTurb(const float ort[2], float q, float amp, float v[2]) {
+    v[0] = sinTafel(shaderIndex(ort[0], q)) * amp;
+    v[1] = sinTafel(shaderIndex(ort[1], q)) * amp;
+}
+// Was die Shader aus dem gepackten Block machen (gpushader.cpp tcSchritt/tcKette; JeStufe und karte_gpu_win32.cpp stufeSt lesen
+// dieselben Werte): FIX4 P33 jeder Schritt der Reihe nach mit seiner Art aus gTcArt
 void shaderSt(const TexMod* m, int n, float zeit, const float xyz[3], float st[2]) {
     BatchState bs{};
     bs.numTexMods = n;
     for (int i = 0; i < n; ++i) { bs.texMods[i] = m[i]; }
     std::vector<float> k(kKonstFloats, 0.0F);
     packeKonstanten(bs, k.data(), zeit);
-    const float* mat = &k[kTexMatrixAt];
-    const float* off = &k[kTexOffTurbAt];
-    float s2[2] = {st[0] * mat[0] + (st[1] * mat[2] + off[0]), st[0] * mat[1] + (st[1] * mat[3] + off[1])};
     const float ort[2] = {xyz[0] + xyz[2], xyz[1]};
-    struct Turb {
-        float q;
-        float qr;
-        const float* ma;
-    };
-    const Turb turbs[4] = {{k[kTexOffTurbAt + 2], k[kTexOffTurbAt + 3], &k[kTexTurbMatAt]},
-                           {k[kTurbQ23At + 0], k[kTurbQ23At + 1], &k[kTurbMat2At]},
-                           {k[kTurbQ23At + 2], k[kTurbQ23At + 3], &k[kTurbMat2At + 4]},
-                           {k[kTurbQ4At + 0], k[kTurbQ4At + 1], &k[kTurbMat2At + 8]}};
-    for (const Turb& t : turbs) {
-        float tv[2];
-        for (int j = 0; j < 2; ++j) {
-            const float w = ort[j] + t.qr;
-            float f = std::floor(w);
-            if (ort[j] + t.q < 0.0F && w != f) { f += 1.0F; }
-            tv[j] = static_cast<float>(std::sin(static_cast<double>(static_cast<int>(f) & 1023) * (6.283185307179586 / 1023.0)));
+    const std::size_t mAt[4] = {kTcM0At, kTcM1At, kTcM2At, kTcM3At};
+    const std::size_t oAt[4] = {kTcO01At, kTcO01At + 2U, kTcO23At, kTcO23At + 2U};
+    for (int i = 0; i < 4; ++i) {
+        const float art = k[kTcArtAt + static_cast<std::size_t>(i)];
+        const float* mm = &k[mAt[i]];
+        const float* oo = &k[oAt[i]];
+        const float s = st[0];
+        const float t = st[1];
+        if (art == 1.0F) {
+            st[0] = s * mm[0] + t * mm[2] + oo[0];
+            st[1] = s * mm[1] + t * mm[3] + oo[1];
+        } else if (art == 2.0F) {
+            float v[2];
+            shaderTurb(ort, mm[0], mm[1], v);
+            st[0] = s + v[0];
+            st[1] = t + v[1];
+        } else if (art == 3.0F) {
+            st[0] = s * mm[0];
+            st[1] = t * mm[1];
+        } else if (art == 4.0F) {
+            st[0] = s + oo[0];
+            st[1] = t + oo[1];
         }
-        s2[0] += t.ma[0] * tv[0] + t.ma[2] * tv[1];
-        s2[1] += t.ma[1] * tv[0] + t.ma[3] * tv[1];
     }
-    st[0] = s2[0];
-    st[1] = s2[1];
 }
 
 }  // namespace
@@ -129,8 +183,8 @@ int main() {
     // Diese Zahlen stehen doppelt: hier und im cbuffer in gpushader.cpp.
     // Genau deshalb werden sie geprueft - eine Verschiebung faellt sonst
     // erst als schiefes Bild auf.
-    erwarte("gTexMatrix steht bei 0", kTexMatrixAt == 0U);
-    erwarte("gTexOffTurb steht bei 4", kTexOffTurbAt == 4U);
+    erwarte("gTcM0 steht bei 0", kTcM0At == 0U);
+    erwarte("gTcO01 steht bei 4", kTcO01At == 4U);
     erwarte("gRgb steht bei 8", kRgbAt == 8U);
     erwarte("gAlphaSchwelle steht bei 12", kAlphaAt == 12U);
     // Ein float4 beginnt auf einer Viererblockgrenze: nach
@@ -140,11 +194,10 @@ int main() {
     // bei 29 (D3DReflect), gerechnet war 32 - der Lavafall pulsierte nur.
     erwarte("gDeformSpread steht bei 20", kDeformSpreadAt == 20U);
     erwarte("gWolkenHoehe gleich dahinter bei 21", kWolkenAt == 21U);
-    // rc605: gTcGenS/gTcGenT; FIX2 P16: gTexTurbMat; FIX3: gTurbMat2..4, gTurbQ23 - genau ein Eintrag im Ring (256 Bytes)
+    // rc605: gTcGenS/gTcGenT; FIX4 P33: gTcM1..3, gTcO23, gTcArt (die tcMod-Kette je Schritt) - genau ein Eintrag im Ring (256 Bytes)
     erwarte("der Block ist 64 float gross", kKonstFloats == 64U);
-    erwarte("gTexTurbMat steht bei 44", kTexTurbMatAt == 44U);
-    erwarte("gTurbQ4 steht hinter gAlphaSchwelle bei 13 (FIX3)", kTurbQ4At == 13U);
-    erwarte("gTurbMat2 steht bei 48, gTurbQ23 bei 60 (FIX3)", kTurbMat2At == 48U && kTurbQ23At == 60U);
+    erwarte("gTcM1..3 stehen bei 44, 48, 52 (FIX4 P33)", kTcM1At == 44U && kTcM2At == 48U && kTcM3At == 52U);
+    erwarte("gTcO23 bei 56, gTcArt bei 60 (FIX4 P33)", kTcO23At == 56U && kTcArtAt == 60U);
     {
         // rc605: tcGen vector - die zwei Vektoren landen bei 36 und 40, der
         // Vertexshader rechnet st aus dem Ort.
@@ -184,10 +237,10 @@ int main() {
                 buf[kKonstFloats] == -99.0F);
     }
 
-    // --- Die tcMod-Kette wird zusammengerechnet --------------------------
+    // --- Die tcMod-Kette je Schritt (FIX4 P33) ------------------------------
     //
-    // Nach ComputeTexMods aus rd-rend2: alle Schritte ergeben EINE affine
-    // Abbildung, turb steht daneben.
+    // Wie rd-vanilla ComputeTexCoords: jeder Schritt mit seiner Art und den Werten, die das Spiel an seine Rechenfunktion gibt
+    // (bis FIX3 zusammengerechnet wie rend2).
     {
         BatchState bs;
         bs.numTexMods = 2;
@@ -200,30 +253,16 @@ int main() {
         bs.texMods[1].wave.phase = 1.0F;
         bs.texMods[1].wave.frequency = 0.1F;
         packeKonstanten(bs, buf.data(), 2.0F);
-
-        // scroll ist eine reine Verschiebung, gekuerzt auf [0,1):
-        // 0.25*2 = 0.5, 0.5*2 = 1.0 -> 0.0
-        erwarte("die Matrix bleibt die Einheitsmatrix",
-                buf[kTexMatrixAt + 0] == 1.0F && buf[kTexMatrixAt + 1] == 0.0F &&
-                buf[kTexMatrixAt + 2] == 0.0F && buf[kTexMatrixAt + 3] == 1.0F);
-        erwarte("scroll steht in der Verschiebung, gekuerzt",
-                buf[kTexOffTurbAt + 0] == 0.5F &&
-                buf[kTexOffTurbAt + 1] == 0.0F);
-        // FIX2 P16: die Amplitude steckt in gTexTurbMat (der lineare Teil hinter turb, hier die Einheit)
-        erwarte("turb steht daneben: Amplitude in gTexTurbMat",
-                buf[kTexTurbMatAt + 0] == 0.3F && buf[kTexTurbMatAt + 1] == 0.0F && buf[kTexTurbMatAt + 2] == 0.0F && buf[kTexTurbMatAt + 3] == 0.3F);
-        // now = phase + zeit * frequenz = 1.0 + 2.0*0.1 = 1.2
-        // FIX2 P16: .z = 1024 now = 1228,8, .w = 1024 now modulo 1024 = 204,8
-        erwarte("turb steht daneben: Phase mit der Zeit",
-                buf[kTexOffTurbAt + 2] > 1228.7F && buf[kTexOffTurbAt + 2] < 1228.9F && buf[kTexOffTurbAt + 3] > 204.7F && buf[kTexOffTurbAt + 3] < 204.9F);
+        erwarte("Arten: scroll, turb, keine, keine",
+                buf[kTcArtAt + 0] == kTcRoll && buf[kTcArtAt + 1] == kTcTurb && buf[kTcArtAt + 2] == kTcKeine && buf[kTcArtAt + 3] == kTcKeine);
+        // scroll gekuerzt auf [0,1): 0.25*2 = 0.5, 0.5*2 = 1.0 -> 0.0
+        erwarte("scroll steht in gTcO01.xy, gekuerzt", buf[kTcO01At + 0] == 0.5F && buf[kTcO01At + 1] == 0.0F);
+        // now = phase + zeit * frequenz = 1.0 + 2.0*0.1 = 1.2: 1024 now (in float wie now im Spiel) und Amplitude
+        erwarte("turb steht in gTcM1: 1024 now und Amplitude",
+                buf[kTcM1At + 0] == (1.0F + 2.0F * 0.1F) * 1024.0F && buf[kTcM1At + 1] == 0.3F);
     }
     {
-        // DER PUNKT DER GANZEN UMSTELLUNG: tcMod transform.
-        //
-        // Sechs Werte, die in keinen Viererblock passten - sie standen
-        // seit dem ersten Anlauf auf null (13 Vorkommen in 43 Karten,
-        // offener Punkt 5 der Uebergabe). Als affine Abbildung passen sie
-        // hinein wie jeder andere Schritt.
+        // tcMod transform: sechs Werte, bis rc442 auf null (13 Vorkommen in 43 Karten) - je Schritt mit Matrix und Verschiebung
         BatchState bs;
         bs.numTexMods = 1;
         bs.texMods[0].kind = TexModKind::Transform;
@@ -234,16 +273,11 @@ int main() {
         bs.texMods[0].a[4] = 6.0F;   // tx
         bs.texMods[0].a[5] = 7.0F;   // ty
         packeKonstanten(bs, buf.data(), 0.0F);
-        erwarte("transform steht jetzt IN der Matrix",
-                buf[kTexMatrixAt + 0] == 2.0F && buf[kTexMatrixAt + 1] == 3.0F &&
-                buf[kTexMatrixAt + 2] == 4.0F && buf[kTexMatrixAt + 3] == 5.0F);
-        erwarte("und seine Verschiebung auch",
-                buf[kTexOffTurbAt + 0] == 6.0F &&
-                buf[kTexOffTurbAt + 1] == 7.0F);
+        erwarte("transform: Matrix in gTcM0", buf[kTcM0At + 0] == 2.0F && buf[kTcM0At + 1] == 3.0F && buf[kTcM0At + 2] == 4.0F && buf[kTcM0At + 3] == 5.0F);
+        erwarte("transform: Verschiebung in gTcO01.xy, Art affin", buf[kTcO01At + 0] == 6.0F && buf[kTcO01At + 1] == 7.0F && buf[kTcArtAt] == kTcAffin);
     }
     {
-        // Zwei Schritte hintereinander: erst doppelt so gross, dann
-        // verschoben. Die Reihenfolge muss die des Shaderskripts sein.
+        // Zwei Schritte hintereinander: erst doppelt so gross, dann verschoben - in der Reihenfolge des Shaderskripts
         BatchState bs;
         bs.numTexMods = 2;
         bs.texMods[0].kind = TexModKind::Scale;
@@ -253,23 +287,15 @@ int main() {
         bs.texMods[1].a[0] = 0.25F;
         bs.texMods[1].a[1] = 0.0F;
         packeKonstanten(bs, buf.data(), 1.0F);
-        erwarte("die Skalierung steht in der Matrix",
-                buf[kTexMatrixAt + 0] == 2.0F && buf[kTexMatrixAt + 3] == 2.0F);
-        erwarte("und das spaetere scroll in der Verschiebung",
-                buf[kTexOffTurbAt + 0] == 0.25F);
+        erwarte("scale zuerst (gTcM0.xy)", buf[kTcArtAt + 0] == kTcSkal && buf[kTcM0At + 0] == 2.0F && buf[kTcM0At + 1] == 2.0F);
+        erwarte("das spaetere scroll danach (gTcO01.zw)", buf[kTcArtAt + 1] == kTcRoll && buf[kTcO01At + 2] == 0.25F);
     }
     {
-        // Ohne tcMod bleibt die Einheitsabbildung stehen - sonst
-        // verschwaenden die Koordinaten bei jedem Stapel ohne Kette.
+        // Ohne tcMod: keine Schritte - der Shader laesst st, wie es ist
         BatchState bs;
         packeKonstanten(bs, buf.data(), 5.0F);
-        erwarte("ohne tcMod: Einheitsmatrix",
-                buf[kTexMatrixAt + 0] == 1.0F && buf[kTexMatrixAt + 3] == 1.0F);
-        erwarte("ohne tcMod: keine Verschiebung",
-                buf[kTexOffTurbAt + 0] == 0.0F &&
-                buf[kTexOffTurbAt + 1] == 0.0F);
-        erwarte("ohne tcMod: kein turb",
-                buf[kTexOffTurbAt + 2] == 0.0F);
+        erwarte("ohne tcMod: alle Arten keine",
+                buf[kTcArtAt + 0] == kTcKeine && buf[kTcArtAt + 1] == kTcKeine && buf[kTcArtAt + 2] == kTcKeine && buf[kTcArtAt + 3] == kTcKeine);
     }
 
     // --- rgbGen ------------------------------------------------------------
@@ -320,12 +346,15 @@ int main() {
         bs.deformWave.phase = 3.0F;
         bs.deformWave.frequency = 4.0F;
         bs.deformSpread = 0.4F;
-        packeKonstanten(bs, buf.data(), 0.0F);
+        packeKonstanten(bs, buf.data(), 1.25F);
         erwarte("base bei +0", buf[kDeformAt + 0] == 1.0F);
         erwarte("amplitude bei +1", buf[kDeformAt + 1] == 2.0F);
         erwarte("phase bei +2", buf[kDeformAt + 2] == 3.0F);
-        erwarte("frequency bei +3", buf[kDeformAt + 3] == 4.0F);
+        // FIX5: floatTime * frequency (fuer alle Ecken dasselbe Produkt, gpu::verformung)
+        erwarte("floatTime * frequency bei +3", buf[kDeformAt + 3] == 1.25F * 4.0F);
         erwarte("spread dahinter bei 20", buf[kDeformSpreadAt] == 0.4F);
+        erwarte("FIX5: die Tafel (sin = 1) bei 23", buf[kDeformArtAt] == 1.0F);
+        erwarte("FIX5: die Folge (nur wave) in gDeformMove.w", buf[kDeformMoveAt + 3] == 1.0F);
     }
     {
         // Ohne Welle darf nichts stehenbleiben.
@@ -334,6 +363,41 @@ int main() {
         packeKonstanten(bs, buf.data(), 0.0F);
         erwarte("ohne deformVertexes bleibt alles null",
                 buf[kDeformAt] == 0.0F && buf[kDeformSpreadAt] == 0.0F);
+    }
+
+    // --- FIX5 P36: tcMod stretch wie RB_CalcStretchTexCoords (tr_shade_calc.cpp:101) -----------------
+    //
+    // p = 1.0f / EvalWaveForm(wf) ohne Pruefung (Welle 0 -> inf), matrix p / 0 / 0 / p, translate 0.5f - 0.5f * p. Bis FIX5 nahm der
+    // Packer bei Welle 0 p = 1 (die Textur stand still statt zu verschwinden).
+    {
+        BatchState bs;
+        bs.numTexMods = 1;
+        bs.texMods[0].kind = TexModKind::Stretch;
+        bs.texMods[0].wave.func = WaveFunc::Sin;
+        bs.texMods[0].wave.base = 0.0F;
+        bs.texMods[0].wave.amplitude = 0.0F;
+        packeKonstanten(bs, buf.data(), 2.0F);
+        erwarte("stretch mit Welle 0: p = 1.0f / 0 = inf wie im Spiel",
+                std::isinf(buf[kTcM0At + 0]) && buf[kTcM0At + 0] > 0.0F && std::isinf(buf[kTcM0At + 3]) && std::isinf(buf[kTcO01At + 0]) &&
+                    buf[kTcO01At + 0] < 0.0F);
+        bs.texMods[0].wave.base = 1.0F;
+        bs.texMods[0].wave.amplitude = 0.3F;
+        bs.texMods[0].wave.phase = 0.1F;
+        bs.texMods[0].wave.frequency = 0.7F;
+        int falsch = 0;
+        for (int ms = 0; ms < 20000; ms += 7) {
+            const auto zeit = static_cast<float>(ms * 0.001);
+            packeKonstanten(bs, buf.data(), zeit);
+            const float pSpiel = 1.0F / waveValue(bs.texMods[0].wave, zeit);
+            const float trSpiel = 0.5F - 0.5F * pSpiel;
+            if (buf[kTcM0At + 0] != pSpiel || buf[kTcM0At + 1] != 0.0F || buf[kTcM0At + 2] != 0.0F || buf[kTcM0At + 3] != pSpiel ||
+                buf[kTcO01At + 0] != trSpiel || buf[kTcO01At + 1] != trSpiel) {
+                ++falsch;
+            }
+        }
+        erwarte(("stretch sin 1 0.3 0.1 0.7: matrix und translate wie RB_CalcStretchTexCoords, " + std::to_string(falsch) + " Zeiten abweichend")
+                    .c_str(),
+                falsch == 0);
     }
 
     // --- Ein Nullzeiger stuerzt nicht ab -----------------------------------
@@ -390,21 +454,219 @@ int main() {
                                {"turb, turb, rotate 30", {turb, turb2, dreh, {}}, 3},
                                {"turb, rotate 30, turb, scale 2 3", {turb, dreh, turb3, skal}, 4},
                                {"turb, turb, turb, turb", {turb, turb2, turb3, turb4}, 4}};
+        // FIX4 P33: Bit fuer Bit statt bis 1e-4, an drei festen und 4000 gezogenen Ecken und Zeiten (bis 50000 s); daneben der
+        // groesste Abstand in float-Stufen
+        std::mt19937 zz(20261110U);
+        const auto zahl = [&](double a, double b) { return static_cast<float>(a + (b - a) * (static_cast<double>(zz()) / 4294967296.0)); };
+        const auto stufen = [](float a, float b) {
+            std::int32_t x = 0;
+            std::int32_t y = 0;
+            std::memcpy(&x, &a, 4);
+            std::memcpy(&y, &b, 4);
+            if (x < 0) { x = static_cast<std::int32_t>(0x80000000U - static_cast<std::uint32_t>(x)); }
+            if (y < 0) { y = static_cast<std::int32_t>(0x80000000U - static_cast<std::uint32_t>(y)); }
+            return std::abs(static_cast<long long>(x) - static_cast<long long>(y));
+        };
         const float ecken[3][3] = {{37.0F, 211.0F, 90.0F}, {-512.5F, 64.25F, 1000.0F}, {3.0F, -700.0F, -41.0F}};
         for (const Fall& f : faelle) {
-            float gross = 0.0F;
-            for (const auto& e : ecken) {
-                for (const float zeit : {0.0F, 1.3F, 17.77F}) {
-                    float a[2] = {0.3F, 0.7F};
-                    float b[2] = {0.3F, 0.7F};
-                    spielSt(f.m, f.n, zeit, e, a);
-                    shaderSt(f.m, f.n, zeit, e, b);
-                    gross = std::max(gross, std::max(std::fabs(a[0] - b[0]), std::fabs(a[1] - b[1])));
+            int falsch = 0;
+            int zahlEcken = 0;
+            long long weit = 0;
+            for (int i = 0; i < 4009; ++i) {
+                const float xyz[3] = {i < 9 ? ecken[i / 3][0] : zahl(-9000.0, 9000.0), i < 9 ? ecken[i / 3][1] : zahl(-9000.0, 9000.0),
+                                      i < 9 ? ecken[i / 3][2] : zahl(-9000.0, 9000.0)};
+                const float zeiten[3] = {0.0F, 1.3F, 17.77F};
+                const float zeit = i < 9 ? zeiten[i % 3] : (i % 2 == 0) ? zahl(0.0, 100.0) : zahl(0.0, 50000.0);
+                float a[2] = {0.3F, 0.7F};
+                if (i >= 9) {
+                    a[0] = zahl(-4.0, 4.0);
+                    a[1] = zahl(-4.0, 4.0);
+                }
+                float b[2] = {a[0], a[1]};
+                spielSt(f.m, f.n, zeit, xyz, a);
+                shaderSt(f.m, f.n, zeit, xyz, b);
+                ++zahlEcken;
+                if (!bitgleich(a[0], b[0]) || !bitgleich(a[1], b[1])) { ++falsch; }
+                weit = std::max(weit, std::max(stufen(a[0], b[0]), stufen(a[1], b[1])));
+            }
+            char z[200];
+            std::snprintf(z, sizeof z, "P16/P33 %s: Shader bitgleich zu rd-vanilla: %d von %d Ecken abweichend (hoechstens %lld float-Stufen)", f.was,
+                          falsch, zahlEcken, weit);
+            erwarte(z, falsch == 0);
+        }
+    }
+
+    // --- FIX4 P33: turb und rotate bitgleich zu rd-vanilla -------------------
+    //
+    // Die Tafel (R_InitFuncTables in float), der Versatz eines turb an vielen Orten und Zeiten (auch: ort + 1024 now dicht an einer
+    // ganzen Zahl, Vorzeichenwechsel, 1024 now ueber 2^24), die Werte von rotate, und jeder einzelne Schritt durch den Shader.
+    {
+        int tafelFalsch = 0;
+        for (int i = 0; i < 1024; ++i) {
+            if (!bitgleich(sinTafel(i), sinTab(i))) { ++tafelFalsch; }
+        }
+        char z[200];
+        std::snprintf(z, sizeof z, "P33 Sinustafel bitgleich zu R_InitFuncTables: %d von 1024 abweichend", tafelFalsch);
+        erwarte(z, tafelFalsch == 0);
+
+        // Orte und Zeiten: feste Ziehung (mt19937 ist genormt; die Abbildung auf float hier selbst, nicht uniform_real_distribution)
+        std::mt19937 zz(20261108U);
+        const auto zahl = [&](double a, double b) { return static_cast<float>(a + (b - a) * (static_cast<double>(zz()) / 4294967296.0)); };
+        struct Probe {
+            float p;
+            float now;
+            float amp;
+        };
+        std::vector<Probe> proben;
+        for (int i = 0; i < 200000; ++i) {
+            const int art = i % 8;
+            float p = 0.0F;
+            float now = 0.0F;
+            switch (art) {
+                case 0:
+                    p = zahl(-70000.0, 70000.0);
+                    now = zahl(-50.0, 50.0);
+                    break;
+                case 1:
+                    p = std::round(zahl(-70000.0, 70000.0)) + static_cast<float>(zz() % 64U) / 64.0F;
+                    now = zahl(0.0, 3000.0);
+                    break;
+                case 2:
+                    p = zahl(-1.0, 1.0);
+                    now = zahl(-2.0, 2.0);
+                    break;
+                case 3:
+                    p = std::round(zahl(-9000.0, 9000.0));
+                    now = zahl(-20.0, 20.0);
+                    break;
+                case 4:   // 1024 now ueber 2^24
+                    p = zahl(-70000.0, 70000.0);
+                    now = zahl(16384.0, 2.0e6);
+                    break;
+                case 5:   // ort + 1024 now wechselt das Vorzeichen gegenueber ort
+                    p = zahl(-5000.0, -200.0);
+                    now = zahl(0.2, 6.0);
+                    break;
+                default: {
+                    // ort + 1024 now dicht an einer ganzen Zahl: now so gewaehlt, dann um wenige float-Stufen verschoben
+                    p = zahl(-70000.0, 70000.0);
+                    const double ganz = std::round(static_cast<double>(p) + zahl(-3000.0, 3000.0));
+                    now = static_cast<float>((ganz - static_cast<double>(p)) / 1024.0);
+                    const int schritte = static_cast<int>(zz() % 7U) - 3;
+                    for (int s = 0; s < std::abs(schritte); ++s) { now = std::nextafter(now, schritte > 0 ? 1.0e30F : -1.0e30F); }
+                    break;
                 }
             }
-            char z[160];
-            std::snprintf(z, sizeof z, "P16 %s: Shader gegen rd-vanilla, groesste Abweichung %.6f (Grenze 1e-4)", f.was, static_cast<double>(gross));
-            erwarte(z, gross < 1e-4F);
+            proben.push_back({p, now, zahl(0.01, 1.0)});
+        }
+        int turbFalsch = 0;
+        for (std::size_t i = 0; i + 1 < proben.size(); i += 2) {
+            // ein turb allein, now = phase (frequency 0); x mit dem Ort der einen Probe, y mit dem der naechsten
+            const Probe& a = proben[i];
+            const Probe& b = proben[i + 1];
+            TexMod t;
+            t.kind = TexModKind::Turb;
+            t.wave.func = WaveFunc::Sin;
+            t.wave.amplitude = a.amp;
+            t.wave.phase = a.now;
+            t.wave.frequency = 0.0F;
+            BatchState bs{};
+            bs.numTexMods = 1;
+            bs.texMods[0] = t;
+            std::vector<float> k(kKonstFloats, 0.0F);
+            packeKonstanten(bs, k.data(), 0.0F);
+            const float ort[2] = {a.p, b.p};
+            float v[2];
+            shaderTurb(ort, k[kTcM0At + 0], k[kTcM0At + 1], v);
+            const float sx = spielTurb(a.p, a.now, a.amp);
+            const float sy = spielTurb(b.p, a.now, a.amp);
+            if (!bitgleich(v[0], sx) || !bitgleich(v[1], sy)) {
+                if (turbFalsch < 4) {
+                    std::printf("        turb: ort %.9g/%.9g now %.9g amp %.9g: Shader %.9g/%.9g, Spiel %.9g/%.9g\n", static_cast<double>(a.p),
+                                static_cast<double>(b.p), static_cast<double>(a.now), static_cast<double>(a.amp), static_cast<double>(v[0]),
+                                static_cast<double>(v[1]), static_cast<double>(sx), static_cast<double>(sy));
+                }
+                ++turbFalsch;
+            }
+        }
+        std::snprintf(z, sizeof z, "P33 turb-Versatz bitgleich zu RB_CalcTurbulentTexCoords: %d von %zu Ecken abweichend", turbFalsch, proben.size() / 2);
+        erwarte(z, turbFalsch == 0);
+
+        // rotate: Matrix und Verschiebung wie RB_CalcRotateTexCoords (tr_shade_calc.cpp:1009-1032; translate in double)
+        int drehFalsch = 0;
+        int drehZahl = 0;
+        for (const float grad : {30.0F, -45.5F, 7.0F, 360.25F, 0.001F, 1234.5F}) {
+            for (const float zeit : {0.0F, 1.3F, 17.77F, 1234.5F, 86399.9F}) {
+                TexMod r;
+                r.kind = TexModKind::Rotate;
+                r.a[0] = grad;
+                BatchState bs{};
+                bs.numTexMods = 1;
+                bs.texMods[0] = r;
+                std::vector<float> k(kKonstFloats, 0.0F);
+                packeKonstanten(bs, k.data(), zeit);
+                const float degs = -grad * zeit;
+                const auto index = static_cast<int>(degs * (1024 / 360.0F));
+                const float sn = sinTab(index);
+                const float cs = sinTab(index + 1024 / 4);
+                const float soll[6] = {cs, sn, -sn, cs, static_cast<float>(0.5 - 0.5 * cs + 0.5 * sn), static_cast<float>(0.5 - 0.5 * sn - 0.5 * cs)};
+                const float ist[6] = {k[kTcM0At], k[kTcM0At + 1], k[kTcM0At + 2], k[kTcM0At + 3], k[kTcO01At], k[kTcO01At + 1]};
+                ++drehZahl;
+                for (int j = 0; j < 6; ++j) {
+                    if (!bitgleich(ist[j], soll[j])) {
+                        ++drehFalsch;
+                        break;
+                    }
+                }
+            }
+        }
+        std::snprintf(z, sizeof z, "P33 rotate: Matrix und Verschiebung bitgleich zu RB_CalcRotateTexCoords: %d von %d abweichend", drehFalsch, drehZahl);
+        erwarte(z, drehFalsch == 0);
+
+        // Jeder einzelne Schritt (und turb hinter scroll) durch den Shader: st bitgleich an vielen Ecken und Zeiten
+        TexMod turb;
+        turb.kind = TexModKind::Turb;
+        turb.wave.func = WaveFunc::Sin;
+        turb.wave.amplitude = 0.3F;
+        turb.wave.phase = 0.1F;
+        turb.wave.frequency = 0.5F;
+        TexMod skal;
+        skal.kind = TexModKind::Scale;
+        skal.a[0] = 2.0F;
+        skal.a[1] = 3.0F;
+        TexMod dreh;
+        dreh.kind = TexModKind::Rotate;
+        dreh.a[0] = 30.0F;
+        TexMod rollen;
+        rollen.kind = TexModKind::Scroll;
+        rollen.a[0] = 0.25F;
+        rollen.a[1] = 0.5F;
+        TexMod trans;
+        trans.kind = TexModKind::Transform;
+        const float tw[6] = {0.7F, 0.2F, -0.3F, 1.1F, 0.05F, 0.4F};
+        for (int j = 0; j < 6; ++j) { trans.a[j] = tw[j]; }
+        struct Einzel {
+            const char* was;
+            TexMod m[2];
+            int n;
+        };
+        const Einzel einzeln[] = {{"turb", {turb, {}}, 1}, {"scroll, turb", {rollen, turb}, 2}, {"rotate 30", {dreh, {}}, 1},
+                                  {"scale 2 3", {skal, {}}, 1}, {"scroll", {rollen, {}}, 1}, {"transform", {trans, {}}, 1}};
+        for (const Einzel& e : einzeln) {
+            int falsch = 0;
+            int zahlEcken = 0;
+            for (int i = 0; i < 4000; ++i) {
+                const float xyz[3] = {zahl(-9000.0, 9000.0), zahl(-9000.0, 9000.0), zahl(-9000.0, 9000.0)};
+                const float zeit = (i % 2 == 0) ? zahl(0.0, 100.0) : zahl(0.0, 50000.0);
+                float a[2] = {zahl(-4.0, 4.0), zahl(-4.0, 4.0)};
+                float b[2] = {a[0], a[1]};
+                spielSt(e.m, e.n, zeit, xyz, a);
+                shaderSt(e.m, e.n, zeit, xyz, b);
+                ++zahlEcken;
+                if (!bitgleich(a[0], b[0]) || !bitgleich(a[1], b[1])) { ++falsch; }
+            }
+            std::snprintf(z, sizeof z, "P33 %s: Shader bitgleich zu rd-vanilla: %d von %d Ecken abweichend", e.was, falsch, zahlEcken);
+            erwarte(z, falsch == 0);
         }
     }
 
@@ -415,21 +677,27 @@ int main() {
     // der eine in ein Feld, das der andere nicht liest.
     {
         const std::string hlsl = vertexShaderHlsl(kTexMod | kDeform, 1);
-        erwarte("der Shader kennt gTexMatrix",
-                hlsl.find("gTexMatrix") != std::string::npos);
-        erwarte("der Shader kennt gTexOffTurb",
-                hlsl.find("gTexOffTurb") != std::string::npos);
-        erwarte("der Shader kennt gTexTurbMat (FIX2 P16)", hlsl.find("gTexTurbMat") != std::string::npos);
+        // FIX4 P33: die Kette je Schritt - jedes Feld wird gelesen
+        for (const char* feld : {"gTcM0", "gTcO01", "gTcM1", "gTcM2", "gTcM3", "gTcO23", "gTcArt"}) {
+            erwarte((std::string("der Shader kennt ") + feld).c_str(), hlsl.find(std::string("float4 ") + feld + ";") != std::string::npos);
+        }
         // FIX3: jeder der vier turb-Plaetze wird gelesen, in der Karte und an der Figur
         const auto zaehle = [](const std::string& h, const char* was) {
             std::size_t n = 0;
             for (std::size_t p = h.find(was); p != std::string::npos; p = h.find(was, p + 1)) { ++n; }
             return n;
         };
-        erwarte("der Kartenshader addiert vier turb (FIX3)", zaehle(hlsl, "+= turbVersatz(") == 4U && hlsl.find("gTurbQ4") != std::string::npos);
+        // FIX5 Tempo: nur die Schritte der Stufe, turb nur mit kTurb - mit vier Schritten und turb jedes Feld genau einmal
+        const std::string vier = vertexShaderHlsl(kTexMod | kTurb, 4);
+        erwarte("der Kartenshader rechnet die Kette je Schritt (FIX4 P33, FIX5)",
+                zaehle(vier, "r = tcSchritt(r, gTcArt.x, gTcM0, gTcO01.xy, ort, true);") == 1U &&
+                    zaehle(vier, "r = tcSchritt(r, gTcArt.y, gTcM1, gTcO01.zw, ort, true);") == 1U &&
+                    zaehle(vier, "r = tcSchritt(r, gTcArt.z, gTcM2, gTcO23.xy, ort, true);") == 1U &&
+                    zaehle(vier, "r = tcSchritt(r, gTcArt.w, gTcM3, gTcO23.zw, ort, true);") == 1U &&
+                    zaehle(hlsl, "r = tcSchritt(r, gTcArt.x, gTcM0, gTcO01.xy, ort, false);") == 1U);
         const std::string fig = figurVertexShaderHlsl(0U);
         erwarte("der Figurenshader addiert vier turb (FIX3)",
-                zaehle(fig, "+= turbVersatz(") == 4U && fig.find("gStufeTurbQ4") != std::string::npos);
+                zaehle(fig, "tcKette(aus.uv, gStufeTcM0, gStufeTcO01, gStufeTcM1, gStufeTcM2, gStufeTcM3, gStufeTcO23, gStufeTcArt, ort, true)") == 1U);
         erwarte("der Shader kennt gDeform", hlsl.find("gDeform[") != std::string::npos);
         erwarte("der Shader kennt gDeformSpread",
                 hlsl.find("gDeformSpread") != std::string::npos);

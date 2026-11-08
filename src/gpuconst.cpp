@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 
 #include "bhed/wave.h"
 
@@ -15,129 +16,171 @@ namespace bhed::gpu {
 // kuerzt so, damit die Koordinaten nicht unbegrenzt wachsen.
 float kuerze(float x) { return x - std::floor(x); }
 
-// FIX2 P16: tr.sinTable (R_InitFuncTables, code/rd-vanilla/tr_init.cpp:1727): sin(DEG2RAD(i * 360 / (FUNCTABLE_SIZE - 1)))
-float sinTafel(int i) {
-    return static_cast<float>(std::sin(static_cast<double>(static_cast<float>(i & 1023) * 360.0F / 1023.0F) * 3.14159265358979323846 / 180.0));
-}
+// FIX2 P16: tr.sinTable (R_InitFuncTables, code/rd-vanilla/tr_init.cpp:1727). FIX4 P33: alles in float wie dort. FIX5: die Tafeln
+// stehen in wave.cpp (funcTafel), fuer WAVEVALUE und die Shader dieselben.
+float sinTafel(int i) { return funcTafel(WaveFunc::Sin, i); }
 
-void texModAbbildung(const TexMod* mods, int anzahl, float zeitSekunden, float mat[4], float off[2], TurbKette& turb) {
-    mat[0] = 1.0F;   // m0, m1, m2, m3
-    mat[1] = 0.0F;
-    mat[2] = 0.0F;
-    mat[3] = 1.0F;
-    off[0] = 0.0F;   // m4, m5
-    off[1] = 0.0F;
-    turb = TurbKette{};
-
+TcKette tcKette(const TexMod* mods, int anzahl, float zeitSekunden) {
+    TcKette k;
     const int n = std::min(anzahl, kMaxTexMods);
     for (int i = 0; i < n; ++i) {
-        const TexMod& m = mods[i];
-        // Der Schritt als 2x3, in derselben Anordnung wie rend2:
-        //   s[0] s[2] s[4]
-        //   s[1] s[3] s[5]
-        float s6[6] = {1.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F};
-        switch (m.kind) {
-            case TexModKind::Turb:
-                // RB_CalcTurbulentFactors: now = phase + zeit * frequenz,
-                // amplitude unveraendert. `base` geht NICHT ein.
-                // FIX2 P16: die Schritte danach nehmen den Versatz mit (mat ab hier die Einheit); FIX3: jeder turb
-                // bekommt seinen Platz (ComputeTexCoords, tr_shade.cpp:1725, ruft RB_CalcTurbulentTexCoords je turb)
-                turb.s[turb.anzahl].amp = m.wave.amplitude;
-                turb.s[turb.anzahl].phase = m.wave.phase + zeitSekunden * m.wave.frequency;
-                ++turb.anzahl;
-                continue;   // keine Matrix - nicht anhaengen
-            case TexModKind::Scroll: {
-                // RB_CalcScrollTexMatrix kuerzt auf [0,1), damit die
-                // Koordinaten nicht unbegrenzt wachsen.
-                const float sx = kuerze(m.a[0] * zeitSekunden);
-                const float sy = kuerze(m.a[1] * zeitSekunden);
-                s6[4] = sx;
-                s6[5] = sy;
+        const TexMod& t = mods[i];
+        float* m = k.m + 4 * i;
+        float* o = k.o + 2 * i;
+        switch (t.kind) {
+            case TexModKind::Turb: {
+                // RB_CalcTurbulentTexCoords (tr_shade_calc.cpp:936): now = phase + floatTime * frequency in float; `base` geht nicht
+                // ein. 1024 now ist in float exakt; der Shader rundet ort + 1024 now wie den double-Ausdruck (turbIndex).
+                const float now = t.wave.phase + zeitSekunden * t.wave.frequency;
+                k.art[i] = kTcTurb;
+                m[0] = now * 1024.0F;
+                m[1] = t.wave.amplitude;
                 break;
             }
+            case TexModKind::Scroll:
+                // RB_CalcScrollTexCoords: kuerzt auf [0,1), damit die Koordinaten nicht unbegrenzt wachsen
+                k.art[i] = kTcRoll;
+                o[0] = kuerze(t.a[0] * zeitSekunden);
+                o[1] = kuerze(t.a[1] * zeitSekunden);
+                break;
             case TexModKind::Scale:
-                s6[0] = m.a[0];
-                s6[3] = m.a[1];
+                k.art[i] = kTcSkal;   // RB_CalcScaleTexCoords: st *= scale
+                m[0] = t.a[0];
+                m[1] = t.a[1];
                 break;
             case TexModKind::Stretch: {
-                // RB_CalcStretchTexMatrix: p = 1 / wellenwert, und die
-                // Skalierung geht um die Mitte (0,5) statt um den Ursprung.
-                const float w = waveValue(m.wave, zeitSekunden);
-                const float p = (w != 0.0F) ? (1.0F / w) : 1.0F;
-                s6[0] = p;
-                s6[3] = p;
-                s6[4] = 0.5F - 0.5F * p;
-                s6[5] = 0.5F - 0.5F * p;
+                // RB_CalcStretchTexCoords (tr_shade_calc.cpp:101): p = 1.0f / EvalWaveForm, um die Mitte (0,5) statt um den Ursprung
+                // (translate in float). FIX5 P36: ohne Pruefung wie dort - Welle 0 gibt inf (vorher p = 1)
+                const float p = 1.0F / waveValue(t.wave, zeitSekunden);
+                k.art[i] = kTcAffin;
+                m[0] = p;
+                m[3] = p;
+                o[0] = 0.5F - 0.5F * p;
+                o[1] = 0.5F - 0.5F * p;
                 break;
             }
             case TexModKind::Rotate: {
-                // RB_CalcRotateTexMatrix: NEGATIVE Grad je Sekunde, und die
-                // Drehung geht um die Mitte.
-                // FIX2 P16: ueber die Sinustafel wie RB_CalcRotateTexCoords (tr_shade_calc.cpp:1009): index = degs * (1024 / 360),
-                // sin = sinTable[index & MASK], cos = sinTable[(index + 256) & MASK]
-                const float grad = -m.a[0] * zeitSekunden;
+                // RB_CalcRotateTexCoords (tr_shade_calc.cpp:1009): NEGATIVE Grad je Sekunde, index = degs * (1024 / 360.0f) als int,
+                // sin = sinTable[index & MASK], cos = sinTable[(index + 256) & MASK], um die Mitte; tmi.translate in double
+                // gerechnet (0.5 ist double, :1025/:1029) und als float abgelegt
+                const float grad = -t.a[0] * zeitSekunden;
                 const auto index = static_cast<int>(grad * (1024 / 360.0F));
                 const float c = sinTafel(index + 1024 / 4);
                 const float si = sinTafel(index);
-                s6[0] = c;
-                s6[1] = si;
-                s6[2] = -si;
-                s6[3] = c;
-                s6[4] = 0.5F - 0.5F * c + 0.5F * si;
-                s6[5] = 0.5F - 0.5F * si - 0.5F * c;
+                k.art[i] = kTcAffin;
+                m[0] = c;
+                m[1] = si;
+                m[2] = -si;
+                m[3] = c;
+                o[0] = static_cast<float>(0.5 - 0.5 * c + 0.5 * si);
+                o[1] = static_cast<float>(0.5 - 0.5 * si - 0.5 * c);
                 break;
             }
             case TexModKind::Transform:
-                // RB_CalcTransformTexMatrix. Die sechs Werte stehen in a[],
-                // Matrix in a[0..3], Verschiebung in a[4], a[5].
-                s6[0] = m.a[0];
-                s6[1] = m.a[1];
-                s6[2] = m.a[2];
-                s6[3] = m.a[3];
-                s6[4] = m.a[4];
-                s6[5] = m.a[5];
+                // RB_CalcTransformTexCoords: a[0..3] = matrix[0][0], [0][1], [1][0], [1][1]; a[4], a[5] = translate
+                k.art[i] = kTcAffin;
+                std::copy(t.a, t.a + 4, m);
+                o[0] = t.a[4];
+                o[1] = t.a[5];
                 break;
-            default:
-                continue;
-        }
-        // Anhaengen, genau in der Reihenfolge von rend2.
-        const float n0 = s6[0] * mat[0] + s6[2] * mat[1];
-        const float n1 = s6[1] * mat[0] + s6[3] * mat[1];
-        const float n2 = s6[0] * mat[2] + s6[2] * mat[3];
-        const float n3 = s6[1] * mat[2] + s6[3] * mat[3];
-        const float o0 = s6[0] * off[0] + s6[2] * off[1] + s6[4];
-        const float o1 = s6[1] * off[0] + s6[3] * off[1] + s6[5];
-        mat[0] = n0;
-        mat[1] = n1;
-        mat[2] = n2;
-        mat[3] = n3;
-        off[0] = o0;
-        off[1] = o1;
-        for (int k = 0; k < turb.anzahl; ++k) {   // FIX3: jeder turb davor geht durch diesen Schritt
-            float* tm = turb.s[k].mat;
-            const float t0 = s6[0] * tm[0] + s6[2] * tm[1];
-            const float t1 = s6[1] * tm[0] + s6[3] * tm[1];
-            const float t2 = s6[0] * tm[2] + s6[2] * tm[3];
-            const float t3 = s6[1] * tm[2] + s6[3] * tm[3];
-            tm[0] = t0;
-            tm[1] = t1;
-            tm[2] = t2;
-            tm[3] = t3;
         }
     }
+    return k;
 }
 
-void turbWerte(const TurbSchritt& t, float& q, float& qRest, float matAmp[4]) {
-    const double qd = static_cast<double>(t.phase) * 1024.0;   // now ist float (RB_CalcTurbulentTexCoords), das Produkt in double
-    q = static_cast<float>(qd);
-    qRest = static_cast<float>(qd - 1024.0 * std::floor(qd / 1024.0));
-    for (int k = 0; k < 4; ++k) { matAmp[k] = t.mat[k] * t.amp; }
+Verformung verformung(const Wave& welle, float spread, const DeformZusatz& zusatz, float zeitSekunden) {
+    Verformung v;
+    const bool welleAn = welle.active() && (welle.frequency == 0.0F || welle.mitTafel());
+    const bool wegAn = zusatz.moveWave.mitTafel();
+    const auto dabei = [&](std::uint8_t art) {
+        switch (art) {
+            case kFolgeWelle: return welleAn;
+            case kFolgeNormal: return zusatz.normalAn();
+            case kFolgeBeule: return zusatz.bulgeAn();
+            case kFolgeWeg: return wegAn;
+            default: return false;
+        }
+    };
+    // Die Folge: wie im Shader, sonst (ohne Folge, z. B. von Hand gebaute Zustaende) wave, normal, bulge, move
+    std::uint8_t folge[4] = {zusatz.folge[0], zusatz.folge[1], zusatz.folge[2], zusatz.folge[3]};
+    if (folge[0] == 0U) {
+        folge[0] = kFolgeWelle;
+        folge[1] = kFolgeNormal;
+        folge[2] = kFolgeBeule;
+        folge[3] = kFolgeWeg;
+    }
+    std::uint32_t code = 0;
+    int platz = 0;
+    for (const std::uint8_t art : folge) {
+        if (dabei(art)) {
+            code |= static_cast<std::uint32_t>(art) << (3 * platz);
+            ++platz;
+        }
+    }
+    if (code == 0U) { return v; }
+    v.an = true;
+    if (welleAn) {
+        // RB_CalcDeformVertexes (tr_shade_calc.cpp:129): frequency 0 -> EvalWaveForm fuer alle Ecken, sonst WAVEVALUE mit
+        // phase + off je Ecke; floatTime * frequency ist fuer alle Ecken dasselbe Produkt in float
+        if (welle.frequency == 0.0F) {
+            v.d[0] = waveValue(welle, zeitSekunden);
+            v.d[5] = 0.0F;
+        } else {
+            v.d[0] = welle.base;
+            v.d[1] = welle.amplitude;
+            v.d[2] = welle.phase;
+            v.d[3] = zeitSekunden * welle.frequency;
+            v.d[5] = static_cast<float>(welle.func);
+        }
+        v.d[4] = spread;
+    }
+    if (zusatz.normalAn()) {
+        // RB_CalcDeformNormals (:182): amplitude, floatTime * frequency
+        v.d[6] = zusatz.normal[0];
+        v.d[7] = zeitSekunden * zusatz.normal[1];
+    }
+    if (zusatz.bulgeAn()) {
+        // RB_CalcBulgeVertexes (:216): now = backEnd.refdef.time * bulgeSpeed * 0.001f - refdef.time ist int (ms)
+        v.d[8] = zusatz.bulge[0];
+        v.d[9] = zusatz.bulge[1];
+        v.d[10] = zusatz.bulge[2];
+        v.d[11] = static_cast<float>(spielZeitMs(zeitSekunden)) * zusatz.bulge[2] * 0.001F;
+    }
+    if (wegAn) {
+        // RB_CalcMoveVertexes (:263): VectorScale(moveVector, WAVEVALUE, offset) - fuer alle Ecken derselbe Versatz
+        const float w = waveValue(zusatz.moveWave, zeitSekunden);
+        for (int k = 0; k < 3; ++k) { v.d[12 + k] = zusatz.move[k] * w; }
+    }
+    v.d[15] = static_cast<float>(code);
+    return v;
 }
 
-void turbFelder(const TurbKette& t, float qq[2 * kMaxTexMods], float mats[4 * kMaxTexMods]) {
-    std::fill(qq, qq + 2 * kMaxTexMods, 0.0F);
-    std::fill(mats, mats + 4 * kMaxTexMods, 0.0F);
-    for (int k = 0; k < std::min(t.anzahl, kMaxTexMods); ++k) { turbWerte(t.s[k], qq[2 * k], qq[2 * k + 1], mats + 4 * k); }
+void tcKetteLegen(const TcKette& k, float vorn[8], float hinten[20]) {
+    static_assert(kMaxTexMods == 4, "gTcM0..3, gTcO01/23 und gTcArt fassen vier Schritte (TR_MAX_TEXMODS)");
+    std::copy(k.m, k.m + 4, vorn);
+    std::copy(k.o, k.o + 4, vorn + 4);
+    std::copy(k.m + 4, k.m + 16, hinten);
+    std::copy(k.o + 4, k.o + 8, hinten + 12);
+    std::copy(k.art, k.art + 4, hinten + 16);
+}
+
+void tcKetteOhneTurb(const TcKette& k, float st[2]) {
+    for (int i = 0; i < kMaxTexMods; ++i) {
+        const float* m = k.m + 4 * i;
+        const float* o = k.o + 2 * i;
+        const float s = st[0];
+        const float t = st[1];
+        if (k.art[i] == kTcAffin) {
+            st[0] = s * m[0] + t * m[2] + o[0];
+            st[1] = s * m[1] + t * m[3] + o[1];
+        } else if (k.art[i] == kTcSkal) {
+            st[0] = s * m[0];
+            st[1] = t * m[1];
+        } else if (k.art[i] == kTcRoll) {
+            st[0] = s + o[0];
+            st[1] = t + o[1];
+        }
+    }
 }
 
 void packeKonstanten(const BatchState& bs, float* ziel,
@@ -150,48 +193,15 @@ void packeKonstanten(const BatchState& bs, float* ziel,
     // sich deshalb kaum einkreisen laesst.
     std::fill(ziel, ziel + kKonstFloats, 0.0F);
 
-    // --- gTexMod: je Schritt ein Viererblock, Art in .w -------------------
-    // --- Die tcMod-Kette zu EINER Abbildung zusammenrechnen --------------
+    // --- Die tcMod-Kette, je Schritt (FIX4 P33) ----------------------------
     //
-    // Nach `ComputeTexMods` aus rd-rend2 (tr_shade.cpp:177). Jeder Schritt
-    // liefert eine affine 2x3-Abbildung
-    //
-    //     | m0  m2  m4 |        neu.x = st.x*m0 + st.y*m2 + m4
-    //     | m1  m3  m5 |        neu.y = st.x*m1 + st.y*m3 + m5
-    //
-    // und die Schritte werden der Reihe nach hintereinandergehaengt. Uebrig
-    // bleiben vier Werte fuer die Matrix und zwei fuer die Verschiebung -
-    // fuer BELIEBIG VIELE Schritte.
-    //
-    // `turb` ist der einzige, der nicht in eine Matrix passt: er verschiebt
-    // je nach ORT, nicht linear in st. Er steht deshalb daneben, mit
-    // Amplitude und Phase, und wird im Shader danach aufgeschlagen - genau
-    // wie in rend2.
-    //
-    // Damit erledigt sich `tcMod transform`: es IST eine 2x3-Abbildung und
-    // passt hinein wie jeder andere Schritt. Bis rc442 stand es auf null.
-    float mat[4];
-    float off[2];
-    TurbKette turb;
-    texModAbbildung(bs.texMods, bs.numTexMods, zeitSekunden, mat, off, turb);
-    ziel[kTexMatrixAt + 0] = mat[0];
-    ziel[kTexMatrixAt + 1] = mat[1];
-    ziel[kTexMatrixAt + 2] = mat[2];
-    ziel[kTexMatrixAt + 3] = mat[3];
-    ziel[kTexOffTurbAt + 0] = off[0];
-    ziel[kTexOffTurbAt + 1] = off[1];
-    static_assert(kMaxTexMods == 4, "gTurbMat2..4 und gTurbQ23/Q4 fassen drei turb neben dem ersten");
-    // FIX2 P16 / FIX3: der erste turb in gTexOffTurb.zw und gTexTurbMat, der zweite bis vierte in gTurbMat2..4, gTurbQ23, gTurbQ4
-    float qq[2 * kMaxTexMods];
-    float mats[4 * kMaxTexMods];
-    turbFelder(turb, qq, mats);
-    ziel[kTexOffTurbAt + 2] = qq[0];
-    ziel[kTexOffTurbAt + 3] = qq[1];
-    std::copy(mats, mats + 4, ziel + kTexTurbMatAt);
-    std::copy(mats + 4, mats + 16, ziel + kTurbMat2At);
-    std::copy(qq + 2, qq + 6, ziel + kTurbQ23At);
-    ziel[kTurbQ4At + 0] = qq[6];
-    ziel[kTurbQ4At + 1] = qq[7];
+    // Wie rd-vanilla ComputeTexCoords (tr_shade.cpp:1725): jeder Schritt mit den Werten, die das Spiel an seine Rechenfunktion
+    // gibt; der Shader wendet sie der Reihe nach in float an (tcKette, gpushader.cpp). Bis FIX3 zu einer Abbildung
+    // zusammengerechnet wie rend2 - das rundete anders als das Spiel.
+    static_assert(kTcO01At == kTcM0At + 4U && kTcM2At == kTcM1At + 4U && kTcM3At == kTcM2At + 4U && kTcO23At == kTcM3At + 4U &&
+                      kTcArtAt == kTcO23At + 4U,
+                  "tcKetteLegen schreibt vorn 8 und hinten 20 float am Stueck");
+    tcKetteLegen(tcKette(bs.texMods, bs.numTexMods, zeitSekunden), ziel + kTcM0At, ziel + kTcM1At);
 
     // --- gRgb: Farbe und alphaConst ---------------------------------------
     //
@@ -237,35 +247,20 @@ void packeKonstanten(const BatchState& bs, float* ziel,
 
     // --- deformVertexes ---------------------------------------------------
     //
-    // Vier Werte in EINEM float4 (gDeform), der Spread gleich dahinter.
-    // Frueher ein `float gDeform[4]` mit Schritt vier - und der Spread lag
-    // dabei nicht, wo er hier hingeschrieben wurde (siehe gpuconst.h).
-    if (bs.deformWave.active()) {
-        ziel[kDeformAt + 0] = bs.deformWave.base;
-        ziel[kDeformAt + 1] = bs.deformWave.amplitude;
-        ziel[kDeformAt + 2] = bs.deformWave.phase;
-        ziel[kDeformAt + 3] = bs.deformWave.frequency;
-        ziel[kDeformSpreadAt] = bs.deformSpread;
+    // FIX5: wave, normal, bulge und move wie RB_DeformTessGeometry - die Werte aus `verformung` (gpuconst.h), verteilt auf die
+    // Felder, die es seit rc592 gibt: d0 gDeform, d1 gDeformSpread/gDeformArt/gDeformNormal.xy, d2 gBulge, d3 gDeformMove.
+    {
+        const Verformung v = verformung(bs.deformWave, bs.deformSpread, bs.deform2, zeitSekunden);
+        std::copy(v.d, v.d + 4, ziel + kDeformAt);
+        ziel[kDeformSpreadAt] = v.d[4];
+        ziel[kDeformArtAt] = v.d[5];
+        ziel[kDeformNormalAt + 0] = v.d[6];
+        ziel[kDeformNormalAt + 1] = v.d[7];
+        std::copy(v.d + 8, v.d + 12, ziel + kBulgeAt);
+        std::copy(v.d + 12, v.d + 16, ziel + kDeformMoveAt);
     }
     ziel[kWolkenAt] = bs.wolkenHoehe;
     ziel[kPortalWeiteAt] = bs.portalWeite;
-    // move: RB_CalcMoveVertexes - der Versatz ist fuer alle Ecken gleich,
-    // also hier einmal gerechnet statt in jeder Ecke.
-    if (bs.deform2.moveWave.active()) {
-        const float w = waveValue(bs.deform2.moveWave, zeitSekunden);
-        for (int k = 0; k < 3; ++k) {
-            ziel[kDeformMoveAt + static_cast<std::size_t>(k)] = bs.deform2.move[k] * w;
-        }
-    }
-    if (bs.deform2.bulgeAn()) {
-        for (int k = 0; k < 3; ++k) {
-            ziel[kBulgeAt + static_cast<std::size_t>(k)] = bs.deform2.bulge[k];
-        }
-    }
-    if (bs.deform2.normalAn()) {
-        ziel[kDeformNormalAt + 0] = bs.deform2.normal[0];
-        ziel[kDeformNormalAt + 1] = bs.deform2.normal[1];
-    }
     // rc605: tcGen vector (ComputeTexCoords TCGEN_VECTOR, tr_shade.cpp:1675-1680 MD).
     if (bs.texGen == TexGen::Vector) {
         for (int k = 0; k < 3; ++k) {

@@ -140,6 +140,9 @@ enum Feature : std::uint32_t {
     // jedes Modellbild ohne Skript): die Eckenfarbe rechnet der Vertexshader aus
     // dem Licht der Entity (RB_CalcDiffuseColor), Konstanten JeModell (b7).
     kModellLicht   = 1U << 26,
+    // FIX5: eine tcMod turb in der Kette - nur dann rechnet der Vertexshader den turb-Teil (turbIndex); ohne bleibt er
+    // schlanker bei gleichen Bits.
+    kTurb          = 1U << 27,
 
     // Alles, was Ecken woanders hinlegt als die Datei - Licht- und
     // Nebeldurchgang zeichnen die Flaeche ohne diese Rechnung und lassen

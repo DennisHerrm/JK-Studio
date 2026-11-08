@@ -66,8 +66,12 @@ inline constexpr float kSpielLightmapFaktor = 1.0F;
 // src/glow.cpp uebernommen - zwei Fassungen derselben Formel waeren zwei
 // verschieden aussehende Gluehbilder.
 [[nodiscard]] std::string vollbildVertexShaderHlsl();
-// FIX3: die HLSL-Funktion turbVersatz (ein tcMod turb an seiner Stelle der Kette) fuer die Shader des Echtzeit-Lichts.
-[[nodiscard]] std::string turbHlsl();
+// FIX3 / FIX4 P33: die HLSL-Funktionen der tcMod-Kette (tcKette: jeder Schritt wie rd-vanilla ComputeTexCoords, turb mit der
+// Sinustafel des Spiels) fuer die Shader des Echtzeit-Lichts und die Probe tests/turbgpu.cpp.
+[[nodiscard]] std::string tcModHlsl();
+// FIX5: die HLSL-Funktionen der deformVertexes (verformeEcke: wave, normal, bulge, move je Ecke wie rd-vanilla RB_DeformTessGeometry,
+// mit den Tafeln des Spiels; Werte aus gpu::verformung) samt Sinustafel - fuer die Probe tests/defgpu.cpp.
+[[nodiscard]] std::string verformHlsl();
 // Die Klingen der Lichtschwerter: fertige Weltecken, Textur oder Farbe.
 [[nodiscard]] std::string klingeVertexShaderHlsl();
 [[nodiscard]] std::string klingePixelShaderHlsl();

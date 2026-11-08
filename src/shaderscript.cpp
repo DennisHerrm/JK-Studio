@@ -702,6 +702,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     continue;
                 }
                 if (art == "bulge") {
+                    deform2.merkeFolge(kFolgeBeule);
                     for (float& v : deform2.bulge) {
                         rest = secondWord(rest);
                         v = readNum(firstWord(rest));
@@ -709,6 +710,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     continue;
                 }
                 if (art == "move") {
+                    deform2.merkeFolge(kFolgeWeg);
                     for (float& v : deform2.move) {
                         rest = secondWord(rest);
                         v = readNum(firstWord(rest));
@@ -726,6 +728,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     continue;
                 }
                 if (art == "normal") {
+                    deform2.merkeFolge(kFolgeNormal);
                     for (float& v : deform2.normal) {
                         rest = secondWord(rest);
                         v = readNum(firstWord(rest));
@@ -733,11 +736,14 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                     continue;
                 }
                 if (lower(firstWord(rest)) == "wave") {
+                    deform2.merkeFolge(kFolgeWelle);
                     rest = secondWord(rest);
-                    const float div = readNum(firstWord(rest));
-                    // tr_shader.cpp: deformationSpread = 1.0f / div, und
-                    // bei div == 0 nimmt die Engine 100 mit einer Warnung.
-                    deformSpread = (div != 0.0F) ? (1.0F / div) : 100.0F;
+                    // tr_shader.cpp:1888-1895: deformationSpread = 1.0f / atof(token), und
+                    // bei 0 nimmt die Engine 100 mit einer Warnung. FIX5: atof ist double,
+                    // 1.0f / double rechnet in double und rundet erst beim Ablegen auf float.
+                    double div = 0.0;
+                    (void)parseDouble(firstWord(rest), div);
+                    deformSpread = (div != 0.0) ? static_cast<float>(1.0F / div) : 100.0F;
                     rest = secondWord(rest);
                     deformWave.func = waveFuncFromName(lower(firstWord(rest)));
                     rest = secondWord(rest);

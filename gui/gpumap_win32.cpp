@@ -256,9 +256,9 @@ int g_figurGluehen = 0;             // Aufrufe in diesem Bild
 // der Ring voll ist. Ohne D3D11.1 (oder ohne die beiden Merkmale) bleibt
 // der alte Weg.
 // rc604: die Werte einer Figurstufe in b3 (JeStufe) - 13 float4.
-constexpr UINT kStufeFloats = 76;   // FIX2 P16: + gStufeTurbMat; FIX3: + gStufeTurbMat2..4, gStufeTurbQ23, gStufeTurbQ4
+constexpr UINT kStufeFloats = 72;   // FIX4 P33: + gStufeTcM1..3, gStufeTcO23, gStufeTcArt; FIX5: deformVertexes vier statt fuenf float4; MERGE3: + gEntSkala
 constexpr UINT kRingEintrag = 256;              // 16 Konstanten, die Teilung von *SetConstantBuffers1
-// FIX3: eine Figurenstufe belegt im Ring so viele Eintraege, wie ihre kStufeFloats brauchen (76 float: zwei)
+// FIX3: eine Figurenstufe belegt im Ring so viele Eintraege, wie ihre kStufeFloats brauchen (72 float: zwei)
 constexpr UINT kStufeRingEintraege = (kStufeFloats * 4U + kRingEintrag - 1U) / kRingEintrag;
 constexpr UINT kRingGroesse = 1024U * 1024U;    // 4096 Stapel bis zum naechsten DISCARD
 ID3D11Buffer* g_cbRing = nullptr;
@@ -587,6 +587,14 @@ void holeMessung() {
 // NICHT immer an: der Shader wird groesser und langsamer, und behaved soll
 // im Alltag schnell sein. `BHED_D3D_SHADERDEBUG=1` schaltet sie ein, wenn
 // jemand tatsaechlich eine Aufnahme macht.
+// FIX5 P35: das Profil der Vertex-Shader von Karte und Figuren. Ihre tcMod-Kette, turb und deformVertexes sind mit precise
+// geschrieben (Bit fuer Bit wie das Spiel). vs_4_x kennt kein precise je Anweisung, nur den Kopf ohne refactoringAllowed - der
+// Treiber der Intel UHD Graphics hielt sich daran nicht (ctest turbgpu/defgpu: vs_4_0 bis 38000 von 131072 Werten daneben, WARP 0);
+// vs_5_0 traegt [precise] an jeder Anweisung und rechnet auf beiden bitgleich. Ab Merkmalsstufe 11_0 also vs_5_0, darunter vs_4_0.
+const char* kartenVsZiel(ID3D11Device* d) {
+    return (d != nullptr && d->GetFeatureLevel() >= D3D_FEATURE_LEVEL_11_0) ? "vs_5_0" : "vs_4_0";
+}
+
 UINT uebersetzFahnen() {
     static UINT wert = 0xFFFFFFFFU;
     if (wert == 0xFFFFFFFFU) {
@@ -735,15 +743,14 @@ void pruefeStapelLagen(ID3DBlob* vsBlob) {
     D3D11_SHADER_BUFFER_DESC bd{};
     if (cb != nullptr && SUCCEEDED(cb->GetDesc(&bd))) {
         struct Soll { const char* name; std::size_t at; };
-        const Soll soll[] = {{"gTexMatrix", kTexMatrixAt}, {"gTexOffTurb", kTexOffTurbAt},
+        const Soll soll[] = {{"gTcM0", kTcM0At}, {"gTcO01", kTcO01At},
                              {"gRgb", kRgbAt}, {"gAlphaSchwelle", kAlphaAt},
                              {"gDeform", kDeformAt}, {"gDeformSpread", kDeformSpreadAt},
                              {"gWolkenHoehe", kWolkenAt}, {"gPortalWeite", kPortalWeiteAt},
-                             {"gDeformMove", kDeformMoveAt}, {"gBulge", kBulgeAt},
+                             {"gDeformArt", kDeformArtAt}, {"gDeformMove", kDeformMoveAt}, {"gBulge", kBulgeAt},
                              {"gDeformNormal", kDeformNormalAt},
-                             {"gTcGenS", kTcGenSAt}, {"gTcGenT", kTcGenTAt}, {"gTexTurbMat", kTexTurbMatAt},
-                             {"gTurbQ4", kTurbQ4At}, {"gTurbMat2", kTurbMat2At}, {"gTurbMat3", kTurbMat2At + 4U},
-                             {"gTurbMat4", kTurbMat2At + 8U}, {"gTurbQ23", kTurbQ23At}};
+                             {"gTcGenS", kTcGenSAt}, {"gTcGenT", kTcGenTAt}, {"gTcM1", kTcM1At},
+                             {"gTcM2", kTcM2At}, {"gTcM3", kTcM3At}, {"gTcO23", kTcO23At}, {"gTcArt", kTcArtAt}};
         std::string z = "GPU-Stapelpuffer (aus dem Shader gelesen):";
         bool gut = true;
         for (const Soll& s : soll) {
@@ -810,7 +817,7 @@ ShaderPaar* holeShader(std::uint32_t features, int numTexMods,
     };
 
     if (FAILED(d3dUebersetzen(vsSrc.data(), vsSrc.size(), name.c_str(), nullptr,
-                          nullptr, "main", "vs_4_0", uebersetzFahnen(), 0, &vsBlob, &err))) {
+                          nullptr, "main", kartenVsZiel(d), uebersetzFahnen(), 0, &vsBlob, &err))) {
         meldung("Vertex-Shader nicht uebersetzbar");
         if (err != nullptr) { err->Release(); }
         kaputt.insert(name);
@@ -2394,7 +2401,7 @@ ShaderPaar* holeFigurShader(std::string* fehler) {
     ID3DBlob* psBlob = nullptr;
     ID3DBlob* err = nullptr;
     if (FAILED(d3dUebersetzen(vsSrc.data(), vsSrc.size(), "figur", nullptr,
-                          nullptr, "main", "vs_4_0", uebersetzFahnen(), 0, &vsBlob, &err))) {
+                          nullptr, "main", kartenVsZiel(d), uebersetzFahnen(), 0, &vsBlob, &err))) {
         if (fehler != nullptr && err != nullptr) {
             *fehler = std::string("Figuren-Vertex-Shader: ") +
                       static_cast<const char*>(err->GetBufferPointer());
@@ -4630,13 +4637,13 @@ int zeichneLichtUndSchatten(const BspMesh& mesh, const TextureSet* textures,
     return abgesetzt;
 }
 
-// MERGE2: Ursprung und Massstab der Entity in die Figurstufe (b3) - gAuge.w und gStufeTurbQ4.zw die Massstaebe von
-// axis[0..2], gAchse0..2.w der Ursprung. Ohne Angabe bleiben sie 0, und der Shader nimmt die Weltmatrix des Aufrufs.
+// MERGE2: Ursprung und Massstab der Entity in die Figurstufe (b3) - gEntSkala.xyz (68..70, MERGE3: FIX4 hat gStufeTurbQ4
+// aufgeloest) die Massstaebe von axis[0..2], gAchse0..2.w der Ursprung. Ohne Angabe bleiben sie 0, und der Shader nimmt die
+// Weltmatrix des Aufrufs.
 void entityWerte(const FigurLicht* licht, float* sd) {
     if (licht == nullptr || licht->entSkala[0] <= 0.0F) { return; }
-    sd[11] = licht->entSkala[0];
-    sd[74] = licht->entSkala[1];
-    sd[75] = licht->entSkala[2];
+    static_assert(kStufeFloats >= 71U, "gEntSkala liegt bei 68..70");
+    for (int a2 = 0; a2 < 3; ++a2) { sd[68 + a2] = licht->entSkala[a2]; }
     for (int a2 = 0; a2 < 3; ++a2) { sd[15 + a2 * 4] = licht->entUrsprung[a2]; }
 }
 
@@ -4946,8 +4953,8 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                 }
                 sd[2] = art.umgebung ? 1.0F : 0.0F;
             };
-            // rc604 fix604b (B4): tcMod der Stufe - [3] an, [24..31] gTexMatrix und
-            // gTexOffTurb aus packeKonstanten (dieselbe Kette wie an der Karte, zur
+            // rc604 fix604b (B4): tcMod der Stufe - [3] an, [24..31] gStufeTcM0 und
+            // gStufeTcO01 aus packeKonstanten (dieselbe Kette wie an der Karte, zur
             // Zeit der Stufe: tess.shaderTime, an Figuren refdef.floatTime).
             auto texModWerte = [&](const TextureSet::Tex& tex, float* sd) {
                 if (tex.numTexMods <= 0 || g_figurTexModAus) { return; }
@@ -4956,49 +4963,17 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                 packeKonstanten(batchStateFor(tex, zeitS), k, zeitS);
                 sd[3] = 1.0F;
                 for (int q = 0; q < 8; ++q) { sd[24 + q] = k[q]; }
-                for (std::size_t q = 0; q < 4; ++q) { sd[52 + q] = k[kTexTurbMatAt + q]; }   // FIX2 P16: gStufeTurbMat
-                // FIX3: der zweite bis vierte turb - [56..67] gStufeTurbMat2..4, [68..71] gStufeTurbQ23, [72..73] gStufeTurbQ4
-                for (std::size_t q = 0; q < 12; ++q) { sd[56 + q] = k[kTurbMat2At + q]; }
-                for (std::size_t q = 0; q < 4; ++q) { sd[68 + q] = k[kTurbQ23At + q]; }
-                for (std::size_t q = 0; q < 2; ++q) { sd[72 + q] = k[kTurbQ4At + q]; }
+                // FIX4 P33: [48..67] gStufeTcM1..3, gStufeTcO23, gStufeTcArt - im Stapelblock am Stueck ab kTcM1At
+                for (std::size_t q = 0; q < 20; ++q) { sd[48 + q] = k[kTcM1At + q]; }
             };
-            // rc604: deformVertexes des Shaders (RB_DeformTessGeometry,
-            // code/rd-vanilla/tr_shade_calc.cpp OpenJK) - [32..35] wave base,
-            // amplitude, phase, frequency; [36] deformationSpread, [37] Tabelle
-            // (WaveFunc), [38] an; [40..42] bulge width, height, speed, [43]
-            // Tabelle der move-Welle; [44..46] moveVector, [47] refdef.floatTime;
-            // [48..51] die move-Welle. noise (RB_CalcDeformNormals) und die
-            // autosprites bleiben aussen vor.
+            // rc604: deformVertexes des Shaders (RB_DeformTessGeometry, code/rd-vanilla/tr_shade_calc.cpp OpenJK). FIX5: [32..47]
+            // gDef0..3 aus gpu::verformung, dieselben Werte und dieselbe Rechnung (verformeEcke) wie an der Karte - wave, normal, bulge,
+            // move in der Reihenfolge des Shaders; die autosprites bleiben aussen vor. Zeit der Stufe: refdef.floatTime.
             auto deformWerte = [&](const TextureSet::Tex& tex, float* sd) {
                 if (g_figurDeformAus) { return; }
-                bool an = false;
-                const Wave& w = tex.deformWave;
-                if (w.active() && w.func != WaveFunc::Noise) {
-                    sd[32] = w.base;
-                    sd[33] = w.amplitude;
-                    sd[34] = w.phase;
-                    sd[35] = w.frequency;
-                    sd[36] = tex.deformSpread;
-                    sd[37] = static_cast<float>(w.func);
-                    an = true;
-                }
-                if (tex.deform2.bulgeAn()) {
-                    for (int q = 0; q < 3; ++q) { sd[40 + q] = tex.deform2.bulge[q]; }
-                    an = true;
-                }
-                const Wave& mw = tex.deform2.moveWave;
-                if (mw.active() && mw.func != WaveFunc::Noise) {
-                    for (int q = 0; q < 3; ++q) { sd[44 + q] = tex.deform2.move[q]; }
-                    sd[43] = static_cast<float>(mw.func);
-                    sd[48] = mw.base;
-                    sd[49] = mw.amplitude;
-                    sd[50] = mw.phase;
-                    sd[51] = mw.frequency;
-                    an = true;
-                }
-                if (!an) { return; }
-                sd[38] = 1.0F;
-                sd[47] = static_cast<float>(zeitS);
+                const Verformung v = verformung(tex.deformWave, tex.deformSpread, tex.deform2, zeitS);
+                if (!v.an) { return; }
+                std::copy(v.d, v.d + 16, sd + 32);
                 ++g_figurDeformAufrufe;
             };
             // --- rc603: der schnelle Stufenweg ------------------------------

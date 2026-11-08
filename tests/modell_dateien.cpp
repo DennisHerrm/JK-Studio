@@ -190,6 +190,18 @@ void glaTeil() {
     std::string bytes;
     std::string f;
     expect("geschrieben", schreibGla(a, bytes, &f));
+    {
+        // FIX5 P37: die Groesse vorab = die geschriebene Datei; ueber 2^31 - 1 Byte passt keine GLA (ohne die Daten anzulegen)
+        std::uint64_t kinder = 0;
+        for (const GlaBone& k : a.bones) { kinder += k.kinder.size(); }
+        expect("glaDateiGroesse = Groesse der geschriebenen Datei (" + std::to_string(bytes.size()) + " Byte)",
+               glaDateiGroesse(a.bones.size(), kinder, static_cast<std::uint64_t>(a.numFrames), a.bonePool.size() / 14U) == bytes.size());
+        // 8 Knochen in einer Kette: 89478485 Bilder fuellen den Bildteil bis 2147483640 Byte - mit Kopf und Hierarchie zu viel
+        expect("89478485 Bilder x 8 Knochen passen nicht mehr in eine GLA", glaDateiGroesse(8U, 7U, 89478485U, 0U) > kGlaHoechstens);
+        expect("89478400 Bilder x 8 Knochen passen", glaDateiGroesse(8U, 7U, 89478400U, 0U) <= kGlaHoechstens);
+        expect("der volle Vorrat (0xFFFFFF x 14 Byte) zaehlt mit", glaDateiGroesse(8U, 7U, 80000000U, 0xFFFFFFU) > kGlaHoechstens &&
+                                                                       glaDateiGroesse(8U, 7U, 80000000U, 0U) <= kGlaHoechstens);
+    }
     GlaAnimation b;
     expect("gelesen", readGla(bytes, b, &f));
     expect("Kopf und Skelett gleich", b.skeletonName == a.skeletonName && b.numFrames == 4 && b.bones.size() == 3U && b.bones[0].flags == 1U &&

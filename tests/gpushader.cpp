@@ -68,26 +68,27 @@ int main() {
                                                                          nebelPixelShaderHlsl().find("floor(255.0 * sqrt(floor(s * 255.0) / 255.0)) / 255.0") != std::string::npos);
 
     // --- Jedes Merkmal, in beide Richtungen ------------------------------
-    beideRichtungen("deformVertexes", kDeform, "ein.normal * w", true);
+    // FIX5: alle deformVertexes ueber verformeEcke (RB_DeformTessGeometry je Ecke, Tafeln des Spiels)
+    beideRichtungen("deformVertexes", kDeform, "welt = verformeEcke(welt, nrm, ein.uv,", true);
     // Wie AutospriteDeform: entlang der Kameraachsen, Richtung und Radius
     // aus der Normalen (baueAutosprites beim Hochladen).
     beideRichtungen("autosprite", kAutosprite, "links * ein.normal.x + gHoch * ein.normal.y", true);
     beideRichtungen("tcGen environment", kTexGenEnv, "nrm.x * d - 0.5 * v.x", true);
     // rc592: die uebrigen deformVertexes-Formen (RB_DeformTessGeometry).
     beideRichtungen("autosprite2", kAutosprite2, "cross(ein.normal, gVorn)", true);
-    beideRichtungen("deformVertexes bulge", kBulge, "sin(ein.uv.x * gBulge.x", true);
-    beideRichtungen("deformVertexes move", kDeformMove, "welt += gDeformMove.xyz", true);
-    beideRichtungen("deformVertexes normal", kDeformNormal, "rausch4(", true);
+    beideRichtungen("deformVertexes bulge", kBulge, "welt = verformeEcke(welt, nrm, ein.uv,", true);
+    beideRichtungen("deformVertexes move", kDeformMove, "welt = verformeEcke(welt, nrm, ein.uv,", true);
+    beideRichtungen("deformVertexes normal", kDeformNormal, "welt = verformeEcke(welt, nrm, ein.uv,", true);
     // Wolkenschicht (R_InitSkyTexCoords): Kuppel mit Radius 4096.
     beideRichtungen("Wolkenschicht", kWolke, "float h = gWolkenHoehe;", false);
     // rc608 Teil 7: Stufe 0 und halber Texel am Rand, sonst eine Haarlinie an der Kante zweier Himmelsseiten.
     beideRichtungen("Himmelswuerfel", kSky, "gHimmel.SampleLevel(gSampler, float3(huv, face), 0.0)", false);
     beideRichtungen("alphaGen portal", kAlphaPortal, "/ max(gPortalWeite", true);
     beideRichtungen("Spiegelbild", kSpiegelBild, "float4 c = float4(gPortal.Load(", false);
-    // NICHT auf "gTexMatrix" pruefen: der Name steht ohnehin in der
-    // Erklaerung des Konstantenpuffers, also auch ohne das Bit. `st2` gibt
-    // es nur im erzeugten Block.
-    beideRichtungen("tcMod", kTexMod, "float2 st2;", true);
+    // NICHT auf "gTcM0" pruefen: der Name steht ohnehin in der
+    // Erklaerung des Konstantenpuffers, also auch ohne das Bit. Den Aufruf
+    // der Kette gibt es nur im erzeugten Block (FIX4 P33).
+    beideRichtungen("tcMod", kTexMod, "precise float2 r = aus.uv;", true);
     beideRichtungen("rgbGen const", kRgbConst, "aus.farbe.rgb = gRgb.rgb", true);
     // Seit rc440 ERSETZT auch die Welle die Eckenfarbe - dieselbe Zeile wie
     // rgbGen const, denn beide meinen dasselbe (mapview.cpp:1818).
@@ -217,25 +218,33 @@ int main() {
                 enthaelt(v, "aus.uvLm = float2(0.0, 0.0)"));
     }
 
-    // --- Es gibt keine tcMod-Schleife mehr --------------------------------
+    // --- Die tcMod-Kette je Schritt (FIX4 P33) ------------------------------
     //
-    // Bis rc442 lief der Shader die Kette Schritt fuer Schritt ab, und diese
-    // Proben pruefte die Grenze der Schleife. Seit rc443 rechnet die CPU die
-    // Kette zusammen (nach ComputeTexMods aus rd-rend2); im Shader steht nur
-    // noch EINE affine Abbildung.
-    //
-    // Die Proben pruefen deshalb jetzt das Gegenteil: dass keine Schleife
-    // mehr entsteht, egal wie viele Schritte gemeldet werden.
+    // Bis rc442 eine Schleife ueber acht Schritte ohne transform, von rc443
+    // bis FIX3 EINE zusammengerechnete Abbildung (rd-rend2). Seit FIX4 P33
+    // vier feste Schritte (TR_MAX_TEXMODS) wie rd-vanilla, jeder mit seiner
+    // Art - keine Schleife. FIX5 Tempo: nur so viele Schritte, wie die Stufe
+    // hat (numTexMods im Shadernamen), und turb nur mit kTurb.
     {
         for (int n : {0, 1, 3, 8}) {
             const std::string v = vertexShaderHlsl(kTexMod, n);
-            erwarte("keine tcMod-Schleife mehr",
+            erwarte("keine tcMod-Schleife",
                     !enthaelt(v, "gTexMod[i]") && !enthaelt(v, "for (int i"));
         }
-        erwarte("dafuer die zusammengerechnete Abbildung",
-                enthaelt(vertexShaderHlsl(kTexMod, 1), "gTexMatrix.x"));
-        erwarte("die Zahl der Stufen aendert den Quelltext NICHT mehr",
-                vertexShaderHlsl(kTexMod, 1) == vertexShaderHlsl(kTexMod, 4));
+        const auto zahl = [](const std::string& v, const char* was) {
+            int k = 0;
+            for (std::size_t p = v.find(was); p != std::string::npos; p = v.find(was, p + 1)) { ++k; }
+            return k;
+        };
+        erwarte("ein Schritt: einmal tcSchritt im Rumpf", zahl(vertexShaderHlsl(kTexMod, 1), "        r = tcSchritt(r, gTcArt.") == 1);
+        erwarte("vier Schritte: viermal, der letzte mit gTcM3",
+                zahl(vertexShaderHlsl(kTexMod, 4), "        r = tcSchritt(r, gTcArt.") == 4 &&
+                    enthaelt(vertexShaderHlsl(kTexMod, 4), "r = tcSchritt(r, gTcArt.w, gTcM3, gTcO23.zw, ort, false);"));
+        erwarte("mehr als TR_MAX_TEXMODS: vier", zahl(vertexShaderHlsl(kTexMod, 8), "        r = tcSchritt(r, gTcArt.") == 4);
+        erwarte("turb nur mit kTurb",
+                enthaelt(vertexShaderHlsl(kTexMod | kTurb, 2), "r = tcSchritt(r, gTcArt.y, gTcM1, gTcO01.zw, ort, true);") &&
+                    !enthaelt(vertexShaderHlsl(kTexMod, 2), "ort, true);"));
+        erwarte("kTurb aendert den Namen", shaderName(kTexMod, 1) != shaderName(kTexMod | kTurb, 1));
     }
 
     // --- Gleiche Bits, gleicher Quelltext --------------------------------
@@ -336,31 +345,25 @@ int main() {
         erwarte("bei beiden Bits steht die Zeile genau einmal", n == 1);
     }
 
-    // --- Die Phase wird VOR dem Sinus gekuerzt ---------------------------
+    // --- Die Welle aus der Tafel des Spiels (FIX5) ------------------------
     //
-    // `waveValue` im Rasterer: t = fraction(phase + zeit*freq), dann
-    // shape(func, t). Der Shader warf den vollen Wert in den Sinus.
-    //
-    // An der Lavaflaeche von md_am_sith erreicht das Argument rund 630
-    // (Ausdehnung 7168 x 9456 x 2078, deformSpread 1/180). Der Abstand
-    // zweier benachbarter Ecken betraegt dort 0,053 Wellen - eine gut
-    // darstellbare Welle, die aber nicht ueberlebt, wenn sie aus einem
-    // Argument von 630 herausgerechnet werden muss.
+    // Bis FIX5 kuerzte der Shader die Phase mit frac() und nahm sin(t * 2 pi) der Grafikkarte - fuer jede Form ein Sinus.
+    // RB_CalcDeformVertexes nimmt WAVEVALUE: der Index Q_ftol((phase + off + floatTime * freq) * 1024) & 1023 in float, der Wert
+    // aus der Tafel der Form (an der Lavaflaeche von md_am_sith mit einem Argument um 630 so grob wie im Spiel). Bitgleich geprueft
+    // in tests/defgpu.cpp; hier nur, dass der Text diesen Weg nimmt.
     {
         const std::string d = vertexShaderHlsl(kDeform, 0);
-        erwarte("deformVertexes kuerzt die Phase vor dem Sinus",
-                d.find("frac(gDeform[2] + off") != std::string::npos);
-        erwarte("und wirft nicht mehr den vollen Wert hinein",
-                d.find("sin((gDeform[2] + off") == std::string::npos);
+        erwarte("deformVertexes: Index wie Q_ftol & 1023, Wert aus der Tafel",
+                d.find("precise float x = (p + w.w) * 1024.0;") != std::string::npos &&
+                    d.find("funcTafel(art, funcIndex(x))") != std::string::npos);
+        erwarte("und kein sin der Grafikkarte mehr",
+                d.find("sin(t * 6.2831853)") == std::string::npos && d.find("frac(gDeform[2]") == std::string::npos);
 
-        // turb steckt jetzt in derselben Abbildung, mit `ort` statt der
-        // ausgeschriebenen Koordinaten - gekuerzt wird weiter.
+        // turb: FIX4 P33 der Index wie (int)(double) & FUNCTABLE_MASK (turbIndex), der Wert aus der Tafel des Spiels
         const std::string t = vertexShaderHlsl(kTexMod, 1);
-        // FIX2 P16: gekuerzt wird auf der CPU (gTexOffTurb.w = 1024 now modulo 1024, in double), der Index wie
-        // (int)(...) & FUNCTABLE_MASK; FIX3: in turbVersatz, je turb mit seinem Rest
-        erwarte("tcMod turb kuerzt ebenfalls",
-                t.find("turbVersatz(ort, gTexOffTurb.z, gTexOffTurb.w") != std::string::npos && t.find("ort + qr") != std::string::npos &&
-                    t.find("& 1023") != std::string::npos);
+        erwarte("tcMod turb: Index & 1023 aus der Tafel",
+                t.find("turbVersatz(ort, m.x, m.y)") != std::string::npos && t.find("& 1023") != std::string::npos &&
+                    t.find("kSinTafel[turbIndex(ort.x, q)]") != std::string::npos);
     }
 
     // --- alphaGen: was VOR dem Alphakanal der Textur steht ---------------

@@ -7,10 +7,14 @@
 
 #include <algorithm>
 #include <cmath>
-
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <string>
 
+#include "bhed/gpuconst.h"
 #include "bhed/gpustate.h"
+#include "bhed/wave.h"
 
 namespace bhed::gpu {
 
@@ -71,51 +75,290 @@ cbuffer JeBild : register(b0) {
     float4   gClip;
 };
 cbuffer JeStapel : register(b1) {
-    float4 gTexMatrix;     // die ganze tcMod-Kette als 2x2
-    float4 gTexOffTurb;    // Verschiebung x,y + Amplitude,Phase von turb
+    float4 gTcM0;          // FIX4 P33: erster Schritt der tcMod-Kette (gpuconst.h kTcM0At)
+    float4 gTcO01;         // FIX4 P33: Verschiebung des ersten und zweiten Schritts
     float4 gRgb;           // rgbGen const / wave, .a = alphaConst
     float  gAlphaSchwelle;
-    float2 gTurbQ4;        // FIX3: vierter turb, 1024 now und Rest (gpuconst.h 13)
     // EIN float4, kein `float gDeform[4]`. Das Feld belegte vier
     // Viererbloecke, das letzte Element davon aber nur .x - und
     // gDeformSpread rutschte in .y dahinter (Lage 29). Der Packer schrieb
     // nach 32, der Shader las fuer den Ortsanteil der Welle null: der
     // Lavafall in md_am_sith pulsierte im Gleichtakt, statt zu wogen.
     // Mit float4 gibt es keine Packregel zu erraten: 16..19, dann 20.
-    float4 gDeform;        // base, amplitude, phase, frequency
+    // FIX5: die deformVertexes wie gpu::verformung (gpuconst.h) sie packt - d0 gDeform, d1 (gDeformSpread, gDeformArt,
+    // gDeformNormal.xy), d2 gBulge, d3 gDeformMove.
+    float4 gDeform;        // base (bei frequency 0 EvalWaveForm), amplitude, phase, floatTime * frequency
     float  gDeformSpread;
     float  gWolkenHoehe;   // Wolkenkuppel, siehe gpuconst.h (21)
     float  gPortalWeite;   // alphaGen portal, siehe gpuconst.h (22)
+    float  gDeformArt;     // FIX5: Tafel der Welle (0 = fester Wert, 1..5 WaveFunc), 23
     // rc592, siehe gpuconst.h: jedes ein eigener Viererblock (24, 28, 32).
-    float4 gDeformMove;    // xyz Versatz
-    float4 gBulge;         // breite, hoehe, tempo
-    float4 gDeformNormal;  // amplitude, frequenz
+    float4 gDeformMove;    // xyz Versatz, .w die Folge (FIX5)
+    float4 gBulge;         // breite, hoehe, tempo, now (FIX5)
+    float4 gDeformNormal;  // amplitude, floatTime * frequenz (FIX5)
     float4 gTcGenS;        // rc605: tcGen vector, s-Vektor (gpuconst.h 36)
     float4 gTcGenT;        // rc605: tcGen vector, t-Vektor (40)
-    float4 gTexTurbMat;    // FIX2 P16: linearer Teil der tcMod-Schritte hinter turb (44)
-    float4 gTurbMat2;      // FIX3: zweiter bis vierter turb der Stufe (48, 52, 56)
-    float4 gTurbMat3;
-    float4 gTurbMat4;
-    float4 gTurbQ23;       // FIX3: 1024 now und Rest des zweiten und dritten turb (60)
+    float4 gTcM1;          // FIX4 P33: zweiter bis vierter Schritt der tcMod-Kette (44, 48, 52)
+    float4 gTcM2;
+    float4 gTcM3;
+    float4 gTcO23;         // FIX4 P33: Verschiebung des dritten und vierten Schritts (56)
+    float4 gTcArt;         // FIX4 P33: die Art je Schritt, gpu::kTcKeine ... kTcRoll (60)
 };
 )";
 
-// FIX2 P16 / FIX3: der Versatz EINES tcMod turb an seiner Stelle der Kette (in vertexShaderHlsl, figurVertexShaderHlsl und den
-// Shadern des Echtzeit-Lichts, karte_gpu_win32.cpp).
-const char* kTurb = R"(
-// RB_CalcTurbulentTexCoords (code/rd-vanilla/tr_shade_calc.cpp:936): sinTable[(int)(((x + z) / 1024 + now) * 1024) & MASK] * amplitude,
-// die Tafel sin(i * 360 / 1023 Grad) (tr_init.cpp:1727). w = ort + qr hat denselben floor modulo 1024 wie ort + 1024 now (qr: die
-// Phase auf der CPU in double gekuerzt); (int) schneidet zur Null hin: ist ort + q negativ und w nicht ganz, eins mehr. Der Versatz
-// geht durch den linearen Teil der Schritte hinter diesem turb, mal Amplitude (m; ComputeTexCoords, tr_shade.cpp:1725, wendet jeden
-// turb an seiner Stelle an). m = 0: kein turb, Versatz 0.
-float2 turbVersatz(float2 ort, float q, float qr, float4 m) {
-    float2 tw = ort + qr;
-    float2 tf = floor(tw);
-    tf += ((ort + q < 0.0) && (tw != tf)) ? 1.0 : 0.0;
-    float2 tv = sin((float2)((int2)tf & 1023) * (6.283185307179586 / 1023.0));
-    return float2(m.x * tv.x + m.z * tv.y, m.y * tv.x + m.w * tv.y);
+// FIX2 P16 / FIX3 / FIX4 P33: die tcMod-Kette im Shader (in vertexShaderHlsl, figurVertexShaderHlsl, der Wolkenstufe und den
+// Shadern des Echtzeit-Lichts, karte_gpu_win32.cpp): Schritt fuer Schritt wie rd-vanilla ComputeTexCoords, jeder in float und in
+// derselben Reihenfolge wie dort (precise: kein mad, nichts umgestellt; Direct3D 11 rundet add und mul in float zur naechsten
+// Zahl). Davor die Tafel tr.sinTable als Bitmuster (gpu::sinTafel auf der CPU).
+const char* kTcText = R"(
+// RB_CalcTurbulentTexCoords (tr_shade_calc.cpp:936-951): sinTable[(int)(((p * 1.0/128 * 0.125 + now) * FUNCTABLE_SIZE) & MASK],
+// p = x + z bzw. y in float, der Ausdruck in double. / 1024 und * 1024 sind exakt, also ist der Index (int) des auf double
+// gerundeten p + q (q = 1024 now, exakt in float). Ohne double auf der Grafikkarte: s + e = p + q exakt (TwoSum), a = |s|. Ist a
+// nicht ganz, bleibt (int) = Vorzeichen * floor(a) (e ist kleiner als der Abstand zur naechsten ganzen Zahl). Ist a ganz, rundet
+// double a + e auf die naechste ganze Zahl c ueber e, wenn c - e hoechstens die halbe double-Stufe unter a + c ist (Gleichstand:
+// a + c ist gerade), sonst floor(a + e) = a + floor(e). Ausserhalb von int (auch NaN) gibt (int) 0x80000000, & 1023 = 0.
+int turbIndex(float p, float q) {
+    precise float s = p + q;
+    precise float b = s - p;
+    precise float e = (p - (s - b)) + (q - b);
+    precise float a = abs(s);
+    precise float ea = (s < 0.0) ? -e : e;
+    if (!(a < 2147483648.0)) { return 0; }
+    precise float g = floor(a);
+    uint r = (uint)g;
+    if (a == g && a > 0.0) {
+        precise float f = floor(ea);
+        precise float c = f + 1.0;
+        uint u = asuint(a);
+        uint h = ((u >> 23) - ((((u & 0x7FFFFFu) == 0u) && (c <= 0.0)) ? 54u : 53u)) << 23;
+        precise float abstand = c - ea;
+        r += (uint)(int)((abstand <= asfloat(h)) ? c : f);
+        if (r >= 0x80000000u) { return 0; }
+    }
+    int i = (int)r;
+    return ((s < 0.0) ? -i : i) & 1023;
+}
+// Der Versatz eines turb an seinem Ort: sinTable[index] * amplitude in float wie im Spiel
+float2 turbVersatz(float2 ort, float q, float amp) {
+    precise float2 d = float2(asfloat(kSinTafel[turbIndex(ort.x, q)]), asfloat(kSinTafel[turbIndex(ort.y, q)])) * amp;
+    return d;
+}
+// Ein Schritt der Kette, wie ComputeTexCoords (tr_shade.cpp:1725) ihn rechnet (art: gpu::kTcAffin 1 RB_CalcTransformTexCoords
+// st[0] = s * m[0][0] + t * m[1][0] + translate[0] fuer rotate, stretch und transform; 2 turb; 3 RB_CalcScaleTexCoords st *= scale;
+// 4 RB_CalcScrollTexCoords st += scroll; 0 kein Schritt). Ohne turb (mitTurb false) bleibt st bei turb unveraendert.
+// FIX5 P38: [branch] - die Art ist fuer alle Ecken eines Aufrufs dieselbe (Konstantenpuffer); verzweigt statt eingeebnet rechnet eine
+// Ecke ohne turb den turb-Teil nicht mit (Bild unveraendert, nur der Weg)
+float2 tcSchritt(float2 st, float art, float4 m, float2 o, float2 ort, bool mitTurb) {
+    precise float2 r = st;
+    [branch] if (art == 1.0) {
+        r = float2(st.x * m.x + st.y * m.z + o.x, st.x * m.y + st.y * m.w + o.y);
+    } else if (art == 2.0) {
+        [branch] if (mitTurb) { r = st + turbVersatz(ort, m.x, m.y); }
+    } else if (art == 3.0) {
+        r = st * m.xy;
+    } else if (art == 4.0) {
+        r = st + o;
+    }
+    return r;
+}
+// Die ganze Kette (bis TR_MAX_TEXMODS 4) der Reihe nach; ort = (x + z, y) der Ecke wie tess.xyz
+float2 tcKette(float2 st, float4 m0, float4 o01, float4 m1, float4 m2, float4 m3, float4 o23, float4 art, float2 ort, bool mitTurb) {
+    precise float2 r = tcSchritt(st, art.x, m0, o01.xy, ort, mitTurb);
+    r = tcSchritt(r, art.y, m1, o01.zw, ort, mitTurb);
+    r = tcSchritt(r, art.z, m2, o23.xy, ort, mitTurb);
+    r = tcSchritt(r, art.w, m3, o23.zw, ort, mitTurb);
+    return r;
 }
 )";
+
+// Der HLSL-Text oben mit der Tafel davor: tr.sinTable[1024] als Bitmuster der floats von gpu::sinTafel (R_InitFuncTables)
+const std::string& tcTextMitTafel() {
+    static const std::string text = [] {
+        std::string t = "// tr.sinTable (R_InitFuncTables, code/rd-vanilla/tr_init.cpp:1727), Bit fuer Bit von der CPU (gpu::sinTafel)\n"
+                        "static const uint kSinTafel[1024] = {";
+        for (int i = 0; i < 1024; ++i) {
+            const float w = sinTafel(i);
+            std::uint32_t b = 0;
+            std::memcpy(&b, &w, sizeof b);
+            char z[16];
+            std::snprintf(z, sizeof z, "%s0x%08xu", (i % 8 == 0) ? "\n    " : " ", b);
+            t += z;
+            if (i < 1023) { t += ','; }
+        }
+        t += "\n};\n";
+        t += kTcText;
+        return t;
+    }();
+    return text;
+}
+
+// FIX5: deformVertexes wave, normal, bulge und move je Ecke wie rd-vanilla RB_DeformTessGeometry (code/rd-vanilla/tr_shade_calc.cpp:553,
+// MD9 gleich), fuer die Karte (vertexShaderHlsl) und die Figurenstufe (figurVertexShaderHlsl) dieselben Funktionen. Die Werte packt
+// gpu::verformung (gpuconst.h: d0..d3); alles in float wie im Spiel (precise: kein mad, nichts umgestellt). Davor stehen die Tafel
+// tr.sinTable (kSinTafel, tcTextMitTafel) und die Zufallstafel aus R_NoiseInit (kRauschTafel, kRauschPerm, wave.cpp).
+const char* kVerformText = R"(
+// (int) einer float wie cvttss2si im Spiel: zur Null hin, ausserhalb von int (auch NaN) 0x80000000
+int ganzWieX86(float x) {
+    return (abs(x) < 2147483648.0) ? (int)x : (int)0x80000000;
+}
+// Q_ftol(x) & FUNCTABLE_MASK (WAVEVALUE, tr_shade_calc.cpp:30)
+int funcIndex(float x) {
+    return ganzWieX86(x) & 1023;
+}
+// R_InitFuncTables (tr_init.cpp:1724-1747): art = WaveFunc (1 sin, 2 triangle, 3 square, 4 sawtooth, 5 inversesawtooth). Ausser sin
+// sind alle Eintraege in float exakt: i / 256, 1 - i / 256, i / 1024 (mal einer Zweierpotenz).
+float funcTafel(float art, int i) {
+    i = i & 1023;
+    if (art < 1.5) { return asfloat(kSinTafel[i]); }
+    if (art < 2.5) {
+        precise float v = (float)(i & 255) * 0.00390625;
+        if ((i & 256) != 0) { v = 1.0 - v; }
+        return (i < 512) ? v : -v;
+    }
+    if (art < 3.5) { return (i < 512) ? 1.0 : -1.0; }
+    precise float saege = (float)i * 0.0009765625;
+    if (art < 4.5) { return saege; }
+    precise float invers = 1.0 - saege;
+    return invers;
+}
+// WAVEVALUE(table, base, amplitude, phase, freq) mit w = (base, amplitude, phase, floatTime * freq) und phase + zusatz
+float wellenWert(float4 w, float art, float zusatz) {
+    precise float p = w.z + zusatz;
+    precise float x = (p + w.w) * 1024.0;
+    precise float r = w.x + funcTafel(art, funcIndex(x)) * w.y;
+    return r;
+}
+// R_NoiseGet4f (rd-common/tr_noise.cpp:60): VAL/INDEX ueber s_noise_perm, LERP(a, b, w) = a * (1.0f - w) + b * w
+uint rauschVal(uint a) { return kRauschPerm[a & 255u]; }
+float rauschWert(uint x, uint y, uint z, uint t) {
+    return asfloat(kRauschTafel[rauschVal(x + rauschVal(y + rauschVal(z + rauschVal(t))))]);
+}
+float rauschLerp(float a, float b, float w) {
+    precise float r = a * (1.0 - w) + b * w;
+    return r;
+}
+float rauschen4(float x, float y, float z, float t) {
+    int ix = ganzWieX86(floor(x));
+    precise float fx = x - (float)ix;
+    int iy = ganzWieX86(floor(y));
+    precise float fy = y - (float)iy;
+    int iz = ganzWieX86(floor(z));
+    precise float fz = z - (float)iz;
+    int it = ganzWieX86(floor(t));
+    precise float ft = t - (float)it;
+    uint ux = (uint)ix;
+    uint uy = (uint)iy;
+    uint uz = (uint)iz;
+    precise float wert[2];
+    [unroll] for (uint i = 0; i < 2; ++i) {
+        uint ut = (uint)it + i;
+        precise float fv = rauschLerp(rauschLerp(rauschWert(ux, uy, uz, ut), rauschWert(ux + 1u, uy, uz, ut), fx),
+                                      rauschLerp(rauschWert(ux, uy + 1u, uz, ut), rauschWert(ux + 1u, uy + 1u, uz, ut), fx), fy);
+        precise float bv = rauschLerp(rauschLerp(rauschWert(ux, uy, uz + 1u, ut), rauschWert(ux + 1u, uy, uz + 1u, ut), fx),
+                                      rauschLerp(rauschWert(ux, uy + 1u, uz + 1u, ut), rauschWert(ux + 1u, uy + 1u, uz + 1u, ut), fx), fy);
+        wert[i] = rauschLerp(fv, bv, fz);
+    }
+    return rauschLerp(wert[0], wert[1], ft);
+}
+// Q_rsqrt (shared/qcommon/q_math.cpp:360): 0x5f3759df und eine Newton-Stufe, y * (1.5f - ((x2 * y) * y))
+float qRsqrtSpiel(float zahl) {
+    precise float x2 = zahl * 0.5;
+    precise float y = asfloat(0x5f3759df - (asint(zahl) >> 1));
+    precise float r = y * (1.5 - ((x2 * y) * y));
+    return r;
+}
+// Die Verformung einer Ecke (xyz und Normale im Raum von tess.xyz, st = tess.texCoords[0]); d0..d3 aus gpu::verformung. Die Folge
+// (d3.w, je drei Bit) wie die deformVertexes im Shader.
+float3 verformeEcke(float3 xyz, inout float3 nrm, float2 st, float4 d0, float4 d1, float4 d2, float4 d3) {
+    precise float3 p = xyz;
+    precise float3 n = nrm;
+    uint folge = (uint)d3.w;
+    // [loop]: jede Art steht einmal im Code (abgerollt wuerde das Rauschen viermal eingesetzt - die Uebersetzung dauerte Minuten)
+    [loop] for (int k = 0; k < 4; ++k) {
+        uint art = (folge >> (3 * k)) & 7u;
+        if (art == 1u) {
+            // RB_CalcDeformVertexes (:129): bei frequency 0 EvalWaveForm fuer alle (d0.x), sonst
+            // off = (x + y + z) * deformationSpread, WAVEVALUE(table, base, amplitude, phase + off, frequency)
+            precise float scale = d0.x;
+            if (d1.y > 0.5) {
+                precise float off = (p.x + p.y + p.z) * d1.x;
+                scale = wellenWert(d0, d1.y, off);
+            }
+            precise float3 v = n * scale;
+            p = p + v;
+        } else if (art == 2u) {
+            // RB_CalcDeformNormals (:182): normal += amplitude * R_NoiseGet4f(xyz * 0.98f (+100/+200), floatTime * frequency),
+            // dann VectorNormalizeFast (q_math.cpp:1147) mit Q_rsqrt
+            precise float3 q = p * kNormalSchritt;
+            precise float3 rr = float3(0.0, 0.0, 0.0);
+            [loop] for (int a = 0; a < 3; ++a) {
+                precise float x = (a == 0) ? q.x : (((a == 1) ? 100.0 : 200.0) + q.x);
+                precise float v = rauschen4(x, q.y, q.z, d1.w);
+                if (a == 0) { rr.x = v; } else if (a == 1) { rr.y = v; } else { rr.z = v; }
+            }
+            precise float n0 = n.x + d1.z * rr.x;
+            precise float n1 = n.y + d1.z * rr.y;
+            precise float n2 = n.z + d1.z * rr.z;
+            precise float il = qRsqrtSpiel(n0 * n0 + n1 * n1 + n2 * n2);
+            n = float3(n0 * il, n1 * il, n2 * il);
+        } else if (art == 3u) {
+            // RB_CalcBulgeVertexes (:216): ohne speed und width xyz += normal * height, sonst
+            // off = (int)(FUNCTABLE_SIZE / (M_PI * 2) * (st[0] * width + now)), scale = sinTable[off & MASK] * height
+            precise float scale = d2.y;
+            if (!(d2.z == 0.0 && d2.x == 0.0)) {
+                precise float a = st.x * d2.x + d2.w;
+                precise float o = kBeulenFaktor * a;
+                precise float t = asfloat(kSinTafel[ganzWieX86(o) & 1023]) * d2.y;
+                scale = t;
+            }
+            precise float3 v = n * scale;
+            p = p + v;
+        } else if (art == 4u) {
+            // RB_CalcMoveVertexes (:263): xyz += moveVector * WAVEVALUE (d3.xyz von der CPU)
+            p = p + d3.xyz;
+        }
+    }
+    nrm = n;
+    return p;
+}
+)";
+
+// Der Text oben mit seinen Tafeln: die Zufallstafel aus R_NoiseInit (wave.cpp), FUNCTABLE_SIZE / (M_PI * 2) in float wie im Spiel
+// (M_PI ist dort 3.14159265358979323846f, shared/qcommon/q_math.h:40; OpenJK castet auf float, MD9 rechnet ohne Cast gleich in float)
+// und 0.98f (RB_CalcDeformNormals). kSinTafel muss davor stehen (tcTextMitTafel).
+const std::string& verformText() {
+    static const std::string text = [] {
+        std::string t = "// FIX5: s_noise_table und s_noise_perm (R_NoiseInit, rd-common/tr_noise.cpp:50), Bit fuer Bit von der CPU (wave.cpp)\n";
+        const auto bits = [](float w) {
+            std::uint32_t b = 0;
+            std::memcpy(&b, &w, sizeof b);
+            return b;
+        };
+        const auto feld = [&t](const char* name, const auto& wert) {
+            t += "static const uint ";
+            t += name;
+            t += "[256] = {";
+            for (int i = 0; i < 256; ++i) {
+                char z[16];
+                std::snprintf(z, sizeof z, "%s0x%08xu", (i % 8 == 0) ? "\n    " : " ", static_cast<unsigned>(wert(i)));
+                t += z;
+                if (i < 255) { t += ','; }
+            }
+            t += "\n};\n";
+        };
+        feld("kRauschTafel", [&bits](int i) { return bits(rauschTafel()[i]); });
+        feld("kRauschPerm", [](int i) { return static_cast<std::uint32_t>(rauschPerm()[i]); });
+        const float faktor = 1024.0F / (3.14159265358979323846F * 2.0F);
+        char z[96];
+        std::snprintf(z, sizeof z, "static const float kBeulenFaktor = asfloat(0x%08xu);\n", static_cast<unsigned>(bits(faktor)));
+        t += z;
+        std::snprintf(z, sizeof z, "static const float kNormalSchritt = asfloat(0x%08xu);\n", static_cast<unsigned>(bits(0.98F)));
+        t += z;
+        t += kVerformText;
+        return t;
+    }();
+    return text;
+}
 
 // Eine Zeile nur anhaengen, wenn das Bit gesetzt ist. Die Pruefung liest
 // sich dadurch wie die Merkmalsliste, und ein vergessenes Bit faellt beim
@@ -168,7 +411,8 @@ VSOut main(uint id : SV_VertexID) {
 }  // namespace
 
 std::string vollbildVertexShaderHlsl() { return kVollbildVs; }
-std::string turbHlsl() { return kTurb; }   // FIX3
+std::string tcModHlsl() { return tcTextMitTafel(); }   // FIX3, FIX4 P33
+std::string verformHlsl() { return tcTextMitTafel() + verformText(); }   // FIX5
 
 // --- Die Klinge eines Lichtschwerts --------------------------------------
 //
@@ -829,13 +1073,14 @@ std::string figurVertexShaderHlsl(std::uint32_t features) {
     std::string s;
     s += kKonstanten;
     s += kKnochen;
-    s += kTurb;   // FIX3
+    s += tcTextMitTafel();   // FIX3, FIX4 P33
+    s += verformText();      // FIX5: deformVertexes wie an der Karte (verformeEcke)
     // rc602 kartenpruefung: die Shaderstufe einer Figurenflaeche (b3), siehe
     // bhed/figurstufen.h. gStufe.x Farbe (0 wie bisher, 1 weiss, 2 gStufeFarbe,
     // 3 schwarz), .y Alpha (0 eins, 1 lightingSpecular, 2 gStufeFarbe.a),
     // .z tcGen (0 base, 1 environment). Alles 0 = der alte Weg.
-    // rc604 fix604b (B4): .w 1 = tcMod - gStufeTexMatrix/gStufeTexOffTurb wie
-    // gTexMatrix/gTexOffTurb der Karte (packeKonstanten, ComputeTexMods).
+    // rc604 fix604b (B4): .w 1 = tcMod - gStufeTcM0..3, gStufeTcO01/23 und
+    // gStufeTcArt wie gTcM0.. der Karte (packeKonstanten, FIX4 P33 je Schritt).
     s += R"(
 cbuffer JeStufe : register(b3) {
     float4 gStufe;
@@ -844,36 +1089,21 @@ cbuffer JeStufe : register(b3) {
     float4 gAchse0;
     float4 gAchse1;
     float4 gAchse2;
-    float4 gStufeTexMatrix;
-    float4 gStufeTexOffTurb;
-    // rc604: deformVertexes (RB_DeformTessGeometry) - siehe deformWerte
-    // (gpumap_win32.cpp).
-    float4 gDefWelle;     // base, amplitude, phase, frequency
-    float4 gDefArt;       // deformationSpread, Tabelle, an, -
-    float4 gDefBeule;     // bulge width, height, speed; Tabelle der move-Welle
-    float4 gDefWeg;       // moveVector, refdef.floatTime
-    float4 gDefWegWelle;  // base, amplitude, phase, frequency der move-Welle
-    float4 gStufeTurbMat; // FIX2 P16: linearer Teil der tcMod-Schritte hinter turb
-    float4 gStufeTurbMat2; // FIX3: zweiter bis vierter turb (wie gTurbMat2..4)
-    float4 gStufeTurbMat3;
-    float4 gStufeTurbMat4;
-    float4 gStufeTurbQ23;  // FIX3: 1024 now und Rest des zweiten und dritten turb
-    float4 gStufeTurbQ4;   // FIX3: ... des vierten (xy)
+    float4 gStufeTcM0;    // FIX4 P33: die tcMod-Kette je Schritt wie gTcM0.. der Karte
+    float4 gStufeTcO01;
+    // rc604: deformVertexes (RB_DeformTessGeometry). FIX5: d0..d3 aus gpu::verformung wie an der Karte
+    // (deformWerte, gpumap_win32.cpp); gDef3.w 0 = keine.
+    float4 gDef0;
+    float4 gDef1;
+    float4 gDef2;
+    float4 gDef3;
+    float4 gStufeTcM1;    // FIX4 P33: zweiter bis vierter Schritt, Verschiebungen, Arten (wie gTcM1.. der Karte)
+    float4 gStufeTcM2;
+    float4 gStufeTcM3;
+    float4 gStufeTcO23;
+    float4 gStufeTcArt;
+    float4 gEntSkala;     // MERGE3: Massstab von axis[0..2] der Entity (MERGE2), .x 0 = keiner gegeben
 };
-// rc604: die Tabellen der Engine (R_InitFuncTables, code/rd-vanilla/
-// tr_init.cpp:1724-1747 OpenJK), FUNCTABLE_SIZE 1024; i schon & FUNCTABLE_MASK.
-float defTabelle(float art, int i) {
-    i = i & 1023;
-    if (art < 1.5) { return sin(radians((float)i * 360.0 / 1023.0)); }
-    if (art < 2.5) {
-        int j = i & 511;
-        float v = (j < 256) ? (float)j / 256.0 : 1.0 - (float)(j - 256) / 256.0;
-        return (i < 512) ? v : -v;
-    }
-    if (art < 3.5) { return (i < 512) ? 1.0 : -1.0; }
-    if (art < 4.5) { return (float)i / 1024.0; }
-    return 1.0 - (float)i / 1024.0;
-}
 // rc603 Durchsicht: Q_rsqrt (q_math.c:375 MD / 360 OJ) - 0x5f3759df und EINE
 // Newton-Stufe, bis zu 0.175 Prozent zu klein. RB_CalcSpecularAlpha und
 // VectorNormalizeFast in RB_CalcEnvironmentTexCoords rechnen damit, nicht
@@ -932,29 +1162,11 @@ VSOut main(VSIn ein) {
         welt += p * w;
         nrm += n * w;
     }
-    // --- rc604: deformVertexes, im Raum des Modells wie tess.xyz/tess.normal
-    // (RB_CalcDeformVertexes / RB_CalcBulgeVertexes / RB_CalcMoveVertexes,
-    // code/rd-vanilla/tr_shade_calc.cpp:129-276 OpenJK; WAVEVALUE: Tabelle an
-    // Q_ftol((phase + floatTime * freq) * FUNCTABLE_SIZE) & FUNCTABLE_MASK).
-    if (gDefArt.z > 0.5) {
-        float zeit = gDefWeg.w;
-        if (gDefArt.y > 0.5) {
-            float off = (gDefWelle.w == 0.0) ? 0.0 : (welt.x + welt.y + welt.z) * gDefArt.x;
-            int i = (int)((gDefWelle.z + off + zeit * gDefWelle.w) * 1024.0);
-            welt += nrm * (gDefWelle.x + defTabelle(gDefArt.y, i) * gDefWelle.y);
-        }
-        if (gDefBeule.y != 0.0) {
-            if (gDefBeule.z == 0.0 && gDefBeule.x == 0.0) {
-                welt += nrm * gDefBeule.y;
-            } else {
-                int o = (int)(162.974661726 * (ein.uv.x * gDefBeule.x + zeit * gDefBeule.z));
-                welt += nrm * (defTabelle(1.0, o) * gDefBeule.y);
-            }
-        }
-        if (gDefBeule.w > 0.5) {
-            int i = (int)((gDefWegWelle.z + zeit * gDefWegWelle.w) * 1024.0);
-            welt += gDefWeg.xyz * (gDefWegWelle.x + defTabelle(gDefBeule.w, i) * gDefWegWelle.y);
-        }
+    // --- rc604: deformVertexes, im Raum des Modells wie tess.xyz/tess.normal. FIX5: dieselbe Rechnung wie an der Karte
+    // (verformeEcke: RB_DeformTessGeometry je Ecke in der Reihenfolge des Shaders, Tafeln und Rauschen des Spiels); bis FIX5 eine
+    // eigene Fassung mit sin der Grafikkarte, bulge mit Sekunden statt ms, ohne normal.
+    if (gDef3.w > 0.5) {
+        welt = verformeEcke(welt, nrm, ein.uv, gDef0, gDef1, gDef2, gDef3);
     }
     // Danach die Stellung der Figur in der Welt.
     float4 w4 = mul(gFigurWelt, float4(welt, 1.0));
@@ -1045,13 +1257,13 @@ VSOut main(VSIn ein) {
         // tr_main.cpp:384-403 MD9): A = R diag(s), der Augpunkt viewOrigin = A^T delta / |axis[0]|, die Ecke tess.xyz
         // unskaliert = diag(1/s) R^T (Weltort - Ursprung), lightDir = A^T l (R_SetupEntityLighting, tr_light.cpp:492-496),
         // die Normale die des Modells. R sind die Achsen der Entity (gAchse, ohne den Zeichnerausgleich), Ursprung und s
-        // kommen aus gAchse0..2.w / gAuge.w, gStufeTurbQ4.zw (Griffe in der Hand: die der Figur), sonst aus gFigurWelt
+        // kommen aus gAchse0..2.w / gEntSkala.xyz (Griffe in der Hand: die der Figur), sonst aus gFigurWelt
         // (Spalte 1 ist wegen des 90-Grad-Zuschlags in baueFigurWelt axis[0]). Unskaliert ist es dieselbe Rechnung wie
         // in Weltkoordinaten (die feste Drehung aendert kein Punktprodukt) - dort bleibt der alte Weg bildpunktgleich.
         float3x3 mw = (float3x3)gFigurWelt;
         float3 achsLaenge = float3(length(mw._m00_m10_m20), length(mw._m01_m11_m21), length(mw._m02_m12_m22));
-        bool entGegeben = gAuge.w > 0.0;
-        float3 sE = entGegeben ? float3(gAuge.w, gStufeTurbQ4.z, gStufeTurbQ4.w) : achsLaenge.yxz;
+        bool entGegeben = gEntSkala.x > 0.0;
+        float3 sE = entGegeben ? gEntSkala.xyz : achsLaenge.yxz;
         float3 oE = entGegeben ? float3(gAchse0.w, gAchse1.w, gAchse2.w)
                                : float3(gFigurWelt._m03, gFigurWelt._m13, gFigurWelt._m23);
         bool skaliert = any(abs(sE - 1.0) > 1e-4);
@@ -1109,20 +1321,12 @@ VSOut main(VSIn ein) {
         if (gStufe.w > 0.5) {
             // rc604 fix604b (B4): tcMod der Stufe nach ComputeTexCoords
             // (code/rd-vanilla/tr_shade.cpp: erst tcGen, dann die tcMod-Kette),
-            // die Kette auf der CPU zusammengerechnet wie bei der Karte. turb
+            // FIX4 P33 Schritt fuer Schritt wie bei der Karte (tcKette). turb
             // (RB_CalcTurbulentTexCoords, tr_shade_calc.cpp) liest tess.xyz -
             // an einem Modell die Ecke im Raum der Entity (RB_SurfaceGhoul legt
             // die gewichteten Knochenorte dort ab), also `welt` VOR gFigurWelt.
-            float2 st2;
-            st2.x = aus.uv.x * gStufeTexMatrix.x + (aus.uv.y * gStufeTexMatrix.z + gStufeTexOffTurb.x);
-            st2.y = aus.uv.x * gStufeTexMatrix.y + (aus.uv.y * gStufeTexMatrix.w + gStufeTexOffTurb.y);
-            float2 ort = float2(welt.x + welt.z, welt.y);
-            // FIX2 P16 / FIX3: jeder turb an seiner Stelle der Kette (turbVersatz)
-            st2 += turbVersatz(ort, gStufeTexOffTurb.z, gStufeTexOffTurb.w, gStufeTurbMat);
-            if (any(gStufeTurbMat2 != 0.0)) { st2 += turbVersatz(ort, gStufeTurbQ23.x, gStufeTurbQ23.y, gStufeTurbMat2); }
-            if (any(gStufeTurbMat3 != 0.0)) { st2 += turbVersatz(ort, gStufeTurbQ23.z, gStufeTurbQ23.w, gStufeTurbMat3); }
-            if (any(gStufeTurbMat4 != 0.0)) { st2 += turbVersatz(ort, gStufeTurbQ4.x, gStufeTurbQ4.y, gStufeTurbMat4); }
-            aus.uv = st2;
+            precise float2 ort = float2(welt.x + welt.z, welt.y);
+            aus.uv = tcKette(aus.uv, gStufeTcM0, gStufeTcO01, gStufeTcM1, gStufeTcM2, gStufeTcM3, gStufeTcO23, gStufeTcArt, ort, true);
         }
     }
     return aus;
@@ -1135,7 +1339,7 @@ VSOut main(VSIn ein) {
 std::string vertexShaderHlsl(std::uint32_t features, int numTexMods) {
     std::string s;
     s += kKonstanten;
-    s += kTurb;   // FIX3
+    s += tcTextMitTafel();   // FIX3, FIX4 P33
     s += R"(
 struct VSIn {
     float3 pos    : POSITION;
@@ -1152,35 +1356,8 @@ struct VSOut {
     float  clip   : SV_ClipDistance0;
 };
 )";
-    // deformVertexes normal: Wertrauschen in vier Dimensionen, linear
-    // zwischen den Gitterpunkten - wie R_NoiseGet4f. Die Werte an den
-    // Gitterpunkten kommen aus einer Streufunktion statt aus der
-    // Zufallstabelle der Engine.
-    wenn(s, features, kDeformNormal, R"(float rauschWert(int4 p) {
-    uint h = asuint(p.x) * 73856093u ^ asuint(p.y) * 19349663u ^
-             asuint(p.z) * 83492791u ^ asuint(p.w) * 2654435761u;
-    h ^= h >> 13;
-    h *= 1274126177u;
-    h ^= h >> 16;
-    return (float)(h & 65535u) / 32767.5 - 1.0;
-}
-float rausch4(float4 q) {
-    float4 f = floor(q);
-    float4 t = q - f;
-    int4 i = (int4)f;
-    float wert[2];
-    [unroll] for (int w = 0; w < 2; ++w) {
-        float v[2];
-        [unroll] for (int z = 0; z < 2; ++z) {
-            float a = lerp(rauschWert(i + int4(0, 0, z, w)), rauschWert(i + int4(1, 0, z, w)), t.x);
-            float b = lerp(rauschWert(i + int4(0, 1, z, w)), rauschWert(i + int4(1, 1, z, w)), t.x);
-            v[z] = lerp(a, b, t.y);
-        }
-        wert[w] = lerp(v[0], v[1], t.z);
-    }
-    return lerp(wert[0], wert[1], t.w);
-}
-)");
+    // FIX5: deformVertexes (verformeEcke) - die Funktionen samt Zufallstafel nur in den Varianten, die sie brauchen
+    if ((features & (kDeform | kDeformNormal | kBulge | kDeformMove)) != 0U) { s += verformText(); }
     // rc608: R_SetupEntityLighting legt ambientLight, directedLight und lightDir an die
     // Entity. lightDir ist im Raum des Modells: das Punktprodukt mit e.axis, und die Achsen
     // tragen den Massstab (ScaleModelAxis), die Normalen nicht.
@@ -1196,62 +1373,13 @@ float rausch4(float4 q) {
     float3 nrm = ein.normal;
 )";
 
-    // deformVertexes wave - RB_CalcDeformVertexes: die Ecke wandert entlang
-    // ihrer Normalen. Der Versatz haengt vom ORT ab, deshalb hier und nicht
-    // im Pixel-Shader.
-    // --- Die Phase ZUERST kuerzen, dann den Sinus ----------------------
-    //
-    // `waveValue` im Rasterer rechnet (wave.cpp:59):
-    //
-    //     t = fraction(phase + zeit * frequenz);      // immer in [0,1)
-    //     wert = base + shape(func, t) * amplitude;
-    //
-    // Hier stand der volle Wert im Sinus. Das ist mathematisch dasselbe -
-    // aber nicht numerisch. Der Ortsanteil `off` wird gross: an der
-    // Lavaflaeche von md_am_sith spannen die Koordinaten ueber 7168 x 9456
-    // x 2078 Einheiten, und mit `deformSpread = 1/180` laeuft `off` bis
-    // ueber hundert. Das Argument des Sinus erreicht damit rund 630.
-    //
-    // Der Unterschied zwischen zwei benachbarten Ecken betraegt dort im
-    // Mittel 0,053 Wellen - gemessen ueber alle 19617 Kanten der Flaeche,
-    // also knapp 19 Ecken je Wellenlaenge. Das ist eine gut darstellbare
-    // Welle. Sie ueberlebt aber nicht, wenn 0,33 Bogenmass Unterschied aus
-    // einem Argument von 630 herausgerechnet werden muessen: die
-    // Bereichsreduktion von `sin` arbeitet auf der Grafikkarte einfach
-    // genau, und was bleibt, ist eine Bewegung im Gleichtakt - ein
-    // Pulsieren statt einer Welle.
-    //
-    // `frac` kuerzt genau wie `fraction(x) = x - floor(x)`, auch bei
-    // negativen Werten.
-    wenn(s, features, kDeform, R"(    {
-        float off = (welt.x + welt.y + welt.z) * gDeformSpread;
-        float t = frac(gDeform[2] + off + gZeit * gDeform[3]);
-        float w = gDeform[0] + gDeform[1] * sin(t * 6.2831853);
-        welt += ein.normal * w;
+    // deformVertexes wave, normal, bulge, move - FIX5: je Ecke wie RB_DeformTessGeometry in der Reihenfolge des Shaders
+    // (verformeEcke, kVerformText), die Welle aus den Tafeln des Spiels, normal mit R_NoiseGet4f, bulge mit refdef.time. Bis FIX5
+    // stand hier je Art ein eigener Block: wave mit frac() und sin(t * 2 pi) der Grafikkarte (jede Form als Sinus, frequency 0 wie
+    // jede andere), normal mit einer Streufunktion, bulge mit sin(s * breite + Sekunden * tempo), feste Reihenfolge.
+    if ((features & (kDeform | kDeformNormal | kBulge | kDeformMove)) != 0U) {
+        s += "    welt = verformeEcke(welt, nrm, ein.uv, gDeform, float4(gDeformSpread, gDeformArt, gDeformNormal.xy), gBulge, gDeformMove);\n";
     }
-)");
-
-    // deformVertexes normal - RB_CalcDeformNormals: drei Rauschwerte, je
-    // um 100 Einheiten versetzt, auf die Normale, dann normiert.
-    wenn(s, features, kDeformNormal, R"(    {
-        float3 p = welt * 0.98;
-        float zt = gZeit * gDeformNormal.y;
-        nrm.x += gDeformNormal.x * rausch4(float4(p, zt));
-        nrm.y += gDeformNormal.x * rausch4(float4(100.0 + p.x, p.yz, zt));
-        nrm.z += gDeformNormal.x * rausch4(float4(200.0 + p.x, p.yz, zt));
-        nrm = normalize(nrm);
-    }
-)");
-
-    // deformVertexes bulge - RB_CalcBulgeVertexes: der Winkel ist
-    // s * breite + zeit * tempo (die Tabelle der Engine laeuft ueber 2 pi).
-    wenn(s, features, kBulge, R"(    {
-        welt += ein.normal * (sin(ein.uv.x * gBulge.x + gZeit * gBulge.z) * gBulge.y);
-    }
-)");
-
-    // deformVertexes move - der Versatz kommt fertig aus gpuconst.cpp.
-    wenn(s, features, kDeformMove, "    welt += gDeformMove.xyz;\n");
 
     // autosprite: die Ecke zur Kamera drehen. Nur 34 Vorkommen in allen 43
     // Karten, aber ohne sie stehen Flammen und Rauchfahnen quer.
@@ -1326,46 +1454,35 @@ float rausch4(float4 q) {
         s += "    aus.uv = ein.uv;\n";
     }
 
-    // --- Die tcMod-Kette: EINE Abbildung, kein Ablauf --------------------
+    // --- Die tcMod-Kette: Schritt fuer Schritt wie rd-vanilla -------------
     //
-    // Bis rc442 lief hier eine Schleife ueber bis zu acht Schritte, jeder
-    // mit seiner Art in .w. Das kostete 32 der 60 float im Stapelpuffer und
-    // hatte einen Schritt, der nicht hineinpasste: `tcMod transform` braucht
-    // sechs Werte und stand deshalb auf null.
-    //
-    // rd-rend2 rechnet die ganze Kette auf der CPU zu einer affinen
-    // Abbildung zusammen (`ComputeTexMods`) und laesst im Shader nur noch
-    // das hier stehen (`ModTexCoords`, glsl/generic.glsl):
-    //
-    //     st2.x = st.x*M.x + (st.y*M.z + off.x)
-    //     st2.y = st.x*M.y + (st.y*M.w + off.y)
-    //
-    // `turb` passt als einziger nicht in eine Matrix - er verschiebt je nach
-    // ORT. Er kommt danach obendrauf (FIX2 P16: durch gTexTurbMat, den
-    // linearen Teil der Schritte hinter ihm mal Amplitude; die Phase in
-    // gTexOffTurb.zw, siehe gpu::turbWerte).
+    // Bis rc442 lief hier eine Schleife ueber bis zu acht Schritte, ohne
+    // `tcMod transform`. Von rc443 bis FIX3 stand hier EINE affine Abbildung,
+    // auf der CPU zusammengerechnet wie rd-rend2 (`ComputeTexMods`,
+    // `ModTexCoords`), turb danach obendrauf durch den linearen Teil der
+    // Schritte hinter ihm. Das rundet anders als das Spiel. FIX4 P33: wieder
+    // je Schritt, alle sechs Werte, in der Reihenfolge und den Typen von
+    // rd-vanilla ComputeTexCoords (tcKette, gpuconst.h kTcM0At).
+    // FIX5 Tempo (gleiche Bits): nur so viele Schritte, wie die Stufe hat (numTexMods steht ohnehin im Shadernamen; ein Schritt
+    // dahinter hat die Art 0 und laesst st, wie es ist), und der turb-Teil (turbIndex, je turb und Achse rund 30 Rechenschritte) nur
+    // in Varianten mit kTurb - ohne turb kommt die Art 2 nie vor, der Zweig faellt beim Uebersetzen weg.
     if ((features & kTexMod) != 0U) {
-        s += R"(    {
-        float2 st2;
-        st2.x = aus.uv.x * gTexMatrix.x + (aus.uv.y * gTexMatrix.z
-                                           + gTexOffTurb.x);
-        st2.y = aus.uv.x * gTexMatrix.y + (aus.uv.y * gTexMatrix.w
-                                           + gTexOffTurb.y);
-        float2 ort = float2(welt.x + welt.z, welt.y);
-        // FIX2 P16 / FIX3: jeder turb an seiner Stelle der Kette (turbVersatz)
-        st2 += turbVersatz(ort, gTexOffTurb.z, gTexOffTurb.w, gTexTurbMat);
-        if (any(gTurbMat2 != 0.0)) { st2 += turbVersatz(ort, gTurbQ23.x, gTurbQ23.y, gTurbMat2); }
-        if (any(gTurbMat3 != 0.0)) { st2 += turbVersatz(ort, gTurbQ23.z, gTurbQ23.w, gTurbMat3); }
-        if (any(gTurbMat4 != 0.0)) { st2 += turbVersatz(ort, gTurbQ4.x, gTurbQ4.y, gTurbMat4); }
-        aus.uv = st2;
+        static const char* const kSchritt[kMaxTexMods] = {
+            "        r = tcSchritt(r, gTcArt.x, gTcM0, gTcO01.xy, ort, %s);\n",
+            "        r = tcSchritt(r, gTcArt.y, gTcM1, gTcO01.zw, ort, %s);\n",
+            "        r = tcSchritt(r, gTcArt.z, gTcM2, gTcO23.xy, ort, %s);\n",
+            "        r = tcSchritt(r, gTcArt.w, gTcM3, gTcO23.zw, ort, %s);\n",
+        };
+        const char* mitTurb = (features & kTurb) != 0U ? "true" : "false";
+        s += "    {\n        precise float2 ort = float2(welt.x + welt.z, welt.y);\n        precise float2 r = aus.uv;\n";
+        const int schritte = std::clamp(numTexMods, 1, kMaxTexMods);
+        for (int i = 0; i < schritte; ++i) {
+            char z[128];
+            std::snprintf(z, sizeof z, kSchritt[i], mitTurb);
+            s += z;
+        }
+        s += "        aus.uv = r;\n    }\n";
     }
-)";
-    }
-    // Die Zahl der Schritte steht nicht mehr im erzeugten Quelltext - die
-    // Kette ist ja schon zusammengerechnet. Sie bleibt im Shadernamen, damit
-    // dieser Kopf sich nicht aendert; zwei Namen fuer denselben Quelltext
-    // kosten hoechstens eine Uebersetzung zu viel.
-    (void)numTexMods;
 
     wenn(s, features, kLightmap, "    aus.uvLm = ein.uvLm;\n");
     if ((features & kLightmap) == 0U) {
@@ -1425,6 +1542,7 @@ std::string alphaZeile(std::uint32_t features) {
 std::string pixelShaderHlsl(std::uint32_t features) {
     std::string s;
     s += kKonstanten;
+    if ((features & kWolke) != 0U) { s += tcTextMitTafel(); }   // FIX4 P33: die tcMod-Kette der Wolkenstufe (tcKette)
     s += R"(
 Texture2D    gBild     : register(t0);
 Texture2D    gLightmap : register(t1);
@@ -1466,8 +1584,9 @@ float4 main(VSOut ein) : SV_TARGET {
         float p = -R * d.z + sqrt(R * R * d.z * d.z + 2.0 * R * h + h * h);
         float3 v = normalize(d * p + float3(0.0, 0.0, R));
         float2 st = float2(acos(clamp(v.x, -1.0, 1.0)), acos(clamp(v.y, -1.0, 1.0)));
-        wuv.x = st.x * gTexMatrix.x + (st.y * gTexMatrix.z + gTexOffTurb.x);
-        wuv.y = st.x * gTexMatrix.y + (st.y * gTexMatrix.w + gTexOffTurb.y);
+        // FIX4 P33: Schritt fuer Schritt wie die Karte; turb bleibt hier wie bisher aussen vor (die Ecke der Wolkenkuppel kennt
+        // dieser Bildpunkt nicht)
+        wuv = tcKette(st, gTcM0, gTcO01, gTcM1, gTcM2, gTcM3, gTcO23, gTcArt, float2(0.0, 0.0), false);
     }
     float4 c = gBild.Sample(gSampler, wuv);
 )";
@@ -1664,6 +1783,7 @@ std::string shaderName(std::uint32_t features, int numTexMods) {
         {kAlphaPortal, "_ap"},      {kSpiegelBild, "_spb"},
         {kTexGenVec, "_tcv"},   // rc605
         {kModellLicht, "_ml"},  // rc608
+        {kTurb, "_tb"},         // FIX5
         // kRohEcke MUSS ein Kuerzel bekommen: es aendert den erzeugten
         // Quelltext (kein Helligkeitsfaktor auf der Eckenfarbe). Ohne
         // Kuerzel bekaemen zwei verschiedene Shader denselben Namen und
