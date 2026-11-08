@@ -1441,6 +1441,8 @@ void dialogSchriftAus();
 // MR8 Punkt 1 (Selbsttest): dasselbe fuer das Bild einer Stufe des Shaders `shader` - der Shader registriert zuerst seine Bilder
 // (ein Bild je Name, der Erste entscheidet); echtRegisterNeu faengt das Register des Echtzeit-Lichts neu an.
 void echtRegisterNeu();
+// MR8 Punkt 2 (Selbsttest): die Grafikkarten-Ressource des Bilds im Lager (Fassung des Spiels), nullptr solange es laedt.
+[[nodiscard]] const void* echtBildTextur(const std::string& bild, bool keinTc);
 [[nodiscard]] bool echtBildStufenFuer(const std::string& shader, const std::string& bild, bool keinTc,
                                       std::vector<std::vector<unsigned char>>& stufen, std::vector<std::array<int, 2>>& groessen);
 void texturBilderAbholen();

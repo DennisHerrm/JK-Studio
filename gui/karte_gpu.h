@@ -180,6 +180,8 @@ void linien(const std::vector<LinienPunkt>& p, const Zustand3& z);
 [[nodiscard]] void* bildAnlegen(const unsigned char* rgba, int breite, int hoehe, int mipStufe = 0);
 // MR7 P40: ein Bild mit fertigen Mip-Stufen (Echtzeit-Licht unter JKA/JK2-Regeln: die Stufen wie Upload32), ohne Gamma und
 // Basisstufe des Editors - wie die Vorschau (gpumap ladeMitStufen).
+// MR8 Punkt 2 (Selbsttest): die Ressource hinter einem Bild (Adresse), nullptr ohne Bild.
+[[nodiscard]] const void* bildRessource(void* bild);
 [[nodiscard]] void* bildStufenAnlegen(const unsigned char* const* stufen, const int* breiten, const int* hoehen, int anzahl);
 // SetTexParameters / SetTexAnisotropy (textures.cpp:89-128): der Abtaster der Texturen
 void abtasterSetzen(int modus, bool anisotropie);

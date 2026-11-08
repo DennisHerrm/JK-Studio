@@ -320,6 +320,21 @@ std::vector<Schritt> dxtSchritte() {
         }
         return e.echtLicht.gebackenZeigen;
     }, 400000));
+    // MR8 Punkt 2: das Bild im Lager (Echtzeit-Licht, Fassung des Spiels) und dasselbe Bild im Spielbild (Szene 1, Zusatzstufe von
+    // textures/rd/scroll) haben gleiche Bytes - eine Textur auf der Grafikkarte.
+    add(pruefe("RD DXT: MR8 P2 - Echtzeit-Licht und Spielbild teilen textures/rd/streifen", [] {
+        ke::texturBilderAbholen();
+        const void* echt = ke::echtBildTextur("?textures/rd/streifen", false);
+        const auto spiel = gpu::kartenBildTexturen(1);
+        bool drin = false;
+        for (const auto& [r, n] : spiel) {
+            (void)n;
+            drin = drin || r == echt;
+        }
+        diag::detail("Knopftest: RD DXT MR8 P2 - Echtzeit-Bild da " + std::to_string(echt != nullptr ? 1 : 0) + ", Spielbild-Bilder " +
+                     std::to_string(spiel.size()) + ", dieselbe Textur " + std::to_string(drin ? 1 : 0));
+        return echt != nullptr && drin;
+    }));
     add(stufe9c::langeWarten("RD DXT: Spielbild da", [] { return ke::editor().echtLicht.spielbildGezeigt; }, 20000));
     add(pause(1.5));
     add(stufenBild("spielbild_ojk", spiel));

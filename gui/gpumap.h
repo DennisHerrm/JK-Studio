@@ -399,6 +399,22 @@ bool figurBildBereich(const TextureSet::Tex* t, int x0, int y0, int x1, int y1);
 bool leseFigurBild(const TextureSet::Tex* t, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe);
 // MR8 Punkt 1 (Selbsttest): Stufe `stufe` des Kartenbilds an Platz `platz` (in der gewaehlten Szene) hochladen und zuruecklesen;
 // `stufen` bekommt die Zahl der Mip-Stufen auf der Grafikkarte.
+// MR8 Punkt 2 (Selbsttest): die Grafikkarten-Texturen (Adresse der Ressource, Bytes aller Stufen) der Kartenbilder der Szene
+// `szene` (0 Vorschau, 1 Spielbild des Karten-Editors), auch wenn sie gerade geparkt ist.
+[[nodiscard]] std::vector<std::pair<const void*, long long>> kartenBildTexturen(int szene);
+// MR8 Punkt 2: ein fertiges Bild (alle Stufen RGBA8, unveraenderlich) nur einmal auf der Grafikkarte - Vorschau, Spielbild des
+// Karten-Editors und Echtzeit-Licht teilen sich gleiche Bytes. Gibt eine eigene Referenz (ID3D11ShaderResourceView*), die der
+// Rufer wie jede andere freigibt.
+[[nodiscard]] void* stufenBildGeteilt(const unsigned char* const* stufen, const int* breiten, const int* hoehen, int anzahl);
+struct BilderTeilen {
+    int angelegt = 0;            // neu angelegt
+    int geteilt = 0;             // statt neu anzulegen geteilt
+    long long angelegtBytes = 0;
+    long long geteiltBytes = 0;  // nicht noch einmal belegt
+    int lebend = 0;              // jetzt auf der Grafikkarte (nach dem Aufraeumen)
+    long long lebendBytes = 0;
+};
+[[nodiscard]] BilderTeilen bilderTeilen();
 bool leseKartenBild(const TextureSet* textures, int platz, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe,
                     int* stufen = nullptr);
 // rc602: Figuren geben ihre Leuchtstufen (ModelTextures::gluehStufen) dem

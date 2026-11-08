@@ -1073,6 +1073,12 @@ bool echtBildStufenFuer(const std::string& shader, const std::string& bild, bool
     return echtBildStufen(bild, keinTc, stufen, groessen);
 }
 
+const void* echtBildTextur(const std::string& bild, bool keinTc) {
+    const Bild* b = lager().holen(bild, !keinTc && !regelwerkMovieDuels());
+    if (b == nullptr || !b->fertig || b->srv == nullptr) { return nullptr; }
+    return kartegpu::bildRessource(b->srv);
+}
+
 void texturBilderNeuLaden() { lager().neuLaden(); }
 
 // Stufe 7 (Schnell-Backen): das Bild eines Shaders fuer die gebackenen Flaechen (MR7 P40: wie im Spiel, spielLaden)

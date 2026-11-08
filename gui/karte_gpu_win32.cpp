@@ -12,6 +12,7 @@
 
 #include "backend.h"
 #include "bemalt.h"   // rc609 T1: was bemalt wurde (Leerlauf je Fenster)
+#include "gpumap.h"   // MR8 Punkt 2: gpu::stufenBildGeteilt
 
 #include "imgui.h"
 
@@ -2807,28 +2808,18 @@ void* bildAnlegen(const unsigned char* rgba, int breite, int hoehe, int mipStufe
     return srv;
 }
 
+const void* bildRessource(void* bild) {
+    if (bild == nullptr) { return nullptr; }
+    ID3D11Resource* res = nullptr;
+    static_cast<ID3D11ShaderResourceView*>(bild)->GetResource(&res);
+    if (res != nullptr) { res->Release(); }
+    return res;
+}
+
 void* bildStufenAnlegen(const unsigned char* const* stufen, const int* breiten, const int* hoehen, int anzahl) {
     if (!bereit() || stufen == nullptr || anzahl <= 0 || breiten[0] <= 0 || hoehen[0] <= 0) { return nullptr; }
-    std::vector<D3D11_SUBRESOURCE_DATA> sd(static_cast<std::size_t>(anzahl));
-    for (int i = 0; i < anzahl; ++i) {
-        sd[static_cast<std::size_t>(i)].pSysMem = stufen[i];
-        sd[static_cast<std::size_t>(i)].SysMemPitch = static_cast<UINT>(breiten[i]) * 4U;
-    }
-    D3D11_TEXTURE2D_DESC td{};
-    td.Width = static_cast<UINT>(breiten[0]);
-    td.Height = static_cast<UINT>(hoehen[0]);
-    td.MipLevels = static_cast<UINT>(anzahl);
-    td.ArraySize = 1;
-    td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    td.SampleDesc.Count = 1;
-    td.Usage = D3D11_USAGE_IMMUTABLE;
-    td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    ID3D11Texture2D* tex = nullptr;
-    if (FAILED(geraet()->CreateTexture2D(&td, sd.data(), &tex)) || tex == nullptr) { return nullptr; }
-    ID3D11ShaderResourceView* srv = nullptr;
-    ::bhed::render::sichtAnlegen(geraet(), tex, nullptr, &srv);
-    tex->Release();
-    return srv;
+    // MR8 Punkt 2: dieselben Stufen wie die Vorschau (stufenWieUpload32) - eine Textur fuer beide (gpu::stufenBildGeteilt)
+    return gpu::stufenBildGeteilt(stufen, breiten, hoehen, anzahl);
 }
 
 void abtasterSetzen(int modus, bool anisotropie) {

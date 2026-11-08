@@ -780,6 +780,37 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             const gpu::BilderDxt b = gpu::bilderDxt(true);
             bezeichne(bild ? "Szene 1 (Spielbild) vor dem Wechsel" : "Szene 1 (Spielbild) vor dem Wechsel, KEIN BILD", b);
         }));
+        // MR8 Punkt 2: Vorschau (Szene 0) und Spielbild (Szene 1) zeigen dieselbe Karte nach denselben Regeln - gleiche Bytes liegen
+        // nur einmal auf der Grafikkarte.
+        add(pruefe("Geschuetze Vergleich: MR8 P2 - Vorschau und Spielbild teilen die Kartenbilder mit gleichen Bytes", [] {
+            const auto a = gpu::kartenBildTexturen(0);
+            const auto b = gpu::kartenBildTexturen(1);
+            std::set<const void*> res;
+            long long summe = 0;
+            long long eindeutig = 0;
+            for (const auto* liste : {&a, &b}) {
+                for (const auto& [r, n] : *liste) {
+                    summe += n;
+                    if (res.insert(r).second) { eindeutig += n; }
+                }
+            }
+            std::set<const void*> nullRes;
+            for (const auto& [r, n] : a) { (void)n; nullRes.insert(r); }
+            int gemeinsam = 0;
+            for (const auto& [r, n] : b) { (void)n; gemeinsam += nullRes.count(r) != 0U ? 1 : 0; }
+            char z[300];
+            std::snprintf(z, sizeof(z), "Knopftest: MR8 P2 - Szene 0: %zu Bilder, Szene 1: %zu Bilder, davon gemeinsam %d; Bytes zusammen %.1f MB, belegt %.1f MB; DXGI %.1f MB",
+                          a.size(), b.size(), gemeinsam, static_cast<double>(summe) / 1048576.0, static_cast<double>(eindeutig) / 1048576.0,
+                          static_cast<double>(gpu::speicherStand().grafikBytes) / 1048576.0);
+            diag::detail(z);
+            const std::size_t weniger = std::min(a.size(), b.size());   // die Vorschau laedt nur, was sie gezeichnet hat
+            const gpu::BilderTeilen tb = gpu::bilderTeilen();
+            std::snprintf(z, sizeof(z), "Knopftest: MR8 P2 - geteilt %d Bilder (%.1f MB), angelegt %d (%.1f MB), jetzt auf der Grafikkarte %d (%.1f MB)", tb.geteilt,
+                          static_cast<double>(tb.geteiltBytes) / 1048576.0, tb.angelegt, static_cast<double>(tb.angelegtBytes) / 1048576.0, tb.lebend,
+                          static_cast<double>(tb.lebendBytes) / 1048576.0);
+            diag::detail(z);
+            return weniger > 0U && static_cast<std::size_t>(gemeinsam) * 10U >= weniger * 9U;
+        }));
         auto vorher = std::make_shared<bool>(false);
         add(tu("Geschuetze Vergleich: Regelwerk wechseln (Movie Duels <-> OpenJK)", [=] {
             *vorher = regelwerkMovieDuels();
