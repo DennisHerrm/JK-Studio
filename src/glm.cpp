@@ -216,9 +216,18 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error, int stufe)
             return;
         }
 
+        // REST N1: die Versaetze zaehlen ab der Flaeche und duerfen negativ sein (R_LoadMDXM: (byte *)surf + ofs) -
+        // vorzeichenbehaftet und nur innerhalb der Datei; base + size_t(ofs) lief bei einem Ziel vor dem Anfang der
+        // Datei um, die Grenzpruefung passte, und es wurde vor dem Puffer gelesen
+        const auto inDatei = [&](std::int32_t ofs, std::size_t laenge, std::size_t& at) {
+            const std::int64_t p = static_cast<std::int64_t>(base) + ofs;
+            if (p < 0 || static_cast<std::uint64_t>(p) > b.size() || laenge > b.size() - static_cast<std::size_t>(p)) { return false; }
+            at = static_cast<std::size_t>(p);
+            return true;
+        };
         // Dreiecke: je drei int32.
-        const std::size_t triAt = base + static_cast<std::size_t>(ofsTris);
-        if (triAt + static_cast<std::size_t>(numTris) * 12 <= b.size()) {
+        std::size_t triAt = 0;
+        if (inDatei(ofsTris, static_cast<std::size_t>(numTris) * 12, triAt)) {
             indexAus.reserve(static_cast<std::size_t>(numTris) * 3);
             for (std::int32_t t = 0; t < numTris; ++t) {
                 for (int k = 0; k < 3; ++k) {
@@ -242,8 +251,8 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error, int stufe)
         const std::int32_t ofsBoneRefs = i32(b, base + 32);
         std::vector<std::int32_t> boneRefs;
         if (numBoneRefs > 0 && numBoneRefs <= 64) {
-            const std::size_t rAt = base + static_cast<std::size_t>(ofsBoneRefs);
-            if (rAt + static_cast<std::size_t>(numBoneRefs) * 4 <= b.size()) {
+            std::size_t rAt = 0;
+            if (inDatei(ofsBoneRefs, static_cast<std::size_t>(numBoneRefs) * 4, rAt)) {
                 boneRefs.reserve(static_cast<std::size_t>(numBoneRefs));
                 for (std::int32_t r = 0; r < numBoneRefs; ++r) {
                     const std::int32_t ref = i32(b, rAt + static_cast<std::size_t>(r) * 4);
@@ -255,7 +264,10 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error, int stufe)
             }
         }
 
-        const std::size_t vAt = base + static_cast<std::size_t>(ofsVerts);
+        std::size_t vAt = 0;
+        if (!inDatei(ofsVerts, static_cast<std::size_t>(numVerts) * 40, vAt)) {   // 32 Byte je Ecke, dahinter 8 Byte UV
+            return;
+        }
         // 32 Byte je Vertex: Normale(12) xyz(12) packed(4) und VIER
         // Gewichtsbytes. Danach ein eigener Block mit 8 Byte
         // Texturkoordinaten je Vertex, danach die BoneRefs.

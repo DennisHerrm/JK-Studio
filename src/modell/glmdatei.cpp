@@ -166,18 +166,28 @@ void glmRohfelder(const std::string& b, Inhalt& in) {
             if (numVerts < 0 || static_cast<std::size_t>(numVerts) != n.ecken.size()) { continue; }
             n.dateiRefs.clear();
             n.dateiRefsAufgeloest.clear();
+            // REST N1: die Versaetze zaehlen ab der Flaeche und duerfen negativ sein (die Engine rechnet (byte *)surf + ofs);
+            // vorzeichenbehaftet gerechnet und nur innerhalb der Datei - base + size_t(ofs) lief bei einem Ziel vor dem
+            // Anfang der Datei um, die Grenzpruefung passte, und es wurde vor dem Puffer gelesen
+            const auto inDatei = [&](std::int32_t ofs, std::size_t laenge, std::size_t& at) {
+                const std::int64_t p = static_cast<std::int64_t>(base) + ofs;
+                if (p < 0 || static_cast<std::uint64_t>(p) > b.size() || laenge > b.size() - static_cast<std::size_t>(p)) { return false; }
+                at = static_cast<std::size_t>(p);
+                return true;
+            };
+            std::size_t refsAt = 0;
             // readGlm liest Verweise nur bei 1..64 (sonst keine)
-            if (numRefs > 0 && numRefs <= 64 && base + static_cast<std::size_t>(ofsRefs) + static_cast<std::size_t>(numRefs) * 4 <= b.size()) {
+            if (numRefs > 0 && numRefs <= 64 && inDatei(ofsRefs, static_cast<std::size_t>(numRefs) * 4, refsAt)) {
                 for (std::int32_t r = 0; r < numRefs; ++r) {
-                    const std::int32_t ref = i32(b, base + static_cast<std::size_t>(ofsRefs) + static_cast<std::size_t>(r) * 4);
+                    const std::int32_t ref = i32(b, refsAt + static_cast<std::size_t>(r) * 4);
                     n.dateiRefs.push_back(ref);
                     n.dateiRefsAufgeloest.push_back(glmVerweisUmlegen(ref, jk2Modell, jkaModell));
                 }
             } else if (numRefs != 0) {
                 continue;   // so nicht wieder zu schreiben: neu kodieren
             }
-            const std::size_t v0 = base + static_cast<std::size_t>(ofsVerts);
-            if (v0 + n.ecken.size() * kEcke > b.size()) { continue; }
+            std::size_t v0 = 0;
+            if (!inDatei(ofsVerts, n.ecken.size() * kEcke, v0)) { continue; }
             for (std::size_t v = 0; v < n.ecken.size(); ++v) {
                 Ecke& e = n.ecken[v];
                 e.dateiPack = static_cast<std::uint32_t>(i32(b, v0 + v * kEcke + 24));

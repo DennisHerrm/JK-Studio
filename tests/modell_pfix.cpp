@@ -8,14 +8,18 @@
 //   N3  Figur-Kommentar "k 0 2000000000" / "bilder 2000000000": kein bad_alloc
 //   N9  animation.cfg firstFrame + numFrames ueber INT_MAX: HinterGla
 //   H1  Dokument: abbrechen(Schritt) nimmt nur den eigenen Schritt
+//   N1  .glm mit negativem ofsVerts/ofsRefs vor den Anfang der Datei: glmRohfelder nimmt die Flaeche nicht als "aus der
+//       Datei" (vorher lief base + ofs ueber size_t um, die Grenzpruefung passte und es wurde vor dem Puffer gelesen)
 //
-// Aufruf: modellpfixtest
+// Aufruf: modellpfixtest [<model.glm>]   (ohne Probe faellt N1 aus)
 #include "bhed/gla.h"
+#include "bhed/glm.h"
 #include "bhed/md3.h"
 #include "bhed/modell/animcfg.h"
 #include "bhed/modell/animkurven.h"
 #include "bhed/modell/dokument.h"
 #include "bhed/modell/figuranim.h"
+#include "bhed/modell/glmdatei.h"
 #include "bhed/modell/g2.h"
 #include "bhed/modell/md3datei.h"
 #include "bhed/modell/retarget.h"
@@ -29,6 +33,8 @@
 #include <cstdio>
 #include <cstring>
 #include <exception>
+#include <fstream>
+#include <sstream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -344,10 +350,58 @@ void dokumentTest() {
     expect("H1 abbrechen(C) nimmt den eigenen offenen Schritt", e.abbrechen(c) && e.inhalt().name.empty() && !e.kannRueckgaengig());
 }
 
+// N1: in der ersten Flaeche der Stufe 0 ofsVerts bzw. ofsRefs so, dass base + ofs vor dem Anfang der Datei liegt
+void glmVersatzTest(const std::string& pfad) {
+    std::ifstream f(pfad, std::ios::binary);
+    std::ostringstream o;
+    o << f.rdbuf();
+    const std::string bytes = o.str();
+    Inhalt in;
+    if (bytes.size() < 164 || !ausGlm(bytes, in) || in.teile.empty()) {
+        expect("N1 Probe gelesen: " + pfad, false);
+        return;
+    }
+    const std::size_t lod = static_cast<std::size_t>(lies(bytes, 148));   // mdxmHeader_t::ofsLODs
+    const std::size_t base = lod + 4 + static_cast<std::size_t>(lies(bytes, lod + 4));   // erste Flaeche (ofsSurfaces[0])
+    const bool refsDa = lies(bytes, base + 28) > 0;
+    for (const std::size_t feldAt : {base + 16, base + 32}) {   // ofsVerts, ofsRefs
+        if (feldAt == base + 32 && !refsDa) { continue; }
+        std::string kaputt = bytes;
+        setze(kaputt, feldAt, -static_cast<std::int32_t>(base) - 40);
+        Inhalt k = in;
+        for (Teil& t : k.teile) {
+            for (Netz& n : t.stufen) {
+                n.ausDatei = false;
+                n.dateiRefs.clear();
+                for (Ecke& e : n.ecken) { e.ausDatei = false; }
+            }
+        }
+        glmRohfelder(kaputt, k);
+        const Netz& n0 = k.teile[0].stufen[0];
+        std::printf("        N1 %s = %d: Flaeche 0 aus der Datei %d, Verweise %zu\n", feldAt == base + 16 ? "ofsVerts" : "ofsRefs",
+                    lies(kaputt, feldAt), n0.ausDatei ? 1 : 0, n0.dateiRefs.size());
+        expect(std::string("N1 ") + (feldAt == base + 16 ? "ofsVerts" : "ofsRefs") + " vor dem Anfang der Datei: Flaeche 0 nicht aus der Datei",
+               feldAt == base + 16 ? !n0.ausDatei : n0.dateiRefs.empty());
+        // der Leser der Vorschau (readGlm, src/glm.cpp) ebenso: ohne Ecken statt Bytes vor dem Puffer
+        if (feldAt == base + 16) {
+            GlmModel gm;
+            const bool gelesen = readGlm(kaputt, gm);
+            const std::size_t ecken = gelesen && !gm.surfaces.empty() ? gm.surfaces[0].verts.size() : 0U;
+            std::printf("        N1 readGlm: gelesen %d, Flaeche 0 mit %zu Ecken\n", gelesen ? 1 : 0, ecken);
+            expect("N1 readGlm: ofsVerts vor dem Anfang der Datei gibt keine Ecken", ecken == 0U);
+        }
+        // Gegenprobe: dieselbe Flaeche mit dem richtigen Versatz kommt aus der Datei
+        Inhalt g = in;
+        glmRohfelder(bytes, g);
+        expect("N1 Gegenprobe: mit dem Versatz der Datei kommt Flaeche 0 aus der Datei", g.teile[0].stufen[0].ausDatei);
+    }
+}
+
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
+    if (argc > 1) { glmVersatzTest(argv[1]); }
     md3Test();
     leereFlaecheTest();
     glaTest();

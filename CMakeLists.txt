@@ -1069,7 +1069,7 @@ if(BEHAVED_TESTS)
   # pfix: Funde der Code-Pruefung Modell-Block - kaputte .md3/.gla/Figur-Kommentare/animation.cfg, Dokument-Schritte
   add_executable(modellpfixtest tests/modell_pfix.cpp)
   target_link_libraries(modellpfixtest PRIVATE bhed_core)
-  add_test(NAME modell_pfix COMMAND modellpfixtest)
+  add_test(NAME modell_pfix COMMAND modellpfixtest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
   add_test(NAME skelett COMMAND glatest ${BEHAVED_GLA})
   add_test(NAME mission COMMAND missiontest)
   add_test(NAME szene COMMAND scenetest
