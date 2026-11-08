@@ -28,6 +28,8 @@ float breiteIn(ImFont* schrift, float groesse, std::string_view s) {
 
 // MR6 P28: das Ergebnis je (Schrift, Groesse, Breite, Text). Vorher brach jeder lange CJK-Text (Changelog im Update-Fenster,
 // Helfertexte) in jedem Bild neu um, je Stueck mit CalcTextSizeA. Was 120 Bilder lang nicht gefragt war, faellt heraus.
+// MR7 P41: die Schrift als ihre Nummer im Atlas (io.Fonts->Fonts), nicht als Adresse - nach buildFonts koennen neue ImFont an
+// alten Adressen liegen; buildFonts leert den Speicher (cjkSchriftenNeu).
 struct Gemerkt {
     std::string fertig;
     int bild = 0;
@@ -37,11 +39,15 @@ std::unordered_map<std::string, Gemerkt>& gemerkt() {
     return m;
 }
 
+constexpr std::size_t kKopf = sizeof(int) + sizeof(float) * 2;   // vor dem Text im Schluessel
+
 std::string schluesselVon(std::string_view t, float breite, const ImFont* schrift, float groesse) {
-    std::string k(sizeof(schrift) + sizeof(float) * 2, '\0');
-    std::memcpy(k.data(), static_cast<const void*>(&schrift), sizeof(schrift));
-    std::memcpy(k.data() + sizeof(schrift), &groesse, sizeof(float));
-    std::memcpy(k.data() + sizeof(schrift) + sizeof(float), &breite, sizeof(float));
+    const ImVector<ImFont*>& alle = ImGui::GetIO().Fonts->Fonts;
+    const int nummer = alle.contains(const_cast<ImFont*>(schrift)) ? alle.index_from_ptr(alle.find(const_cast<ImFont*>(schrift))) : -1;
+    std::string k(sizeof(int) + sizeof(float) * 2, '\0');
+    std::memcpy(k.data(), &nummer, sizeof(int));
+    std::memcpy(k.data() + sizeof(int), &groesse, sizeof(float));
+    std::memcpy(k.data() + sizeof(int) + sizeof(float), &breite, sizeof(float));
     k.append(t);
     return k;
 }
@@ -157,6 +163,16 @@ CjkUmbruchStand& cjkUmbruchStand() {
         return x;
     }();
     return s;
+}
+
+void cjkSchriftenNeu() { gemerkt().clear(); }
+
+std::size_t cjkUmbruchGemerkt(std::string_view text) {
+    std::size_t n = 0;
+    for (const auto& [k, g] : gemerkt()) {
+        n += k.size() == kKopf + text.size() && std::string_view(k).substr(kKopf) == text ? 1U : 0U;
+    }
+    return n;
 }
 
 void cjkText(const char* fmt, ...) {
