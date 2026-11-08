@@ -326,6 +326,22 @@ fuenf Ursachen - drei im Programm, zwei im Test:
   `m6_ngr_m6` 0; (b) 40 Runden Farbzeile offen, alles zu, neues Dokument mit derselben Auswahl - rot 7 von 7 Runden mit gleicher Adresse
   uebernommen, gruen 0 (wieder 7 Runden an derselben Adresse). `m6_ngr_m6` 20/0.
 
+## MR6 Schluss
+
+- Sauberer Neubau (`--clean-first`, `--parallel 8 -- /nodeReuse:false`) 0 Warnungen; ctest 237/237 mit -j 8 ohne `q3map2_pr316`,
+  `q3map2_pr316` allein danach 1/1.
+- Selbsttests nach dem Neubau: menueeditor en / ja je 2787/0 (`m6_ende_me_en`, `_ja`; vorher 2784, dazu die drei neuen Pruefungen),
+  cjkweit ja / zh je 18/0 (`m6_ende_cjk_ja`, `_zh`), Modus 1 `m6_ende_modus1` 2635/0; Bildlauf ja/zh 579/0 (Punkt 2).
+- Lints wie MR5 (portability 99, pruefcodes 11, efxflags-/fremdprogramm-Meldung wie vorher, lint_cjkumbruch 0, sonst ok);
+  Handbuch `--pruefen` ok.
+
+## MR6 Offen
+
+- Bildzeit allein (Fremdlast durch zwei andere Agenten die ganze Zeit): CJK-Umbruch mit Zwischenspeicher (P28), DXT beim Laden.
+- P21 nur ueber die Himmelsprobe belegt (sechs Seiten 8 x 8); eine Kartenansicht mit sichtbarer Himmelsbox unter JKA-Regeln wurde
+  nicht gefunden (t1_sour ohne Himmelsbox im Bild, t1_fatal nach oben schwarz).
+- Statuszeile der Menue-Editor-Bilder zeigt den Pfad des Laufordners (`Y:\mr4\laeufe\...`, wie schon in MR5).
+
 ## Changelog
 
 ## English
