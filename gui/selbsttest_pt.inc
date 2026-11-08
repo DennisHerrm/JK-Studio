@@ -188,6 +188,7 @@ struct Stand {
     std::vector<std::uint8_t> bild;
     std::vector<std::uint8_t> vorschau;
     std::vector<std::uint8_t> ebene0;
+    std::vector<std::uint8_t> ansicht;   // REST Punkt 1: das Bild der aktiven 3D-Ansicht (Renderziel)
     int n = 0;
     int n1 = 0;
     float radius = 0.0F;
@@ -198,6 +199,69 @@ std::vector<std::uint8_t> vorschauTorso() {
     const int t = teilVon("torso");
     const auto& by = g_app->modelTextures.bySurface;
     return t >= 0 && static_cast<std::size_t>(t) < by.size() ? by[static_cast<std::size_t>(t)].rgba : std::vector<std::uint8_t>{};
+}
+
+// das Bild der aktiven 3D-Ansicht, wie es auf dem Schirm steht (Renderziel der Ansicht, gpu::leseModellZiel)
+std::vector<std::uint8_t> ansichtBild() {
+    std::vector<std::uint8_t> px;
+    int w = 0;
+    int h = 0;
+    gpu::modellZielWaehlen(g_app->mtab.aktiv);
+    if (!gpu::leseModellZiel(px, w, h)) { px.clear(); }
+    return px;
+}
+
+// REST Punkt 1: die Textur der Flaeche torso auf der Grafikkarte (alle Stufen, zurueckgelesen) gegen das ganze Bild samt
+// Pyramide (Tex::buildMips, wie beim ganzen Hochladen) und die Bildpunkte der Vorschau gegen das Ergebnis der Leinwand
+Schritt grafikGleich(const std::string& wann) {
+    return pruefe("PT Grafikkarte " + wann + ": Texturen torso (Flaeche und Shader-Stufen, alle Pyramidenstufen) gleich dem ganz hochgeladenen Bild, Vorschau = Ergebnis", [wann] {
+        const int t = teilVon("torso");
+        const auto& by = g_app->modelTextures.bySurface;
+        const mm::Leinwand* l = lw();
+        if (t < 0 || static_cast<std::size_t>(t) >= by.size() || l == nullptr) {
+            meldeFehler("PT Grafikkarte " + wann + ": kein Bild");
+            return false;
+        }
+        // gleich: jede hochgeladene Textur Stufe fuer Stufe gleich Tex::buildMips ihrer Bildpunkte
+        int texturen = 0;
+        int gleich = 0;
+        const auto vergleiche = [&](const TextureSet::Tex& x) {
+            TextureSet::Tex ganz;
+            ganz.width = x.width;
+            ganz.height = x.height;
+            ganz.rgba = x.rgba;
+            ganz.buildMips();
+            const int stufen = 1 + static_cast<int>(ganz.mips.size());
+            int ok = 0;
+            for (int st = 0; st < stufen; ++st) {
+                std::vector<std::uint8_t> px;
+                int w = 0;
+                int h = 0;
+                int sw = 0;
+                int sh = 0;
+                const std::uint8_t* soll = ganz.levelData(st, sw, sh);
+                if (!gpu::leseFigurBild(&x, st, px, w, h)) { return; }   // nicht hochgeladen (nicht gezeichnet)
+                ok += w == sw && h == sh && std::memcmp(px.data(), soll, px.size()) == 0 ? 1 : 0;
+            }
+            ++texturen;
+            gleich += ok == stufen ? 1 : 0;
+        };
+        vergleiche(by[static_cast<std::size_t>(t)]);
+        int stufenMitBild = 0;   // Shader-Stufen, die das Ergebnis der Leinwand zeigen
+        const auto& sf = g_app->modelTextures.stufen;
+        if (static_cast<std::size_t>(t) < sf.size()) {
+            for (const auto& fs : sf[static_cast<std::size_t>(t)]) {
+                if (fs.pixel.size() != 1U || fs.pixel[0] == nullptr) { continue; }
+                vergleiche(*fs.pixel[0]);
+                stufenMitBild += fs.pixel[0]->rgba == l->bild ? 1 : 0;
+            }
+        }
+        const bool stufenDa = static_cast<std::size_t>(t) < sf.size() && !sf[static_cast<std::size_t>(t)].empty();
+        const bool vorschau = by[static_cast<std::size_t>(t)].width != l->b || by[static_cast<std::size_t>(t)].rgba == l->bild;
+        diag::detail("Knopftest: PT Grafikkarte " + wann + " - " + std::to_string(gleich) + " von " + std::to_string(texturen) + " Texturen gleich, Stufen mit dem Bild " +
+                     std::to_string(stufenMitBild) + (stufenDa ? "" : " (keine Shader-Stufen)") + ", Vorschau = Ergebnis " + std::to_string(vorschau ? 1 : 0));
+        return texturen > 0 && gleich == texturen && vorschau && (!stufenDa || stufenMitBild > 0);
+    });
 }
 
 std::vector<Schritt> modellSchritte() {
@@ -282,6 +346,7 @@ std::vector<Schritt> modellSchritte() {
     add(werkzeug(Str::PtWzPinsel));
     add(tu("PT 3D: vorher", [st] {
         st->vorschau = vorschauTorso();
+        st->ansicht = ansichtBild();
         st->schritte = 0;
     }));
     add(mb3::ziehenVonNach("PT 3D: Strich ueber die Brust", [] { return torsoMitte(-30.0F); }, [] { return torsoMitte(30.0F); }));
@@ -294,6 +359,14 @@ std::vector<Schritt> modellSchritte() {
                      " Tupfer | " + mz().meldung);
         return n > 50 && v > 0 && !mz().strichLaeuft;
     }));
+    // REST Punkt 1: die 3D-Ansicht zeigt den Strich sofort (das Bild der Ansicht ist neu gezeichnet, nicht nur die Textur)
+    add(pruefe("PT 3D Malen: die Ansicht zeigt den Strich (Bild der Ansicht neu gezeichnet)", [st] {
+        const std::vector<std::uint8_t> jetzt = ansichtBild();
+        const int d = unterschied(st->ansicht, jetzt);
+        diag::detail("Knopftest: PT 3D Ansicht - " + std::to_string(d) + " Bildpunkte der Ansicht anders, " + std::to_string(jetzt.size() / 4U) + " Bildpunkte");
+        return !jetzt.empty() && jetzt.size() == st->ansicht.size() && d > 20;
+    }));
+    add(grafikGleich("nach dem 3D-Strich"));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
     add(pause(0.3));
     add(pruefe("PT Rueckgaengig: Strg+Z bringt das Bild Byte fuer Byte zurueck", [] {
@@ -321,12 +394,21 @@ std::vector<Schritt> modellSchritte() {
     add(zurueckAufOriginal());
     // --- 2D ---
     add(werkzeug(Str::PtWzPinsel));
+    add(pause(0.2));
+    add(tu("PT 2D: Ansicht vorher", [st] { st->ansicht = ansichtBild(); }));
     add(mb3::ziehenVonNach("PT 2D: Strich im Bild", [] { return bildPunkt(0.3F, 0.5F); }, [] { return bildPunkt(0.7F, 0.5F); }));
     add(pause(0.3));
     add(pruefe("PT 2D Malen: Texel geaendert", [st] {
         st->n = geaendert(lw());
         diag::detail("Knopftest: PT 2D Malen - " + std::to_string(st->n) + " Texel");
         return st->n > 50;
+    }));
+    // REST Punkt 1: ein Strich im 2D-Bild erscheint auch in der 3D-Ansicht
+    add(pruefe("PT 2D Malen: die 3D-Ansicht zeigt den Strich", [st] {
+        const std::vector<std::uint8_t> jetzt = ansichtBild();
+        const int d = unterschied(st->ansicht, jetzt);
+        diag::detail("Knopftest: PT 2D Ansicht - " + std::to_string(d) + " Bildpunkte der 3D-Ansicht anders");
+        return !jetzt.empty() && jetzt.size() == st->ansicht.size() && d > 20;
     }));
     add(werkzeug(Str::PtWzWeich));
     add(tu("PT 2D: vorher", [st] { st->bild = lw() != nullptr ? lw()->bild : std::vector<std::uint8_t>{}; }));
@@ -363,7 +445,10 @@ std::vector<Schritt> modellSchritte() {
         diag::detail("Knopftest: PT 2D Fuellen - " + std::to_string(n) + " Texel, gemeldet " + std::to_string(mz().texelGemalt));
         return n > 0 && mz().texelGemalt > 0;
     }));
+    add(grafikGleich("nach den 2D-Werkzeugen"));
     add(zurueckAufOriginal());
+    add(pause(0.2));
+    add(grafikGleich("nach Rueckgaengig"));
     add(tu("PT: Pinselfarbe rot", [] { mz().pinsel.farbe = {1.0F, 0.0F, 0.0F, 1.0F}; }));
     // --- Maske ---
     add(werkzeug(Str::PtWzMaske));

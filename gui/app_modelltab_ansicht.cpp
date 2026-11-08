@@ -1913,8 +1913,10 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
         g_app->modelDirty = true;
     }
     // --- Zeichnen -----------------------------------------------------------
-    char stand[200];
-    std::snprintf(stand, sizeof stand, "%d|%d|%d|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f", w, h, static_cast<int>(a.art),
+    // REST Punkt 1: mit dem Stand der bemalten Textur - ein Tupfer (3D hier oben, 2D im Bild links) zeigt sich im selben
+    // Bild; modelDirty allein kam zu spaet (die Ansichten fragen es vor dem Malen, am Ende des Bilds geht es aus)
+    char stand[220];
+    std::snprintf(stand, sizeof stand, "%d|%d|%d|%d|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f", w, h, static_cast<int>(a.art), t.malen.ansichtStand,
                   static_cast<double>(g_app->modelCam.pos[0]), static_cast<double>(g_app->modelCam.pos[1]),
                   static_cast<double>(g_app->modelCam.pos[2]), static_cast<double>(g_app->modelCam.angles[0]),
                   static_cast<double>(g_app->modelCam.angles[1]), static_cast<double>(g_app->modelCam.fovY),

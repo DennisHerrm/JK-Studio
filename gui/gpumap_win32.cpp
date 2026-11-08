@@ -1389,6 +1389,10 @@ std::map<const void*, FigurPuffer> g_figuren;
 std::map<const void*, ID3D11ShaderResourceView*> g_figurBilder;
 // Zu jedem Bild: die Adresse der Bildpunkte, aus denen es hochgeladen wurde.
 std::map<const void*, const void*> g_figurBildDaten;
+// REST Punkt 1 (Painting): Bilder, die der Model-Tab bemalt, liegen in einer eigenen, beschreibbaren Textur
+// (D3D11_USAGE_DEFAULT, nicht geteilt) samt ihrer Pyramide auf der CPU (Stufe 1 aufwaerts, wie Tex::buildMips) - ein
+// Tupfer laedt nur das geaenderte Rechteck je Stufe hoch (figurBildBereich), statt das ganze Bild samt Pyramide neu.
+std::map<const void*, std::vector<TextureSet::Tex::Mip>> g_figurBildPyramide;
 // rc603: zaehlt jedes Entfernen aus g_figurBilder - wer sich ein Bild merkt
 // (StufenFlaeche), prueft damit, ob es noch lebt.
 unsigned g_figurBilderGeneration = 1;
@@ -2048,6 +2052,7 @@ void figurBildLoesen(const void* schluessel) {
     if (it->second != nullptr) { it->second->Release(); }
     g_figurBilder.erase(it);
     g_figurBildDaten.erase(schluessel);
+    g_figurBildPyramide.erase(schluessel);
     if (const auto s = g_figurBildSchluessel.find(schluessel); s != g_figurBildSchluessel.end()) {
         if (const auto z = g_figurBildInhaltZahl.find(s->second); z != g_figurBildInhaltZahl.end() && --z->second <= 0) {
             if (const auto c = g_figurBildInhalt.find(s->second); c != g_figurBildInhalt.end()) {
@@ -2071,6 +2076,7 @@ void figurBilderAllesLoesen() {
     for (auto& [k, s2] : g_figurBilder) { if (s2 != nullptr) { s2->Release(); } }
     g_figurBilder.clear();
     g_figurBildDaten.clear();
+    g_figurBildPyramide.clear();
     for (auto& [k, s2] : g_figurBildInhalt) { if (s2 != nullptr) { s2->Release(); } }
     g_figurBildInhalt.clear();
     g_figurBildSchluessel.clear();
@@ -2131,6 +2137,183 @@ ID3D11ShaderResourceView* holeTexBild(const TextureSet::Tex* t) {
     g_figurBildDaten[schluessel] = t->rgba.data();
     return srv;
 }
+
+// REST Punkt 1: ein Rechteck einer Stufe aus der vorigen neu rechnen - dieselbe Rechnung wie Tex::buildMips (je vier
+// Nachbarn, ungerade Kanten abgerundet, am Rand geklemmt), nur fuer die Zielpunkte im Rechteck. Das Rechteck wird zu dem
+// der Zielstufe (eingeschlossen).
+void stufeBereich(const std::uint8_t* src, int sw, int sh, TextureSet::Tex::Mip& m, int& x0, int& y0, int& x1, int& y1) {
+    x0 = std::min(x0 / 2, m.width - 1);
+    y0 = std::min(y0 / 2, m.height - 1);
+    x1 = std::min(x1 / 2, m.width - 1);
+    y1 = std::min(y1 / 2, m.height - 1);
+    for (int y = y0; y <= y1; ++y) {
+        for (int x = x0; x <= x1; ++x) {
+            unsigned sum[4] = {0, 0, 0, 0};
+            unsigned n = 0;
+            for (int oy = 0; oy < 2; ++oy) {
+                const int py = std::min(y * 2 + oy, sh - 1);
+                for (int ox = 0; ox < 2; ++ox) {
+                    const int px = std::min(x * 2 + ox, sw - 1);
+                    const std::size_t at = (static_cast<std::size_t>(py) * static_cast<std::size_t>(sw) + static_cast<std::size_t>(px)) * 4U;
+                    for (std::size_t k = 0; k < 4U; ++k) { sum[k] += src[at + k]; }
+                    ++n;
+                }
+            }
+            const std::size_t dst = (static_cast<std::size_t>(y) * static_cast<std::size_t>(m.width) + static_cast<std::size_t>(x)) * 4U;
+            for (std::size_t k = 0; k < 4U; ++k) { m.rgba[dst + k] = static_cast<std::uint8_t>(sum[k] / n); }
+        }
+    }
+}
+
+// Die beschreibbare Textur eines bemalten Bilds anlegen (ganz, mit Pyramide) - einmal je Bild, danach nur Rechtecke
+bool figurBildEigenAnlegen(const TextureSet::Tex* t, const void* schluessel) {
+    ID3D11Device* d = dev();
+    TextureSet::Tex kopie;
+    kopie.width = t->width;
+    kopie.height = t->height;
+    kopie.rgba = t->rgba;
+    kopie.buildMips();
+    const UINT stufen = 1U + static_cast<UINT>(kopie.mips.size());
+    std::vector<D3D11_SUBRESOURCE_DATA> sd(stufen);
+    for (UINT st = 0; st < stufen; ++st) {
+        int w = 0;
+        int h = 0;
+        sd[st].pSysMem = kopie.levelData(static_cast<int>(st), w, h);
+        sd[st].SysMemPitch = static_cast<UINT>(w) * 4U;
+    }
+    D3D11_TEXTURE2D_DESC td{};
+    td.Width = static_cast<UINT>(t->width);
+    td.Height = static_cast<UINT>(t->height);
+    td.MipLevels = stufen;
+    td.ArraySize = 1;
+    td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    td.SampleDesc.Count = 1;
+    td.Usage = D3D11_USAGE_DEFAULT;
+    td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    ID3D11Texture2D* tex = nullptr;
+    if (FAILED(d->CreateTexture2D(&td, sd.data(), &tex)) || tex == nullptr) { return false; }
+    ID3D11ShaderResourceView* srv = nullptr;
+    ::bhed::render::sichtAnlegen(d, tex, nullptr, &srv);
+    tex->Release();
+    if (srv == nullptr) { return false; }
+    g_figurBilder[schluessel] = srv;
+    g_figurBildDaten[schluessel] = t->rgba.data();
+    g_figurBildPyramide[schluessel] = std::move(kopie.mips);
+    ++g_figurBilderHochgeladen;
+    return true;
+}
+
+}  // namespace
+
+// REST Punkt 1: siehe g_figurBildPyramide. Das erste Mal (oder wenn das Bild geteilt, neu geladen oder anders gross ist)
+// die eigene Textur ganz, danach je Stufe nur das Rechteck (UpdateSubresource mit Box). Bildpunkte gleich dem ganzen
+// Hochladen: Stufe 0 sind die Bildpunkte selbst, die Stufen darueber dieselbe Rechnung wie Tex::buildMips.
+bool figurBildBereich(const TextureSet::Tex* t, int x0, int y0, int x1, int y1) {
+    ID3D11DeviceContext* c = ctx();
+    if (dev() == nullptr || c == nullptr || t == nullptr || t->width <= 0 || t->height <= 0 || !t->mips.empty() ||
+        t->rgba.size() != static_cast<std::size_t>(t->width) * static_cast<std::size_t>(t->height) * 4U) {
+        return false;
+    }
+    if (texWegMelden == nullptr) {   // wie holeTexBild: ab dem ersten Bild hoert gpumap zu
+        texWegMelden = &figurBildWeg;
+        g_figurBildFaden = std::this_thread::get_id();
+    }
+    if (std::this_thread::get_id() != g_figurBildFaden) { return false; }
+    const void* schluessel = &t->wache;
+    const auto it = g_figurBilder.find(schluessel);
+    const auto py = g_figurBildPyramide.find(schluessel);
+    const auto da = g_figurBildDaten.find(schluessel);
+    const bool eigen = it != g_figurBilder.end() && it->second != nullptr && py != g_figurBildPyramide.end() && da != g_figurBildDaten.end() &&
+                       da->second == t->rgba.data() &&
+                       (py->second.empty() ? t->width * t->height == 1 : py->second.front().width == std::max(1, t->width / 2) && py->second.front().height == std::max(1, t->height / 2));
+    if (!eigen) {
+        figurBildLoesen(schluessel);
+        return figurBildEigenAnlegen(t, schluessel);
+    }
+    x0 = std::clamp(x0, 0, t->width - 1);
+    y0 = std::clamp(y0, 0, t->height - 1);
+    x1 = std::clamp(x1, 0, t->width - 1);
+    y1 = std::clamp(y1, 0, t->height - 1);
+    if (x1 < x0 || y1 < y0) { return true; }
+    ID3D11Resource* res = nullptr;
+    it->second->GetResource(&res);
+    if (res == nullptr) { return false; }
+    const auto hoch = [&](UINT stufe, const std::uint8_t* px, int w, int a0, int b0, int a1, int b1) {
+        const D3D11_BOX box{static_cast<UINT>(a0), static_cast<UINT>(b0), 0U, static_cast<UINT>(a1 + 1), static_cast<UINT>(b1 + 1), 1U};
+        const std::size_t zeile = static_cast<std::size_t>(w) * 4U;
+        c->UpdateSubresource(res, stufe, &box, px + static_cast<std::size_t>(b0) * zeile + static_cast<std::size_t>(a0) * 4U, static_cast<UINT>(zeile), 0U);
+    };
+    hoch(0U, t->rgba.data(), t->width, x0, y0, x1, y1);
+    const std::uint8_t* src = t->rgba.data();
+    int sw = t->width;
+    int sh = t->height;
+    UINT stufe = 1U;
+    for (TextureSet::Tex::Mip& m : py->second) {
+        stufeBereich(src, sw, sh, m, x0, y0, x1, y1);
+        hoch(stufe++, m.rgba.data(), m.width, x0, y0, x1, y1);
+        src = m.rgba.data();
+        sw = m.width;
+        sh = m.height;
+    }
+    res->Release();
+    return true;
+}
+
+// Selbsttest (REST Punkt 1): Stufe `stufe` der Grafikkarten-Textur eines Figurenbilds zuruecklesen (Kopie in eine
+// Staging-Textur). false, wenn das Bild nicht hochgeladen ist.
+bool leseFigurBild(const TextureSet::Tex* t, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe) {
+    ID3D11Device* d = dev();
+    ID3D11DeviceContext* c = ctx();
+    if (d == nullptr || c == nullptr || t == nullptr) { return false; }
+    const auto it = g_figurBilder.find(&t->wache);
+    if (it == g_figurBilder.end() || it->second == nullptr) { return false; }
+    ID3D11Resource* res = nullptr;
+    it->second->GetResource(&res);
+    if (res == nullptr) { return false; }
+    ID3D11Texture2D* quelle = nullptr;
+    const HRESULT hq = res->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&quelle));
+    res->Release();
+    if (FAILED(hq) || quelle == nullptr) { return false; }
+    D3D11_TEXTURE2D_DESC td{};
+    quelle->GetDesc(&td);
+    if (stufe < 0 || static_cast<UINT>(stufe) >= td.MipLevels) {
+        quelle->Release();
+        return false;
+    }
+    breite = std::max(1, static_cast<int>(td.Width) >> stufe);
+    hoehe = std::max(1, static_cast<int>(td.Height) >> stufe);
+    D3D11_TEXTURE2D_DESC sd{};
+    sd.Width = static_cast<UINT>(breite);
+    sd.Height = static_cast<UINT>(hoehe);
+    sd.MipLevels = 1;
+    sd.ArraySize = 1;
+    sd.Format = td.Format;
+    sd.SampleDesc.Count = 1;
+    sd.Usage = D3D11_USAGE_STAGING;
+    sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    ID3D11Texture2D* staging = nullptr;
+    if (FAILED(d->CreateTexture2D(&sd, nullptr, &staging)) || staging == nullptr) {
+        quelle->Release();
+        return false;
+    }
+    c->CopySubresourceRegion(staging, 0, 0, 0, 0, quelle, static_cast<UINT>(stufe), nullptr);
+    quelle->Release();
+    D3D11_MAPPED_SUBRESOURCE map{};
+    bool ok = false;
+    if (SUCCEEDED(c->Map(staging, 0, D3D11_MAP_READ, 0, &map))) {
+        rgba.resize(static_cast<std::size_t>(breite) * static_cast<std::size_t>(hoehe) * 4U);
+        for (int y = 0; y < hoehe; ++y) {
+            std::memcpy(&rgba[static_cast<std::size_t>(y) * static_cast<std::size_t>(breite) * 4U],
+                        static_cast<const std::uint8_t*>(map.pData) + static_cast<std::size_t>(y) * map.RowPitch, static_cast<std::size_t>(breite) * 4U);
+        }
+        c->Unmap(staging, 0);
+        ok = true;
+    }
+    staging->Release();
+    return ok;
+}
+
+namespace {
 
 // Der Figuren-Shader. Nur EINER - er hat keine Merkmalsvarianten.
 ShaderPaar* holeFigurShader(std::string* fehler) {
@@ -8536,6 +8719,8 @@ void figurBilderZahlen(int& hochgeladen, int& geteilt) {
     hochgeladen = 0;
     geteilt = 0;
 }
+bool figurBildBereich(const TextureSet::Tex*, int, int, int, int) { return false; }
+bool leseFigurBild(const TextureSet::Tex*, int, std::vector<std::uint8_t>&, int&, int&) { return false; }
 int gluehenFigurAufrufe() { return 0; }
 void gluehenFigurenBeginnen(bool, int, int) {}
 void gluehenFigurenEnde() {}

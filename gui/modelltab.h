@@ -381,6 +381,7 @@ struct ModellMalen {
     int texelGemalt = 0;
     double hochladenMs = 0.0;
     int hochgeladen = 0;
+    int ansichtStand = 0;             // REST Punkt 1: zaehlt jede neue Textur der 3D-Ansicht (die Ansichten zeichnen dann neu)
     bool hover = false;
     float leinwand[4]{};
     int dreieckeGezeichnet = 0;

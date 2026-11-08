@@ -375,6 +375,13 @@ void figurAchsenProbe(std::vector<FigurAchsenEintrag>* ziel);
 // seit dem Start hochgeladen / statt dessen geteilt.
 void figurBilderTeilen(bool an);
 void figurBilderZahlen(int& hochgeladen, int& geteilt);
+// REST Punkt 1 (Painting im Model-Tab): nur das Rechteck x0..x1, y0..y1 (eingeschlossen) des Figurenbilds `t` neu
+// hochladen - Stufe 0 und die Pyramide darueber, Bildpunkte gleich dem ganzen Hochladen. Beim ersten Mal bekommt das Bild
+// eine eigene, beschreibbare Textur (nicht mehr nach Inhalt geteilt). false: nicht moeglich (kein Geraet, eigene
+// Pyramide im Bild) - dann meldet der Rufer neuen Inhalt ueber die Wache (ganzes Bild neu).
+bool figurBildBereich(const TextureSet::Tex* t, int x0, int y0, int x1, int y1);
+// Selbsttest: Stufe `stufe` der Grafikkarten-Textur des Figurenbilds `t` zuruecklesen; false, wenn nicht hochgeladen.
+bool leseFigurBild(const TextureSet::Tex* t, int stufe, std::vector<std::uint8_t>& rgba, int& breite, int& hoehe);
 // rc602: Figuren geben ihre Leuchtstufen (ModelTextures::gluehStufen) dem
 // Gluehen. Vor den Figuren des Hauptbildes `gluehenFigurenBeginnen(true)`:
 // legt den Gluehpuffer an und loescht ihn; zeichneFigur schreibt dann jede

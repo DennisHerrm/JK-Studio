@@ -7,6 +7,7 @@
 // S Farbe aufnehmen, X Farben tauschen laut Blender-Handbuch "Texture Paint", 1 Malmaske laut blender_keys.txt).
 #include "app_internal.h"
 #include "backend.h"
+#include "gpumap.h"
 
 #include "bhed/image.h"
 #include "bhed/modell/malen.h"
@@ -103,50 +104,91 @@ struct BildStufe {
     std::string datei;   // gefundene Datei (VFS)
 };
 
-// [0] das Bild der Flaeche (Haut/Shader direkt, sonst die erste map-Stufe des gleichnamigen Skripts wie texturesFor in
-// app_view3d.cpp), danach die weiteren Bildstufen des Skripts (ohne $lightmap/$whiteimage) - ParseStage in tr_shader.cpp
-std::vector<BildStufe> bildStufen(const std::string& shader) {
-    std::vector<BildStufe> out;
-    const auto finden = [](const std::string& name) -> std::string {
-        for (const std::string& k : textureCandidates(name)) {
-            std::string d;
-            if (readFromArchives(k, d)) { return k; }
+// Die Suche liest jede Kandidatendatei ganz aus den Archiven (readFromArchives entpackt); der Bereich, das 2D-Bild und
+// jeder Tupfer fragen je Bild danach - ungemerkt 10 ms je Frage, 30 ms je Bild (REST Punkt 1, ptzeit). Gemerkt je Name,
+// bis die Spielordner neu eingelesen werden (texCacheStand, wie die Bildtabelle texCache), die Shadertabelle eingelesen
+// wird oder ein anderes Modell kommt (bilderPruefen).
+struct StufenMerker {
+    std::map<std::string, std::vector<BildStufe>> je;   // Shader -> seine Bilder
+    std::map<std::string, std::string> datei;           // Bildname -> gefundene Datei (leer: keine)
+    int texStand = -1;
+    bool shaderGelesen = false;
+};
+StufenMerker g_stufen;
+
+void merkerPruefen() {
+    if (g_stufen.texStand != g_app->texCacheStand || g_stufen.shaderGelesen != g_app->shaderMapRead) {
+        g_stufen.je.clear();
+        g_stufen.datei.clear();
+        g_stufen.texStand = g_app->texCacheStand;
+        g_stufen.shaderGelesen = g_app->shaderMapRead;
+    }
+}
+
+// die Datei, die die Engine fuer einen Bildnamen laedt (R_FindImageFile: die Endungen der Reihe nach)
+const std::string& dateiVon(const std::string& name) {
+    merkerPruefen();
+    const auto it = g_stufen.datei.find(name);
+    if (it != g_stufen.datei.end()) { return it->second; }
+    std::string gefunden;
+    for (const std::string& k : textureCandidates(name)) {
+        std::string d;
+        if (readFromArchives(k, d)) {
+            gefunden = k;
+            break;
         }
-        return {};
-    };
-    const std::string direkt = finden(shader);
-    std::string k = klein(shader);
+    }
+    return g_stufen.datei.emplace(name, gefunden).first->second;
+}
+
+const ShaderInfo* shaderInfoVon(const std::string& shader) {
+    if (!g_app->shaderMapRead) { return nullptr; }
+    const std::string k = klein(shader);
     const std::size_t punkt = k.find_last_of('.');
     const std::size_t strich = k.find_last_of('/');
     const std::string ohne = (punkt != std::string::npos && (strich == std::string::npos || punkt > strich)) ? k.substr(0, punkt) : k;
-    const ShaderInfo* info = nullptr;
-    if (g_app->shaderMapRead) {
-        for (const std::string& s : {k, ohne}) {
-            if (const auto it = g_app->shaderMap.find(s); it != g_app->shaderMap.end()) {
-                info = &it->second;
-                break;
-            }
-        }
+    for (const std::string& s : {k, ohne}) {
+        if (const auto it = g_app->shaderMap.find(s); it != g_app->shaderMap.end()) { return &it->second; }
     }
+    return nullptr;
+}
+
+// [0] das Bild der Flaeche (Haut/Shader direkt, sonst die erste map-Stufe des gleichnamigen Skripts wie texturesFor in
+// app_view3d.cpp), danach die weiteren Bildstufen des Skripts (ohne $lightmap/$whiteimage) - ParseStage in tr_shader.cpp
+const std::vector<BildStufe>& bildStufen(const std::string& shader) {
+    merkerPruefen();
+    if (const auto it = g_stufen.je.find(shader); it != g_stufen.je.end()) { return it->second; }
+    std::vector<BildStufe> out;
+    const std::string direkt = dateiVon(shader);
+    const ShaderInfo* info = shaderInfoVon(shader);
     if (!direkt.empty()) {
         out.push_back(BildStufe{shader, direkt});
     } else if (info != nullptr && !info->image.empty()) {
-        const std::string d = finden(info->image);
+        const std::string d = dateiVon(info->image);
         if (!d.empty()) { out.push_back(BildStufe{info->image, d}); }
     }
     if (info != nullptr) {
         for (const ShaderInfo::Stage& st : info->stages) {
             if (st.lightmap || st.image.empty()) { continue; }
-            const std::string d = finden(st.image);
+            const std::string d = dateiVon(st.image);
             if (d.empty()) { continue; }
             if (std::any_of(out.begin(), out.end(), [&](const BildStufe& b) { return klein(b.datei) == klein(d); })) { continue; }
             out.push_back(BildStufe{st.image, d});
         }
     }
-    return out;
+    return g_stufen.je.emplace(shader, std::move(out)).first->second;
 }
 
 // --- Leinwaende (eine je Bild) ---------------------------------------------------------------------------------------
+
+// REST Punkt 1: eine Stufe einer Flaeche der Vorschau, die dieses Bild zeichnet (ModelTextures::stufen: Flaechen mit
+// Shader-Stufen zeichnen die Bilder der Stufen, nicht bySurface - der Sturmtruppler-Rumpf zeigte darum nie, was gemalt
+// wurde). Die Bildpunkte der Stufe teilen sich alle Figuren (FigurStufe::pixel); die Vorschau bekommt eine eigene Kopie.
+struct StufenBindung {
+    int teil = -1;
+    std::size_t stufe = 0;
+    std::shared_ptr<TextureSet::Tex> eigen;
+};
 
 struct MalBild {
     mm::Leinwand l;
@@ -156,8 +198,10 @@ struct MalBild {
     std::vector<std::array<int, 2>> herkunft;   // je Dreieck der Leinwand: Teil, Dreieck des Netzes
     std::vector<std::array<float, 3>> normalen; // je Dreieck in der Ruhelage
     int netzStand = -1;
-    bool grundStufe = true;               // das Bild der Flaeche (in der 3D-Ansicht live), sonst eine weitere Stufe
+    bool grundStufe = true;               // das Bild der Flaeche (bySurface in der 3D-Ansicht), sonst eine weitere Stufe
     mm::Rechteck texSchmutzig;            // fuer die 2D-Ansicht noch hochzuladen
+    std::vector<StufenBindung> bindungen; // die Stufen der Vorschau mit diesem Bild
+    const void* bindungenFuer = nullptr;  // gesucht fuer diese Stufenliste (ModelTextures::stufen.data())
 };
 
 std::vector<std::unique_ptr<MalBild>> g_bilder;
@@ -205,6 +249,8 @@ void bilderPruefen() {
     const std::string fuer = g_app->modelPath + "|" + std::to_string(g_app->modelSkinIndex) + "|" + std::to_string(mt().lodJetzt);
     if (fuer != g_bilderFuer) {
         g_bilder.clear();
+        g_stufen.je.clear();
+        g_stufen.datei.clear();
         ++g_bilderGeneration;
         g_bilderFuer = fuer;
         mz().gruppe = -1;
@@ -216,7 +262,7 @@ MalBild* bildFuer(int gruppe, int stufe, bool laden) {
     bilderPruefen();
     const std::vector<Gruppe> g = gruppen();
     if (gruppe < 0 || uz(gruppe) >= g.size()) { return nullptr; }
-    const std::vector<BildStufe> st = bildStufen(g[uz(gruppe)].shader);
+    const std::vector<BildStufe>& st = bildStufen(g[uz(gruppe)].shader);
     if (st.empty()) { return nullptr; }
     const int s = std::clamp(stufe, 0, static_cast<int>(st.size()) - 1);
     const std::string schl = g[uz(gruppe)].shader + "|" + st[uz(s)].datei;
@@ -270,40 +316,97 @@ MalBild* jetzt(bool laden) {
     return bildFuer(z.gruppe, z.stufe, laden);
 }
 
-// Das Bild in die Vorschau: die Texturen der Flaechen der Gruppe (Stufe 0) und die 2D-Ansicht
+// Ein Bild der Vorschau aus der Leinwand nachfuehren: gleich gross nur das Rechteck r (Bildpunkte und Grafikkarte, gpu::
+// figurBildBereich: Stufe 0 und die Pyramide darueber - bis REST Punkt 1 je Tupfer das ganze Bild samt Pyramide und
+// Pruefsumme neu), verkleinert (r_picmip/Bildgrenze) das ganze Bild mit derselben Rechnung wie beim Laden.
+void bildNachfuehren(TextureSet::Tex& x, const MalBild& m, const mm::Rechteck& r) {
+    if (x.width == m.l.b && x.height == m.l.h && x.rgba.size() == m.l.bild.size()) {
+        for (int y = r.y0; y <= r.y1 && r.x0 <= r.x1; ++y) {
+            const std::size_t i = m.l.texel(r.x0, y) * 4U;
+            std::memcpy(&x.rgba[i], &m.l.bild[i], uz(r.x1 - r.x0 + 1) * 4U);
+        }
+        if (x.mips.empty() && gpu::figurBildBereich(&x, r.x0, r.y0, r.x1, r.y1)) { return; }
+    } else if (x.width > 0 && x.height > 0) {
+        image::Image im;
+        im.width = m.l.b;
+        im.height = m.l.h;
+        im.rgba = m.l.bild;
+        im.ok = true;
+        int w = 0;
+        int h = 0;
+        std::vector<unsigned char> px;
+        image::shrinkTo(im, std::max(x.width, x.height), w, h, px);
+        if (w != x.width || h != x.height) { return; }
+        x.rgba = std::move(px);
+    } else {
+        return;
+    }
+    if (!x.mips.empty()) {
+        x.mips.clear();
+        x.buildMips();
+    }
+    x.wache = TexWache{};   // meldet den neuen Inhalt (die Grafikkarte laedt neu, gpumap_win32.cpp figurBildWeg)
+}
+
+// Die Stufen der Vorschau suchen, deren Bild diese Leinwand ist (je Flaeche der Gruppe: die Stufen des Shaders, deren
+// Bild dieselbe Datei laedt; animMap mit mehreren Bildern und $whiteimage nicht)
+void bindungenSuchen(MalBild& m) {
+    const auto& st = g_app->modelTextures.stufen;
+    m.bindungen.clear();
+    m.bindungenFuer = st.data();
+    for (const int t : m.teile) {
+        if (t < 0 || uz(t) >= st.size() || st[uz(t)].empty()) { continue; }
+        const ShaderInfo* info = shaderInfoVon(shaderVon(t));
+        if (info == nullptr) { continue; }
+        for (std::size_t k = 0; k < st[uz(t)].size(); ++k) {
+            const ModelTextures::FigurStufe& fs = st[uz(t)][k];
+            if (fs.art.weiss || fs.pixel.size() != 1U || fs.pixel[0] == nullptr || fs.art.stufe >= info->stages.size()) { continue; }
+            if (klein(dateiVon(info->stages[fs.art.stufe].image)) == klein(m.l.datei)) { m.bindungen.push_back(StufenBindung{t, k, nullptr}); }
+        }
+    }
+}
+
+// Die Stufen der Vorschau dieser Leinwand nachfuehren; eine Stufe ohne eigene Kopie (das erste Mal, neu geladene
+// Texturen) bekommt sie und das ganze Bild. true, wenn eine Stufe da ist.
+bool stufenNachfuehren(MalBild& m, mm::Rechteck r) {
+    auto& st = g_app->modelTextures.stufen;
+    if (m.bindungenFuer != st.data()) { bindungenSuchen(m); }
+    bool da = false;
+    for (StufenBindung& b : m.bindungen) {
+        if (uz(b.teil) >= st.size() || b.stufe >= st[uz(b.teil)].size()) { continue; }
+        ModelTextures::FigurStufe& fs = st[uz(b.teil)][b.stufe];
+        if (fs.pixel.size() != 1U || fs.pixel[0] == nullptr) { continue; }
+        mm::Rechteck rb = r;
+        if (fs.pixel[0].get() != b.eigen.get()) {
+            b.eigen = std::make_shared<TextureSet::Tex>(*fs.pixel[0]);
+            b.eigen->mips.clear();   // die Grafikkarte rechnet dieselbe Pyramide (ladeMitStufen/figurBildBereich wie buildMips)
+            fs.pixel[0] = b.eigen;
+            rb = mm::Rechteck{0, 0, m.l.b - 1, m.l.h - 1};
+        }
+        bildNachfuehren(*b.eigen, m, rb);
+        da = true;
+    }
+    return da;
+}
+
+// Das Bild in die Vorschau: die Texturen der Flaechen der Gruppe (bySurface fuer das Bild der Flaeche, die Bilder der
+// Shader-Stufen) und die 2D-Ansicht
 void anzeigeNachfuehren(MalBild& m) {
     if (m.l.schmutzig.leer()) { return; }
     const auto ab = std::chrono::steady_clock::now();
     m.texSchmutzig.dazu(m.l.schmutzig);
+    const mm::Rechteck r{std::max(m.l.schmutzig.x0, 0), std::max(m.l.schmutzig.y0, 0), std::min(m.l.schmutzig.x1, m.l.b - 1), std::min(m.l.schmutzig.y1, m.l.h - 1)};
+    bool ansicht = stufenNachfuehren(m, r);
     if (m.grundStufe) {
         auto& by = g_app->modelTextures.bySurface;
         for (const int t : m.teile) {
-            if (t < 0 || uz(t) >= by.size()) { continue; }
-            TextureSet::Tex& x = by[uz(t)];
-            if (x.width == m.l.b && x.height == m.l.h && x.rgba.size() == m.l.bild.size()) {
-                x.rgba = m.l.bild;
-            } else if (x.width > 0 && x.height > 0) {
-                // die Vorschau zeigt das Bild verkleinert (r_picmip/Bildgrenze): dieselbe Rechnung wie beim Laden
-                image::Image im;
-                im.width = m.l.b;
-                im.height = m.l.h;
-                im.rgba = m.l.bild;
-                im.ok = true;
-                int w = 0;
-                int h = 0;
-                std::vector<unsigned char> px;
-                image::shrinkTo(im, std::max(x.width, x.height), w, h, px);
-                if (w == x.width && h == x.height) { x.rgba = std::move(px); }
-            } else {
-                continue;
-            }
-            if (!x.mips.empty()) {
-                x.mips.clear();
-                x.buildMips();
-            }
-            x.wache = TexWache{};   // meldet den neuen Inhalt (die Grafikkarte laedt neu, gpumap_win32.cpp figurBildWeg)
+            if (t >= 0 && uz(t) < by.size()) { bildNachfuehren(by[uz(t)], m, r); }
         }
+        ansicht = true;
+    }
+    if (ansicht) {
         g_app->modelDirty = true;
+        ++mz().ansichtStand;   // die 3D-Ansichten zeichnen im selben Bild neu (Stand in eineAnsicht)
     }
     m.l.schmutzig = mm::Rechteck{};
     mz().hochladenMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ab).count();
@@ -971,6 +1074,13 @@ bool modellMalenAufnehmen(const ModellAnsicht& a, ImVec2 maus) {
 void drawModellMalenBereich() {
     ModellMalen& z = mz();
     bilderPruefen();
+    // neu geladene Texturen der Vorschau (Haut, Neu laden): die bemalten Bilder wieder in ihre Stufen
+    for (auto& b : g_bilder) {
+        if (b->l.bemalt() && b->bindungenFuer != g_app->modelTextures.stufen.data()) {
+            b->l.schmutzig = mm::Rechteck{0, 0, b->l.b - 1, b->l.h - 1};
+            anzeigeNachfuehren(*b);
+        }
+    }
     const float fs = ImGui::GetFontSize();
     const std::vector<Gruppe> g = gruppen();
     MalBild* m = jetzt(true);
@@ -1064,7 +1174,7 @@ void drawModellMalenBereich() {
                 ImGui::EndCombo();
             }
             ImGui::SetItemTooltip("%s", tr(Str::PtGruppeHint));
-            const std::vector<BildStufe> st = bildStufen(g[uz(gw)].shader);
+            const std::vector<BildStufe>& st = bildStufen(g[uz(gw)].shader);
             if (st.size() > 1U) {
                 ImGui::SetNextItemWidth(-fs * 0.5F);
                 const int s = std::clamp(z.stufe, 0, static_cast<int>(st.size()) - 1);
