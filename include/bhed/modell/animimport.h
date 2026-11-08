@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "bhed/gla.h"
+#include "bhed/modell/fehler.h"
 
 namespace bhed::modell {
 
@@ -39,14 +40,21 @@ struct AnimImport {
     float zentimeter = 1.0F;           // cm je Einheit der Datei (BVH: 1, Einheit unbekannt)
     std::string oben;                  // Achse oben in der Datei, z. B. "+Y"
     std::string vorn;                  // Achse vorn (Blickrichtung der Figur) in der Datei
+    bool vornAusSkelett = false;       // BVH: vorn aus dem Skelett bestimmt (die Datei sagt es nicht)
     double ticksJeSekunde = 0.0;       // aus der Datei (0 = nicht angegeben)
-    std::vector<std::string> hinweise; // z. B. "ungleichmaessige Skalierung an X entfernt"
+    // FIX2 P14: Hinweise und Fehler als Art (bhed/modell/fehler.h): den Text in der Sprache der Oberflaeche setzt die GUI
+    // (modellFehlerText), fehlerText gibt den englischen Satz; vorher deutsche Saetze in jeder Sprache
+    std::vector<ModellFehler> hinweise; // BvhOhneSeiten, BvhBoden, UngleicheSkalierung
+    ModellFehler fehlerArt;            // nach false: KeineAnimation, KeinSkelett, AchsenUnbestimmt, AnimZuLang (sonst Keiner)
 };
 
 // Endung .fbx .glb .gltf .bvh .dae (klein oder gross).
 [[nodiscard]] bool istAnimImportEndung(const std::string& pfad);
-// Die Datei lesen. false: keine Animation/kein Skelett oder nicht lesbar (Grund in fehler). fpsVorgabe > 0 erzwingt die
-// Bildrate (sonst aus der Datei).
+// Die Datei lesen. false: keine Animation/kein Skelett oder nicht lesbar (Grund englisch in fehler, als Art in
+// aus.fehlerArt). fpsVorgabe > 0 erzwingt die Bildrate (sonst aus der Datei).
+// FIX2 P5: die Bildzahl kommt aus dem letzten Schluessel; eine verirrte Zeit (ms statt s) gaebe Gigabytes. Abgelehnt
+// (AnimZuLang), wenn alle Bilder nicht in int passen (GlaAnimation::numFrames) oder die Bilder (je Bild und Knochen eine
+// Welt und eine lokale Stellung) mehr Speicher braeuchten als frei ist (GlobalMemoryStatusEx ullAvailPhys).
 [[nodiscard]] bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehler = nullptr, int fpsVorgabe = 0);
 
 // BVH schreiben (fuer die Preset-Bibliothek): Hierarchie mit den Orten der Grundstellung als OFFSET, Wurzel und Knochen mit

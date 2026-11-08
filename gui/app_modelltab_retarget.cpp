@@ -177,7 +177,8 @@ bool importLesen(const std::string& pfad) {
     modell::AnimImport imp;
     std::string fehler;
     if (!modell::animImportieren(pfad, imp, &fehler)) {
-        r.quelleFehler = fehler.empty() ? pfad : fehler;
+        // FIX2 P14: in der Sprache der Oberflaeche (assimp-Meldungen bleiben, wie assimp sie schreibt)
+        r.quelleFehler = imp.fehlerArt.art != modell::FehlerArt::Keiner ? modellFehlerText(imp.fehlerArt) : fehler.empty() ? pfad : fehler;
         melden(format(Str::RtQuelleFehler, r.quelleFehler.c_str()));
         return false;
     }
@@ -185,9 +186,10 @@ bool importLesen(const std::string& pfad) {
     r.quelleFuer = pfad;
     r.quelleFehler.clear();
     r.quelleCfg = std::move(imp.sequenzen);
-    r.importInfo = format(Str::AiImportInfo, imp.format.c_str(), imp.oben.c_str(), imp.vorn.c_str(), static_cast<double>(imp.zentimeter),
+    const std::string vorn = imp.vornAusSkelett ? format(Str::AiVornAusSkelett, imp.vorn.c_str()) : imp.vorn;
+    r.importInfo = format(Str::AiImportInfo, imp.format.c_str(), imp.oben.c_str(), vorn.c_str(), static_cast<double>(imp.zentimeter),
                           r.quelleCfg.empty() ? 0 : r.quelleCfg.front().fps);
-    for (const std::string& h : imp.hinweise) { r.importInfo += "; " + h; }
+    for (const modell::ModellFehler& h : imp.hinweise) { r.importInfo += "; " + modellFehlerText(h); }
     r.cq = modell::rtCharakter(r.quelle, pfad);
     zielCharakter();
     r.stand = -1;

@@ -5532,6 +5532,14 @@ enum class Str {
     MrProfilMax,
     MrProfilBlender,
     MrProfilHint,
+    AboutBlenderLizenz,
+    MbFeKeineAnimation,
+    MbFeAchsenUnbestimmt,
+    MbFeAnimZuLang,
+    MbHwBvhOhneSeiten,
+    MbHwBvhBoden,
+    MbHwUngleicheSkalierung,
+    AiVornAusSkelett,
     Count,
 };
 

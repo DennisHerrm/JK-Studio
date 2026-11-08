@@ -377,6 +377,12 @@ std::string modellFehlerText(const modell::ModellFehler& f) {
         case A::SequenzNichtInQuelle: return format(Str::MbFeSequenzNichtInQuelle, n, a, b, f.name2.c_str(), static_cast<int>(f.c));
         case A::QuellVerweis: return format(Str::MbFeQuellVerweis, n);
         case A::BereichAusserhalb: return tr(Str::MbFeBereichAusserhalb);
+        case A::KeineAnimation: return tr(Str::MbFeKeineAnimation);
+        case A::AchsenUnbestimmt: return format(Str::MbFeAchsenUnbestimmt, n, f.name2.c_str());
+        case A::AnimZuLang: return format(Str::MbFeAnimZuLang, static_cast<double>(f.a), static_cast<double>(f.b), static_cast<double>(f.c));
+        case A::BvhOhneSeiten: return tr(Str::MbHwBvhOhneSeiten);
+        case A::BvhBoden: return format(Str::MbHwBvhBoden, static_cast<double>(f.a) / 10.0);
+        case A::UngleicheSkalierung: return tr(Str::MbHwUngleicheSkalierung);
         case A::Anzahl: break;
     }
     return modell::fehlerText(f);

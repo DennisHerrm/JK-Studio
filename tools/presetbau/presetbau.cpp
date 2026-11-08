@@ -135,6 +135,12 @@ int main(int argc, char** argv) {
     const std::size_t nb = g.bones.size();
     const int f0 = e->firstFrame + std::max(von, 0);
     const int f1 = e->firstFrame + (bis > 0 ? std::min(bis, e->numFrames) : e->numFrames);
+    // FIX2 P17: der Bereich muss in der Animation liegen; --einmal braucht ein Bild, die Schleife zwei (lok(f1 - 2) unten)
+    if (f1 - f0 < (einmal ? 1 : 2)) {
+        std::fprintf(stderr, "FEHLER --von/--bis: Bilder %d..%d nicht in %s (%d Bilder)\n", std::max(von, 0), bis > 0 ? bis : e->numFrames, e->name.c_str(),
+                     e->numFrames);
+        return 1;
+    }
     int a = f0;
     int b = f1 - 1;   // b = Bild, das dem Anfang a gleichen soll (gehoert nicht mehr zum Zyklus)
     int wurzel = 0;
