@@ -4,6 +4,9 @@
 //   BehavEd-Remake and licensed under the GNU General Public License version 2 or later (LICENSE).
 #include "bhed/modell/xsiaufnahme.h"
 
+#include "bhed/modell/fehler.h"
+#include "bhed/modell/glavorrat.h"
+
 #include <cstring>
 #include <exception>
 #include <string>
@@ -22,7 +25,7 @@ bool xsiAufnehmen(const std::string& xsiText, const GlaAnimation& skelett, const
     br = XsiBericht{};
     aus = GlaAnimation{};
     if (skelett.bones.empty()) {
-        br.fehler = "kein Skelett";
+        br.fehler = fehlerText(ModellFehler{FehlerArt::KeinSkelett});
         return false;
     }
     // Das Referenzskelett wie carbuild.cpp (G2C): Knochen, Eltern, Grundstellung, Flaggen, Massstab der GLA.
@@ -57,22 +60,19 @@ bool xsiAufnehmen(const std::string& xsiText, const GlaAnimation& skelett, const
     aus.bones = skelett.bones;
     aus.numFrames = nf;
     // writeMdxa (G2C mdxa.cpp): je Bild und Knochen compressBone, gleiche Eintraege einmal im Vorrat, in Bildreihenfolge.
-    std::unordered_map<std::string, std::uint32_t> vorrat;
+    GlaVorrat vorrat(aus.bonePool);   // REST N5
     g2::CompressStats st;
     const g2::CompressOptions co{};
     for (int f = 0; f < nf; ++f) {
         for (int b = 0; b < nb; ++b) {
             const g2::fmt::CompQuatBone c = g2::compressBone(ev.frames.at(f, b), co, st);
-            const std::string k(reinterpret_cast<const char*>(c.comp), sizeof c.comp);
-            const auto [it, neu] = vorrat.emplace(k, static_cast<std::uint32_t>(aus.bonePool.size() / 14U));
-            if (neu) { aus.bonePool.insert(aus.bonePool.end(), c.comp, c.comp + sizeof c.comp); }
-            aus.indexes.push_back(it->second);
+            aus.indexes.push_back(vorrat.dazu(c.comp));
         }
     }
     br.bilder = nf;
-    br.vorrat = static_cast<int>(aus.bonePool.size() / 14U);
-    if (aus.bonePool.size() / 14U > 0xFFFFFFU) {
-        br.fehler = "Vorrat groesser als ein 24-Bit-Verweis erreicht";
+    br.vorrat = vorrat.eintraege();
+    if (vorrat.zuGross()) {
+        br.fehler = fehlerText(ModellFehler{FehlerArt::VorratZuGross});
         return false;
     }
     return nf > 0;

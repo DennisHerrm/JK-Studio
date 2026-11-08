@@ -125,6 +125,8 @@ struct Rig {
 
 // Das Rig mit einem Klick: Erkennung (mit den Zuordnungen von Hand), Griffe, Tags und Fussrolle aus dem Modell
 // (`in` darf leer sein - dann ohne Tags und ohne Ferse/Zehe).
+// Vorn der Figur in der Grundstellung: Richtung der Gesichtsknochen vom Kopf (eine Achse, Vorzeichen), sonst -Y.
+void figurVorn(const GlaAnimation& g, const Erkennung& e, float vorn[3]);
 [[nodiscard]] Rig rigAnlegen(const GlaAnimation& g, const Inhalt& in, int stufe, const std::vector<Zuordnung>& vonHand);
 
 // --- Schluessel-Schicht ----------------------------------------------------------------------------------------------
@@ -198,6 +200,8 @@ struct BackBericht {
 [[nodiscard]] BoneMatrix drehungUm(const float achse[3], float grad) noexcept;
 void quatAusMatrix(const BoneMatrix& m, float q[4]) noexcept;
 [[nodiscard]] BoneMatrix matrixAusQuat(const float q[4]) noexcept;
+// Ein Rig-Schluessel als Matrix (Drehung aus q, Ort aus t) - Rig und IK (REST N14: vorher zweimal wortgleich)
+[[nodiscard]] BoneMatrix schluesselMatrix(const RigSchluessel& k);
 
 }  // namespace bhed::modell
 #endif

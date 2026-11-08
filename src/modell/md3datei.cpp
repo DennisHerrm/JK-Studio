@@ -132,8 +132,17 @@ void kastenDazu(std::vector<std::array<float, 6>>& kasten, std::int32_t bild, co
 // tr_model.cpp:919), SHADER_MAX_INDEXES = 6*SHADER_MAX_VERTEXES (qfiles.h:34) - anders als Ghoul2 (Dreieckszahl als Indexzahl)
 bool zuVieleDreiecke(std::size_t indizes, int eckenGrenze) { return eckenGrenze > 0 && indizes > 6U * static_cast<std::size_t>(eckenGrenze); }
 
-std::string dreieckFehler(const std::string& name, std::size_t indizes, int eckenGrenze) {
-    return "Flaeche " + name + ": " + std::to_string(indizes / 3U) + " Dreiecke (Grenze " + std::to_string(eckenGrenze * 2) + ")";
+ModellFehler dreieckFehler(const std::string& name, std::size_t indizes, int eckenGrenze) {
+    return ModellFehler{FehlerArt::ZuVieleDreiecke, name, static_cast<long long>(indizes / 3U), static_cast<long long>(eckenGrenze) * 2};
+}
+
+ModellFehler eckenFehler(const std::string& name, std::size_t ecken, int eckenGrenze) {
+    return ModellFehler{FehlerArt::ZuVieleEcken, name, static_cast<long long>(ecken), eckenGrenze};
+}
+
+void fehlerSetzen(Md3SchreibBericht& br, const ModellFehler& f) {
+    br.fehler = fehlerText(f);
+    br.fehlerArt = f;
 }
 
 // Modell-Block 1d: ein Modell ohne gelesene Datei (Grundkoerper im Model-Tab): ein Bild, keine Tags, je Teil eine Flaeche
@@ -145,11 +154,11 @@ bool md3VonGrund(const Inhalt& in, std::string& aus, int eckenGrenze, Md3Schreib
         const Netz leer;
         const Netz& nz = t.stufen.empty() ? leer : t.stufen[0];
         if (eckenGrenze > 0 && static_cast<int>(nz.ecken.size()) >= eckenGrenze) {
-            br.fehler = "Flaeche " + t.name + ": " + std::to_string(nz.ecken.size()) + " Ecken (Grenze " + std::to_string(eckenGrenze) + ")";
+            fehlerSetzen(br, eckenFehler(t.name, nz.ecken.size(), eckenGrenze));
             return false;
         }
         if (zuVieleDreiecke(static_cast<std::size_t>(nz.dreiecke()) * 3U, eckenGrenze)) {
-            br.fehler = dreieckFehler(t.name, static_cast<std::size_t>(nz.dreiecke()) * 3U, eckenGrenze);
+            fehlerSetzen(br, dreieckFehler(t.name, static_cast<std::size_t>(nz.dreiecke()) * 3U, eckenGrenze));
             return false;
         }
         flaechen.push_back(flaecheVonGrund(t, nz, 1));
@@ -184,19 +193,19 @@ bool md3VonGrund(const Inhalt& in, std::string& aus, int eckenGrenze, Md3Schreib
 
 bool md3Schreiben(const Inhalt& in, std::string& aus, int eckenGrenze, Md3SchreibBericht* bericht) {
     Md3SchreibBericht br;
-    const auto fehler = [&](const std::string& f) {
-        br.fehler = f;
+    const auto fehler = [&](const ModellFehler& f) {
+        fehlerSetzen(br, f);
         if (bericht != nullptr) { *bericht = br; }
         return false;
     };
-    if (in.herkunft != Herkunft::Md3) { return fehler("keine .md3"); }
+    if (in.herkunft != Herkunft::Md3) { return fehler(ModellFehler{FehlerArt::KeinMd3}); }
     if (!in.md3Datei) {
         const bool ok = md3VonGrund(in, aus, eckenGrenze, br);
         if (bericht != nullptr) { *bericht = br; }
         return ok;
     }
     const std::string& b = *in.md3Datei;
-    if (b.size() < kKopf || b.compare(0, 4, "IDP3") != 0) { return fehler("keine .md3"); }
+    if (b.size() < kKopf || b.compare(0, 4, "IDP3") != 0) { return fehler(ModellFehler{FehlerArt::KeinMd3}); }
     const std::int32_t bilderDatei = lies(b, 8 + kName + 4);
     const std::int32_t flaechen = lies(b, 8 + kName + 12);
     const std::int32_t ofsBilder = lies(b, 8 + kName + 20);
@@ -206,7 +215,7 @@ bool md3Schreiben(const Inhalt& in, std::string& aus, int eckenGrenze, Md3Schrei
     // pfix M1: je Flaeche der Datei ihr Teil (Teil::dateiFlaeche) - leere Flaechen hat readMd3 uebersprungen, sie haben keinen
     // Teil und bleiben wie gelesen; Teile ohne Flaeche der Datei (Detach in einen neuen Teil) kommen hinten dazu. Ein Dokument
     // ohne Zuordnung: Teil s ist Flaeche s.
-    if (flaechen < 0) { return fehler("die Flaechen passen nicht zur Datei"); }
+    if (flaechen < 0) { return fehler(ModellFehler{FehlerArt::Md3PasstNicht}); }
     std::vector<int> teilVon(static_cast<std::size_t>(flaechen), -1);
     std::vector<char> neuerTeil(in.teile.size(), 1);
     bool zugeordnet = false;
@@ -224,14 +233,14 @@ bool md3Schreiben(const Inhalt& in, std::string& aus, int eckenGrenze, Md3Schrei
     }
     if (ofsFlaechen <= 0 || static_cast<std::size_t>(ofsFlaechen) > b.size() || ofsBilder > ofsFlaechen || ofsTags > ofsFlaechen || ofsEnde < ofsFlaechen ||
         static_cast<std::size_t>(ofsEnde) > b.size()) {
-        return fehler("Bilder oder Tags hinter den Flaechen");
+        return fehler(ModellFehler{FehlerArt::Md3HinterFlaechen});
     }
     std::string neu = b.substr(0, static_cast<std::size_t>(ofsFlaechen));
     std::size_t at = static_cast<std::size_t>(ofsFlaechen);
     std::vector<std::array<float, 6>> kasten;   // je Bild der Kasten aller geschriebenen Ecken
     bool orteNeu = false;                       // ein Ort weicht von der Datei ab: Kasten und Radius der Bilder neu
     for (std::size_t s = 0; s < static_cast<std::size_t>(flaechen); ++s) {
-        if (at + kFlaechenKopf > b.size()) { return fehler("Flaeche " + std::to_string(s) + " abgeschnitten"); }
+        if (at + kFlaechenKopf > b.size()) { return fehler(ModellFehler{FehlerArt::FlaecheAbgeschnitten, {}, static_cast<long long>(s)}); }
         const std::size_t n = at + 4 + kName;
         const std::int32_t sBilder = lies(b, n + 4);
         const std::int32_t sShader = lies(b, n + 8);
@@ -240,7 +249,7 @@ bool md3Schreiben(const Inhalt& in, std::string& aus, int eckenGrenze, Md3Schrei
         const std::int32_t ofs[4] = {lies(b, n + 20), lies(b, n + 24), lies(b, n + 28), lies(b, n + 32)};   // Dreiecke, Shader, St, XyzNormal
         const std::int32_t sEnde = lies(b, n + 36);
         if (sEnde <= 0 || at + static_cast<std::size_t>(sEnde) > b.size() || sBilder <= 0 || sEcken < 0 || sDreiecke < 0) {
-            return fehler("Flaeche " + std::to_string(s) + " unbrauchbar");
+            return fehler(ModellFehler{FehlerArt::FlaecheUnbrauchbar, {}, static_cast<long long>(s)});
         }
         // pfix M2: jeder Abschnitt innerhalb der Flaeche (readMd3 prueft nur gegen das Dateiende) - sonst liest substr
         // hinter alt (std::out_of_range) oder memcpy in einen zu kurzen Rest
@@ -249,18 +258,18 @@ bool md3Schreiben(const Inhalt& in, std::string& aus, int eckenGrenze, Md3Schrei
         };
         if (!passt(ofs[0], sDreiecke, 12U) || !passt(ofs[1], sShader, kName + 4U) || !passt(ofs[2], sEcken, 8U) ||
             !passt(ofs[3], sEcken, 8U * static_cast<std::uint64_t>(sBilder))) {
-            return fehler("Flaeche " + std::to_string(s) + " unbrauchbar");
+            return fehler(ModellFehler{FehlerArt::FlaecheUnbrauchbar, {}, static_cast<long long>(s)});
         }
         const std::string alt = b.substr(at, static_cast<std::size_t>(sEnde));
         at += static_cast<std::size_t>(sEnde);
         const int ti = teilVon[s];
         if (ti < 0) {
-            if (sEcken != 0) { return fehler("die Flaechen passen nicht zur Datei"); }
+            if (sEcken != 0) { return fehler(ModellFehler{FehlerArt::Md3PasstNicht}); }
             neu += alt;   // pfix M1: die leere Flaeche wie gelesen
             ++br.flaechenRoh;
             continue;
         }
-        if (in.teile[static_cast<std::size_t>(ti)].stufen.empty()) { return fehler("Flaeche " + std::to_string(s) + " ohne Netz"); }
+        if (in.teile[static_cast<std::size_t>(ti)].stufen.empty()) { return fehler(ModellFehler{FehlerArt::FlaecheOhneNetz, {}, static_cast<long long>(s)}); }
         const Netz& nz = in.teile[static_cast<std::size_t>(ti)].stufen[0];
         const std::vector<std::uint32_t> idx = nz.indizes();
         const auto xyzDatei = [&](std::int32_t bild, std::int32_t e) {
@@ -303,7 +312,7 @@ bool md3Schreiben(const Inhalt& in, std::string& aus, int eckenGrenze, Md3Schrei
             continue;
         }
         if (eckenGrenze > 0 && static_cast<int>(nz.ecken.size()) >= eckenGrenze) {
-            return fehler("Flaeche " + in.teile[static_cast<std::size_t>(ti)].name + ": " + std::to_string(nz.ecken.size()) + " Ecken (Grenze " + std::to_string(eckenGrenze) + ")");
+            return fehler(eckenFehler(in.teile[static_cast<std::size_t>(ti)].name, nz.ecken.size(), eckenGrenze));
         }
         if (zuVieleDreiecke(idx.size(), eckenGrenze)) { return fehler(dreieckFehler(in.teile[static_cast<std::size_t>(ti)].name, idx.size(), eckenGrenze)); }
         // die Abschnitte in der Reihenfolge der Datei neu (Kopf zuerst, er steht bei 0)
@@ -375,7 +384,7 @@ bool md3Schreiben(const Inhalt& in, std::string& aus, int eckenGrenze, Md3Schrei
         const Teil& t = in.teile[s];
         if (t.istTag() || t.stufen.empty()) { continue; }
         if (eckenGrenze > 0 && static_cast<int>(t.stufen[0].ecken.size()) >= eckenGrenze) {
-            return fehler("Flaeche " + t.name + ": " + std::to_string(t.stufen[0].ecken.size()) + " Ecken (Grenze " + std::to_string(eckenGrenze) + ")");
+            return fehler(eckenFehler(t.name, t.stufen[0].ecken.size(), eckenGrenze));
         }
         if (zuVieleDreiecke(static_cast<std::size_t>(t.stufen[0].dreiecke()) * 3U, eckenGrenze)) {
             return fehler(dreieckFehler(t.name, static_cast<std::size_t>(t.stufen[0].dreiecke()) * 3U, eckenGrenze));

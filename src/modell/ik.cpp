@@ -87,7 +87,8 @@ BoneMatrix umPunkt(const BoneMatrix& r, V3 p) {
     return verschiebung(p) * rr * verschiebung(p * -1.0);
 }
 
-BoneMatrix nurDrehung(const BoneMatrix& m) {
+// REST N14: nur der Ort genullt, Mass und Scherung bleiben (anders als nurDrehungStarr in retarget.cpp, bis REST beide nurDrehung)
+BoneMatrix ohneOrt(const BoneMatrix& m) {
     BoneMatrix r = m;
     r.m[0][3] = r.m[1][3] = r.m[2][3] = 0.0F;
     return r;
@@ -220,14 +221,6 @@ struct Lokal {
     bool da = false;
 };
 
-BoneMatrix ausSchluessel(const RigSchluessel& k) {
-    BoneMatrix m = matrixAusQuat(k.q);
-    m.m[0][3] = k.t[0];
-    m.m[1][3] = k.t[1];
-    m.m[2][3] = k.t[2];
-    return m;
-}
-
 Lokal lokalAm(const IkSpur& sp, float bild) {
     Lokal l;
     const std::size_t n = sp.ziel.size();
@@ -239,7 +232,7 @@ Lokal lokalAm(const IkSpur& sp, float bild) {
     l.w = sp.wert[i];
     if (bild <= static_cast<float>(sp.ziel.front().bild) || i + 1 >= n || sp.wert[i].raum != sp.wert[i + 1].raum) {
         // vor dem ersten, nach dem letzten oder bis zum Raumwechsel: der Schluessel haelt
-        l.ziel = ausSchluessel(sp.ziel[bild <= static_cast<float>(sp.ziel.front().bild) ? 0 : i]);
+        l.ziel = schluesselMatrix(sp.ziel[bild <= static_cast<float>(sp.ziel.front().bild) ? 0 : i]);
         if (bild <= static_cast<float>(sp.ziel.front().bild)) { l.w = sp.wert.front(); }
         return l;
     }
@@ -337,12 +330,12 @@ void loesen(Zustand& z, const IkSpur& sp, const IkZiel& ziel) {
     gliedAnwenden(z, sp.unten, umPunkt(drehungVonNach(C1 - B1, Cn - B1), B1));
     // Endknochen: die Drehung des Ziels
     const BoneMatrix jetzt = starr(w[static_cast<std::size_t>(sp.ende.knochen)]);
-    gliedAnwenden(z, sp.ende, umPunkt(nurDrehung(g) * transponiert(nurDrehung(jetzt)), ortVon(jetzt)));
+    gliedAnwenden(z, sp.ende, umPunkt(ohneOrt(g) * transponiert(ohneOrt(jetzt)), ortVon(jetzt)));
     // Zehen: liegen bleiben bei der Rolle um den Ballen (R_Ferse R_Spitze auf die Lage am ungerollten Ziel)
     if (zehen) {
         const BoneMatrix soll = fr.zehen * gOhne * matrixAusQuat(ziel.zehen);
         const BoneMatrix ist = starr(w[static_cast<std::size_t>(sp.zehen.knochen)]);
-        gliedAnwenden(z, sp.zehen, umPunkt(nurDrehung(soll) * transponiert(nurDrehung(ist)), ortVon(ist)));
+        gliedAnwenden(z, sp.zehen, umPunkt(ohneOrt(soll) * transponiert(ohneOrt(ist)), ortVon(ist)));
     }
 }
 
@@ -574,7 +567,7 @@ FussRolle fussRolle(const GlaAnimation& g, const IkSpur& sp, const BoneMatrix& z
     };
     float achse[3];
     {
-        const BoneMatrix d = nurDrehung(lage);
+        const BoneMatrix d = ohneOrt(lage);
         d.transform(sp.rollAchse, achse);
     }
     const float zurueck = std::min(rolle, 0.0F);
@@ -771,7 +764,7 @@ bool zielAusFk(const GlaAnimation& g, const RigSchicht& s, int spur, int bild, f
     starrInvers(raumWelt(welt, sp.polRaum, pr)).transform(pol, w.pol);
     const BoneMatrix ende = starr(welt[static_cast<std::size_t>(sp.ende.knochen)]);
     if (sp.zehen.knochen >= 0 && static_cast<std::size_t>(sp.zehen.knochen) < welt.size()) {
-        quatAusMatrix(transponiert(nurDrehung(ende)) * nurDrehung(starr(welt[static_cast<std::size_t>(sp.zehen.knochen)])), w.zehen);
+        quatAusMatrix(transponiert(ohneOrt(ende)) * ohneOrt(starr(welt[static_cast<std::size_t>(sp.zehen.knochen)])), w.zehen);
     }
     zielImRaum = ikImRaum(welt, w.raum, ende);
     return true;

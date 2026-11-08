@@ -23,6 +23,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -161,6 +162,10 @@ struct Inhalt {
     AnimCfg cfg;
     // Stufe 3: Schluessel des Control Rigs und Zuordnungen von Hand (nicht in der .glm; gebacken wird in eine GLA).
     RigDaten rig;
+    // REST N10: die Belegung der Plaetze der Ziel-GLA (Platzname -> Quelle, Karten-GLA BOTH_CIN_n, _humanoid, eigene GLA),
+    // damit Rueckgaengig sie mitnimmt (bis rc610 im Model-Tab neben dem Dokument). Beim Laden eines anderen Modells wird
+    // sie uebernommen (die Quellen kommen aus vielen Modellen); die GLA-Kopien selbst liegen in ModellTab::kgQuellen.
+    std::map<std::string, PlatzQuelle> kinoBelegung;
     // Stufe 3: zaehlt jede Aenderung, die das Netz betrifft (aendern/vorschau mit netz = true, laden). Rig-Schluessel
     // aendern ihn nicht - die Anzeige baut nur neu, wenn er wechselt. Rueckgaengig bringt den Stand mit zurueck.
     int netzStand = 0;

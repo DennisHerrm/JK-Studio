@@ -3064,6 +3064,8 @@ from i18n_paint import texte as _paint  # noqa: E402
 TEXTE.update(_paint("es"))
 from i18n_pfix import texte as _pfix  # noqa: E402
 TEXTE.update(_pfix("es"))
+from i18n_rest import texte as _rest  # noqa: E402
+TEXTE.update(_rest("es"))
 from i18n_r3 import texte as _r3  # noqa: E402
 TEXTE.update(_r3("es"))
 from i18n_render import texte as _render  # noqa: E402

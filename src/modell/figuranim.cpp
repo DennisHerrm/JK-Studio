@@ -3,7 +3,9 @@
 #include "bhed/modell/figuranim.h"
 
 #include "bhed/modell/animkurven.h"
+#include "bhed/modell/fehler.h"
 #include "bhed/modell/g2.h"
+#include "bhed/modell/glavorrat.h"
 #include "bhed/modell/ik.h"
 
 #include <algorithm>
@@ -384,11 +386,11 @@ bool basisGla(const GlaAnimation& skelett, const std::vector<AnimEntry>& abschni
               std::string* fehler) {
     aus = GlaAnimation{};
     if (skelett.bones.empty() || bilder <= 0) {
-        if (fehler != nullptr) { *fehler = "kein Skelett"; }
+        if (fehler != nullptr) { *fehler = fehlerText(ModellFehler{FehlerArt::KeinSkelett}); }
         return false;
     }
     if (abschnitt(abschnitte, basis) == nullptr) {
-        if (fehler != nullptr) { *fehler = "Grundanimation " + basis + " fehlt"; }
+        if (fehler != nullptr) { *fehler = fehlerText(ModellFehler{FehlerArt::GrundanimFehlt, basis}); }
         return false;
     }
     AnimEntry takt;
@@ -400,29 +402,31 @@ bool basisGla(const GlaAnimation& skelett, const std::vector<AnimEntry>& abschni
     aus.scale = skelett.scale;
     aus.bones = skelett.bones;
     const std::size_t nb = aus.bones.size();
-    std::unordered_map<std::string, std::uint32_t> vorrat;
+    GlaVorrat vorrat(aus.bonePool);   // REST N5
     aus.indexes.reserve(static_cast<std::size_t>(bilder) * nb);
     for (int f = 0; f < bilder; ++f) {
         int q = frameForAnimationIn(abschnitte, basis, static_cast<double>(f) * lerp);
         const GlaAnimation* g = bildIn(skelett, q);
         if (g == nullptr || g->bones.size() != nb) {
-            if (fehler != nullptr) { *fehler = "Bild der Grundanimation nicht in der GLA"; }
+            if (fehler != nullptr) { *fehler = fehlerText(ModellFehler{FehlerArt::GrundbildFehlt}); }
             aus = GlaAnimation{};
             return false;
         }
         for (std::size_t b = 0; b < nb; ++b) {
             const std::uint32_t qi = g->indexes[static_cast<std::size_t>(q) * nb + b];
             if (static_cast<std::size_t>(qi) * 14U + 14U > g->bonePool.size()) {
-                if (fehler != nullptr) { *fehler = "Verweis hinter dem Vorrat"; }
+                if (fehler != nullptr) { *fehler = fehlerText(ModellFehler{FehlerArt::VerweisHinterVorrat}); }
                 aus = GlaAnimation{};
                 return false;
             }
-            const std::string e(reinterpret_cast<const char*>(g->bonePool.data()) + static_cast<std::size_t>(qi) * 14U, 14U);
-            const auto [it, neu] = vorrat.emplace(e, static_cast<std::uint32_t>(aus.bonePool.size() / 14U));
-            if (neu) { aus.bonePool.insert(aus.bonePool.end(), e.begin(), e.end()); }
-            aus.indexes.push_back(it->second);
+            aus.indexes.push_back(vorrat.dazu(g->bonePool.data() + static_cast<std::size_t>(qi) * 14U));
         }
         ++aus.numFrames;
+    }
+    if (vorrat.zuGross()) {   // REST N5: die Grenze der anderen Schreiber (mdxaIndex_t, 3 Bytes)
+        if (fehler != nullptr) { *fehler = fehlerText(ModellFehler{FehlerArt::VorratZuGross}); }
+        aus = GlaAnimation{};
+        return false;
     }
     return true;
 }
@@ -651,7 +655,7 @@ std::vector<std::string> plaetzeVerteilen(const std::vector<const FigurAnim*>& f
             }
         }
         if (aus[i].empty()) {
-            if (fehler != nullptr) { *fehler = "kein Platz BOTH_CIN_n frei"; }
+            if (fehler != nullptr) { *fehler = fehlerText(ModellFehler{FehlerArt::KeinKinoPlatz}); }
             return {};
         }
     }
@@ -667,14 +671,14 @@ bool figurenBacken(const std::vector<FigurBauEingabe>& eingaben, const std::vect
     aus.clear();
     gebacken.clear();
     if (plaetze.size() != eingaben.size()) {
-        br.fehler = "Plaetze und Figuren passen nicht";
+        br.fehler = fehlerText(ModellFehler{FehlerArt::PlaetzeFiguren});
         return false;
     }
     gebacken.resize(eingaben.size());   // feste Adressen: die Plaetze zeigen hinein
     for (std::size_t i = 0; i < eingaben.size(); ++i) {
         const FigurBauEingabe& e = eingaben[i];
         if (e.anim == nullptr || e.basis == nullptr || e.basis->empty()) {
-            br.fehler = "Figur ohne Grundanimation";
+            br.fehler = fehlerText(ModellFehler{FehlerArt::FigurOhneGrund});
             return false;
         }
         BackBericht bb;

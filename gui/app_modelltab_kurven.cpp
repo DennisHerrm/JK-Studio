@@ -20,6 +20,7 @@
 #include "bhed/modell/animkurven.h"
 #include "bhed/modell/ik.h"
 #include "bhed/modell/rig.h"
+#include "bhed/sicherschreiben.h"
 #include "bhed/utf8pfad.h"
 
 #include <algorithm>
@@ -586,7 +587,7 @@ bool reduzieren() {
         aw.bis = std::clamp(std::max(t.kvRedVon, t.kvRedBis), erstes, erstes + anzahl - 1);
     }
     if (!modell::rigReduzieren(g_app->anim, schicht(), erstes, anzahl, neu, &br, mitAuswahl ? &aw : nullptr)) {
-        melden(format(Str::MbSpFehler, br.fehler.c_str()));
+        melden(format(Str::MbSpFehler, modellFehlerText(br.fehler).c_str()));
         return false;
     }
     const std::string name = e->name;
@@ -736,13 +737,11 @@ bool modellPosenSpeichern() {
         melden(format(Str::MbIkPosenSpielordner, datei.c_str()));
         return false;
     }
-    std::error_code ec;
-    std::filesystem::create_directories(utf8Pfad(ordner), ec);
-    std::ofstream f(utf8Pfad(datei), std::ios::binary);
-    const std::string text = modell::posenText(posen);
-    f.write(text.data(), static_cast<std::streamsize>(text.size()));
-    f.close();
-    if (!f) {
+    // REST N7: wie alle anderen Schreiber des Model-Tabs erst daneben, dann umbenennen - ein Fehler mitten im Schreiben
+    // laesst die alte Datei stehen (bis hier ofstream mit trunc: eine halbe .jkposen, die posenAusText ganz ablehnt)
+    std::string fehler;
+    if (!sicherSchreiben(datei, modell::posenText(posen), &fehler)) {
+        diag::detail("Model-Tab: Posen - " + fehler);
         melden(format(Str::MbSpFehler, datei.c_str()));
         return false;
     }

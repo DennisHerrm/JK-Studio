@@ -207,18 +207,19 @@ bool glmSchreiben(const Inhalt& in, std::string& aus, GlmSchreibBericht* bericht
     GlmSchreibBericht& br = bericht != nullptr ? *bericht : leer;
     br = GlmSchreibBericht{};
     aus.clear();
-    const auto fehler = [&](const std::string& f) {
-        br.fehler = f;
+    const auto fehler = [&](const ModellFehler& f) {
+        br.fehler = fehlerText(f);
+        br.fehlerArt = f;
         return false;
     };
-    if (in.herkunft != Herkunft::Glm || in.teile.empty()) { return fehler("kein Ghoul2-Modell (.glm)"); }
+    if (in.herkunft != Herkunft::Glm || in.teile.empty()) { return fehler(ModellFehler{FehlerArt::KeinGlm}); }
     // MAX_QPATH: 63 Zeichen und die Null; 64 ohne Null nur, wie es in der Datei stand (Movie Duels holo.glm).
     const auto passt = [](const std::string& n, const std::string& roh) { return n.size() < kQPath || (roh.size() == kQPath && roh == n); };
-    if (!passt(in.name, in.dateiName) || !passt(in.glaPfad, in.dateiGla)) { return fehler("Name oder Pfad der .gla laenger als 63 Zeichen"); }
+    if (!passt(in.name, in.dateiName) || !passt(in.glaPfad, in.dateiGla)) { return fehler(ModellFehler{FehlerArt::GlaPfadZuLang}); }
     const int stufen = std::max(in.stufenZahl, 1);
     for (const Teil& t : in.teile) {
-        if (!passt(t.name, t.dateiName) || !passt(t.shader, t.dateiShader)) { return fehler("Name oder Shader von \"" + t.name + "\" laenger als 63 Zeichen"); }
-        if (static_cast<int>(t.stufen.size()) < stufen) { return fehler("Flaeche \"" + t.name + "\" ohne alle LOD-Stufen"); }
+        if (!passt(t.name, t.dateiName) || !passt(t.shader, t.dateiShader)) { return fehler(ModellFehler{FehlerArt::TeilNameZuLang, t.name}); }
+        if (static_cast<int>(t.stufen.size()) < stufen) { return fehler(ModellFehler{FehlerArt::OhneLods, t.name}); }
     }
     // Ein umgelegtes Modell (JK2 <-> JKA): unveraendert mit den Verweisen der Datei, sonst ganz mit dem Skelett des
     // Dokuments - beides zu mischen ergaebe Verweise aus zwei Skeletten.
@@ -299,8 +300,7 @@ bool glmSchreiben(const Inhalt& in, std::string& aus, GlmSchreibBericht* bericht
                     for (const auto& [k, x] : benutzt) { refs.push_back(k); }
                 }
                 if (refs.size() > 32U) {   // iMAX_G2_BONEREFS_PER_SURFACE, 5 Bit je Verweis
-                    return fehler("Flaeche \"" + in.teile[i].name + "\" (LOD " + std::to_string(s) + ") hat " +
-                                  std::to_string(refs.size()) + " Knochen, eine .glm traegt hoechstens 32");
+                    return fehler(ModellFehler{FehlerArt::ZuVieleKnochen, in.teile[i].name, s, static_cast<long long>(refs.size())});
                 }
                 for (std::size_t r = refs.size(); r-- > 0;) { lokal[refs[r]] = static_cast<int>(r); }
                 ++br.flaechenNeu;

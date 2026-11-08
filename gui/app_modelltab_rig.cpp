@@ -901,7 +901,7 @@ bool modellRigBacken() {
     GlaAnimation g;
     modell::BackBericht br;
     if (!modell::rigBacken(g_app->anim, s != nullptr ? *s : leer, e->firstFrame, e->numFrames, false, modellZielKopf(), g, &br)) {
-        melden(format(Str::MbSpFehler, br.fehler.c_str()));
+        melden(format(Str::MbSpFehler, modellFehlerText(br.fehler).c_str()));
         return false;
     }
     const std::string name = e->name + "_rig";

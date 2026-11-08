@@ -390,7 +390,7 @@ bool modellRtUebertragen() {
     r.stand = -1;
     modellRtAktualisieren();
     if (!r.bericht.fehler.empty() || r.welt.empty()) {
-        melden(format(Str::RtQuelleFehler, r.bericht.fehler.c_str()));
+        melden(format(Str::RtQuelleFehler, modellFehlerText(r.bericht.fehler).c_str()));
         return false;
     }
     r.vorschau = true;
@@ -455,7 +455,7 @@ bool modellRtBacken() {
     GlaAnimation g;
     std::string fehler;
     if (!modell::rtBacken(g_app->anim, r.welt, modellZielKopf(), g, &fehler)) {
-        melden(format(Str::RtQuelleFehler, fehler.c_str()));
+        melden(format(Str::RtQuelleFehler, modellFehlerText(fehler).c_str()));
         return false;
     }
     const std::string name = d.vonPreset ? std::string(kategorieZeile(d.gang.art)) : (d.sequenz.empty() ? std::string("retarget") : d.sequenz);
@@ -858,7 +858,7 @@ void drawModellRetargetBereich() {
     // Pruefen
     ImGui::Separator();
     if (!r.bericht.fehler.empty()) {
-        cjkTextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s", format(Str::RtQuelleFehler, r.bericht.fehler.c_str()).c_str());
+        cjkTextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s", format(Str::RtQuelleFehler, modellFehlerText(r.bericht.fehler).c_str()).c_str());
     } else if (!r.welt.empty()) {
         cjkTextDisabled("%s", format(Str::RtErgebnis, r.bericht.knochenMitQuelle, static_cast<int>(g_app->anim.bones.size()), r.bericht.kettenZugeordnet,
                                          static_cast<double>(r.bericht.k), r.ms)
@@ -1021,7 +1021,7 @@ bool modellPresetAuflegen() {
     r.stand = -1;
     modellRtAktualisieren();
     if (r.welt.empty()) {
-        melden(format(Str::RtQuelleFehler, r.bericht.fehler.c_str()));
+        melden(format(Str::RtQuelleFehler, modellFehlerText(r.bericht.fehler).c_str()));
         return false;
     }
     r.vorschau = true;

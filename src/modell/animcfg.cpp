@@ -6,6 +6,8 @@
 //   Public License version 2. This file is part of BehavEd-Remake and licensed under the GNU General Public License
 //   version 2 or later (LICENSE).
 #include "bhed/modell/animcfg.h"
+#include "bhed/modell/fehler.h"
+#include "bhed/modell/glavorrat.h"
 #include "bhed/modell/g2.h"
 
 #include <algorithm>
@@ -263,8 +265,9 @@ bool zusammenfuehren(const std::vector<Platz>& plaetze, const std::string& kopfN
     br = ZusammenBericht{};
     aus = GlaAnimation{};
     cfg.clear();
-    const auto fehler = [&](const std::string& f) {
-        br.fehler = f;
+    const auto fehler = [&](const ModellFehler& f) {
+        br.fehler = fehlerText(f);
+        br.fehlerArt = f;
         return false;
     };
     const GlaAnimation* basis = nullptr;
@@ -274,12 +277,12 @@ bool zusammenfuehren(const std::vector<Platz>& plaetze, const std::string& kopfN
             break;
         }
     }
-    if (basis == nullptr) { return fehler("kein Platz mit einer Quelle belegt"); }
+    if (basis == nullptr) { return fehler(ModellFehler{FehlerArt::KeinPlatzBelegt}); }
     aus.skeletonName = kopfName;
     aus.scale = basis->scale;
     aus.bones = basis->bones;
     const std::size_t nb = aus.bones.size();
-    std::unordered_map<std::string, std::uint32_t> vorrat;
+    GlaVorrat vorrat(aus.bonePool);   // REST N5
     for (const Platz& p : plaetze) {
         if (!p.belegt || p.quelle.gla == nullptr) { continue; }
         const GlaAnimation& q = *p.quelle.gla;
@@ -288,17 +291,16 @@ bool zusammenfuehren(const std::vector<Platz>& plaetze, const std::string& kopfN
         std::vector<std::size_t> qk(nb);
         for (std::size_t b = 0; b < nb; ++b) {
             const int k = boneIndex(q, aus.bones[b].name);
-            if (k < 0) { return fehler(p.quelle.glaName + ": Knochen " + aus.bones[b].name + " fehlt"); }
+            if (k < 0) { return fehler(ModellFehler{FehlerArt::QuellKnochenFehlt, p.quelle.glaName, 0, 0, aus.bones[b].name}); }
             const GlaBone& x = q.bones[static_cast<std::size_t>(k)];
             if (std::memcmp(&x.basePose, &aus.bones[b].basePose, sizeof(BoneMatrix)) != 0) {
-                return fehler(p.quelle.glaName + ": Grundstellung von " + aus.bones[b].name + " anders");
+                return fehler(ModellFehler{FehlerArt::QuellGrundstellung, p.quelle.glaName, 0, 0, aus.bones[b].name});
             }
             qk[b] = static_cast<std::size_t>(k);
         }
         const AnimEntry& s = p.quelle.sequenz;
         if (s.numFrames <= 0 || s.firstFrame < 0 || s.firstFrame + s.numFrames > q.numFrames) {
-            return fehler(p.name + ": Frames " + std::to_string(s.firstFrame) + "+" + std::to_string(s.numFrames) + " nicht in " +
-                          p.quelle.glaName + " (" + std::to_string(q.numFrames) + " Frames)");
+            return fehler(ModellFehler{FehlerArt::SequenzNichtInQuelle, p.name, s.firstFrame, s.numFrames, p.quelle.glaName, q.numFrames});
         }
         AnimEntry z = s;
         z.name = p.name;
@@ -308,18 +310,15 @@ bool zusammenfuehren(const std::vector<Platz>& plaetze, const std::string& kopfN
         for (int f = s.firstFrame; f < s.firstFrame + s.numFrames; ++f) {
             for (std::size_t b = 0; b < nb; ++b) {
                 const std::uint32_t qi = q.indexes[static_cast<std::size_t>(f) * qnb + qk[b]];
-                if (static_cast<std::size_t>(qi) * 14U + 14U > q.bonePool.size()) { return fehler(p.quelle.glaName + ": Verweis hinter dem Vorrat"); }
-                const std::string eintrag(reinterpret_cast<const char*>(q.bonePool.data()) + static_cast<std::size_t>(qi) * 14U, 14U);
-                const auto [it, neu] = vorrat.emplace(eintrag, static_cast<std::uint32_t>(aus.bonePool.size() / 14U));
-                if (neu) { aus.bonePool.insert(aus.bonePool.end(), eintrag.begin(), eintrag.end()); }
-                aus.indexes.push_back(it->second);
+                if (static_cast<std::size_t>(qi) * 14U + 14U > q.bonePool.size()) { return fehler(ModellFehler{FehlerArt::QuellVerweis, p.quelle.glaName}); }
+                aus.indexes.push_back(vorrat.dazu(q.bonePool.data() + static_cast<std::size_t>(qi) * 14U));
             }
             ++aus.numFrames;
         }
     }
     br.bilder = aus.numFrames;
-    br.vorrat = static_cast<int>(aus.bonePool.size() / 14U);
-    if (aus.bonePool.size() / 14U > 0xFFFFFFU) { return fehler("Vorrat groesser als ein 24-Bit-Verweis erreicht"); }
+    br.vorrat = vorrat.eintraege();
+    if (vorrat.zuGross()) { return fehler(ModellFehler{FehlerArt::VorratZuGross}); }
     return true;
 }
 
@@ -332,43 +331,39 @@ bool anhaengen(const GlaAnimation& basis, const std::vector<Platz>& plaetze, Gla
     GlaAnimation neu;
     if (!zusammenfuehren(plaetze, basis.skeletonName, neu, cfg, &br)) { return false; }
     if (neu.bones.size() != basis.bones.size()) {
-        br.fehler = "anderes Skelett als die GLA";
+        br.fehlerArt = ModellFehler{FehlerArt::AnderesSkelett};
+        br.fehler = fehlerText(br.fehlerArt);
         return false;
     }
     std::vector<std::size_t> zuBasis(neu.bones.size());
     for (std::size_t b = 0; b < neu.bones.size(); ++b) {
         const int k = boneIndex(basis, neu.bones[b].name);
         if (k < 0 || std::memcmp(&basis.bones[static_cast<std::size_t>(k)].basePose, &neu.bones[b].basePose, sizeof(BoneMatrix)) != 0) {
-            br.fehler = "Knochen " + neu.bones[b].name + " fehlt in der GLA oder hat eine andere Grundstellung";
+            br.fehlerArt = ModellFehler{FehlerArt::KnochenAnders, neu.bones[b].name};
+        br.fehler = fehlerText(br.fehlerArt);
             return false;
         }
         zuBasis[b] = static_cast<std::size_t>(k);
     }
     aus = basis;
     aus.anhang = nullptr;
-    std::unordered_map<std::string, std::uint32_t> vorrat;
-    vorrat.reserve(aus.bonePool.size() / 14U);
-    for (std::size_t i = 0; i + 14U <= aus.bonePool.size(); i += 14U) {
-        vorrat.emplace(std::string(reinterpret_cast<const char*>(aus.bonePool.data()) + i, 14U), static_cast<std::uint32_t>(i / 14U));
-    }
+    GlaVorrat vorrat(aus.bonePool);   // REST N5
     const std::size_t nb = aus.bones.size();
     const int anfang = aus.numFrames;
     aus.indexes.resize(aus.indexes.size() + static_cast<std::size_t>(neu.numFrames) * nb);
     for (int f = 0; f < neu.numFrames; ++f) {
         for (std::size_t b = 0; b < nb; ++b) {
             const std::uint32_t qi = neu.indexes[static_cast<std::size_t>(f) * nb + b];
-            const std::string e(reinterpret_cast<const char*>(neu.bonePool.data()) + static_cast<std::size_t>(qi) * 14U, 14U);
-            const auto [it, frisch] = vorrat.emplace(e, static_cast<std::uint32_t>(aus.bonePool.size() / 14U));
-            if (frisch) { aus.bonePool.insert(aus.bonePool.end(), e.begin(), e.end()); }
-            aus.indexes[static_cast<std::size_t>(anfang + f) * nb + zuBasis[b]] = it->second;
+            aus.indexes[static_cast<std::size_t>(anfang + f) * nb + zuBasis[b]] = vorrat.dazu(neu.bonePool.data() + static_cast<std::size_t>(qi) * 14U);
         }
     }
     aus.numFrames += neu.numFrames;
     for (AnimEntry& e : cfg) { e.firstFrame += anfang; }
     br.bilder = aus.numFrames;
-    br.vorrat = static_cast<int>(aus.bonePool.size() / 14U);
-    if (aus.bonePool.size() / 14U > 0xFFFFFFU) {
-        br.fehler = "Vorrat groesser als ein 24-Bit-Verweis erreicht";
+    br.vorrat = vorrat.eintraege();
+    if (vorrat.zuGross()) {
+        br.fehlerArt = ModellFehler{FehlerArt::VorratZuGross};
+        br.fehler = fehlerText(br.fehlerArt);
         return false;
     }
     return true;

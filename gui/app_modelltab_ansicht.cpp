@@ -49,10 +49,10 @@ constexpr float kPi = 3.14159265F;
 // Figuren der Spiele (NOTIZEN_mb1a2.md).
 constexpr float kSpiegelToleranz = 0.1F;
 
-// Die Achsen einer Ansicht (rechts = vorn x hoch wie AngleVectors). Eine Figur
-// schaut in ihrer .glm nach +Y (die Engine dreht sie beim Zeichnen um 90 Grad,
-// kActorYawFix in gpuskin.h): "Vorne" zeigt ihre Vorderseite, "Links" ihre
-// linke Seite (-X); nachgesehen an den Bildern der vier Ansichten (mb1_hb3).
+// Die Achsen einer Ansicht (rechts = vorn x hoch wie AngleVectors). Wie 3ds Max und Blender: "Vorne" blickt entlang
+// +Y (Blender Ziffernblock 1), "Hinten" entlang -Y, "Links" entlang +X, "Rechts" entlang -X. Eine Figur schaut in ihrer
+// .glm nach -Y (REST M9: Gesichtsknochen leye/reye vor dem cranium, Sturmtruppler (0, -3,23, 2,98); die Engine dreht sie
+// beim Zeichnen, kActorYawFix in gpuskin.h): "Vorne" zeigt ihr Gesicht. Bis REST zeigte "Vorne" den Ruecken.
 void ansichtAchsen(AnsichtArt a, float r[3], float h[3], float v[3]) {
     const auto setze = [](float* x, float a0, float a1, float a2) {
         x[0] = a0;
@@ -66,14 +66,14 @@ void ansichtAchsen(AnsichtArt a, float r[3], float h[3], float v[3]) {
         case AnsichtArt::Unten:
             setze(r, -1, 0, 0), setze(h, 0, 1, 0), setze(v, 0, 0, 1);
             break;
-        case AnsichtArt::Vorne:
-            setze(r, -1, 0, 0), setze(h, 0, 0, 1), setze(v, 0, -1, 0);
+        case AnsichtArt::Vorne:   // Blender Ziffernblock 1
+            setze(r, 1, 0, 0), setze(h, 0, 0, 1), setze(v, 0, 1, 0);
             break;
         case AnsichtArt::Links:
             setze(r, 0, -1, 0), setze(h, 0, 0, 1), setze(v, 1, 0, 0);
             break;
         case AnsichtArt::Hinten:   // mb1a2: Blender Strg+Ziffernblock 1
-            setze(r, 1, 0, 0), setze(h, 0, 0, 1), setze(v, 0, 1, 0);
+            setze(r, -1, 0, 0), setze(h, 0, 0, 1), setze(v, 0, -1, 0);
             break;
         case AnsichtArt::Rechts:   // mb1a2: Blender Ziffernblock 3
             setze(r, 0, 1, 0), setze(h, 0, 0, 1), setze(v, -1, 0, 0);
@@ -2280,6 +2280,8 @@ bool modellFotoPixel(int breite, int hoehe, std::vector<unsigned char>& rgba, bo
 }
 
 // --- Fuer den Selbsttest --------------------------------------------------------------------
+
+void modellAnsichtAchsenVon(AnsichtArt a, float rechts[3], float hoch[3], float blick[3]) { ansichtAchsen(a, rechts, hoch, blick); }
 
 bool modellAnsichtPixel(int ansicht, std::vector<unsigned char>& rgba, int& breite, int& hoehe) {
     if (ansicht < 0 || ansicht >= 4) { return false; }

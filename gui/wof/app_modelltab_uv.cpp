@@ -215,8 +215,11 @@ w::UvKontext kontext(const w::UvNetz& n) {
     const ModellUv& u = uvz();
     w::UvKontext k;
     k.methode = static_cast<w::UvMethode>(std::clamp(u.methode, 0, 1));
-    // die Vorderseite wie die Ansicht "Vorne" des Model-Tabs (ansichtAchsen: Blick entlang -y, die Figur schaut nach +y)
-    k.vorn = w::V3{0.0F, 1.0F, 0.0F};
+    // REST M9: die Vorderseite der Figur wie Rig, IK und Retarget (modell::figurVorn: die Richtung der Gesichtsknochen
+    // vom Kopf, sonst -Y wie die Figuren der Spiele) - bis hier fest +Y, die "verdeckten" Naehte lagen vorn
+    float vorn[3] = {0.0F, -1.0F, 0.0F};
+    if (!g_app->anim.empty()) { modell::figurVorn(g_app->anim, modell::erkenneKnochen(g_app->anim), vorn); }
+    k.vorn = w::V3{vorn[0], vorn[1], vorn[2]};
     k.oben = w::V3{0.0F, 0.0F, 1.0F};
     // das Raster der Packung und der Dichte: die Breite der Textur (WF: die Aufloesung der Karte)
     k.aufloesung = n.teile.empty() ? 1024 : bildBreite(n.teile.front());
@@ -541,6 +544,11 @@ bool knopf(Str text, float breite = 0.0F) {
 }
 
 }  // namespace
+
+std::array<float, 3> modellUvVorn() {
+    const w::UvKontext k = kontext(w::UvNetz{});
+    return {k.vorn.x, k.vorn.y, k.vorn.z};
+}
 
 int modellUvAktionZahl() { return static_cast<int>(aktionen().size()); }
 int modellUvAktionGruppe(int i) { return aktionen()[uz(i)].gruppe; }
@@ -1375,6 +1383,7 @@ bool modellMd3Oeffnen(const std::string& bytes, const std::string& name, std::st
     g_app->modelPath = name;
     g_app->modelDir = directoryOf(name);
     ModellTab& t = mt();
+    in.kinoBelegung = t.dok.inhalt().kinoBelegung;   // REST N10: die Belegung der Ziel-GLA bleibt
     t.dok.laden(std::move(in));
     t.dokModell = name;
     t.g2 = modell::G2Zustand{};

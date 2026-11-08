@@ -315,7 +315,7 @@ void drawModellPhysikBereich() {
     ImGui::SetItemTooltip("%s", tr(Str::PhZeigenHint));
     if (!t.physikMassen.gueltig()) {
         ImGui::PushTextWrapPos(0.0F);
-        cjkTextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram), "%s", format(Str::PhFehler, t.physikMassen.fehler.c_str()).c_str());
+        cjkTextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram), "%s", format(Str::PhFehler, modellFehlerText(t.physikMassen.fehler).c_str()).c_str());
         ImGui::PopTextWrapPos();
         return;
     }

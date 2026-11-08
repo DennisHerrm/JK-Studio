@@ -2302,6 +2302,8 @@ from i18n_paint import zeilen_vier as _paint  # noqa: E402  (Modell-Block 1c: Te
 S += _paint()
 from i18n_pfix import zeilen_vier as _pfix  # noqa: E402  (pfix: Funde der Code-Pruefung Modell-Block)
 S += _pfix()
+from i18n_rest import zeilen_vier as _rest  # noqa: E402  (REST: Fehler der Modell-Bibliothek, N6)
+S += _rest()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

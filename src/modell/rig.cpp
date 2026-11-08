@@ -5,6 +5,8 @@
 #include "bhed/modell/rig.h"
 
 #include "bhed/modell/animkurven.h"
+#include "bhed/modell/fehler.h"
+#include "bhed/modell/glavorrat.h"
 #include "bhed/modell/ik.h"
 #include "bhed/modell/physik.h"
 
@@ -675,6 +677,36 @@ int Rig::griffVon(int knochen) const noexcept {
     return -1;
 }
 
+// Vorn ist die Richtung der Gesichtsknochen vom Kopf aus (JKA: leye y -2,85 gegen cranium +0,39 -> vorn -Y); ohne
+// Gesichtsknochen -Y wie bei den Figuren der Spiele. REST M9: eine Stelle fuer Rig, IK, Retarget und die UV-Naehte.
+void figurVorn(const GlaAnimation& g, const Erkennung& e, float vorn[3]) {
+    vorn[0] = 0.0F;
+    vorn[1] = -1.0F;
+    vorn[2] = 0.0F;
+    const int n = static_cast<int>(std::min(g.bones.size(), e.knochen.size()));
+    int kopf = -1;
+    for (int b = 0; b < n && kopf < 0; ++b) {
+        if (e.knochen[static_cast<std::size_t>(b)].rolle == Rolle::Kopf && e.knochen[static_cast<std::size_t>(b)].seite == Seite::Mitte) { kopf = b; }
+    }
+    if (kopf < 0) { return; }
+    float pk[3];
+    ort(g.bones[static_cast<std::size_t>(kopf)].basePose, pk);
+    float summe[3] = {0.0F, 0.0F, 0.0F};
+    int z = 0;
+    for (int b = 0; b < n; ++b) {
+        if (e.knochen[static_cast<std::size_t>(b)].rolle != Rolle::Gesicht) { continue; }
+        float pb[3];
+        ort(g.bones[static_cast<std::size_t>(b)].basePose, pb);
+        for (int k = 0; k < 3; ++k) { summe[k] += pb[k] - pk[k]; }
+        ++z;
+    }
+    const int quer = (e.seitenAchse == 0) ? 1 : 0;
+    if (z > 0 && std::fabs(summe[quer]) > 1e-4F) {
+        vorn[0] = vorn[1] = vorn[2] = 0.0F;
+        vorn[quer] = summe[quer] < 0.0F ? -1.0F : 1.0F;
+    }
+}
+
 Rig rigAnlegen(const GlaAnimation& g, const Inhalt& in, int stufe, const std::vector<Zuordnung>& vonHand) {
     Rig r;
     r.erkennung = erkenneKnochen(g, vonHand, &in, stufe);
@@ -778,29 +810,8 @@ Rig rigAnlegen(const GlaAnimation& g, const Inhalt& in, int stufe, const std::ve
             r.griffe.push_back(gr);
         }
     }
-    // Vorn ist die Richtung der Gesichtsknochen vom Kopf aus (JKA: leye y -2,85 gegen cranium +0,39 -> vorn -Y).
-    float vorn[3] = {0.0F, -1.0F, 0.0F};
-    {
-        const int kopf = finde(Rolle::Kopf, Seite::Mitte, -1);
-        float summe[3] = {0.0F, 0.0F, 0.0F};
-        int z = 0;
-        if (kopf >= 0) {
-            float pk[3];
-            ortVon(kopf, pk);
-            for (int b = 0; b < n; ++b) {
-                if (rolle(b) != Rolle::Gesicht) { continue; }
-                float pb[3];
-                ortVon(b, pb);
-                for (int k = 0; k < 3; ++k) { summe[k] += pb[k] - pk[k]; }
-                ++z;
-            }
-        }
-        const int quer = (r.erkennung.seitenAchse == 0) ? 1 : 0;
-        if (z > 0 && std::fabs(summe[quer]) > 1e-4F) {
-            vorn[0] = vorn[1] = vorn[2] = 0.0F;
-            vorn[quer] = summe[quer] < 0.0F ? -1.0F : 1.0F;
-        }
-    }
+    float vorn[3];
+    figurVorn(g, r.erkennung, vorn);
     // Pol-Ziele (fuer IK in Stufe 4): Ellbogen nach hinten, Knie nach vorn, eine Oberarm- bzw. Oberschenkellaenge weit.
     for (const Seite se : {Seite::Links, Seite::Rechts}) {
         for (const bool bein : {false, true}) {
@@ -965,15 +976,16 @@ BoneMatrix matrixAusQuat(const float q[4]) noexcept {
     return m;
 }
 
-namespace {
-
-BoneMatrix ausSchluessel(const RigSchluessel& k) {
+// REST N14: ein Schluessel als Matrix (Drehung aus dem Quaternion, Ort aus t) - einmal fuer Rig und IK
+BoneMatrix schluesselMatrix(const RigSchluessel& k) {
     BoneMatrix m = matrixAusQuat(k.q);
     m.m[0][3] = k.t[0];
     m.m[1][3] = k.t[1];
     m.m[2][3] = k.t[2];
     return m;
 }
+
+namespace {
 
 void slerp(const float a0[4], const float b0[4], float t, float out[4]) {
     // Stufe 3b: die Schieber aendern die Kanaele einzeln (wie Blender), q ist dann nicht mehr ganz Einheit - normiert
@@ -1038,17 +1050,17 @@ bool rigWert(const RigSchicht& s, int k, float bild, BoneMatrix& m) {
 bool schluesselWert(const std::vector<RigSchluessel>& v, float bild, BoneMatrix& m) {
     if (v.empty()) { return false; }
     if (bild <= static_cast<float>(v.front().bild)) {
-        m = ausSchluessel(v.front());
+        m = schluesselMatrix(v.front());
         return true;
     }
     if (bild >= static_cast<float>(v.back().bild)) {
-        m = ausSchluessel(v.back());
+        m = schluesselMatrix(v.back());
         return true;
     }
     for (std::size_t i = 0; i + 1 < v.size(); ++i) {
         if (bild >= static_cast<float>(v[i].bild) && bild <= static_cast<float>(v[i + 1].bild)) {
             if (bild == static_cast<float>(v[i + 1].bild)) {
-                m = ausSchluessel(v[i + 1]);
+                m = schluesselMatrix(v[i + 1]);
                 return true;
             }
             RigSchluessel z;
@@ -1063,11 +1075,11 @@ bool schluesselWert(const std::vector<RigSchluessel>& v, float bild, BoneMatrix&
                 slerp(v[i].q, v[i + 1].q, t, z.q);
                 for (int a = 0; a < 3; ++a) { z.t[a] = v[i].t[a] + (v[i + 1].t[a] - v[i].t[a]) * t; }
             }
-            m = ausSchluessel(z);
+            m = schluesselMatrix(z);
             return true;
         }
     }
-    m = ausSchluessel(v.back());
+    m = schluesselMatrix(v.back());
     return true;
 }
 
@@ -1354,7 +1366,7 @@ bool rigBacken(const GlaAnimation& q, const RigSchicht& s, int erstes, int anzah
     aus = GlaAnimation{};
     const int nb = static_cast<int>(q.bones.size());
     if (nb == 0 || anzahl <= 0 || erstes < 0 || erstes + anzahl > q.bildZahl()) {
-        br.fehler = "Bereich ausserhalb der GLA";
+        br.fehler = fehlerText(ModellFehler{FehlerArt::BereichAusserhalb});   // REST N6
         return false;
     }
     aus.name = kopfName;
@@ -1362,7 +1374,7 @@ bool rigBacken(const GlaAnimation& q, const RigSchicht& s, int erstes, int anzah
     aus.scale = q.scale;
     aus.bones = q.bones;
     aus.numFrames = anzahl;
-    std::unordered_map<std::string, std::uint32_t> vorrat;
+    GlaVorrat vorrat(aus.bonePool);   // REST N5
     g2::CompressStats st;
     const g2::CompressOptions co{};   // wie xsiAufnehmen (G2C-Vorgabe: Nearest, Vorzeichen, optimizeQuat)
     std::vector<std::pair<int, BoneMatrix>> nach;
@@ -1431,7 +1443,7 @@ bool rigBacken(const GlaAnimation& q, const RigSchicht& s, int erstes, int anzah
                 const std::size_t at = static_cast<std::size_t>(fl) * static_cast<std::size_t>(nb) + static_cast<std::size_t>(b);
                 const std::size_t off = at < g->indexes.size() ? static_cast<std::size_t>(g->indexes[at]) * 14U : g->bonePool.size();
                 if (off + 14U > g->bonePool.size()) {
-                    br.fehler = "Verweis ausserhalb des Vorrats";
+                    br.fehler = fehlerText(ModellFehler{FehlerArt::VerweisHinterVorrat});
                     return false;
                 }
                 std::memcpy(c, g->bonePool.data() + off, 14U);
@@ -1449,16 +1461,13 @@ bool rigBacken(const GlaAnimation& q, const RigSchicht& s, int erstes, int anzah
                 std::memcpy(c, cb.comp, 14U);
                 ++br.neu;
             }
-            const std::string k(reinterpret_cast<const char*>(c), 14U);
-            const auto [it, neu] = vorrat.emplace(k, static_cast<std::uint32_t>(aus.bonePool.size() / 14U));
-            if (neu) { aus.bonePool.insert(aus.bonePool.end(), c, c + 14); }
-            aus.indexes.push_back(it->second);
+            aus.indexes.push_back(vorrat.dazu(c));
         }
     }
     br.bilder = anzahl;
-    br.vorrat = static_cast<int>(aus.bonePool.size() / 14U);
-    if (aus.bonePool.size() / 14U > 0xFFFFFFU) {
-        br.fehler = "Vorrat groesser als ein 24-Bit-Verweis erreicht";
+    br.vorrat = vorrat.eintraege();
+    if (vorrat.zuGross()) {
+        br.fehler = fehlerText(ModellFehler{FehlerArt::VorratZuGross});
         return false;
     }
     return true;

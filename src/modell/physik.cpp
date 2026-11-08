@@ -7,6 +7,7 @@
 #include <cstring>
 #include <utility>
 
+#include "bhed/modell/fehler.h"
 #include "bhed/modell/ik.h"
 
 namespace bhed::modell {
@@ -452,7 +453,7 @@ MassenModell massenModell(const GlaAnimation& g, const Rig& r) {
         noetig(fu[s], (std::string("foot") + sl).c_str());
     }
     if (!fehlt.empty()) {
-        mm.fehler = "missing: " + fehlt;
+        mm.fehler = fehlerText(ModellFehler{FehlerArt::Fehlt, fehlt});
         return mm;
     }
     mm.wurzel = becken;
@@ -524,9 +525,9 @@ MassenModell massenModell(const GlaAnimation& g, const Rig& r) {
     for (const PhysikSegment& sg : mm.segmente) {
         for (const PhysikPunkt* p : {&sg.proximal, &sg.distal}) {
             for (const int k : p->knochen) {
-                if (!unter(g, k, becken)) { mm.fehler = std::string("not below the pelvis: ") + g.bones[static_cast<std::size_t>(k)].name; }
+                if (!unter(g, k, becken)) { mm.fehler = fehlerText(ModellFehler{FehlerArt::NichtUnterBecken, g.bones[static_cast<std::size_t>(k)].name}); }
             }
-            if (p->an >= 0 && !unter(g, p->an, becken)) { mm.fehler = std::string("not below the pelvis: ") + g.bones[static_cast<std::size_t>(p->an)].name; }
+            if (p->an >= 0 && !unter(g, p->an, becken)) { mm.fehler = fehlerText(ModellFehler{FehlerArt::NichtUnterBecken, g.bones[static_cast<std::size_t>(p->an)].name}); }
         }
     }
     return mm;

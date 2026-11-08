@@ -135,6 +135,7 @@ void modellDokumentLaden(const std::string& bytes) {
         diag::detail("Modelldokument: " + fehler);
         modell::ausGlmModell(g_app->model, in);
     }
+    in.kinoBelegung = t.dok.inhalt().kinoBelegung;   // REST N10: die Belegung der Ziel-GLA bleibt
     t.dok.laden(std::move(in));
     t.dokModell = g_app->modelPath;
     t.gespeichertStand = -1;   // pfix H3: ein neues Modell ist ungeaendert
@@ -171,7 +172,8 @@ void modellAnzeigeAktualisieren() {
     if (t.dokModell != g_app->modelPath || t.dok.inhalt().teile.size() != g_app->model.surfaces.size()) {
         modell::Inhalt in;
         modell::ausGlmModell(g_app->model, in);
-        t.dok.laden(std::move(in));
+        in.kinoBelegung = t.dok.inhalt().kinoBelegung;   // REST N10: die Belegung der Ziel-GLA bleibt
+    t.dok.laden(std::move(in));
         t.dokModell = g_app->modelPath;
         t.g2 = modell::G2Zustand{};
         t.hautAus.clear();

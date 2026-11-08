@@ -19,6 +19,7 @@
 #include <string>
 
 #include "bhed/modell/dokument.h"
+#include "bhed/modell/fehler.h"
 
 namespace bhed::modell {
 
@@ -31,7 +32,8 @@ struct GlmSchreibBericht {
     int eckenNeu = 0;
     bool umgelegt = false;     // ein umgelegtes Modell (JK2 <-> JKA) mit dem Skelett des Dokuments geschrieben
     int knochen = 0;           // numBones im Kopf
-    std::string fehler;        // leer = geschrieben
+    std::string fehler;        // leer = geschrieben (englisch, Protokoll)
+    ModellFehler fehlerArt;    // REST N6: fuer die Meldung in der Sprache der Oberflaeche
 };
 
 // Das Dokument als .glm. false: nicht schreibbar (Grund in bericht.fehler) - kein Ghoul2-Modell, Name laenger als 63

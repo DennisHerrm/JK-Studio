@@ -26,6 +26,7 @@
 #include "bhed/mapview.h"
 #include "bhed/modell/animcfg.h"
 #include "bhed/modell/dokument.h"
+#include "bhed/modell/fehler.h"
 #include "bhed/modell/g2.h"
 #include "bhed/modell/gewichte.h"
 #include "bhed/modell/animkurven.h"
@@ -499,7 +500,6 @@ struct ModellTab {
     char kgKarte[64] = {};
     int glaZiel = 0;              // 0 Karten-GLA, 1 _humanoid.gla (Mod-Ordner), 2 eigene GLA (eigenes Skelett)
     char eigenName[64] = {};      // Ordner und Name der eigenen GLA
-    std::map<std::string, modell::PlatzQuelle> belegung;   // Platzname -> Quelle, fuer alle Ziele
     std::string plaetzeFuer;
     int platzWahl = -1;
     int kgStand = 0;
@@ -643,6 +643,10 @@ void modellUvMenue();                       // Hauptmenue "UV"
 void modellUvKontextMenue();                // Rechtsklick in der Ansicht
 bool modellUvTasten();
 bool modellUvAktionenSuche(const std::string& such);
+// REST N6: ein Fehler der Modell-Bibliothek in der Sprache der Oberflaeche (app_modelltab_mb3.cpp)
+std::string modellFehlerText(const modell::ModellFehler& f);
+std::string modellFehlerText(const std::string& englisch);
+std::array<float, 3> modellUvVorn();          // REST M9: die Vorderseite der Figur, mit der die Naehte rechnen
 void drawModellUvPopups();
 // fuer die 3D-Ansicht: die Naht-Marken der gezeichneten Stufe als Eckenpaare (Teil, Ecke a, Ecke b)
 const std::vector<std::array<int, 3>>& modellUvNahtStriche();
@@ -935,6 +939,7 @@ bool modellGlaLaden(const std::string& pfad);
 // Fuer den Selbsttest: das Bild einer Ansicht, ein BMP schreiben, Schirmorte (Flaeche, Mitte des Modells,
 // Griff des Gizmos), die Stellung eines Anbaus, die Mitte der Auswahl.
 [[nodiscard]] bool modellAnsichtPixel(int ansicht, std::vector<unsigned char>& rgba, int& breite, int& hoehe);
+void modellAnsichtAchsenVon(AnsichtArt a, float rechts[3], float hoch[3], float blick[3]);   // REST M9 (Selbsttest)
 bool modellBmp(const std::string& pfad, int breite, int hoehe, const std::vector<unsigned char>& rgba);
 [[nodiscard]] bool modellFlaecheAufSchirm(int flaeche, ImVec2& out);
 [[nodiscard]] bool modellPunktAufSchirm(int ansicht, const GlmModel& m, ImVec2& out);

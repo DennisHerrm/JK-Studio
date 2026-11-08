@@ -103,7 +103,7 @@ bool schreibenNach(const std::string& ziel) {
         // Modell-Block 1b: eine .md3 (Bilder, Tags und unveraenderte Flaechen wie gelesen, siehe bhed/modell/md3datei.h)
         modell::Md3SchreibBericht mb;
         if (!modell::md3Schreiben(t.dok.inhalt(), bytes, modell::grenzen(static_cast<modell::Zielspiel>(t.zielspiel)).eckenJeFlaeche, &mb)) {
-            melden(format(Str::MbSpFehler, mb.fehler.c_str()));
+            melden(format(Str::MbSpFehler, modellFehlerText(mb.fehlerArt).c_str()));
             return false;
         }
         std::string fehler;
@@ -117,7 +117,7 @@ bool schreibenNach(const std::string& ziel) {
         return true;
     }
     if (!modell::glmSchreiben(t.dok.inhalt(), bytes, &br)) {
-        melden(format(Str::MbSpFehler, br.fehler.c_str()));
+        melden(format(Str::MbSpFehler, modellFehlerText(br.fehlerArt).c_str()));
         return false;
     }
     std::string fehler;
@@ -288,16 +288,24 @@ void plaetzeAnpassen() {
         }
     }
     if (t.glaZiel == 2) {
-        for (const auto& [name, q] : t.belegung) { neu.push_back(modell::Platz{name, false, {}}); }
+        for (const auto& [name, q] : t.dok.inhalt().kinoBelegung) { neu.push_back(modell::Platz{name, false, {}}); }
     }
     for (modell::Platz& p : neu) {
-        const auto it = t.belegung.find(p.name);
-        if (it != t.belegung.end()) {
+        const auto it = t.dok.inhalt().kinoBelegung.find(p.name);
+        if (it != t.dok.inhalt().kinoBelegung.end()) {
             p.belegt = true;
             p.quelle = it->second;
         }
     }
     t.plaetze = std::move(neu);
+}
+
+// REST N10: die Belegung aendert sich ueber das Dokument (ein Rueckgaengig-Schritt je Aenderung)
+void belegen(Str name, const std::function<void(std::map<std::string, modell::PlatzQuelle>&)>& f) {
+    ModellTab& t = mt();
+    (void)t.dok.aendern(tr(name), [&](modell::Inhalt& x) { f(x.kinoBelegung); }, false);
+    ++t.kgStand;
+    plaetzeAnpassen();
 }
 
 std::string kartenPfad() {
@@ -323,6 +331,62 @@ modell::PlatzQuelle quelleVon(int anim) {
 
 }  // namespace
 
+// REST N6: ein Fehler der Modell-Bibliothek in der Sprache der Oberflaeche (bhed/modell/fehler.h). Ohne Art der englische
+// Satz zurueck zur Art (fehlerAusText); ein fremder Text (Datei-Schreiber, sicherSchreiben) bleibt, wie er ist.
+std::string modellFehlerText(const modell::ModellFehler& f) {
+    using A = modell::FehlerArt;
+    const char* n = f.name.c_str();
+    const int a = static_cast<int>(f.a);
+    const int b = static_cast<int>(f.b);
+    switch (f.art) {
+        case A::Keiner: return {};
+        case A::KeinMd3: return tr(Str::MbFeKeinMd3);
+        case A::Md3PasstNicht: return tr(Str::MbFeMd3PasstNicht);
+        case A::Md3HinterFlaechen: return tr(Str::MbFeMd3HinterFlaechen);
+        case A::FlaecheAbgeschnitten: return format(Str::MbFeFlaecheAbgeschnitten, a);
+        case A::FlaecheUnbrauchbar: return format(Str::MbFeFlaecheUnbrauchbar, a);
+        case A::FlaecheOhneNetz: return format(Str::MbFeFlaecheOhneNetz, a);
+        case A::ZuVieleEcken: return format(Str::MbFeZuVieleEcken, n, a, b);
+        case A::ZuVieleDreiecke: return format(Str::MbFeZuVieleDreiecke, n, a, b);
+        case A::KeinGlm: return tr(Str::MbFeKeinGlm);
+        case A::GlaPfadZuLang: return tr(Str::MbFeGlaPfadZuLang);
+        case A::TeilNameZuLang: return format(Str::MbFeTeilNameZuLang, n);
+        case A::OhneLods: return format(Str::MbFeOhneLods, n);
+        case A::ZuVieleKnochen: return format(Str::MbFeZuVieleKnochen, n, a, b);
+        case A::QuelleOhneBecken: return tr(Str::MbFeQuelleOhneBecken);
+        case A::ZielOhneBecken: return tr(Str::MbFeZielOhneBecken);
+        case A::BilderAusserhalb: return tr(Str::MbFeBilderAusserhalb);
+        case A::NichtsZuBacken: return tr(Str::MbFeNichtsZuBacken);
+        case A::FremdesSkelett: return tr(Str::MbFeFremdesSkelett);
+        case A::VorratZuGross: return tr(Str::MbFeVorratZuGross);
+        case A::OhneBeckenBeine: return tr(Str::MbFeOhneBeckenBeine);
+        case A::KeinPlatzBelegt: return tr(Str::MbFeKeinPlatzBelegt);
+        case A::AnderesSkelett: return tr(Str::MbFeAnderesSkelett);
+        case A::KnochenAnders: return format(Str::MbFeKnochenAnders, n);
+        case A::KeinSkelett: return tr(Str::MbFeKeinSkelett);
+        case A::GrundanimFehlt: return format(Str::MbFeGrundanimFehlt, n);
+        case A::GrundbildFehlt: return tr(Str::MbFeGrundbildFehlt);
+        case A::VerweisHinterVorrat: return tr(Str::MbFeVerweisHinterVorrat);
+        case A::KeinKinoPlatz: return tr(Str::MbFeKeinKinoPlatz);
+        case A::PlaetzeFiguren: return tr(Str::MbFePlaetzeFiguren);
+        case A::FigurOhneGrund: return tr(Str::MbFeFigurOhneGrund);
+        case A::Fehlt: return format(Str::MbFeFehlt, n);
+        case A::NichtUnterBecken: return format(Str::MbFeNichtUnterBecken, n);
+        case A::QuellKnochenFehlt: return format(Str::MbFeQuellKnochenFehlt, n, f.name2.c_str());
+        case A::QuellGrundstellung: return format(Str::MbFeQuellGrundstellung, n, f.name2.c_str());
+        case A::SequenzNichtInQuelle: return format(Str::MbFeSequenzNichtInQuelle, n, a, b, f.name2.c_str(), static_cast<int>(f.c));
+        case A::QuellVerweis: return format(Str::MbFeQuellVerweis, n);
+        case A::BereichAusserhalb: return tr(Str::MbFeBereichAusserhalb);
+        case A::Anzahl: break;
+    }
+    return modell::fehlerText(f);
+}
+
+std::string modellFehlerText(const std::string& englisch) {
+    modell::ModellFehler f;
+    return modell::fehlerAusText(englisch, f) ? modellFehlerText(f) : englisch;
+}
+
 // Ein Ort im Spielordner? (_humanoid.gla gehoert in einen Mod-Ordner, nie ins Spielverzeichnis: es ersetzte das Skelett
 // aller Figuren auf jeder Karte.) Verglichen wird mit den Spielordnern der Einstellungen und deren Elternordner.
 bool modellImSpielordner(const std::string& datei) {
@@ -346,9 +410,8 @@ bool modellPlatzSetzen(int platz, int anim) {
         return false;
     }
     const std::string name = t.plaetze[static_cast<std::size_t>(platz)].name;
-    t.belegung[name] = quelleVon(anim);
-    ++t.kgStand;
-    plaetzeAnpassen();
+    const modell::PlatzQuelle q = quelleVon(anim);
+    belegen(Str::MbKgHierher, [&](std::map<std::string, modell::PlatzQuelle>& b) { b[name] = q; });
     diag::detail("Model-Tab: Platz " + name + " <- " + g_app->animList[static_cast<std::size_t>(anim)].name + " (Ziel " + std::to_string(t.glaZiel) + ")");
     return true;
 }
@@ -359,9 +422,8 @@ int modellAufFreienPlatz(int anim) {
     if (anim < 0 || static_cast<std::size_t>(anim) >= g_app->animList.size() || g_app->anim.empty()) { return -1; }
     if (t.glaZiel == 2) {
         // eigene GLA: der Platz heisst wie die Sequenz
-        t.belegung[g_app->animList[static_cast<std::size_t>(anim)].name] = quelleVon(anim);
-        ++t.kgStand;
-        plaetzeAnpassen();
+        const modell::PlatzQuelle q = quelleVon(anim);
+        belegen(Str::MbKgAufFreien, [&](std::map<std::string, modell::PlatzQuelle>& b) { b[g_app->animList[static_cast<std::size_t>(anim)].name] = q; });
         return static_cast<int>(t.plaetze.size()) - 1;
     }
     for (std::size_t i = 0; i < t.plaetze.size(); ++i) {
@@ -373,9 +435,8 @@ int modellAufFreienPlatz(int anim) {
 void modellPlatzLeeren(int platz) {
     ModellTab& t = mt();
     if (platz < 0 || static_cast<std::size_t>(platz) >= t.plaetze.size()) { return; }
-    t.belegung.erase(t.plaetze[static_cast<std::size_t>(platz)].name);
-    ++t.kgStand;
-    plaetzeAnpassen();
+    const std::string name = t.plaetze[static_cast<std::size_t>(platz)].name;
+    belegen(Str::MbKgLeeren, [&](std::map<std::string, modell::PlatzQuelle>& b) { b.erase(name); });
 }
 
 void modellGlaZielSetzen(int ziel) {
@@ -388,7 +449,6 @@ namespace {
 // Die vorhandene Karten-GLA aus den Spieldaten: je Platz BOTH_CIN_n ihre Zeile (Quelle: sie selbst). belegtLassen: nur
 // Plaetze nehmen, die noch frei sind (Bauen fuehrt zusammen, statt zu ueberschreiben).
 int vorhandeneUebernehmen(bool belegtLassen) {
-    ModellTab& t = mt();
     const std::string pfad = kartenPfad();
     std::string bytes;
     GlaAnimation a;
@@ -403,15 +463,15 @@ int vorhandeneUebernehmen(bool belegtLassen) {
     }
     const GlaAnimation* q = quelleFuer(a, pfad);
     int n = 0;
-    for (const modell::Platz& p : modell::kinoPlaetze(zielspiel(), {})) {
-        for (const AnimEntry& e : zeilen) {
-            if (kleinMb3(e.name) != kleinMb3(p.name) || (belegtLassen && t.belegung.count(p.name) != 0U)) { continue; }
-            t.belegung[p.name] = modell::PlatzQuelle{q, pfad, e};
-            ++n;
+    belegen(Str::MbKgVorhanden, [&](std::map<std::string, modell::PlatzQuelle>& b) {
+        for (const modell::Platz& p : modell::kinoPlaetze(zielspiel(), {})) {
+            for (const AnimEntry& e : zeilen) {
+                if (kleinMb3(e.name) != kleinMb3(p.name) || (belegtLassen && b.count(p.name) != 0U)) { continue; }
+                b[p.name] = modell::PlatzQuelle{q, pfad, e};
+                ++n;
+            }
         }
-    }
-    ++t.kgStand;
-    plaetzeAnpassen();
+    });
     return n;
 }
 }  // namespace
@@ -444,7 +504,7 @@ bool modellKartenGlaBauen(const std::string& datei, bool trotzdem) {
     const std::string kopf = zielKopf();
     const bool ok = t.glaZiel == 1 ? modell::anhaengen(g_app->anim, t.plaetze, k, zeilen, &br) : modell::zusammenfuehren(t.plaetze, kopf, k, zeilen, &br);
     if (!ok) {
-        melden(format(Str::MbSpFehler, br.fehler.c_str()));
+        melden(format(Str::MbSpFehler, modellFehlerText(br.fehlerArt).c_str()));
         return false;
     }
     // animation.cfg: fuer die GLA des Modells ihre Zeilen mit den geaenderten (unveraenderte Byte fuer Byte), sonst neu.
@@ -507,7 +567,7 @@ bool modellXsiAufnehmen(const std::string& datei) {
     modell::XsiBericht br;
     const std::string name = fileName(datei);
     if (g_app->anim.empty() || !modell::xsiAufnehmen(text, g_app->anim, zielKopf(), g, &br)) {
-        melden(format(Str::MbSpFehler, br.fehler.empty() ? tr(Str::MbCfgKeine) : br.fehler.c_str()));
+        melden(format(Str::MbSpFehler, br.fehler.empty() ? tr(Str::MbCfgKeine) : modellFehlerText(br.fehler).c_str()));
         return false;
     }
     const int bilder = g.numFrames;
@@ -534,18 +594,14 @@ std::string modellGlaAufPlatz(GlaAnimation g, const std::string& name, int loopF
             for (const modell::Platz& p : t.plaetze) {
                 if (kleinMb3(p.name) == kleinMb3(wunsch)) { platz = p.name; }
             }
-            t.belegung[platz] = pq;
-            ++t.kgStand;
-            plaetzeAnpassen();
+            belegen(Str::MbKgHierher, [&](std::map<std::string, modell::PlatzQuelle>& b) { b[platz] = pq; });
             return platz;
         }
     }
     for (const modell::Platz& p : t.plaetze) {
         if (p.belegt && t.glaZiel != 2) { continue; }
         const std::string platz = t.glaZiel == 2 ? name : p.name;
-        t.belegung[platz] = pq;
-        ++t.kgStand;
-        plaetzeAnpassen();
+        belegen(Str::MbKgAufFreien, [&](std::map<std::string, modell::PlatzQuelle>& b) { b[platz] = pq; });
         return platz;
     }
     melden(format(Str::MbKgKeinePlaetze, modell::grenzen(zielspiel()).name));

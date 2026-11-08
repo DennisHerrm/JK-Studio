@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "bhed/gla.h"
+#include "bhed/modell/fehler.h"
 
 namespace bhed::modell {
 
@@ -115,7 +116,8 @@ struct Platz {
 struct ZusammenBericht {
     int bilder = 0;
     int vorrat = 0;          // Eintraege im Vorrat nach dem Zusammenlegen
-    std::string fehler;
+    std::string fehler;      // englisch (Protokoll)
+    ModellFehler fehlerArt;  // REST N6: fuer die Meldung in der Sprache der Oberflaeche
 };
 
 // Mehrere Quellen zu einer GLA zusammenfuehren: das Skelett der ersten Quelle, je belegtem Platz seine Frames

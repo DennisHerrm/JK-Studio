@@ -531,7 +531,7 @@ bool figurAnimBauen(const std::string& ordner, bool trotzdem) {
     std::vector<modell::Platz> plaetze;
     modell::FigurBauBericht br;
     if (!modell::figurenBacken(ein, pl, archivDa ? &archiv : nullptr, archivCfg, zs, geb, plaetze, &br)) {
-        melden(format(Str::MbSpFehler, br.fehler.c_str()));
+        melden(format(Str::MbSpFehler, modellFehlerText(br.fehler).c_str()));
         return false;
     }
     GlaAnimation gla;
@@ -552,7 +552,7 @@ bool figurAnimBauen(const std::string& ordner, bool trotzdem) {
             if (p.belegt && std::find(pl.begin(), pl.end(), p.name) != pl.end()) { eigene.push_back(p); }
         }
         if (sk == nullptr || !modell::anhaengen(sk->anim, eigene, gla, cfg, &zb)) {
-            melden(format(Str::MbSpFehler, zb.fehler.c_str()));
+            melden(format(Str::MbSpFehler, modellFehlerText(zb.fehlerArt).c_str()));
             return false;
         }
         glaRel = sk->anim.skeletonName;
@@ -579,7 +579,7 @@ bool figurAnimBauen(const std::string& ordner, bool trotzdem) {
                          nutzen.end());
         }
         if (!modell::zusammenfuehren(nutzen, kopf, gla, cfg, &zb)) {
-            melden(format(Str::MbSpFehler, zb.fehler.c_str()));
+            melden(format(Str::MbSpFehler, modellFehlerText(zb.fehlerArt).c_str()));
             return false;
         }
         gla.name = kopf;
@@ -631,7 +631,7 @@ bool figurAnimBauen(const std::string& ordner, bool trotzdem) {
     std::filesystem::create_directories(std::filesystem::path(pfadIn(ordner, "scripts/" + ref)).parent_path(), ec);
     if (!schreibGla(gla, bytes, &f) || !sicherSchreiben(glaDatei, bytes, &f) || !sicherSchreiben(cfgDatei, cfgText, &f) ||
         !sicherSchreiben(pfadIn(ordner, "scripts/" + ref + ".IBI"), ibi, &f) || !sicherSchreiben(pfadIn(ordner, "scripts/" + ref + ".txt"), writeScript(g_app->doc.script()), &f)) {
-        melden(format(Str::MbSpFehler, f.c_str()));
+        melden(format(Str::MbSpFehler, modellFehlerText(f).c_str()));
         return false;
     }
     z.frage = false;
@@ -685,7 +685,7 @@ void drawPhysik(const FigurDaten& d) {
     const modell::MassenModell mm = modell::massenModell(d.basis, d.rig);
     if (!mm.gueltig()) {
         ImGui::PushTextWrapPos(0.0F);
-        ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram), "%s", format(Str::PhFehler, mm.fehler.c_str()).c_str());
+        ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram), "%s", format(Str::PhFehler, modellFehlerText(mm.fehler).c_str()).c_str());
         ImGui::PopTextWrapPos();
         return;
     }

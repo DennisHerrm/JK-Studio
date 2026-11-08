@@ -321,7 +321,7 @@ void karteTeil() {
     const GlaAnimation c = probeGla(3.0F, 4, 1);
     pl[4].quelle.gla = &c;
     pl[4].quelle.sequenz = {"BOTH_RUN1", 0, 2, -1, 20};
-    expect("andere Grundstellung abgewiesen", !zusammenfuehren(pl, pfad, k, cfg, &br) && br.fehler.find("Grundstellung") != std::string::npos);
+    expect("andere Grundstellung abgewiesen", !zusammenfuehren(pl, pfad, k, cfg, &br) && br.fehlerArt.art == FehlerArt::QuellGrundstellung && br.fehler.find("base pose") != std::string::npos);
     pl[4].quelle.gla = &b;
     pl[4].quelle.sequenz = {"BOTH_RUN1", 4, 3, -1, 20};
     expect("Frames hinter dem Ende der Quelle abgewiesen", !zusammenfuehren(pl, pfad, k, cfg, &br));

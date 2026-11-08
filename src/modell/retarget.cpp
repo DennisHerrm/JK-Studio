@@ -1,6 +1,8 @@
 // modell/retarget.cpp - Modell-Block Stufe 5: Retargeting (Rechnung und Herleitung in bhed/modell/retarget.h)
 #include "bhed/modell/retarget.h"
 
+#include "bhed/modell/fehler.h"
+#include "bhed/modell/glavorrat.h"
 #include "bhed/modell/ik.h"
 
 #include <algorithm>
@@ -37,7 +39,9 @@ std::string klein(std::string s) {
     return s;
 }
 
-BoneMatrix nurDrehung(const BoneMatrix& m) {
+// REST N14: die reine Drehung (starr: Gram-Schmidt entfernt Mass und Scherung, die GLA-Welt traegt Mass 0,64) - anders als
+// ohneOrt in ik.cpp, bis REST beide nurDrehung
+BoneMatrix nurDrehungStarr(const BoneMatrix& m) {
     BoneMatrix r = starr(m);
     r.m[0][3] = r.m[1][3] = r.m[2][3] = 0.0F;
     return r;
@@ -90,7 +94,7 @@ BoneMatrix kleinsteDrehung(const V3& von, const V3& nach) {
     return achsDrehung(norm(ax), std::acos(c));
 }
 float winkelGrad(const BoneMatrix& a, const BoneMatrix& b) {
-    const BoneMatrix d = transponiert(nurDrehung(a)) * nurDrehung(b);
+    const BoneMatrix d = transponiert(nurDrehungStarr(a)) * nurDrehungStarr(b);
     const float tr = std::clamp((d.m[0][0] + d.m[1][1] + d.m[2][2] - 1.0F) * 0.5F, -1.0F, 1.0F);
     return std::acos(tr) * 180.0F / kPi;
 }
@@ -681,7 +685,7 @@ void rtPoseWelt(const GlaAnimation& g, const RtCharakter& c, const RtPose& p, st
         const V3 o = ort(welt[uz(b)]);
         for (std::size_t d = 0; d < n; ++d) {
             if (drin[d] == 0) { continue; }
-            welt[d] = mitOrt(w * nurDrehung(welt[d]), add(o, drehe(w, sub(ort(welt[d]), o)))) * starrInvers(starr(welt[d])) * welt[d];
+            welt[d] = mitOrt(w * nurDrehungStarr(welt[d]), add(o, drehe(w, sub(ort(welt[d]), o)))) * starrInvers(starr(welt[d])) * welt[d];
         }
     };
     if (p.haltung != RtHaltung::Bindepose) {
@@ -715,7 +719,7 @@ void rtPoseWelt(const GlaAnimation& g, const RtCharakter& c, const RtPose& p, st
             const std::array<float, 4>& q = p.vonHand[uz(b)];
             if (std::fabs(q[0] - 1.0F) < 1e-7F && std::fabs(q[1]) + std::fabs(q[2]) + std::fabs(q[3]) < 1e-7F) { continue; }
             const BoneMatrix m = matrixAusQuat(q.data());
-            const BoneMatrix r = nurDrehung(welt[uz(b)]);
+            const BoneMatrix r = nurDrehungStarr(welt[uz(b)]);
             drehTeilbaum(b, r * m * transponiert(r));   // M im Rahmen des Knochens -> Weltdrehung X M X^-1
         }
     }
@@ -813,9 +817,9 @@ void drehknochen(const Zustand& z, const std::vector<int>& mq, std::vector<BoneM
         const int e = c.twistEnde[t];
         const int a = c.twistAnfang[t];
         if (e < 0 || a < 0 || mq[t] >= 0) { continue; }
-        const BoneMatrix ra = nurDrehung(w[uz(a)]);
-        const BoneMatrix starrE = ra * transponiert(nurDrehung(z.pose[uz(a)])) * nurDrehung(z.pose[uz(e)]);
-        const BoneMatrix d = nurDrehung(w[uz(e)]) * transponiert(starrE);   // Weltdrehung: starr -> tatsaechlich
+        const BoneMatrix ra = nurDrehungStarr(w[uz(a)]);
+        const BoneMatrix starrE = ra * transponiert(nurDrehungStarr(z.pose[uz(a)])) * nurDrehungStarr(z.pose[uz(e)]);
+        const BoneMatrix d = nurDrehungStarr(w[uz(e)]) * transponiert(starrE);   // Weltdrehung: starr -> tatsaechlich
         float q[4];
         quatAusMatrix(d, q);
         const V3 achse = norm(sub(ort(w[uz(e)]), ort(w[uz(a)])));
@@ -827,7 +831,7 @@ void drehknochen(const Zustand& z, const std::vector<int>& mq, std::vector<BoneM
         if (winkel > kPi) { winkel -= 2.0F * kPi; }
         if (winkel < -kPi) { winkel += 2.0F * kPi; }
         const BoneMatrix tw = achsDrehung(achse, winkel * c.twistAnteil[t]);
-        const BoneMatrix r = tw * ra * transponiert(nurDrehung(z.pose[uz(a)])) * nurDrehung(z.pose[t]);
+        const BoneMatrix r = tw * ra * transponiert(nurDrehungStarr(z.pose[uz(a)])) * nurDrehungStarr(z.pose[t]);
         // Ort: starr mit dem Anfang
         const BoneMatrix rel = starrInvers(z.pose[uz(a)]) * z.pose[t];
         w[t] = mitOrt(r, ort(w[uz(a)] * rel));
@@ -847,7 +851,7 @@ void ikKette(const Zustand& st, std::vector<BoneMatrix>& w, int ia, int ib, int 
     V3 polR = sub(pb, mitte);
     if (laenge(polR) < 1e-3F) {
         polR = sub(ort(st.pose[uz(ib)]), mul(add(ort(st.pose[uz(ia)]), ort(st.pose[uz(ic)])), 0.5F));
-        polR = drehe(nurDrehung(w[uz(ia)]) * transponiert(nurDrehung(st.pose[uz(ia)])), polR);
+        polR = drehe(nurDrehungStarr(w[uz(ia)]) * transponiert(nurDrehungStarr(st.pose[uz(ia)])), polR);
     }
     if (laenge(polR) < 1e-3F) { polR = beuge; }   // auch die Pose gestreckt (T/A: Beine senkrecht)
     const V3 pol = add(pb, mul(norm(polR), laenge(sub(pb, pa)) + 1.0F));
@@ -864,10 +868,10 @@ void ikKette(const Zustand& st, std::vector<BoneMatrix>& w, int ia, int ib, int 
     const std::vector<BoneMatrix> vorher = w;
     std::vector<std::uint8_t> ge(w.size(), 0);
     const BoneMatrix r1 = kleinsteDrehung(sub(pb, pa), sub(nb, pa));
-    w[uz(ia)] = mitOrt(r1 * nurDrehung(vorher[uz(ia)]), pa);
+    w[uz(ia)] = mitOrt(r1 * nurDrehungStarr(vorher[uz(ia)]), pa);
     const BoneMatrix r2 = kleinsteDrehung(drehe(r1, sub(pc, pb)), sub(nc, nb));
-    w[uz(ib)] = mitOrt(r2 * r1 * nurDrehung(vorher[uz(ib)]), nb);
-    w[uz(ic)] = mitOrt(nurDrehung(vorher[uz(ic)]), nc);
+    w[uz(ib)] = mitOrt(r2 * r1 * nurDrehungStarr(vorher[uz(ib)]), nb);
+    w[uz(ic)] = mitOrt(nurDrehungStarr(vorher[uz(ic)]), nc);
     ge[uz(ia)] = ge[uz(ib)] = ge[uz(ic)] = 1;
     mitnehmen(st, vorher, w, ge);
 }
@@ -878,7 +882,7 @@ void ankerDrehen(const Zustand& st, std::vector<BoneMatrix>& w, int b, const Bon
     const std::vector<std::uint8_t> drin = ankerTeilbaum(*st.g, *st.c, st.folge, b);
     for (std::size_t d = 0; d < w.size(); ++d) {
         if (drin[d] == 0) { continue; }
-        w[d] = mitOrt(r * nurDrehung(w[d]), add(um, drehe(r, sub(ort(w[d]), um)))) * starrInvers(starr(w[d])) * w[d];
+        w[d] = mitOrt(r * nurDrehungStarr(w[d]), add(um, drehe(r, sub(ort(w[d]), um)))) * starrInvers(starr(w[d])) * w[d];
     }
 }
 void ankerSchieben(const Zustand& st, std::vector<BoneMatrix>& w, int b, const V3& weg) {
@@ -900,11 +904,11 @@ bool rtUebertragen(const GlaAnimation& gq, const RtCharakter& q, const GlaAnimat
     br = RtBericht{};
     welt.clear();
     if (q.becken < 0 || z.becken < 0) {
-        br.fehler = q.becken < 0 ? "source without pelvis" : "target without pelvis";
+        br.fehler = fehlerText(ModellFehler{q.becken < 0 ? FehlerArt::QuelleOhneBecken : FehlerArt::ZielOhneBecken});   // REST N6
         return false;
     }
     if (anzahl <= 0 || erstes < 0 || erstes + anzahl > gq.bildZahl()) {
-        br.fehler = "frames outside the source";
+        br.fehler = fehlerText(ModellFehler{FehlerArt::BilderAusserhalb});
         return false;
     }
     const std::size_t nz = gz.bones.size();
@@ -1036,7 +1040,7 @@ bool rtUebertragen(const GlaAnimation& gq, const RtCharakter& q, const GlaAnimat
                 const std::vector<BoneMatrix> vorher = w;
                 std::vector<std::uint8_t> ge(nz, 0);
                 const V3 neu = skaliert(z.becken, q.becken);   // pfix N12: e.becken ist hier immer wahr
-                w[uz(z.becken)] = mitOrt(nurDrehung(w[uz(z.becken)]), neu);
+                w[uz(z.becken)] = mitOrt(nurDrehungStarr(w[uz(z.becken)]), neu);
                 ge[uz(z.becken)] = 1;
                 mitnehmen(st, vorher, w, ge);
             } else if (s == RtSchritt::Fk && e.fk) {
@@ -1045,11 +1049,11 @@ bool rtUebertragen(const GlaAnimation& gq, const RtCharakter& q, const GlaAnimat
                     const int m = mq[uz(b)];
                     BoneMatrix r;
                     if (m >= 0) {
-                        r = nurDrehung(xs[uz(m)]) * transponiert(nurDrehung(pq[uz(m)])) * nurDrehung(st.pose[uz(b)]);
+                        r = nurDrehungStarr(xs[uz(m)]) * transponiert(nurDrehungStarr(pq[uz(m)])) * nurDrehungStarr(st.pose[uz(b)]);
                     } else if (a >= 0) {
-                        r = nurDrehung(w[uz(a)]) * transponiert(nurDrehung(st.pose[uz(a)])) * nurDrehung(st.pose[uz(b)]);
+                        r = nurDrehungStarr(w[uz(a)]) * transponiert(nurDrehungStarr(st.pose[uz(a)])) * nurDrehungStarr(st.pose[uz(b)]);
                     } else {
-                        r = nurDrehung(w[uz(b)]);
+                        r = nurDrehungStarr(w[uz(b)]);
                     }
                     V3 o = ort(w[uz(b)]);
                     if (a >= 0 && b != z.becken) { o = ort(w[uz(a)] * (starrInvers(st.pose[uz(a)]) * st.pose[uz(b)])); }
@@ -1079,7 +1083,7 @@ bool rtUebertragen(const GlaAnimation& gq, const RtCharakter& q, const GlaAnimat
             } else if (s == RtSchritt::Wurzel && e.wurzel) {
                 for (const auto& [zb, qb] : {std::pair<int, int>{z.wurzel, q.wurzel}, std::pair<int, int>{z.bewegung, q.bewegung}}) {
                     if (zb < 0 || qb < 0) { continue; }
-                    w[uz(zb)] = mitOrt(nurDrehung(w[uz(zb)]), skaliert(zb, qb));
+                    w[uz(zb)] = mitOrt(nurDrehungStarr(w[uz(zb)]), skaliert(zb, qb));
                 }
             }
         }
@@ -1152,7 +1156,7 @@ bool rtBacken(const GlaAnimation& gz, const std::vector<std::vector<BoneMatrix>>
     aus = GlaAnimation{};
     const std::size_t nb = gz.bones.size();
     if (nb == 0 || welt.empty()) {
-        if (fehler != nullptr) { *fehler = "nothing to bake"; }
+        if (fehler != nullptr) { *fehler = fehlerText(ModellFehler{FehlerArt::NichtsZuBacken}); }
         return false;
     }
     aus.name = kopfName;
@@ -1160,12 +1164,12 @@ bool rtBacken(const GlaAnimation& gz, const std::vector<std::vector<BoneMatrix>>
     aus.scale = gz.scale;
     aus.bones = gz.bones;
     aus.numFrames = static_cast<int>(welt.size());
-    std::unordered_map<std::string, std::uint32_t> vorrat;
+    GlaVorrat vorrat(aus.bonePool);   // REST N5
     g2::CompressStats st;
     const g2::CompressOptions co{};   // wie rigBacken/xsiAufnehmen (G2C-Vorgabe)
     for (const std::vector<BoneMatrix>& w : welt) {
         if (w.size() != nb) {
-            if (fehler != nullptr) { *fehler = "world of another skeleton"; }
+            if (fehler != nullptr) { *fehler = fehlerText(ModellFehler{FehlerArt::FremdesSkelett}); }
             return false;
         }
         for (std::size_t b = 0; b < nb; ++b) {
@@ -1173,14 +1177,11 @@ bool rtBacken(const GlaAnimation& gz, const std::vector<std::vector<BoneMatrix>>
             g2::Mat3x4 m;
             std::memcpy(m.m, a.m, sizeof m.m);
             const g2::fmt::CompQuatBone cb = g2::compressBone(m, co, st);
-            const std::string key(reinterpret_cast<const char*>(cb.comp), 14U);
-            const auto [it, neu] = vorrat.emplace(key, static_cast<std::uint32_t>(aus.bonePool.size() / 14U));
-            if (neu) { aus.bonePool.insert(aus.bonePool.end(), cb.comp, cb.comp + 14); }
-            aus.indexes.push_back(it->second);
+            aus.indexes.push_back(vorrat.dazu(cb.comp));
         }
     }
-    if (aus.bonePool.size() / 14U > 0xFFFFFFU) {
-        if (fehler != nullptr) { *fehler = "pool larger than a 24-bit index"; }
+    if (vorrat.zuGross()) {
+        if (fehler != nullptr) { *fehler = fehlerText(ModellFehler{FehlerArt::VorratZuGross}); }
         return false;
     }
     return true;
@@ -1276,7 +1277,7 @@ bool rtGangBild(const GlaAnimation& g, const RtCharakter& c, const GangRegler& r
         if (k.art == KettenArt::Wirbel && k.nummer == 0 && !k.knochen.empty()) { wirbel = &k; }
     }
     if (c.becken < 0 || bein[0] == nullptr || bein[1] == nullptr) {
-        if (fehler != nullptr) { *fehler = "no pelvis and two legs"; }
+        if (fehler != nullptr) { *fehler = fehlerText(ModellFehler{FehlerArt::OhneBeckenBeine}); }
         return false;
     }
     Zustand st;

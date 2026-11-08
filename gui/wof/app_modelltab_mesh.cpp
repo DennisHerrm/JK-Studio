@@ -1481,6 +1481,7 @@ void dokumentZeigen(modell::Inhalt in, const std::string& name) {
     g_app->model = std::move(gm);
     g_app->modelPath = name;
     g_app->modelDir = directoryOf(name);
+    in.kinoBelegung = t.dok.inhalt().kinoBelegung;   // REST N10: die Belegung der Ziel-GLA bleibt
     t.dok.laden(std::move(in));
     t.dokModell = name;
     t.g2 = modell::G2Zustand{};
@@ -1563,7 +1564,7 @@ bool modellRequisitInKarte() {
     std::string bytes;
     modell::Md3SchreibBericht br;
     if (!modell::md3Schreiben(in, bytes, modell::grenzen(static_cast<modell::Zielspiel>(t.zielspiel)).eckenJeFlaeche, &br)) {
-        melden(format(Str::MbSpFehler, br.fehler.c_str()));
+        melden(format(Str::MbSpFehler, modellFehlerText(br.fehlerArt).c_str()));
         return false;
     }
     std::string platte = platform::settingsDirectory() + "\\import\\" + vfs;

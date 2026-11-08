@@ -21,12 +21,14 @@
 #define BHED_MODELL_MD3DATEI_H
 #include <string>
 #include "bhed/modell/dokument.h"
+#include "bhed/modell/fehler.h"
 namespace bhed::modell {
 struct Md3SchreibBericht {
     int flaechenRoh = 0;     // nur die UV ersetzt
     int flaechenNeu = 0;     // neu aufgebaut (mehr Ecken)
     int ecken = 0;           // Ecken in allen Flaechen
-    std::string fehler;
+    std::string fehler;      // englisch (Protokoll)
+    ModellFehler fehlerArt;  // REST N6: fuer die Meldung in der Sprache der Oberflaeche
 };
 // false: nicht schreibbar (Grund in bericht.fehler) - keine .md3, weniger Teile als Flaechen in der Datei, mehr Ecken als
 // die Grenze (SHADER_MAX_VERTEXES: R_LoadMD3 weist die Flaeche ab).
