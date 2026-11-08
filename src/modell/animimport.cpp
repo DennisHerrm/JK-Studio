@@ -146,26 +146,37 @@ Mat4 einheit4() {
 
 // Schluessel abtasten wie assimp es meint: Ort/Skalierung linear, Drehung sphaerisch (aiQuaternion::Interpolate), vor dem
 // ersten und nach dem letzten Schluessel der Randwert.
+// FIX2 P9: der Schluessel vor t ist der erste i mit k[i + 1].mTime > t, von vorn gesucht. Die Bilder einer Animation laufen in
+// steigender Zeit: bei aufsteigenden Schluesselzeiten beginnt die Suche dort, wo sie im letzten Bild stand (`ab`, je Spur) -
+// dasselbe i, aber linear statt quadratisch in der Laenge der Aufnahme. Ohne Ordnung (ab == nullptr) von vorn wie bisher.
 template <typename K>
-std::size_t schluesselVor(const K* k, unsigned n, double t) {
-    std::size_t i = 0;
+std::size_t schluesselVor(const K* k, unsigned n, double t, std::size_t* ab) {
+    std::size_t i = ab != nullptr ? *ab : 0;
     while (i + 1 < n && k[i + 1].mTime <= t) { ++i; }
+    if (ab != nullptr) { *ab = i; }
     return i;
 }
-aiVector3D tasteV(const aiVectorKey* k, unsigned n, double t, const aiVector3D& vorgabe) {
+template <typename K>
+bool aufsteigend(const K* k, unsigned n) {
+    for (unsigned i = 1; i < n; ++i) {
+        if (k[i].mTime < k[i - 1].mTime) { return false; }
+    }
+    return true;
+}
+aiVector3D tasteV(const aiVectorKey* k, unsigned n, double t, const aiVector3D& vorgabe, std::size_t* ab) {
     if (n == 0) { return vorgabe; }
     if (n == 1 || t <= k[0].mTime) { return k[0].mValue; }
     if (t >= k[n - 1].mTime) { return k[n - 1].mValue; }
-    const std::size_t i = schluesselVor(k, n, t);
+    const std::size_t i = schluesselVor(k, n, t, ab);
     const double d = k[i + 1].mTime - k[i].mTime;
     const auto f = static_cast<ai_real>(d > 0.0 ? (t - k[i].mTime) / d : 0.0);
     return k[i].mValue + (k[i + 1].mValue - k[i].mValue) * f;
 }
-aiQuaternion tasteQ(const aiQuatKey* k, unsigned n, double t, const aiQuaternion& vorgabe) {
+aiQuaternion tasteQ(const aiQuatKey* k, unsigned n, double t, const aiQuaternion& vorgabe, std::size_t* ab) {
     if (n == 0) { return vorgabe; }
     if (n == 1 || t <= k[0].mTime) { return k[0].mValue; }
     if (t >= k[n - 1].mTime) { return k[n - 1].mValue; }
-    const std::size_t i = schluesselVor(k, n, t);
+    const std::size_t i = schluesselVor(k, n, t, ab);
     const double d = k[i + 1].mTime - k[i].mTime;
     const auto f = static_cast<ai_real>(d > 0.0 ? (t - k[i].mTime) / d : 0.0);
     aiQuaternion q;
@@ -552,6 +563,14 @@ bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehl
     std::vector<Mat4> lokal(kn.size());
     std::vector<Mat4> w;
     std::vector<Starr> x;
+    // FIX2 P9: die Ruhe jedes Knotens zerlegt (Vorgabe fehlender Spuren) - einmal, nicht je Bild
+    struct Zerlegt {
+        aiVector3D s;
+        aiQuaternion r;
+        aiVector3D p;
+    };
+    std::vector<Zerlegt> ruheZerlegt(kn.size());
+    for (std::size_t i = 0; i < kn.size(); ++i) { kn[i].n->mTransformation.Decompose(ruheZerlegt[i].s, ruheZerlegt[i].r, ruheZerlegt[i].p); }
     g.roh.clear();
     int bilder = 0;
     try {
@@ -566,6 +585,23 @@ bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehl
                 const auto it = nachName.find(an->mChannels[ch]->mNodeName.C_Str());
                 if (it != nachName.end()) { spur[static_cast<std::size_t>(it->second)] = an->mChannels[ch]; }
             }
+            // FIX2 P9: je Spur und Art der laufende Schluessel (nur bei aufsteigenden Zeiten, sonst nullptr: von vorn)
+            struct Lauf {
+                std::size_t p = 0;
+                std::size_t r = 0;
+                std::size_t s = 0;
+                bool pAuf = false;
+                bool rAuf = false;
+                bool sAuf = false;
+            };
+            std::vector<Lauf> lauf(kn.size());
+            for (std::size_t i = 0; i < kn.size(); ++i) {
+                if (const aiNodeAnim* na = spur[i]) {
+                    lauf[i].pAuf = aufsteigend(na->mPositionKeys, na->mNumPositionKeys);
+                    lauf[i].rAuf = aufsteigend(na->mRotationKeys, na->mNumRotationKeys);
+                    lauf[i].sAuf = aufsteigend(na->mScalingKeys, na->mNumScalingKeys);
+                }
+            }
             for (int f = 0; f < n; ++f) {
                 const double t = anfang + static_cast<double>(f) / fps * tps;
                 for (std::size_t i = 0; i < kn.size(); ++i) {
@@ -574,13 +610,11 @@ bool animImportieren(const std::string& pfad, AnimImport& aus, std::string* fehl
                         lokal[i] = ruhe[i];
                         continue;
                     }
-                    aiVector3D s0;
-                    aiQuaternion r0;
-                    aiVector3D p0;
-                    kn[i].n->mTransformation.Decompose(s0, r0, p0);
-                    const aiVector3D p = tasteV(na->mPositionKeys, na->mNumPositionKeys, t, p0);
-                    const aiQuaternion r = tasteQ(na->mRotationKeys, na->mNumRotationKeys, t, r0);
-                    const aiVector3D s = tasteV(na->mScalingKeys, na->mNumScalingKeys, t, s0);
+                    const Zerlegt& z0 = ruheZerlegt[i];
+                    Lauf& l = lauf[i];
+                    const aiVector3D p = tasteV(na->mPositionKeys, na->mNumPositionKeys, t, z0.p, l.pAuf ? &l.p : nullptr);
+                    const aiQuaternion r = tasteQ(na->mRotationKeys, na->mNumRotationKeys, t, z0.r, l.rAuf ? &l.r : nullptr);
+                    const aiVector3D s = tasteV(na->mScalingKeys, na->mNumScalingKeys, t, z0.s, l.sAuf ? &l.s : nullptr);
                     const aiMatrix4x4 m(s, r, p);
                     lokal[i] = ausAi(m);
                 }
