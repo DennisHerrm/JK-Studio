@@ -1221,6 +1221,8 @@ ID3D11BlendState* holeBlend(Blend b, BlendFactor src = BlendFactor::One,
 // Bildpunkten sprang. Die Engine laedt jede Textur mit Pyramide
 // (R_MipMap, tr_image.cpp:466), und genau die rechnet Tex::buildMips nach.
 // Fehlt sie (Figurenbilder), wird sie hier auf einer Kopie gebaut.
+BilderDxt g_bilderDxt;   // MR6: Selbsttest (bilderDxt)
+
 ID3D11ShaderResourceView* ladeMitStufen(const TextureSet::Tex& quelle) {
     ID3D11Device* d = dev();
     if (d == nullptr || quelle.width <= 0 || quelle.height <= 0 || quelle.rgba.empty()) {
@@ -1232,7 +1234,16 @@ ID3D11ShaderResourceView* ladeMitStufen(const TextureSet::Tex& quelle) {
     // r_ext_compress_textures 1 ab Werk, tr_init.cpp:296-388 "using GL_EXT_texture_compression_s3tc" im Protokoll des Originals),
     // ausser Bildern von Shadern mit noTC und den Lightmaps (r_ext_compress_lightmaps 0). Movie Duels: r_ext_compress_textures 0.
     // Die Pyramide entsteht vorher aus dem unkomprimierten Bild (R_MipMap auf data, dann qglTexImage2D je Stufe).
-    const bool dxt = !regelwerkMovieDuels() && !quelle.keinTc && !quelle.lightmapStufe;
+    // MR6 P20: lightmapStufe heisst nur "der Shader hat auch eine Stufe map $lightmap" - das Bild der anderen Stufe ist ein
+    // normales Bild mit allowTC (R_FindImageFile aus ParseStage, tr_shader.cpp). Die Lightmaps selbst kommen nie hier vorbei
+    // (holeLightmap). Vorher blieben damit fast alle Weltflaechen einer Raven-Karte unkomprimiert.
+    const bool dxt = !regelwerkMovieDuels() && !quelle.keinTc;
+    ++g_bilderDxt.bilder;
+    g_bilderDxt.komprimiert += dxt ? 1 : 0;
+    if (quelle.lightmapStufe && !quelle.keinTc) {
+        ++g_bilderDxt.lightmapStufe;
+        g_bilderDxt.lightmapStufeKomprimiert += dxt ? 1 : 0;
+    }
     if (dxt || (quelle.mips.empty() && (quelle.width > 1 || quelle.height > 1))) {
         kopie.width = quelle.width;
         kopie.height = quelle.height;
@@ -1894,12 +1905,23 @@ ID3D11ShaderResourceView* holeHimmel(const TextureSet* textures,
     td.SampleDesc.Count = 1;
     td.Usage = D3D11_USAGE_IMMUTABLE;
     td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    // MR6 P21: ParseSkyParms laedt die sechs Seiten mit allowTC = !shader.noTC (rd-vanilla tr_shader.cpp:1970) - unter Jedi
+    // Academy und Jedi Outcast also als DXT5 wie jedes andere Bild (ladeMitStufen); keinTc tragen die Seiten vom Himmelsshader.
+    std::array<std::vector<std::uint8_t>, 6> dxtSeiten;
     D3D11_SUBRESOURCE_DATA sd[6]{};
     for (int i = 0; i < 6; ++i) {
         const TextureSet::Tex& t = textures->byShader[
             static_cast<std::size_t>((*faces)[static_cast<std::size_t>(i)])];
         sd[i].pSysMem = t.rgba.data();
         sd[i].SysMemPitch = static_cast<UINT>(w) * 4U;
+        g_bilderDxt.himmelSeiten += t.keinTc ? 0 : 1;
+        if (!regelwerkMovieDuels() && !t.keinTc) {
+            ++g_bilderDxt.himmelKomprimiert;
+            std::vector<std::uint8_t>& kopie = dxtSeiten[static_cast<std::size_t>(i)];
+            kopie = t.rgba;
+            dxt::dxt5Rundlauf(kopie.data(), w, h);
+            sd[i].pSysMem = kopie.data();
+        }
     }
     ID3D11Texture2D* tex = nullptr;
     if (FAILED(d->CreateTexture2D(&td, sd, &tex)) || tex == nullptr) {
@@ -6932,6 +6954,42 @@ void vergissKarte() {
 
 bool himmelBoxGemerkt() { return g_himmelBoxNetz != nullptr; }
 
+BilderDxt bilderDxt(bool zuruecksetzen) {
+    const BilderDxt b = g_bilderDxt;
+    if (zuruecksetzen) { g_bilderDxt = BilderDxt{}; }
+    return b;
+}
+
+BilderDxt himmelProbe(bool keinTc) {
+    TextureSet satz;
+    std::vector<int> seiten;
+    for (int i = 0; i < 6; ++i) {
+        TextureSet::Tex t;
+        t.width = 8;
+        t.height = 8;
+        t.rgba.assign(8U * 8U * 4U, static_cast<std::uint8_t>(32 + i));
+        t.keinTc = keinTc;
+        satz.byShader.push_back(std::move(t));
+        seiten.push_back(i);
+    }
+    const BilderDxt vorher = g_bilderDxt;
+    g_bilderDxt = BilderDxt{};
+    vergissHimmel();
+    (void)holeHimmel(&satz, &seiten);
+    const BilderDxt b = g_bilderDxt;
+    g_bilderDxt = vorher;
+    vergissHimmel();
+    return b;
+}
+
+void bilderNeuHochladen() {
+    for (auto& [k, s2] : g_bilder) { if (s2 != nullptr) { s2->Release(); } }
+    g_bilder.clear();
+    g_bildQuelle.clear();
+    vergissHimmel();
+    figurBilderAllesLoesen();
+}
+
 void kartenPlaetze(int& bild, int& lightmap) {
     bild = g_bilder.empty() ? -1 : g_bilder.rbegin()->first;
     lightmap = g_lightmaps.empty() ? -1 : g_lightmaps.rbegin()->first;
@@ -8697,6 +8755,9 @@ void umrissBeenden(const float farbe[4], float dicke) {
 namespace bhed::gpu {
 void shutdown() {}
 void vergissKarte() {}
+void bilderNeuHochladen() {}
+BilderDxt bilderDxt(bool) { return {}; }
+BilderDxt himmelProbe(bool) { return {}; }
 void vergissMoverNetze() {}
 void vergissNetz(const BspMesh*) {}
 int veralteteKartenBilder() { return 0; }

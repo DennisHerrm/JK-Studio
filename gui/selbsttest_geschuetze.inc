@@ -609,6 +609,47 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
         }));
         add(foto(karte + "_" + std::to_string(ms)));
     }
+    // MR6 P20-P22 (BHED_GV_DXT=1): Texturkompression wie Upload32 (rd-vanilla tr_image.cpp:629-689) - unter Jedi Academy/Outcast
+    // geht jedes Bild mit allowTC als DXT5 hoch, auch die Bilder von Shadern mit $lightmap-Stufe (R_FindImageFile aus ParseStage) und
+    // die Himmelsseiten (ParseSkyParms, tr_shader.cpp:1970); unter Movie Duels keins. Danach wechselt das Regelwerk: die schon
+    // hochgeladenen Bilder muessen neu hoch, nach der Regel des neuen Regelwerks.
+    if (std::getenv("BHED_GV_DXT") != nullptr) {
+        auto bezeichne = [](const char* was, const gpu::BilderDxt& b) {
+            char z[220];
+            std::snprintf(z, sizeof(z), "Knopftest: DXT %s: Bilder %d, davon DXT5 %d; mit $lightmap-Stufe %d, davon DXT5 %d; Himmelsseiten %d, davon DXT5 %d", was,
+                          b.bilder, b.komprimiert, b.lightmapStufe, b.lightmapStufeKomprimiert, b.himmelSeiten, b.himmelKomprimiert);
+            diag::info(z);
+        };
+        add(pruefe("Geschuetze Vergleich: Texturkompression wie das Spiel", [=] {
+            const gpu::BilderDxt b = gpu::bilderDxt(true);
+            const bool md = regelwerkMovieDuels();
+            bezeichne(md ? "Movie Duels" : "JKA/JK2", b);
+            // Himmel: sechs Seiten ohne und mit noTC (die Karte zeigt ihren Himmel nicht in jeder Kamera)
+            const gpu::BilderDxt h = gpu::himmelProbe(false);
+            const gpu::BilderDxt hn = gpu::himmelProbe(true);
+            bezeichne("Himmelsprobe ohne noTC", h);
+            bezeichne("Himmelsprobe mit noTC", hn);
+            const bool himmel = h.himmelSeiten == 6 && h.himmelKomprimiert == (md ? 0 : 6) && hn.himmelKomprimiert == 0;
+            if (md) { return himmel && b.bilder > 0 && b.komprimiert == 0 && b.himmelKomprimiert == 0; }
+            return himmel && b.lightmapStufe > 0 && b.lightmapStufeKomprimiert == b.lightmapStufe && b.himmelKomprimiert == b.himmelSeiten;
+        }));
+        auto vorher = std::make_shared<bool>(false);
+        add(tu("Geschuetze Vergleich: Regelwerk wechseln (Movie Duels <-> OpenJK)", [=] {
+            *vorher = regelwerkMovieDuels();
+            g_app->settings.regelwerk = *vorher ? kRegelwerkOpenJK : kRegelwerkMovieDuels;
+            (void)regelwerkPruefen();
+            g_app->mapDirty = true;
+        }));
+        add(pause(1.0));
+        add(pruefe("Geschuetze Vergleich: nach dem Wechsel alle Bilder neu, nach der neuen Regel", [=] {
+            const gpu::BilderDxt b = gpu::bilderDxt(true);
+            const bool md = regelwerkMovieDuels();
+            bezeichne(md ? "nach dem Wechsel, Movie Duels" : "nach dem Wechsel, JKA/JK2", b);
+            if (md == *vorher) { return false; }
+            if (md) { return b.lightmapStufe > 0 && b.komprimiert == 0; }
+            return b.lightmapStufe > 0 && b.lightmapStufeKomprimiert == b.lightmapStufe;
+        }));
+    }
     return s;
 }
 

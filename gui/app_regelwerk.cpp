@@ -22,6 +22,7 @@
 // Abbrechen dort (prefsZurueck), neuen Spielordnern oder einem Selbsttest
 // kommt.
 #include "app_internal.h"
+#include "gpumap.h"
 
 #include "bhed/diag.h"
 #include "bhed/pk3.h"
@@ -188,6 +189,9 @@ void regelwerkAnwendenJetzt() {
     if (ersterStand || (spielVorher == kRegelwerkJediOutcast) != (spiel == kRegelwerkJediOutcast)) {
         befehlssatzFuerRegelwerk();
     }
+    // MR6 P22: Movie Duels laedt die Bilder unkomprimiert hoch, Jedi Academy und Jedi Outcast als DXT5 (ladeMitStufen). Die schon
+    // hochgeladenen Bilder hingen am Platz und an der Quelle, nicht am Regelwerk - sie blieben bis zum naechsten Kartenladen.
+    if (!ersterStand && (spielVorher == kRegelwerkMovieDuels) != (spiel == kRegelwerkMovieDuels)) { gpu::bilderNeuHochladen(); }
 }
 
 bool regelwerkPruefen() {

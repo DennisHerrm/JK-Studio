@@ -296,6 +296,36 @@ fuenf Ursachen - drei im Programm, zwei im Test:
   ebenso gruen (`m6_mb_ja`/`_zh`, `m6_gr_leiste_ja` 104/0). In der Vergroesserung stehen "ファイルのキー" und "文件键" ganz da; das Suchfeld
   davor gibt den Platz ab (`breit - sb`). Keine Aenderung am Programm noetig; die Bilder sind mit Punkt 2 neu.
 
+## MR6 Nachtrag: Pruefungsfunde P20, P21, P22, P28, P32 (plaene/codepruefung_seit_rc610.md)
+
+- **P20 [M]** DXT liess die Bilder aller Shader mit `$lightmap`-Stufe unkomprimiert (`!quelle.lightmapStufe`). Das ist das Bild einer
+  normalen Stufe (R_FindImageFile aus ParseStage mit allowTC); unkomprimiert bleiben im Spiel nur die Lightmaps selbst
+  (r_ext_compress_lightmaps 0), und die laufen nie durch ladeMitStufen. Bedingung gestrichen.
+- **P21 [N]** Himmelsseiten: ParseSkyParms laedt sie mit allowTC = !noTC (rd-vanilla tr_shader.cpp:1970) - jetzt DXT5 wie jedes Bild,
+  die Seiten tragen noTC des Himmelsshaders (app_ablage.inc).
+- **P22 [N]** Regelwerk Movie Duels <-> OpenJK/JK2: `gpu::bilderNeuHochladen()` verwirft Karten-, Himmels- und Figurenbilder
+  (Lightmaps bleiben), das naechste Bild laedt nach der neuen Regel.
+- Pruefung (Selbsttest geschuetze, BHED_GV_DXT=1, t1_sour aus er1.pk3 unter den Daten des Originals, OpenJK-Regeln): Zaehlung je
+  Hochladen (`gpu::bilderDxt`), Himmelsprobe mit sechs Seiten ohne/mit noTC (`gpu::himmelProbe`, t1_sour zeigt in dieser Kamera keinen
+  Himmel; t1_fatal mit Himmelsbox zeigte ihn nach oben auch nicht - `m6_nrot_fatal`), danach Wechsel auf Movie Duels.
+
+| Lauf | $lightmap-Stufe DXT5 | Himmelsprobe DXT5 | nach Wechsel auf MD |
+|---|---|---|---|
+| `m6_nrot2_sour` (rot, ohne die drei Behebungen) | 0 von 32 | 0 von 6 | 0 Bilder neu |
+| `m6_ngr_sour` (gruen) | 32 von 32 (305 von 305 Bildern) | 6 von 6, mit noTC 0 | 277 neu, davon DXT5 0 |
+
+- Bildvergleich gegen das Spielfoto (`SP/er1/fotos/er1_sour.png`, jasp.exe; `dxtvgl.py`, gleiche Kamera rot/gruen): Mittel R-G
+  +5,871 -> +5,894 (Spiel +5,956), B-G -15,118 -> -15,112 (-14,929), mittlere Abw. 4,964 -> 4,956, gleiche Punkte 1,90 -> 1,93 %;
+  Bloecke naeher 5 von 12 (die 32 Bilder mit $lightmap-Stufe nehmen in dieser Ansicht wenig Flaeche ein). Paarbild
+  `Y:\werkzeuge\m4\m6\paar_sour_p20.png`.
+- **P28 [N]** CJK-Umbruch je Bild: ausserhalb des Selbsttests merkt sich `umbrechen` das Ergebnis je (Schrift, Groesse, Breite, Text),
+  was 120 Bilder nicht gefragt war, faellt heraus. Selbsttest cjkweit: stehender Helfer 0,6 s mit messen aus - rot `m6_nrot_cjk_ja`
+  798 Aufrufe / 798 umbrochen, gruen `m6_ngr_cjk_ja` 798 / 6 (18/0). Bildzeit allein nicht gemessen (Fremdlast).
+- **P32 [N]** Menue-Editor: Texte der Vorschau unter `Dokument::nummer` statt Name, Leiste merkt `Dokument::nummer` statt der Adresse.
+  M6: (a) 50 Mal zwei gleichnamige Dokumente mit verschiedenen eigenen Texten - rot `m6_nrot3_m6` "zweiter falsch 50", gruen
+  `m6_ngr_m6` 0; (b) 40 Runden Farbzeile offen, alles zu, neues Dokument mit derselben Auswahl - rot 7 von 7 Runden mit gleicher Adresse
+  uebernommen, gruen 0 (wieder 7 Runden an derselben Adresse). `m6_ngr_m6` 20/0.
+
 ## Changelog
 
 ## English
@@ -307,6 +337,8 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Menu editor: in a narrow right column the search line of the text editor wraps its switches (Aa, ab) instead of pushing them out of view.
 - Menu editor: with little space the left column closes again for every newly opened menu, also after all menus were closed.
 - Chinese: "Duplicate" in right-click menus now reads 创建副本 and no longer looks like "Copy" (复制).
+- Preview under Jedi Academy and Jedi Outcast: the pictures of shaders with a lightmap stage and the sky boxes are compressed like in the game too, and switching between Movie Duels and OpenJK rules uploads the pictures again.
+- Japanese and Chinese: long texts are no longer wrapped again in every frame.
 
 ## Deutsch
 
@@ -317,6 +349,8 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Menü-Editor: In einer schmalen rechten Spalte bricht die Suchzeile des Text-Editors ihre Schalter (Aa, ab) um, statt sie aus dem Bild zu schieben.
 - Menü-Editor: Bei wenig Platz geht die linke Spalte für jedes neu geöffnete Menü wieder zu, auch nachdem alle Menüs geschlossen waren.
 - Chinesisch: „Duplizieren“ heißt in Rechtsklickmenüs jetzt 创建副本 und sieht nicht mehr aus wie „Kopieren“ (复制).
+- Vorschau unter Jedi Academy und Jedi Outcast: Auch die Bilder von Shadern mit Lightmap-Stufe und die Himmelsboxen werden wie im Spiel komprimiert, und der Wechsel zwischen den Regeln von Movie Duels und OpenJK lädt die Bilder neu.
+- Japanisch und Chinesisch: Lange Texte werden nicht mehr in jedem Bild neu umbrochen.
 
 ## 中文
 
@@ -327,6 +361,8 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - 菜单编辑器:右侧栏较窄时,文本编辑器的搜索行会把开关(Aa、ab)换到下一行,而不是挤出视野。
 - 菜单编辑器:空间不足时,每个新打开的菜单都会再次收起左侧栏,即使之前关闭了所有菜单。
 - 中文:右键菜单中的“Duplicate”现在显示为“创建副本”,不再与“复制”(Copy)相同。
+- Jedi Academy 和 Jedi Outcast 下的预览:带光照贴图阶段的着色器图片和天空盒也像游戏中一样压缩;在 Movie Duels 与 OpenJK 规则之间切换时会重新上传图片。
+- 日文和中文:长文本不再在每一帧重新换行。
 
 ## 日本語
 
@@ -337,6 +373,8 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - メニューエディター:右の列が狭いとき、テキストエディターの検索行はスイッチ(Aa、ab)を見えない所へ押し出さず、次の行に折り返します。
 - メニューエディター:スペースが少ないとき、すべてのメニューを閉じた後でも、新しく開いたメニューごとに左の列が再び閉じます。
 - 中国語:右クリックメニューの「Duplicate」は「创建副本」と表示され、「Copy」(复制)と同じに見えなくなりました。
+- Jedi Academy と Jedi Outcast でのプレビュー:ライトマップステージを持つシェーダーの画像とスカイボックスもゲームと同じように圧縮され、Movie Duels と OpenJK のルールを切り替えると画像を読み込み直します。
+- 日本語と中国語:長いテキストを毎フレーム折り返し直すことはなくなりました。
 
 ## Español
 
@@ -347,6 +385,8 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Editor de menús: con la columna derecha estrecha, la línea de búsqueda del editor de texto pasa sus interruptores (Aa, ab) a la línea siguiente en lugar de sacarlos de la vista.
 - Editor de menús: con poco espacio, la columna izquierda vuelve a cerrarse para cada menú abierto, también después de cerrar todos los menús.
 - Chino: «Duplicar» en los menús del botón derecho ahora es 创建副本 y ya no se ve igual que «Copiar» (复制).
+- Vista previa con Jedi Academy y Jedi Outcast: las imágenes de shaders con etapa de lightmap y las cajas de cielo también se comprimen como en el juego, y al cambiar entre las reglas de Movie Duels y OpenJK las imágenes se vuelven a cargar.
+- Japonés y chino: los textos largos ya no se vuelven a cortar en cada fotograma.
 
 ## Čeština
 
@@ -357,3 +397,5 @@ fuenf Ursachen - drei im Programm, zwei im Test:
 - Editor nabídek: v úzkém pravém sloupci vyhledávací řádek textového editoru zalomí své přepínače (Aa, ab) na další řádek, místo aby je vysunul z obrazu.
 - Editor nabídek: při nedostatku místa se levý sloupec znovu zavře pro každou nově otevřenou nabídku, i když byly předtím všechny nabídky zavřené.
 - Čínština: „Duplikovat“ v nabídkách pravého tlačítka je nyní 创建副本 a už nevypadá stejně jako „Kopírovat“ (复制).
+- Náhled pro Jedi Academy a Jedi Outcast: obrázky shaderů s fází lightmapy a nebeské boxy se také komprimují jako ve hře a přepnutí mezi pravidly Movie Duels a OpenJK nahraje obrázky znovu.
+- Japonština a čínština: dlouhé texty se už nezalamují znovu v každém snímku.

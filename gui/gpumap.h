@@ -41,6 +41,20 @@ void shutdown();
 // Nummer ein anderes Bild), den Himmel und die Puffer der Mover-Netze. Zu
 // rufen, wann immer textures oder geo neu gebaut werden.
 void vergissKarte();
+// MR6 P22: alle hochgeladenen Bilder der Karte, des Himmels und der Figuren verwerfen (die Lightmaps bleiben); das naechste
+// Bild laedt sie neu. Fuer den Wechsel Movie Duels <-> Jedi Academy/Outcast: die Bilder werden dort anders hochgeladen (DXT).
+void bilderNeuHochladen();
+// MR6 P20-P22 (Selbsttest): gezaehlte Hochlade-Vorgaenge seit dem letzten Zuruecksetzen - wie viele Bilder als DXT5 gingen,
+// davon die Bilder von Shadern mit einer $lightmap-Stufe und die Himmelsseiten (ohne noTC).
+struct BilderDxt {
+    int bilder = 0, komprimiert = 0;
+    int lightmapStufe = 0, lightmapStufeKomprimiert = 0;   // ohne noTC
+    int himmelSeiten = 0, himmelKomprimiert = 0;           // ohne noTC
+};
+BilderDxt bilderDxt(bool zuruecksetzen);
+// MR6 P21 (Selbsttest): sechs Himmelsseiten 8 x 8 wie holeHimmel hochladen (Seiten mit/ohne noTC) und die Zaehlung zurueckgeben;
+// leert den Himmelsspeicher.
+BilderDxt himmelProbe(bool keinTc);
 // Selbsttest: haelt der Zwischenspeicher der Himmelsbox noch ein Netz (vergissKarte leert ihn)?
 [[nodiscard]] bool himmelBoxGemerkt();
 // rc610 F23 (B3-1), Selbsttest: der hoechste belegte Platz der Bilder und der Lightmaps der gewaehlten Szene (-1: keiner).

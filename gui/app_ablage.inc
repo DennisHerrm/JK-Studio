@@ -2900,6 +2900,7 @@ void loadMapTextures() {
                     TextureSet::Tex seite;
                     if (loadImageFile(sk->second.skyBox + "_" + suf,
                                        seite)) {
+                        seite.keinTc = sk->second.noTC;   // MR6 P21: allowTC der Seiten = !noTC des Himmelsshaders
                         letzte = static_cast<int>(
                             ladeSatz().byShader.size());
                         ladeSatz().byShader.push_back(std::move(seite));
