@@ -3569,22 +3569,29 @@ int npcDateienLesen(NpcMap& m) {
 // RE_SplitSkins + RE_RegisterSkin (tr_skin.cpp): "|kopf|rumpf|beine" sind drei .skin-Dateien im Ordner
 // des Modells. MERGE2: RE_RegisterSkin haengt sie an EINE Haut an - Kopf, dann Rumpf, wenn er anders heisst, dann Beine,
 // wenn sie anders heissen (tr_skin.cpp:413-424 OpenJK) - darum ein applySkin ueber den Text in dieser Folge: bei doppelten
-// Flaechen gilt der erste Eintrag, ein "*off" in irgendeinem Teil schaltet ab. false: kein solcher Name oder eine Datei fehlt.
+// Flaechen gilt der erste Eintrag, ein "*off" in irgendeinem Teil schaltet ab. false: kein solcher Name, eine Datei fehlt oder
+// die Haut hat nach einem Teil noch keinen Eintrag (hSkin 0 wie im Spiel).
 bool hautAusDreiTeilen(const std::string& dir, const std::string& name, GlmModel& gm) {
     if (name.empty() || name[0] != '|') { return false; }
     const std::size_t a = name.find('|', 1);
     const std::size_t b = a == std::string::npos ? a : name.find('|', a + 1);
     if (b == std::string::npos) { return false; }
     const std::string teile[3] = {name.substr(1, a - 1), name.substr(a + 1, b - a - 1), name.substr(b + 1)};
-    std::string gesamt;
+    std::string texte[3];
+    bool dabei[3] = {false, false, false};
     for (int i = 0; i < 3; ++i) {
-        std::string text;
-        if (!readFromArchives(dir + "/" + teile[i] + ".skin", text)) { return false; }
         if ((i >= 1 && teile[i] == teile[0]) || (i == 2 && teile[2] == teile[1])) { continue; }
-        gesamt += text;
-        gesamt += '\n';
+        if (!readFromArchives(dir + "/" + teile[i] + ".skin", texte[i])) { return false; }
+        dabei[i] = true;
     }
-    applySkin(gesamt, gm);
+    // MERGE3 P53: jeder Teil an dieselbe Haut, die Eintraege zaehlen zusammen (128 je Haut); hat die Haut nach einem Teil noch
+    // keinen Eintrag, gibt RE_RegisterIndividualSkin 0 zurueck (tr_skin.cpp:331-334) und die Figur bleibt ohne Haut
+    int eintraege = 0;
+    for (int i = 0; i < 3; ++i) {
+        if (!dabei[i]) { continue; }
+        eintraege = applySkin(texte[i], gm, eintraege);
+        if (eintraege == 0) { return false; }
+    }
     return true;
 }
 

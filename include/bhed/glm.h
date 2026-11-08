@@ -146,7 +146,12 @@ struct GlmModel {
 //     hips,models/players/luke/boots_hips_blue.tga
 //     l_hand_cap_l_arm_off,models/players/stormtrooper/caps.tga
 // Ein Eintrag "flaeche,*off" schaltet die Flaeche ab.
-void applySkin(const std::string& skinText, GlmModel& model);
+// MERGE3 P53: `eintraegeBisher` die Eintraege, die fruehere Teile derselben Haut schon belegt haben (dreiteilige Haut); zurueck
+// kommt die neue Zahl (skin_t::numSurfaces).
+int applySkin(const std::string& skinText, GlmModel& model, int eintraegeBisher = 0);
+
+// MERGE3 Punkt 3: eine neue Haut wie G2API_SetSkin auf das Modell legen ("Skin oeffnen", Wechsel in der Hautliste).
+void wendeHautNeuAn(const std::string& skinText, GlmModel& model);
 
 // --- Ein Bolzen: wohin man etwas anheftet -------------------------------
 //

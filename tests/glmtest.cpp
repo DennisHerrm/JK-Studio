@@ -97,6 +97,72 @@ int main(int argc, char** argv) {
                m.surfaces[0].texture == "models/players/droideka/shield.jpg");
     }
 
+    // --- MERGE3 Punkt 3: eine zweite Haut ("Skin oeffnen") beginnt wie G2API_SetSkin bei null (neues mCustomSkin, G2_API.cpp:839-858 OpenJK;
+    // mSlist.clear() in G2API_SetSurfaceOnOffFromSkin, tr_ghoul2.cpp:2215): was die erste Haut gefaerbt oder abgeschaltet hat und die zweite nicht nennt, ist wieder wie im Modell
+    {
+        bhed::GlmModel m;
+        for (const char* n : {"kopf", "helm", "torso"}) {
+            bhed::GlmSurface s;
+            s.name = n;
+            s.verts.resize(3);
+            m.surfaces.push_back(s);
+        }
+        bhed::wendeHautNeuAn("kopf,models/players/x/kopf.tga\nhelm,*off\ntorso,models/players/x/torso.tga\n", m);
+        bhed::wendeHautNeuAn("torso,models/players/x/torso_rot.tga\n", m);
+        expect("Punkt 3: zweite Haut - kopf ohne die Textur der ersten", m.surfaces[0].texture.empty() && m.surfaces[0].hautZeile == -1);
+        expect("Punkt 3: zweite Haut - helm wieder an", !m.surfaces[1].skinnedOff);
+        expect("Punkt 3: zweite Haut - torso aus der zweiten", m.surfaces[2].texture == "models/players/x/torso_rot.tga");
+    }
+
+    // --- MERGE3 P53: RE_RegisterIndividualSkin (tr_skin.cpp:286-335 OpenJK) - hoechstens 128 Eintraege je Haut (skin_t::surfaces[128],
+    // tr_local.h:517; ab da Warnung und Abbruch), "tag_"-Zeilen zaehlen nicht und wirken nicht; bei dreiteiligen Haeuten zaehlen die
+    // Teile zusammen (applySkin bekommt die Zahl der Eintraege davor und gibt die neue zurueck)
+    {
+        bhed::GlmModel m;
+        std::string haut = "tag_kopf,models/players/x/tag.tga\n";
+        for (int i = 0; i < 130; ++i) {
+            bhed::GlmSurface s;
+            s.name = "f" + std::to_string(i);
+            s.verts.resize(3);
+            m.surfaces.push_back(s);
+            haut += s.name + ",models/players/x/b" + std::to_string(i) + ".tga\n";
+        }
+        bhed::GlmSurface tag;
+        tag.name = "tag_kopf";
+        m.surfaces.push_back(tag);
+        bhed::applySkin(haut, m);
+        expect("P53: der 128. Eintrag wirkt (tag_ zaehlt nicht mit)", m.surfaces[127].texture == "models/players/x/b127.tga");
+        expect("P53: der 129. Eintrag wirkt nicht (skin_t::surfaces[128])", m.surfaces[128].texture.empty());
+        expect("P53: eine tag_-Zeile wirkt nicht", m.surfaces[130].texture.empty());
+        bhed::GlmModel m2;
+        for (int i = 0; i < 2; ++i) {
+            bhed::GlmSurface s;
+            s.name = "g" + std::to_string(i);
+            s.verts.resize(3);
+            m2.surfaces.push_back(s);
+        }
+        const int n = bhed::applySkin("g0,models/players/x/g0.tga\ng1,models/players/x/g1.tga\n", m2, 127);
+        expect("P53: Teile zaehlen zusammen - nach 127 Eintraegen wirkt nur noch einer", n == 128 &&
+               m2.surfaces[0].texture == "models/players/x/g0.tga" && m2.surfaces[1].texture.empty());
+    }
+
+    // --- MERGE3 Punkt 2: unter JK2_MODE streicht RE_RegisterIndividualSkin "_off" am Hautnamen NICHT ----
+    // (tr_skin.cpp:308-316 OpenJK steht unter #ifndef JK2_MODE): "x_off,*off" schaltet die Flaeche x_off ab, "y_off,bild" faerbt y_off
+    {
+        bhed::GlmModel m;
+        for (const char* n : {"torso_off", "arm_off"}) {
+            bhed::GlmSurface s;
+            s.name = n;
+            s.verts.resize(3);
+            m.surfaces.push_back(s);
+        }
+        bhed::setzeGhoul2Jk2(true);
+        bhed::applySkin("torso_off,models/players/x/torso.tga\narm_off,*off\n", m);
+        bhed::setzeGhoul2Jk2(false);
+        expect("Punkt 2: JK2 - Hautzeile torso_off faerbt die Flaeche torso_off", m.surfaces[0].texture == "models/players/x/torso.tga");
+        expect("Punkt 2: JK2 - arm_off,*off schaltet arm_off ab", m.surfaces[1].skinnedOff);
+    }
+
     // --- "*off" schaltet eine Flaeche ab ---------------------------------
     //
     // Der Fehler davor: applySkin setzte nur Texturen. Eine Zeile

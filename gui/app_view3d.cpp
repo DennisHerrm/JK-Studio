@@ -1946,11 +1946,7 @@ void applySkinByIndex(int index) {
         diag::info("Haut nicht lesbar: " + path);
         return;
     }
-    for (GlmSurface& s : g_app->model.surfaces) {
-        s.skinnedOff = false;
-        s.texture.clear();
-    }
-    applySkin(text, g_app->model);
+    wendeHautNeuAn(text, g_app->model);
     g_app->modelSkinIndex = index;
     loadModelTextures();
     diag::info("Haut: " + g_app->modelSkins[static_cast<std::size_t>(index)]);
@@ -1969,7 +1965,7 @@ void openSkinFile() {
         platform::showError(p, tr(Str::AppTitle));
         return;
     }
-    applySkin(skin, g_app->model);
+    wendeHautNeuAn(skin, g_app->model);
     loadModelTextures();
     ++g_app->modellHautWechsel;
     diag::info("Haut gewechselt: " + p);

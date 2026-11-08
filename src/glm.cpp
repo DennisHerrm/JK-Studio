@@ -397,7 +397,18 @@ bool readGlm(const std::string& b, GlmModel& out, std::string* error, int stufe)
     return true;
 }
 
-void applySkin(const std::string& text, GlmModel& model) {
+void wendeHautNeuAn(const std::string& text, GlmModel& model) {
+    // G2API_SetSkin (G2_API.cpp:839-858 OpenJK) setzt ein neues mCustomSkin - Flaechen, die die neue Haut nicht nennt, nehmen
+    // wieder den Shader des Modells -, und G2API_SetSurfaceOnOffFromSkin leert mSlist (tr_ghoul2.cpp:2215).
+    for (GlmSurface& s : model.surfaces) {
+        s.texture.clear();
+        s.skinnedOff = false;
+        s.hautZeile = -1;
+    }
+    applySkin(text, model);
+}
+
+int applySkin(const std::string& text, GlmModel& model, int eintraegeBisher) {
     std::size_t at = 0;
     int zeile = -1;
     // MERGE2: RE_RegisterIndividualSkin haengt jede Zeile an die Liste der Haut (tr_skin.cpp:286-334 OpenJK, MD9 gleich);
@@ -424,8 +435,13 @@ void applySkin(const std::string& text, GlmModel& model) {
         if (comma == std::string::npos) {
             continue;
         }
-        std::string surface = klein(trim(line.substr(0, comma)));
+        const std::string rohName = trim(line.substr(0, comma));
+        std::string surface = klein(rohName);
         const std::string tex = trim(line.substr(comma + 1));
+        // MERGE3 P53: RE_RegisterIndividualSkin (tr_skin.cpp:288-305 OpenJK, MD9 gleich) - ohne Flaechennamen endet die Datei
+        // (if (!token[0]) break), "tag_..." (strncmp am Wort, wie geschrieben) wird uebersprungen und zaehlt nicht
+        if (surface.empty()) { break; }
+        if (rohName.rfind("tag_", 0) == 0) { continue; }
 
         // --- Die Endung "_off" im FLAECHENnamen ---------------------------
         //
@@ -449,13 +465,20 @@ void applySkin(const std::string& text, GlmModel& model) {
         //
         // Ohne den zweiten Punkt sucht behaved eine Flaeche, die es nicht
         // gibt, und die Zeile bleibt wirkungslos.
-        if (surface.size() > 4 &&
+        // MERGE3 Punkt 2: das Streichen steht unter #ifndef JK2_MODE (tr_skin.cpp:308-316 OpenJK) - jk2sp vergleicht den
+        // Hautnamen so, wie er dasteht.
+        if (!gGhoul2Jk2.load(std::memory_order_relaxed) && surface.size() > 4 &&
             surface.compare(surface.size() - 4, 4, "_off") == 0) {
             if (tex == "*off") {
                 continue;   // doppeltes Aus - die Engine ueberspringt es
             }
             surface.resize(surface.size() - 4);
         }
+        // MERGE3 P53: skin_t::surfaces[128] (tr_local.h:517) - ab dem 129. Eintrag der GANZEN Haut (auch doppelte Zeilen, bei
+        // dreiteiligen Haeuten alle Teile zusammen) Warnung und Abbruch (tr_skin.cpp:318-323)
+        constexpr int kHautEintraege = 128;
+        if (eintraegeBisher >= kHautEintraege) { break; }
+        ++eintraegeBisher;
 
         for (std::size_t si = 0; si < model.surfaces.size(); ++si) {
             GlmSurface& s = model.surfaces[si];
@@ -497,6 +520,7 @@ void applySkin(const std::string& text, GlmModel& model) {
             s.hautZeile = zeile;
         }
     }
+    return eintraegeBisher;
 }
 
 
