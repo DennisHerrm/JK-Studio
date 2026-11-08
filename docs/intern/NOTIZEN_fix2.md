@@ -84,7 +84,7 @@ Skripte `Y:\werkzeuge\f2\`.
   Stapelkonstanten (`gTexTurbMat`, Lage 44, Block 48 float), der Figurenstufe (`gStufeTurbMat`, kStufeFloats 56) und des
   Echtzeit-Lichts (`tcTurb`). Die vier Shaderstellen (Vorschau Karte und Figurenstufe, Echtzeit-Licht kShader3/4) nehmen
   den Index wie `(int)` (zur Null hin) `& 1023` aus der Tafel; rotate auf der CPU aus der Tafel. Mehrere turb in einer
-  Stufe: der letzte zaehlt (wie bisher).
+  Stufe: der letzte zaehlte (wie vor FIX2) - in FIX3 behoben (Abschnitt unten).
 - Rot `f2_p16_rot.txt` (ctest gpuconst, Shader-Rechnung gegen rd-vanilla an drei Ecken und drei Zeiten): turb + scale
   0,57, rotate 0,0026, scroll + turb 0,0017, turb + rotate + scale 1,18; gruen `f2_p16_gruen.txt`: alle 0,000000.
 - Fotos (Bau mit P16, `f2_r3_p16`, `f2_rd_p16`, `f2_ep_p16`): alle 3D-Bilder bytegleich mit P11-nachher (die Testkarten
@@ -112,12 +112,80 @@ Skripte `Y:\werkzeuge\f2\`.
   bg_public.h:722) - eine feste Zahl haette lange Aufnahmen fuer Movie Duels abgelehnt.
 - P10: die Blender-Teile bleiben in mesh_werkzeuge.cpp (markiert, Kopf "BSD-3-Clause AND GPL-2.0-or-later") statt nach
   fase_blender.cpp verschoben - sie brauchen viele Hilfen der Datei (PolyNetz, Vielecke, Plan).
-- P16: mehrere turb in einer Stufe - nur der letzte zaehlt (wie vor FIX2); rd-vanilla wendet jeden an.
 
 ## Offen
 
 - Bildzeit P11 (Karten-Editor Echtzeit-Licht) und Zeit P9 ohne fremde Last (andere Agenten bauten/spielten).
-- P16 Spielfoto mit turb-Shader.
+- P16 Spielfoto mit turb-Shader: erledigt in FIX3 Punkt 2.
+
+## FIX3 Punkt 1: mehrere tcMod turb in einer Stufe
+
+Auftrag `auftrag_fix3_0811.md`, Laufnamen `f3_`, Skripte `Y:\werkzeuge\f2\f3\`.
+
+- Quelle: rd-vanilla `ComputeTexCoords` (tr_shade.cpp:1725) ruft fuer JEDE tcMod turb `RB_CalcTurbulentTexCoords` an ihrer
+  Stelle der Kette (bis `TR_MAX_TEXMODS` 4, tr_local.h:279; MD9 gleich). Bisher galt nur der letzte turb einer Stufe.
+- Jetzt: `gpu::texModAbbildung` liefert eine `TurbKette` (je turb Amplitude, Phase und der lineare Teil der Schritte hinter
+  ihm), `gpu::turbFelder` die Werte fuer die Shader. Die Shader addieren je turb `turbVersatz` (eine HLSL-Funktion, von
+  Karte, Figurenstufe und Echtzeit-Licht gemeinsam genutzt, `gpu::turbHlsl`).
+  - Stapelblock: zweiter bis vierter turb in `gTurbMat2..4` (48, 52, 56), `gTurbQ23` (60) und `gTurbQ4` (13, in der Luecke
+    hinter gAlphaSchwelle) - der Block bleibt 64 float, ein Ring-Eintrag (256 Bytes), kein zusaetzlicher Speicher je Stapel.
+    Lagen aus dem Shader gelesen: "gTurbQ4@13 gTurbMat2@48 gTurbMat3@52 gTurbMat4@56 gTurbQ23@60 - passt".
+  - Figurenstufe: `gStufeTurbMat2..4`, `gStufeTurbQ23`, `gStufeTurbQ4` (kStufeFloats 56 -> 76), im Ring zwei Eintraege je Stufe
+    (`kStufeRingEintraege`).
+  - Echtzeit-Licht: `tcTurb2..4`, `tcTurbQ23`, `tcTurbQ4` in B3 (kShader3/kShader4).
+- Rot `f3_p1/f3_p1_rot.txt` (ctest gpuconst, Shader gegen rd-vanilla an drei Ecken und drei Zeiten): "turb, scale 2 3, turb"
+  0,854, "turb, turb, rotate 30" 0,400, "turb, rotate 30, turb, scale 2 3" 1,200, "turb, turb, turb, turb" 0,423 (vier FEHL).
+  Gruen `f3_p1/f3_p1_gruen.txt`: alle acht Faelle 0,000000; die Probe liest jetzt den gepackten Block an den Lagen der Shader.
+  gpushader (Text: vier `+= turbVersatz(` in Karte und Figur), hlsl, figurstufen, gpudraw gruen.
+- Selbsttests auf dem Bau: karteneditor r3 22/0 (`f3_p1_r3`), rd 20/0 (`f3_p1_rd`), editorportal 19/0 (`f3_p1_ep`),
+  figurlicht 8/0. Fotos gegen FIX2-P16: r3 7, rd 8, editorportal 15 bytegleich; nur `karteneditor_start.bmp` weicht wie in FIX2
+  ab (Mauskoordinaten in der Statusleiste). Die Testkarten dort zeigen kein turb - geprueft gegen die Spielformel per ctest,
+  im Spiel per Punkt 2.
+
+## FIX3 Punkt 2: Spielfoto mit turb- und rotate-Shader
+
+- Testkarte `f3turb` (`Y:/werkzeuge/f2/f3/karte.py`, bhed_q3map2 aus build-fix2): geschlossener Raum 1024 x 1024 x 512, alle
+  Innenflaechen `textures/f3/turbrot` ohne Lightmap (`surfaceparm nolightmap`, Farbe = Bild), Stufe
+  `tcMod turb 0 0.3 0.15 0.05`, `tcMod rotate 9`, `tcMod turb 0 0.2 0.6 0.11`, `tcMod scale 1.25 1.25` (zwei turb, der erste
+  durch rotate und scale, der zweite durch scale); Muster 256 x 256 mit 8 x 8 farbigen Feldern. Karte, Shader und Bild im
+  eigenen fs_homepath (`home_<lauf>/MD`) bzw. `f3turb.pk3` fuer die Vorschau.
+- Spiel (`spiel.py`): Movie Duels SP per Popen (vorher keine fremden MovieDuels-/jasp-Prozesse), ICARUS-Skriptkamera
+  (MOVE -480 0 256, PAN 8 15, ZOOM 80), 1920 x 1440. Zeit festgehalten: nach dem Laden `timescale 0.05` (1 ms Spielzeit je Bild,
+  Com_ModifyMsec MD9 common.cpp:1391) und `sv_fps 1000`; das Kameraskript schreibt in einer Schleife `print`, mit
+  `g_ICARUSDebug 4` steht jede Zeile mit level.time im Protokoll; drei Bilder per `screenshot_tga` (das PNG von Movie Duels war
+  bei 2 von 3 Bildern nicht lesbar). level.time vor den Bildern 8692, 8722, 8752 (Lauf `f3s5`).
+- Vorschau (`vorschau.sh`, Selbsttest geschuetze mit BHED_GV_PK3/KARTE/KAMERA/ANSICHT 1920x1440/ZEITEN): dieselbe Kamera,
+  Fotos zu vielen Zeiten (`f3_p2_vorschau_weit`, `_fein`); die Kartenansicht 1920 x 1440 ausgeschnitten (`vergleich.py`).
+  Das Spielbild liegt 48-50 ms vor der gedruckten level.time (cg.time laeuft der Serverzeit nach); bestes Bild je Spielbild:
+  f3a 8644 ms, f3b 8672 ms, f3c 8706 ms - mittlere Abweichung 0,83/0,84/0,84 (0..255), Pixel mit Abweichung ueber 48:
+  0,002 % (nur einzelne Kantenpixel, Filterung). Die Vorschau zeigt wie das Spiel Stufen: ueber 3-5 ms bleibt das Bild gleich
+  (der Index in die Sinustafel springt nur alle paar ms), daneben steigt die Abweichung sofort auf 5,6-25.
+- Gegenproben zur selben Zeit: Bau FIX2 d04f18e5d (nur der letzte turb; aus `git checkout d04f18e5d --` gebaut,
+  `Y:/werkzeuge/f2/f3/bin_fix2`, Lauf `f3_p2_vorschau_fix2`) 86,95/87,46/88,42, Pixel ueber 48: 86,8/87,5/89,1 %;
+  Basis vor FIX2 fe1f374c3 (`f3_p2_vorschau_basis`) 85,9/86,8/87,6, 88,7-90,3 % - das Bild ist sichtbar verschoben.
+- Paarbilder (Spiel oben, Vorschau unten, ungeskaliert 1920 x 2880): `Y:/werkzeuge/f2/f3/laeufe/f3s5/vergleich/`
+  `paar_f3[abc]_spiel_oben_vorschau_<ms>_unten.png`, Gegenprobe `paar_f3b_spiel_oben_vorschau_FIX2_d04f18e5d_unten.png`;
+  angesehen (verkleinert und ein Ausschnitt in voller Groesse): gleich, nur Kantenpixel; die Gegenprobe ist um mehrere Felder
+  verschoben. Spielordner Movie Duels vorher = nachher.
+- Geprueft ist damit die Vorschau Karte (Stapelblock). Figurenstufe und Echtzeit-Licht rechnen mit denselben Werten
+  (`turbFelder`, `turbVersatz`) - geprueft per ctest gegen die Spielformel, nicht per Spielfoto.
+
+## FIX3 Punkt 3: Codepruefung MRESTE Teil 3 und MR4 (nur gelesen)
+
+- Funde P20-P28 (4 M, 5 N) angehaengt an `JKStudio_Uebergabe/plaene/codepruefung_seit_rc610.md` ("Nachtrag FIX3"), nichts
+  behoben: P20 Texturkompression laesst alle Shader mit `$lightmap`-Stufe aus, P23 dasselbe Modell neu laden verwirft die
+  Bilder nie, P24 Umbacken nach LOD-Wechsel, P27 model2scale-Licht im Spiel s-fach, P21 Himmel unkomprimiert, P22
+  Regelwerkwechsel laedt Bilder nicht neu, P25 Wiederholen ueber Leinwaende, P26 Speicherspitze bei Eigenschafts-Schritten,
+  P28 CJK-Umbruch je Bild neu.
+
+## FIX3 Schluss
+
+- Sauberer Neubau (`--clean-first`, `f3_neubau.log`): 0 Warnungen. ctest 237/237 (`f3_s_ctest.txt`).
+- karteneditor r3 22/0, rd 20/0, editorportal 19/0 (`f3_s_*`), Fotos bytegleich mit `f3_p1_*` (8, 9, 15). Modus 1 2635/0.
+- Lints (`f3_lints.txt`): wie nach FIX2 (portability 99, pruefcodes 11, fremdprogramm 1, efxflags ohne Tafel, sonst ok), keine
+  Meldung zu geaenderten Dateien. Adressen ab fe1f374c3: 0.
+- Offen: Bildzeit allein (Stapelblock 64 statt 48 float - noch ein Ring-Eintrag je Stapel; Figurenstufe zwei Eintraege; je
+  weiterem turb ein Zweig im Vertexshader) - nicht gemessen, andere Agenten bauten und testeten; ebenso P9/P11 aus FIX2.
 
 ## Changelog
 
@@ -128,6 +196,7 @@ Skripte `Y:\werkzeuge\f2\`.
 - Animation import: long takes are read much faster (a 10000-frame BVH in a quarter of the time), with the same result.
 - Map editor: the real-time light computes the game look of each shader only once instead of every frame - same picture.
 - Preview and map editor: "tcMod turb" acts at its place in the chain (a following "tcMod scale" scales the wave like in the game) and, like "tcMod rotate", reads the game's sine table.
+- Preview and map editor: several "tcMod turb" in one shader stage each act at their own place, as in the game (before, only the last one counted).
 - About window, guide and THIRD-PARTY.md name the parts ported from Blender (chamfer with segments, weight colours, octahedral bones, weight brush falloff) and their licence GPL-2.0-or-later.
 
 ## Deutsch
@@ -137,6 +206,7 @@ Skripte `Y:\werkzeuge\f2\`.
 - Animations-Import: lange Aufnahmen werden viel schneller gelesen (eine BVH mit 10000 Bildern in einem Viertel der Zeit), mit gleichem Ergebnis.
 - Karten-Editor: das Echtzeit-Licht rechnet das Spielbild jedes Shaders nur einmal statt in jedem Bild - gleiches Bild.
 - Vorschau und Karten-Editor: „tcMod turb“ wirkt an seiner Stelle der Kette (ein folgendes „tcMod scale“ skaliert die Welle wie im Spiel) und liest wie „tcMod rotate“ die Sinustafel des Spiels.
+- Vorschau und Karten-Editor: mehrere „tcMod turb“ in einer Shaderstufe wirken jeder an seiner Stelle wie im Spiel (bisher zählte nur der letzte).
 - Fenster Über, Handbuch und THIRD-PARTY.md nennen die aus Blender portierten Teile (Chamfer mit Segmenten, Gewichtsfarben, Oktaeder-Knochen, Abfall des Gewichtspinsels) und ihre Lizenz GPL-2.0-or-later.
 
 ## 中文
@@ -146,6 +216,7 @@ Skripte `Y:\werkzeuge\f2\`.
 - 动画导入: 长动作捕捉读取快得多 (10000 帧的 BVH 只需四分之一的时间), 结果相同。
 - 地图编辑器: 实时光照对每个着色器的游戏外观只计算一次, 而不是每帧计算 - 画面相同。
 - 预览和地图编辑器: "tcMod turb" 在链中自己的位置起作用 (随后的 "tcMod scale" 像游戏中一样缩放波动), 并像 "tcMod rotate" 一样读取游戏的正弦表。
+- 预览和地图编辑器: 同一着色器阶段中的多个 "tcMod turb" 像游戏中一样各自在自己的位置起作用 (以前只有最后一个有效)。
 - 关于窗口、手册和 THIRD-PARTY.md 列出从 Blender 移植的部分 (带分段的倒角、权重颜色、八面体骨骼、权重笔刷衰减) 及其许可 GPL-2.0-or-later。
 
 ## 日本語
@@ -155,6 +226,7 @@ Skripte `Y:\werkzeuge\f2\`.
 - アニメーションのインポート: 長いテイクの読み込みが大幅に速くなりました (10000 フレームの BVH が 4 分の 1 の時間)。結果は同じです。
 - マップエディター: リアルタイムライトは各シェーダーのゲームでの見た目を毎フレームではなく一度だけ計算します - 画像は同じです。
 - プレビューとマップエディター: 「tcMod turb」がチェーンの自分の位置で働き (後に続く「tcMod scale」がゲームと同じく波を拡大縮小)、「tcMod rotate」と同じくゲームのサインテーブルを使います。
+- プレビューとマップエディター: 1 つのシェーダーステージにある複数の「tcMod turb」が、ゲームと同じくそれぞれ自分の位置で働きます (以前は最後の 1 つだけが有効でした)。
 - バージョン情報、ガイド、THIRD-PARTY.md に Blender から移植した部分 (セグメント付きの面取り、ウェイトの色、八面体ボーン、ウェイトブラシの減衰) とそのライセンス GPL-2.0-or-later を記載しました。
 
 ## Español
@@ -164,6 +236,7 @@ Skripte `Y:\werkzeuge\f2\`.
 - Importación de animaciones: las tomas largas se leen mucho más rápido (un BVH de 10000 fotogramas en una cuarta parte del tiempo), con el mismo resultado.
 - Editor de mapas: la luz en tiempo real calcula el aspecto de juego de cada shader una sola vez en lugar de en cada fotograma; la imagen es la misma.
 - Vista previa y editor de mapas: "tcMod turb" actúa en su lugar de la cadena (un "tcMod scale" posterior escala la onda como en el juego) y, como "tcMod rotate", lee la tabla de senos del juego.
+- Vista previa y editor de mapas: varios "tcMod turb" en una misma etapa de shader actúan cada uno en su lugar, como en el juego (antes solo contaba el último).
 - La ventana Acerca de, la guía y THIRD-PARTY.md nombran las partes portadas de Blender (chaflán con segmentos, colores de peso, huesos octaédricos, caída del pincel de pesos) y su licencia GPL-2.0-or-later.
 
 ## Čeština
@@ -173,4 +246,5 @@ Skripte `Y:\werkzeuge\f2\`.
 - Import animací: dlouhé záznamy se načítají mnohem rychleji (BVH s 10000 snímky za čtvrtinu času), se stejným výsledkem.
 - Editor map: světlo v reálném čase počítá herní vzhled každého shaderu jen jednou místo v každém snímku - obraz je stejný.
 - Náhled a editor map: „tcMod turb“ působí na svém místě v řetězci (následující „tcMod scale“ škáluje vlnu jako ve hře) a stejně jako „tcMod rotate“ čte sinusovou tabulku hry.
+- Náhled a editor map: více „tcMod turb“ v jedné fázi shaderu působí každý na svém místě jako ve hře (dříve platil jen poslední).
 - Okno O programu, příručka a THIRD-PARTY.md uvádějí části převzaté z Blenderu (zkosení se segmenty, barvy vah, osmistěnné kosti, útlum štětce vah) a jejich licenci GPL-2.0-or-later.

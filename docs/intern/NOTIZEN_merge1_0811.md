@@ -21,6 +21,10 @@ Build `Y:/karte/build-test`, Laeufe `mg_*` unter `Y:\karte\laeufe`, Skripte und 
 - modellblock pt 41/0, ptfix 5/0, ptfix2 (ja) 5/0, ptstufen 4/0, ai 31/0, pr 15/0, md 86/0, blender 67/0, funktionen 60/0.
 - karteneditor rd 21/0, rdglm 20/0, rdm2 14/0, r3 22/0, cjkweit (ja) 17/0; editorportal 19/0; mission1 98/0; Modus 1 2635/0.
 
+- Nachtrag (Hauptchat): fix2 bis `faec3e7eb` (FIX3: jedes tcMod turb einer Stufe an seinem Platz, Notizen P20-P28) nach dem
+  Chamfer-Commit gemergt, ohne Konflikt; erzeugte Dateien unveraendert. Bau 0 Warnungen, ctest 240/240, karteneditor r3 22/0,
+  rd 21/0, editorportal 19/0, figurlicht 8/0 (Laeufe `mg_f3_*`).
+
 ## Teil 2: Chamfer-Rest (Blender 5.0 bmesh_bevel.cc, `Y:\werkzeuge\mr\blender_src\bmesh_bevel_50.cc`)
 
 - **square_out_adj_vmesh** (:5183) in `fase_blender.cpp` (`quadratAussen`): Profil >= 0,95 (PRO_SQUARE_R), selcount >= 3, gerade

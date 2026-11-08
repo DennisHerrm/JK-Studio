@@ -256,8 +256,10 @@ int g_figurGluehen = 0;             // Aufrufe in diesem Bild
 // der Ring voll ist. Ohne D3D11.1 (oder ohne die beiden Merkmale) bleibt
 // der alte Weg.
 // rc604: die Werte einer Figurstufe in b3 (JeStufe) - 13 float4.
-constexpr UINT kStufeFloats = 56;   // FIX2 P16: + gStufeTurbMat
+constexpr UINT kStufeFloats = 76;   // FIX2 P16: + gStufeTurbMat; FIX3: + gStufeTurbMat2..4, gStufeTurbQ23, gStufeTurbQ4
 constexpr UINT kRingEintrag = 256;              // 16 Konstanten, die Teilung von *SetConstantBuffers1
+// FIX3: eine Figurenstufe belegt im Ring so viele Eintraege, wie ihre kStufeFloats brauchen (76 float: zwei)
+constexpr UINT kStufeRingEintraege = (kStufeFloats * 4U + kRingEintrag - 1U) / kRingEintrag;
 constexpr UINT kRingGroesse = 1024U * 1024U;    // 4096 Stapel bis zum naechsten DISCARD
 ID3D11Buffer* g_cbRing = nullptr;
 ID3D11DeviceContext1* g_ctx1 = nullptr;
@@ -739,7 +741,9 @@ void pruefeStapelLagen(ID3DBlob* vsBlob) {
                              {"gWolkenHoehe", kWolkenAt}, {"gPortalWeite", kPortalWeiteAt},
                              {"gDeformMove", kDeformMoveAt}, {"gBulge", kBulgeAt},
                              {"gDeformNormal", kDeformNormalAt},
-                             {"gTcGenS", kTcGenSAt}, {"gTcGenT", kTcGenTAt}, {"gTexTurbMat", kTexTurbMatAt}};
+                             {"gTcGenS", kTcGenSAt}, {"gTcGenT", kTcGenTAt}, {"gTexTurbMat", kTexTurbMatAt},
+                             {"gTurbQ4", kTurbQ4At}, {"gTurbMat2", kTurbMat2At}, {"gTurbMat3", kTurbMat2At + 4U},
+                             {"gTurbMat4", kTurbMat2At + 8U}, {"gTurbQ23", kTurbQ23At}};
         std::string z = "GPU-Stapelpuffer (aus dem Shader gelesen):";
         bool gut = true;
         for (const Soll& s : soll) {
@@ -4919,6 +4923,10 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                 sd[3] = 1.0F;
                 for (int q = 0; q < 8; ++q) { sd[24 + q] = k[q]; }
                 for (std::size_t q = 0; q < 4; ++q) { sd[52 + q] = k[kTexTurbMatAt + q]; }   // FIX2 P16: gStufeTurbMat
+                // FIX3: der zweite bis vierte turb - [56..67] gStufeTurbMat2..4, [68..71] gStufeTurbQ23, [72..73] gStufeTurbQ4
+                for (std::size_t q = 0; q < 12; ++q) { sd[56 + q] = k[kTurbMat2At + q]; }
+                for (std::size_t q = 0; q < 4; ++q) { sd[68 + q] = k[kTurbQ23At + q]; }
+                for (std::size_t q = 0; q < 2; ++q) { sd[72 + q] = k[kTurbQ4At + q]; }
             };
             // rc604: deformVertexes des Shaders (RB_DeformTessGeometry,
             // code/rd-vanilla/tr_shade_calc.cpp OpenJK) - [32..35] wave base,
@@ -5005,7 +5013,7 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                     }
                 }
                 UINT erste = 0;
-                float* ring = sf.geht ? ringReservieren(c, static_cast<UINT>(stufen.size()), erste) : nullptr;
+                float* ring = sf.geht ? ringReservieren(c, static_cast<UINT>(stufen.size()) * kStufeRingEintraege, erste) : nullptr;
                 if (ring != nullptr) {
                     // b3 je Stufe wie im Bezugsweg: [0..7] stufenWerte, [8..10]
                     // Auge, [12..23] die drei Achsen.
@@ -5024,7 +5032,7 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                         for (int a2 = 0; a2 < 3; ++a2) {
                             for (int q = 0; q < 3; ++q) { sd[12 + a2 * 4 + q] = achsen[a2][q]; }
                         }
-                        std::memcpy(ring + k * (kRingEintrag / 4U), sd, sizeof(sd));
+                        std::memcpy(ring + k * kStufeRingEintraege * (kRingEintrag / 4U), sd, sizeof(sd));
                     }
                     ringFertig(c);
                     ID3D11ShaderResourceView* gebunden = nullptr;
@@ -5069,8 +5077,8 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
                             aktRs = rs;
                             aktGueltig = true;
                         }
-                        const UINT ersteK = erste + static_cast<UINT>(k) * (kRingEintrag / 16U);
-                        const UINT anzahl = kRingEintrag / 16U;
+                        const UINT ersteK = erste + static_cast<UINT>(k) * kStufeRingEintraege * (kRingEintrag / 16U);
+                        const UINT anzahl = kStufeRingEintraege * (kRingEintrag / 16U);
                         g_ctx1->VSSetConstantBuffers1(3, 1, &g_cbRing, &ersteK, &anzahl);
                         b3ImRing = true;
                         if (!ersteGebunden) {

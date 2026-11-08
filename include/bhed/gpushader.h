@@ -66,6 +66,8 @@ inline constexpr float kSpielLightmapFaktor = 1.0F;
 // src/glow.cpp uebernommen - zwei Fassungen derselben Formel waeren zwei
 // verschieden aussehende Gluehbilder.
 [[nodiscard]] std::string vollbildVertexShaderHlsl();
+// FIX3: die HLSL-Funktion turbVersatz (ein tcMod turb an seiner Stelle der Kette) fuer die Shader des Echtzeit-Lichts.
+[[nodiscard]] std::string turbHlsl();
 // Die Klingen der Lichtschwerter: fertige Weltecken, Textur oder Farbe.
 [[nodiscard]] std::string klingeVertexShaderHlsl();
 [[nodiscard]] std::string klingePixelShaderHlsl();
