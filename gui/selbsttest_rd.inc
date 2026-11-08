@@ -57,8 +57,21 @@ void pk3Schreiben() {
     // MR8 Punkt 1: zwei Shader mit demselben Bild, einer mit noTC (nicht auf der Karte - das Echtzeit-Licht holt sie fuer die Probe)
     sh += "textures/rd/m8tc\n{\n\tqer_editorimage textures/rd/m8bild\n\tnoTC\n\t{\n\t\tmap textures/rd/m8bild\n\t}\n}\n";
     sh += "textures/rd/m8normal\n{\n\tqer_editorimage textures/rd/m8bild\n\t{\n\t\tmap textures/rd/m8bild\n\t}\n}\n";
+    sh += "textures/rd/m9klemme\n{\n\tqer_editorimage textures/rd/m8bild\n\t{\n\t\tclampMap textures/rd/m8bild\n\t}\n}\n";   // MR9 Punkt 4
     pk3.push_back({"shaders/rd.shader", sh});
     // ein Verlauf mit Rauschen, den DXT5 sichtbar aendert
+    // MERGE4: dieselbe Datei als .png (gruen) und .tga (blau), und eine nur als .png (gruen) - fuer die Endungsfolge von R_LoadImage
+    {
+        std::vector<std::uint8_t> gruen(16U * 16U * 4U, 0);
+        for (std::size_t i = 0; i < gruen.size(); i += 4) {
+            gruen[i + 1] = 255;
+            gruen[i + 3] = 255;
+        }
+        const std::string png = modell::texmalen::pngSchreiben(gruen.data(), 16, 16, true);
+        pk3.push_back({"textures/rd/m4end.png", png});
+        pk3.push_back({"textures/rd/m4png.png", png});
+        pk3.push_back({"textures/rd/m4end.tga", editorportal::tga32(16, 16, [](int, int) { return std::array<unsigned char, 4>{0, 0, 255, 255}; })});
+    }
     pk3.push_back({"textures/rd/m8bild.tga", editorportal::tga32(64, 64, [](int x, int y) {
                        const auto v = [](int a) { return static_cast<unsigned char>(a & 255); };
                        return std::array<unsigned char, 4>{v(x * 4 + ((x * 7 + y * 13) % 11)), v(y * 4 + ((x * 5 + y * 3) % 7)), v((x ^ y) * 4), 255};
@@ -189,7 +202,9 @@ double abweichung(const Spalten& a, const Spalten& b, bool verlauf) {
 
 // MR7 P40: das Bild, wie die Vorschau es hochlaedt (ladeMitStufen): die Pyramide aus dem unkomprimierten Bild (R_MipMap,
 // TextureSet::Tex::buildMips), jede Stufe durch DXT5 (Upload32, rd-vanilla tr_image.cpp:629-689 unter Jedi Academy / Outcast).
-bool vorschauStufen(const std::string& pfad, std::vector<std::vector<unsigned char>>& stufen, std::vector<std::array<int, 2>>& groessen) {
+// P57: dxt false - die Pyramide ohne Kompression (Movie Duels, r_ext_compress_textures 0).
+bool vorschauStufen(const std::string& pfad, std::vector<std::vector<unsigned char>>& stufen, std::vector<std::array<int, 2>>& groessen,
+                    bool dxt = true) {
     std::vector<unsigned char> rgba;
     TextureSet::Tex t;
     if (!ke::kartenBildRgba(pfad, rgba, t.width, t.height)) { return false; }
@@ -197,7 +212,7 @@ bool vorschauStufen(const std::string& pfad, std::vector<std::vector<unsigned ch
     t.buildMips();
     std::vector<dxt::Ebene> ebenen{{t.rgba.data(), t.width, t.height}};
     for (TextureSet::Tex::Mip& m : t.mips) { ebenen.push_back({m.rgba.data(), m.width, m.height}); }
-    dxt::dxt5Rundlauf(ebenen.data(), ebenen.size());
+    if (dxt) { dxt::dxt5Rundlauf(ebenen.data(), ebenen.size()); }
     stufen.clear();
     groessen.clear();
     for (const dxt::Ebene& e : ebenen) {
@@ -307,6 +322,58 @@ std::vector<Schritt> dxtSchritte() {
             return a == b && ga == gb && (fall == 0 ? a != dxt : a == dxt);
         }));
     }
+    // MERGE4 (FIX6 P54 + MR8): das Spielbild des Echtzeit-Lichts sucht die Datei wie R_LoadImage des Regelwerks - unter OpenJK die
+    // genannte Endung zuerst (m4end.tga blau, nicht m4end.png gruen wie QERApp_LoadImage), unter Jedi Outcast 1.04 nur jpg, tga
+    // (m4png.png fehlt dort) - und nach dem Wechsel des Regelwerks neu.
+    const auto ersteFarbe = [](const std::string& bild, std::array<int, 3>& rgb) {
+        std::vector<std::vector<unsigned char>> st;
+        std::vector<std::array<int, 2>> gr;
+        ke::texturBilderAbholen();
+        if (!ke::echtBildStufen(bild, false, st, gr) || st.empty() || st[0].size() < 4U) { return false; }
+        rgb = {st[0][0], st[0][1], st[0][2]};
+        return true;
+    };
+    auto m4Farben = std::make_shared<std::array<std::array<int, 3>, 3>>();
+    add(warteBis("RD DXT: MERGE4 - Endungsfolge unter OpenJK geladen", [ersteFarbe, m4Farben] {
+        return ersteFarbe("?textures/rd/m4end.tga", (*m4Farben)[0]) && ersteFarbe("?textures/rd/m4png.png", (*m4Farben)[1]);
+    }, 10000));
+    add(tu("RD DXT: MERGE4 - Regelwerk Jedi Outcast", [] {
+        g_app->settings.regelwerk = kRegelwerkJediOutcast;
+        (void)regelwerkPruefen();
+    }));
+    add(warteBis("RD DXT: MERGE4 - unter Jedi Outcast geladen", [ersteFarbe, m4Farben] {
+        return ersteFarbe("?textures/rd/m4png.png", (*m4Farben)[2]);
+    }, 20000));
+    add(pruefe("RD DXT: MERGE4 - Spielbild sucht die Datei wie R_LoadImage des Regelwerks, nach dem Wechsel neu", [m4Farben] {
+        const auto& f = *m4Farben;
+        const auto txt = [](const std::array<int, 3>& c) {
+            return std::to_string(c[0]) + "/" + std::to_string(c[1]) + "/" + std::to_string(c[2]);
+        };
+        diag::detail("Knopftest: RD DXT MERGE4 - OpenJK m4end.tga " + txt(f[0]) + " (soll 0/0/255), m4png.png " + txt(f[1]) +
+                     " (soll 0/255/0); Jedi Outcast m4png.png " + txt(f[2]) + " (soll Ersatzbild, nicht 0/255/0)");
+        const std::array<int, 3> blau{0, 0, 255};
+        const std::array<int, 3> gruen{0, 255, 0};
+        return f[0] == blau && f[1] == gruen && f[2] != gruen;
+    }));
+    add(tu("RD DXT: MERGE4 - Regelwerk OpenJK", [] {
+        g_app->settings.regelwerk = kRegelwerkOpenJK;
+        (void)regelwerkPruefen();
+    }));
+    add(warteBis("RD DXT: MERGE4 - Texturen nach dem Wechsel", [] { return ke::kameraBilderFertig(); }, 20000));
+    // MR9 Punkt 4: das Echtzeit-Licht klemmt ein Bild, wie der Erste es lud (GL_CLAMP aus clampMap, R_CreateImage), in beiden
+    // Reihenfolgen - auch fuer den Shader mit map, wenn der clampMap-Shader das Bild zuerst lud.
+    add(pruefe("RD DXT: MR9 P4 - Klammern des Ersten im Echtzeit-Licht", [] {
+        ke::echtRegisterNeu();
+        const bool k1 = ke::echtBildKlammern("textures/rd/m9klemme", "?textures/rd/m8bild");
+        const bool k2 = ke::echtBildKlammern("textures/rd/m8normal", "?textures/rd/m8bild");
+        ke::echtRegisterNeu();
+        const bool r1 = ke::echtBildKlammern("textures/rd/m8normal", "?textures/rd/m8bild");
+        const bool r2 = ke::echtBildKlammern("textures/rd/m9klemme", "?textures/rd/m8bild");
+        ke::echtRegisterNeu();
+        diag::detail("Knopftest: RD DXT MR9 P4 - clampMap zuerst: " + std::to_string(k1 ? 1 : 0) + " " + std::to_string(k2 ? 1 : 0) +
+                     ", map zuerst: " + std::to_string(r1 ? 1 : 0) + " " + std::to_string(r2 ? 1 : 0));
+        return k1 && k2 && !r1 && !r2;
+    }));
     add(tu("RD DXT: Schnell-Backen, Spielbild", [] {
         ke::Editor& e = ke::editor();
         e.echtLicht.backen = true;
@@ -350,6 +417,38 @@ std::vector<Schritt> dxtSchritte() {
                        return d < 0.08;
                    }));
     }
+    // P57 (PRUEF8): unter Movie-Duels-Regeln zeigt das Spielbild des Echtzeit-Lichts die Fassung des Spiels - die Pyramide wie
+    // Upload32 ohne Kompression, ohne die Gamma-Tabelle des Editors. Probe mit Gamma 2 im Editor und einem Bild, das unter diesen
+    // Regeln noch niemand angefordert hat.
+    auto gammaVorher = std::make_shared<float>(1.0F);
+    add(tu("RD DXT: P57 - Regelwerk Movie Duels, Gamma 2 im Editor", [gammaVorher] {
+        *gammaVorher = ke::editor().texQual.gamma;
+        ke::editor().texQual.gamma = 2.0F;
+        g_app->settings.regelwerk = kRegelwerkMovieDuels;
+        (void)regelwerkPruefen();
+    }));
+    add(warteBis("RD DXT: P57 - ?textures/r3/licht geladen", [] {
+        std::vector<std::vector<unsigned char>> st;
+        std::vector<std::array<int, 2>> gr;
+        ke::texturBilderAbholen();
+        return ke::echtBildStufen("?textures/r3/licht", false, st, gr);
+    }, 10000));
+    add(pruefe("RD DXT: P57 - unter Movie Duels zeigt das Spielbild die Stufen des Spiels, ohne Gamma des Editors", [] {
+        std::vector<std::vector<unsigned char>> echtSt;
+        std::vector<std::array<int, 2>> echtGr;
+        std::vector<std::vector<unsigned char>> vorSt;
+        std::vector<std::array<int, 2>> vorGr;
+        if (!ke::echtBildStufen("?textures/r3/licht", false, echtSt, echtGr) || !vorschauStufen("textures/r3/licht", vorSt, vorGr, false)) {
+            diag::detail("Knopftest: RD DXT P57 - nicht lesbar");
+            return false;
+        }
+        int gleich = 0;
+        for (std::size_t i = 0; i < std::min(echtSt.size(), vorSt.size()); ++i) { gleich += echtGr[i] == vorGr[i] && echtSt[i] == vorSt[i] ? 1 : 0; }
+        diag::detail("Knopftest: RD DXT P57 - Stufen Echtzeit " + std::to_string(echtSt.size()) + ", Spiel " + std::to_string(vorSt.size()) +
+                     ", gleich " + std::to_string(gleich));
+        return echtSt.size() == vorSt.size() && gleich == static_cast<int>(vorSt.size());
+    }));
+    add(tu("RD DXT: P57 - Gamma wie vorher", [gammaVorher] { ke::editor().texQual.gamma = *gammaVorher; }));
     add(tu("RD DXT: Regelwerk zurueck", [regelVorher] {
         g_app->settings.regelwerk = *regelVorher;
         (void)regelwerkPruefen();

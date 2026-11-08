@@ -494,12 +494,13 @@ void echtGrasZeichnen(const karte::Kamera& k, const float* vp, int breite, int h
         const EchtGrasStufe& st = *gr.stufe;
         const SpielStufe& sd = st.darstellung;
         const SpielLaden l = spielLaden(std::string(), sd.bild, sd.keinTc);   // MR8 Punkt 1
-        const Bild* b = lager().holen(sd.bild, l.dxt, l.keinMip);   // MR7 P40
+        const Bild* b = lager().holen(sd.bild, l);   // MR7 P40
         if (b == nullptr || !b->fertig || b->ersatz || b->srv == nullptr) { continue; }   // fehlt das Bild, ist der Shader im Spiel der Ersatz-Shader (ParseStage)
         kartegpu::Zustand3 z = basis;
         // SQuickSprite (tr_quicksprite.cpp StartGroup): die stateBits der Stufe, ohne Wegschneiden der Rueckseite
         z.wegschneiden = false;
         z.bild = b->srv;
+        z.klammern = l.klammern;   // MR9 Punkt 4: GL_CLAMP des Ersten
         z.alphaFunktion = sd.alphaFunktion;
         z.alphaRef = sd.alphaRef;
         z.tiefe = kartegpu::TiefenTest::KleinerGleich;

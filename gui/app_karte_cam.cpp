@@ -40,6 +40,7 @@
 #include "bhed/karte/pinsel.h"
 #include "bhed/karte/spielkollision.h"
 #include "bhed/saberspuren.h"
+#include "bhed/shaderscript.h"
 #include "karte_echtlicht.h"
 #include "gpumap.h"
 #include "karte_gpu.h"
@@ -94,8 +95,10 @@ struct Auftrag {
     std::string himmel;     // m_skyBox
     bool standard = false;  // IsDefault: keine Shaderdefinition
     unsigned generation = 0;
-    bool dxt = false;       // MR7 P40: die Stufen wie Upload32 unter JKA/JK2 (spielLaden)
-    bool keinMip = false;   // MR8 Punkt 1: mit dxt nur Stufe 0 (der Erste lud das Bild mit nomipmaps)
+    std::vector<std::string> spielDateien;   // MERGE4: mit spiel die Dateien, die R_LoadImage versucht (textureCandidates)
+    bool spiel = false;     // P57: die Fassung des Spiels (Pyramide wie Upload32, ohne Gamma und Basisstufe des Editors)
+    bool dxt = false;       // MR7 P40: ... und jede Stufe DXT5 unter JKA/JK2 (spielLaden)
+    bool keinMip = false;   // MR8 Punkt 1: in der Fassung des Spiels nur Stufe 0 (der Erste lud das Bild mit nomipmaps)
 };
 
 struct Ergebnis {
@@ -106,7 +109,7 @@ struct Ergebnis {
     int himmelGroesse = 0;
     std::array<std::vector<unsigned char>, 6> seiten;
     bool ersatz = false;
-    TextureSet::Tex stufen;   // MR7 P40: mit dxt die fertigen Stufen (stufenWieUpload32), sonst leer
+    TextureSet::Tex stufen;   // MR7 P40 / P57: in der Fassung des Spiels die fertigen Stufen (stufenWieUpload32), sonst leer
 };
 
 // MR7 P40: das Echtzeit-Licht zeichnet die Karte wie das Spiel - unter Jedi Academy / Jedi Outcast geht jedes Bild einer Stufe
@@ -146,7 +149,10 @@ std::string spielBildName(const std::string& name) {
 struct SpielLaden {
     bool dxt = false;
     bool keinMip = false;
+    bool klammern = false;   // MR9 Punkt 4: GL_CLAMP des Ersten
 };
+// P57: Movie Duels laedt ohne Kompression (r_ext_compress_textures 0), aber mit derselben Pyramide (Upload32 -> R_MipMap) und
+// ohne die Gamma-Tabelle und Basisstufe des Editors - das Spielbild nimmt in jedem Regelwerk die Fassung des Spiels.
 SpielLaden spielLaden(const std::string& shader, const std::string& bild, bool keinTc) {
     BildRegister& reg = echtRegister();
     if (!shader.empty()) {
@@ -155,7 +161,8 @@ SpielLaden spielLaden(const std::string& shader, const std::string& bild, bool k
     const BildWahl* w = reg.wahl(spielBildName(bild));
     SpielLaden l;
     l.dxt = (w != nullptr ? w->tc : !keinTc) && !regelwerkMovieDuels();
-    l.keinMip = l.dxt && w != nullptr && !w->mip;
+    l.keinMip = w != nullptr && !w->mip;
+    l.klammern = w != nullptr && w->klammern;
     return l;
 }
 
@@ -227,13 +234,26 @@ std::vector<unsigned char> neuAbtasten(const unsigned char* in, int inB, int inH
 }
 
 // QERApp_LoadImage: Bildmodule alphabetisch (jpg, png, tga), das erste
-// gefundene gilt.
+// gefundene gilt - am Namen ohne Endung (eine Endung bis 4 Zeichen hinter dem letzten Punkt, nicht in einem Ordnernamen).
 image::Image bildLaden(const karte::Dateisystem& fs, const std::string& name) {
+    std::string rumpf = name;
+    const std::size_t punkt = rumpf.find_last_of('.');
+    if (punkt != std::string::npos && punkt + 5 >= rumpf.size() && rumpf.find('/', punkt) == std::string::npos) { rumpf.resize(punkt); }
     for (const char* typ : {"jpg", "png", "tga"}) {
         std::string daten;
-        if (fs.dateiLesen(name + '.' + typ, daten)) {
+        if (fs.dateiLesen(rumpf + '.' + typ, daten)) {
             return image::decode(reinterpret_cast<const unsigned char*>(daten.data()), daten.size());
         }
+    }
+    return {};
+}
+
+// MERGE4: die Fassung des Spiels sucht wie R_LoadImage des Regelwerks - die Dateien aus textureCandidates (OpenJK/Movie Duels die
+// genannte Endung zuerst, dann jpg, png, tga; Jedi Outcast 1.04 nur jpg, tga - FIX6 P54), im Hauptfaden bestimmt (holen).
+image::Image spielBildDatei(const karte::Dateisystem& fs, const std::vector<std::string>& dateien) {
+    for (const std::string& k : dateien) {
+        std::string daten;
+        if (fs.dateiLesen(k, daten)) { return image::decode(reinterpret_cast<const unsigned char*>(daten.data()), daten.size()); }
     }
     return {};
 }
@@ -253,14 +273,15 @@ class Bildlager {
 public:
     ~Bildlager() { anhalten(); }
 
-    // Den Shader anfordern; nullptr, solange kein Spiel geladen ist. MR7 P40: dxt - die Fassung des Spiels (spielLaden), ein
-    // eigener Eintrag neben dem des Editors.
-    const Bild* holen(const std::string& shader, bool dxt = false, bool keinMip = false) {
+    // Den Shader anfordern; nullptr, solange kein Spiel geladen ist. MR7 P40 / P57: mit `spiel` die Fassung des Spiels
+    // (spielLaden), ein eigener Eintrag neben dem des Editors.
+    const Bild* holen(const std::string& shader, bool spiel = false, bool dxt = false, bool keinMip = false) {
         Editor& ed = e();
         if (!ed.karteSpiel) { return nullptr; }
         pruefen();
-        keinMip = keinMip && dxt;
-        const std::string schl = klein(shader) + (dxt ? "\n" : "") + (keinMip ? "\r" : "");
+        dxt = dxt && spiel;
+        keinMip = keinMip && spiel;
+        const std::string schl = klein(shader) + (spiel ? "\n" : "") + (dxt ? "\t" : "") + (keinMip ? "\r" : "");
         const auto it = m_bilder.find(schl);
         if (it != m_bilder.end()) { return &it->second; }
         Bild& b = m_bilder[schl];
@@ -272,6 +293,8 @@ public:
         a.bildName = roh ? shader.substr(1) : s != nullptr ? s->texturName : shader;
         a.himmel = s != nullptr ? s->himmel : std::string();
         a.standard = s == nullptr;
+        a.spiel = spiel;
+        if (spiel) { a.spielDateien = textureCandidates(a.bildName); }
         a.dxt = dxt;
         a.keinMip = keinMip;
         {
@@ -284,6 +307,7 @@ public:
         m_cv.notify_one();
         return &b;
     }
+    const Bild* holen(const std::string& shader, const SpielLaden& l) { return holen(shader, true, l.dxt, l.keinMip); }
 
     // Fertige Bilder auf die Grafikkarte (nur im Hauptfaden).
     void abholen() {
@@ -352,11 +376,23 @@ public:
         pruefen();
     }
 
+    // Die Faeden beenden (Destruktor; P56: texturBilderAnhalten vor dem Ende von wWinMain).
+    void anhalten() {
+        {
+            std::lock_guard<std::mutex> l(m_sperre);
+            m_ende = true;
+        }
+        m_cv.notify_all();
+        for (std::thread& t : m_faeden) { t.join(); }
+        m_faeden.clear();
+    }
+
 private:
     // Neues Spiel oder neues Grafikgeraet: alles vergessen.
     void pruefen() {
         Editor& ed = e();
-        if (!m_neu && ed.karteSpiel == m_spiel && kartegpu::geraetStand() == m_geraet) { return; }
+        // MERGE4: auch nach einem Wechsel von/zu Jedi Outcast - dessen R_LoadImage sucht andere Dateien (textureCandidates)
+        if (!m_neu && ed.karteSpiel == m_spiel && kartegpu::geraetStand() == m_geraet && regelwerkJediOutcast() == m_jk2) { return; }
         m_neu = false;
         const bool gleichesGeraet = kartegpu::geraetStand() == m_geraet;
         for (auto& [n, b] : m_bilder) {
@@ -374,6 +410,7 @@ private:
         m_offen = 0;
         m_spiel = ed.karteSpiel;
         m_geraet = kartegpu::geraetStand();
+        m_jk2 = regelwerkJediOutcast();
         m_ersatzOrdner = directoryOf(g_app->dataDir) + "/karte/bitmaps/";
     }
 
@@ -383,16 +420,6 @@ private:
         for (unsigned i = 0; i < n; ++i) {
             m_faeden.emplace_back([this] { arbeiten(); });
         }
-    }
-
-    void anhalten() {
-        {
-            std::lock_guard<std::mutex> l(m_sperre);
-            m_ende = true;
-        }
-        m_cv.notify_all();
-        for (std::thread& t : m_faeden) { t.join(); }
-        m_faeden.clear();
     }
 
     void arbeiten() {
@@ -413,7 +440,7 @@ private:
             r.schluessel = a.schluessel;
             r.generation = a.generation;
             if (spiel) {
-                r.bild = bildLaden(spiel->fs, a.bildName);
+                r.bild = a.spiel ? spielBildDatei(spiel->fs, a.spielDateien) : bildLaden(spiel->fs, a.bildName);
                 if (!r.bild.ok || r.bild.width <= 0 || r.bild.height <= 0) {
                     // shaders.cpp:953-962: notex.png ohne Definition, sonst shadernotex.png
                     r.bild = dateiLaden(ersatz + (a.standard ? "notex.png" : "shadernotex.png"));
@@ -428,13 +455,15 @@ private:
                     }
                     for (std::size_t j = 0; j < 3; ++j) { r.farbe[j] = static_cast<float>(summe[j] / (static_cast<double>(n) * 255.0)); }
                 }
-                // MR7 P40: im Arbeitsfaden die Stufen wie Upload32 (das Ersatzbild ist kein Bild des Spiels)
-                if (a.dxt && r.bild.ok && !r.ersatz) {
+                // MR7 P40 / P57: im Arbeitsfaden die Stufen wie Upload32 (das Ersatzbild ist kein Bild des Spiels). P55: das Bild
+                // wandert in die Stufen (abholen braucht r.bild dann nicht mehr), DXT ohne die gemeinsame Mannschaft - die
+                // Bildlager-Faeden laufen schon nebeneinander.
+                if (a.spiel && r.bild.ok && !r.ersatz) {
                     r.stufen.width = r.bild.width;
                     r.stufen.height = r.bild.height;
-                    r.stufen.rgba.assign(r.bild.rgba.begin(), r.bild.rgba.end());
+                    r.stufen.rgba = std::move(r.bild.rgba);
                     r.stufen.keinMip = a.keinMip;
-                    r.stufen.stufenWieUpload32(true);
+                    r.stufen.stufenWieUpload32(a.dxt, false);
                 }
                 if (!a.himmel.empty()) {
                     // qtexture_realise: _ft _bk _up _dn _rt _lf = +X -X +Y -Y +Z -Z,
@@ -458,7 +487,7 @@ private:
                             }
                             // MR7 P40: ParseSkyParms laedt die Seiten mit allowTC (tr_shader.cpp:1970) - eine Stufe, DXT5 wie
                             // gpumap holeHimmel
-                            if (a.dxt) { dxt::dxt5Rundlauf(r.seiten[i].data(), groesse, groesse); }
+                            if (a.dxt) { dxt::dxt5Rundlauf(r.seiten[i].data(), groesse, groesse, false); }
                         }
                     }
                 }
@@ -483,12 +512,20 @@ private:
     std::vector<std::thread> m_faeden;
     bool m_ende = false;
     bool m_neu = false;
+    bool m_jk2 = false;   // MERGE4: Regelwerk Jedi Outcast beim letzten pruefen (andere Endungsfolge)
 };
 
 Bildlager& lager() {
     static Bildlager l;
     return l;
 }
+}  // namespace
+
+// P56: die Faeden des Bildlagers enden, bevor wWinMain zurueckkehrt - nicht erst im Destruktor der statischen Variable, nach
+// Mannschaft (bhed/arbeiter.h) und Laufzeitresten, die in umgekehrter Anlagereihenfolge abgebaut werden.
+void texturBilderAnhalten() { lager().anhalten(); }
+
+namespace {
 
 }  // namespace
 
@@ -1016,7 +1053,7 @@ void texturBilderAbholen() { lager().abholen(); }
 
 bool echtBildStufen(const std::string& bild, bool keinTc, std::vector<std::vector<unsigned char>>& stufen, std::vector<std::array<int, 2>>& groessen) {
     const SpielLaden l = spielLaden(std::string(), bild, keinTc);   // MR8 Punkt 1
-    const Bild* b = lager().holen(bild, l.dxt, l.keinMip);
+    const Bild* b = lager().holen(bild, l);
     if (b == nullptr || !b->fertig || b->srv == nullptr) { return false; }
     stufen.clear();
     groessen.clear();
@@ -1067,6 +1104,8 @@ bool shaderZustand(const std::string& shader, kartegpu::Zustand3& z, bool& durch
 // MR8 Punkt 1 (Selbsttest): das Register des Echtzeit-Lichts neu anfangen (wie nach einem neuen Spielbild).
 void echtRegisterNeu() { echtRegister() = BildRegister{}; }
 
+bool echtBildKlammern(const std::string& shader, const std::string& bild) { return spielLaden(shader, bild, false).klammern; }
+
 bool echtBildStufenFuer(const std::string& shader, const std::string& bild, bool keinTc, std::vector<std::vector<unsigned char>>& stufen,
                         std::vector<std::array<int, 2>>& groessen) {
     (void)spielLaden(shader, bild, keinTc);   // R_FindShader des Shaders, falls noch nicht geschehen
@@ -1074,7 +1113,7 @@ bool echtBildStufenFuer(const std::string& shader, const std::string& bild, bool
 }
 
 const void* echtBildTextur(const std::string& bild, bool keinTc) {
-    const Bild* b = lager().holen(bild, !keinTc && !regelwerkMovieDuels());
+    const Bild* b = lager().holen(bild, spielLaden(std::string(), bild, keinTc));
     if (b == nullptr || !b->fertig || b->srv == nullptr) { return nullptr; }
     return kartegpu::bildRessource(b->srv);
 }
@@ -1085,7 +1124,7 @@ void texturBilderNeuLaden() { lager().neuLaden(); }
 void* kameraTexturBild(const std::string& shader) {
     const ShaderInfo* si = echtShaderInfo(shader);
     const SpielLaden l = spielLaden(shader, shader, si != nullptr && si->bildKeinTc);
-    const Bild* b = lager().holen(shader, l.dxt, l.keinMip);
+    const Bild* b = lager().holen(shader, l);
     return (b != nullptr && b->fertig) ? b->srv : nullptr;
 }
 
@@ -1403,7 +1442,7 @@ void kameraZeichnen() {
                 if (texturen) { z.himmel = b->himmel; }
                 if (texturen && spielBild) {   // MR7 P40: die Seiten wie im Spiel
                     const SpielLaden l = spielLaden(st.shader, st.shader, sd.himmelKeinTc);   // MR8 Punkt 1
-                    const Bild* sb = lager().holen(st.shader, l.dxt);
+                    const Bild* sb = lager().holen(st.shader, l);
                     if (sb != nullptr && sb->fertig && sb->himmel != nullptr) { z.himmel = sb->himmel; }
                 }
                 // Stufe 9d: misc_skyportal - der Himmel zeigt das Bild aus dem Portalraum (CG_DrawSkyBoxPortal)
@@ -1439,13 +1478,19 @@ void kameraZeichnen() {
                     z.bild = b->srv;
                     if (spielBild && sd.bild.empty()) {   // MR7 P40: das Shaderbild wie im Spiel hochgeladen
                         const SpielLaden l = spielLaden(st.shader, st.shader, sd.keinTc);   // MR8 Punkt 1
-                        const Bild* sb = lager().holen(st.shader, l.dxt, l.keinMip);
-                        if (sb != nullptr && sb->fertig && !sb->ersatz && sb->srv != nullptr) { z.bild = sb->srv; }
+                        const Bild* sb = lager().holen(st.shader, l);
+                        if (sb != nullptr && sb->fertig && !sb->ersatz && sb->srv != nullptr) {
+                            z.bild = sb->srv;
+                            z.klammern = l.klammern;   // MR9 Punkt 4
+                        }
                     }
                     if (spielBild && !sd.bild.empty()) {   // Stufe 9c: das Bild der ersten Stufe (Alpha wie im Spiel)
                         const SpielLaden l = spielLaden(st.shader, sd.bild, sd.keinTc);   // MR8 Punkt 1
-                        const Bild* sb = lager().holen(sd.bild, l.dxt, l.keinMip);
-                        if (sb != nullptr && sb->fertig && !sb->ersatz && sb->srv != nullptr) { z.bild = sb->srv; }
+                        const Bild* sb = lager().holen(sd.bild, l);
+                        if (sb != nullptr && sb->fertig && !sb->ersatz && sb->srv != nullptr) {
+                            z.bild = sb->srv;
+                            z.klammern = l.klammern;   // MR9 Punkt 4
+                        }
                     }
                     farbeSetzen(z, 1, 1, 1, alpha);
                     // p_render: die Bildstufe der Grundstufe bewegt sich (tcMod, tcGen, Welle, animMap) - im Echtzeit-Licht wie im
@@ -1455,8 +1500,11 @@ void kameraZeichnen() {
                         stufeJetzt(sd.grund, spielbildZeit(), z, true);
                         const std::string an = stufeBildJetzt(sd.grund, spielbildZeit());
                         const SpielLaden l = spielLaden(st.shader, an, sd.grund.keinTc);   // MR8 Punkt 1
-                        const Bild* ab = lager().holen(an, l.dxt, l.keinMip);
-                        if (ab != nullptr && ab->fertig && !ab->ersatz && ab->srv != nullptr) { z.bild = ab->srv; }
+                        const Bild* ab = lager().holen(an, l);
+                        if (ab != nullptr && ab->fertig && !ab->ersatz && ab->srv != nullptr) {
+                            z.bild = ab->srv;
+                            z.klammern = l.klammern;   // MR9 Punkt 4
+                        }
                     }
                 } else {
                     farbeSetzen(z, b->farbe[0], b->farbe[1], b->farbe[2], alpha);
@@ -1473,12 +1521,13 @@ void kameraZeichnen() {
                     for (const SpielStufe& w : sd.weitere) {
                         const std::string wn = stufeBildJetzt(w, spielbildZeit());
                         const SpielLaden l = spielLaden(st.shader, wn, w.keinTc);   // MR8 Punkt 1
-                        const Bild* wb = lager().holen(wn, l.dxt, l.keinMip);
+                        const Bild* wb = lager().holen(wn, l);
                         if (wb == nullptr || !wb->fertig || wb->ersatz || wb->srv == nullptr) { continue; }
                         if (!sd.portal) { ++ed.echtLicht.weitereStufen; }
                         if (!sd.portal && w.bewegt()) { ++ed.echtLicht.bewegteStufen; }
                         kartegpu::Zustand3 zw = z;
                         zw.bild = wb->srv;
+                        zw.klammern = l.klammern;   // MR9 Punkt 4
                         zw.licht = false;
                         zw.echtLicht = false;
                         zw.eckLicht = false;
@@ -1540,10 +1589,11 @@ void kameraZeichnen() {
                     for (const SpielStufe& w : sd.glueh) {
                         const std::string wn = stufeBildJetzt(w, spielbildZeit());
                         const SpielLaden l = spielLaden(gs.st->shader, wn, w.keinTc);   // MR8 Punkt 1
-                        const Bild* wb = lager().holen(wn, l.dxt, l.keinMip);
+                        const Bild* wb = lager().holen(wn, l);
                         if (wb == nullptr || !wb->fertig || wb->ersatz || wb->srv == nullptr) { continue; }
                         kartegpu::Zustand3 zg = basis;
                         zg.bild = wb->srv;
+                        zg.klammern = l.klammern;   // MR9 Punkt 4
                         zg.licht = false;
                         zg.echtLicht = false;
                         zg.wegschneiden = gs.wegschneiden;

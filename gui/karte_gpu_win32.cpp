@@ -150,6 +150,7 @@ struct Zustand {
     ID3D11RasterizerState* rs3[8] = {};   // [gespiegelt][msaa][wegschneiden] (rc609 P: gespiegelt = Wicklung umgekehrt)
     std::map<int, ID3D11DepthStencilState*> tiefen;   // Test * 2 + Schreiben
     ID3D11SamplerState* abtaster = nullptr;
+    ID3D11SamplerState* abtasterKlemm = nullptr;   // MR9 Punkt 4: wie abtaster, Adressen CLAMP
     ID3D11SamplerState* wuerfelAbtaster = nullptr;
     ID3D11Buffer* einmal3 = nullptr;   // Einmal-Dreiecke
     std::size_t einmal3Platz = 0;
@@ -365,6 +366,7 @@ void allesLoesen() {
     for (auto& r : g.rs3) { los(r); }
     los(g.wuerfelAbtaster);
     los(g.abtaster);
+    los(g.abtasterKlemm);
     los(g.blendAdd);
     los(g.blendAus);
     los(g.cb3);
@@ -1059,6 +1061,9 @@ bool bereit3() {
     sd.MaxLOD = D3D11_FLOAT32_MAX;
     sd.ComparisonFunc = D3D11_COMPARISON_NEVER;
     d->CreateSamplerState(&sd, &g.abtaster);
+    sd.AddressU = sd.AddressV = sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    d->CreateSamplerState(&sd, &g.abtasterKlemm);
+    sd.AddressU = sd.AddressV = sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
     sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     sd.AddressU = sd.AddressV = sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
     sd.MaxAnisotropy = 1;
@@ -1191,7 +1196,7 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
                                              g.eckenSrv,
                                              g.kachelSrv};
         c->PSSetShaderResources(0, 11, srv);
-        ID3D11SamplerState* sm[3] = {g.abtaster, g.wuerfelAbtaster, g.punktAbtaster};
+        ID3D11SamplerState* sm[3] = {z.klammern && g.abtasterKlemm != nullptr ? g.abtasterKlemm : g.abtaster, g.wuerfelAbtaster, g.punktAbtaster};
         c->PSSetSamplers(0, 3, sm);
     } else {
         c->IASetInputLayout(g.layout3);
@@ -1204,7 +1209,7 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
         ID3D11ShaderResourceView* srv[2] = {static_cast<ID3D11ShaderResourceView*>(z.himmelPortal != nullptr ? z.himmelPortal : z.bild),
                                             static_cast<ID3D11ShaderResourceView*>(z.himmel)};
         c->PSSetShaderResources(0, 2, srv);
-        ID3D11SamplerState* sm[2] = {g.abtaster, g.wuerfelAbtaster};
+        ID3D11SamplerState* sm[2] = {z.klammern && g.abtasterKlemm != nullptr ? g.abtasterKlemm : g.abtaster, g.wuerfelAbtaster};
         c->PSSetSamplers(0, 2, sm);
     }
     return true;
@@ -2842,6 +2847,12 @@ void abtasterSetzen(int modus, bool anisotropie) {
     if (SUCCEEDED(geraet()->CreateSamplerState(&sd, &neu)) && neu != nullptr) {
         if (g.abtaster != nullptr) { g.abtaster->Release(); }
         g.abtaster = neu;
+    }
+    sd.AddressU = sd.AddressV = sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;   // MR9 Punkt 4
+    ID3D11SamplerState* klemm = nullptr;
+    if (SUCCEEDED(geraet()->CreateSamplerState(&sd, &klemm)) && klemm != nullptr) {
+        if (g.abtasterKlemm != nullptr) { g.abtasterKlemm->Release(); }
+        g.abtasterKlemm = klemm;
     }
 }
 

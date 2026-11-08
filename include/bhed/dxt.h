@@ -17,7 +17,7 @@ namespace bhed::dxt {
 
 // Ein Bild (RGBA8, Zeile fuer Zeile) durch DXT5 packen und wieder auspacken - an Ort und Stelle. Teilbloecke am Rand (Kanten
 // unter 4 oder nicht durch 4 teilbar) packen nur die vorhandenen Punkte.
-void dxt5Rundlauf(std::uint8_t* rgba, int breite, int hoehe);
+void dxt5Rundlauf(std::uint8_t* rgba, int breite, int hoehe, bool mitMannschaft = true);
 
 // MR5 Punkt 2: mehrere Bilder in einem Auftrag (ladeMitStufen: alle Stufen einer Pyramide). Die Blockzeilen aller Bilder gehen
 // zusammen an die Arbeitsfaeden (bhed/arbeiter.h); jeder Block rechnet fuer sich, also Byte fuer Byte dasselbe wie nacheinander
@@ -27,7 +27,9 @@ struct Ebene {
     int breite = 0;
     int hoehe = 0;
 };
-void dxt5Rundlauf(const Ebene* ebenen, std::size_t anzahl);
+// P55: mitMannschaft false rechnet im eigenen Faden (dieselben Bytes) - fuer Nebenfaeden, die die gemeinsame Mannschaft
+// (bhed/arbeiter.h) nicht belegen sollen (Bildlager des Karten-Editors).
+void dxt5Rundlauf(const Ebene* ebenen, std::size_t anzahl, bool mitMannschaft = true);
 
 }  // namespace bhed::dxt
 

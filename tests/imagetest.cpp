@@ -993,6 +993,17 @@ int main() {
                 bhed::BildRegister h2;
                 h2.haut("models/players/m9/|fehlt|t|t", lies, sk9);
                 expect("RE_RegisterSkin: fehlt der Kopf, laedt der Rumpf nicht", !h2.kenntShader("models/m9/rumpf"));
+                // P59: dieselbe Datei zweimal im selben Shader, die zweite nach noTC - der erste R_FindImageFile entscheidet
+                bhed::ShaderMap s59;
+                bhed::parseShaderScript("textures/m9/zweimal\n{\n{\nmap textures/m9/z.tga\n}\nnoTC\n{\nmap textures/m9/z\nblendFunc GL_ONE GL_ONE\n}\n}\n", s59);
+                bhed::BildRegister z59;
+                z59.shader("textures/m9/zweimal", [&s59](const std::string& n) -> const bhed::ShaderInfo* {
+                    const auto it = s59.find(n);
+                    return it == s59.end() ? nullptr : &it->second;
+                });
+                expect("P59: dasselbe Bild zweimal im Shader, das zweite nach noTC - es bleibt komprimiert wie beim ersten Laden",
+                       s59["textures/m9/zweimal"].stages.size() == 2U && s59["textures/m9/zweimal"].stages[1].keinTc &&
+                           z59.wahl("textures/m9/z") != nullptr && z59.wahl("textures/m9/z")->tc && z59.warnungen().empty());
                 bhed::BildRegister f;
                 f.effekt("m9/a.efx", lies, sk9);
                 const bhed::BildWahl* wf = f.wahl("textures/m9/fx");

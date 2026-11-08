@@ -414,13 +414,13 @@ void drawVollblende(MapImage& out, const float farbe[4]) {
     }
 }
 
-void TextureSet::Tex::stufenWieUpload32(bool dxt) {
+void TextureSet::Tex::stufenWieUpload32(bool dxt, bool mitMannschaft) {
     buildMips();
     if (!dxt || rgba.empty()) { return; }
     // MR5 Punkt 2: alle Stufen in einem Auftrag, Blockzeilen auf die Arbeitsfaeden (gleiche Bytes, ctest dxt)
     std::vector<dxt::Ebene> ebenen{{rgba.data(), width, height}};
     for (Mip& m : mips) { ebenen.push_back({m.rgba.data(), m.width, m.height}); }
-    dxt::dxt5Rundlauf(ebenen.data(), ebenen.size());
+    dxt::dxt5Rundlauf(ebenen.data(), ebenen.size(), mitMannschaft);
 }
 
 void TextureSet::Tex::buildMips() {

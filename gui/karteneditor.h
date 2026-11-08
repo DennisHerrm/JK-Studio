@@ -1431,6 +1431,8 @@ void dialogSchriftAus();
 // nullptr solange es laedt), fertige Bilder hochladen, alles neu laden
 // (RefreshShaders).
 [[nodiscard]] void* texturBild(const std::string& shader);
+// P56: die Faeden des Bildlagers beenden (vor dem Ende von wWinMain).
+void texturBilderAnhalten();
 // Fuer den Selbsttest (Stufe 7 Punkt 6f): zeigt die Kamera fuer den Shader das
 // Ersatzbild (notex / shadernotex, "SHADER NOT FOUND")? -1 noch nicht geladen.
 [[nodiscard]] int kameraBildErsatz(const std::string& shader);
@@ -1443,6 +1445,8 @@ void dialogSchriftAus();
 void echtRegisterNeu();
 // MR8 Punkt 2 (Selbsttest): die Grafikkarten-Ressource des Bilds im Lager (Fassung des Spiels), nullptr solange es laedt.
 [[nodiscard]] const void* echtBildTextur(const std::string& bild, bool keinTc);
+// MR9 Punkt 4 (Selbsttest): zeichnet das Spielbild des Echtzeit-Lichts `bild` des Shaders `shader` geklemmt (GL_CLAMP des Ersten)?
+[[nodiscard]] bool echtBildKlammern(const std::string& shader, const std::string& bild);
 [[nodiscard]] bool echtBildStufenFuer(const std::string& shader, const std::string& bild, bool keinTc,
                                       std::vector<std::vector<unsigned char>>& stufen, std::vector<std::array<int, 2>>& groessen);
 void texturBilderAbholen();

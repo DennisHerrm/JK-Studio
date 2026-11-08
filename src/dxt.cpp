@@ -140,12 +140,12 @@ void blockZeile(std::uint8_t* rgba, int breite, int hoehe, int by) {
 
 }  // namespace
 
-void dxt5Rundlauf(std::uint8_t* rgba, int breite, int hoehe) {
+void dxt5Rundlauf(std::uint8_t* rgba, int breite, int hoehe, bool mitMannschaft) {
     const Ebene e{rgba, breite, hoehe};
-    dxt5Rundlauf(&e, 1);
+    dxt5Rundlauf(&e, 1, mitMannschaft);
 }
 
-void dxt5Rundlauf(const Ebene* ebenen, std::size_t anzahl) {
+void dxt5Rundlauf(const Ebene* ebenen, std::size_t anzahl, bool mitMannschaft) {
     if (ebenen == nullptr) { return; }
     // Alle Blockzeilen aller Bilder: (Bild, erste Zeile). Ein Faden je Platz; die Plaetze teilen sich keinen Punkt.
     std::vector<std::pair<std::size_t, int>> zeilen;
@@ -154,10 +154,15 @@ void dxt5Rundlauf(const Ebene* ebenen, std::size_t anzahl) {
         if (e.rgba == nullptr || e.breite <= 0 || e.hoehe <= 0) { continue; }
         for (int by = 0; by < e.hoehe; by += 4) { zeilen.emplace_back(i, by); }
     }
-    arbeiter::verteilt(zeilen.size(), [&](std::size_t k) {
+    const auto je = [&](std::size_t k) {
         const Ebene& e = ebenen[zeilen[k].first];
         blockZeile(e.rgba, e.breite, e.hoehe, zeilen[k].second);
-    });
+    };
+    if (!mitMannschaft) {
+        for (std::size_t k = 0; k < zeilen.size(); ++k) { je(k); }
+        return;
+    }
+    arbeiter::verteilt(zeilen.size(), je);
 }
 
 }  // namespace bhed::dxt

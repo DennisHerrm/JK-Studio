@@ -38,6 +38,7 @@
 #include "hilfe.h"      // H1: der Helfer
 #include "ki.h"         // H1: KI-Anbindung (kiSicht)
 #include "textumbruch.h"   // p_render: selbsttest_rd.inc (CJK-Umbruch)
+#include "bhed/modell/malen.h"   // MERGE4: selbsttest_rd.inc (pngSchreiben)
 #include "bhed/gpucam.h"   // mb1a2: selbsttest_mb1a2.inc
 #include "bhed/modell/animcfg.h"    // Stufe 2: selbsttest_mb2.inc
 #include "bhed/modell/glmdatei.h"   // Stufe 2: selbsttest_mb2.inc

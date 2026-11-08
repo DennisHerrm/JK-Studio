@@ -893,18 +893,12 @@ SpielStufe spielStufe(const ShaderInfo::Stage& st) {
     }
     if (st.alphaConst >= 0.0F) { s.farbe[3] = st.alphaConst; }
     if (st.alphaGen == AlphaGen::Portal) { s.portalWeite = st.portalWeite; }
-    std::string bild = st.image;
-    const std::size_t punkt = bild.find_last_of('.');
-    if (punkt != std::string::npos && punkt + 5 >= bild.size() && bild.find('/', punkt) == std::string::npos) { bild.resize(punkt); }
-    if (!bild.empty()) { s.bild = "?" + bild; }
+    // MERGE4: der Name mit Endung - das Spielbild sucht die Datei wie R_LoadImage (textureCandidates: die genannte Endung zuerst
+    // bzw. unter Jedi Outcast jpg, tga), der Editor schneidet sie selbst ab (bildLaden)
+    if (!st.image.empty()) { s.bild = "?" + st.image; }
     // p_render: animMap (R_BindAnimatedImage, tr_shade.cpp), tcGen, tcMod, Wellen - je Bild in stufeJetzt
     if (st.animImages.size() > 1U) {
-        for (const std::string& a : st.animImages) {
-            std::string n = a;
-            const std::size_t pk = n.find_last_of('.');
-            if (pk != std::string::npos && pk + 5 >= n.size() && n.find('/', pk) == std::string::npos) { n.resize(pk); }
-            s.bilder.push_back("?" + n);
-        }
+        for (const std::string& a : st.animImages) { s.bilder.push_back("?" + a); }
         s.animFreq = st.animFreq;
         s.animEinmal = st.animOneShot;
     }

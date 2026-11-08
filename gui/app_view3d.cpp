@@ -2214,6 +2214,9 @@ std::shared_ptr<const TextureSet::Tex> ladeStufenBild(const std::string& bildNam
 // Bildern - false: ein Bild fehlt.
 bool figurStufenListe(const ShaderInfo& info, std::size_t stufenZahl, std::vector<ModelTextures::FigurStufe>& liste) {
     bool vollstaendig = true;
+    // P59: dasselbe Bild zweimal im Shader - R_FindImageFile_NoLoad gibt beim zweiten Mal das Bild des ersten zurueck, mit dessen
+    // allowTC (rd-vanilla tr_image.cpp:936-971; allowTC wird nicht einmal verglichen)
+    std::unordered_map<std::string, bool> ersteKeinTc;
     for (const FigurStufenArt& art : figurStufen(info)) {
         if (art.stufe >= stufenZahl) { break; }   // rc604: nur die Stufen vor dem fehlenden Bild
         const ShaderInfo::Stage& st = info.stages[art.stufe];
@@ -2245,7 +2248,8 @@ bool figurStufenListe(const ShaderInfo& info, std::size_t stufenZahl, std::vecto
             z.cull = info.cull;
             z.depthWrite = st.depthWrite;
             z.depthFunc = st.depthFunc;
-            z.keinTc = st.keinTc;   // P58: allowTC = !shader.noTC wie bei der Karte (ParseStage tr_shader.cpp:1263/1288/1329)
+            // P58: allowTC = !shader.noTC wie bei der Karte (ParseStage tr_shader.cpp:1263/1288/1329)
+            z.keinTc = ersteKeinTc.emplace(image::mappingName(b), st.keinTc).first->second;
             // rc604 fix604b (B4): tcMod der Stufe (turb, rotate, scroll ...) -
             // gpumap_win32.cpp packt die Kette je Bild wie bei der Karte.
             z.numTexMods = st.numTexMods;

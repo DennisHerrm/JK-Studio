@@ -359,16 +359,18 @@ void echtEffekteZeichnen(const karte::Kamera& k, const float* vp, std::size_t ge
             z.alphaFunktion = sd.alphaFunktion;
             z.alphaRef = sd.alphaRef;
             const SpielLaden l = spielLaden(name, !sd.bild.empty() ? sd.bild : name, sd.keinTc);   // MR8 Punkt 1
-            const Bild* bild = lager().holen(!sd.bild.empty() ? sd.bild : name, l.dxt, l.keinMip);   // MR7 P40
+            const Bild* bild = lager().holen(!sd.bild.empty() ? sd.bild : name, l);   // MR7 P40
             if (bild == nullptr || !bild->fertig) { continue; }
             z.bild = bild->srv;
+            z.klammern = l.klammern;   // MR9 Punkt 4: GL_CLAMP des Ersten
         } else if (!name.empty()) {
             // LIGHTMAP_2D ohne Skript: GLS_DEPTHTEST_DISABLE | SRC_ALPHA ONE_MINUS_SRC_ALPHA
             z.tiefe = kartegpu::TiefenTest::Aus;
             const SpielLaden l = spielLaden(name, "?" + name, false);   // MR8 Punkt 1
-            const Bild* bild = lager().holen("?" + name, l.dxt, l.keinMip);   // MR7 P40: ohne Skript mit allowTC
+            const Bild* bild = lager().holen("?" + name, l);   // MR7 P40: ohne Skript mit allowTC
             if (bild == nullptr || !bild->fertig) { continue; }
             z.bild = bild->srv;
+            z.klammern = l.klammern;   // MR9 Punkt 4: GL_CLAMP des Ersten
         }
         z.farbe[0] = z.farbe[1] = z.farbe[2] = z.farbe[3] = 1.0F;
         std::vector<kartegpu::Punkt3> d;

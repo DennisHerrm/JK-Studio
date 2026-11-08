@@ -957,6 +957,58 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
                          "/" + std::to_string(glueh));
             return grund && stufen > 0 && stufenOhneTc == stufen && gluehOhneTc == glueh;   // Gluehstufen nur, wenn die Figur welche hat
         }));
+        // P59 (PRUEF8, Figuren): dieselbe Datei zweimal im Hautshader, die zweite Stufe nach noTC - R_FindImageFile_NoLoad gibt beim
+        // zweiten Mal das Bild des ersten zurueck (allowTC des ersten, rd-vanilla tr_image.cpp:936-971): beide Stufen komprimiert.
+        add(pruefe("Geschuetze Vergleich: P59 - dasselbe Bild zweimal im Hautshader einer Figur", [m8] {
+            if (m8->platz[1] < 0) { return false; }
+            const std::string text = "m9/figurzweimal\n{\n{\nmap " + m8->bild + "\n}\nnoTC\n{\nmap " + m8->bild + "\nblendFunc GL_ONE GL_ONE\n}\n}\n";
+            ShaderMap probe;
+            parseShaderScript(text, probe);
+            g_app->shaderMap["m9/figurzweimal"] = probe["m9/figurzweimal"];
+            GlmModel gm;
+            gm.surfaces.resize(1);
+            gm.surfaces[0].texture = "m9/figurzweimal";
+            const ModelTextures mt = texturesFor(gm);
+            g_app->shaderMap.erase("m9/figurzweimal");
+            int stufen = 0;
+            int ohneTc = 0;
+            if (!mt.stufen.empty()) {
+                for (const ModelTextures::FigurStufe& fs : mt.stufen[0]) {
+                    for (const TextureSet::Tex& z : fs.bilder) {
+                        ++stufen;
+                        ohneTc += z.keinTc ? 1 : 0;
+                    }
+                }
+            }
+            diag::detail("Knopftest: P59 Figur - Stufen " + std::to_string(stufen) + ", davon ohne TC " + std::to_string(ohneTc) + " (soll 2, 0)");
+            return stufen == 2 && ohneTc == 0;
+        }));
+        // P59 (PRUEF8): dieselbe Datei zweimal im selben Shader, die zweite Stufe nach noTC - im Spiel gibt R_FindImageFile_NoLoad
+        // beim zweiten Mal das Bild des ersten zurueck (allowTC des ersten, tr_image.cpp:936-971): beide Stufen DXT5.
+        add(tu("Geschuetze Vergleich: P59 - dasselbe Bild zweimal im Shader, das zweite nach noTC", [m8, m8klein] {
+            if (m8->platz[1] < 0) { return; }
+            const std::string text = m8->name[0] + "\n{\n{\nmap " + m8->bild + "\n}\nnoTC\n{\nmap " + m8->bild + "\nblendFunc GL_ONE GL_ONE\n}\n}\n";
+            ShaderMap probe;
+            parseShaderScript(text, probe);
+            g_app->shaderMap[m8klein(m8->name[0])] = probe[m8klein(m8->name[0])];
+            loadMapTextures();
+        }));
+        add(pruefe("Geschuetze Vergleich: P59 - beide Stufen wie das erste Laden (DXT5)", [m8, m8klein] {
+            if (m8->platz[1] < 0) { return false; }
+            const TextureSet::Tex& t = g_app->textures.byShader[static_cast<std::size_t>(m8->platz[0])];
+            const bool zweite = !t.extraStages.empty();
+            const bool zweiteKeinTc = zweite && g_app->textures.byShader[static_cast<std::size_t>(t.extraStages[0])].keinTc;
+            diag::detail(std::string("Knopftest: P59 - Grundstufe keinTc ") + (t.keinTc ? "1" : "0") + ", Zusatzstufen " +
+                         std::to_string(t.extraStages.size()) + ", zweite keinTc " + (zweiteKeinTc ? "1" : "0"));
+            const bool ok = zweite && !t.keinTc && !zweiteKeinTc;
+            if (m8->alt[0]) {
+                g_app->shaderMap[m8klein(m8->name[0])] = m8->altInfo[0];
+            } else {
+                g_app->shaderMap.erase(m8klein(m8->name[0]));
+            }
+            loadMapTextures();
+            return ok;
+        }));
         // MR7 P39: das Spielbild des Karten-Editors (gpu-Szene 1, "Built map as in the game") mit derselben Karte - seine Bilder
         // liegen geparkt, solange die Vorschau zeichnet. Nach dem Wechsel muessen auch sie nach der neuen Regel neu hoch.
         constexpr std::uint64_t kP39Nummer = 0x5039000000000001ULL;

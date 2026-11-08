@@ -145,6 +145,9 @@ struct Zustand3 {
     bool nebelNur = false;
     // Stufe 9d: misc_skyportal - eine Himmelsflaeche zeigt dieses Bild an derselben Bildstelle
     void* himmelPortal = nullptr;
+    // MR9 Punkt 4: das Bild mit GL_CLAMP (clampMap dessen, der es im Spiel zuerst geladen hat, R_CreateImage tr_image.cpp:1040-1053)
+    // statt GL_REPEAT - derselbe Filter wie abtasterSetzen, nur an den Raendern geklemmt
+    bool klammern = false;
     // rc608 Teil 11: Flaeche ohne Lightmap (C_VERTEXLIT) - das Mindestlicht ist minimumEcken (_minvertexlight)
     bool eckLicht = false;
     // rc609 P: Spiegel und Portalkamera (bhed/portalsicht). schnitt: portalPlane als (n, -d), behalten wird n.p - d >= 0

@@ -65,6 +65,9 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM,
 
 namespace bhed::gui {
 void modellStiftDruck(float druck);   // Modell-Block 1c (app_modelltab_malen.cpp)
+namespace karteneditor {
+void texturBilderAnhalten();   // P56 (app_karte_cam.cpp)
+}  // namespace karteneditor
 struct App;
 App* createApp();
 void destroyApp(App* a);
@@ -1620,6 +1623,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         }
     }
 
+    bhed::gui::karteneditor::texturBilderAnhalten();   // P56: vor dem Abbau der App und der statischen Variablen
     bhed::gui::destroyApp(app);
     if (g_einzelAtom != 0) {
         RemovePropW(hwnd, kEinzelEigenschaft);
