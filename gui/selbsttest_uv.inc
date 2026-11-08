@@ -634,9 +634,13 @@ std::vector<Schritt> rundlaufSchritte() {
                      if (z->i < z->liste.size()) { return false; }
                      diag::detail("Knopftest: UV Rundlauf " + spiel + " - " + std::to_string(z->glm) + " .glm gelesen, " + std::to_string(z->ohneUmweg) +
                                   " ohne Umweg gleich, davon ueber das Arbeitsnetz gleich " + std::to_string(z->gleich) + ", anders " + std::to_string(z->anders) + z->bericht);
-                     if (z->anders > 0 || z->gleich == 0) { meldeFehler("UV Rundlauf " + spiel + ": " + std::to_string(z->anders) + " anders"); }
                      return true;
                  }});
+    // REST Punkt 5: das Ergebnis als Pruefung (bis hier nur FEHLER bei Abweichung - die Zusammenfassung zaehlte "0 OK, 0 FEHLER",
+    // auch wenn keine einzige Datei verglichen wurde)
+    s.push_back(pruefe("UV Rundlauf " + spiel + ": jede .glm des Spiels ueber das Arbeitsnetz Byte fuer Byte gleich (mindestens eine verglichen)", [z] {
+        return z->gleich > 0 && z->anders == 0;
+    }));
     return s;
 }
 
