@@ -1898,6 +1898,10 @@ std::string jk2TeamName(const std::string& wert) {
     return "TEAM_FREE";
 }
 
+float npcGroessteSkala(const NpcDef& d) noexcept {
+    return std::max({d.skalaSpiel[0], d.skalaSpiel[1], d.skalaSpiel[2]});
+}
+
 void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
     // Aufbau wie bei den Shaderskripten: Name, geschweifte Klammer, Zeilen
     // mit Schluessel und Wert.
@@ -1908,6 +1912,8 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
     // eingesetzt, damit "der erste gewinnt" weiter gilt.
     NpcDef cur;
     cur.customSkin.clear();
+    const float skalaVorgabe = jk2 ? 0.0F : 1.0F;   // FIX6 P51: s.modelScale vor dem Lesen (siehe NpcDef::skalaSpiel)
+    for (float& s : cur.skalaSpiel) { s = skalaVorgabe; }
     std::size_t at = 0;
 
     auto trim = [](std::string v) {
@@ -1918,9 +1924,10 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
         while (e > a && sp(v[e - 1])) { --e; }
         return v.substr(a, e - a);
     };
-    const auto neu = [&cur]() {
+    const auto neu = [&cur, skalaVorgabe]() {
         cur = NpcDef{};
         cur.customSkin.clear();
+        for (float& s : cur.skalaSpiel) { s = skalaVorgabe; }
     };
 
     while (at < text.size()) {
@@ -2119,10 +2126,13 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2) {
             // 0 aber je Achse als 1 (G2_misc.cpp "check for scales of 0").
             if (n >= 0 && n != 100) {
                 const float f = n == 0 ? 1.0F : static_cast<float>(n) / 100.0F;
+                const float roh = static_cast<float>(n) / 100.0F;   // FIX6 P51: s.modelScale = n / 100.0f
                 if (key == "scale") {
                     cur.skala[0] = cur.skala[1] = cur.skala[2] = f;
+                    cur.skalaSpiel[0] = cur.skalaSpiel[1] = cur.skalaSpiel[2] = roh;
                 } else {
                     cur.skala[key[5] - 'x'] = f;
+                    cur.skalaSpiel[key[5] - 'x'] = roh;
                 }
             }
         }

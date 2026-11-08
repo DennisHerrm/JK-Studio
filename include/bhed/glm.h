@@ -140,6 +140,11 @@ struct GlmModel {
 [[nodiscard]] bool readGlm(const std::string& bytes, GlmModel& out,
                            std::string* error = nullptr, int stufe = 0);
 
+// FIX6 P52: eine Kopie von `m` ohne Netz - verts, indexes, grobVerts und grobIndexes jeder Flaeche leer, alle uebrigen Felder
+// (Haut, Ghoul2-Zustand, Grenzen ...) wie in `m`. Die Netze werden dafuer nur kurz verschoben, nicht kopiert; `m` ist danach
+// unveraendert. Fuer die Detailstufen, die ihr Netz aus der eigenen Stufe der Datei bekommen.
+[[nodiscard]] GlmModel glmOhneNetz(GlmModel& m);
+
 // Eine .skin-Datei zuordnen.
 //
 // Der Aufbau ist eine Zeile je Flaeche:

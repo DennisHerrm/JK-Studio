@@ -2,6 +2,7 @@
 #include "bhed/shaderscript.h"
 
 #include "bhed/num.h"
+#include "bhed/regelwerk.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1366,6 +1367,14 @@ std::vector<std::string> textureCandidates(const std::string& name) {
     // R_ImageLoader_Init (jpg, png, tga, :90-98) ohne den schon versuchten, je am Namen ohne Endung (COM_GetExtension und
     // COM_StripExtension, q_shared.cpp:53-77: der letzte Punkt hinter dem letzten '/'). Vorher kam jede Endung zuerst und
     // zusaetzlich ".jpeg" - beides laedt das Spiel nicht.
+    // FIX6 P54: Jedi Outcast 1.04 (jk2sp.exe) laedt nach seiner eigenen Quelle (Raven, codeJK2/renderer/tr_image.cpp
+    // R_LoadImage, im OpenJK-Verlauf a09d4827) nur "name ohne Endung".jpg und danach .tga - kein png, die genannte Endung
+    // nicht zuerst; COM_StripExtension (codeJK2/game/q_shared.cpp:43) schneidet am ERSTEN Punkt ab, auch in einem
+    // Ordnernamen, COM_DefaultExtension haengt danach immer an. OpenJKs JK2-Ziel (rd-vanilla) haette die Folge oben.
+    if (regelwerkJediOutcast()) {
+        const std::string vorPunkt = name.substr(0, name.find('.'));
+        return {vorPunkt + ".jpg", vorPunkt + ".tga"};
+    }
     static constexpr const char* kLeser[3] = {"jpg", "png", "tga"};
     const std::size_t dot = name.find_last_of('.');
     const std::size_t slash = name.find_last_of('/');

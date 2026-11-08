@@ -826,6 +826,7 @@ void parseFogParms(const std::string& text, NebelMap& out);
 
 // Kandidaten fuer eine Bilddatei zu einem Namen, in der Reihenfolge, in der
 // gesucht werden sollte. JKA meldet in tr_image_load.cpp jpg, png und tga an.
+// FIX6 P54: unter Jedi Outcast (regelwerkJediOutcast) die Folge von jk2sp.exe: jpg, tga.
 [[nodiscard]] std::vector<std::string> textureCandidates(const std::string& name);
 
 }  // namespace bhed

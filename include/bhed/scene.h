@@ -1310,6 +1310,10 @@ struct NpcDef {
     // (NPC_ParseParms, NPC_stats.cpp: s.modelScale = n / 100, nur wenn
     // n != 100 und nicht negativ). Die Juenglinge der Mod haben 50.
     float skala[3] = {1.0F, 1.0F, 1.0F};
+    // FIX6 P51: s.modelScale, wie NPC_ParseParms es hinterlaesst - fuer largestScale (npcGroessteSkala). Jedi Academy und
+    // Movie Duels setzen vorher alle drei Achsen auf 1 (NPC_stats.cpp:2041 OpenJK, :2386 MD9), Jedi Outcast nicht
+    // (codeJK2/game/NPC_stats.cpp: s.modelScale bleibt aus G_Spawn 0, parseNpcFile mit jk2); eine genannte 0 bleibt 0.
+    float skalaSpiel[3] = {1.0F, 1.0F, 1.0F};
     // playerTeam, z.B. "TEAM_ENEMY" (ebenda:3378). Braucht es fuer die
     // Vorgabewaffe, wenn `weapon` fehlt oder WP_NONE ist (npcTeamWaffe).
     std::string team;
@@ -1347,6 +1351,9 @@ void parseNpcFile(const std::string& text, NpcMap& out, bool jk2 = false);
 // "CLASS_NONE" bzw. "TEAM_FREE".
 [[nodiscard]] std::string jk2KlassenName(const std::string& wert);
 [[nodiscard]] std::string jk2TeamName(const std::string& wert);
+// FIX6 P51: largestScale fuer G2_ComputeLOD (tr_ghoul2.cpp:874-886 MD9: das Groesste der drei s.modelScale, 0 -> 1 erst
+// dort, siehe modell::lodWieImSpiel) - aus s.modelScale, wie NPC_ParseParms es fuer diesen NPC-Typ hinterlaesst.
+[[nodiscard]] float npcGroessteSkala(const NpcDef& d) noexcept;
 
 // --- Lichtschwerter ----------------------------------------------------
 //

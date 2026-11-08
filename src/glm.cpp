@@ -87,6 +87,29 @@ bool GlmSurface::isOffByName() const noexcept {
     return name.size() > 4 && name.compare(name.size() - 4, 4, "_off") == 0;
 }
 
+GlmModel glmOhneNetz(GlmModel& m) {
+    struct Netz {
+        std::vector<GlmVertex> verts;
+        std::vector<std::uint32_t> indexes;
+        std::vector<GlmVertex> grobVerts;
+        std::vector<std::uint32_t> grobIndexes;
+    };
+    std::vector<Netz> weg(m.surfaces.size());
+    const auto tauschen = [&m, &weg]() {
+        for (std::size_t i = 0; i < weg.size(); ++i) {
+            GlmSurface& s = m.surfaces[i];
+            s.verts.swap(weg[i].verts);
+            s.indexes.swap(weg[i].indexes);
+            s.grobVerts.swap(weg[i].grobVerts);
+            s.grobIndexes.swap(weg[i].grobIndexes);
+        }
+    };
+    tauschen();
+    GlmModel kopie = m;
+    tauschen();
+    return kopie;
+}
+
 bool readGlm(const std::string& b, GlmModel& out, std::string* error, int stufe) {
     out = GlmModel{};
     // Kopf: Kennung(4) Fassung(4) Name(64) .gla-Pfad(64) + 7 int
