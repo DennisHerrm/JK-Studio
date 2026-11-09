@@ -505,6 +505,10 @@ struct BspMesh {
     };
     std::vector<Run> runs;
     std::vector<Batch> batches;
+    // REST6: das Netz der Welt (Untermodell 0, buildMesh bzw. buildModelMesh 0). Ihre Flaechen zeichnet das Spiel mit
+    // backEnd.currentEntity = &tr.worldEntity (tr_backend.cpp:705/:834 MD9, :671/:799 OpenJK), und dessen Licht ist null
+    // (memset(&tr) in R_Init, tr_init.cpp:1907 MD9, :1694 OpenJK) - rgbGen lightingDiffuse wird dort schwarz (weltDiffus).
+    bool weltEntity = false;
     // rc608 Teil 13b: ein Patch wie im Spiel (R_SubdividePatchToGrid, tr_curve.cpp): das Gitter steht ab ersteEcke in
     // verts (breite x hoehe, Zeile fuer Zeile), sein Abschnitt in runs ist das volle Gitter in der Reihenfolge von
     // RB_SurfaceGrid. Je Bild laesst der Zeichner Spalten und Zeilen weg, deren Fehler ueber

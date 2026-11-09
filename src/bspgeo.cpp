@@ -1238,9 +1238,11 @@ BspMesh buildModelMesh(const BspGeometry& geo, int index, int level,
     if (m.firstSurface < 0 || m.numSurfaces <= 0) {
         return {};
     }
-    return buildRange(geo, level, skipSky,
-                      static_cast<std::size_t>(m.firstSurface),
-                      static_cast<std::size_t>(m.numSurfaces));
+    BspMesh netz = buildRange(geo, level, skipSky,
+                              static_cast<std::size_t>(m.firstSurface),
+                              static_cast<std::size_t>(m.numSurfaces));
+    netz.weltEntity = index == 0;   // REST6
+    return netz;
 }
 
 namespace {
@@ -1307,7 +1309,9 @@ void patchLodIndizes(const BspMesh::PatchGitter& g, const std::vector<int>& spal
 }
 
 BspMesh buildMesh(const BspGeometry& geo, int level, bool skipSky) {
-    return buildRange(geo, level, skipSky, 0, geo.surfaces.size());
+    BspMesh netz = buildRange(geo, level, skipSky, 0, geo.surfaces.size());
+    netz.weltEntity = true;   // REST6: gezeichnet werden davon die Flaechen der Blaetter, also der Welt
+    return netz;
 }
 
 int stileEinrechnen(BspGeometry& geo, const std::array<std::array<float, 3>, 256>& gewicht,

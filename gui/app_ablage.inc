@@ -2637,6 +2637,7 @@ bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBi
                     t.keinTc = it->second.bildKeinTc;
                     t.lightmapStufe = it->second.lightmapStufe;
                     t.rgbVertex = it->second.rgbVertex;
+                    t.rgbArt = it->second.rgbArt;   // REST6
                     t.srcFactor = it->second.srcFactor;
                     t.dstFactor = it->second.dstFactor;
                     // --- tcGen environment gilt NUR fuer Zusatzstufen ---
@@ -2760,6 +2761,7 @@ bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBi
                 t.keinTc = it->second.bildKeinTc;   // MR7 P43: noTC beim Lesen der Bildstufe
                 t.lightmapStufe = it->second.lightmapStufe;
                 t.rgbVertex = it->second.rgbVertex;
+                t.rgbArt = it->second.rgbArt;   // REST6
                 t.srcFactor = it->second.srcFactor;
                 t.dstFactor = it->second.dstFactor;
             }
@@ -2809,6 +2811,7 @@ void wolkenLaden(const ShaderInfo& info, const std::string& name, TextureSet::Te
             wolke.rgbConst[k] = st.rgbConst[k];
         }
         wolke.rgbVertex = st.rgbVertex;
+        wolke.rgbArt = st.rgbArt;   // REST6
         wolke.glow = st.glow;
         wolke.clamp = st.clamp;
         wolke.depthWrite = st.depthWrite;
@@ -2985,6 +2988,7 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
     zusatz.ausSkript = true;
     zusatz.lightmapStufe = false;
     zusatz.rgbVertex = st.rgbVertex;
+    zusatz.rgbArt = st.rgbArt;   // REST6
     // --- deformVertexes gilt fuer den GANZEN Shader -------
     //
     // Es steht vor den Stufen, nicht in ihnen
@@ -3068,6 +3072,7 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
             bild.ausSkript = erst.ausSkript;
             bild.lightmapStufe = erst.lightmapStufe;
             bild.rgbVertex = erst.rgbVertex;
+            bild.rgbArt = erst.rgbArt;   // REST6
             bild.srcFactor = erst.srcFactor;
             bild.dstFactor = erst.dstFactor;
             bild.keinTc = st.keinTc;   // MR8 Punkt 1: die Stufe der Folge, dann der Erste je Bild
@@ -3131,6 +3136,7 @@ void basisBildfolgeLaden(const ShaderInfo& info, int eigenerIndex, const std::st
         wieErsterLaden(info.animImages[bi], bild);   // MR8 Punkt 1: jedes Bild der Folge hat seinen Ersten
         bild.lightmapStufe = t.lightmapStufe;
         bild.rgbVertex = t.rgbVertex;
+        bild.rgbArt = t.rgbArt;   // REST6
         bild.srcFactor = t.srcFactor;
         bild.dstFactor = t.dstFactor;
         // Die Zusatzstufen gehoeren an die BASIS, nicht an
@@ -3445,6 +3451,7 @@ void loadMapTextures() {
                             t.srcFactor = BlendFactor::One;
                             t.dstFactor = BlendFactor::One;
                             t.rgbVertex = false;
+                            t.rgbArt = RgbGenArt::Keins;   // REST6
                             t.rgbWave = Wave{};
                             for (float& c : t.rgbConst) { c = 0.0F; }
                             t.depthWrite = false;

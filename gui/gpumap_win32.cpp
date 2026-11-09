@@ -2927,6 +2927,7 @@ int zeichneAufrufe(const std::vector<DrawCall>& calls, const BspMesh& mesh,
     int cbPlatz = 0;
     float cbZeit = 0.0F;
     BatchState cbStand;
+    bool cbWeltDiffus = false;
     ID3D11ShaderResourceView* srvDa[4] = {nullptr, nullptr, nullptr, nullptr};
     UINT srvZahl = 0;
     for (const DrawCall& call : calls) {
@@ -3018,8 +3019,9 @@ int zeichneAufrufe(const std::vector<DrawCall>& calls, const BspMesh& mesh,
         // Ursprung nicht: es lief mit falschem Versatz.
         const float stapelZeit =
             zeitSekunden - mesh.batches[call.batch].shaderTime;
-        if (!cbDa || platz != cbPlatz || stapelZeit != cbZeit) {
+        if (!cbDa || platz != cbPlatz || stapelZeit != cbZeit || call.weltDiffus != cbWeltDiffus) {
             cbStand = batchStateFor(textures, platz, stapelZeit);
+            if (call.weltDiffus) { weltDiffusSetzen(cbStand); }   // REST6, wie buildDrawCalls
             if (!stapelKonstantenImRing(c, cbStand, stapelZeit)) {
                 D3D11_MAPPED_SUBRESOURCE m{};
                 if (SUCCEEDED(c->Map(g_cbStapel, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) {
@@ -3033,6 +3035,7 @@ int zeichneAufrufe(const std::vector<DrawCall>& calls, const BspMesh& mesh,
             cbDa = true;
             cbPlatz = platz;
             cbZeit = stapelZeit;
+            cbWeltDiffus = call.weltDiffus;
         }
         const BatchState& bs2 = cbStand;
         // animMap: das Bild der Zeit, wie im Rasterer (animBildFuer). Die

@@ -712,6 +712,8 @@ struct ShaderInfo {
     // q3map_nolightmap) kam rot - behaved nahm die roten Eckenfarben vom
     // Lavalicht statt der festen Farbe.
     bool rgbVertex = false;       // Bildstufe mit rgbGen vertex & Co.
+    // REST6: WELCHES rgbGen die Bildstufe hat - auf der Welt ist lightingDiffuse schwarz (BatchState::weltDiffus).
+    RgbGenArt rgbArt = RgbGenArt::Keins;
     bool lightmapStufe = false;   // irgendeine Stufe ist `map $lightmap`
 
     // --- skyParms: die Himmelsbox ---------------------------------------

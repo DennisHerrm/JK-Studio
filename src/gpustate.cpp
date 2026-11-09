@@ -114,6 +114,33 @@ Licht lichtFuer(const BatchState& bs, int lightmap, bool vertexColour,
     return l;
 }
 
+bool weltDiffus(const BatchState& bs) noexcept {
+    return bs.ausSkript && !bs.lightmapStufe && (bs.rgbArt == RgbGenArt::LightingDiffuse || bs.rgbArt == RgbGenArt::LightingDiffuseEntity);
+}
+
+void weltDiffusSetzen(BatchState& bs) noexcept {
+    bs.rgbVertex = false;
+    bs.haveRgbWave = false;
+    bs.haveRgbConst = true;
+    bs.rgbConst[0] = 0.0F;
+    bs.rgbConst[1] = 0.0F;
+    bs.rgbConst[2] = 0.0F;
+    // alphaGen identity (ohne alphaGen: FromImage, siehe AlphaGen) - sonst bleibt das alphaGen der Stufe. Das Alpha der Stufe
+    // wirkt in der Vorschau nur ueber Mischfaktoren mit Quellalpha und alphaFunc: der Alphakanal des Bildspeichers wird nicht
+    // geschrieben (holeBlend: RenderTargetWriteMask nur RGB) - wie im Spiel, wo er nicht angezeigt wird.
+    const auto quellAlpha = [](BlendFactor f) {
+        return f == BlendFactor::SrcAlpha || f == BlendFactor::OneMinusSrcAlpha || f == BlendFactor::SrcAlphaSaturate;
+    };
+    const bool alphaWirkt = bs.alphaTest != AlphaTest::None || quellAlpha(bs.srcFactor) || quellAlpha(bs.dstFactor);
+    if (alphaWirkt && bs.alphaConst < 0.0F && (bs.alphaGen == AlphaGen::FromImage || bs.alphaGen == AlphaGen::Identity)) {
+        if (bs.rgbArt == RgbGenArt::LightingDiffuse) {
+            bs.alphaConst = 0.0F;
+        } else {
+            bs.alphaGen = AlphaGen::Identity;
+        }
+    }
+}
+
 bool spriteAufCpu(const DeformZusatz& z) noexcept {
     for (int i = 0; i < z.anzahl; ++i) {
         if (z.eintraege[i].art == kFolgeSprite || z.eintraege[i].art == kFolgeSprite2) { return true; }

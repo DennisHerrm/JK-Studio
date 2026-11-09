@@ -523,6 +523,64 @@ int main() {
         erwarte("eine gewoehnliche Zusatzstufe bleibt ohne Lightmap", z.size() == 2U && (z[1].state.features & kLightmap) == 0U);
     }
 
+    // REST6: rgbGen lightingDiffuse auf der Welt (tr.worldEntity ohne Licht, weltDiffus): Farbe 0, bei lightingDiffuse mit alphaGen
+    // identity auch Alpha 0 (AGEN_SKIP), bei lightingDiffuseEntity Alpha 1; ein Brush-Modell und rgbGen vertex bleiben bei der Eckenfarbe.
+    {
+        BspMesh m;
+        BspMesh::Batch b;
+        b.numIndexes = 3U;
+        b.shader = 0;
+        b.lightmap = -3;
+        m.batches.push_back(b);
+        m.indexes.assign(3, 0);
+        TextureSet tx = baueTexturen();
+        tx.byShader[0].ausSkript = true;
+        tx.byShader[0].rgbVertex = true;
+        tx.byShader[0].rgbArt = RgbGenArt::LightingDiffuse;
+        tx.byShader[1].ausSkript = true;
+        tx.byShader[1].rgbVertex = true;
+        tx.byShader[1].rgbArt = RgbGenArt::LightingDiffuseEntity;
+        tx.byShader[1].srcFactor = BlendFactor::SrcAlpha;   // GL_SRC_ALPHA GL_ONE: das Alpha der Stufe wirkt
+        tx.byShader[0].extraStages.push_back(1);
+        const auto stufe = [](const std::vector<DrawCall>& v, bool zusatz) {
+            for (const DrawCall& c : v) {
+                if (c.zusatzstufe == zusatz) { return c; }
+            }
+            return DrawCall{};
+        };
+        const std::vector<DrawCall> brush = buildDrawCalls(m, &tx, 0.0F);
+        erwarte("lightingDiffuse an einem Brush-Modell: Eckenfarbe wie bisher",
+                brush.size() == 2U && !stufe(brush, false).weltDiffus && !stufe(brush, true).weltDiffus &&
+                    (stufe(brush, false).state.features & kRgbConst) == 0U);
+        m.weltEntity = true;
+        const std::vector<DrawCall> welt = buildDrawCalls(m, &tx, 0.0F);
+        const std::uint32_t schwarz = kRgbConst | kRohEcke;
+        const DrawCall g = stufe(welt, false);
+        const DrawCall z = stufe(welt, true);
+        erwarte("lightingDiffuse auf der Welt, deckend (GL_ONE GL_ZERO): feste Farbe, das Alpha wirkt nicht und bleibt",
+                welt.size() == 2U && g.weltDiffus && (g.state.features & schwarz) == schwarz &&
+                    (g.state.features & (kAlphaKonst | kAlphaEins)) == 0U);
+        erwarte("lightingDiffuseEntity auf der Welt (Zusatzstufe): feste Farbe, Alpha 1",
+                z.weltDiffus && (z.state.features & schwarz) == schwarz && (z.state.features & (kAlphaKonst | kAlphaEins)) == kAlphaEins);
+        tx.byShader[0].srcFactor = BlendFactor::SrcAlpha;
+        tx.byShader[0].dstFactor = BlendFactor::OneMinusSrcAlpha;
+        const DrawCall ga = stufe(buildDrawCalls(m, &tx, 0.0F), false);
+        erwarte("lightingDiffuse auf der Welt mit GL_SRC_ALPHA: Alpha 0 aus gRgb (AGEN_SKIP)",
+                ga.weltDiffus && (ga.state.features & (kAlphaKonst | kAlphaEins)) == kAlphaKonst);
+        BatchState bs = batchStateFor(&tx, 0, 0.0F);
+        weltDiffusSetzen(bs);
+        erwarte("weltDiffusSetzen: rgbConst 0 0 0, alphaConst 0",
+                bs.haveRgbConst && bs.rgbConst[0] == 0.0F && bs.rgbConst[1] == 0.0F && bs.rgbConst[2] == 0.0F && bs.alphaConst == 0.0F);
+        tx.byShader[0].alphaGen = AlphaGen::Vertex;
+        const DrawCall e = stufe(buildDrawCalls(m, &tx, 0.0F), false);
+        erwarte("lightingDiffuse auf der Welt mit alphaGen vertex: das Alpha der Ecke bleibt",
+                e.weltDiffus && (e.state.features & (kAlphaKonst | kAlphaEins)) == 0U);
+        tx.byShader[0].alphaGen = AlphaGen::FromImage;
+        tx.byShader[0].rgbArt = RgbGenArt::Vertex;
+        const DrawCall v = stufe(buildDrawCalls(m, &tx, 0.0F), false);
+        erwarte("rgbGen vertex auf der Welt: Eckenfarbe wie bisher", !v.weltDiffus && (v.state.features & kRgbConst) == 0U);
+    }
+
     if (fehler != 0) {
         std::printf("FEHLGESCHLAGEN (%d)\n", fehler);
         return 1;

@@ -261,6 +261,22 @@ struct Licht {
 [[nodiscard]] Licht lichtFuer(const BatchState& bs, int lightmap,
                               bool vertexColour, bool zusatzstufe);
 
+// --- REST6: rgbGen lightingDiffuse auf der Welt ---------------------------
+//
+// Die Welt zeichnet das Spiel mit backEnd.currentEntity = &tr.worldEntity (tr_backend.cpp:705/:834 MD9, :671/:799
+// OpenJK). Dessen Licht, Lichtrichtung und shaderRGBA sind null (memset(&tr) in R_Init, tr_init.cpp:1907 MD9, :1694
+// OpenJK; gesetzt wird es nirgends). RB_CalcDiffuseColor rechnet damit incoming = 0 <= 0, also ambientLightInt = 0 in allen
+// vier Bytes (tr_shade_calc.cpp:1053-1097 MD9, :1106 OpenJK); RB_CalcDiffuseEntityColor ebenso, Alpha shaderRGBA[3] = 0
+// (:1104-1150 MD9, :1163 OpenJK). Bei lightingDiffuse wird alphaGen identity zu AGEN_SKIP (ParseStage, tr_shader.cpp:1736-1741
+// MD9, :1770-1776 OpenJK) - das Alpha bleibt 0; bei lightingDiffuseEntity schreibt ComputeColors fuer AGEN_IDENTITY 255
+// (tr_shade.cpp:1529-1537 MD9). Ein anderes alphaGen gilt wie sonst. Gesetzt wird das Alpha nur, wo es wirkt (Quellalpha im
+// Mischfaktor oder alphaFunc) - den Alphakanal des Bildspeichers schreibt die Vorschau nicht.
+// So zeichnet Movie Duels die Statue models/map_objects/rift/statue (rift_statuefix.shader) in duel_exegol schwarz.
+// Brush-Entities nehmen ihr Licht nicht so: R_AddBrushModelSurfaces ruft R_SetupEntityLighting nur fuer bspInstance
+// (tr_world.cpp:345-348 MD9) - sonst steht im trRefEntity_t, was zuletzt dort stand; das bleibt ungeaendert.
+[[nodiscard]] bool weltDiffus(const BatchState& bs) noexcept;
+void weltDiffusSetzen(BatchState& bs) noexcept;
+
 // Der Name einer Mischart, fuer Protokolle und Fehlermeldungen.
 [[nodiscard]] const char* blendName(Blend b);
 

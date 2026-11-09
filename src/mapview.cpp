@@ -507,6 +507,7 @@ void batchStateAus(const TextureSet::Tex& t, float zeitSekunden,
     bs.lightmapStufe = t.lightmapStufe;
     bs.lightmapFilter = t.lightmapFilter;
     bs.rgbVertex = t.rgbVertex;
+    bs.rgbArt = t.rgbArt;
     if (t.rgbConst[0] >= 0.0F) {
         for (int k = 0; k < 3; ++k) {
             bs.rgbConst[k] = std::max(t.rgbConst[k], 0.0F);

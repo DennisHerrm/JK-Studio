@@ -76,7 +76,7 @@ std::vector<DrawCall> buildDrawCalls(const BspMesh& mesh,
         if (b.numIndexes == 0U) {
             continue;
         }
-        const BatchState bs = batchStateFor(textures, b.shader, zeitSekunden);
+        BatchState bs = batchStateFor(textures, b.shader, zeitSekunden);
         if (bs.tex == nullptr) {
             // Kein brauchbares Bild. UEBERSPRINGEN, nicht ersetzen.
             //
@@ -87,7 +87,14 @@ std::vector<DrawCall> buildDrawCalls(const BspMesh& mesh,
             continue;
         }
         DrawCall c;
-        const Licht l = lichtFuer(bs, b.lightmap, b.vertexColour, false);
+        Licht l = lichtFuer(bs, b.lightmap, b.vertexColour, false);
+        // REST6: rgbGen lightingDiffuse auf der Welt (weltDiffus, gpustate.h)
+        c.weltDiffus = mesh.weltEntity && !b.vertexColour && weltDiffus(bs);
+        if (c.weltDiffus) {
+            weltDiffusSetzen(bs);
+            l = Licht{};
+            l.fest = true;
+        }
         c.state = pipelineFor(bs, l.lightmap, l.roh, false, l.fest);
         modellLichtSetzen(c.state, b, l);
         c.firstIndex = b.firstIndex;
@@ -117,12 +124,18 @@ std::vector<DrawCall> buildDrawCalls(const BspMesh& mesh,
                 static_cast<std::size_t>(extra) >= textures->byShader.size()) {
                 continue;
             }
-            const BatchState es = batchStateFor(textures, extra, zeitSekunden);
+            BatchState es = batchStateFor(textures, extra, zeitSekunden);
             if (es.tex == nullptr) {
                 continue;
             }
             DrawCall z;
-            const Licht lz = lichtFuer(es, b.lightmap, b.vertexColour, true);
+            Licht lz = lichtFuer(es, b.lightmap, b.vertexColour, true);
+            z.weltDiffus = mesh.weltEntity && !b.vertexColour && weltDiffus(es);
+            if (z.weltDiffus) {
+                weltDiffusSetzen(es);
+                lz = Licht{};
+                lz.fest = true;
+            }
             z.state = pipelineFor(es, lz.lightmap, lz.roh, true, lz.fest);
             modellLichtSetzen(z.state, b, lz);
             z.firstIndex = b.firstIndex;

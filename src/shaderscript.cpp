@@ -382,6 +382,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
     bool stageRgbVertex = false;
     RgbGenArt stageRgbArt = RgbGenArt::Keins;   // rc602
     bool rgbVertexImage = false;
+    RgbGenArt rgbArtImage = RgbGenArt::Keins;   // REST6
     bool stageClamp = false;
     bool clampImage = false;
     bool stageDepthWrite = false;
@@ -467,6 +468,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                         rgbConst[k] = stageRgbConst[k];
                     }
                     rgbVertexImage = stageRgbVertex;
+                    rgbArtImage = stageRgbArt;
                     clampImage = stageClamp;
                     depthWriteImage = stageDepthWrite;
                     depthFuncImage = stageDepthFunc;
@@ -634,6 +636,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                         info.rgbConst[k] = rgbConst[k];
                     }
                     info.rgbVertex = rgbVertexImage;
+                    info.rgbArt = rgbArtImage;
                     info.lightmapStufe = false;
                     for (const ShaderInfo::Stage& s : stages) {
                         if (s.lightmap) { info.lightmapStufe = true; }
@@ -941,6 +944,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
             stagePortalWeite = 0.0F;
             istPortal = false;
             rgbVertexImage = false;
+            rgbArtImage = RgbGenArt::Keins;
             stageRgbVertex = false;
             stageRgbArt = RgbGenArt::Keins;
             deformWave = Wave{};

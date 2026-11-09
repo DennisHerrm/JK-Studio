@@ -89,6 +89,17 @@ int main() {
         pruefe(it != w.end() && figurStufen(it->second).size() == 1U && figurStufen(it->second)[0].weiss,
                "solidWhite_cull: Shader nur aus $whiteimage steht in der Tabelle, eine weisse Stufe");
     }
+    // REST6: das rgbGen der Bildstufe (ShaderInfo::rgbArt) - wortgleich aus MD_Assets.pk3 shaders/rift_statuefix.shader; auf der
+    // Welt macht lightingDiffuse die Flaeche schwarz (weltDiffus, gpustate.h).
+    {
+        ShaderMap st;
+        parseShaderScript("models/map_objects/rift/statue\n{\n\tq3map_nolightmap\n\tq3map_onlyvertexlighting\n    {\n"
+                          "        map models/map_objects/rift/statue\n        blendFunc GL_ONE GL_ZERO\n        rgbGen lightingDiffuse\n    }\n}\n",
+                          st);
+        const auto it = st.find("models/map_objects/rift/statue");
+        pruefe(it != st.end() && it->second.rgbArt == RgbGenArt::LightingDiffuse && it->second.rgbVertex,
+               "rift_statuefix: die Bildstufe traegt rgbGen lightingDiffuse (ShaderInfo::rgbArt)");
+    }
     const auto& bd = figurStufen(m["models/players/battledroid/arms"]);
     pruefe(bd.size() == 4U, "Kampfdroide: vier Stufen");
     if (bd.size() == 4U) {

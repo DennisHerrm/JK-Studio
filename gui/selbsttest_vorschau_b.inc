@@ -2854,6 +2854,91 @@ std::vector<Schritt> moverSpriteSchritte() {
         diag::detail(z);
         return kleinster < 1.0 && abw < 1.0e-6F;
     }));
+    // REST6: rgbGen lightingDiffuse auf einer Flaeche der Welt rechnet das Spiel mit tr.worldEntity, dessen Licht null ist
+    // (weltDiffus, gpustate.h) - schwarz. Die eingebackene Statue models/map_objects/rift/statue (rift_statuefix.shader,
+    // misc_model als Dreiecksflaeche) zeigt Movie Duels als schwarzen Schattenriss (Kamera 1500 -5000 600 / -5 18, r_drawfog 0,
+    // r_DynamicGlow 0: im Mittel 0,00/0,01/0,09). Gemessen: der Median der Bildpunkte unter den Mitten ihrer Dreiecke, ohne
+    // Nebel und Gluehen; vor REST6 beleuchtete die Vorschau sie mit den Eckenfarben.
+    auto vorher = std::make_shared<std::array<bool, 2>>();
+    add(tu("Weltflaeche mit lightingDiffuse: Kamera auf die Statue", [=] {
+        (*vorher)[0] = g_app->showFog;
+        (*vorher)[1] = g_app->showGlow;
+        g_app->showFog = false;
+        g_app->showGlow = false;
+        g_app->playMs = 4000.0;
+        g_app->cam.pos[0] = 1500.0F;
+        g_app->cam.pos[1] = -5000.0F;
+        g_app->cam.pos[2] = 600.0F;
+        g_app->cam.angles[0] = -5.0F;
+        g_app->cam.angles[1] = 18.0F;
+        g_app->cam.angles[2] = 0.0F;
+        g_app->mapDirty = true;
+    }));
+    add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
+    add(pause(0.5));
+    add(foto("statue_weltdiffus"));
+    add(pruefe("Weltflaeche mit lightingDiffuse: die Statue von duel_exegol ist schwarz wie im Spiel", [=] {
+        std::vector<std::uint8_t> rgba;
+        int w = 0;
+        int h = 0;
+        const bool gelesen = gpu::leseFarbe(rgba, w, h);
+        g_app->showFog = (*vorher)[0];
+        g_app->showGlow = (*vorher)[1];
+        g_app->mapDirty = true;
+        if (!gelesen || w <= 0 || h <= 0) { return false; }
+        const Camera& k = g_app->gezeigteKamera;
+        float vorn[3];
+        float rechts[3];
+        float hoch[3];
+        k.forward(vorn);
+        k.right(rechts);
+        k.up(hoch);
+        const float f = 1.0F / std::tan(k.fovY * 3.14159265F / 360.0F);
+        const BspGeometry& g = g_app->geo;
+        std::array<std::vector<int>, 3> kanal;
+        int flaechen = 0;
+        for (const BspSurface& sf : g.surfaces) {
+            if (sf.shader < 0 || static_cast<std::size_t>(sf.shader) >= g.shaders.size() ||
+                g.shaders[static_cast<std::size_t>(sf.shader)].name != "models/map_objects/rift/statue") {
+                continue;
+            }
+            ++flaechen;
+            for (int q = 0; q + 2 < sf.numIndexes; q += 3) {
+                float m[3] = {0.0F, 0.0F, 0.0F};
+                bool ok = true;
+                for (int e = 0; e < 3; ++e) {
+                    const std::size_t i = static_cast<std::size_t>(sf.firstVert) + g.indexes[static_cast<std::size_t>(sf.firstIndex + q + e)];
+                    if (i >= g.verts.size()) {
+                        ok = false;
+                        break;
+                    }
+                    for (int a = 0; a < 3; ++a) { m[a] += g.verts[i].xyz[a] / 3.0F; }
+                }
+                if (!ok) { continue; }
+                const float d[3] = {m[0] - k.pos[0], m[1] - k.pos[1], m[2] - k.pos[2]};
+                const float z = d[0] * vorn[0] + d[1] * vorn[1] + d[2] * vorn[2];
+                if (z < 1.0F) { continue; }
+                const float x = d[0] * rechts[0] + d[1] * rechts[1] + d[2] * rechts[2];
+                const float y = d[0] * hoch[0] + d[1] * hoch[1] + d[2] * hoch[2];
+                const int px = static_cast<int>(static_cast<float>(w) * 0.5F + x * f / z * static_cast<float>(h) * 0.5F);
+                const int py = static_cast<int>(static_cast<float>(h) * 0.5F - y * f / z * static_cast<float>(h) * 0.5F);
+                if (px < 0 || py < 0 || px >= w || py >= h) { continue; }
+                const std::size_t at = (static_cast<std::size_t>(py) * static_cast<std::size_t>(w) + static_cast<std::size_t>(px)) * 4U;
+                for (int a = 0; a < 3; ++a) { kanal[static_cast<std::size_t>(a)].push_back(rgba[at + static_cast<std::size_t>(a)]); }
+            }
+        }
+        int med[3] = {-1, -1, -1};
+        for (std::size_t a = 0; a < 3 && !kanal[0].empty(); ++a) {
+            std::vector<int>& v = kanal[a];
+            std::nth_element(v.begin(), v.begin() + static_cast<std::ptrdiff_t>(v.size() / 2), v.end());
+            med[a] = v[v.size() / 2];
+        }
+        char z[240];
+        std::snprintf(z, sizeof(z), "Knopftest: Weltflaeche mit lightingDiffuse - Statue: %d Flaechen, %zu Bildpunkte, Median %d %d %d (Bild %d x %d)", flaechen,
+                      kanal[0].size(), med[0], med[1], med[2], w, h);
+        diag::detail(z);
+        return flaechen > 0 && kanal[0].size() >= 100U && med[0] >= 0 && med[0] <= 1 && med[1] <= 1 && med[2] <= 1;
+    }));
     return s;
 }
 

@@ -72,6 +72,9 @@ struct DrawCall {
     // vorgibt (R_RadixSort, SS_OPAQUE vor SS_BLEND0) - eine gemischte Zusatzstufe eines deckenden
     // Shaders gehoert also zu den deckenden, vor jede durchscheinende Flaeche davor.
     bool grundDeckend = false;
+    // REST6: eine Stufe mit rgbGen lightingDiffuse(Entity) auf der Welt - Farbe und Alpha wie mit tr.worldEntity
+    // (weltDiffusSetzen, gpustate.h); zeichneAufrufe setzt die Konstanten ebenso.
+    bool weltDiffus = false;
 };
 
 // Baut die Liste fuer ein Bild.

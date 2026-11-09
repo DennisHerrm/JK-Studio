@@ -287,6 +287,7 @@ struct TextureSet {
         // rc608: Die Stufe ist `map $lightmap` nach mehreren Bildstufen: zeichnet nur das Licht.
         bool lightmapFilter = false;
         bool rgbVertex = false;
+        RgbGenArt rgbArt = RgbGenArt::Keins;   // REST6: rgbGen der Stufe (ShaderInfo::rgbArt)
         // clampmap statt map: die Koordinaten werden geklemmt, nicht
         // gekachelt. Siehe tapLevel in src/mapview.cpp.
         bool clamp = false;
@@ -872,6 +873,7 @@ struct BatchState {
     bool lightmapStufe = false;
     bool lightmapFilter = false;   // rc608, siehe TextureSet::Tex
     bool rgbVertex = false;
+    RgbGenArt rgbArt = RgbGenArt::Keins;   // REST6, siehe TextureSet::Tex
 
     // alphaGen lightingSpecular braucht einen eigenen Weg.
     bool haveSpecular = false;
