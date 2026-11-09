@@ -8,20 +8,35 @@ from inhalt_basis import T
 SPRITE = (
     "Surfaces whose shader turns them towards the camera (`deformVertexes autosprite` and `autosprite2`, such as flames, smoke and "
     "light beams) are computed on the processor exactly like the game, together with every other `deformVertexes` line before and "
-    "after them - also on brush entities, models and in mirrors.",
+    "after them - also on brush entities, models and in mirrors, and on curved patches in the detail level the game draws them in. "
+    "`autosprite` on a patch stops the game as soon as the patch is drawn with more than 2 x 2 points (\"Autosprite shader ... had odd "
+    "vertex count\"); the preview then draws it unturned, and the map check reports it - use `autosprite2` or brush faces.",
     "Flächen, die ihr Shader zur Kamera dreht (`deformVertexes autosprite` und `autosprite2`, etwa Flammen, Rauch und Lichtstrahlen), "
     "rechnet die Vorschau wie das Spiel auf dem Prozessor, zusammen mit allen anderen `deformVertexes`-Zeilen davor und danach - auch "
-    "an Brush-Entities, Modellen und im Spiegel.",
+    "an Brush-Entities, Modellen, im Spiegel und auf gebogenen Patches in der Detailstufe, in der das Spiel sie zeichnet. "
+    "`autosprite` auf einem Patch bricht das Spiel ab, sobald der Patch mit mehr als 2 x 2 Punkten gezeichnet wird (\"Autosprite shader "
+    "... had odd vertex count\"); die Vorschau zeichnet ihn dann ungedreht, und die Kartenprüfung meldet es - `autosprite2` oder "
+    "Pinselflächen nehmen.",
     "着色器使其朝向镜头的表面(`deformVertexes autosprite` 和 `autosprite2`,例如火焰、烟雾和光束)由预览像游戏一样在处理器上计算,"
-    "连同其前后所有其他 `deformVertexes` 行——在笔刷实体、模型上以及镜子中也是如此。",
+    "连同其前后所有其他 `deformVertexes` 行——在笔刷实体、模型上、镜子中以及弯曲的面片上(按游戏绘制时的细节级别)也是如此。"
+    "面片上的 `autosprite` 一旦以超过 2 x 2 个点绘制就会使游戏中止(\"Autosprite shader ... had odd vertex count\");"
+    "预览此时不转动地绘制它,地图检查会报告此问题——请改用 `autosprite2` 或笔刷面。",
     "シェーダーがカメラの方へ向ける面 (`deformVertexes autosprite` と `autosprite2`、たとえば炎、煙、光の筋) は、ゲームと同じく"
-    "プロセッサーで計算されます。その前後にある他の `deformVertexes` 行もすべて一緒に計算され、ブラシエンティティ、モデル、鏡の中でも同じです。",
+    "プロセッサーで計算されます。その前後にある他の `deformVertexes` 行もすべて一緒に計算され、ブラシエンティティ、モデル、鏡の中、"
+    "そしてゲームが描く詳細レベルの曲面パッチでも同じです。パッチ上の `autosprite` は、パッチが 2 x 2 点より多く描かれた時点で"
+    "ゲームを停止させます (\"Autosprite shader ... had odd vertex count\")。プレビューはその場合回転させずに描き、マップチェックが"
+    "報告します。`autosprite2` かブラシ面を使ってください。",
     "Las superficies que su shader gira hacia la cámara (`deformVertexes autosprite` y `autosprite2`, como llamas, humo y rayos de "
     "luz) se calculan en el procesador exactamente como en el juego, junto con todas las demás líneas `deformVertexes` antes y "
-    "después de ellas, también en entidades de brush, modelos y espejos.",
+    "después de ellas, también en entidades de brush, modelos, espejos y parches curvos en el nivel de detalle con que el juego los "
+    "dibuja. `autosprite` en un parche detiene el juego en cuanto el parche se dibuja con más de 2 x 2 puntos (\"Autosprite shader ... "
+    "had odd vertex count\"); la vista previa lo dibuja entonces sin girar y la comprobación del mapa lo avisa: use `autosprite2` o "
+    "caras de brush.",
     "Plochy, které jejich shader otáčí ke kameře (`deformVertexes autosprite` a `autosprite2`, například plameny, kouř a světelné "
     "paprsky), počítá náhled na procesoru přesně jako hra, spolu se všemi ostatními řádky `deformVertexes` před nimi i za nimi - "
-    "také na brush entitách, modelech a v zrcadle.",
+    "také na brush entitách, modelech, v zrcadle a na zakřivených patchích v úrovni detailů, ve které je hra kreslí. `autosprite` na "
+    "patchi zastaví hru, jakmile se patch kreslí s více než 2 x 2 body (\"Autosprite shader ... had odd vertex count\"); náhled ho pak "
+    "kreslí neotočený a kontrola mapy to hlásí - použijte `autosprite2` nebo plochy brushů.",
 )
 
 GRAFIKKARTE = (
