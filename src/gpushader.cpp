@@ -1792,6 +1792,9 @@ std::string shaderName(std::uint32_t features, int numTexMods) {
         {kTexGenVec, "_tcv"},   // rc605
         {kModellLicht, "_ml"},  // rc608
         {kTurb, "_tb"},         // FIX5
+        // REST6: tcGen lightmap und das Lightmap-Bild einer weiteren `map $lightmap`-Stufe (REST3c) aendern den Quelltext - ohne Kuerzel
+        // galt fuer sie der zuerst uebersetzte Shader gleichen Namens (etwa der einer Stufe mit rgbGen const ohne Lightmap).
+        {kTexGenLm, "_tlm"},    {kLightmapBild, "_lmb"},
         // kRohEcke MUSS ein Kuerzel bekommen: es aendert den erzeugten
         // Quelltext (kein Helligkeitsfaktor auf der Eckenfarbe). Ohne
         // Kuerzel bekaemen zwei verschiedene Shader denselben Namen und

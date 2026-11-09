@@ -125,14 +125,8 @@ void weltDiffusSetzen(BatchState& bs) noexcept {
     bs.rgbConst[0] = 0.0F;
     bs.rgbConst[1] = 0.0F;
     bs.rgbConst[2] = 0.0F;
-    // alphaGen identity (ohne alphaGen: FromImage, siehe AlphaGen) - sonst bleibt das alphaGen der Stufe. Das Alpha der Stufe
-    // wirkt in der Vorschau nur ueber Mischfaktoren mit Quellalpha und alphaFunc: der Alphakanal des Bildspeichers wird nicht
-    // geschrieben (holeBlend: RenderTargetWriteMask nur RGB) - wie im Spiel, wo er nicht angezeigt wird.
-    const auto quellAlpha = [](BlendFactor f) {
-        return f == BlendFactor::SrcAlpha || f == BlendFactor::OneMinusSrcAlpha || f == BlendFactor::SrcAlphaSaturate;
-    };
-    const bool alphaWirkt = bs.alphaTest != AlphaTest::None || quellAlpha(bs.srcFactor) || quellAlpha(bs.dstFactor);
-    if (alphaWirkt && bs.alphaConst < 0.0F && (bs.alphaGen == AlphaGen::FromImage || bs.alphaGen == AlphaGen::Identity)) {
+    // alphaGen identity (ohne alphaGen: FromImage, siehe AlphaGen) - sonst bleibt das alphaGen der Stufe
+    if (bs.alphaConst < 0.0F && (bs.alphaGen == AlphaGen::FromImage || bs.alphaGen == AlphaGen::Identity)) {
         if (bs.rgbArt == RgbGenArt::LightingDiffuse) {
             bs.alphaConst = 0.0F;
         } else {

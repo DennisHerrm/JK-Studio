@@ -249,6 +249,25 @@ int main() {
                     !enthaelt(vertexShaderHlsl(kTexMod, 2), "ort, true);"));
         erwarte("kTurb aendert den Namen", shaderName(kTexMod, 1) != shaderName(kTexMod | kTurb, 1));
     }
+    // REST6: jedes Merkmal, das den Quelltext aendert, aendert den Namen - holeShader legt die uebersetzten Shader nach Namen ab, ein
+    // gemeinsamer Name hiess: der zuerst uebersetzte galt fuer beide (die Lightmap-Stufen mit tcGen lightmap zeichneten dann ohne ihre Lightmap).
+    {
+        const std::uint32_t f = kRgbConst | kRohEcke | kAlphaKonst;
+        erwarte("kTexGenLm aendert den Quelltext und den Namen",
+                vertexShaderHlsl(f | kTexGenLm, 0) != vertexShaderHlsl(f, 0) && shaderName(f | kTexGenLm, 0) != shaderName(f, 0));
+        erwarte("kLightmapBild aendert den Quelltext und den Namen",
+                pixelShaderHlsl(f | kLightmapBild) != pixelShaderHlsl(f) && shaderName(f | kLightmapBild, 0) != shaderName(f, 0) &&
+                    shaderName(f | kLightmapBild, 0) != shaderName(f | kTexGenLm, 0));
+        // alle Merkmale ausser kGlow (aendert nur den Durchgang): verschiedener Quelltext -> verschiedener Name
+        int gleich = 0;
+        for (int b = 0; b < 32; ++b) {
+            const std::uint32_t bit = 1U << static_cast<unsigned>(b);
+            if (bit == kGlow) { continue; }
+            const bool quelle = vertexShaderHlsl(bit, 0) != vertexShaderHlsl(kNichts, 0) || pixelShaderHlsl(bit) != pixelShaderHlsl(kNichts);
+            if (quelle && shaderName(bit, 0) == shaderName(kNichts, 0)) { ++gleich; }
+        }
+        erwarte("kein quelltextwirksames Merkmal ohne Kuerzel", gleich == 0);
+    }
 
     // --- Gleiche Bits, gleicher Quelltext --------------------------------
     //
