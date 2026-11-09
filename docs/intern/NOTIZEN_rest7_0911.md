@@ -69,15 +69,15 @@ Build `Y:/karte/build-test` (`--parallel 8 -- /nodeReuse:false`), Laeufe `r7_*` 
 
 ## Punkt 3 und Schluss (`Y:\werkzeuge\r7\schluss.sh`, Summe `schluss_summe.txt`)
 
-- Sauberer Neubau (`--clean-first`) 0 Warnungen (1126 s). Die parallelen Laeufe (ctest, figurlicht, mission1, karteneditor voll,
-  editorportal, laserfalle, gluehen, rest605 moversprite, modellblock funktionen/md, menueeditor, Modus 1) liefen bei der Abgabe
-  noch, bis dahin ohne FEHLER-Zeile; Summe in `Y:\werkzeuge7\schluss_summe.txt` (SCHLUSS_ENDE am Ende). Vorher gruen:
-  ctest-Auswahl 9/9 (shadervorrang, gpushader, gpudraw, figurstufen, imagetest, kartenpruefung, defgpu, grasflaechen, schmerz),
-  moversprite 7/0.
+- Sauberer Neubau (`--clean-first`) 0 Warnungen (1126 s); ctest 245/245 (-j 12 ohne q3map2_pr316), q3map2_pr316 1/1.
+- Parallel: figurlicht 8/0, mission1 98/0, karteneditor voll 3391/0, editorportal 19/0, laserfalle 9/0, gluehen 9/0,
+  rest605 moversprite 7/0, modellblock funktionen 61/0 und md 86/0, menueeditor 2787/0, Modus 1 2635/0.
+- Lints wie die Basis (portability 99, pruefcodes 11, efxflags-/fremdprogramm-Meldung bekannt, link/tidy nur unter Linux, sonst ok).
+  Handbuch nicht betroffen. Keine Bildzeit-Messung (Auftrag).
 
 ## Offen
 
-- Schlussrunde (Punkt 3) auswerten: `Y:\werkzeuge7\schluss_summe.txt`; Kartenpruefung (kp) nicht gelaufen.
+- Kartenpruefung (kp) nicht gelaufen (Eingabe durch Punkt 1 geaendert) - in der Release-Runde.
 
 - Karten-Editor, Echtzeit-Licht: Shader mit doppeltem Namen nach NRCs Inventar statt nach der Spielregel (siehe Punkt 1).
 - alphaGen const / rgbGen const: das Spiel speichert den Wert als Byte (constantColor, 255 * atof, abgeschnitten: 0,125 -> 31/255),
