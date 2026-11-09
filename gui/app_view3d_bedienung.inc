@@ -4206,7 +4206,10 @@ void drawMapView() {
                             float ggWurzel[16];
                             g2WurzelWelt(ggWelt, ggWurzel);
                             gl.weltMitWurzel = true;   // P61
-                            const int ng = gpu::zeichneFigur(as->model, &as->textures, *knochen, ggWurzel, vp,
+                            // REST3c: die Detailstufe wie G2_ComputeLOD mit s.radius der Entity am Ursprung dieses Bildes
+                            const float ggOrt[3] = {ggWelt[3], ggWelt[7], ggWelt[11]};
+                            const GlmModel& ggNetz = gegenstandNetzImBild(gg, *as, ggOrt, bildCam);
+                            const int ng = gpu::zeichneFigur(ggNetz, &as->textures, *knochen, ggWurzel, vp,
                                                              &fg, &gl, g_app->showCaps);
                             g_app->gpuAufrufe += ng;
                             g_app->gpuFiguren2 += ng;

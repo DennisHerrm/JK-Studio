@@ -613,6 +613,11 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Anbau-Stufen 0:%d 1:%d 2:%d 3+:%d", st[0], st[1], st[2], st[3]);
             diag::detail(z);
             anbauStufenProbe() = {};
+            // REST3c: ebenso die Ghoul2-Gegenstaende und Geschuetze (gegenstandNetzImBild, s.radius je Klasse)
+            const std::array<int, 4>& gs = gegenstandStufenProbe();
+            std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Gegenstand-Stufen 0:%d 1:%d 2:%d 3+:%d", gs[0], gs[1], gs[2], gs[3]);
+            diag::detail(z);
+            gegenstandStufenProbe() = {};
             // REST3c: Emittermodelle und die schaltbaren Lichtstile (32..) dieses Bildes (duel_exegol: Nebel und Blitzlichter)
             {
                 double massstab = 0.0;

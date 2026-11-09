@@ -1445,6 +1445,9 @@ struct App {
         // oben = ent.axis[2] aus spinAngles.
         bool schwertLeuchten = false;
         float oben[3]{0.0F, 0.0F, 1.0F};
+        // REST3c: s.radius und das Groesste von s.modelScale der Entity fuer G2_ComputeLOD (je Klasse, siehe die Aufsteller)
+        float lodRadius = 0.0F;
+        float lodSkala = 1.0F;
     };
     std::vector<GegenstandGlm> gegenstandGlm;
     // Pruefung 4b: die Huelle (gfx/effects/solidWhite_cull, RF_RGB_TINT) je Modell.
@@ -2996,6 +2999,10 @@ const GlmModel& figurNetzImBild(const ActorDraw& a, const float fw[16], const Ca
 const GlmModel& anbauNetzImBild(const ActorDraw& a, const AnbauDraw& an, const float fw[16], const Camera& cam);
 // REST3b: wie oft anbauNetzImBild seit dem letzten Leeren welche Stufe gewaehlt hat (Platz 3: 3 und mehr) - Selbsttest.
 std::array<int, 4>& anbauStufenProbe();
+// REST3c: das Netz eines Ghoul2-Gegenstands oder Geschuetzes (gg) in der Stufe, die G2_ComputeLOD mit seinem s.radius waehlt
+// (`ort`: der Ursprung in diesem Bild); gegenstandStufenProbe zaehlt die Wahl wie anbauStufenProbe.
+const GlmModel& gegenstandNetzImBild(const App::GegenstandGlm& gg, const App::ActorAssets& as, const float ort[3], const Camera& cam);
+std::array<int, 4>& gegenstandStufenProbe();
 // MRESTE 4: ein Ghoul2-Kartenmodell (.glm-Bytes `data`) je LOD-Stufe als starres Netz nach `dateien` (Stufe 0 unter `low`,
 // Stufe n unter "low|lod<n>"); zurueck die Zahl der Stufen, 0: nicht lesbar oder ohne passende GLA (Grund in `fehler`).
 int glmStufenLaden(const std::string& data, const std::string& low, std::map<std::string, Md3Model>& dateien, std::string& fehler);

@@ -2203,6 +2203,23 @@ const App::ActorAssets* gegenstandGlmFuer(const std::string& pfad) {
         std::string err;
         if (readGlm(data, a.model, &err)) {
             a.textures = texturesFor(a.model);
+            // REST3c: alle Detailstufen (R_LoadMDXM), Haut und Flaechen aus Stufe 0 - G2_ComputeLOD waehlt je Bild
+            // (gegenstandNetzImBild), wie bei den Griffen (hiltFor)
+            const GlmModel huelle = a.model.numLods > 1 ? glmOhneNetz(a.model) : GlmModel{};
+            for (int n = 1; n < a.model.numLods && n < 16; ++n) {
+                GlmModel g;
+                std::string fehlerStufe;
+                if (!readGlm(data, g, &fehlerStufe, n) || g.surfaces.size() != a.model.surfaces.size()) {
+                    diag::info("Gegenstand " + pfad + ": Detailstufe " + std::to_string(n) + " nicht lesbar - " + fehlerStufe);
+                    break;
+                }
+                GlmModel stufe = huelle;
+                for (std::size_t s = 0; s < stufe.surfaces.size(); ++s) {
+                    stufe.surfaces[s].verts = std::move(g.surfaces[s].verts);
+                    stufe.surfaces[s].indexes = std::move(g.surfaces[s].indexes);
+                }
+                a.lodModelle.push_back(std::move(stufe));
+            }
         } else {
             diag::detail("Gegenstand " + pfad + " nicht lesbar: " + err);
             a.model = GlmModel{};
@@ -2234,6 +2251,7 @@ const App::ActorAssets* gegenstandGlmFuer(const std::string& pfad, int bild) {
     App::ActorAssets a;
     if (basis != nullptr) {
         a.model = basis->model;
+        a.lodModelle = basis->lodModelle;   // REST3c
         a.textures = basis->textures;
         a.bilder = basis->bilder;   // rc610 R2a (B3-3): dieselben Bilder
         a.textures.zeichenSpeicher.reset();
@@ -2472,6 +2490,9 @@ void geschuetzeAufstellen(int& gefunden, int& fehlt) {
         float skala = 1.0F;
         bool kopfueber = false;
         int bild = -1;
+        // REST3c: s.radius und s.modelScale fuer G2_ComputeLOD; ohne Zeile in der Spawnfunktion 0 (G2_ComputeLOD: flod 0, Stufe 0)
+        float lodRadius = 0.0F;
+        float lodSkala = 1.0F;
         if (c == "misc_turret") {
             // SP_misc_turret (code/game/g_turret.cpp:865-891 OpenJK, md_g_turret.cpp:1014 MD):
             // turret_set_models -> turret_canon.glm; finish_spawning_turret; Start_Off
@@ -2480,6 +2501,14 @@ void geschuetzeAufstellen(int& gefunden, int& fehlt) {
             pfad = serverG2Modell(e);
             kopfueber = (sf & 2) != 0;
             bild = (sf & 1) != 0 ? 1 : 0;
+            // finish_spawning_turret: SPF_TURRETG2_TURBO s.radius 256, s.modelScale 2 (g_turret.cpp:976-981 OpenJK, :1377 MD9),
+            // sonst keiner (OpenJK :871 auskommentiert); Jedi Outcast SP_misc_turret 80 (codeJK2/game/g_turret.cpp:575)
+            if (regelwerkJediOutcast()) {
+                lodRadius = 80.0F;
+            } else if ((sf & 4) != 0) {
+                lodRadius = 256.0F;
+                lodSkala = 2.0F;
+            }
         } else if (c == "misc_turretG2") {
             // SP_misc_turretG2 (md_g_turret.cpp:1151-1280 MD, nur Movie Duels): spawnflags
             // der Karte - 8 turbo (laser_cannon_model.glm), 2 kopfueber, 1 Start_Off;
@@ -2492,12 +2521,20 @@ void geschuetzeAufstellen(int& gefunden, int& fehlt) {
             if (const std::string* s = e.find("customscale")) { cs = std::atoi(s->c_str()); }
             cs = std::min(cs, 1023);
             if (cs > 0) { skala = static_cast<float>(cs) / 100.0F; }
+            // SP_misc_turretG2 (g_turret.cpp:1228-1266 MD9): turbo (8) s.radius 128 * scale, s.modelScale scale bei customscale
+            // oder turbo
+            if ((sf & 8) != 0) { lodRadius = 128.0F * skala; }
+            if (cs > 0 || (sf & 8) != 0) { lodSkala = skala; }
         } else if (c == "emplaced_gun") {
             pfad = serverG2Modell(e);
+            // SP_emplaced_gun s.radius 110 (g_emplaced.cpp:808 OpenJK, :831 MD9); Jedi Outcast setzt keinen
+            lodRadius = regelwerkJediOutcast() ? 0.0F : 110.0F;
         } else if (c == "emplaced_eweb") {
             pfad = serverG2Modell(e);
+            lodRadius = 80.0F;   // SP_emplaced_eweb (g_emplaced.cpp:438 OpenJK, :465 MD9)
         } else if (c == "misc_sentry_turret") {
             pfad = serverG2Modell(e);
+            lodRadius = 30.0F;   // SP_PAS (g_turret.cpp:1795 OpenJK, :2223 MD9, codeJK2 :1408)
         } else if (c == "misc_trip_mine") {
             // rc604 fix604b (B5): siehe tripMineLage.
             TripMineLage tl;
@@ -2510,6 +2547,7 @@ void geschuetzeAufstellen(int& gefunden, int& fehlt) {
             App::GegenstandGlm gg;
             gg.entity = i;
             gg.pfad = kFalle;
+            gg.lodRadius = 60.0F;   // laserTrap->s.radius 60 (wp_trip_mine.cpp:212 OpenJK, :213 MD9, codeJK2 :214)
             float achse[3][3];
             winkelZuAchsen(tl.winkel, achse);
             for (int r = 0; r < 3; ++r) {
@@ -2527,6 +2565,8 @@ void geschuetzeAufstellen(int& gefunden, int& fehlt) {
             // skaliert die Achsen damit (ScaleModelAxis).
             pfad = "models/map_objects/imp_mine/ion_cannon.glm";
             skala = 2.0F;
+            lodRadius = 320.0F;   // SP_misc_ion_cannon (g_turret.cpp:2073 OpenJK, :2507 MD9, codeJK2 :1686)
+            lodSkala = 2.0F;
         } else {
             continue;
         }
@@ -2553,6 +2593,8 @@ void geschuetzeAufstellen(int& gefunden, int& fehlt) {
         gg.entity = i;
         gg.pfad = pfad;
         gg.bildIndex = bild;
+        gg.lodRadius = lodRadius;
+        gg.lodSkala = lodSkala;
         float achse[3][3];
         winkelZuAchsen(w, achse);
         for (int r = 0; r < 3; ++r) {
@@ -2686,6 +2728,8 @@ void gegenstaendeAufstellen(int& gefunden, int& fehlt) {
             App::GegenstandGlm gg;
             gg.entity = i;
             gg.pfad = a.modell;
+            // FinishSpawningItem: s.radius 20 (g_items.cpp:1135 OpenJK, :1375/:1586 MD9, codeJK2 :846)
+            gg.lodRadius = 20.0F;
             float achse[3][3];
             winkelZuAchsen(a.winkel.data(), achse);
             // G2_GenerateWorldMatrix: matrix[r][c] = axis[c][r], Spalte 3 = Ort.
@@ -2982,6 +3026,33 @@ const GlmModel& anbauNetzImBild(const ActorDraw& a, const AnbauDraw& an, const f
     const int stufe = modell::lodWieImSpiel(l);
     ++anbauStufenProbe()[static_cast<std::size_t>(std::clamp(stufe, 0, 3))];
     return stufe <= 0 ? *an.model : (*an.lodModelle)[static_cast<std::size_t>(stufe - 1)];
+}
+
+std::array<int, 4>& gegenstandStufenProbe() {
+    static std::array<int, 4> zahl{};
+    return zahl;
+}
+
+const GlmModel& gegenstandNetzImBild(const App::GegenstandGlm& gg, const App::ActorAssets& as, const float ort[3], const Camera& cam) {
+    if (as.lodModelle.empty()) {
+        ++gegenstandStufenProbe()[0];
+        return as.model;
+    }
+    const modell::Zielspiel ziel = regelwerkJediOutcast() ? modell::Zielspiel::Jk2Sp
+                                   : regelwerkMovieDuels() ? modell::Zielspiel::MdSp
+                                                           : modell::Zielspiel::JkaSp;
+    float vorn[3];
+    cam.forward(vorn);
+    modell::LodLage l;
+    l.stufenZahl = static_cast<int>(as.lodModelle.size()) + 1;
+    l.radius = gg.lodRadius;
+    l.skala = gg.lodSkala;
+    l.lodscale = modell::grenzen(ziel).lodscale;   // r_lodscale, r_lodbias "0"
+    l.abstand = vorn[0] * (ort[0] - cam.pos[0]) + vorn[1] * (ort[1] - cam.pos[1]) + vorn[2] * (ort[2] - cam.pos[2]);
+    l.projektion5 = 1.0F / std::tan(cam.fovY * 3.14159265F / 360.0F);
+    const int stufe = modell::lodWieImSpiel(l);
+    ++gegenstandStufenProbe()[static_cast<std::size_t>(std::clamp(stufe, 0, 3))];
+    return stufe <= 0 ? as.model : as.lodModelle[static_cast<std::size_t>(stufe - 1)];
 }
 
 const GlmModel& figurNetzImBild(const ActorDraw& a, const float fw[16], const Camera& cam) {
