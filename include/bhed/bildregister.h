@@ -60,7 +60,8 @@ public:
     // RE_RegisterModel (rd-vanilla tr_model.cpp:630-700): .md3 mit den Stufen rueckwaerts (Name_2.md3, Name_1.md3, dann der
     // Name; MD3_MAX_LODS 3), je Flaeche jeder Shader (R_LoadMD3 :923-926); .glm je Flaeche der Hierarchie (R_LoadMDXM
     // tr_ghoul2.cpp:3713-3751, "[nomaterial]" leer). Ein schon geladenes Modell registriert seine Shader wieder (:217-232).
-    void modell(const std::string& pfad, const Leser& lies, const Skripte& skripte);
+    // true, wenn es die Datei `pfad` gibt (FS_ReadFile; jede Datei wird je Register nur einmal gelesen).
+    bool modell(const std::string& pfad, const Leser& lies, const Skripte& skripte);
     // RE_RegisterSkin (tr_skin.cpp:348-428): "ordner/|kopf|rumpf|beine" sind drei .skin-Dateien (RE_SplitSkins), jede nur
     // einmal und nur, solange die vorige da war; je Zeile "flaeche,shader" R_FindShader (RE_RegisterIndividualSkin :262-330:
     // ohne tag_*, ohne "_off,*off", hoechstens 128 Flaechen je Haut).
@@ -99,6 +100,12 @@ private:
     Vorhanden m_vorhanden;
     std::unordered_map<std::string, BildWahl> m_bilder;
     std::vector<std::string> m_warnungen;
+    // Messrunde 09.11.: je Modelldatei (klein) ob es sie gibt und ihre Shader in der Folge der Datei
+    struct ModellDatei {
+        bool da = false;
+        std::vector<std::string> shader;
+    };
+    std::unordered_map<std::string, ModellDatei> m_modellDateien;
 };
 
 // Die Shader der Karte in der Reihenfolge, in der RE_LoadWorldMap (tr_bsp.cpp:1420-1427) sie registriert: zuerst

@@ -2228,6 +2228,7 @@ std::string fahrzeugDateien(const char* ordner, const char* endung) {
 // MD9 :2270-2271, codeJK2 :1209-1210) in der Reihenfolge von CS_EFFECTS, dann cgi_R_LoadWorldMap.
 // `vorschau` false (Spielbild des Karten-Editors): ohne misc_trip_mine (tripMineLage rechnet mit der Karte der Vorschau).
 void vorWeltRegistrieren(const std::vector<MapEntity>& ents, bool vorschau) {
+    const auto t0 = std::chrono::steady_clock::now();
     BildRegister& reg = ladeRegister();
     const BildRegister::Leser lies = [](const std::string& p, std::string& out) { return readFromArchives(p, out); };
     const bool jo = regelwerkJediOutcast();
@@ -2285,10 +2286,8 @@ void vorWeltRegistrieren(const std::vector<MapEntity>& ents, bool vorschau) {
                                 : (!jo && cs.find('|') != std::string::npos ? ordner + "|" + cs : ordner + "model_" + cs + ".skin"),
                      lies, skriptZu);
         }
-        std::string probe;
-        if (readFromArchives(ordner + "model.glm", probe)) {
-            reg.modell(ordner + "model.glm", lies, skriptZu);
-        } else {
+        // gibt es model.glm nicht, registriert modell nichts (Messrunde 09.11.: nicht erst zur Probe ganz lesen)
+        if (!reg.modell(ordner + "model.glm", lies, skriptZu)) {
             if (hautVorCg) { reg.haut("models/players/stormtrooper/model_default.skin", lies, skriptZu); }
             reg.modell("models/players/stormtrooper/model.glm", lies, skriptZu);
         }
@@ -2414,7 +2413,8 @@ void vorWeltRegistrieren(const std::vector<MapEntity>& ents, bool vorschau) {
     // 7. CG_RegisterEffects: CS_EFFECTS + 1 ... in der Reihenfolge der Indizes (RegisterEffect, samt Untereffekten)
     for (const std::string& n : effekte) { reg.effekt(n, lies, skriptZu); }
     diag::detail("Bild je Name: vor der Welt " + std::to_string(g2) + " Ghoul2-Modelle (Server) und " + std::to_string(effekte.size()) +
-                 " Effekte (CG_RegisterEffects), " + std::to_string(reg.bilder()) + " Bilder");
+                 " Effekte (CG_RegisterEffects), " + std::to_string(reg.bilder()) + " Bilder, " +
+                 std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count()) + " ms");
 }
 
 // MR8 Punkt 1: ein Bild je Name wie im Spiel - R_FindImageFile_NoLoad (rd-vanilla tr_image.cpp:936-971) gibt das image_t des

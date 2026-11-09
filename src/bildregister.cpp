@@ -101,9 +101,10 @@ std::vector<std::string> glmShader(const std::string& d) {
 
 }  // namespace
 
-void BildRegister::modell(const std::string& pfad, const Leser& lies, const Skripte& skripte) {
-    if (pfad.empty() || !lies) { return; }
+bool BildRegister::modell(const std::string& pfad, const Leser& lies, const Skripte& skripte) {
+    if (pfad.empty() || !lies) { return false; }
     const bool md3 = klein(pfad).find(".md3") != std::string::npos;   // strstr(name, ".md3") (tr_model.cpp:634)
+    bool da = false;
     for (int stufe = md3 ? 2 : 0; stufe >= 0; --stufe) {
         std::string datei = pfad;
         if (stufe != 0) {
@@ -111,16 +112,26 @@ void BildRegister::modell(const std::string& pfad, const Leser& lies, const Skri
             if (punkt != std::string::npos) { datei.resize(punkt); }
             datei += "_" + std::to_string(stufe) + ".md3";
         }
-        std::string d;
-        if (!lies(datei, d) || d.size() < 4U) { continue; }
-        std::vector<std::string> namen;
-        if (d.compare(0, 4, "IDP3") == 0) {
-            namen = md3Shader(d);
-        } else if (d.compare(0, 4, "2LGM") == 0) {
-            namen = glmShader(d);
+        // Messrunde 09.11.: jede Datei einmal je Register lesen - ein schon geladenes Modell registriert dieselben Shader in
+        // derselben Folge wieder (die Datei aendert sich waehrend einer Registrierung nicht), ohne sie neu zu entpacken
+        auto it = m_modellDateien.find(klein(datei));
+        if (it == m_modellDateien.end()) {
+            ModellDatei m;
+            std::string d;
+            m.da = lies(datei, d);
+            if (m.da && d.size() >= 4U) {
+                if (d.compare(0, 4, "IDP3") == 0) {
+                    m.shader = md3Shader(d);
+                } else if (d.compare(0, 4, "2LGM") == 0) {
+                    m.shader = glmShader(d);
+                }
+            }
+            it = m_modellDateien.emplace(klein(datei), std::move(m)).first;
         }
-        for (const std::string& n : namen) { shader(n, skripte); }
+        if (stufe == 0) { da = it->second.da; }
+        for (const std::string& n : it->second.shader) { shader(n, skripte); }
     }
+    return da;
 }
 
 void BildRegister::haut(const std::string& name, const Leser& lies, const Skripte& skripte) {
@@ -285,6 +296,7 @@ void BildRegister::leeren() {
     m_fehlerhaft.clear();
     m_bilder.clear();
     m_warnungen.clear();
+    m_modellDateien.clear();
 }
 
 std::vector<std::string> weltShaderReihenfolge(const BspGeometry& geo) {
