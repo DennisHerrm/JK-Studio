@@ -91,6 +91,15 @@ struct GamePath {
 [[nodiscard]] int fsPathCmp(const std::string& a, const std::string& b) noexcept;
 void sortierePk3WieEngine(std::vector<std::string>& namen);
 
+// REST7: FS_ListFiles(pfad, endung) wie das Spiel (FS_ListFilteredFiles, code/qcommon/files.cpp:2134-2250 MD9,
+// :2034-2150 OpenJK): die Suchliste von liesWieSpiel der Reihe nach (hoechster Rang zuerst), je .pk3 ihre Eintraege in
+// der Folge des Zip-Verzeichnisses (FS_LoadZipFile :2029-2049 MD9), je Ordner die Dateien in <ordner>/<pfad> ohne
+// Unterordner (Sys_ListFiles mit wantsubs = qfalse, Folge von FindFirstFile); in .pk3 hoechstens zwei Ebenen unter pfad
+// (depth - pathDepth > 2). Ohne Gross/klein eindeutig (FS_AddFileToList :2111), hoechstens MAX_FOUND_FILES - 1 = 4095
+// Namen. Die Namen relativ zu pfad, wie FS_ListFiles sie liefert. ordner: niedrigste Prioritaet zuerst.
+[[nodiscard]] std::vector<std::string> fsListFiles(const std::vector<GamePath>& ordner, const std::string& pfad, const std::string& endung,
+                                                   bool dirVorPak);
+
 // Alle Eintraege eines Suchpfads, die auf eine der Endungen passen -
 // zusammengefasst und ohne Dubletten, spaetere Archive gewinnen.
 struct FoundFile {

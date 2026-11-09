@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cctype>
 #include <cstddef>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -1410,6 +1411,193 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 }
             }
         }
+    }
+}
+
+namespace {
+
+// COM_Compress (q_shared.cpp:205-297 MD9, :212-279 OpenJK): Kommentare weg, Leerraum zu einem Zeichen, Zeilenwechsel
+// zu einem "\n", Anfuehrungszeichen unveraendert.
+std::string comCompress(const std::string& in) {
+    std::string out;
+    out.reserve(in.size());
+    bool zeile = false;
+    bool leer = false;
+    std::size_t i = 0;
+    const std::size_t n = in.size();
+    while (i < n) {
+        const char c = in[i];
+        if (c == '/' && i + 1 < n && in[i + 1] == '/') {
+            while (i < n && in[i] != '\n') { ++i; }
+        } else if (c == '/' && i + 1 < n && in[i + 1] == '*') {
+            while (i < n && (in[i] != '*' || i + 1 >= n || in[i + 1] != '/')) { ++i; }
+            if (i < n) { i += 2; }
+        } else if (c == '\n' || c == '\r') {
+            zeile = true;
+            ++i;
+        } else if (c == ' ' || c == '\t') {
+            leer = true;
+            ++i;
+        } else {
+            if (zeile) {
+                out += '\n';
+                zeile = false;
+                leer = false;
+            }
+            if (leer) {
+                out += ' ';
+                leer = false;
+            }
+            if (c == '"') {
+                out += c;
+                ++i;
+                while (i < n && in[i] != '"') { out += in[i++]; }
+                if (i < n) { out += in[i++]; }
+            } else {
+                out += c;
+                ++i;
+            }
+        }
+    }
+    return out;
+}
+
+// COM_ParseExt(&p, qtrue) (q_shared.cpp:299-405 MD9): das naechste Wort ab p; p danach dahinter, npos am Ende.
+// anfang: wo das Wort beginnt. MAX_TOKEN_CHARS (1024) kuerzt das Wort.
+struct Wort {
+    std::string text;
+    std::size_t anfang = std::string::npos;
+};
+Wort comParse(const std::string& t, std::size_t& p) {
+    Wort w;
+    const std::size_t n = t.size();
+    if (p == std::string::npos) { return w; }
+    for (;;) {
+        while (p < n && static_cast<unsigned char>(t[p]) <= ' ') { ++p; }   // SkipWhitespace (auch das Ende: 0)
+        if (p >= n) {
+            p = std::string::npos;
+            return w;
+        }
+        if (t[p] == '/' && p + 1 < n && t[p + 1] == '/') {
+            while (p < n && t[p] != '\n') { ++p; }
+        } else if (t[p] == '/' && p + 1 < n && t[p + 1] == '*') {
+            p += 2;
+            while (p < n && (t[p] != '*' || p + 1 >= n || t[p + 1] != '/')) { ++p; }
+            if (p < n) { p += 2; }
+        } else {
+            break;
+        }
+    }
+    constexpr std::size_t kMaxToken = 1024;
+    w.anfang = p;
+    if (t[p] == '"') {
+        ++p;
+        while (p < n && t[p] != '"') {
+            if (w.text.size() < kMaxToken - 1) { w.text += t[p]; }
+            ++p;
+        }
+        if (p < n) { ++p; }
+        return w;
+    }
+    while (p < n && static_cast<unsigned char>(t[p]) > ' ') {
+        if (w.text.size() < kMaxToken - 1) { w.text += t[p]; }
+        ++p;
+    }
+    return w;
+}
+
+// SkipBracedSection (q_shared.cpp:510-534 MD9): nach einem schon gelesenen "{" bis zur passenden "}"
+void skipBraced(const std::string& t, std::size_t& p, const std::string& gelesen) {
+    int tiefe = !gelesen.empty() && gelesen[0] == '{' ? 1 : 0;
+    do {
+        const Wort w = comParse(t, p);
+        if (w.text.size() == 1) {   // token[1] == 0
+            if (w.text[0] == '{') { ++tiefe; }
+            else if (w.text[0] == '}') { --tiefe; }
+        }
+    } while (tiefe != 0 && p != std::string::npos);
+}
+
+}  // namespace
+
+std::size_t maxShaderDateien(int spiel) noexcept {
+    return spiel == kRegelwerkMovieDuels ? 8192 : spiel == kRegelwerkJediOutcast ? 1024 : 4096;
+}
+
+ShaderTextWieSpiel shaderTextWieSpiel(const std::vector<std::string>& texte, int spiel) {
+    const bool jk2 = spiel == kRegelwerkJediOutcast;
+    std::string ganz;
+    std::size_t summe = 0;
+    for (const std::string& t : texte) { summe += t.size() + 1; }
+    ganz.reserve(summe);
+    for (auto it = texte.rbegin(); it != texte.rend(); ++it) {
+        const std::size_t null = it->find('\0');   // strcat
+        if (jk2) { ganz += '\n'; }
+        ganz.append(*it, 0, null == std::string::npos ? it->size() : null);
+        if (!jk2) { ganz += '\n'; }
+    }
+    if (!jk2) { ganz = comCompress(ganz); }
+    // SetupShaderEntryPtrs
+    ShaderTextWieSpiel aus;
+    std::set<std::string> gesehen;
+    std::size_t p = 0;
+    for (;;) {
+        const Wort w = comParse(ganz, p);
+        if (w.text.empty()) { break; }   // auch "" (leere Anfuehrungszeichen) beendet die Suche wie im Spiel
+        if (w.text[0] == '{') {
+            skipBraced(ganz, p, w.text);
+            if (p == std::string::npos) { break; }
+            continue;
+        }
+        std::string name = w.text;
+        for (char& c : name) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        const std::size_t nachName = p;
+        if (p != std::string::npos) {   // SkipRestOfLine
+            const std::size_t e = ganz.find('\n', p);
+            p = e == std::string::npos ? ganz.size() : e + 1;
+        }
+        if (!gesehen.insert(name).second) {
+            ++aus.verdeckt;
+            if (p == std::string::npos || p >= ganz.size()) { break; }
+            continue;
+        }
+        ++aus.namen;
+        // ParseShader ab dem Namen: das erste Wort muss mit "{" beginnen, sonst ist der Shader fehlerhaft (defaultShader) -
+        // die Vorschau legt dann keinen Eintrag an
+        std::size_t q = nachName;
+        const Wort auf = comParse(ganz, q);
+        if (!auf.text.empty() && auf.text[0] == '{') {
+            skipBraced(ganz, q, auf.text);
+            const std::size_t ende = q == std::string::npos ? ganz.size() : q;
+            std::string e = name;
+            e += '\n';
+            // jede Klammer, die ein eigenes Wort ist (ausserhalb von Anfuehrungszeichen), auf eine eigene Zeile
+            bool zitat = false;
+            for (std::size_t i = auf.anfang; i < ende; ++i) {
+                const char c = ganz[i];
+                if (c == '"') { zitat = !zitat; }
+                const bool allein = !zitat && (c == '{' || c == '}') && (i == auf.anfang || static_cast<unsigned char>(ganz[i - 1]) <= ' ') &&
+                                    (i + 1 >= ende || static_cast<unsigned char>(ganz[i + 1]) <= ' ');
+                if (allein) {
+                    e += '\n';
+                    e += c;
+                    e += '\n';
+                } else {
+                    e += c;
+                }
+            }
+            e += '\n';
+            aus.eintraege.push_back(std::move(e));
+        }
+        if (p == std::string::npos || p >= ganz.size()) { break; }
+    }
+    return aus;
+}
+
+void parseShaderTextWieSpiel(const ShaderTextWieSpiel& t, ShaderMap& out, NebelMap* nebel) {
+    for (const std::string& e : t.eintraege) {
+        parseShaderScript(e, out);
+        if (nebel != nullptr) { parseFogParms(e, *nebel); }
     }
 }
 

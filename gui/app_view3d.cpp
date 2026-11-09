@@ -2346,22 +2346,7 @@ ModelTextures texturesFor(const GlmModel& model) {
     // Eintraegen und 64 Figuren stand im Protokoll dutzendfach "9014
     // Shadereintraege gelesen", und das Programm schien zu haengen.
     ShaderMap& shaderMap = g_app->shaderMap;
-    auto readShaders = [&]() {
-        if (g_app->shaderMapRead) {
-            return;
-        }
-        g_app->shaderMapRead = true;
-        for (const GamePath& gp : g_app->gamePaths) {
-            for (const FoundFile& f : findByExtension(gp, {".shader"})) {
-                std::string text;
-                if (readFromArchives(f.name, text)) {
-                    parseShaderScript(text, shaderMap);
-                    parseFogParms(text, g_app->nebelMap);
-                }
-            }
-        }
-        diag::info(std::to_string(shaderMap.size()) + " Shadereintraege gelesen");
-    };
+    auto readShaders = [] { shaderTabelleLesen(); };
     out.bySurface.resize(model.surfaces.size());
     // rc608 Teil 12: alle Bilder dieses Modells vorab nebenlaeufig (bildVorratFuellen) - die Hautbilder samt dem
     // Rueckfall ueber das Shaderskript und die Bilder seiner Stufen. Die Schleifen unten nehmen sie mit bildLesen ab;

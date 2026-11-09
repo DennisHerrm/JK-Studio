@@ -33,7 +33,7 @@ struct ShaderAnweisungen {
 
 // Alle Shader eines .shader-Textes eintragen (Name klein). Ein spaeterer
 // Eintrag desselben Namens ersetzt den frueheren - dieselbe Regel wie
-// parseShaderScript (der spaetere Spielordner gewinnt).
+// parseShaderScript; welcher Eintrag im Spiel gilt, waehlt vorher shaderTextWieSpiel (bhed/shaderscript.h).
 void sammleShader(const std::string& text, std::map<std::string, ShaderAnweisungen>& out);
 
 enum class Zusammenhang { Welt, Figur, Effekt };

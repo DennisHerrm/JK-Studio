@@ -4178,19 +4178,13 @@ std::string ohneEndung(std::string s) {
     return s;
 }
 
-// Alle Shaderskripte EINMAL, in der Reihenfolge von loadMapTextures (der
-// spaetere Spielordner gewinnt).
+// Alle Shaderskripte EINMAL, die geltenden Eintraege wie die Vorschau (REST7: shaderTextAusSpielordnern - wie das Spiel).
 const std::map<std::string, kartenpruefung::ShaderAnweisungen>& shaderTexte() {
     static std::map<std::string, kartenpruefung::ShaderAnweisungen> m;
     static bool gelesen = false;
     if (!gelesen) {
         gelesen = true;
-        for (const GamePath& gp : g_app->gamePaths) {
-            for (const FoundFile& f : findByExtension(gp, {".shader"})) {
-                std::string text;
-                if (readFromArchives(f.name, text)) { kartenpruefung::sammleShader(text, m); }
-            }
-        }
+        for (const std::string& e : shaderTextAusSpielordnern().eintraege) { kartenpruefung::sammleShader(e, m); }
         diag::detail("Kartenpruefung: " + std::to_string(m.size()) + " Shader gelesen");
     }
     return m;

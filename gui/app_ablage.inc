@@ -1699,6 +1699,32 @@ bool readFromArchives(const std::string& name, std::string& out,
     return liesWieSpiel(g_app->gamePaths, name, g_app->settings.fsDirBeforePak, out, fromArchive, istLose);
 }
 
+ShaderTextWieSpiel shaderTextAusSpielordnern() {
+    const int spiel = regelwerkJediOutcast() ? kRegelwerkJediOutcast : regelwerkMovieDuels() ? kRegelwerkMovieDuels : kRegelwerkOpenJK;
+    std::vector<std::string> liste = fsListFiles(g_app->gamePaths, "shaders", ".shader", g_app->settings.fsDirBeforePak);
+    if (liste.size() > maxShaderDateien(spiel)) { liste.resize(maxShaderDateien(spiel)); }
+    std::vector<std::string> texte(liste.size());
+    for (std::size_t i = 0; i < liste.size(); ++i) {
+        // FS_ReadFile("shaders/<name>"): dieselbe Suche wie jede Datei (fehlt sie, bricht das Spiel mit ERR_DROP ab - eine
+        // gelistete Datei fehlt nie)
+        (void)readFromArchives("shaders/" + liste[i], texte[i]);
+    }
+    return shaderTextWieSpiel(texte, spiel);
+}
+
+void shaderTabelleLesen() {
+    if (g_app->shaderMapRead) { return; }
+    g_app->shaderMapRead = true;
+    // REST7: gleichnamige Shader in mehreren Dateien - es gilt, was das Spiel nimmt (bhed/shaderscript.h
+    // shaderTextWieSpiel): die spaeter gelistete Datei (die .pk3 mit dem niedrigeren Rang), in einer Datei der erste
+    // Eintrag. Bis REST7 lasen Welt und Figuren alle .shader der .pk3 (auch ausserhalb von shaders/, ohne die losen
+    // Dateien) nach Namen sortiert, und der letzte Eintrag gewann - 45 Shader der Movie-Duels-Installation sahen anders aus.
+    const ShaderTextWieSpiel t = shaderTextAusSpielordnern();
+    parseShaderTextWieSpiel(t, g_app->shaderMap, &g_app->nebelMap);
+    diag::info(std::to_string(g_app->shaderMap.size()) + " Shadereintraege gelesen (" + std::to_string(t.namen) + " Namen, " +
+               std::to_string(t.verdeckt) + " verdeckte Doppel)");
+}
+
 // Wie lange dauert ein Klang? -1, wenn er nicht zu finden ist.
 //
 // Gebraucht, damit die Zeitleiste weiss, WANN ein Klang noch laeuft. Ohne
@@ -3210,30 +3236,7 @@ void loadMapTextures() {
     // Archive und 9014 Eintraege; sie zweimal aufzubauen kostet Sekunden und
     // bringt nichts.
     ShaderMap& shaderMap = g_app->shaderMap;
-    if (!g_app->shaderMapRead) {
-        g_app->shaderMapRead = true;
-        // Auch hier gilt: der SPAETERE Spielordner gewinnt.
-        //
-        // parseShaderScript ueberschreibt gleichnamige Eintraege, also muss
-        // der Mod ZULETZT gelesen werden - und dafuer die Ordner vorwaerts,
-        // nicht rueckwaerts. Das ist genau umgekehrt zu readFromArchives,
-        // und aus gutem Grund: dort gewinnt der ERSTE Treffer, hier der
-        // LETZTE Eintrag. Beide Male soll der Mod gewinnen.
-        //
-        // Innerhalb eines Ordners ebenso: die Archive kommen aufsteigend,
-        // und das alphabetisch letzte soll oben liegen - also auch hier
-        // vorwaerts lesen.
-        for (const GamePath& gp : g_app->gamePaths) {
-            for (const FoundFile& f : findByExtension(gp, {".shader"})) {
-                std::string text;
-                if (readFromArchives(f.name, text)) {
-                    parseShaderScript(text, shaderMap);
-                    parseFogParms(text, g_app->nebelMap);
-                }
-            }
-        }
-        diag::info(std::to_string(shaderMap.size()) + " Shadereintraege gelesen");
-    }
+    shaderTabelleLesen();
 
     ladeSatz().byShader.resize(ladeGeo().shaders.size());
 

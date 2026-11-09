@@ -371,6 +371,80 @@ std::vector<std::string> spielordnerMitBase(const std::vector<std::string>& ordn
     return davor;
 }
 
+std::vector<std::string> fsListFiles(const std::vector<GamePath>& ordner, const std::string& pfad, const std::string& endung, bool dirVorPak) {
+    constexpr std::size_t kMaxFoundFiles = 0x1000;   // files.cpp:2083 MD9, :1983 OpenJK
+    // FS_ReturnPath (:2085-2104 MD9): Laenge bis zum letzten Trenner, Zahl der Trenner
+    const auto returnPath = [](const std::string& n, int& tiefe) {
+        std::size_t len = 0;
+        tiefe = 0;
+        for (std::size_t i = 0; i < n.size(); ++i) {
+            if (n[i] == '/' || n[i] == '\\') {
+                len = i;
+                ++tiefe;
+            }
+        }
+        return len;
+    };
+    const auto gleichOhneFall = [](const char* a, const char* b, std::size_t n) {   // Q_stricmpn
+        for (std::size_t i = 0; i < n; ++i) {
+            if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) { return false; }
+            if (a[i] == 0) { return true; }
+        }
+        return true;
+    };
+    std::size_t pfadLaenge = pfad.size();
+    if (pfadLaenge > 0 && (pfad[pfadLaenge - 1] == '\\' || pfad[pfadLaenge - 1] == '/')) { --pfadLaenge; }
+    int pfadTiefe = 0;
+    (void)returnPath(pfad, pfadTiefe);
+    std::vector<std::string> liste;
+    std::set<std::string> gesehen;
+    const auto dazu = [&](const std::string& n) {   // FS_AddFileToList
+        if (liste.size() == kMaxFoundFiles - 1) { return; }
+        std::string k = n;   // Q_stricmp
+        for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        if (gesehen.insert(k).second) { liste.push_back(n); }
+    };
+    const auto endetMit = [&](const std::string& n) {
+        return n.size() >= endung.size() && gleichOhneFall(n.c_str() + n.size() - endung.size(), endung.c_str(), endung.size());
+    };
+    const auto ausPk3 = [&](const GamePath& gp) {
+        for (auto a = gp.archives.rbegin(); a != gp.archives.rend(); ++a) {
+            for (const Pk3Entry& e : a->entries) {
+                std::string n = e.name;   // FS_LoadZipFile: Q_strlwr(filename_inzip)
+                for (char& c : n) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                int tiefe = 0;
+                const std::size_t zpfad = returnPath(n, tiefe);
+                if (tiefe - pfadTiefe > 2 || pfadLaenge > zpfad || !gleichOhneFall(n.c_str(), pfad.c_str(), pfadLaenge)) { continue; }
+                if (!endetMit(n)) { continue; }
+                dazu(n.substr(pfadLaenge > 0 ? pfadLaenge + 1 : 0));
+            }
+        }
+    };
+    const auto ausOrdner = [&](const GamePath& gp) {   // Sys_ListFiles(netpath, extension, NULL, &n, qfalse)
+        if (gp.directory.empty()) { return; }
+        std::error_code ec;
+        std::vector<std::string> sys;
+        for (fs::directory_iterator it(utf8Pfad(gp.directory) / utf8Pfad(pfad.substr(0, pfadLaenge)), fs::directory_options::skip_permission_denied, ec), ende;
+             !ec && it != ende; it.increment(ec)) {
+            if (it->is_directory(ec)) { continue; }
+            const auto u = it->path().filename().u8string();
+            const std::string name(u.begin(), u.end());
+            if (endetMit(name) && sys.size() < kMaxFoundFiles - 1) { sys.push_back(name); }
+        }
+        for (const std::string& n : sys) { dazu(n); }
+    };
+    for (auto gp = ordner.rbegin(); gp != ordner.rend(); ++gp) {   // fs_searchpaths: spaetere Ordner zuerst
+        if (dirVorPak) {
+            ausOrdner(*gp);
+            ausPk3(*gp);
+        } else {
+            ausPk3(*gp);
+            ausOrdner(*gp);
+        }
+    }
+    return liste;
+}
+
 std::vector<FoundFile> findByExtension(const GamePath& path,
                                        const std::vector<std::string>& extensions) {
     std::vector<FoundFile> out;

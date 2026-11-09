@@ -3936,11 +3936,13 @@ void shaderLaden() {
     if (z.shaderGeladen) { return; }
     z.shaderGeladen = true;
     // ScanAndLoadShaderFiles haengt die Dateien in umgekehrter Reihenfolge von FS_ListFiles aneinander, und der erste
-    // Treffer im Text gilt (ShaderEntryPtrs_Insert). Das heisst hier: in der Reihenfolge von FS_ListFiles, der letzte gilt.
-    for (const std::string& f : z.daten.listeWieSpiel("shaders/", {".shader"})) {
-        std::string inhalt;
-        if (z.daten.lies(f, inhalt)) { parseShaderScript(inhalt, z.shader); }
-    }
+    // Treffer im Text gilt (ShaderEntryPtrs_Insert) - REST7: auch in einer Datei der erste (shaderTextWieSpiel).
+    const int spiel = z.spiel == Spiel::MD ? kRegelwerkMovieDuels : z.spiel == Spiel::JK2 ? kRegelwerkJediOutcast : kRegelwerkOpenJK;
+    std::vector<std::string> liste = fsListFiles(z.daten.ordner, "shaders", ".shader", false);
+    if (liste.size() > maxShaderDateien(spiel)) { liste.resize(maxShaderDateien(spiel)); }
+    std::vector<std::string> texte(liste.size());
+    for (std::size_t i = 0; i < liste.size(); ++i) { (void)z.daten.lies("shaders/" + liste[i], texte[i]); }
+    parseShaderTextWieSpiel(shaderTextWieSpiel(texte, spiel), z.shader);
     // M4: und die des Pakets (z. B. menu/video/<name> vom Video-Import)
     for (const auto& od : z.docs) {
         for (const auto& [p, b] : od->bilder) {

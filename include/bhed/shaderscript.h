@@ -837,6 +837,33 @@ using ShaderMap = std::map<std::string, ShaderInfo>;
 // Eine .shader-Datei zerlegen und die Zuordnungen anhaengen.
 void parseShaderScript(const std::string& text, ShaderMap& out);
 
+// --- REST7: welcher Eintrag gilt, wenn ein Name mehrfach steht ----------
+//
+// ScanAndLoadShaderFiles (tr_shader.cpp:3715-3802 MD9, :3760-3820 OpenJK, Jedi Outcast 1.04 codeJK2/renderer/tr_shader.cpp
+// :3418-3466 im OpenJK-Verlauf a09d4827) liest die Dateien von FS_ListFiles("shaders", ".shader") (bhed/pk3.h
+// fsListFiles), hoechstens MAX_SHADER_FILES, und haengt sie in UMGEKEHRTER Folge aneinander (strcat: je Datei bis zu
+// ihrem ersten Nullbyte; OpenJK/MD9 danach ein Zeilenwechsel und COM_Compress, q_shared.cpp:205-297 MD9; Jedi Outcast
+// den Zeilenwechsel davor und ohne COM_Compress). SetupShaderEntryPtrs (:3667-3701 MD9, :3373-3404 JK2) nimmt jedes Wort auf oberster
+// Ebene als Namen (COM_ParseExt, SkipBracedSection, SkipRestOfLine) und behaelt den ERSTEN (ShaderEntryPtrs_Insert,
+// tr_stl.cpp:51-63); ParseShader (:2154-2167) liest ab dem Namen, ohne "{" danach gilt der Shader als fehlerhaft.
+// Spaeter gelistete Dateien gewinnen also gegen fruehere (die .pk3 mit dem NIEDRIGEREN Rang), in einer Datei der erste
+// Eintrag. texte: die Inhalte in der Folge von FS_ListFiles, schon auf maxShaderDateien gekuerzt; spiel:
+// kRegelwerkOpenJK, kRegelwerkMovieDuels oder kRegelwerkJediOutcast (bhed/regelwerk.h).
+// Ergebnis: die geltenden Eintraege in der Folge des Spieltexts, je einer als eigener Text (eine Zeile mit dem Namen, dann
+// sein Block; jede Klammer, die COM_ParseExt als eigenes Wort liest, auf eigener Zeile - parseShaderScript liest Zeilen).
+// Jeder fuer sich zerlegt (parseShaderTextWieSpiel): eine Zeile, die der Zeilenleser anders als das Spiel liest, verdirbt
+// nur ihren Shader, nicht alle folgenden.
+struct ShaderTextWieSpiel {
+    std::vector<std::string> eintraege;
+    std::size_t namen = 0;      // geltende Namen (auch die ohne "{" danach)
+    std::size_t verdeckt = 0;   // weitere Eintraege eines schon gesehenen Namens
+};
+[[nodiscard]] ShaderTextWieSpiel shaderTextWieSpiel(const std::vector<std::string>& texte, int spiel);
+
+// MAX_SHADER_FILES: Movie Duels 8192 (tr_shader.cpp:3710 MD9), OpenJK 4096 (tr_shader.cpp:3759), Jedi Outcast 1024
+// (codeJK2/renderer/tr_shader.cpp:3418 a09d4827).
+[[nodiscard]] std::size_t maxShaderDateien(int spiel) noexcept;
+
 // --- fogparms ( r g b ) <depthForOpaque> --------------------------------
 //
 // Steht in den Nebelshadern, die selbst keine Bildstufe haben
@@ -851,6 +878,8 @@ struct NebelParms {
 };
 using NebelMap = std::map<std::string, NebelParms>;
 void parseFogParms(const std::string& text, NebelMap& out);
+// REST7: parseShaderScript und (wenn nebel) parseFogParms je Eintrag von shaderTextWieSpiel.
+void parseShaderTextWieSpiel(const ShaderTextWieSpiel& t, ShaderMap& out, NebelMap* nebel = nullptr);
 
 // Kandidaten fuer eine Bilddatei zu einem Namen, in der Reihenfolge, in der
 // gesucht werden sollte. JKA meldet in tr_image_load.cpp jpg, png und tga an.

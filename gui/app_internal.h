@@ -2732,6 +2732,11 @@ std::string fileName(const std::string& path);
 bool readFromArchives(const std::string& name, std::string& out,
                       std::string* fromArchive = nullptr, bool* istLose = nullptr);
 void rescanGamePaths();
+// REST7: die geltenden Shader-Eintraege der Spielordner wie das Spiel (fsListFiles, shaderTextWieSpiel; bhed/shaderscript.h)
+// nach dem aktiven Regelwerk - der Text, den shaderTabelleLesen in g_app->shaderMap und g_app->nebelMap zerlegt.
+ShaderTextWieSpiel shaderTextAusSpielordnern();
+// Liest g_app->shaderMap/nebelMap einmal (g_app->shaderMapRead), fuer die Welt, die Figuren und die Effekte gemeinsam.
+void shaderTabelleLesen();
 void refreshPk3List();
 void rebuildTree();
 // Der Fenstertitel (app.cpp; im Map-Editor wie NRCs Sys_SetTitle, Stufe 7 Punkt 6f)

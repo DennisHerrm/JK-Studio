@@ -2939,6 +2939,30 @@ std::vector<Schritt> moverSpriteSchritte() {
         diag::detail(z);
         return flaechen > 0 && kanal[0].size() >= 100U && med[0] >= 0 && med[0] <= 1 && med[1] <= 1 && med[2] <= 1;
     }));
+    // REST7: gleichnamige Shader - es gilt der Eintrag, den das Spiel nimmt (shaderTextWieSpiel, bhed/shaderscript.h): die
+    // spaeter von FS_ListFiles gelistete Datei (die .pk3 mit dem NIEDRIGEREN Rang), in einer Datei der erste. Drei Faelle der
+    // Movie-Duels-Installation (gezaehlt mit Y:\werkzeuge\r7\doppelt.py, 45 Shader wechseln): textures/jeditemple/bridgefloor2
+    // steht zweimal in MD_Maps_Ep3.pk3 jeditemple.shader (der erste beginnt mit env_shiny_floor), textures/yavin/light_yellow
+    // in assets1.pk3 yavin.shader (Gluehstufe) und MD_Maps_Legends.pk3 yavin_temple.shader (ohne), textures/mp/t_floor_cir in
+    // assets1.pk3 mp.shader (3 Stufen) und MD_Maps_Ep1.pk3 md_dof.shader (4). Bis REST7 galt der letzte nach Dateinamen.
+    add(pruefe("Shader-Vorrang: bei doppelten Namen gilt der Eintrag des Spiels", [] {
+        const auto info = [](const char* n) -> const ShaderInfo* {
+            const auto it = g_app->shaderMap.find(n);
+            return it == g_app->shaderMap.end() ? nullptr : &it->second;
+        };
+        const ShaderInfo* brucke = info("textures/jeditemple/bridgefloor2");
+        const ShaderInfo* lampe = info("textures/yavin/light_yellow");
+        const ShaderInfo* boden = info("textures/mp/t_floor_cir");
+        const bool b = brucke != nullptr && !brucke->stages.empty() && brucke->stages[0].image == "textures/imperial/env_shiny_floor";
+        const bool l = lampe != nullptr && lampe->hasGlow;
+        const bool f = boden != nullptr && boden->stages.size() == 3U;
+        char z[300];
+        std::snprintf(z, sizeof(z), "Knopftest: Shader-Vorrang - bridgefloor2 erste Stufe '%s', light_yellow glow %d, t_floor_cir %zu Stufen",
+                      brucke != nullptr && !brucke->stages.empty() ? brucke->stages[0].image.c_str() : "-", lampe != nullptr && lampe->hasGlow ? 1 : 0,
+                      boden != nullptr ? boden->stages.size() : std::size_t{0});
+        diag::detail(z);
+        return b && l && f;
+    }));
     return s;
 }
 
