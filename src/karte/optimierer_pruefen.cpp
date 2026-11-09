@@ -270,7 +270,8 @@ const char* const kOptimiererDetailVorlagen[] = {
     "entity text about %s bytes of %s (%s bytes from kept lights)",
     "%s small, thin or angled structural brushes without a face at the void in the last build (suggestion: detail), %s more seal the map",
     "%s entities the game loads at run time with a model format it cannot load (misc_model_static: only .md3, otherwise .md3 or .glm)",
-    "%s shaders stop the game with ERR_DROP when it loads or draws them (%s)"
+    "%s shaders stop the game with ERR_DROP when it loads or draws them (%s)",
+    "%s shaders are defined more than once, and the build takes another definition than the game (%s)"
 };
 const std::size_t kOptimiererDetailVorlagenAnzahl = sizeof(kOptimiererDetailVorlagen) / sizeof(kOptimiererDetailVorlagen[0]);
 
@@ -964,6 +965,37 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
         }
     }
     messen("spielabbruch");
+    // --- REST8: doppelte Shadernamen, die der Bau und das Spiel verschieden aufloesen ------------------------------------------
+    {
+        Befund b = neu("shadervorrang", Schwere::Warnung,
+                       "q3map2 shaders.cpp:1806-1856 LoadShaderInfo, :823-1735 ParseShaderFile (first definition wins), common/vfs.cpp:140-330 "
+                       "(loose files before every pk3, basegame pk3 before the mod's); OpenJK/MD9 tr_shader.cpp ScanAndLoadShaderFiles, "
+                       "SetupShaderEntryPtrs (files joined in reverse FS_ListFiles order, first entry wins)");
+        std::map<std::string, ObjektRef> treffer;
+        std::string beispiel;
+        for (std::size_t e = 0; e < ents.size(); ++e) {
+            for (std::size_t k = 0; k < ents[e].prims.size(); ++k) {
+                const AbbildPrimitiv& pr = ents[e].prims[k];
+                auto pruefen = [&](const std::string& s) {
+                    const ShaderArt& art = artVon(o, s, vorrat);
+                    if (art.vorrang.empty()) { return; }
+                    if (treffer.emplace(klein(s), ObjektRef{static_cast<int>(e), static_cast<int>(k), -1, s + ": " + art.vorrang}).second &&
+                        beispiel.empty()) {
+                        beispiel = klein(s) + ": " + art.vorrang;
+                    }
+                };
+                if (pr.patch) { pruefen(pr.shader); }
+                for (const AbbildFlaeche& f : pr.flaechen) { pruefen(f.shader); }
+            }
+        }
+        for (const auto& [k, r] : treffer) { add(b, r); }
+        if (b.anzahl > 0) {
+            detailSetzen(b, "%s shaders are defined more than once, and the build takes another definition than the game (%s)",
+                         {std::to_string(b.anzahl), beispiel});
+            out.push_back(b);
+        }
+    }
+    messen("shadervorrang");
     // --- 9. Brush-Entities ohne Pinsel (SV_SetBrushModel: NULL) ------------------------------
     {
         Befund b = neu("leereentity", Schwere::Fehler, "OpenJK code/server/sv_game.cpp SV_SetBrushModel (\"SV_SetBrushModel: NULL\"); q3map2 map.cpp (origin brushes are removed)");

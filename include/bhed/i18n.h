@@ -5548,6 +5548,9 @@ enum class Str {
     KeOptPrSpielAbbruch,
     KeOptPrSpielAbbruchE,
     KeOptD37,
+    KeOptPrShaderVorrang,
+    KeOptPrShaderVorrangE,
+    KeOptD38,
     Count,
 };
 

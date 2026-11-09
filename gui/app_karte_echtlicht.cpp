@@ -73,28 +73,29 @@ Editor& ed() { return editor(); }
 
 // --- a) Vorschau --------------------------------------------------------------------
 
-// Shader-Skripte (q3map_surfacelight, q3map_sun, q3map_lightRGB), je Datei einmal zerlegt
-std::map<std::string, karte::ShaderDatei> g_dateien;
+std::string kleinName(std::string s) {
+    for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    return s;
+}
+
+// REST8: der Eintrag eines Shaders, den bhed_q3map2 beim Bauen nimmt (Spielkontext::q3map2, bhed/karte/q3map2shader.h) - bis
+// REST8 der des Shader-Inventars von NetRadiant-Custom (erste Definition in NRCs Ladefolge), der bei doppelten Namen oft ein
+// anderer ist. nullptr: q3map2 kennt kein Skript dieses Namens.
+const karte::Q3map2ShaderEintrag* q3map2Eintrag(const std::string& shader) {
+    if (!ed().karteSpiel) { return nullptr; }
+    const auto& m = ed().karteSpiel->q3map2.eintraege;
+    const auto it = m.find(kleinName(shader));
+    return it == m.end() ? nullptr : &it->second;
+}
+
+// Shader-Skripte (q3map_surfacelight, q3map_sun, q3map_lightRGB), je Shader einmal zerlegt
 std::map<std::string, karte::ShaderSkript> g_skripte;
 const karte::ShaderSkript& skript(const std::string& shader) {
-    static const karte::ShaderSkript leer;
     const auto it = g_skripte.find(shader);
     if (it != g_skripte.end()) { return it->second; }
     karte::ShaderSkript s;
-    if (ed().karteSpiel) {
-        const karte::ShaderEintrag* e = ed().karteSpiel->inventar.shaderFinden(shader);
-        if (e != nullptr && !e->istStandard()) {
-            auto d = g_dateien.find(e->datei);
-            if (d == g_dateien.end()) {
-                std::string t;
-                (void)ed().karteSpiel->fs.textLesen(e->datei, t);
-                d = g_dateien.emplace(e->datei, karte::shaderDateiZerlegen(t)).first;
-            }
-            s = karte::shaderSkriptLesen(d->second, shader);
-        }
-    }
+    if (const karte::Q3map2ShaderEintrag* e = q3map2Eintrag(shader)) { s = karte::shaderSkriptLesen(e->text, shader); }
     return g_skripte.emplace(shader, s).first->second;
-    (void)leer;
 }
 
 // LoadShaderImages (shaders.cpp): lightImage = q3map_lightImage, sonst das Shaderbild;
@@ -179,7 +180,6 @@ void weltAktualisieren(std::size_t geoStand) {
     LichtWelt& w = g_welt;
     if (g_neuGeladenStand != ed().neuGeladen) {   // Stufe 9d: Flush & Reload Shaders - die Skripte neu lesen
         g_neuGeladenStand = ed().neuGeladen;
-        g_dateien.clear();
         g_skripte.clear();
         g_darstellungen.clear();
         g_lichtBildFarben.clear();
@@ -827,29 +827,24 @@ bool echtLichtAktiv() {
            kartegpu::echtLichtVerfuegbar();
 }
 
-// rc610 R2a: alle Stufen (parseShaderScript wie die Vorschau) je Datei der Spieldaten des Editors einmal zerlegt
+// rc610 R2a: alle Stufen (parseShaderScript wie die Vorschau); REST8: aus dem Eintrag, den bhed_q3map2 nimmt (q3map2Eintrag), je
+// Shader einmal zerlegt
 const ShaderInfo* echtShaderInfo(const std::string& shader) {
-    static std::map<std::string, ShaderMap> dateien;
+    static std::map<std::string, ShaderMap> zerlegt;
     static std::size_t neuGeladen = static_cast<std::size_t>(-1);
     static const void* spiel = nullptr;
     if (neuGeladen != ed().neuGeladen || spiel != ed().karteSpiel.get()) {   // Flush & Reload Shaders, anderes Spiel
         neuGeladen = ed().neuGeladen;
         spiel = ed().karteSpiel.get();
-        dateien.clear();
+        zerlegt.clear();
     }
-    if (!ed().karteSpiel) { return nullptr; }
-    const karte::ShaderEintrag* e = ed().karteSpiel->inventar.shaderFinden(shader);
-    if (e == nullptr || e->istStandard()) { return nullptr; }
-    auto d = dateien.find(e->datei);
-    if (d == dateien.end()) {
-        std::string t;
-        (void)ed().karteSpiel->fs.textLesen(e->datei, t);
+    const std::string k = kleinName(shader);
+    auto d = zerlegt.find(k);
+    if (d == zerlegt.end()) {
         ShaderMap m;
-        parseShaderScript(t, m);
-        d = dateien.emplace(e->datei, std::move(m)).first;
+        if (const karte::Q3map2ShaderEintrag* e = q3map2Eintrag(k)) { parseShaderScript(e->text, m); }
+        d = zerlegt.emplace(k, std::move(m)).first;
     }
-    std::string k = shader;
-    for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
     const auto it = d->second.find(k);
     return it == d->second.end() ? nullptr : &it->second;
 }

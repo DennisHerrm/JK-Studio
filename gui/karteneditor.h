@@ -43,6 +43,7 @@
 #include "bhed/navlauf.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/bspmerge.h"
+#include "bhed/karte/q3map2shader.h"
 #include "bhed/karte/editordaten.h"
 #include "bhed/karte/baumonitor.h"
 #include "bhed/karte/portale.h"
@@ -322,7 +323,21 @@ struct Spielkontext {
     std::vector<std::string> meldungen;
     karte::Protokoll protokoll;     // die Meldungen beim Laden in NRCs Wortlaut und Reihenfolge
     double sekunden = 0.0;
+    // REST8: steht ein Shadername mehrfach, nimmt bhed_q3map2 einen anderen Eintrag als das Spiel und als das Inventar von
+    // NetRadiant-Custom. Das Echtzeit-Licht und alles, was der Bau aus dem Skript liest, nimmt den von q3map2; was das Spiel
+    // zeichnet, den des Spiels (Vergleich in der Kartenpruefung, Pruefung "shadervorrang").
+    struct ShaderQuellen {
+        std::vector<std::string> q3map2;   // q3map2Verzeichnisse wie im Build-Menue (-fs_basepath, -fs_game, -fs_pakpath)
+        std::vector<std::string> spiel;    // die Spielordner, niedrigster Rang zuerst
+        int regelwerk = 0;
+        bool dirVorPak = false;            // fs_dirbeforepak
+    };
+    ShaderQuellen shaderQuellen;
+    karte::Q3map2Shader q3map2;
+    std::map<std::string, std::string> spielShader;   // klein -> shaderEintragText des geltenden Eintrags im Spiel
 };
+// REST8: q3map2 und spielShader aus shaderQuellen lesen (beim Laden und bei Flush & Reload Shaders)
+void shaderVorrangLesen(Spielkontext& k);
 
 // Eine Zeile der Konsole (radiant/console.cpp): Ausgabe, Warnung, Fehler.
 // Eine Zeile kann Stuecke verschiedener Art haben (Sys_Print schreibt Teile,

@@ -1051,6 +1051,7 @@ void texturBefehl(const std::string& name) {
         if (ed.karteSpiel) {
             ed.karteSpiel->inventar.importOrdner = importOrdner();
             ed.karteSpiel->inventar.laden(ed.karteSpiel->fs);
+            shaderVorrangLesen(*ed.karteSpiel);   // REST8: q3map2 liest bei jedem Bau neu
             ed.aktiveShader.leeren();
             texturBilderNeuLaden();
             Zustand& s = z();

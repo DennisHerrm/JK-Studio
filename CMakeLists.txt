@@ -1326,6 +1326,8 @@ endif()
 # 1:1 portiert aus NRC - damit ist das Programm GPL v2 (LICENSE).
 target_sources(bhed_core PRIVATE
   src/karte/wicklung.cpp
+  # REST8: welcher Eintrag eines doppelten Shadernamens beim Kompilieren gilt (q3map2 vfs.cpp, scriplib.cpp, LoadShaderInfo)
+  src/karte/q3map2shader.cpp
   src/karte/texdef.cpp
   src/karte/rueckgaengig.cpp
   src/karte/pinsel.cpp

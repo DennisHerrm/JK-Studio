@@ -1701,15 +1701,7 @@ bool readFromArchives(const std::string& name, std::string& out,
 
 ShaderTextWieSpiel shaderTextAusSpielordnern() {
     const int spiel = regelwerkJediOutcast() ? kRegelwerkJediOutcast : regelwerkMovieDuels() ? kRegelwerkMovieDuels : kRegelwerkOpenJK;
-    std::vector<std::string> liste = fsListFiles(g_app->gamePaths, "shaders", ".shader", g_app->settings.fsDirBeforePak);
-    if (liste.size() > maxShaderDateien(spiel)) { liste.resize(maxShaderDateien(spiel)); }
-    std::vector<std::string> texte(liste.size());
-    for (std::size_t i = 0; i < liste.size(); ++i) {
-        // FS_ReadFile("shaders/<name>"): dieselbe Suche wie jede Datei (fehlt sie, bricht das Spiel mit ERR_DROP ab - eine
-        // gelistete Datei fehlt nie)
-        (void)readFromArchives("shaders/" + liste[i], texte[i]);
-    }
-    return shaderTextWieSpiel(texte, spiel);
+    return shaderTextAusOrdnern(g_app->gamePaths, spiel, g_app->settings.fsDirBeforePak);
 }
 
 void shaderTabelleLesen() {

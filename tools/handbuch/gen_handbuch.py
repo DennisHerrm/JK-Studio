@@ -218,6 +218,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _fix2()})
             from i18n_def1 import zeilen_vier as _def1   # DEF1: Optimierer meldet Shader mit ERR_DROP
             texte.update({e[0]: e[1:] for e in _def1()})
+            from i18n_rest8 import zeilen_vier as _rest8   # REST8: Optimierer meldet doppelte Shader (shadervorrang)
+            texte.update({e[0]: e[1:] for e in _rest8()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

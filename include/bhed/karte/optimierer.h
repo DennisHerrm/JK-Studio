@@ -217,6 +217,9 @@ struct Befund {
 struct ShaderArt {
     bool bekannt = true;       // Shader oder Bild gefunden
     std::string spielAbbruch;  // DEF1 P45: ShaderSkript::spielAbbruch
+    // REST8: der Name steht mehrfach, und bhed_q3map2 nimmt einen anderen Eintrag als das Spiel (bhed/karte/q3map2shader.h gegen
+    // shaderTextWieSpiel) - wo q3map2 ihn liest ("shaders/x.shader (assets1.pk3)"); leer: beide gleich
+    std::string vorrang;
     bool autospriteEins = false;   // REST3b: ShaderSkript::autospriteEins
     bool undurchsichtig = true;   // deckt, was dahinter liegt (nicht trans, nonsolid, fog, liquid, ...)
     bool sichtbar = true;      // erzeugt eine Zeichenflaeche (nicht nodraw/caulk, kein Werkzeug)

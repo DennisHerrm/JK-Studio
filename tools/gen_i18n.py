@@ -2312,6 +2312,8 @@ from i18n_ptfix3 import zeilen_vier as _ptfix3  # noqa: E402  (PTFIX3: Painting-
 S += _ptfix3()
 from i18n_def1 import zeilen_vier as _def1  # noqa: E402  (DEF1: Optimierer meldet Shader mit ERR_DROP)
 S += _def1()
+from i18n_rest8 import zeilen_vier as _rest8  # noqa: E402  (REST8: Optimierer meldet doppelte Shader, die Bau und Spiel verschieden aufloesen)
+S += _rest8()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

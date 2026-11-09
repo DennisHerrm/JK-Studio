@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace bhed {
@@ -859,10 +860,20 @@ struct ShaderTextWieSpiel {
     std::size_t verdeckt = 0;   // weitere Eintraege eines schon gesehenen Namens
 };
 [[nodiscard]] ShaderTextWieSpiel shaderTextWieSpiel(const std::vector<std::string>& texte, int spiel);
+// Ein Eintrag als eigener Text, wie ihn shaderTextWieSpiel liefert: der Name auf eigener Zeile, dann der Block ab "{"; jede
+// Klammer, die ein eigenes Wort ist (ausserhalb von Anfuehrungszeichen), auf eigener Zeile. REST8: auch fuer den Eintrag, den
+// q3map2 nimmt (bhed/karte/q3map2shader.h).
+[[nodiscard]] std::string shaderEintragText(const std::string& name, std::string_view block);
 
 // MAX_SHADER_FILES: Movie Duels 8192 (tr_shader.cpp:3710 MD9), OpenJK 4096 (tr_shader.cpp:3759), Jedi Outcast 1024
 // (codeJK2/renderer/tr_shader.cpp:3418 a09d4827).
 [[nodiscard]] std::size_t maxShaderDateien(int spiel) noexcept;
+
+struct GamePath;   // bhed/pk3.h
+// REST8: der Spieltext aus Spielordnern (niedrigster Rang zuerst): fsListFiles("shaders", ".shader"), hoechstens
+// maxShaderDateien, jede Datei wie FS_ReadFile (liesWieSpiel), dann shaderTextWieSpiel. Die Vorschau nimmt die Spielordner des
+// Programms, der Karten-Editor die seines Spiels.
+[[nodiscard]] ShaderTextWieSpiel shaderTextAusOrdnern(const std::vector<GamePath>& ordner, int spiel, bool dirVorPak);
 
 // --- fogparms ( r g b ) <depthForOpaque> --------------------------------
 //

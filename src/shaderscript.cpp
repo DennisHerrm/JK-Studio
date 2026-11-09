@@ -2,6 +2,7 @@
 #include "bhed/shaderscript.h"
 
 #include "bhed/num.h"
+#include "bhed/pk3.h"
 #include "bhed/regelwerk.h"
 
 #include <algorithm>
@@ -10,6 +11,7 @@
 #include <cstddef>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace bhed {
@@ -1520,6 +1522,28 @@ void skipBraced(const std::string& t, std::size_t& p, const std::string& gelesen
 
 }  // namespace
 
+std::string shaderEintragText(const std::string& name, std::string_view block) {
+    std::string e = name;
+    e += '\n';
+    // jede Klammer, die ein eigenes Wort ist (ausserhalb von Anfuehrungszeichen), auf eine eigene Zeile
+    bool zitat = false;
+    for (std::size_t i = 0; i < block.size(); ++i) {
+        const char c = block[i];
+        if (c == '"') { zitat = !zitat; }
+        const bool allein = !zitat && (c == '{' || c == '}') && (i == 0 || static_cast<unsigned char>(block[i - 1]) <= ' ') &&
+                            (i + 1 >= block.size() || static_cast<unsigned char>(block[i + 1]) <= ' ');
+        if (allein) {
+            e += '\n';
+            e += c;
+            e += '\n';
+        } else {
+            e += c;
+        }
+    }
+    e += '\n';
+    return e;
+}
+
 std::size_t maxShaderDateien(int spiel) noexcept {
     return spiel == kRegelwerkMovieDuels ? 8192 : spiel == kRegelwerkJediOutcast ? 1024 : 4096;
 }
@@ -1569,29 +1593,23 @@ ShaderTextWieSpiel shaderTextWieSpiel(const std::vector<std::string>& texte, int
         if (!auf.text.empty() && auf.text[0] == '{') {
             skipBraced(ganz, q, auf.text);
             const std::size_t ende = q == std::string::npos ? ganz.size() : q;
-            std::string e = name;
-            e += '\n';
-            // jede Klammer, die ein eigenes Wort ist (ausserhalb von Anfuehrungszeichen), auf eine eigene Zeile
-            bool zitat = false;
-            for (std::size_t i = auf.anfang; i < ende; ++i) {
-                const char c = ganz[i];
-                if (c == '"') { zitat = !zitat; }
-                const bool allein = !zitat && (c == '{' || c == '}') && (i == auf.anfang || static_cast<unsigned char>(ganz[i - 1]) <= ' ') &&
-                                    (i + 1 >= ende || static_cast<unsigned char>(ganz[i + 1]) <= ' ');
-                if (allein) {
-                    e += '\n';
-                    e += c;
-                    e += '\n';
-                } else {
-                    e += c;
-                }
-            }
-            e += '\n';
-            aus.eintraege.push_back(std::move(e));
+            aus.eintraege.push_back(shaderEintragText(name, std::string_view(ganz).substr(auf.anfang, ende - auf.anfang)));
         }
         if (p == std::string::npos || p >= ganz.size()) { break; }
     }
     return aus;
+}
+
+ShaderTextWieSpiel shaderTextAusOrdnern(const std::vector<GamePath>& ordner, int spiel, bool dirVorPak) {
+    std::vector<std::string> liste = fsListFiles(ordner, "shaders", ".shader", dirVorPak);
+    if (liste.size() > maxShaderDateien(spiel)) { liste.resize(maxShaderDateien(spiel)); }
+    std::vector<std::string> texte(liste.size());
+    for (std::size_t i = 0; i < liste.size(); ++i) {
+        // FS_ReadFile("shaders/<name>"): dieselbe Suche wie jede Datei (fehlt sie, bricht das Spiel mit ERR_DROP ab - eine
+        // gelistete Datei fehlt nie)
+        (void)liesWieSpiel(ordner, "shaders/" + liste[i], dirVorPak, texte[i]);
+    }
+    return shaderTextWieSpiel(texte, spiel);
 }
 
 void parseShaderTextWieSpiel(const ShaderTextWieSpiel& t, ShaderMap& out, NebelMap* nebel) {

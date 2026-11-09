@@ -1206,6 +1206,15 @@ void testeBekannteFehler(const std::string& q3dir) {
         pruefe(anzahlVon(pruefeKarte(abbildAus(welt), o), "spielabbruch") == 1, "Optimierer (P45): Befund spielabbruch fuer einen Shader, der das Spiel abbricht");
         o.shader["textures/test/abbruch"] = ShaderArt{};
         pruefe(anzahlVon(pruefeKarte(abbildAus(welt), o), "spielabbruch") == 0, "Optimierer (P45): ohne Abbruch kein Befund");
+        // REST8: ein Shader, den q3map2 und das Spiel verschieden aufloesen (ShaderArt::vorrang) - einmal je Shader, auch auf vielen Flaechen
+        ShaderArt vor;
+        vor.vorrang = "shaders/skies.shader (base/)";
+        o.shader["textures/test/abbruch"] = vor;
+        o.shader["textures/test/x"] = vor;
+        pruefe(anzahlVon(pruefeKarte(abbildAus(welt), o), "shadervorrang") == 2, "Optimierer (REST8): Befund shadervorrang je Shader");
+        o.shader["textures/test/abbruch"] = ShaderArt{};
+        o.shader["textures/test/x"] = ShaderArt{};
+        pruefe(anzahlVon(pruefeKarte(abbildAus(welt), o), "shadervorrang") == 0, "Optimierer (REST8): gleich aufgeloest, kein Befund");
     }
     // REST3b: deformVertexes autosprite auf einem Patch - AutospriteDeform bricht mit ERR_DROP ab (odd vertex count), sobald
     // RB_SurfaceGrid mehr als 2 x 2 Ecken in tess legt; autosprite2 meldet nur (ri.Printf), Flaechen aus Pinseln sind Vierecke
@@ -1369,7 +1378,7 @@ void testeBekannteFehler(const std::string& q3dir) {
 
 int main(int argc, char** argv) {
     {   // Stufe 6 (Punkt 5): Vorlagen der Befund-Angaben und ihre Uebersetzung (KeOptD01..)
-        bool gleich = bhed::karte::kOptimiererDetailVorlagenAnzahl == 37;   // Stufe 8a: 33, 34 (enttext); Stufe 9d: 35 (deko mit .bsp); rc610 MODOBJ: 36 (modellformat); DEF1 P45: 37 (spielabbruch)
+        bool gleich = bhed::karte::kOptimiererDetailVorlagenAnzahl == 38;   // Stufe 8a: 33, 34 (enttext); Stufe 9d: 35 (deko mit .bsp); rc610 MODOBJ: 36 (modellformat); DEF1 P45: 37 (spielabbruch); REST8: 38 (shadervorrang)
         for (std::size_t i = 0; i < bhed::karte::kOptimiererDetailVorlagenAnzahl; ++i) {
             char name[16];
             std::snprintf(name, sizeof(name), "KeOptD%02zu", i + 1);

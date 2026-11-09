@@ -336,6 +336,9 @@ namespace r3 {
 std::vector<Schritt> schritte();   // selbsttest_r3.inc: rc610 R3, gespiegelte Modelle und Glow im Echtzeit-Licht
 std::vector<Schritt> handbuchSchritte();   // dito: das Bild h_r3_glow (BHED_HB_NUR=r3)
 }  // namespace r3
+namespace rest8 {
+std::vector<Schritt> schritte();   // selbsttest_rest8.inc: REST8, doppelte Shadernamen (Echtzeit-Licht, Kartenpruefung)
+}  // namespace rest8
 namespace rd {   // p_render (selbsttest_rd.inc)
 std::vector<Schritt> schritte();
 std::vector<Schritt> cjkSchritte();
@@ -661,6 +664,13 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =rest8: REST8 - doppelte Shadernamen: Echtzeit-Licht nach bhed_q3map2, Kartenpruefung "shadervorrang"
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "rest8") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+        for (Schritt& x : rest8::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =rdglm: MRESTE 4 - Ghoul2 als model2 und misc_model_ghoul im Editor und im Spielbild
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "rdglm") == 0) {
         for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
@@ -768,6 +778,8 @@ std::vector<Schritt> karteneditorSchritte() {
     for (Schritt& x : r3::schritte()) { add(std::move(x)); }   // rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht
     einrichten();
     for (Schritt& x : rd::schritte()) { add(std::move(x)); }   // p_render: bewegte Stufen, Gluehen im Spiegel und an Effekten
+    einrichten();
+    for (Schritt& x : rest8::schritte()) { add(std::move(x)); }   // REST8: doppelte Shadernamen (Echtzeit-Licht, Kartenpruefung)
     einrichten();
     for (Schritt& x : reste1::schritte()) { add(std::move(x)); }    // Liste reste1: Decals in der Echtzeit-Ansicht
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }

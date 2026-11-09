@@ -30,6 +30,7 @@ _PRUEFUNGEN = [
     ("KeOptPrClip", None, False),
     ("KeOptPrTextur", None, False),
     ("KeOptPrSpielAbbruch", None, False),   # DEF1 P45
+    ("KeOptPrShaderVorrang", None, False),   # REST8
     ("KeOptPrLeereEnt", "KeOptBhEntitaet", False),
     ("KeOptPrLichtgitter", "KeOptBhWelt", False),
     ("KeOptPrLightmaps", "KeOptBhWelt", False),

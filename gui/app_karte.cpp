@@ -88,7 +88,22 @@ std::string defOrdner(int spiel) {
     return directoryOf(g_app->dataDir) + (spiel == kRegelwerkJediOutcast ? "/karte/jk2" : "/karte/ja");
 }
 
-std::shared_ptr<Spielkontext> spielLadenJetzt(int spiel, std::vector<std::string> ordner, std::string defs, std::string modus) {
+// REST8: woher die Shader kommen - q3map2 wie das Build-Menue (bauVariablen), das Spiel aus seinen Ordnern
+Spielkontext::ShaderQuellen shaderQuellenJetzt(int spiel) {
+    Spielkontext::ShaderQuellen q;
+    std::vector<std::string> paks(g().zusatzPfade.begin(), g().zusatzPfade.end());
+    paks.push_back(importOrdner());
+    q.q3map2 = karte::q3map2Verzeichnisse(enginePfadAnzeige(), bauSpielName(), kartenSpiel().basisSpiel, paks);
+    std::vector<std::string> ordner = suchpfade(spiel);   // Mod zuerst
+    std::reverse(ordner.begin(), ordner.end());
+    q.spiel = spielordnerMitBase(ordner);
+    q.regelwerk = spiel;
+    q.dirVorPak = g_app->settings.fsDirBeforePak;
+    return q;
+}
+
+std::shared_ptr<Spielkontext> spielLadenJetzt(int spiel, std::vector<std::string> ordner, std::string defs, std::string modus,
+                                              Spielkontext::ShaderQuellen quellen) {
     const auto t0 = std::chrono::steady_clock::now();
     auto k = std::make_shared<Spielkontext>();
     k->spiel = spiel;
@@ -101,6 +116,8 @@ std::shared_ptr<Spielkontext> spielLadenJetzt(int spiel, std::vector<std::string
     // default_shaderlist.txt stammt aus dem Gamepack und kommt nicht mit.
     k->inventar.importOrdner = importOrdner();   // Stufe 9d: fruehere Importe unter scripts/ mitlesen
     k->inventar.laden(k->fs);
+    k->shaderQuellen = std::move(quellen);
+    shaderVorrangLesen(*k);
     (void)k->klassen.ordnerLaden(defs, modus);
     if (spiel == kRegelwerkMovieDuels) { (void)k->klassen.entdefsErgaenzen(); }
     k->meldungen = k->inventar.meldungen();
@@ -303,6 +320,21 @@ std::string startOrdner() {
 
 }  // namespace
 
+// REST8 (karteneditor.h)
+void shaderVorrangLesen(Spielkontext& k) {
+    k.q3map2 = karte::q3map2ShaderLesen(k.shaderQuellen.q3map2);
+    std::vector<GamePath> ordner;
+    for (const std::string& o : k.shaderQuellen.spiel) {
+        GamePath gp;
+        if (scanGamePath(o, gp)) { ordner.push_back(std::move(gp)); }
+    }
+    k.spielShader.clear();
+    for (std::string& e : shaderTextAusOrdnern(ordner, k.shaderQuellen.regelwerk, k.shaderQuellen.dirVorPak).eintraege) {
+        std::string name = e.substr(0, e.find('\n'));
+        k.spielShader.emplace(std::move(name), std::move(e));
+    }
+}
+
 // rc610 F23 (B2-3): dieselbe Frage fuer die ungespeicherten Aenderungen im Fenster "Shader und Flaechen" - sie gelten der
 // geoeffneten .bsp und gehen mit ihr (karteFreigeben, eine andere .bsp, Einfuegen) verloren.
 void lumpRueckfrage(const std::string& titel, std::function<void()> danach) {
@@ -437,8 +469,11 @@ void spielPruefen() {
     const int spiel = kartenSpielNummer();
     // EnginePath_Realise / gamemode_set: neu laden, wenn sich Spiel, Suchordner oder Modus aendern
     const std::vector<std::string> ordner = kartenVfsOrdner();
-    std::string kennung = std::to_string(spiel) + "|" + e.spielModus;
+    Spielkontext::ShaderQuellen quellen = shaderQuellenJetzt(spiel);
+    std::string kennung = std::to_string(spiel) + "|" + e.spielModus + "|" + (quellen.dirVorPak ? "1" : "0");
     for (const std::string& o : ordner) { kennung += "|" + o; }
+    for (const std::string& o : quellen.q3map2) { kennung += "|q3:" + o; }
+    for (const std::string& o : quellen.spiel) { kennung += "|spiel:" + o; }
     if (kennung == e.spielKennung) { return; }
     if (e.spielLaden.valid()) { return; }   // erst das laufende fertig laden
     e.spielKennung = kennung;
@@ -454,7 +489,7 @@ void spielPruefen() {
     }
     karte::setzeStandardTexturSkalierung(skala);
     diag::detail("Karten-Editor: lade " + spielName(spiel));
-    e.spielLaden = std::async(std::launch::async, spielLadenJetzt, spiel, ordner, defOrdner(spiel), e.spielModus);
+    e.spielLaden = std::async(std::launch::async, spielLadenJetzt, spiel, ordner, defOrdner(spiel), e.spielModus, std::move(quellen));
 }
 
 bool spielBereit() { return g().spiel != nullptr && !g().spielLaden.valid(); }
