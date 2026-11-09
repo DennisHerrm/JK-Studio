@@ -3907,7 +3907,7 @@ int zeichneMover(const BspMesh& mesh, const TextureSet* textures,
 
 int gluehenRauchAufrufe() { return g_gluehenRauch; }
 
-ID3D11RenderTargetView* g_nebelZiel = nullptr;   // REST3c: siehe vor zeichneNebel
+ID3D11RenderTargetView* g_nebelZiel = nullptr;   // geliehen (REST3c: der volle Gluehpuffer, siehe vor zeichneNebel)
 bool g_nebelNurGlueh = false;
 // REST3c: die Nebel fuer den naechsten zeichneGluehen (RB_FogPass im Gluehdurchgang, siehe g_nebelZiel)
 const std::vector<NebelGpu>* g_gluehNebel = nullptr;
