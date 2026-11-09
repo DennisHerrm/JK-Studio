@@ -258,6 +258,10 @@ int main() {
         erwarte("kLightmapBild aendert den Quelltext und den Namen",
                 pixelShaderHlsl(f | kLightmapBild) != pixelShaderHlsl(f) && shaderName(f | kLightmapBild, 0) != shaderName(f, 0) &&
                     shaderName(f | kLightmapBild, 0) != shaderName(f | kTexGenLm, 0));
+        // REST7: die weitere $lightmap-Stufe nimmt das Alpha der Lightmap - extern (R_FindLightmap -> R_FindImageFile) so, wie es im
+        // Bild steht (duel_exegol lm_0000.tga, im Mittel 24 von 255), aus der .bsp 255 (R_LoadLightmaps). Bis REST7 stand 1,0 fest da.
+        erwarte("kLightmapBild: das Alpha kommt aus der Lightmap",
+                enthaelt(pixelShaderHlsl(f | kLightmapBild), "float4 c = gLightmap.Sample(gLmAbtaster, ein.uv);"));
         // alle Merkmale ausser kGlow (aendert nur den Durchgang): verschiedener Quelltext -> verschiedener Name
         int gleich = 0;
         for (int b = 0; b < 32; ++b) {

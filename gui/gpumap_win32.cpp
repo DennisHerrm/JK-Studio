@@ -1481,10 +1481,15 @@ ID3D11ShaderResourceView* holeLightmap(const BspGeometry* geo, int platz) {
         return nullptr;
     }
     std::vector<std::uint8_t> vier(static_cast<std::size_t>(n) * static_cast<std::size_t>(nh) * 4U, 255U);
+    // REST7: das Alpha externer Lightmaps (BspGeometry::lightmapAlpha), sonst 255
+    const std::vector<std::uint8_t>* alpha =
+        static_cast<std::size_t>(platz) < geo->lightmapAlpha.size() ? &geo->lightmapAlpha[static_cast<std::size_t>(platz)] : nullptr;
+    if (alpha != nullptr && alpha->size() != static_cast<std::size_t>(n) * static_cast<std::size_t>(nh)) { alpha = nullptr; }
     for (std::size_t i = 0; i < static_cast<std::size_t>(n) * static_cast<std::size_t>(nh); ++i) {
         vier[i * 4U + 0] = src[i * 3U + 0];
         vier[i * 4U + 1] = src[i * 3U + 1];
         vier[i * 4U + 2] = src[i * 3U + 2];
+        if (alpha != nullptr) { vier[i * 4U + 3] = (*alpha)[i]; }
     }
     D3D11_TEXTURE2D_DESC td{};
     td.Width = static_cast<UINT>(n);

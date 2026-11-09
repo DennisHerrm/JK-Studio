@@ -2963,6 +2963,22 @@ std::vector<Schritt> moverSpriteSchritte() {
         diag::detail(z);
         return b && l && f;
     }));
+    // REST7: externe Lightmaps behalten ihr Alpha (R_FindLightmap -> R_FindImageFile). duel_exegol hat nur maps/duel_exegol/
+    // lm_0000.tga (4096 x 4096, 32 Bit, Alpha im Mittel 23,72 - mit Y:\werkzeuge\r7\lmalpha.py aus der Datei gelesen); die Stufe
+    // `map $lightmap` mit alphaGen const 0.125 und GL_SRC_ALPHA GL_ONE auf textures/exegol/front mischt damit. Bis REST7 galt 255.
+    add(pruefe("Externe Lightmap: das Alpha aus lm_0000.tga bleibt erhalten", [] {
+        const BspGeometry& g = g_app->geo;
+        const bool da = !g.lightmapAlpha.empty() && !g.lightmapAlpha[0].empty();
+        double summe = 0.0;
+        if (da) {
+            for (const std::uint8_t a : g.lightmapAlpha[0]) { summe += a; }
+        }
+        const double mittel = da ? summe / static_cast<double>(g.lightmapAlpha[0].size()) : -1.0;
+        char z[200];
+        std::snprintf(z, sizeof(z), "Knopftest: Externe Lightmap - Seite 0 %d x %d, Alpha im Mittel %.4f", g.lightmapW(0), g.lightmapH(0), mittel);
+        diag::detail(z);
+        return da && g.lightmapW(0) == 4096 && g.lightmapH(0) == 4096 && std::fabs(mittel - 23.7226) < 0.001;
+    }));
     return s;
 }
 

@@ -1599,8 +1599,12 @@ float4 main(VSOut ein) : SV_TARGET {
         if ((features & kSpiegelBild) != 0U) {
             s += "    float4 c = float4(gPortal.Load(int3(int2(ein.pos.xy), 0)).rgb, 1.0);\n";
         } else if ((features & kLightmapBild) != 0U) {
-            // REST3c: das Bild einer weiteren `map $lightmap`-Stufe ist die Lightmap (tr.lightmaps, GL_CLAMP, ohne Mipmaps, Alpha 255)
-            s += "    float4 c = float4(gLightmap.Sample(gLmAbtaster, ein.uv).rgb, 1.0);\n";
+            // REST3c: das Bild einer weiteren `map $lightmap`-Stufe ist die Lightmap (tr.lightmaps, GL_CLAMP, ohne Mipmaps).
+            // REST7: mit ihrem Alpha - aus der .bsp 255 (R_LoadLightmaps, tr_bsp.cpp), extern so, wie es im Bild steht (R_FindLightmap,
+            // tr_shader.cpp:3345-3358 MD9: R_FindImageFile laedt lm_%04d.tga mit Alphakanal). duel_exegol: alphaGen const 0.125 mit
+            // GL_SRC_ALPHA GL_ONE auf textures/exegol/front - das Alpha der Lightmap (an der Wand im Mittel 8 von 255) haelt die
+            // Stufe fast ganz zurueck.
+            s += "    float4 c = gLightmap.Sample(gLmAbtaster, ein.uv);\n";
         } else {
             s += "    float4 c = gBild.Sample(gSampler, ein.uv);\n";
         }

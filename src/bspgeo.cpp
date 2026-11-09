@@ -1671,6 +1671,13 @@ int ladeExterneLightmaps(BspGeometry& geo, const std::string& kartenOrdner,
                 rgb[p * 3U + 2] = im.rgba[p * 4U + 2];
             }
             geo.lightmaps[ui] = std::move(rgb);
+            // REST7: der Alphakanal bleibt (R_FindImageFile, tr_shader.cpp:3345-3358 MD9) - eine weitere $lightmap-Stufe mischt damit
+            if (im.hasAlpha) {
+                if (geo.lightmapAlpha.size() <= ui) { geo.lightmapAlpha.resize(ui + 1U); }
+                std::vector<std::uint8_t>& alpha = geo.lightmapAlpha[ui];
+                alpha.resize(static_cast<std::size_t>(im.width) * static_cast<std::size_t>(im.height));
+                for (std::size_t p = 0; p < alpha.size(); ++p) { alpha[p] = im.rgba[p * 4U + 3]; }
+            }
             geo.lightmapBreite[ui] = im.width;
             geo.lightmapHoehe[ui] = im.height;
             ++geladen;

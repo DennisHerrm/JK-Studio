@@ -175,6 +175,9 @@ struct BspGeometry {
     // gilt 128.
     std::vector<int> lightmapBreite;
     std::vector<int> lightmapHoehe;
+    // REST7: das Alpha je Lightmap, ein Byte je Bildpunkt - nur fuer externe mit Alphakanal (R_FindImageFile laedt lm_%04d.tga
+    // so, wie es ist); leer heisst 255 wie die aus der .bsp (R_LoadLightmaps). Eine weitere $lightmap-Stufe mischt damit.
+    std::vector<std::vector<std::uint8_t>> lightmapAlpha;
     [[nodiscard]] int lightmapW(std::size_t i) const {
         return (i < lightmapBreite.size() && lightmapBreite[i] > 0) ? lightmapBreite[i] : kLightmapSize;
     }
