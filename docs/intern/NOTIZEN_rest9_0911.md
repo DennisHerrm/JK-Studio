@@ -59,9 +59,15 @@ schon beim Nutzer ist).
   Fenster 2538 x 1384 bei Oberflaeche x2, Ausschnitt 2538 x 618, Leiste gelb markiert; de, ja, cs angesehen (eine Zeile, nichts
   gekuerzt).
 
-## Schluss
+## Schluss (`Y:\werkzeuge\r9\schluss.sh`, Summe `schluss_summe.txt`)
 
-(siehe unten, nach der Schlussrunde ergaenzt)
+- Sauberer Neubau (`--clean-first`) exit 0, 0 Warnungen, 1550 s (allein, danach alles parallel).
+- ctest 245/245 und q3map2_pr316 1/1 (darin `updater_uebergang`, `updatetest`, `updatetest_echtheit`).
+- Selbsttests: karteneditor voll 3393/0, menueeditor 2787/0, editorportal 19/0, Modus 1 2635/0, modellblock funktionen 61/0 und
+  md 86/0, updateleiste 48/0, updateleiste2 3/0.
+- Lints wie Basis 0997506cb: portability 99 (Basis 100), pruefcodes 11 (11), settings ok mit 92 Schluesseln (neu
+  `updateUebersprungen`), uebrige ok bzw. unveraenderte Hinweise (efxflags, fremdprogramm, link/tidy nur unter Linux).
+- Keine Bildzeit-Messung (Auftrag). Adressen 0 ab 0997506cb, Autor und Trailer in jedem Commit.
 
 ## Offen
 
