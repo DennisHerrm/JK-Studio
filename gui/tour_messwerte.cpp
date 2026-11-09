@@ -60,6 +60,7 @@
 //   programm.spielordner eingerichtete Spielordner ("+" = einer dazu)
 //   programm.regelwerk   Regelwerk der Vorschau (0 auto, 1 OpenJK, 2 Movie Duels ...)
 //   update.fenster       1, solange das Update-Fenster offen ist
+//   update.leiste        1, solange die Update-Leiste oben steht (REST10: dort steht das Ergebnis der Suche von Hand)
 //   update.ergebnis      1, wenn die Suche fertig ist (aktuell, neu da oder Fehler)
 //   update.auto          1, wenn beim Start nach Updates gesucht wird
 //   karte.schluessel     Pruefsumme aller Schluessel/Werte der Entities ("~" = geaendert)
@@ -272,6 +273,7 @@ void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetz
     werte["programm.spielordner"] = static_cast<double>(g_app->settings.gamePaths.size() + g_app->settings.gamePathsJk2.size());
     werte["programm.regelwerk"] = g_app->settings.regelwerk;
     werte["update.fenster"] = updater::fensterOffen() ? 1.0 : 0.0;
+    werte["update.leiste"] = updater::leisteSichtbar() ? 1.0 : 0.0;
     const updater::Stand us = updater::zustand().stand;
     werte["update.ergebnis"] = (us == updater::Stand::Aktuell || us == updater::Stand::Verfuegbar || us == updater::Stand::Fehler ||
                                 us == updater::Stand::Fertig)

@@ -5566,6 +5566,17 @@ enum class Str {
     UpdBarError,
     UpdBarRetry,
     UpdBarRetryHint,
+    UpdBarCancel,
+    UpdBarCancelHint,
+    UpdBarDoneLaterHint,
+    UpdBarChecking,
+    UpdBarCurrent,
+    UpdBarCheckFailed,
+    UpdBarReleases,
+    UpdBarReleasesHint,
+    UpdBarClose,
+    UpdBarCloseResultHint,
+    UpdBarCloseCheckHint,
     Count,
 };
 

@@ -2,7 +2,7 @@
 """Oberflaechentexte von REST9 (09.11.: die Update-Leiste oben, wie im Programm G2C).
 
 Sobald ein neueres Release gefunden ist, steht unter der Menueleiste eine Leiste mit Jetzt aktualisieren, Was ist neu?,
-Spaeter, Diese Fassung ueberspringen und x (gui/update_win32.cpp, zeichneLeiste).
+Spaeter, Diese Version ueberspringen (REST10: wie G2C "Version" statt "Fassung") und x (gui/update_win32.cpp, zeichneLeiste).
 Je Zeile: Kennung, English, Deutsch, 中文, 日本語, Español, Čeština.
 """
 
@@ -31,10 +31,10 @@ ZEILEN = [
      "次の起動までこのバーを隠します。ステータスバーの通知は残ります。",
      "Oculta esta barra hasta el próximo inicio. El aviso de la barra de estado se mantiene.",
      "Skryje tento pruh do příštího spuštění. Upozornění ve stavovém řádku zůstane."),
-    ("UpdBarSkip", "Skip this version", "Diese Fassung überspringen", "跳过此版本", "このバージョンをスキップ", "Omitir esta versión",
+    ("UpdBarSkip", "Skip this version", "Diese Version überspringen", "跳过此版本", "このバージョンをスキップ", "Omitir esta versión",
      "Přeskočit tuto verzi"),
     ("UpdBarSkipHint", "Don't show this bar for %s again, not even after a restart. A newer version shows it again.",
-     "Diese Leiste für %s nicht mehr zeigen, auch nicht nach einem Neustart. Eine neuere Fassung zeigt sie wieder.",
+     "Diese Leiste für %s nicht mehr zeigen, auch nicht nach einem Neustart. Eine neuere Version zeigt sie wieder.",
      "不再为 %s 显示此栏,重启后也不显示。更新的版本会再次显示。",
      "%s についてはこのバーを再起動後も表示しません。より新しいバージョンでは再び表示されます。",
      "No volver a mostrar esta barra para %s, ni siquiera tras reiniciar. Una versión más nueva la vuelve a mostrar.",
@@ -51,7 +51,7 @@ ZEILEN = [
      "更新 %s 已安装。重新启动后即可使用。", "アップデート %s をインストールしました。再起動すると使えます。",
      "La actualización %s está instalada. Reinicia para usarla.", "Aktualizace %s je nainstalována. Pro použití restartujte."),
     ("UpdBarRestartHint", "Closes JK Studio and starts the new version. Unsaved tabs are asked about first.",
-     "Schließt JK Studio und startet die neue Fassung. Nach ungesicherten Reitern wird vorher gefragt.",
+     "Schließt JK Studio und startet die neue Version. Nach ungesicherten Reitern wird vorher gefragt.",
      "关闭 JK Studio 并启动新版本。未保存的标签页会先询问。",
      "JK Studio を閉じて新しいバージョンを起動します。未保存のタブは先に確認されます。",
      "Cierra JK Studio e inicia la nueva versión. Antes se pregunta por las pestañas sin guardar.",

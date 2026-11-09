@@ -2316,6 +2316,8 @@ from i18n_rest8 import zeilen_vier as _rest8  # noqa: E402  (REST8: Optimierer m
 S += _rest8()
 from i18n_rest9 import zeilen_vier as _rest9  # noqa: E402  (REST9: Update-Leiste oben, wie im Programm G2C)
 S += _rest9()
+from i18n_rest10 import zeilen_vier as _rest10  # noqa: E402  (REST10: Update-Leiste wie G2C ergaenzt)
+S += _rest10()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

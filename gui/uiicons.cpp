@@ -136,6 +136,8 @@ ImVec4 uiIconFarbe(UiIcon icon) {
         case UiIcon::MbRig: c = ImVec4{0.98F, 0.80F, 0.30F, 1.0F}; break;           // Stufe 3: wie die Knochen
         case UiIcon::MbGriff: c = ImVec4{0.40F, 0.80F, 1.00F, 1.0F}; break;
         case UiIcon::MbPol: c = ImVec4{0.85F, 0.65F, 1.00F, 1.0F}; break;
+        case UiIcon::Info: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;          // REST10: blau
+        case UiIcon::Fehler: c = ImVec4{1.00F, 0.42F, 0.40F, 1.0F}; break;        // rot wie Loeschen
 
         default: break;
     }
@@ -568,6 +570,16 @@ void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe)
             z.zug({ImVec2{8.0F, 1.5F}, ImVec2{15.0F, 14.0F}, ImVec2{1.0F, 14.0F}}, true);
             z.linie(8.0F, 6.0F, 8.0F, 9.8F);
             z.punkt(8.0F, 12.0F, 0.9F);
+            break;
+        case UiIcon::Info:   // REST10: Kreis mit "i"
+            z.kreis(8.0F, 8.0F, 6.5F);
+            z.punkt(8.0F, 4.9F, 0.9F);
+            z.linie(8.0F, 7.2F, 8.0F, 11.6F);
+            break;
+        case UiIcon::Fehler:   // REST10: Kreis mit Kreuz
+            z.kreis(8.0F, 8.0F, 6.5F);
+            z.linie(5.6F, 5.6F, 10.4F, 10.4F);
+            z.linie(10.4F, 5.6F, 5.6F, 10.4F);
             break;
     }
 }

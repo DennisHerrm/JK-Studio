@@ -38,6 +38,7 @@
 
 #include "app_internal.h"
 #include "bhed/fassung.h"
+#include "tour.h"
 
 namespace bhed::gui::updater {
 namespace {
@@ -60,6 +61,13 @@ struct Geteilt {
     // rc610 F78 (Fund B8-4): das Programm endet - Laden und Entpacken hoeren auf,
     // ein begonnener Tausch laeuft zu Ende (beimBeenden wartet darauf).
     std::atomic<bool> beenden{false};
+    // REST10: [Abbrechen] beim Laden - oder das Programm endet (beimBeenden setzt
+    // beides). Laden und Entpacken hoeren auf, ein begonnener Tausch laeuft zu Ende.
+    std::atomic<bool> abbruch{false};
+    // Nur Selbsttest (REST10): Pause je Stueck der simulierten Antwort, die zuletzt
+    // "geoeffnete" Seite.
+    std::atomic<int> testPauseMs{0};
+    std::string testSeite;
 };
 Geteilt& g() {
     static Geteilt* x = new Geteilt();
@@ -198,7 +206,8 @@ Antwort holen(const std::wstring& url, const std::vector<std::wstring>& kopf, bo
         a.status = static_cast<DWORD>(status);
         const std::size_t stueck = std::max<std::size_t>(1, inhalt.size() / 16);
         for (std::size_t i = 0; i < inhalt.size(); i += stueck) {
-            if (g().beenden.load()) {
+            if (const int ms = g().testPauseMs.load(); ms > 0) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
+            if (g().abbruch.load()) {
                 a.fehler = text(Str::UpdErrAbort);
                 return a;
             }
@@ -275,7 +284,7 @@ Antwort holen(const std::wstring& url, const std::vector<std::wstring>& kopf, bo
                 gesamt = laengeWert;
             }
             for (;;) {
-                if (g().beenden.load()) {
+                if (g().abbruch.load()) {
                     a.fehler = text(Str::UpdErrAbort);
                     break;
                 }
@@ -385,9 +394,27 @@ void installAuftrag(bhed::update::Release r) {
         return;
     }
     const auto fortschritt = [&](std::uint64_t n, std::uint64_t gesamt) {
-        const double teil = gesamt > 0 ? static_cast<double>(n) / static_cast<double>(gesamt)
-                                       : (asset->size > 0 ? static_cast<double>(n) / static_cast<double>(asset->size) : 0.0);
-        setze([&](Zustand& z) { z.fortschritt = std::min(1.0, teil); });
+        const std::uint64_t alles = gesamt > 0 ? gesamt : (asset->size > 0 ? static_cast<std::uint64_t>(asset->size) : 0U);
+        const double teil = alles > 0 ? static_cast<double>(n) / static_cast<double>(alles) : 0.0;
+        setze([&](Zustand& z) {
+            z.fortschritt = std::min(1.0, teil);
+            z.geladen = n;
+            z.gesamt = alles;
+        });
+    };
+    // REST10: [Abbrechen] (nicht das Ende des Programms) - zurueck auf "verfuegbar",
+    // nichts eingespielt, die Ablage weg.
+    const auto abgebrochen = [] { return g().abbruch.load() && !g().beenden.load(); };
+    const auto zurueck = [] {
+        diag::detail("Update: Laden abgebrochen - nichts eingespielt");
+        setze([](Zustand& z) {
+            z.stand = Stand::Verfuegbar;
+            z.fortschritt = 0.0;
+            z.geladen = 0;
+            z.gesamt = 0;
+            z.meldung.clear();
+            z.beimInstallieren = false;
+        });
     };
     // Oeffentlich: der normale Download-Link, ohne Anmeldung.
     Antwort a;
@@ -405,6 +432,10 @@ void installAuftrag(bhed::update::Release r) {
                 a = holen(a.weiter, {}, true, fortschritt);
             }
         }
+    }
+    if (abgebrochen()) {
+        zurueck();
+        return;
     }
     if (!a.fehler.empty() || a.status != 200 || a.body.size() < 22) {
         setze([&](Zustand& z) {
@@ -428,6 +459,10 @@ void installAuftrag(bhed::update::Release r) {
     std::string signatur;
     const bool mitSummen = kleineDatei(bhed::update::kSummenDatei, summen);
     const bool mitSignatur = kleineDatei(bhed::update::kSignaturDatei, signatur);
+    if (abgebrochen()) {
+        zurueck();
+        return;
+    }
     diag::detail(std::string("Update: ") + bhed::update::kSummenDatei + (mitSummen ? " geladen" : " FEHLT") + ", " +
                  bhed::update::kSignaturDatei + (mitSignatur ? " geladen" : " fehlt"));
     // Das .zip ablegen; einspielen (src/update_einspielen.cpp) prueft es, entpackt
@@ -442,8 +477,12 @@ void installAuftrag(bhed::update::Release r) {
     }
     const bhed::update::Einspielergebnis erg =
         bhed::update::einspielen(zipDatei.wstring(), asset->name, mitSummen ? &summen : nullptr,
-                                 mitSignatur ? &signatur : nullptr, bhed::update::kSignaturSchluessel, exePfad(), &g().beenden);
+                                 mitSignatur ? &signatur : nullptr, bhed::update::kSignaturSchluessel, exePfad(), &g().abbruch);
     fs::remove_all(ablage, ec);
+    if (!erg.problem.empty() && erg.dateien == 0 && abgebrochen()) {
+        zurueck();
+        return;
+    }
     diag::detail("Update: " + std::to_string(erg.dateien) + " Dateien ersetzt" + (erg.problem.empty() ? "" : " - " + erg.problem));
     setze([&](Zustand& z) {
         z.dateien = erg.dateien;
@@ -456,15 +495,24 @@ void installAuftrag(bhed::update::Release r) {
     });
 }
 
-void imHintergrund(std::function<void()> auftrag) {
+// Erst den Platz belegen, dann den Zustand setzen, dann starten (REST10): bis REST9
+// setzte installieren() "Laedt" vor dem Belegen - endete der vorige Auftrag (etwa
+// ein abgebrochenes Laden) erst danach, blieb "Laedt" ohne Auftrag stehen.
+bool belegen() {
     bool erwartet = false;
-    if (!g().laeuft.compare_exchange_strong(erwartet, true)) {
-        return;   // es laeuft schon einer
-    }
+    return g().laeuft.compare_exchange_strong(erwartet, true);
+}
+
+void starten(std::function<void()> auftrag) {
     std::thread([auftrag = std::move(auftrag)] {
         auftrag();
         g().laeuft = false;
     }).detach();
+}
+
+// Ein neuer Auftrag faengt ohne Abbruch an (ausser das Programm endet).
+void abbruchZuruecksetzen() {
+    if (!g().beenden.load()) { g().abbruch = false; }
 }
 
 }  // namespace
@@ -486,9 +534,11 @@ Zustand zustand() {
 }
 
 void pruefen(bool stumm) {
+    // REST10 (wie G2C): von Hand steht das Ergebnis in der Leiste oben, nicht mehr im
+    // Fenster; auch nach "Spaeter" zeigt sie sich wieder - man hat ja gefragt.
     if (!stumm) {
         std::lock_guard<std::mutex> l(g().m);
-        g().fensterOffen = true;
+        g().leisteWegTag.clear();
     }
     // rc610 F78 (Fund B8-3): nach einer fertigen Installation gilt das installierte
     // Release als aktuell - es bleibt bei "Neu starten" (bis rc609 bot die naechste
@@ -496,26 +546,41 @@ void pruefen(bool stumm) {
     // laufenden Programm, und "Neu starten" war weg). Waehrend des Ladens ebenso:
     // der Zustand gehoert dem laufenden Auftrag.
     const Stand jetzt = zustand().stand;
-    if (jetzt == Stand::Fertig || jetzt == Stand::Laedt) { return; }
-    setze([](Zustand& z) {
+    if (jetzt == Stand::Fertig || jetzt == Stand::Laedt || !belegen()) {
+        // Laeuft schon eine Suche (die beim Start), zeigt die Leiste sie jetzt.
+        if (!stumm && jetzt != Stand::Ruhe) { setze([](Zustand& z) { z.vonHand = true; }); }
+        return;
+    }
+    abbruchZuruecksetzen();
+    setze([stumm](Zustand& z) {
         z.stand = Stand::Pruefe;
         z.meldung.clear();
         z.beimInstallieren = false;
+        z.vonHand = !stumm;
     });
-    imHintergrund(pruefAuftrag);
+    starten(pruefAuftrag);
 }
 
 void installieren() {
     const Zustand z = zustand();
     if (z.stand != Stand::Verfuegbar && z.stand != Stand::Fehler) { return; }
-    if (z.release.tag.empty()) { return; }
+    if (z.release.tag.empty() || !belegen()) { return; }
+    abbruchZuruecksetzen();
     setze([](Zustand& x) {
         x.stand = Stand::Laedt;
         x.fortschritt = 0.0;
+        x.geladen = 0;
+        x.gesamt = 0;
         x.meldung.clear();
         x.beimInstallieren = true;
     });
-    imHintergrund([r = z.release] { installAuftrag(r); });
+    starten([r = z.release] { installAuftrag(r); });
+}
+
+void abbrechen() {
+    if (zustand().stand != Stand::Laedt) { return; }
+    diag::detail("Update: Abbrechen gedrueckt");
+    g().abbruch = true;
 }
 
 void beimStart() {
@@ -597,6 +662,7 @@ void neustartWennVorgemerkt() {
 
 void beimBeenden() {
     g().beenden = true;
+    g().abbruch = true;
     if (!g().laeuft.load()) { return; }
     diag::detail("Update: Beenden wartet auf den laufenden Auftrag (Laden abgebrochen, ein begonnener Tausch laeuft zu Ende)");
     while (g().laeuft.load()) { std::this_thread::sleep_for(std::chrono::milliseconds(20)); }
@@ -648,6 +714,10 @@ void zeichneStatus() {
     ImGui::PopStyleColor(2);
     ImGui::SameLine();
 }
+
+namespace {
+void seiteOeffnen(const std::string& url);
+}  // namespace
 
 void zeichneFenster() {
     bool offen = fensterOffen();
@@ -714,9 +784,7 @@ void zeichneFenster() {
             { if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::UpdRetryHint)); } }   // H2
             ImGui::SameLine();
         }
-        if (!z.release.htmlUrl.empty() && ImGui::Button(tr(Str::UpdOpenPage))) {
-            ShellExecuteW(nullptr, L"open", breit(z.release.htmlUrl).c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-        }
+        if (!z.release.htmlUrl.empty() && ImGui::Button(tr(Str::UpdOpenPage))) { seiteOeffnen(z.release.htmlUrl); }
         if (!z.release.htmlUrl.empty()) { ImGui::SameLine(); }
         if (ImGui::Button(tr(Str::ChangelogMenu))) {
             changelogZeigen();
@@ -739,6 +807,11 @@ void zeichneFenster() {
 // erscheint mit neues update verfuegbar und jetzt updaten ... dass man gleich
 // gewarnt wird". Bis rc610 stand ein Fund nur als kleiner gruener Text unten in
 // der Statuszeile (zeichneStatus) - leicht zu uebersehen.
+//
+// REST10 (Abgleich mit G2C, g2c-toolkit/gui/app.cpp drawUpdateBanner): beim Laden
+// [Abbrechen] und "x.x / y.y MB" im Balken, nach dem Laden auch [Spaeter], die Suche
+// von Hand zeigt "Suche ...", "aktuell" oder den Fehler (mit [Releases-Seite]) in der
+// Leiste, ein Symbol vor dem Text (Info, Haken, Fehler).
 namespace {
 
 LeistenBild g_leiste;
@@ -750,7 +823,7 @@ std::string kurzTag(const std::string& tag) {
     return n >= 0 ? "rc" + std::to_string(n) : tag;
 }
 
-// "Diese Fassung ueberspringen": gilt fuer dieses Release und aeltere; ohne
+// "Diese Version ueberspringen": gilt fuer dieses Release und aeltere; ohne
 // erkennbare Nummer in der Einstellung gilt nichts als uebersprungen.
 bool uebersprungen(const std::string& tag) {
     if (g_app == nullptr) { return false; }
@@ -759,16 +832,27 @@ bool uebersprungen(const std::string& tag) {
 }
 
 bool leisteZeigen(const Zustand& z) {
+    // Die Suche von Hand (REST10): "Suche ...", "aktuell" und ein Fehler beim
+    // Nachsehen stehen bis [Schliessen] in der Leiste. Beim Start bleibt das still.
+    switch (z.stand) {
+        case Stand::Pruefe:
+        case Stand::Aktuell: return z.vonHand;
+        case Stand::Fehler:
+            if (!z.beimInstallieren) { return z.vonHand; }
+            break;
+        default: break;
+    }
     if (z.release.tag.empty()) { return false; }
     {
         std::lock_guard<std::mutex> l(g().m);
         if (g().leisteWegTag == z.release.tag) { return false; }
     }
     switch (z.stand) {
-        case Stand::Verfuegbar: return !uebersprungen(z.release.tag);
+        // Von Hand gesucht zeigt auch eine uebersprungene Version die Leiste (wie G2C).
+        case Stand::Verfuegbar: return z.vonHand || !uebersprungen(z.release.tag);
         case Stand::Laedt:
-        case Stand::Fertig: return true;
-        case Stand::Fehler: return z.beimInstallieren;   // ein gescheitertes Nachsehen meldet die Leiste nicht
+        case Stand::Fertig:
+        case Stand::Fehler: return true;   // Fehler beim Installieren
         default: return false;
     }
 }
@@ -805,6 +889,24 @@ std::string gekuerzt(const std::string& t, float breite, bool& kurz) {
     return "...";
 }
 
+// Die Releases-Seite im Browser - im Selbsttest nur gemerkt (kein Browser auf
+// shanks Bildschirm).
+void seiteOeffnen(const std::string& url) {
+    if (std::getenv("BHED_EDITORTEST") != nullptr) {
+        std::lock_guard<std::mutex> l(g().m);
+        g().testSeite = url;
+        diag::detail("Update: (Selbsttest) nicht geoeffnet: " + url);
+        return;
+    }
+    ShellExecuteW(nullptr, L"open", breit(url).c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+}
+
+// "Suche ..." / "aktuell" / Fehler beim Nachsehen: [Schliessen] und x beenden die
+// Anzeige; die Suche selbst laeuft (falls noch) still weiter.
+void vonHandZu() {
+    setze([](Zustand& z) { z.vonHand = false; });
+}
+
 }  // namespace
 
 bool leisteSichtbar() { return leisteZeigen(zustand()); }
@@ -835,7 +937,25 @@ float zeichneLeiste() {
     };
     const Knopf wasNeu{std::string(tr(Str::UpdBarWhatsNew)) + "###updleiste_neu", tr(Str::UpdBarWhatsNewHint), [] { oeffneFenster(); }};
     const Knopf spaeterKnopf{std::string(tr(Str::UpdLater)) + "###updleiste_spaeter", tr(Str::UpdBarLaterHint), spaeter};
+    const Knopf schliessen{std::string(tr(Str::UpdBarClose)) + "###updleiste_schliessen", tr(Str::UpdBarCloseResultHint), vonHandZu};
+    LeistenSymbol symbol = LeistenSymbol::Info;
+    // x ganz rechts: wie Spaeter bzw. wie Schliessen; nicht neben [Schliessen].
+    bool mitZu = true;
+    std::function<void()> zuTun = spaeter;
+    std::string zuTipp = tr(Str::UpdBarCloseHint);
+    const bool sucheVonHand = z.stand == Stand::Pruefe || z.stand == Stand::Aktuell || (z.stand == Stand::Fehler && !z.beimInstallieren);
     switch (z.stand) {
+        case Stand::Pruefe:
+            satz = tr(Str::UpdBarChecking);
+            zuTun = vonHandZu;
+            zuTipp = tr(Str::UpdBarCloseCheckHint);
+            break;
+        case Stand::Aktuell:
+            symbol = LeistenSymbol::Haken;
+            satz = mitText(Str::UpdBarCurrent, kurzTag(lokaleFassung()));
+            knoepfe.push_back(schliessen);
+            mitZu = false;
+            break;
         case Stand::Verfuegbar:
             satz = mitText(Str::UpdBarAvail, neu, kurzTag(lokaleFassung()));
             knoepfe.push_back({std::string(tr(Str::UpdBarNow)) + "###updleiste_jetzt", mitText(Str::UpdBarNowHint, neu),
@@ -848,34 +968,51 @@ float zeichneLeiste() {
             break;
         case Stand::Laedt:
             satz = mitText(Str::UpdBarLoading, neu);
+            knoepfe.push_back({std::string(tr(Str::UpdBarCancel)) + "###updleiste_abbrechen", tr(Str::UpdBarCancelHint), [] { abbrechen(); }});
             break;
         case Stand::Fertig:
+            symbol = LeistenSymbol::Haken;
             satz = mitText(Str::UpdBarDone, neu);
             knoepfe.push_back({std::string(tr(Str::UpdRestart)) + "###updleiste_neustart", tr(Str::UpdBarRestartHint),
                                [] { neuStarten(); }, true});
             knoepfe.push_back(wasNeu);
-            knoepfe.push_back(spaeterKnopf);
+            knoepfe.push_back({spaeterKnopf.label, tr(Str::UpdBarDoneLaterHint), spaeter});
             break;
-        default:   // Fehler beim Installieren
-            satz = mitText(Str::UpdBarError, neu, z.meldung);
-            knoepfe.push_back({std::string(tr(Str::UpdBarRetry)) + "###updleiste_nochmal", mitText(Str::UpdBarRetryHint, neu),
-                               [] { installieren(); }, true});
-            knoepfe.push_back(wasNeu);
-            knoepfe.push_back(spaeterKnopf);
+        default:   // Fehler
+            symbol = LeistenSymbol::Fehler;
+            if (sucheVonHand) {
+                satz = mitText(Str::UpdBarCheckFailed, z.meldung);
+                knoepfe.push_back({std::string(tr(Str::UpdBarReleases)) + "###updleiste_seite", tr(Str::UpdBarReleasesHint),
+                                   [] { seiteOeffnen(std::string("https://github.com/") + bhed::update::kRepo + "/releases"); }});
+                knoepfe.push_back(schliessen);
+                mitZu = false;
+            } else {
+                satz = mitText(Str::UpdBarError, neu, z.meldung);
+                knoepfe.push_back({std::string(tr(Str::UpdBarRetry)) + "###updleiste_nochmal", mitText(Str::UpdBarRetryHint, neu),
+                                   [] { installieren(); }, true});
+                knoepfe.push_back(wasNeu);
+                knoepfe.push_back(spaeterKnopf);
+            }
             break;
     }
 
-    // Passen Text und Knoepfe in eine Zeile? Sonst stehen die Knoepfe darunter
+    // Passen Symbol, Text und Knoepfe in eine Zeile? Sonst stehen die Knoepfe darunter
     // (schmales Fenster, lange Uebersetzung); ein zu langer Text (Fehlermeldung)
     // endet mit "..." und steht ganz im Tooltip.
     const float lueckeText = st.ItemSpacing.x * 3.0F;
-    const float zuB = zeileH;
+    const float zuB = mitZu ? zeileH : 0.0F;
+    const float symB = ImGui::GetFontSize();
+    const float symPlatz = symB + st.ItemSpacing.x;
     const float fortschrittB = z.stand == Stand::Laedt ? ImGui::GetFontSize() * 14.0F : 0.0F;
     float knoepfeB = fortschrittB;
-    for (std::size_t i = 0; i < knoepfe.size(); ++i) { knoepfeB += knopfBreite(knoepfe[i].label) + (i > 0 ? st.ItemSpacing.x : 0.0F); }
+    for (std::size_t i = 0; i < knoepfe.size(); ++i) {
+        knoepfeB += knopfBreite(knoepfe[i].label) + ((i > 0 || fortschrittB > 0.0F) ? st.ItemSpacing.x : 0.0F);
+    }
     const float innenB = g_testBreite > 0.0F ? g_testBreite : w->Size.x - st.WindowPadding.x * 2.0F;
     const float textB = ImGui::CalcTextSize(satz.c_str()).x;
-    const bool eineZeile = textB + lueckeText + knoepfeB + lueckeText + zuB <= innenB;
+    const float knoepfeTeil = knoepfeB > 0.0F ? lueckeText + knoepfeB : 0.0F;
+    const float zuTeil = mitZu ? lueckeText + zuB : 0.0F;
+    const bool eineZeile = symPlatz + textB + knoepfeTeil + zuTeil <= innenB;
     const int zeilen = eineZeile ? 1 : 2;
     const float rand = st.ItemSpacing.y + 1.0F;
     const float h = std::floor(zeileH * static_cast<float>(zeilen) + st.ItemSpacing.y * static_cast<float>(zeilen - 1) + rand * 2.0F + 0.5F);
@@ -883,16 +1020,16 @@ float zeichneLeiste() {
     const ImVec2 r0{w->Pos.x, oben};
     const ImVec2 r1{w->Pos.x + w->Size.x, oben + h};
 
-    // Farben: hell auf dunklem Thema, dunkel auf hellem - je Zustand blau
-    // (verfuegbar, laedt), gruen (fertig) oder rot (Fehler).
+    // Farben: hell auf dunklem Thema, dunkel auf hellem - je Symbol blau (Info:
+    // verfuegbar, laedt, Suche), gruen (Haken: installiert, aktuell) oder rot (Fehler).
     const ImVec4 hg = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
     const bool dunkel = 0.299F * hg.x + 0.587F * hg.y + 0.114F * hg.z < 0.5F;
     ImVec4 grund = dunkel ? ImVec4{0.11F, 0.30F, 0.54F, 1.0F} : ImVec4{0.80F, 0.89F, 1.00F, 1.0F};
     ImVec4 kante = dunkel ? ImVec4{0.32F, 0.58F, 0.90F, 1.0F} : ImVec4{0.35F, 0.55F, 0.88F, 1.0F};
-    if (z.stand == Stand::Fertig) {
+    if (symbol == LeistenSymbol::Haken) {
         grund = dunkel ? ImVec4{0.10F, 0.36F, 0.20F, 1.0F} : ImVec4{0.82F, 0.95F, 0.84F, 1.0F};
         kante = dunkel ? ImVec4{0.30F, 0.70F, 0.42F, 1.0F} : ImVec4{0.30F, 0.65F, 0.38F, 1.0F};
-    } else if (z.stand == Stand::Fehler) {
+    } else if (symbol == LeistenSymbol::Fehler) {
         grund = dunkel ? ImVec4{0.45F, 0.14F, 0.14F, 1.0F} : ImVec4{1.00F, 0.86F, 0.84F, 1.0F};
         kante = ImVec4{0.85F, 0.35F, 0.35F, 1.0F};
     }
@@ -904,9 +1041,15 @@ float zeichneLeiste() {
 
     const ImVec2 start = ImGui::GetCursorScreenPos();
     const float y = oben + rand;
-    ImGui::SetCursorScreenPos(ImVec2{start.x, y});
+    // Das Symbol im Strichstil der Bedien-Icons (uiicons.cpp), in der Schriftfarbe der
+    // Leiste - lesbar auf jedem ihrer Gruende, im hellen wie im dunklen Thema.
+    const ImVec2 symPos{start.x, y + (zeileH - symB) * 0.5F};
+    const ImU32 symFarbe = ImGui::GetColorU32(schrift);
+    const UiIcon icon = symbol == LeistenSymbol::Haken ? UiIcon::Haken : (symbol == LeistenSymbol::Fehler ? UiIcon::Fehler : UiIcon::Info);
+    uiIcon(w->DrawList, icon, symPos, symB, symFarbe);
+    ImGui::SetCursorScreenPos(ImVec2{start.x + symPlatz, y});
     bool kurz = false;
-    const float textPlatz = innenB - zuB - lueckeText - (eineZeile ? lueckeText + knoepfeB : 0.0F);
+    const float textPlatz = innenB - symPlatz - zuTeil - (eineZeile ? knoepfeTeil : 0.0F);
     const std::string gezeigt = gekuerzt(satz, textPlatz, kurz);
     ImGui::PushStyleColor(ImGuiCol_Text, schrift);
     ImGui::AlignTextToFramePadding();
@@ -916,12 +1059,21 @@ float zeichneLeiste() {
     if (eineZeile) {
         ImGui::SameLine(0.0F, lueckeText);
     } else {
-        ImGui::SetCursorScreenPos(ImVec2{start.x, y + zeileH + st.ItemSpacing.y});
+        ImGui::SetCursorScreenPos(ImVec2{start.x + symPlatz, y + zeileH + st.ItemSpacing.y});
     }
+    std::string balken;
     if (z.stand == Stand::Laedt) {
-        char prozent[32];
-        std::snprintf(prozent, sizeof(prozent), "%d %%", static_cast<int>(z.fortschritt * 100.0 + 0.5));
-        ImGui::ProgressBar(static_cast<float>(z.fortschritt), ImVec2{fortschrittB, zeileH}, prozent);
+        // Wie G2C: geladen / gesamt in MB (unbekannte Groesse: Prozent).
+        char text[64];
+        if (z.gesamt > 0) {
+            std::snprintf(text, sizeof(text), "%.1f / %.1f MB", static_cast<double>(z.geladen) / (1024.0 * 1024.0),
+                          static_cast<double>(z.gesamt) / (1024.0 * 1024.0));
+        } else {
+            std::snprintf(text, sizeof(text), "%d %%", static_cast<int>(z.fortschritt * 100.0 + 0.5));
+        }
+        balken = text;
+        ImGui::ProgressBar(static_cast<float>(z.fortschritt), ImVec2{fortschrittB, zeileH}, text);
+        if (!knoepfe.empty()) { ImGui::SameLine(); }
     }
     for (std::size_t i = 0; i < knoepfe.size(); ++i) {
         if (i > 0) { ImGui::SameLine(); }
@@ -941,17 +1093,20 @@ float zeichneLeiste() {
             k.tun();
         }
     }
-    // x ganz rechts in der ersten Zeile: wie Spaeter.
-    ImGui::SetCursorScreenPos(ImVec2{r1.x - st.WindowPadding.x - zuB, y});
-    if (ImGui::Button("x###updleiste_zu", ImVec2{zuB, zeileH})) {
-        diag::detail("Update: Leiste - zu (" + tag + ")");
-        spaeter();
+    if (mitZu) {
+        ImGui::SetCursorScreenPos(ImVec2{r1.x - st.WindowPadding.x - zuB, y});
+        if (ImGui::Button("x###updleiste_zu", ImVec2{zuB, zeileH})) {
+            diag::detail("Update: Leiste - zu (" + tag + ")");
+            zuTun();
+        }
+        tipp(zuTipp);
     }
-    tipp(tr(Str::UpdBarCloseHint));
     // Der Arbeitsbereich darunter beginnt um die Hoehe der Leiste tiefer.
     ImGui::SetCursorScreenPos(start);
     ImGui::Dummy(ImVec2{0.0F, h - st.ItemSpacing.y});
-    g_leiste = LeistenBild{r0.x, r0.y, r1.x, r1.y, zeilen, kurz, satz};
+    tourZielMelden("update.leiste", ImRect{r0, r1});   // Tour k-update, Schritt 2
+    g_leiste = LeistenBild{r0.x, r0.y, r1.x, r1.y, zeilen, kurz, satz, symbol, symPos.x, symPos.y, symPos.x + symB, symPos.y + symB,
+                           symFarbe, ImGui::GetColorU32(grund), balken};
     return h;
 }
 
@@ -962,12 +1117,20 @@ void testNetzSetzen(TestNetz netz) {
 
 void testLeistenBreite(float breite) { g_testBreite = breite; }
 
+void testStueckPause(int millisekunden) { g().testPauseMs = millisekunden; }
+
+std::string testLetzteSeite() {
+    std::lock_guard<std::mutex> l(g().m);
+    return g().testSeite;
+}
+
 void testNeuerStart() {
     setze([](Zustand& z) { z = Zustand{}; });
     std::lock_guard<std::mutex> l(g().m);
     g().leisteWegTag.clear();
     g().hinweisWeg = false;
     g().fensterOffen = false;
+    g().testSeite.clear();
 }
 
 }  // namespace bhed::gui::updater

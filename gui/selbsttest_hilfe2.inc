@@ -629,9 +629,11 @@ std::vector<Schritt> update() {
     add(pause(0.6));
     add(schrittFoto("h_tut_update_2"));
     add(erledigt("k-update", 2, 2400));
-    add(pruefe("H2 Update: das Fenster hat eine Antwort (aktuell, neu oder Fehler)", [] {
-        diag::detail("Knopftest: H2 Update - Stand " + std::to_string(static_cast<int>(updater::zustand().stand)));
-        return updater::zustand().stand != updater::Stand::Pruefe;
+    // REST10: die Antwort steht in der Update-Leiste oben (wie G2C), das Fenster bleibt zu.
+    add(pruefe("H2 Update: die Leiste oben hat eine Antwort (aktuell, neu oder Fehler), kein Fenster", [] {
+        diag::detail("Knopftest: H2 Update - Stand " + std::to_string(static_cast<int>(updater::zustand().stand)) + ", Leiste \"" +
+                     updater::leisteBild().text + "\"");
+        return updater::zustand().stand != updater::Stand::Pruefe && updater::leisteSichtbar() && !updater::fensterOffen();
     }));
     add(klick(tr(Str::MenuHelp), "###main"));
     add(pause(0.3));
@@ -642,15 +644,17 @@ std::vector<Schritt> update() {
     add(pause(0.6));
     add(schrittFoto("h_tut_update_4"));
     add(pruefe("H2 Update: die Suche beim Start ist umgeschaltet", [] { return g_app->settings.updateCheck != autoVorher; }));
-    add(klick(tr(Str::ChangelogMenu), "###update"));
+    add(klick(tr(Str::MenuHelp), "###main"));
+    add(pause(0.3));
+    add(klick(tr(Str::ChangelogMenu), "##Menu"));
     add(erledigt("k-update", 4));
     add(pruefe("H2 Update: Tour ganz durch, das Aenderungsfenster ist offen", [] { return tourSicht().fertig; }));
-    add(tu("H2 Update: aufraeumen (Einstellung zurueck, Aenderungen und Update-Fenster zu, Tour zu)", [] {
+    add(tu("H2 Update: aufraeumen (Einstellung zurueck, Aenderungen zu, Update-Leiste weg wie nach einem Neustart, Tour zu)", [] {
         g_app->settings.updateCheck = autoVorher;
         g_app->changelogOpen = false;
+        updater::testNeuerStart();
         tourSchliessen();
     }));
-    add(klick(tr(Str::UpdLater), "###update"));
     add(pause(0.2));
     return s;
 }
