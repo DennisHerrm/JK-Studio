@@ -2061,18 +2061,166 @@ const ShaderInfo* skriptZu(const std::string& n) {
 }
 void bildRegistrieren(const std::string& shaderName) { ladeRegister().shader(shaderName, skriptZu); }
 
-// MR9 Punkt 1: was das Spiel VOR RE_LoadWorldMap registriert, in seiner Reihenfolge (alle Shader mit mipRawImage qtrue).
-// SV_SpawnServer (server/sv_init.cpp:311-350 OpenJK, :321-364 MD9): SV_InitGameProgs -> G_SpawnEntitiesFromString (level.time
-// 1000) und fuenf ge->RunFrame (1000 ... 1400). Ghoul2-Modelle laden dabei sofort (G2API_InitGhoul2Model -> RE_RegisterModel,
-// Haut vorher RE_RegisterSkin). Erst danach laedt der Client cgame: CG_Init -> CG_RegisterGraphics -> CG_RegisterEffects
-// (cg_main.cpp:1327-1329, MD9 :2270-2271, codeJK2 :1209-1210) in der Reihenfolge von CS_EFFECTS, dann cgi_R_LoadWorldMap.
-// Nachgebaut fuer alles, was die Vorschau aus der Karte aufstellt; was sonst noch registriert, steht in NOTIZEN_mr4.md (MR9).
+// REST4 Punkt 2: RE_RegisterFont - CFontInfo registriert "fonts/<Name ohne Pfad>" ohne Mipmaps, auch wenn die .fontdat fehlt
+// (tr_font.cpp:997-1072 OpenJK, MD9 gleich); fehlt sie, gibt RE_RegisterFont 0 und UI_RegisterFont nimmt "ergoec"
+// (ui/ui_atoms.cpp:446-452). Die Schriften von CL_InitRenderer und CG_Init haben keinen Rueckfall.
+void schriftRegistrieren(BildRegister& reg, const std::string& name, bool rueckfall) {
+    std::string n = name;
+    const std::size_t sl = n.find_last_of('/');   // COM_SkipPath
+    if (sl != std::string::npos) { n = n.substr(sl + 1); }
+    reg.shader("fonts/" + n, skriptZu, false);
+    std::string probe;
+    if (rueckfall && !readFromArchives("fonts/" + n + ".fontdat", probe)) { reg.shader("fonts/ergoec", skriptZu, false); }
+}
+
+// REST4 Punkt 2: UI_LoadMenus / CG_LoadMenus (ui/ui_main.cpp:2923-3000 OpenJK) - die Liste ("loadMenu { ... }") und jedes Menue
+// darin, wie UI_ParseMenu es liest; registriert wird beim Lesen der Schluessel in der Folge der Datei: assetGlobalDef smallFont/
+// mediumFont/bigFont (Schrift), gradientbar, cursor (Movie Duels auch cursor_<Name>, ui_main.cpp:6292-6413 MD9) ohne Mipmaps;
+// menuDef background ohne Mipmaps, font (MenuParse_font: nur, solange noch keine Schrift registriert ist); itemDef background
+// und asset_shader ohne Mipmaps, asset_model (RE_RegisterModel, .glm ueber G2API_InitGhoul2Model), model_g2skin
+// (RE_RegisterSkin; unter Jedi Outcast vor cgame nicht, `hautErlaubt`). Ein Schluessel, den die Engine abgelehnt hat, hat nichts
+// registriert.
+void menueListeRegistrieren(BildRegister& reg, const std::string& liste, bool& schriftDa, bool hautErlaubt) {
+    const bool jo = regelwerkJediOutcast();
+    const bool md = regelwerkMovieDuels();
+    const menue::Spiel spiel = md ? menue::Spiel::MD : (jo ? menue::Spiel::JK2 : menue::Spiel::JA);
+    const menue::Lader lader = [](const std::string& p, std::string& out) { return readFromArchives(p, out); };
+    const BildRegister::Leser lies = [](const std::string& p, std::string& out) { return readFromArchives(p, out); };
+    std::string text;
+    if (!readFromArchives(liste, text)) { return; }
+    const menue::Datei l = menue::lies(liste, text, menue::optionenFuer(liste, spiel, lader));
+    for (const std::string& pfad : l.loadMenus) {
+        std::string mt;
+        if (!readFromArchives(pfad, mt)) { continue; }
+        const menue::Datei d = menue::lies(pfad, mt, menue::optionenFuer(pfad, spiel, lader));
+        struct Eintrag {
+            std::uint32_t stelle;
+            int art;   // 0 assetGlobalDef, 1 menuDef, 2 itemDef
+            const menue::Eigenschaft* e;
+        };
+        std::vector<Eintrag> folge;
+        const auto stelle = [](const menue::Eigenschaft& e, std::uint32_t ersatz) { return e.kopf.datei == 0 ? e.kopf.anfang : ersatz; };
+        for (const menue::Eigenschaft& e : d.assets.eigenschaften) { folge.push_back({stelle(e, d.assets.anfang), 0, &e}); }
+        for (const menue::Menu& m : d.menus) {
+            for (const menue::Eigenschaft& e : m.eigenschaften) { folge.push_back({stelle(e, m.anfang), 1, &e}); }
+            for (const menue::Item& it : m.items) {
+                for (const menue::Eigenschaft& e : it.eigenschaften) { folge.push_back({stelle(e, it.anfang), 2, &e}); }
+            }
+        }
+        std::stable_sort(folge.begin(), folge.end(), [](const Eintrag& x, const Eintrag& y) { return x.stelle < y.stelle; });
+        for (const Eintrag& x : folge) {
+            const menue::Eigenschaft& e = *x.e;
+            if (!e.ok || e.args.empty()) { continue; }
+            std::string k = e.schluessel;
+            for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            const std::string& w = e.args[0].s;
+            if (x.art == 0) {
+                if (k == "smallfont" || k == "mediumfont" || k == "bigfont") {
+                    schriftRegistrieren(reg, w, true);
+                    if (k == "mediumfont") { schriftDa = true; }
+                } else if (k == "gradientbar" || k == "cursor" || (md && k.rfind("cursor_", 0) == 0)) {
+                    reg.shader(w, skriptZu, false);
+                }
+            } else if (x.art == 1) {
+                if (k == "background") {
+                    reg.shader(w, skriptZu, false);
+                } else if (k == "font" && !schriftDa) {
+                    schriftRegistrieren(reg, w, true);
+                    schriftDa = true;
+                }
+            } else if (k == "background" || k == "asset_shader") {
+                reg.shader(w, skriptZu, false);
+            } else if (k == "asset_model") {
+                reg.modell(w, lies, skriptZu);
+            } else if (k == "model_g2skin" && hautErlaubt) {
+                reg.haut(w, lies, skriptZu);
+            }
+        }
+    }
+}
+
+// REST4 Punkt 2: die festen Schritte einer Phase (bhed/vorwelt.h) ins Register.
+void schritteRegistrieren(BildRegister& reg, const std::vector<vorwelt::Schritt>& schritte, bool& schriftDa, bool hautErlaubt, bool ui) {
+    const BildRegister::Leser lies = [](const std::string& p, std::string& out) { return readFromArchives(p, out); };
+    for (const vorwelt::Schritt& x : schritte) {
+        switch (x.art) {
+            case vorwelt::Art::ShaderNoMip: reg.shader(x.name, skriptZu, false); break;
+            case vorwelt::Art::Shader: reg.shader(x.name, skriptZu, true); break;
+            case vorwelt::Art::Schrift: schriftRegistrieren(reg, x.name, false); break;
+            case vorwelt::Art::Modell: reg.modell(x.name, lies, skriptZu); break;
+            case vorwelt::Art::Effekt: reg.effekt(x.name, lies, skriptZu); break;
+            case vorwelt::Art::Menues: menueListeRegistrieren(reg, x.name, schriftDa, hautErlaubt); break;
+            case vorwelt::Art::ShaderVergessen:
+                reg.shaderVergessen();
+                if (ui) { schriftDa = false; }   // neue Oberflaeche: DC->Assets.fontRegistered beginnt bei qfalse
+                break;
+        }
+    }
+}
+
+// REST4 Punkt 2: die .veh und .vwp wie BG_VehicleLoadParms / BG_VehWeaponLoadParms - FS_GetFileList("ext_data/vehicles", ".veh")
+// in einen Puffer von 2048 Zeichen (bg_vehicleLoad.cpp), was nicht hineinpasst, fehlt der Liste. Die Folge wie FS_GetFileList.
+std::vector<std::string> spielDateiListe(const std::string& ordner, const std::string& endung) {
+    // wie npcLeseAuftrag (app_view3d_spiel.inc): FS_ListFilteredFiles in der Folge der Suchpfade - der zuletzt eingerichtete
+    // Spielordner zuerst, darin das spaetere Archiv zuerst, im Archiv die Folge der Eintraege -, hoechstens eine Ebene unter
+    // dem Ordner, jeder Name einmal (FS_AddFileToList); zurueck kommt der Name ab dem Ordner
+    std::vector<std::string> out;
+    std::set<std::string> gesehen;
+    const std::string vorn = ordner + "/";
+    for (auto gp = g_app->gamePaths.rbegin(); gp != g_app->gamePaths.rend(); ++gp) {
+        for (auto a = gp->archives.rbegin(); a != gp->archives.rend(); ++a) {
+            for (const Pk3Entry& e : a->entries) {
+                std::string n = e.name;
+                for (char& c : n) { c = static_cast<char>(c == '\\' ? '/' : std::tolower(static_cast<unsigned char>(c))); }
+                if (n.size() <= vorn.size() + endung.size() || n.rfind(vorn, 0) != 0 ||
+                    n.compare(n.size() - endung.size(), endung.size(), endung) != 0 ||
+                    std::count(n.begin() + static_cast<std::ptrdiff_t>(vorn.size()), n.end(), '/') > 1 || !gesehen.insert(n).second) {
+                    continue;
+                }
+                out.push_back(e.name.substr(vorn.size()));
+            }
+        }
+    }
+    return out;
+}
+
+std::string fahrzeugDateien(const char* ordner, const char* endung) {
+    std::vector<std::string> namen;
+    std::size_t belegt = 0;
+    for (const std::string& n : spielDateiListe(ordner, endung)) {
+        if (belegt + n.size() + 1U > 2048U) { break; }   // FS_GetFileList: "if (nTotal + nLen + 1 > bufsize) break"
+        belegt += n.size() + 1U;
+        namen.push_back(n);
+    }
+    std::vector<std::string> texte;
+    for (const std::string& n : namen) {
+        std::string t;
+        if (readFromArchives(std::string(ordner) + "/" + n, t)) { texte.push_back(std::move(t)); }
+    }
+    return vorwelt::fahrzeugTexte(texte);
+}
+
+// MR9 Punkt 1, REST4 Punkt 2: was das Spiel VOR RE_LoadWorldMap registriert, in seiner Reihenfolge.
+// Frischer Spielstart (die Vorschau hat keine vorige Karte): CL_InitRenderer und UI_Init (bhed/vorwelt.h spielstart). Dann
+// SV_SpawnServer (server/sv_init.cpp:311-350 OpenJK, :321-364 MD9): RE_SVModelInit (Shadertabelle neu), SV_InitGameProgs ->
+// G_SpawnEntitiesFromString (level.time 1000) und fuenf ge->RunFrame (1000 ... 1400). Ghoul2-Modelle laden dabei sofort
+// (G2API_InitGhoul2Model -> RE_RegisterModel, Haut vorher RE_RegisterSkin). Danach startet das naechste SCR_UpdateScreen
+// Renderer und Oberflaeche neu (vorwelt::nachDemServer), die naechsten Serverbilder (1500: NPC_Begin mit den Waffen) laufen
+// vor dem Spielstand, und erst dann CG_Init: Schriften, HUD, CG_RegisterSounds, CG_RegisterEffects (cg_main.cpp:1327-1329,
+// MD9 :2270-2271, codeJK2 :1209-1210) in der Reihenfolge von CS_EFFECTS, dann cgi_R_LoadWorldMap.
 // `vorschau` false (Spielbild des Karten-Editors): ohne misc_trip_mine (tripMineLage rechnet mit der Karte der Vorschau).
 void vorWeltRegistrieren(const std::vector<MapEntity>& ents, bool vorschau) {
     BildRegister& reg = ladeRegister();
     const BildRegister::Leser lies = [](const std::string& p, std::string& out) { return readFromArchives(p, out); };
     const bool jo = regelwerkJediOutcast();
     const bool md = regelwerkMovieDuels();
+    const int spiel = jo ? kRegelwerkJediOutcast : (md ? kRegelwerkMovieDuels : kRegelwerkOpenJK);
+    // Raven-JK2: RE_RegisterSkin gibt ohne cls.cgameStarted 1 zurueck und laedt nichts (codeJK2/renderer/tr_image.cpp:2134-2135
+    // im OpenJK-Verlauf a09d4827) - Haeute des Servers und des Hauptmenues kommen erst mit CG_RegisterGraphics nach der Welt
+    const bool hautVorCg = !jo;
+    bool schriftDa = false;
+    schritteRegistrieren(reg, vorwelt::spielstart(spiel), schriftDa, hautVorCg, true);
+    schritteRegistrieren(reg, vorwelt::kartenStart(spiel), schriftDa, hautVorCg, false);
     std::vector<std::string> effekte;   // CS_EFFECTS: G_EffectIndex -> G_FindConfigstringIndex (Q_stricmp)
     const auto effektIndex = [&effekte](const std::string& n) {
         const auto klein = [](std::string x) {
@@ -2084,6 +2232,59 @@ void vorWeltRegistrieren(const std::vector<MapEntity>& ents, bool vorschau) {
             if (klein(x) == klein(n)) { return; }
         }
         effekte.push_back(n);
+    };
+    std::string vehText;
+    std::string vwpText;
+    bool fahrzeugeGelesen = false;
+    // VEH_LoadVehicle: Effekte in CS_EFFECTS, Haeute sofort (bhed/vorwelt.h); jedes Fahrzeug einmal (VEH_VehicleIndexForName)
+    std::vector<std::string> fahrzeugeGeladen;
+    const auto fahrzeugLaden = [&](const std::string& name) {
+        for (const std::string& f : fahrzeugeGeladen) {
+            if (f.size() == name.size() && std::equal(f.begin(), f.end(), name.begin(), [](char x, char y) {
+                    return std::tolower(static_cast<unsigned char>(x)) == std::tolower(static_cast<unsigned char>(y));
+                })) {
+                return;
+            }
+        }
+        if (!fahrzeugeGelesen) {
+            vehText = fahrzeugDateien("ext_data/vehicles", ".veh");
+            vwpText = fahrzeugDateien("ext_data/vehicles/weapons", ".vwp");
+            fahrzeugeGelesen = true;
+        }
+        const vorwelt::FahrzeugLaden f = vorwelt::fahrzeugLaden(vehText, vwpText, name);
+        if (f.gefunden) { fahrzeugeGeladen.push_back(name); }
+        for (const std::string& e : f.effekte) { effektIndex(e); }
+        for (const std::string& h : f.haeute) { reg.haut(h, lies, skriptZu); }
+    };
+    // G_SetG2PlayerModel (g_client.cpp:1741-1790 OpenJK, MD9 :2283-2365): RE_RegisterSkin, dann model.glm; fehlt das Modell,
+    // stormtrooper mit model_default.skin
+    const auto figurModell = [&](const NpcDef& def) {
+        const std::string& pm = def.playerModel;
+        const std::string& cs = def.customSkin;
+        const std::string ordner = "models/players/" + pm + "/";
+        if (hautVorCg) {
+            reg.haut(cs.empty() ? ordner + "model_default.skin"
+                                : (!jo && cs.find('|') != std::string::npos ? ordner + "|" + cs : ordner + "model_" + cs + ".skin"),
+                     lies, skriptZu);
+        }
+        std::string probe;
+        if (readFromArchives(ordner + "model.glm", probe)) {
+            reg.modell(ordner + "model.glm", lies, skriptZu);
+        } else {
+            if (hautVorCg) { reg.haut("models/players/stormtrooper/model_default.skin", lies, skriptZu); }
+            reg.modell("models/players/stormtrooper/model.glm", lies, skriptZu);
+        }
+    };
+    const auto npcDef = [](const std::string& typRoh) -> const NpcDef* {
+        std::string typ = typRoh;
+        for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        const auto it = g_app->npcMap.find(typ);
+        return it == g_app->npcMap.end() ? nullptr : &it->second;
+    };
+    const auto istFahrzeug = [](const NpcDef& d) {
+        std::string k = d.klasse;
+        for (char& c : k) { c = static_cast<char>(std::toupper(static_cast<unsigned char>(c))); }
+        return k == "CLASS_VEHICLE";
     };
     int g2 = 0;
     // 1. G_SpawnEntitiesFromString: die Spawnfunktionen in der Reihenfolge der Entities
@@ -2104,6 +2305,28 @@ void vorWeltRegistrieren(const std::vector<MapEntity>& ents, bool vorschau) {
             effektIndex("turret/explode");
             effektIndex(jo ? "spark_exp_nosnd" : "sparks/spark_exp_nosnd");
         }
+        // REST4 Punkt 2: die NPC-Spawner. SP_NPC_Vehicle (NPC_spawn.cpp:2100-2135 OpenJK, MD9 gleich) ruft SP_NPC_spawner nicht:
+        // mit targetname BG_VehicleGetIndex sofort, ohne G_VehicleSpawn -> NPC_Spawn_Do sofort (Fahrzeug, dann G_SetG2PlayerModel).
+        // Sonst SP_NPC_spawner -> NPC_PrecacheByClassName (ohne targetname und delay) bzw. die Klassen-Precaches von Jedi Outcast.
+        const NpcKlassenTyp k = npcKlassenTyp(e);
+        if (!k.spawnt) { continue; }
+        const std::string* sf = e.find("spawnflags");
+        const int spawnflags = sf != nullptr ? std::atoi(sf->c_str()) : 0;
+        if (!jo && e.classname == "NPC_Vehicle") {
+            npcDatenSicherstellen();
+            const std::string typ = k.typ.empty() ? std::string("swoop") : k.typ;
+            fahrzeugLaden(typ);
+            const NpcDef* d = npcDef(typ);
+            if (e.targetname.empty() && e.find("targetname") == nullptr && d != nullptr && !d->playerModel.empty()) {
+                figurModell(*d);
+                ++g2;
+            }
+            continue;
+        }
+        const std::string* verz = e.find("delay");
+        const bool vorladen = e.targetname.empty() && e.find("targetname") == nullptr &&
+                              !(verz != nullptr && std::ceil(1000.0 * std::atof(verz->c_str())) > 0.0);   // SVF_NPC_PRECACHE
+        for (const std::string& x : vorwelt::npcKlassenEffekte(e.classname, k.typ, spawnflags, vorladen, spiel)) { effektIndex(x); }
     }
     // 2. RunFrame 1300: FinishSpawningItem (G_SpawnItem: level.time + START_TIME_MOVERS_SPAWNED + 50 = 1250; g_items.cpp:1366
     //    OpenJK, :1811 MD9, codeJK2 :1043) - Gegenstaende ohne targetname
@@ -2124,31 +2347,53 @@ void vorWeltRegistrieren(const std::vector<MapEntity>& ents, bool vorschau) {
         }
     }
     // 3. RunFrame 1400: NPC_Spawn_Go der Spawner ohne targetname (level.time + START_TIME_REMOVE_ENTS + 50 = 1350;
-    //    NPC_spawn.cpp:2049 OpenJK, :3104 MD9, codeJK2 :1629) -> NPC_ParseParms -> G_SetG2PlayerModel (g_client.cpp:1741-1790,
-    //    MD9 :2283-2365): RE_RegisterSkin, dann model.glm; fehlt das Modell, stormtrooper mit model_default.skin.
+    //    NPC_spawn.cpp:2049 OpenJK, :3104 MD9, codeJK2 :1629) -> NPC_Spawn_Do: ein Fahrzeug laedt zuerst seine .veh
+    //    (BG_VehicleGetIndex, :1553), dann NPC_ParseParms -> G_SetG2PlayerModel
+    std::vector<std::pair<const MapEntity*, const NpcDef*>> figuren;
     for (const MapEntity& e : ents) {
-        if (!gespawntImSpiel(e) || !npcSpawntBeimKartenstart(e)) { continue; }
+        if (!gespawntImSpiel(e) || !npcSpawntBeimKartenstart(e) || (!jo && e.classname == "NPC_Vehicle")) { continue; }
         npcDatenSicherstellen();
-        std::string typ = effektiverNpcTyp(e);
-        for (char& c : typ) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
-        const auto it = g_app->npcMap.find(typ);
-        if (it == g_app->npcMap.end() || it->second.playerModel.empty()) { continue; }
-        const std::string& pm = it->second.playerModel;
-        const std::string& cs = it->second.customSkin;
-        const std::string ordner = "models/players/" + pm + "/";
-        reg.haut(cs.empty() ? ordner + "model_default.skin"
-                            : (cs.find('|') != std::string::npos ? ordner + "|" + cs : ordner + "model_" + cs + ".skin"),
-                 lies, skriptZu);
-        std::string probe;
-        if (readFromArchives(ordner + "model.glm", probe)) {
-            reg.modell(ordner + "model.glm", lies, skriptZu);
-        } else {
-            reg.haut("models/players/stormtrooper/model_default.skin", lies, skriptZu);
-            reg.modell("models/players/stormtrooper/model.glm", lies, skriptZu);
-        }
+        const std::string typ = effektiverNpcTyp(e);
+        const NpcDef* d = npcDef(typ);
+        if (d == nullptr) { continue; }
+        if (!jo && istFahrzeug(*d)) { fahrzeugLaden(typ); }
+        if (d->playerModel.empty()) { continue; }
+        figurModell(*d);
+        figuren.emplace_back(&e, d);
         ++g2;
     }
-    // 4. CG_RegisterEffects: CS_EFFECTS + 1 ... in der Reihenfolge der Indizes (RegisterEffect, samt Untereffekten)
+    // 4. Renderer und Oberflaeche neu (SCR_UpdateScreen -> CL_StartHunkUsers), Oberflaeche mit inGameLoad
+    schritteRegistrieren(reg, vorwelt::nachDemServer(spiel), schriftDa, hautVorCg, true);
+    // 5. RunFrame 1500: NPC_Begin (1450) -> NPC_SetMiscDefaultData: G_CreateG2AttachedWeaponModel der Waffe in der Hand bzw.
+    //    WP_SaberAddG2SaberModels (NPC_spawn.cpp:243-700 OpenJK) - die Waffe wie die Vorschau sie ausgibt (ausstattungBeimSpawnen)
+    {
+        SzenenHilfe h;
+        h.npcs = &g_app->npcMap;
+        h.sabers = &g_app->saberMap;
+        h.waffen = &g_app->weaponMap;
+        for (const auto& [e, d] : figuren) {
+            const std::string* sf = e->find("spawnflags");
+            Actor a;
+            a.npcType = effektiverNpcTyp(*e);
+            ausstattungBeimSpawnen(a, d, &h, sf != nullptr ? std::atoi(sf->c_str()) : 0);
+            if (a.startWaffe == "WP_SABER") {
+                for (int n = 0; n < (a.startDual ? 2 : 1); ++n) {
+                    const int art = a.startSaber[static_cast<std::size_t>(n)].art;
+                    int mi = 0;   // DEFAULT_SABER_MODEL an Stelle 0 (griffModell, src/ausruestung.cpp)
+                    if (art >= 0 && static_cast<std::size_t>(art) < a.saberArten.size() && a.saberArten[static_cast<std::size_t>(art)].modell >= 0) {
+                        mi = a.saberArten[static_cast<std::size_t>(art)].modell;
+                    }
+                    if (static_cast<std::size_t>(mi) < a.modelle.size()) { reg.modell(a.modelle[static_cast<std::size_t>(mi)], lies, skriptZu); }
+                }
+            } else if (!a.startWaffe.empty() && a.startWaffe != "WP_NONE") {
+                const int mi = waffenModellIndex(a, a.startWaffe, d->kotorWeapons, &h);
+                if (mi >= 0) { reg.modell(a.modelle[static_cast<std::size_t>(mi)], lies, skriptZu); }
+            }
+        }
+    }
+    // 6. CG_Init bis CG_RegisterSounds (Schriften, HUD, mp_levelload, Modell und Effekte darin), unter Jedi Outcast jetzt mit Haeuten
+    schritteRegistrieren(reg, vorwelt::cgInit(spiel), schriftDa, true, false);
+    // 7. CG_RegisterEffects: CS_EFFECTS + 1 ... in der Reihenfolge der Indizes (RegisterEffect, samt Untereffekten)
     for (const std::string& n : effekte) { reg.effekt(n, lies, skriptZu); }
     diag::detail("Bild je Name: vor der Welt " + std::to_string(g2) + " Ghoul2-Modelle (Server) und " + std::to_string(effekte.size()) +
                  " Effekte (CG_RegisterEffects), " + std::to_string(reg.bilder()) + " Bilder");
@@ -3085,6 +3330,15 @@ void loadMapTextures() {
             const auto sk = g_app->shaderMap.find(lowSky);
             if (sk != g_app->shaderMap.end() && !sk->second.skyBox.empty()) {
                 bildRegistrieren(sh.name);   // MR8 Punkt 1: R_FindShader des Himmels (loadTextureFor kommt hier nicht vorbei)
+                if (ladeRegister().fehlerhaft(sh.name)) {
+                    // REST4 Punkt 2: eine Bildstufe fand ihr Bild nicht - ParseShader scheitert (vor skyParms wird es gar nicht
+                    // mehr gelesen), der Shader ist defaultShader (MR9 Punkt 2), und ShaderForShaderNum gibt den Flaechen
+                    // tr.defaultShader (tr_bsp.cpp:352): kein Himmel, das Kastenbild
+                    diag::detail("Shader " + sh.name + ": ein Stufenbild fehlt - kein Himmel, tr.defaultShader wie im Spiel");
+                    ladeSatz().byShader[i] = standardShaderTextur();
+                    ++ladeSatz().found;
+                    continue;
+                }
                 static const char* kSuf[6] = {"rt", "lf", "bk",
                                               "ft", "up", "dn"};
                 int letzte = -1;

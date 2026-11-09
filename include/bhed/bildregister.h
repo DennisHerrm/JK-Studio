@@ -84,6 +84,13 @@ public:
     [[nodiscard]] const std::vector<std::string>& warnungen() const noexcept { return m_warnungen; }
     [[nodiscard]] std::size_t bilder() const noexcept { return m_bilder.size(); }
     void leeren();
+    // REST4 Punkt 2: R_InitShaders (RE_SVModelInit, R_Init beim Neustart des Renderers) - die Shadertabelle beginnt neu, die
+    // Bilder bleiben (R_InitImages raeumt AllocatedImages nicht, tr_image.cpp:1481-1489); ein Shader wird wieder gelesen und
+    // findet seine Bilder mit den Werten des Ersten.
+    void shaderVergessen() {
+        m_shader.clear();
+        m_fehlerhaft.clear();
+    }
 
 private:
     std::unordered_set<std::string> m_shader;

@@ -13,6 +13,7 @@
 #include "bhed/bildregister.h"
 #include "bhed/bspgeo.h"
 #include "bhed/glm.h"
+#include "bhed/vorwelt.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -1809,6 +1810,64 @@ int main() {
             expect("und seine Mischart auch",
                    it->second.blend == bhed::BlendMode::Filter);
         }
+    }
+
+    // --- REST4 Punkt 2: was das Spiel vor der Welt registriert (bhed/vorwelt.h) --------------------------------------------
+    {
+        namespace vw = bhed::vorwelt;
+        vw::ComLeser l("a \"b c\" // weg\n{ x } d\n");
+        const std::string w1 = l.wort(true);
+        const std::string w2 = l.wort(false);
+        const std::string w3 = l.wort(false);   // Zeilenwechsel ohne allowLineBreaks: leer
+        const std::string w4 = l.wort(true);
+        l.klammernUeberspringen();              // com_token "{": ab Tiefe 1 bis zur "}"
+        const std::string w5 = l.wort(true);
+        expect("REST4 P2: COM_ParseExt - Woerter, \"...\", // und Zeilenwechsel, SkipBracedSection nach '{'",
+               w1 == "a" && w2 == "b c" && w3.empty() && w4 == "{" && w5 == "d" && l.wort(true).empty() && l.ende());
+        // NPC_PrecacheByClassName (NPC_stats.cpp:1440-1570 OpenJK) - nur ohne targetname/delay; Movie Duels SP_NPC_Galak immer
+        const std::vector<std::string> m1 = vw::npcKlassenEffekte("NPC_spawner", "Mark1", 0, true, bhed::kRegelwerkOpenJK);
+        expect("REST4 P2: mark1 - fuenf Effekte in der Folge von NPC_Mark1_Precache",
+               m1.size() == 5U && m1[0] == "env/med_explode2" && m1[4] == "explosions/droidexplosion1");
+        expect("REST4 P2: mit targetname (SVF_NPC_PRECACHE) nichts vor der Welt",
+               vw::npcKlassenEffekte("NPC_spawner", "mark1", 0, false, bhed::kRegelwerkOpenJK).empty());
+        expect("REST4 P2: Movie Duels - Galak_Mech vor SP_NPC_spawner auch mit targetname",
+               vw::npcKlassenEffekte("NPC_Galak", "Galak_Mech", 1, false, bhed::kRegelwerkMovieDuels).size() == 6U &&
+                   vw::npcKlassenEffekte("NPC_Galak", "Galak_Mech", 1, false, bhed::kRegelwerkOpenJK).empty());
+        const std::vector<std::string> p2 = vw::npcKlassenEffekte("NPC_Droid_Probe", "probe", 0, false, bhed::kRegelwerkJediOutcast);
+        expect("REST4 P2: Jedi Outcast - SP_NPC_Droid_Probe ruft NPC_Probe_Precache immer, Namen ohne Ordner",
+               p2.size() == 4U && p2[0] == "probehead" && p2[2] == "probeexplosion1");
+        expect("REST4 P2: Boba je Regelwerk (Movie Duels mit Flammenaufprall)",
+               vw::npcKlassenEffekte("NPC_spawner", "boba_fett", 0, true, bhed::kRegelwerkOpenJK).size() == 4U &&
+                   vw::npcKlassenEffekte("NPC_spawner", "boba_fett", 0, true, bhed::kRegelwerkMovieDuels).size() == 6U);
+        // VEH_LoadVehicle (bg_vehicleLoad.cpp:1021-1395): Effekte in der Folge der Datei, Waffen danach, Haeute, feste Effekte
+        const std::string veh = vw::fahrzeugTexte({"anderes\n{\nexhaustFX nie\n}", "swoop\n{\nname swoop\nmodel swoop\nskin \"rot|blau\"\n"
+                                                  "exhaustFX ships/swoop_exhaust\nweap1 swoop_laser\nhoverHeight 20\nwakeFX ships/wake\n}\n"});
+        const std::string vwp = "swoop_laser\n{\nmuzzleFX swoop/muzzle\nshotFX swoop/shot\n}\n";
+        const vw::FahrzeugLaden f = vw::fahrzeugLaden(veh, vwp, "Swoop");
+        expect("REST4 P2: Fahrzeug - Effekte der .veh, dann die der Waffe, dann die festen; Haeute aus der Liste",
+               f.gefunden && f.effekte.size() == 8U && f.effekte[0] == "ships/swoop_exhaust" && f.effekte[1] == "ships/wake" &&
+                   f.effekte[2] == "swoop/muzzle" && f.effekte[3] == "swoop/shot" && f.effekte[4] == "ships/ship_explosion_mark" &&
+                   f.effekte[5] == "ships/swoop_dust" && f.effekte[7] == "ships/fire" && f.haeute.size() == 2U &&
+                   f.haeute[0] == "models/players/swoop/model_rot.skin" && f.haeute[1] == "models/players/swoop/model_blau.skin");
+        expect("REST4 P2: unbekanntes Fahrzeug laedt nichts", !vw::fahrzeugLaden(veh, vwp, "gibtsnicht").gefunden);
+        // CL_InitRenderer/UI_Init und CG_Init je Regelwerk
+        const auto hat = [](const std::vector<vw::Schritt>& s, vw::Art a, const char* n) {
+            for (const vw::Schritt& x : s) {
+                if (x.art == a && x.name == n) { return true; }
+            }
+            return false;
+        };
+        expect("REST4 P2: Programmstart - Konsolenschrift nur ohne Movie Duels, menus.txt, AssetCache",
+               hat(vw::spielstart(bhed::kRegelwerkOpenJK), vw::Art::Schrift, "ocr_a") &&
+                   !hat(vw::spielstart(bhed::kRegelwerkMovieDuels), vw::Art::Schrift, "ocr_a") &&
+                   hat(vw::spielstart(bhed::kRegelwerkOpenJK), vw::Art::Menues, "ui/menus.txt") &&
+                   hat(vw::spielstart(bhed::kRegelwerkMovieDuels), vw::Art::ShaderNoMip, "gfx/menus/cursor_windu.tga"));
+        expect("REST4 P2: nach dem Server ingame.txt (Jedi Outcast menus.txt), CG_Init mit HUD je Spiel",
+               hat(vw::nachDemServer(bhed::kRegelwerkOpenJK), vw::Art::Menues, "ui/ingame.txt") &&
+                   hat(vw::nachDemServer(bhed::kRegelwerkJediOutcast), vw::Art::Menues, "ui/menus.txt") &&
+                   hat(vw::cgInit(bhed::kRegelwerkJediOutcast), vw::Art::Menues, "ui/jk2hud.txt") &&
+                   hat(vw::cgInit(bhed::kRegelwerkOpenJK), vw::Art::Menues, "ui/jahud.txt") &&
+                   hat(vw::cgInit(bhed::kRegelwerkJediOutcast), vw::Art::Effekt, "spark_exp_nosnd"));
     }
 
     std::printf("\n%s (%d Fehlschlaege)\n",

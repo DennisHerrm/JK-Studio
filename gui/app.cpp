@@ -25,6 +25,8 @@
 #include "textumbruch.h"
 #include "update.h"
 #include "app_internal.h"
+#include "bhed/menue/menue.h"   // REST4 Punkt 2: Menues und HUD vor der Welt (menueListeRegistrieren)
+#include "bhed/vorwelt.h"        // REST4 Punkt 2
 #include "bhed/sicherschreiben.h"
 #include "gpumap.h"
 #include "elemente.h"   // rc601 tour: das Element-Register (auch ohne Selbsttest)

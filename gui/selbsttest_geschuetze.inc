@@ -945,6 +945,132 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             }
             loadMapTextures();
         }));
+        // REST4 Punkt 2: vor der Welt registriert ein frisch gestartetes Spiel die Oberflaeche (bhed/vorwelt.h): AssetCache
+        // "gfx/menus/scrollbar_thumb.tga" ohne Mipmaps (RE_RegisterShaderNoMip -> R_FindImageFile(..., qfalse, qfalse, qtrue,
+        // GL_CLAMP), ui/ui_main.cpp:3598-3606) und die Hintergruende der Menues aus ui/menus.txt. Nennt ein Weltshader dasselbe Bild,
+        // bekommt er es so. Ein Himmelsshader, dessen Bildstufe fehlt, ist defaultShader - kein Himmel, das Kastenbild.
+        struct R4P2 {
+            std::string menueBild;   // das Bild des ersten Menuehintergrunds aus ui/menus.txt
+            std::string menueShader;
+            int himmel = -1;         // Platz des ersten Himmelsshaders mit Seiten
+            std::string himmelName;
+            std::string himmelBox;
+            bool himmelAlt = false;
+            ShaderInfo himmelInfo;
+        };
+        auto r4 = std::make_shared<R4P2>();
+        add(tu("Geschuetze Vergleich: REST4 P2 - der erste Weltshader nennt ein Bild der Oberflaeche (AssetCache)", [m8, m8klein, r4] {
+            if (m8->platz[0] < 0) { return; }
+            // der erste Menuehintergrund in ui/menus.txt (UI_LoadMenus, MenuParse_background)
+            const menue::Lader lader = [](const std::string& p, std::string& out) { return readFromArchives(p, out); };
+            const menue::Spiel sp = regelwerkMovieDuels() ? menue::Spiel::MD : (regelwerkJediOutcast() ? menue::Spiel::JK2 : menue::Spiel::JA);
+            std::string t;
+            if (readFromArchives("ui/menus.txt", t)) {
+                const menue::Datei l = menue::lies("ui/menus.txt", t, menue::optionenFuer("ui/menus.txt", sp, lader));
+                for (const std::string& p : l.loadMenus) {
+                    std::string mt;
+                    if (!r4->menueShader.empty() || !readFromArchives(p, mt)) { continue; }
+                    const menue::Datei d = menue::lies(p, mt, menue::optionenFuer(p, sp, lader));
+                    // der erste Hintergrund (menuDef, sonst itemDef), dessen Bild es gibt - ein fehlendes Bild laedt auch das Spiel nicht
+                    const auto da = [](const std::string& n) {
+                        for (const std::string& c : textureCandidates(n)) {
+                            std::string probe;
+                            if (readFromArchives(c, probe)) { return true; }
+                        }
+                        return false;
+                    };
+                    for (const menue::Menu& m : d.menus) {
+                        if (r4->menueShader.empty() && !m.window.background.empty() && da(m.window.background)) { r4->menueShader = m.window.background; }
+                        for (const menue::Item& it : m.items) {   // ItemParse_background
+                            if (r4->menueShader.empty() && !it.window.background.empty() && da(it.window.background)) {
+                                r4->menueShader = it.window.background;
+                            }
+                        }
+                    }
+                }
+            }
+            if (!r4->menueShader.empty()) {
+                const auto it = g_app->shaderMap.find(m8klein(r4->menueShader));
+                std::string ohne = m8klein(r4->menueShader);
+                const std::size_t pk = ohne.find_last_of('.');
+                if (pk != std::string::npos && ohne.find('/', pk) == std::string::npos) { ohne.resize(pk); }
+                const auto it2 = g_app->shaderMap.find(ohne);
+                r4->menueBild = it != g_app->shaderMap.end() && !it->second.image.empty()     ? it->second.image
+                                : it2 != g_app->shaderMap.end() && !it2->second.image.empty() ? it2->second.image
+                                                                                               : r4->menueShader;
+            }
+            ShaderMap probe;
+            parseShaderScript(m8->name[0] + "\n{\n{\nmap gfx/menus/scrollbar_thumb\n}\n}\n", probe);
+            g_app->shaderMap[m8klein(m8->name[0])] = probe[m8klein(m8->name[0])];
+            loadMapTextures();
+        }));
+        add(pruefe("Geschuetze Vergleich: REST4 P2 - das Bild der Oberflaeche bleibt ohne Mipmaps und geklammert", [m8] {
+            if (m8->platz[0] < 0) { return false; }
+            std::vector<std::uint8_t> px;
+            int b = 0;
+            int h = 0;
+            int stufen = 0;
+            if (!gpu::leseKartenBild(&g_app->textures, m8->platz[0], 0, px, b, h, &stufen)) { return false; }
+            const bool klammern = g_app->textures.byShader[static_cast<std::size_t>(m8->platz[0])].clamp;
+            const BildWahl* w = g_app->bildRegister.wahl("gfx/menus/scrollbar_thumb");
+            diag::detail("Knopftest: REST4 P2 AssetCache - Stufen " + std::to_string(stufen) + " (" + std::to_string(b) + "x" + std::to_string(h) +
+                         "), Klammern " + (klammern ? "1" : "0") + ", zuerst geladen von " + (w != nullptr ? w->shader : std::string("-")));
+            return stufen == 1 && klammern && w != nullptr && !w->mip && w->klammern;
+        }));
+        add(pruefe("Geschuetze Vergleich: REST4 P2 - der erste Menuehintergrund aus ui/menus.txt ist vor der Welt registriert", [r4] {
+            const BildWahl* w = r4->menueBild.empty() ? nullptr : g_app->bildRegister.wahl(r4->menueBild);
+            diag::detail("Knopftest: REST4 P2 Menue - Hintergrund " + r4->menueShader + ", Bild " + r4->menueBild + ", zuerst geladen von " +
+                         (w != nullptr ? w->shader : std::string("-")) + ", Mipmaps " + (w != nullptr && w->mip ? "1" : "0"));
+            // zuerst geladen vom Menue (mit Skript gelten dessen Werte: ParseStage nimmt !shader.noMipMaps, nicht mipRawImage)
+            std::string erwartet = r4->menueShader;
+            for (char& c : erwartet) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            const std::size_t pk = erwartet.find_last_of('.');
+            if (pk != std::string::npos && erwartet.find('/', pk) == std::string::npos) { erwartet.resize(pk); }
+            std::string erster = w != nullptr ? w->shader : std::string();
+            for (char& c : erster) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            const std::size_t pe = erster.find_last_of('.');
+            if (pe != std::string::npos && erster.find('/', pe) == std::string::npos) { erster.resize(pe); }
+            return w != nullptr && erster == erwartet;
+        }));
+        add(tu("Geschuetze Vergleich: REST4 P2 - der Himmel bekommt eine Bildstufe ohne Bild vor skyParms", [m8klein, r4] {
+            for (std::size_t i = 0; i < g_app->geo.shaders.size() && i < g_app->textures.byShader.size() && r4->himmel < 0; ++i) {
+                if (!g_app->textures.byShader[i].skyFaces.empty()) {
+                    const auto it = g_app->shaderMap.find(m8klein(g_app->geo.shaders[i].name));
+                    if (it == g_app->shaderMap.end() || it->second.skyBox.empty()) { continue; }
+                    r4->himmel = static_cast<int>(i);
+                    r4->himmelName = g_app->geo.shaders[i].name;
+                    r4->himmelBox = it->second.skyBox;
+                    r4->himmelAlt = true;
+                    r4->himmelInfo = it->second;
+                }
+            }
+            if (r4->himmel < 0) { return; }
+            ShaderMap probe;
+            parseShaderScript(r4->himmelName + "\n{\nsurfaceparm sky\n{\nmap textures/r4/gibt_es_nicht\n}\nskyParms " + r4->himmelBox + " - -\n}\n", probe);
+            g_app->shaderMap[m8klein(r4->himmelName)] = probe[m8klein(r4->himmelName)];
+            loadMapTextures();
+        }));
+        add(pruefe("Geschuetze Vergleich: REST4 P2 - ohne das Bild kein Himmel, die Flaechen zeigen tr.defaultShader", [r4] {
+            if (r4->himmel < 0) {
+                diag::detail("Knopftest: REST4 P2 Himmel - die Karte hat keinen Himmelsshader mit Seiten");
+                return false;
+            }
+            const TextureSet::Tex& t = g_app->textures.byShader[static_cast<std::size_t>(r4->himmel)];
+            const TextureSet::Tex std = standardShaderTextur();
+            diag::detail("Knopftest: REST4 P2 Himmel - " + r4->himmelName + ": Seiten " + std::to_string(t.skyFaces.size()) + ", Kasten " +
+                         (t.rgba == std.rgba && t.width == 16 ? "1" : "0"));
+            return t.skyFaces.empty() && t.width == 16 && t.height == 16 && t.rgba == std.rgba;
+        }));
+        add(tu("Geschuetze Vergleich: REST4 P2 - Shader wie vorher", [m8, m8klein, r4] {
+            if (m8->platz[0] < 0) { return; }
+            if (m8->alt[0]) {
+                g_app->shaderMap[m8klein(m8->name[0])] = m8->altInfo[0];
+            } else {
+                g_app->shaderMap.erase(m8klein(m8->name[0]));
+            }
+            if (r4->himmel >= 0 && r4->himmelAlt) { g_app->shaderMap[m8klein(r4->himmelName)] = r4->himmelInfo; }
+            loadMapTextures();
+        }));
         // P58 (PRUEF8): noTC im Hautshader einer Figur gilt fuer ihre Bilder wie bei der Karte (ParseStage allowTC = !shader.noTC,
         // tr_shader.cpp:1263/1288/1329) - die Grundflaeche (bySurface), die Stufen (figurStufenListe) und die Gluehstufen.
         add(pruefe("Geschuetze Vergleich: P58 - noTC im Hautshader einer Figur", [m8] {

@@ -115,6 +115,8 @@ add_library(bhed_core STATIC
   src/shaderscript.cpp
   # MR8 Punkt 1: ein Bild je Name wie im Spiel (R_FindImageFile_NoLoad). Siehe bhed/bildregister.h.
   src/bildregister.cpp
+  # REST4 Punkt 2: was das Spiel vor der Welt registriert (Menues, HUD, NPC-Klassen, Fahrzeuge). Siehe bhed/vorwelt.h.
+  src/vorwelt.cpp
   src/glm.cpp
   src/gla.cpp
   # Modell-Block 1a-1: das Modelldokument (Halbkanten, LOD, Undo) und die Ghoul2-Regeln
