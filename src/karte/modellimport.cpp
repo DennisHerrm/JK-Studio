@@ -312,16 +312,17 @@ Md3Paket md3Paket(const ImportNetz& netz, const std::string& stammRoh) {
     setze32(m, ofsEndAn, static_cast<std::int32_t>(m.size()));
     p.flaechen = flaechen.size();
     p.dateien.insert(p.dateien.begin(), {p.modellPfad, m});
-    // Shader-Skript
+    // Shader-Skript - REST6: nur fuer Teile ohne Bild. Ein Teil mit Bild heisst wie sein Bild (ohne Endung) und braucht keinen Eintrag:
+    // R_FindShader baut den Shader dann wie fuer jedes Bild ohne Skript - als misc_model gebacken (Dreiecksflaeche, lightmapsVertex
+    // bzw. die Lightmap von q3map2) mit Eckenfarbe bzw. Lightmap, als misc_model_static (lightmapsNone) mit rgbGen lightingDiffuse
+    // (tr_shader.cpp:3470-3486 MD9). Ein Skript mit rgbGen lightingDiffuse zeichnete das gebackene Modell im Spiel schwarz - die Welt
+    // hat kein Entity-Licht (tr.worldEntity, weltDiffus in gpustate.h).
     std::string sh = "// JK Studio: " + stamm + " (Stufe 9, Modell-Import)\n";
     std::size_t eintraege = 0;
     for (const std::string& s : reihenfolge) {
-        if (fest.count(s) != 0U) { continue; }
+        if (fest.count(s) != 0U || !bildVon[s].empty()) { continue; }
         ++eintraege;
-        const std::string& bild = bildVon[s];
-        sh += "\n" + s + "\n{\n";
-        if (!bild.empty()) { sh += "\tqer_editorimage " + bild + "\n"; }
-        sh += "\t{\n\t\tmap " + (bild.empty() ? std::string("$whiteimage") : bild) + "\n\t\trgbGen lightingDiffuse\n\t}\n}\n";
+        sh += "\n" + s + "\n{\n\t{\n\t\tmap $whiteimage\n\t\trgbGen lightingDiffuse\n\t}\n}\n";
     }
     if (eintraege > 0) { p.dateien.push_back({std::string(kSpielShaderOrdner) + stamm + ".shader", sh}); }
     return p;

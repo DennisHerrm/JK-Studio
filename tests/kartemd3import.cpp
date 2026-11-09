@@ -56,12 +56,24 @@ int main() {
     bool bild = false, skript = false;
     for (const Md3Paket::Datei& d : p.dateien) {
         bild = bild || (d.pfad == "models/import/mein_wuerfel/stein_wand.png" && d.inhalt.size() == 14);
-        // Stufe 9d: JA, JK2 und MD lesen Shader aus shaders/ (tr_shader.cpp ScanAndLoadShaderFiles( "shaders" ))
-        skript = skript || (d.pfad == "shaders/mein_wuerfel.shader" && d.inhalt.find("models/import/mein_wuerfel/stein_wand\n{") != std::string::npos &&
-                            d.inhalt.find("map models/import/mein_wuerfel/stein_wand.png") != std::string::npos &&
-                            d.inhalt.find("qer_editorimage models/import/mein_wuerfel/stein_wand.png") != std::string::npos);
+        skript = skript || d.pfad == "shaders/mein_wuerfel.shader";
     }
-    expect("Textur im Paket (Name sauber), Shader-Skript unter shaders/ mit qer_editorimage und map", bild && skript);
+    // REST6: ein Teil mit Bild heisst wie das Bild und hat kein Skript (R_FindShader baut ihn - gebacken mit Eckenfarbe/Lightmap, als
+    // Entity mit lightingDiffuse); ein Skript mit lightingDiffuse waere als misc_model im Spiel schwarz
+    expect("Textur im Paket (Name sauber), kein Shader-Skript fuer den Teil mit Bild", bild && !skript);
+    {
+        ImportNetz ohneBild = n;
+        ohneBild.teile[0].texturDaten.clear();
+        ohneBild.teile[0].material = "Farbe";
+        const Md3Paket q = md3Paket(ohneBild, "Mein Wuerfel");
+        bool eintrag = false;
+        for (const Md3Paket::Datei& d : q.dateien) {
+            // Stufe 9d: JA, JK2 und MD lesen Shader aus shaders/ (tr_shader.cpp ScanAndLoadShaderFiles( "shaders" ))
+            eintrag = eintrag || (d.pfad == "shaders/mein_wuerfel.shader" && d.inhalt.find("models/import/mein_wuerfel/farbe\n{") != std::string::npos &&
+                                  d.inhalt.find("map $whiteimage") != std::string::npos);
+        }
+        expect("ein Teil ohne Bild: Eintrag unter shaders/ mit $whiteimage", eintrag);
+    }
     // Stufe 9d: ein frueherer Import legte scripts/<stamm>.shader ab - im Archiv fuer das Spiel steht er unter shaders/
     expect("Archivname: scripts/x.shader -> shaders/x.shader, alles andere bleibt",
            importArchivName("scripts/alt.shader") == "shaders/alt.shader" && importArchivName("shaders/neu.shader") == "shaders/neu.shader" &&
@@ -162,15 +174,12 @@ int main() {
            importStamm("models/a/sehr_langer_ordnername/noch_ein_langer_dateiname.obj").size() == 20 &&
                importStamm("models/a/sehr_langer_ordnername/noch_ein_langer_dateiname.obj") != importStamm("models/a/sehr_langer_ordnername/noch_ein_langer_dateiname.fbx"));
     expect("je Flaeche gefragt, kein Fehler", gefragt.size() == 2 && pm.fehler.empty() && pm.modellPfad == "models/import/pack_baum_gross_obj/pack_baum_gross_obj.md3");
-    bool jpg = false, skriptHolz = false, skriptSpiel = false;
+    bool jpg = false, skriptBaum = false;
     for (const Md3Paket::Datei& d : pm.dateien) {
         jpg = jpg || (d.pfad == "models/import/pack_baum_gross_obj/holz.jpg" && d.inhalt == "jpg-bytes");
-        if (d.pfad == "shaders/pack_baum_gross_obj.shader") {
-            skriptHolz = d.inhalt.find("models/import/pack_baum_gross_obj/holz\n{") != std::string::npos;
-            skriptSpiel = d.inhalt.find("textures/spiel/skript") != std::string::npos;
-        }
+        skriptBaum = skriptBaum || d.pfad == "shaders/pack_baum_gross_obj.shader";
     }
-    expect("das Bild im Paket, im Skript nur der neue Shader (der des Spiels bleibt draussen)", jpg && skriptHolz && !skriptSpiel);
+    expect("das Bild im Paket, kein Skript (holz hat ein Bild, der Shader des Spiels bleibt draussen)", jpg && !skriptBaum);
     Md3Model mma;
     const bool mok = !pm.dateien.empty() && readMd3(pm.dateien[0].inhalt, mma, &err) && mma.surfaces.size() == 2;
     expect("zwei Flaechen: holz neu benannt, der Shader des Spiels unveraendert",

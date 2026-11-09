@@ -307,17 +307,15 @@ std::vector<Schritt> schritte() {
     }));
     add(klickAn("Doppelklick auf kiste.obj", zelleVon("kiste.obj"), 0, true));
     add(pause(0.5));
-    add(pruefe("Doppelklick (MD3 an): misc_model mit der .md3 im Import-Ordner, Textur und Shader-Skript daneben, Meldung", [z] {
+    add(pruefe("Doppelklick (MD3 an): misc_model mit der .md3 im Import-Ordner, Textur daneben (ohne Skript, REST6), Meldung", [z] {
         const auto en = letzteMit("misc_model");
         const std::string m = en ? en->wert("model") : std::string();
         z->kisteMd3 = m;
         const bool md3 = m == "models/import/modobj_kiste_obj/modobj_kiste_obj.md3" && istDatei(importDatei("models\\import\\modobj_kiste_obj\\modobj_kiste_obj.md3"));
         const bool bild = istDatei(importDatei("models\\import\\modobj_kiste_obj\\kiste.tga"));
-        const std::string sh = dateiInhalt(importDatei("shaders\\modobj_kiste_obj.shader"));
-        const bool skript = sh.find("models/import/modobj_kiste_obj/kiste\n{") != std::string::npos &&
-                            sh.find("map models/import/modobj_kiste_obj/kiste.tga") != std::string::npos;
+        const bool skript = istDatei(importDatei("shaders\\modobj_kiste_obj.shader"));
         diag::detail("Knopftest: MODOBJ - misc_model \"" + m + "\", Bild " + (bild ? "ja" : "nein") + ", Skript " + (skript ? "ja" : "nein"));
-        return md3 && bild && skript && konsoleText().find("models/import/modobj_kiste_obj/modobj_kiste_obj.md3") != std::string::npos;
+        return md3 && bild && !skript && konsoleText().find("models/import/modobj_kiste_obj/modobj_kiste_obj.md3") != std::string::npos;
     }));
     add(warteBis("MODOBJ: der Import-Ordner im Suchpfad, die .md3 geladen", [z] {
         ke::spielPruefen();
@@ -439,12 +437,12 @@ std::vector<Schritt> schritte() {
         return n("models/import/modobj_kiste_obj/kiste") == z->kisteDreiecke && n("models/modobj/kiste") == z->kisteDreiecke &&
                n("models/modobj/platte") == 2 && konsoleText().find("-fs_pakpath") != std::string::npos;
     }));
-    add(pruefe("Pack map as .pk3: .md3, Textur und Shader-Skript aus dem Import-Ordner dabei, die Quellen nicht", [] {
+    add(pruefe("Pack map as .pk3: .md3 und Textur aus dem Import-Ordner dabei, die Quellen nicht", [] {
         const std::string p = ke::karteAlsPk3();
         Pk3 a;
         const bool ok = !p.empty() && readPk3Directory(p, a);
         const bool alle = ok && a.find("maps/modobj_raum.bsp") != nullptr && a.find("models/import/modobj_kiste_obj/modobj_kiste_obj.md3") != nullptr &&
-                          a.find("models/import/modobj_kiste_obj/kiste.tga") != nullptr && a.find("shaders/modobj_kiste_obj.shader") != nullptr &&
+                          a.find("models/import/modobj_kiste_obj/kiste.tga") != nullptr &&
                           a.find("models/import/modobj_saeule_obj/modobj_saeule_obj.md3") != nullptr &&
                           a.find("models/import/modobj_platte_fbx/modobj_platte_fbx.md3") != nullptr;
         const bool ohne = ok && a.find("models/modobj/kiste.obj") == nullptr;

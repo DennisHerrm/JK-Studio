@@ -178,7 +178,7 @@ std::vector<Schritt> schritte() {
         dateiAbgelegt(o + "Geo Wuerfel.obj", f.bildX + static_cast<float>(mx), f.bildY + static_cast<float>(my));
     }));
     add(pause(0.5));
-    add(pruefe("Modell ziehen: misc_model models/import/geo_wuerfel/geo_wuerfel.md3 unter dem Zeiger, gewaehlt; MD3 lesbar, Bild und Shader im Import-Ordner", [ziel] {
+    add(pruefe("Modell ziehen: misc_model models/import/geo_wuerfel/geo_wuerfel.md3 unter dem Zeiger, gewaehlt; MD3 lesbar, Bild im Import-Ordner, kein Skript", [ziel] {
         const ke::Editor& ed = ke::editor();
         const std::string w = platform::settingsDirectory() + "\\import\\";
         bool modell = false;
@@ -196,8 +196,9 @@ std::vector<Schritt> schritte() {
         const bool md3 = readMd3(dateiInhalt(w + "models\\import\\geo_wuerfel\\geo_wuerfel.md3"), m, &err) && m.surfaces.size() == 1 &&
                          m.surfaces[0].shader == "models/import/geo_wuerfel/stein";
         const bool bild = dateiInhalt(w + "models\\import\\geo_wuerfel\\stein.png").size() == 12;
-        // Stufe 9d: unter shaders/ (das liest JA)
-        const bool shader = dateiInhalt(w + "shaders\\geo_wuerfel.shader").find("map models/import/geo_wuerfel/stein.png") != std::string::npos;
+        // REST6: der Teil mit Bild heisst wie das Bild und hat kein Skript (R_FindShader baut ihn; ein Skript mit lightingDiffuse waere als
+        // misc_model im Spiel schwarz)
+        const bool shader = dateiInhalt(w + "shaders\\geo_wuerfel.shader").empty();
         diag::detail("Knopftest: Modell ziehen - Entitaet " + std::to_string(modell ? 1 : 0) + ", md3 " + std::to_string(md3 ? 1 : 0) + ", Bild " +
                      std::to_string(bild ? 1 : 0) + ", Shader " + std::to_string(shader ? 1 : 0) + ", Auswahl " + std::to_string(ed.karte.auswahl.anzahl()));
         return modell && md3 && bild && shader && ed.karte.auswahl.anzahl() == 1 && konsoleText().find("geo_wuerfel.md3") != std::string::npos;
@@ -206,11 +207,11 @@ std::vector<Schritt> schritte() {
         ke::spielPruefen();
         return ke::spielBereit() && !ke::editor().spielKennung.empty();
     }, 20000));
-    add(pruefe("Modell ziehen: der Editor findet den Shader des Modells (shaders/, wie JA ihn liest)", [] {
+    add(pruefe("Modell ziehen: kein Skript-Eintrag fuer den Shader des Modells im Inventar (REST6)", [] {
         const auto& sp = ke::editor().karteSpiel;
         const karte::ShaderEintrag* s = sp ? sp->inventar.shaderFinden("models/import/geo_wuerfel/stein") : nullptr;
-        diag::detail(std::string("Knopftest: Modell ziehen - Shader im Inventar ") + (s != nullptr && !s->istStandard() ? s->datei : std::string("fehlt")));
-        return s != nullptr && !s->istStandard();
+        diag::detail(std::string("Knopftest: Modell ziehen - Shader im Inventar ") + (s == nullptr ? std::string("fehlt") : s->istStandard() ? std::string("Bild") : s->datei));
+        return s == nullptr || s->istStandard();   // kein Skript-Eintrag: der Name ist das Bild (Pruefung oben)
     }));
     add(tu("Modell ziehen: Im Spiel testen (nur Befehl) - das Archiv nimmt den Import-Ordner mit", [] {
         ke::editor().bau.testPk3.clear();
@@ -218,21 +219,19 @@ std::vector<Schritt> schritte() {
     }));
     add(stufe8::warteSek("Modell ziehen: Bau fertig (die Karte ist geaendert)", [] { return !ke::bauLaeuft(); }, 300));
     add(pause(0.5));
-    add(pruefe("Modell ziehen: zzz_jkstudio_test.pk3 enthaelt maps/meinekarte.bsp, die .md3, das Bild und das Shader-Skript", [] {
+    add(pruefe("Modell ziehen: zzz_jkstudio_test.pk3 enthaelt maps/meinekarte.bsp, die .md3 und das Bild", [] {
         Pk3 a;
         const std::string& p = ke::editor().bau.testPk3;
         const bool ok = !p.empty() && readPk3Directory(p, a) && a.find("maps/meinekarte.bsp") != nullptr &&
-                        a.find("models/import/geo_wuerfel/geo_wuerfel.md3") != nullptr && a.find("models/import/geo_wuerfel/stein.png") != nullptr &&
-                        a.find("shaders/geo_wuerfel.shader") != nullptr;
+                        a.find("models/import/geo_wuerfel/geo_wuerfel.md3") != nullptr && a.find("models/import/geo_wuerfel/stein.png") != nullptr;
         diag::detail("Knopftest: Modell ziehen - Archiv " + p + " ok " + std::to_string(ok ? 1 : 0));
         return ok;
     }));
-    add(pruefe("Pack map as .pk3 nimmt den Import-Ordner mit (MD3, Bild, Shader)", [] {
+    add(pruefe("Pack map as .pk3 nimmt den Import-Ordner mit (MD3, Bild)", [] {
         const std::string p = ke::karteAlsPk3();
         Pk3 a;
         return !p.empty() && readPk3Directory(p, a) && a.find("maps/meinekarte.bsp") != nullptr &&
-               a.find("models/import/geo_wuerfel/geo_wuerfel.md3") != nullptr && a.find("models/import/geo_wuerfel/stein.png") != nullptr &&
-               a.find("shaders/geo_wuerfel.shader") != nullptr;
+               a.find("models/import/geo_wuerfel/geo_wuerfel.md3") != nullptr && a.find("models/import/geo_wuerfel/stein.png") != nullptr;
     }));
     add(tu("Modell ziehen: Undo", [] {
         karteDialogeZu();
