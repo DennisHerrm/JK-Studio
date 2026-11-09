@@ -1291,7 +1291,10 @@ VSOut main(VSIn ein) {
         float3 eL = float3(dot(dE, gAchse0.xyz), dot(dE, gAchse1.xyz), dot(dE, gAchse2.xyz)) * sE / max(sE.x, 1e-6);
         float3 mE = float3(dot(pE, gAchse0.xyz), dot(pE, gAchse1.xyz), dot(pE, gAchse2.xyz)) / max(sE, 1e-6);
         float3 viewerE = eL - mE;
-        float3 nE = float3(dot(n, gAchse0.xyz), dot(n, gAchse1.xyz), dot(n, gAchse2.xyz));
+        // REST3c: die Normale des Modells wie tess.normal (G2_SkinSurface: Knochenmatrix mal Normale, ohne den Massstab der
+        // Entity - der steckt nur in deren Achsen, ScaleModelAxis): aus der gezeichneten Normalen nw = R diag(s) B n zurueck
+        // mit diag(1/s) R^T - auch bei ungleichem Massstab je Achse genau, ohne Normierung (bis REST3c R^T der normierten nw)
+        float3 nE = float3(dot(nw, gAchse0.xyz), dot(nw, gAchse1.xyz), dot(nw, gAchse2.xyz)) / max(sE, 1e-6);
         if (gStufe.y > 0.5 && gStufe.y < 1.5) {
             // RB_CalcSpecularAlpha (tr_shade_calc.cpp:994 MD): ein Modell nimmt
             // die Lichtrichtung der Entity (ent->lightDir, aus dem Gitter).
