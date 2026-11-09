@@ -1171,14 +1171,17 @@ VSOut main(VSIn ein) {
         float3 p = float3(dot(r0.xyz, ein.pos) + r0.w,
                           dot(r1.xyz, ein.pos) + r1.w,
                           dot(r2.xyz, ein.pos) + r2.w);
-        // Die Normale wird OHNE die Verschiebung gedreht - sie ist eine
-        // Richtung, kein Ort. Wer die vierte Spalte mitnimmt, bekommt
-        // Beleuchtung, die sich mit der Figur durch den Raum bewegt.
-        float3 n = float3(dot(r0.xyz, ein.normal),
-                          dot(r1.xyz, ein.normal),
-                          dot(r2.xyz, ein.normal));
         welt += p * w;
-        nrm += n * w;
+    }
+    // REST3d: die Normale dreht das Spiel NUR mit dem ersten Knochen der Ecke, ungewichtet (G2_SkinSurface,
+    // code/rd-vanilla/tr_ghoul2.cpp:3799-3803 MD9; OpenJK RB_SurfaceGhoul :2992-3002 - der gewichtete Zweig :2941-2985 steht
+    // unter "#if 0"). Gewichtet war das Glanzband am Unterarm des Protokolldroiden verschoben (p27f/p27u/p27v gegen das
+    // Spielbild). OHNE die Verschiebung gedreht - sie ist eine Richtung, kein Ort.
+    {
+        int b0 = (int)(ein.bones[0] + 0.5) * 3;
+        nrm = float3(dot(gKnochen[b0 + 0].xyz, ein.normal),
+                     dot(gKnochen[b0 + 1].xyz, ein.normal),
+                     dot(gKnochen[b0 + 2].xyz, ein.normal));
     }
     // --- rc604: deformVertexes, im Raum des Modells wie tess.xyz/tess.normal. FIX5: dieselbe Rechnung wie an der Karte
     // (verformeEcke: RB_DeformTessGeometry je Ecke in der Reihenfolge des Shaders, Tafeln und Rauschen des Spiels); bis FIX5 eine
@@ -1233,8 +1236,8 @@ VSOut main(VSIn ein) {
         // ihr einfach dot = 0, also nur Umgebungslicht - so auch hier.
         float3 nw = mul((float3x3)gFigurWelt, nrm);
         float nl = length(nw);
-        // RB_SurfaceGhoul legt die gewichtete Summe ungekuerzt in tess.normal: Zwischen zwei Knochen ist sie kuerzer als 1,
-        // und RB_CalcDiffuseColor nimmt das Punktprodukt damit. Mit der Laenge 1 waren die Figuren 2 bis 9 Prozent zu hell.
+        // G2_SkinSurface legt die mit dem ersten Knochen gedrehte Normale ungekuerzt in tess.normal (REST3d, siehe oben) -
+        // RB_CalcDiffuseColor nimmt das Punktprodukt mit ihrer Laenge.
         float3 n = (nl > 1e-6) ? nw / nl * length(nrm) : float3(0, 0, 0);
         // PTFIX3 P27: R_SetupEntityLighting dreht die Lichtrichtung mit den Achsen der Entity in den Raum des Modells
         // (tr_light.cpp:492-496 OpenJK, MD9 :486-489), ohne die Laenge auszugleichen - die Achsen tragen den Massstab

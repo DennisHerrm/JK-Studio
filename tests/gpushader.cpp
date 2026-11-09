@@ -62,8 +62,12 @@ void beideRichtungen(const char* name, std::uint32_t bit, const char* kennung,
 int main() {
     std::printf("gpushader\n");
 
-    // rc608 Teil 7: RB_SurfaceGhoul normiert die gewichtete Normale nicht, der Nebel ist das Bild *fog.
-    erwarte("Figur: Normale behaelt die Laenge der gewichteten Summe", figurVertexShaderHlsl(kNichts).find("nw / nl * length(nrm)") != std::string::npos);
+    // rc608 Teil 7: tess.normal wird nicht normiert, der Nebel ist das Bild *fog. REST3d: die Normale dreht nur der erste
+    // Knochen der Ecke (G2_SkinSurface, tr_ghoul2.cpp:3799-3803 MD9), nicht die gewichtete Summe.
+    erwarte("Figur: Normale behaelt ihre Laenge", figurVertexShaderHlsl(kNichts).find("nw / nl * length(nrm)") != std::string::npos);
+    erwarte("Figur: Normale nur vom ersten Knochen (G2_SkinSurface)",
+            figurVertexShaderHlsl(kNichts).find("int b0 = (int)(ein.bones[0] + 0.5) * 3;") != std::string::npos &&
+                figurVertexShaderHlsl(kNichts).find("nrm += n * w;") == std::string::npos);
     erwarte("Nebel: 256 x 32 linear gefiltert, je Texel R_FogFactor", nebelPixelShaderHlsl().find("ein.st * float2(256.0, 32.0) - 0.5") != std::string::npos &&
                                                                          nebelPixelShaderHlsl().find("floor(255.0 * sqrt(floor(s * 255.0) / 255.0)) / 255.0") != std::string::npos);
 
@@ -127,7 +131,7 @@ int main() {
         erwarte("und die Gewichte", enthaelt(f, "BLENDWEIGHT"));
         erwarte("und die Knochennummern", enthaelt(f, "BLENDINDICES"));
         erwarte("er dreht die Normale OHNE Verschiebung",
-                enthaelt(f, "dot(r0.xyz, ein.normal)"));
+                enthaelt(f, "dot(gKnochen[b0 + 0].xyz, ein.normal)"));
         erwarte("und nimmt fuer den Ort die vierte Spalte MIT",
                 enthaelt(f, "dot(r0.xyz, ein.pos) + r0.w"));
         erwarte("die Stellung der Figur kommt danach",

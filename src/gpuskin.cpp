@@ -40,7 +40,8 @@ void packeEcken(const GlmSurface& sf, std::vector<SkinVertex>& aus) {
             const int b = static_cast<int>(v.bones[k]);
             const float w = v.weights[k];
             if (b < 0 || b >= kMaxKnochen || w <= 0.0F) {
-                e.bones[k] = 0.0F;
+                // REST3d: der erste Knochen dreht die Normale auch mit Gewicht 0 (G2_SkinSurface: G2_GetVertBoneIndex(v, 0))
+                e.bones[k] = (k == 0 && b >= 0 && b < kMaxKnochen) ? static_cast<float>(b) : 0.0F;
                 e.weights[k] = 0.0F;
                 continue;
             }

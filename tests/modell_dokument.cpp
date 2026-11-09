@@ -15,6 +15,7 @@
 #include "bhed/modell/dokument.h"
 #include "bhed/modell/g2.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
