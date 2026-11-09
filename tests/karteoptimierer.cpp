@@ -1184,6 +1184,10 @@ void testeBekannteFehler(const std::string& q3dir) {
             {"{\nmap x\ntcMod scroll 1 0\ntcMod scroll 1 0\ntcMod scroll 1 0\ntcMod scroll 1 0\n}\n{\nmap y\ntcMod scale 2 2\n}\n", false,
              "vier tcMod je Stufe"},
             {"deformVertexes move 0 0 4\n sin 0 1 0 1\n", true, "die Form auf der naechsten Zeile zaehlt nicht (COM_ParseExt qfalse)"},
+            // REST4 Punkt 5: derselbe Rumpf wie textures/f5/welle in Y:\werkzeuge\r4\p5\spiel_abbruch.py - Movie Duels bricht damit ab
+            {"\tqer_editorimage textures/f5/muster.tga\n\tsurfaceparm nolightmap\n\tq3map_tessSize 32\n\tdeformVertexes wave 96 random 0 10 0.1 0.35\n"
+             "\t{\n\t\tmap textures/f5/muster.tga\n\t}\n",
+             true, "REST4 P5: die Testkarte f5welle mit random und frequency 0.35"},
         };
         int falsch = 0;
         for (const Fall& f : faelle) {
