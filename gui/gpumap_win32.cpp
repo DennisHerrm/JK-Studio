@@ -7468,6 +7468,12 @@ const char* abschnittName(Abschnitt a) {
         case Abschnitt::MoverGemischt:   return "Mover gemischt";
         case Abschnitt::Figuren:         return "Figuren";
         case Abschnitt::Gluehen:         return "Gluehen";
+        case Abschnitt::HalmeDeckend:    return "Halme deckend";
+        case Abschnitt::HalmeGemischt:   return "Halme gemischt";
+        case Abschnitt::Nebel:           return "Nebel";
+        case Abschnitt::Nebensicht:      return "Nebensicht";
+        case Abschnitt::Wetter:          return "Wetter";
+        case Abschnitt::Gamma:           return "Gamma";
         case Abschnitt::kAnzahl: break;
     }
     return "?";
@@ -7860,6 +7866,10 @@ float millisekunden(Abschnitt a) {
     const int i = static_cast<int>(a);
     if (i < 0 || i >= kAbschnitte) { return -1.0F; }
     return g_messWert[i];
+}
+
+void messwerteVergessen() {
+    for (float& w : g_messWert) { w = -1.0F; }
 }
 
 bool verfuegbar() {
@@ -9439,6 +9449,7 @@ void bildFertig() {}
 void beginneMessung(Abschnitt) {}
 void beendeMessung(Abschnitt) {}
 float millisekunden(Abschnitt) { return -1.0F; }
+void messwerteVergessen() {}
 float millisekundenBeide(Abschnitt, Abschnitt) { return -1.0F; }
 const char* zustandsLage() { return "ohne Direct3D gebaut"; }
 int zustandsArt() { return -1; }

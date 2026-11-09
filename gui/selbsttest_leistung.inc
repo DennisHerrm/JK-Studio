@@ -46,6 +46,7 @@ inline void speicher(const std::string& wann) {
 inline Schritt bildzeit(const std::string& was, std::function<void()> lage, std::function<void(int)> bewegen, int bilder = 240) {
     struct Stand {
         std::vector<double> cpu, gpu, abstand;
+        std::array<std::vector<double>, static_cast<std::size_t>(gpu::Abschnitt::kAnzahl)> teile;   // MESS2: je gpu::Abschnitt
         int cpuBilder = 0;
         int gpuBilder = 0;
         std::chrono::steady_clock::time_point vorher{};
@@ -58,10 +59,17 @@ inline Schritt bildzeit(const std::string& was, std::function<void()> lage, std:
                     lage();
                     g_m1Messen = true;   // ohne Element-Register, wie im Alltag
                     render::bildMessung(true);
+                    gpu::messwerteVergessen();   // MESS2: GPU-Teile nur aus dieser Messung
                 } else if (b > kAnlauf) {
                     const render::BildZeiten z = render::bildZeiten();
                     if (z.cpuBilder != st->cpuBilder) { st->cpu.push_back(z.cpuMs); }
-                    if (z.gpuBilder != st->gpuBilder) { st->gpu.push_back(z.gpuMs); }
+                    if (z.gpuBilder != st->gpuBilder) {
+                        st->gpu.push_back(z.gpuMs);
+                        for (std::size_t i = 0; i < st->teile.size(); ++i) {
+                            const float t = gpu::millisekunden(static_cast<gpu::Abschnitt>(i));
+                            if (t >= 0.0F) { st->teile[i].push_back(static_cast<double>(t)); }
+                        }
+                    }
                     st->abstand.push_back(std::chrono::duration<double, std::milli>(jetzt - st->vorher).count());
                 }
                 const render::BildZeiten z = render::bildZeiten();
@@ -75,6 +83,18 @@ inline Schritt bildzeit(const std::string& was, std::function<void()> lage, std:
                 diag::detail("Leistung: Bildzeit " + was + " | CPU " + zahlen(st->cpu, "Mittel %.2f p50 %.2f p99 %.2f ms") + " | GPU " +
                              zahlen(st->gpu, "Mittel %.3f p50 %.3f p99 %.3f ms") + " | Abstand " + zahlen(st->abstand, "Mittel %.2f p50 %.2f p99 %.2f ms") +
                              " | Bilder " + std::to_string(st->cpu.size()) + "/" + std::to_string(st->gpu.size()));
+                // MESS2: die Grafikkarte je Teil (Zeitmarken gpu::Abschnitt), Mittel ueber dieselben Bilder
+                std::string teile;
+                for (std::size_t i = 0; i < st->teile.size(); ++i) {
+                    if (st->teile[i].empty()) { continue; }
+                    double summe = 0.0;
+                    for (const double x : st->teile[i]) { summe += x; }
+                    char zt[96];
+                    std::snprintf(zt, sizeof(zt), " | %s %.3f", gpu::abschnittName(static_cast<gpu::Abschnitt>(i)),
+                                  summe / static_cast<double>(st->teile[i].size()));
+                    teile += zt;
+                }
+                if (!teile.empty()) { diag::detail("Leistung: GPU-Teile " + was + teile); }
                 return true;
             }};
 }

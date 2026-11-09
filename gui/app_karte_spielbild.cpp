@@ -44,6 +44,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <map>
 #include <unordered_set>
 
@@ -408,8 +409,30 @@ std::vector<ModellBild> modelleImBild(Szene& s, float zeit, const Camera& cam) {
 // Eine Sicht der Szene in das gewaehlte Ziel: Karte und Modelle deckend, Nebel, Karte und Modelle gemischt, Wetter,
 // Gluehen, Gamma. Der Durchgang des Himmelsportals (`portal`) zeichnet wie das Nebenbild der Vorschau kein Wetter,
 // kein Gluehen und keine Gamma-Tabelle (nebenbild, imPortalDurchgang).
+// MESS2: Zeitmarken der Grafikkarte je Teil des Spielbilds (gpu::Abschnitt), nur mit BHED_GPU_ABSCHNITTE=1 (Selbsttest leistung).
+bool abschnitteMessen() {
+    static const bool an = [] {
+        const char* v = std::getenv("BHED_GPU_ABSCHNITTE");
+        return v != nullptr && v[0] == '1';
+    }();
+    return an;
+}
+struct Marke {
+    gpu::Abschnitt a;
+    bool an;
+    Marke(gpu::Abschnitt x, bool messen) : a(x), an(messen) {
+        if (an) { gpu::beginneMessung(a); }
+    }
+    ~Marke() {
+        if (an) { gpu::beendeMessung(a); }
+    }
+    Marke(const Marke&) = delete;
+    Marke& operator=(const Marke&) = delete;
+};
+
 int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit, Sicht art, std::string& f, const App::NebenSicht* ns = nullptr) {
     const bool portal = art != Sicht::Haupt;
+    const bool messen = !portal && abschnitteMessen();
     const bool spiegel = art == Sicht::Spiegel && ns != nullptr;
     const float fern = kartenFernFuer(s.geo);
     float vp[16];
@@ -524,6 +547,7 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
     // (SQuickSprite::Flush mit tr.fogImage und GLS_DEPTHFUNC_EQUAL).
     const auto halme = [&](gpu::Lage lage, bool erst) {
         if (gras.indexes.empty()) { return; }
+        const Marke mk(erst ? gpu::Abschnitt::HalmeDeckend : gpu::Abschnitt::HalmeGemischt, messen);
         std::string fg;
         aufrufe += gpu::zeichneKarte(gras, &s.bilder, &s.geo, vp, cam.pos, zeit, gpu::kSpielLightmapFaktor, 0.0F, 3, vorn, rechts, hoch, fokus, &fg,
                                      nullptr, lage);
@@ -540,24 +564,32 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
     for (int durchgang = 0; durchgang < 2; ++durchgang) {
         const gpu::Lage lage = durchgang == 0 ? gpu::Lage::Deckend : gpu::Lage::Gemischt;
         if (durchgang == 1) { halme(lage, false); }
-        aufrufe += gpu::zeichneKarte(s.netz, &s.bilder, &s.geo, vp, cam.pos, zeit, gpu::kSpielLightmapFaktor, 0.0F, 0, vorn, rechts, hoch, fokus, &f,
-                                     nullptr, lage);
+        {
+            const Marke mk(durchgang == 0 ? gpu::Abschnitt::KarteDeckend : gpu::Abschnitt::KarteGemischt, messen);
+            aufrufe += gpu::zeichneKarte(s.netz, &s.bilder, &s.geo, vp, cam.pos, zeit, gpu::kSpielLightmapFaktor, 0.0F, 0, vorn, rechts, hoch, fokus,
+                                         &f, nullptr, lage);
+        }
         // Das Effektnetz als zweites Netz nach der Karte (netzId 1), wie die Vorschau.
         if (!effekte.indexes.empty()) {
+            const Marke mk(durchgang == 0 ? gpu::Abschnitt::EffekteDeckend : gpu::Abschnitt::EffekteGemischt, messen);
             std::string fe;
             aufrufe += gpu::zeichneKarte(effekte, &s.bilder, &s.geo, vp, cam.pos, zeit, gpu::kSpielLightmapFaktor, 0.0F, 1, vorn, rechts, hoch, fokus,
                                          &fe, nullptr, lage);
             if (f.empty()) { f = fe; }
         }
         if (durchgang == 0) { halme(lage, true); }
-        for (const ModellBild& m : modelle) {
-            std::string fm;
-            modellAufrufe += gpu::zeichneMover(*m.netz, &s.bilder, &s.geo, vp, m.welt, cam.pos, vorn, rechts, hoch, fokus, zeit,
-                                               gpu::kSpielLightmapFaktor, 0.0F, &fm, nullptr, lage, m.modellLicht ? &m.licht : nullptr);
-            if (f.empty()) { f = fm; }
+        if (!modelle.empty()) {
+            const Marke mk(durchgang == 0 ? gpu::Abschnitt::MoverDeckend : gpu::Abschnitt::MoverGemischt, messen);
+            for (const ModellBild& m : modelle) {
+                std::string fm;
+                modellAufrufe += gpu::zeichneMover(*m.netz, &s.bilder, &s.geo, vp, m.welt, cam.pos, vorn, rechts, hoch, fokus, zeit,
+                                                   gpu::kSpielLightmapFaktor, 0.0F, &fm, nullptr, lage, m.modellLicht ? &m.licht : nullptr);
+                if (f.empty()) { f = fm; }
+            }
         }
         // Die Vorschau zeichnet im Spiegeldurchgang keinen Nebel (imSpiegelDurchgang).
         if (durchgang == 0 && !spiegel && g_app->showFog && !s.geo.nebel.empty()) {
+            const Marke mk(gpu::Abschnitt::Nebel, messen);
             static const std::vector<gpu::FigurSchatten> kKeineFiguren;
             const std::vector<gpu::NebelGpu> nebel = nebelListeFuer(s.geo);
             aufrufe += gpu::zeichneNebel(s.netz, &s.bilder, &s.geo, vp, zeit, cam.pos, nebel, kKeineFiguren, &f);
@@ -577,6 +609,7 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
             std::vector<gpu::KlingenQuad> teilchen;
             g_stand.wetterTeilchen = wetterTeilchenFuer(wq, true, teilchen, cam);
             if (!teilchen.empty()) {
+                const Marke mk(gpu::Abschnitt::Wetter, messen);
                 std::string fk;
                 aufrufe += gpu::zeichneKlingen(teilchen, vp, &fk);
             }
@@ -586,6 +619,7 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
     // Spiegelsicht (R_MirrorViewBySurface -> R_RenderView -> eigenes drawSurfs-Kommando), auch fuer die Szene des Himmelsportals
     // (CG_DrawSkyBoxPortal) - jeweils in ihr Ziel, im Spiegel mit dessen Schnitt und Wicklung (setzeSpiegelung gilt noch)
     if (g_app->showGlow && s.bilder.found > 0 && aufrufe > 0) {
+        const Marke mk(gpu::Abschnitt::Gluehen, messen);
         std::vector<gpu::GluehQuelle> gluehModelle;
         for (const ModellBild& m : modelle) {
             gpu::GluehQuelle q;
@@ -608,7 +642,10 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
     }
     if (!portal) {
         // r_gammaShaders (nur Movie Duels, die Quelle von OpenJK hat es nicht) - wie die Vorschau.
-        if (regelwerkMovieDuels()) { gpu::spielGammaAnwenden(); }
+        if (regelwerkMovieDuels()) {
+            const Marke mk(gpu::Abschnitt::Gamma, messen);
+            gpu::spielGammaAnwenden();
+        }
     }
     if (spiegel) { gpu::setzeSpiegelung(false, nullptr, false); }
     return aufrufe;
@@ -627,6 +664,7 @@ void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::ui
     gpu::szeneWaehlen(1);
     void* bild = nullptr;
     gpu::neuesBild();
+    if (abschnitteMessen()) { gpu::bildBeginnt(); }
     gpu::setzeMultisample(multisampleWirksam(g_app->settings.rExtMultisample, regelwerkMovieDuels() && !regelwerkJediOutcast()));
     gpu::setzeHintergrund(s.hintergrund[0], s.hintergrund[1], s.hintergrund[2]);
     int aufrufe = 0;
@@ -639,6 +677,7 @@ void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::ui
     // Himmel (Schalter der Vorschau) nicht.
     g_stand.himmelPortal = false;
     g_stand.portalEffektEcken = 0;
+    if (abschnitteMessen()) { gpu::beginneMessung(gpu::Abschnitt::Nebensicht); }
     if (s.portal && g_app->showSky) {
         gpu::waehleZiel(gpu::kZielKarteneditorPortal);
         if (gpu::bereiteZiel(breite, hoehe)) {
@@ -671,6 +710,7 @@ void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::ui
             std::copy(std::begin(ns.schnitt), std::end(ns.schnitt), g_stand.spiegelSchnitt);
         }
     }
+    if (abschnitteMessen()) { gpu::beendeMessung(gpu::Abschnitt::Nebensicht); }
     gpu::waehleZiel(gpu::kZielKarteneditor);
     if (gpu::bereiteZiel(breite, hoehe)) {
         if (g_stand.himmelPortal) { gpu::setzeHimmelPortal(gpu::kZielKarteneditorPortal); }
@@ -687,6 +727,7 @@ void* spielbildZeichnen(const std::shared_ptr<const std::string>& daten, std::ui
     gpu::kartenPlaetze(g_stand.hoechstesBild, g_stand.hoechsteLightmap);
     g_stand.bildPlaetze = static_cast<int>(s.bilder.byShader.size());
     g_stand.lightmapPlaetze = static_cast<int>(s.geo.lightmaps.size());
+    if (abschnitteMessen()) { gpu::bildFertig(); }
     gpu::szeneWaehlen(0);
     if (g_stand.nummer != nummer || (aufrufe > 0) != (g_stand.aufrufe > 0)) {
         diag::detail("Karten-Editor: Spielbild - " + std::to_string(aufrufe) + " Zeichenaufrufe" + (fehlerText.empty() ? std::string() : " (" + fehlerText + ")"));

@@ -709,6 +709,14 @@ enum class Abschnitt : int {
     MoverGemischt,
     Figuren,
     Gluehen,
+    // MESS2: das Spielbild des Karten-Editors (app_karte_spielbild.cpp) misst mit BHED_GPU_ABSCHNITTE=1 dazu diese Teile;
+    // Karte, Effekte, Mover und Gluehen nimmt es von oben.
+    HalmeDeckend,
+    HalmeGemischt,
+    Nebel,
+    Nebensicht,   // Himmelsportal und Spiegel/Portalkamera, je eine ganze Szene
+    Wetter,
+    Gamma,
     kAnzahl
 };
 
@@ -791,6 +799,9 @@ void beendeMessung(Abschnitt a);
 // Die zuletzt vollstaendig gemessene Dauer in Millisekunden.
 // -1, solange nichts Brauchbares vorliegt.
 [[nodiscard]] float millisekunden(Abschnitt a);
+// MESS2: alle Werte auf -1 (Selbsttest leistung vor jeder Bildzeit) - ein Abschnitt, der danach nicht mehr gezeichnet wird,
+// meldet so keinen Wert eines frueheren Bilds.
+void messwerteVergessen();
 
 }  // namespace bhed::gpu
 
