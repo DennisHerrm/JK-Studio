@@ -12,7 +12,8 @@
 // Zielen (Vorschau, Kamera des Karten-Editors), Model-Tab und Menue-Editor als ganzes Fenster.
 // BHED_LEISTUNG_MAP: eine .map fuer den Karten-Editor mit Echtzeit-Licht (ohne: dieser Teil faellt weg).
 // BHED_LEISTUNG_NUR: nur diese Abschnitte (Buchstaben: w Wechsel, k Karten, s Szene, e Editor, m Model, n Menue, g die
-// Gegenproben zum Bildvorrat - sie kopieren texCache und treiben die Speicherspitze, fuer Speichervergleiche weglassen).
+// Gegenproben zum Bildvorrat - sie kopieren texCache und treiben die Speicherspitze, fuer Speichervergleiche weglassen;
+// u Bildzeit mit und ohne Update-Leiste je Tab - nur wenn ausdruecklich genannt, nicht im vollen Lauf).
 namespace leistung {
 namespace ke = karteneditor;
 
@@ -102,6 +103,7 @@ inline Schritt leerlauf(const std::string& was) {
                     st->cpu0 = platform::prozessStand().cpuSekunden;
                     st->bild0 = ImGui::GetFrameCount();
                     st->t0 = jetzt;
+                    g_app->ruheSperre.fill(0);
                     return false;
                 }
                 if (jetzt - st->t0 < std::chrono::seconds(8)) { return false; }
@@ -111,6 +113,19 @@ inline Schritt leerlauf(const std::string& was) {
                 std::snprintf(z, sizeof(z), "Leistung: Leerlauf %s | Prozessor %.1f %% eines Kerns, %.1f Bilder/s", was.c_str(), 100.0 * cpu / wand,
                               static_cast<double>(ImGui::GetFrameCount() - st->bild0) / wand);
                 diag::detail(z);
+                // Messrunde 09.11.: warum die Schleife nicht ruhte (App::ruheSperre, REST5 P3)
+                std::string gruende;
+                for (std::size_t i = 0; i < g_app->ruheSperre.size(); ++i) {
+                    if (g_app->ruheSperre[i] <= 0) { continue; }
+                    gruende += std::string(gruende.empty() ? "" : ", ") + ruheSperreName(i) + " " + std::to_string(g_app->ruheSperre[i]);
+                }
+                diag::detail("Leistung: Leerlauf " + was + " - nicht geruht wegen: " + (gruende.empty() ? std::string("-") : gruende));
+                if (g_app->ruheSperre[8] > 0) {   // "Kamera der Karte": welche der drei Bedingungen von kameraBrauchtBilder
+                    const ke::Editor& ed = ke::editor();
+                    diag::detail("Leistung: Leerlauf " + was + " - Kamera der Karte: Bewegung " + std::to_string(ed.kamera.bewegung) +
+                                 ", frei " + std::to_string(ed.kamFenster.frei ? 1 : 0) + ", Bilder fertig " +
+                                 std::to_string(ke::kameraBilderFertig() ? 1 : 0));
+                }
                 g_app->ruheImTest = false;
                 g_m1Messen = false;
                 return true;
@@ -492,6 +507,16 @@ inline std::vector<Schritt> schritte() {
             teil11::kameraWieImSpiel(p);
             ke::editor().echtLicht.spielbild = false;
         }));
+        // Messrunde 09.11.: der Zeichner des Editors nimmt die Bilder des Editors, nicht die des Spiels (MR7 P40/P57: eigene
+        // Eintraege im Bildlager) - sie laden erst jetzt; der Leerlauf misst danach, die Ladezeit steht eigens im Protokoll
+        auto tUm = std::make_shared<std::chrono::steady_clock::time_point>(std::chrono::steady_clock::now());
+        add(tu("Leistung: Bilder des Editors, Uhr", [tUm] { *tUm = std::chrono::steady_clock::now(); }));
+        add(warteBis("Leistung: Bilder des Editors", [] { return ke::kameraBilderFertig(); }, 20000));
+        add(tu("Leistung: Bilder des Editors, Zeit", [tUm] {
+            diag::detail("Leistung: Bilder des Editors nach dem Umschalten | " +
+                         std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - *tUm).count()) +
+                         " ms");
+        }));
         add(pause(1.0));
         add(kameraBild("editor_vorlage"));
         add(leerlauf("Map Editor Vorlage"));
@@ -591,6 +616,40 @@ inline std::vector<Schritt> schritte() {
         add(tu("Leistung: Menue-Editor zu", [] {
             menueeditor::schliesseAlleOhneSpeichern();
             g_app->leftMode = 0;
+        }));
+    }
+    // Messrunde 09.11. (REST9): Bildzeit mit und ohne Update-Leiste gegen die simulierte GitHub-Antwort des Selbsttests
+    // updateleiste, je Tab abwechselnd zweimal. Nur wenn BHED_LEISTUNG_NUR ein u enthaelt (nicht im vollen Lauf).
+    if (const char* nur = std::getenv("BHED_LEISTUNG_NUR"); nur != nullptr && std::strchr(nur, 'u') != nullptr) {
+        const int k = rest9::lokalNr();
+        for (const int tab : {0, 1, 2, 3, 4}) {
+            const std::string t = std::to_string(tab);
+            add(tu("Leistung: Tab " + t + " fuer die Update-Leiste", [tab] { g_app->leftMode = tab; }));
+            add(pause(1.0));
+            for (const char* runde : {"1", "2"}) {
+                const std::string r = runde;
+                add(tu("Leistung: Update-Leiste zeigen, Tab " + t, [k] {
+                    g_app->settings.updateUebersprungen.clear();
+                    rest9::simEinschalten();
+                    rest9::simTag(k + 1);
+                    updater::testNeuerStart();
+                }));
+                rest9::nachsehen(s, "Leistung Tab " + t);
+                add(pruefe("Leistung: Update-Leiste steht, Tab " + t, [] { return rest9::leisteDa(); }));
+                add(bildzeit("Tab " + t + " mit Update-Leiste (Runde " + r + ")", [] {}, nullptr));
+                add(tu("Leistung: Update-Leiste weg, Tab " + t, [] {
+                    updater::testNetzSetzen({});
+                    updater::testNeuerStart();
+                }));
+                add(pause(0.3));
+                add(pruefe("Leistung: keine Update-Leiste, Tab " + t, [] { return updater::leisteBild().zeilen == 0; }));
+                add(bildzeit("Tab " + t + " ohne Update-Leiste (Runde " + r + ")", [] {}, nullptr));
+            }
+        }
+        add(tu("Leistung: Update-Leiste aufraeumen", [] {
+            g_app->leftMode = 0;
+            std::error_code ec;
+            std::filesystem::remove_all(::bhed::utf8Pfad(platform::executableDirectory() + "/r9_sim"), ec);
         }));
     }
     add(tu("Leistung: Ende", [] {
