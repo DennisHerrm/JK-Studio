@@ -2058,17 +2058,36 @@ BildRegister& ladeRegister() { return g_ladeZiel.bildRegister != nullptr ? *g_la
 
 // MR9 Punkt 2: R_FindImageFile findet ein Bild, wenn eine der Dateien da ist, die auch das Laden versucht (textureCandidates: die
 // Endungen von R_LoadImage) - in einem Archiv oder lose in einem Spielordner; ohne zu entpacken
+// MESS2: erst alle Archive, dann die Spielordner - gefragt ist nur, OB eine der Dateien da ist, die Folge aendert die Antwort nicht;
+// ein Bild aus einem Archiv kostet so keinen Dateisystemaufruf je Endung und Spielordner mehr.
 bool bildVorhanden(const std::string& b) {
-    for (const std::string& c : textureCandidates(b)) {
+    const std::vector<std::string> kandidaten = textureCandidates(b);
+    for (const std::string& c : kandidaten) {
         for (const GamePath& gp : g_app->gamePaths) {
             for (const Pk3& a : gp.archives) {
                 if (a.find(c) != nullptr) { return true; }
             }
+        }
+    }
+    for (const std::string& c : kandidaten) {
+        for (const GamePath& gp : g_app->gamePaths) {
             std::error_code ec;
             if (std::filesystem::is_regular_file(utf8Pfad(gp.directory) / utf8Pfad(c), ec)) { return true; }
         }
     }
     return false;
+}
+// MESS2: je Ladevorgang jedes Bild einmal pruefen - das Register fragt dasselbe Bild nach jedem R_InitShaders wieder
+// (shaderVergessen: Oberflaeche vor und nach dem Server, Menues, Schriften); die Dateien aendern sich waehrend eines Ladevorgangs
+// nicht. Ein neuer Ladevorgang (leeren + setzeVorhanden) beginnt mit leerer Liste.
+BildRegister::Vorhanden bildVorhandenJeLaden() {
+    return [schon = std::make_shared<std::unordered_map<std::string, bool>>()](const std::string& b) {
+        const auto it = schon->find(b);
+        if (it != schon->end()) { return it->second; }
+        const bool da = bildVorhanden(b);
+        schon->emplace(b, da);
+        return da;
+    };
 }
 
 // MR8 Punkt 1: R_FindShader zum ersten Mal - die Bilder des Shaders kommen in der Reihenfolge von ParseShader ins Register
@@ -3218,7 +3237,7 @@ void loadMapTextures() {
     ladeRegister().leeren();   // MR8 Punkt 1: neue Karte (RE_RegisterMedia_LevelLoadBegin)
     // MR9 Punkt 2: R_FindImageFile findet ein Bild, wenn eine der Dateien da ist, die auch das Laden versucht (textureCandidates:
     // die Endungen von R_LoadImage) - in einem Archiv oder lose in einem Spielordner; ohne zu entpacken
-    ladeRegister().setzeVorhanden(bildVorhanden);
+    ladeRegister().setzeVorhanden(bildVorhandenJeLaden());
     if (ladeGeo().shaders.empty() || g_app->gamePaths.empty()) {
         return;
     }
@@ -3652,7 +3671,7 @@ bool bspBildRegisterBauen(const std::string& bspPfad, BildRegister& reg) {
     g_ladeZiel.entities = &m.entities;
     g_ladeZiel.bildRegister = &reg;
     reg.leeren();   // RE_RegisterMedia_LevelLoadBegin
-    reg.setzeVorhanden(bildVorhanden);
+    reg.setzeVorhanden(bildVorhandenJeLaden());
     vorWeltRegistrieren(m.entities, false);
     for (const std::string& n : weltShaderReihenfolge(geo)) { bildRegistrieren(n); }
     g_ladeZiel = vorher;
