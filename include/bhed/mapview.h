@@ -281,6 +281,8 @@ struct TextureSet {
         // bzw. Eckenfarbe bei -3 - genau das, was behaved bisher immer tat.
         // Mit Skript gilt nur, was dort steht.
         bool ausSkript = false;
+        // REST4 Punkt 3: ein Figurenshader ohne Skript und ohne Bild (R_FindShader: defaultShader ohne Stufe) - zeichnet nichts
+        bool ohneStufe = false;
         bool lightmapStufe = false;
         // rc608: Die Stufe ist `map $lightmap` nach mehreren Bildstufen: zeichnet nur das Licht.
         bool lightmapFilter = false;

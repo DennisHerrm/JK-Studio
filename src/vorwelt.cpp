@@ -4,6 +4,7 @@
 #include "bhed/regelwerk.h"
 
 #include <cctype>
+#include <cstddef>
 #include <cstdlib>
 #include <initializer_list>
 #include <utility>

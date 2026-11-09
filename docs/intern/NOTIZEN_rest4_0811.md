@@ -92,8 +92,14 @@ Movie Duels `Y:\werkzeuge\sp_654alt\md9`.
 ## Punkt 7: duel_exegol-Rest - offen
 
 - Nicht bearbeitet (Kontext dieses Auftrags). Stand REST3d: im Nebel ist die Vorschau gleichmaessig G +0,6 / B +1,3 heller (mit
-  Gluehen +1,8 / +3,2), Messaufbau `R3D_ECHT` in `Y:\werkzeuge\r3d\spiel.py`. Naechster Schritt: Spiel und Vorschau je mit und ohne
-  Nebel (r_drawfog 0) an derselben Kamera, um Nebelmischung und Flaechenlicht zu trennen.
+  Gluehen +1,8 / +3,2), Messaufbau `R3D_ECHT` in `Y:\werkzeuge\r3d\spiel.py`.
+- Eingegrenzt (r_DynamicGlow 0 bzw. BHED_GV_GLUEHEN=0, Kamera -600 -5952 208 / 10 0, `Y:\werkzeuge\r3d\mittel.py`): mit Nebel Spiel
+  G 4,6 / B 8,8, Vorschau 5,2 / 10,0 (`r4exA`/`r4_exA`); ohne Nebel (Spiel `seta r_drawfog 0`, Vorschau `nebel=0`) Spiel 0,5 / 2,2,
+  Vorschau 0,9 / 3,5 (`r4exB`/`r4_exB`). Der Unterschied in Blau bleibt ohne Nebel gleich (+1,3) - er kommt nicht aus der Nebelmischung,
+  sondern aus den Flaechen selbst. Im aufgehellten Paar ohne Nebel (`Y:\werkzeuge\r4\exB_paar.png`, links Spiel) zeigt die Vorschau
+  Dinge, die im Spielbild fehlen: einen dunklen schraegen Gegenstand in der Mitte, oben Mitte eine rot-blaue Figur, und die rechte
+  Wand ist heller. Die Entities sind dieselben (390 aus maps/duel_exegol.ent). Naechster Schritt: diese Gegenstaende bestimmen (Figur:
+  Spieler/NPC zur Bildzeit, Gegenstand: Modell oder Mover) und danach das Flaechenlicht vergleichen.
 
 ## Punkt 8: Endrunde-4-Wettermessung nachgemessen
 
@@ -108,6 +114,23 @@ Movie Duels `Y:\werkzeuge\sp_654alt\md9`.
   den Spieler als Ausloeser (activator->s.number 0) und auf dem AT-ST stehend (ps.groundEntityNum). Ein Skript koennte den Spieler per
   use ausloesen, das Stehen auf dem AT-ST ergibt aber erst die Spielerbewegung (Pmove) - die Vorschau steuert und bewegt den Spieler
   nicht. Nicht anwendbar.
+
+## Schlussrunde (`Y:\werkzeuge\r4\schluss.sh`, parallel nach dem sauberen Neubau, Summe `schluss_summe.txt`)
+
+- Sauberer Neubau (`--clean-first`) 0 Warnungen (785 s); ctest 244/244 (-j 12 ohne q3map2_pr316), q3map2_pr316 allein 1/1.
+- Selbsttests: Modus 1 2635/0, mission1 98/0, figurlicht 8/0, geschuetze 21/0, laserfalle 9/0, karteneditor rd 38/0 und r3 22/0,
+  editorportal 19/0, cjkweit ja 19/0, menueeditor en 2787/0, modellblock md 86/0, pt 41/0, ptfix3 12/0, haut 1/0, funktionen 60/1.
+- funktionen "MB1 Pruefen: fehlendes Bild an torso gemeldet" war rot durch Punkt 3: der Hautshader ohne Bild bekam die leere Stufe
+  (figurOhneStufe) und zaehlte als Bild. Jetzt traegt die Stufe `Tex::ohneStufe`, die Modellpruefung zaehlt sie als fehlend;
+  Neubau 0 Warnungen, funktionen `r4_s_funktionen2` 61/0.
+- Lints wie die Basis (portability 99 nach `<cstddef>` in src/vorwelt.cpp, pruefcodes 11, efxflags-/fremdprogramm-Meldung wie vorher,
+  link/tidy nur unter Linux, sonst ok); Handbuch `--pruefen` ok. Keine Bildzeit-Messung (Auftrag).
+
+## Offen
+
+- Punkt 7 (duel_exegol): eingegrenzt, nicht behoben - siehe oben.
+- Messungen der Schlussrunde vor dem Release: P6/P15 (`ptzeit`), P9, P11, P28, P38, P47; dazu die Ladezeit mit den Menues vor der Welt
+  (jede Karte liest ui/menus.txt, ui/ingame.txt und ui/jahud.txt samt Menues) nicht gemessen.
 
 ## Changelog
 

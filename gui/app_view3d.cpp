@@ -2305,6 +2305,7 @@ TextureSet::Tex figurOhneStufe() {
     z.dstFactor = BlendFactor::One;
     z.depthWrite = false;
     z.rgba.assign(4U, 0U);
+    z.ohneStufe = true;
     return z;
 }
 

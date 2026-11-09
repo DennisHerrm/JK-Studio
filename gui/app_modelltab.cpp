@@ -372,7 +372,8 @@ std::vector<modell::Befund> modellBefunde() {
     const modell::Inhalt& in = t.dok.inhalt();
     std::vector<char> hatBild(in.teile.size(), 0);
     for (std::size_t i = 0; i < hatBild.size(); ++i) {
-        const bool bild = i < g_app->modelTextures.bySurface.size() && !g_app->modelTextures.bySurface[i].rgba.empty();
+        const bool bild = i < g_app->modelTextures.bySurface.size() && !g_app->modelTextures.bySurface[i].rgba.empty() &&
+                          !g_app->modelTextures.bySurface[i].ohneStufe;   // REST4 Punkt 3: Hautshader ohne Bild zaehlt als fehlend
         const bool stufen = i < g_app->modelTextures.stufen.size() && !g_app->modelTextures.stufen[i].empty();
         hatBild[i] = (bild || stufen) ? 1 : 0;
     }
