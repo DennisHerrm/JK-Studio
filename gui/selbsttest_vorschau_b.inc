@@ -2815,6 +2815,45 @@ std::vector<Schritt> moverSpriteSchritte() {
                      ", fremde " + std::to_string(fremd) + " (Mover im Gluehen " + std::to_string(gpu::gluehenMoverAufrufe()) + ")");
         return eigen > 1 && fremd == 0;
     }));
+    // REST3c: das Gluehen von duel_exegol kommt vor allem von den Waenden und Boeden - weitere `map $lightmap`-Stufen mit
+    // tcgen lightmap und glow (textures/exegol_sh/rocky_*, wall_*, floor_*, sith_wall), bis REST3c still weggelassen - und vom
+    // Nebel, den RB_FogPass auch im Gluehdurchgang ueber jede Flaeche mit glow-Stufe legt (tr_shade.cpp:2198-2203 MD).
+    add(pruefe("Effektmodell-Autosprite: weitere $lightmap-Stufen und der Nebel gehen ins Gluehen wie im Spiel", [] {
+        int lichtStufen = 0;
+        for (const TextureSet::Tex& tx : g_app->textures.byShader) {
+            if (tx.lightmapBild && tx.glow && tx.texGen == TexGen::Lightmap) { ++lichtStufen; }
+        }
+        const int nebel = gpu::gluehenNebelAufrufe();
+        diag::detail("Knopftest: Effektmodell-Autosprite - Lightmap-Stufen mit glow " + std::to_string(lichtStufen) +
+                     ", Nebelaufrufe im Gluehen " + std::to_string(nebel));
+        return lichtStufen > 0 && nebel > 0;
+    }));
+    // REST3c: bei 20 s schrumpfen die ersten Nebelmodelle (size end 0, nonlinear 65..85 %; CEmitter::Draw skaliert die Achsen mit
+    // mRefEnt.radius). Der Nebel der Karte rechnet den Abstand mit der Blickrichtung der Kamera (RB_CalcFogTexCoords:
+    // backEnd.viewParms.ori.axis[0]) - nicht mit der des zuletzt gezeichneten Modells (bis REST3c blieb die skalierte Sicht
+    // des letzten autosprite-Movers im Puffer JeBild stehen, der globale Nebel von duel_exegol verschwand mit der Zeit).
+    add(tu("Effektmodell-Autosprite: Szene bei 20 s", [] {
+        g_app->playMs = 20000.0;
+        g_app->mapDirty = true;
+    }));
+    add(warteBis("gezeichnet", [] { return !g_app->mapDirty; }, 600));
+    add(pause(0.3));
+    add(pruefe("Effektmodell-Autosprite: der Nebel der Karte rechnet mit der Blickrichtung der Kamera, auch nach skalierten Modellen", [] {
+        float vorn[3];
+        float soll[3];
+        gpu::nebelVornProbe(vorn);
+        winkelVektoren(g_app->cam.angles, soll, nullptr, nullptr);
+        float abw = 0.0F;
+        for (int k = 0; k < 3; ++k) { abw = std::max(abw, std::fabs(vorn[k] - soll[k])); }
+        double kleinster = 1.0;
+        for (const EmitterModelDraw& em : g_app->emitterFlug) { kleinster = std::min(kleinster, static_cast<double>(em.scale)); }
+        char z[300];
+        std::snprintf(z, sizeof(z), "Knopftest: Effektmodell-Autosprite - Nebelrichtung %.4f %.4f %.4f, Kamera %.4f %.4f %.4f, Abweichung %.6f, "
+                      "kleinster Modellmassstab %.3f", static_cast<double>(vorn[0]), static_cast<double>(vorn[1]), static_cast<double>(vorn[2]),
+                      static_cast<double>(soll[0]), static_cast<double>(soll[1]), static_cast<double>(soll[2]), static_cast<double>(abw), kleinster);
+        diag::detail(z);
+        return kleinster < 1.0 && abw < 1.0e-6F;
+    }));
     return s;
 }
 

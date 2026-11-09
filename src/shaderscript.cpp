@@ -994,6 +994,8 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 const std::string art = lower(firstWord(secondWord(line)));
                 if (art == "environment") {
                     stageTexGen = TexGen::Environment;
+                } else if (art == "lightmap") {
+                    stageTexGen = TexGen::Lightmap;   // REST3c: ParseStage TCGEN_LIGHTMAP (tr_shader.cpp:1591-1594 OpenJK)
                 } else if (art == "vector") {
                     // rc605: `tcGen vector ( sx sy sz ) ( tx ty tz )` - ParseStage
                     // (code/rd-vanilla/tr_shader.cpp:1611-1617 MD) liest zwei

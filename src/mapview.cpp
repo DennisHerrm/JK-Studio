@@ -535,6 +535,7 @@ void batchStateAus(const TextureSet::Tex& t, float zeitSekunden,
     bs.alphaGen = t.alphaGen;
     bs.depthFunc = t.depthFunc;
     bs.texGen = t.texGen;
+    bs.lightmapBild = t.lightmapBild;
     if (g_tcGenVektorAus && bs.texGen == TexGen::Vector) {
         bs.texGen = TexGen::Base;
     }

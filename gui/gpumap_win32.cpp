@@ -3045,6 +3045,9 @@ int zeichneAufrufe(const std::vector<DrawCall>& calls, const BspMesh& mesh,
         }
         ID3D11ShaderResourceView* lm =
             (call.lightmap >= 0) ? holeLightmap(geo, call.lightmap) : nullptr;
+        // REST3c: eine weitere $lightmap-Stufe liest die Lightmap (kLightmapBild); ohne Lightmap zeichnet sie tr.whiteImage
+        // (ParseStage: shader.lightmapIndex < 0) - das weisse Ersatzbild der Stufe
+        if (lm == nullptr && (call.state.features & kLightmapBild) != 0U) { lm = bild; }
         ID3D11ShaderResourceView* himmel = nullptr;
         if ((call.state.features & kSky) != 0U) {
             himmel = holeHimmel(textures, bs2.skyFaces);
@@ -3770,6 +3773,9 @@ bool spriteSichtProbe(float welt[16], float weltAchsen[9], float sicht[12]) {
 }
 bool g_moverSpriteAchsenAus = false;
 void moverSpriteAchsenAus(bool aus) { g_moverSpriteAchsenAus = aus; }
+// REST3c: die Blickrichtung, mit der zeichneNebel zuletzt den Nebel der Karte rechnete (gVorn im Puffer JeBild, Selbsttest)
+float g_nebelVornProbe[3]{};
+void nebelVornProbe(float vorn[3]) { std::copy(g_nebelVornProbe, g_nebelVornProbe + 3, vorn); }
 // --- rc608: Licht der Entity fuer ein .md3 ------------------------------------
 //
 // R_SetupEntityLighting: ent->lightDir[i] = DotProduct(lightDir, ent->e.axis[i]). Die Achsen
@@ -3881,8 +3887,15 @@ int zeichneMover(const BspMesh& mesh, const TextureSet* textures,
                     rL[k] = rechts[0] * welt[k] + rechts[1] * welt[4 + k] + rechts[2] * welt[8 + k];
                     hL[k] = hoch[0] * welt[k] + hoch[1] * welt[4 + k] + hoch[2] * welt[8 + k];
                 }
-                return zeichneKarte(mesh, textures, geo, mvp, kameraPos, zeitSekunden, helligkeit, grundlicht, 2,
-                                    vL, rL, hL, fokus, fehler, uebersprungenAus, lage);
+                // REST3c: zeichneKarte merkt sich ihre Werte als Bilddaten (g_bildDaten), und zeichneNebel und zeichneFigur lesen
+                // daraus die Achsen der Kamera. Die Sicht im Raum des Modells gilt nur fuer diesen Aufruf - danach wieder die der
+                // Kamera (der Nebel rechnet mit backEnd.viewParms.ori.axis[0], RB_CalcFogTexCoords tr_shade_calc.cpp MD).
+                const int n = zeichneKarte(mesh, textures, geo, mvp, kameraPos, zeitSekunden, helligkeit, grundlicht, 2,
+                                           vL, rL, hL, fokus, fehler, uebersprungenAus, lage);
+                std::copy(vorn, vorn + 3, g_bildDaten + 28);
+                std::copy(rechts, rechts + 3, g_bildDaten + 32);
+                std::copy(hoch, hoch + 3, g_bildDaten + 36);
+                return n;
             }
         }
     }
@@ -3893,6 +3906,18 @@ int zeichneMover(const BspMesh& mesh, const TextureSet* textures,
 }
 
 int gluehenRauchAufrufe() { return g_gluehenRauch; }
+
+ID3D11RenderTargetView* g_nebelZiel = nullptr;   // REST3c: siehe vor zeichneNebel
+bool g_nebelNurGlueh = false;
+// REST3c: die Nebel fuer den naechsten zeichneGluehen (RB_FogPass im Gluehdurchgang, siehe g_nebelZiel)
+const std::vector<NebelGpu>* g_gluehNebel = nullptr;
+float g_gluehNebelAuge[3]{};
+int g_gluehenNebel = 0;
+void gluehenNebel(const std::vector<NebelGpu>* nebel, const float auge[3]) {
+    g_gluehNebel = nebel;
+    for (int k = 0; k < 3; ++k) { g_gluehNebelAuge[k] = auge != nullptr ? auge[k] : 0.0F; }
+}
+int gluehenNebelAufrufe() { return g_gluehenNebel; }
 
 // rc602 kartenpruefung: Effektteilchen im Gluehen (noch nicht - roter Test).
 const BspMesh* g_gluehEffekte = nullptr;
@@ -4048,6 +4073,8 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     // Gluehen der Editor-Karte.
     const BspMesh* const gluehEffekte = std::exchange(g_gluehEffekte, nullptr);
     const std::vector<KlingenQuad>* const gluehKlingen = std::exchange(g_gluehKlingen, nullptr);
+    const std::vector<NebelGpu>* const gluehNebel = std::exchange(g_gluehNebel, nullptr);
+    g_gluehenNebel = 0;
     g_gluehenRauch = 0;
     g_gluehenMover = 0;
     g_gluehCpuEigen = 0;
@@ -4185,6 +4212,18 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     c->PSSetSamplers(0, 1, &g_sampler);
     int n = gluehend.empty() ? 0 : zeichneAufrufe(gluehend, mesh, textures, geo, zeitSekunden, fehler);
     n += figurAufrufe;
+    // REST3c: nach den glow-Stufen jeder Flaeche ihr Nebel (RB_FogPass am Ende von RB_StageIteratorGeneric), in den Gluehpuffer
+    const auto nebelImGluehen = [&](const BspMesh& m, const float* welt, int objektNebel) {
+        if (gluehNebel == nullptr || gluehNebel->empty()) { return; }
+        g_nebelZiel = g_glowVollRtv;
+        g_nebelNurGlueh = true;
+        std::string fn;
+        g_gluehenNebel += zeichneNebel(m, textures, geo, viewProj, zeitSekunden, g_gluehNebelAuge, *gluehNebel, {}, &fn, welt, objektNebel);
+        g_nebelZiel = nullptr;
+        g_nebelNurGlueh = false;
+        c->PSSetSamplers(0, 1, &g_sampler);
+    };
+    if (!gluehend.empty()) { nebelImGluehen(mesh, nullptr, -1); }
     // --- Durchgang 1a (rc602): die Brush-Entities und Kartenmodelle --------
     //
     // Dieselbe Tiefe, derselbe Puffer - im Spiel landen sie in derselben
@@ -4239,6 +4278,7 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
             c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             std::string fm;
             const int nm = zeichneAufrufe(wg.calls, *wg.quelle->mesh, textures, geo, zeitSekunden, &fm);
+            nebelImGluehen(*wg.quelle->mesh, wg.quelle->welt, wg.quelle->nebel);
             g_gluehenMover += nm;
             n += nm;
             if (fehler != nullptr && fehler->empty()) { *fehler = fm; }
@@ -5973,6 +6013,10 @@ bool packeNebel(ID3D11DeviceContext* c, const NebelGpu& n, float augeT, float sc
 
 }  // namespace
 
+// REST3c: der Nebeldurchgang im Gluehen (zeichneGluehen): RB_StageIteratorGeneric ruft RB_FogPass auch, wenn RB_DrawSurfs die
+// Flaechen mit glow-Stufe ein zweites Mal fuer den Gluehpuffer zeichnet (g_bRenderGlowingObjects, tr_shade.cpp:2198-2203 MD,
+// :2150-2153 OpenJK) - nur die glow-Stufen, der Nebel aber ueber die ganze Flaeche, mit GLS_DEPTHFUNC_EQUAL gegen die geteilte Tiefe.
+// Gesetzt nur waehrend zeichneGluehen: Ziel ist der volle Gluehpuffer, gezeichnet werden nur Stapel mit glow-Stufe.
 int zeichneNebel(const BspMesh& mesh, const TextureSet* textures, const BspGeometry* geo,
                  const float* viewProj, float zeitSekunden, const float* kamera,
                  const std::vector<NebelGpu>& nebel,
@@ -6050,6 +6094,7 @@ int zeichneNebel(const BspMesh& mesh, const TextureSet* textures, const BspGeome
         nebelListe = &lokal;
     } else {
         std::memcpy(g_bildDaten, viewProj, 16U * sizeof(float));
+        if (grasLage == 0) { std::copy(daten + 28, daten + 31, g_nebelVornProbe); }   // REST3c: Selbsttest
     }
     if (g_bildDatenDa && g_cbBild != nullptr) {
         D3D11_MAPPED_SUBRESOURCE mb{};
@@ -6059,7 +6104,8 @@ int zeichneNebel(const BspMesh& mesh, const TextureSet* textures, const BspGeome
         }
     }
     setzeSchritt("Nebel: binden");
-    ::bhed::render::zielSetzen(c, 1, &g_zielRtv, g_tiefeDsv);
+    ID3D11RenderTargetView* ziel = g_nebelZiel != nullptr ? g_nebelZiel : g_zielRtv;
+    ::bhed::render::zielSetzen(c, 1, &ziel, g_tiefeDsv);
     g_zielVeraendert = true;
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(g_zielW);
@@ -6095,7 +6141,16 @@ int zeichneNebel(const BspMesh& mesh, const TextureSet* textures, const BspGeome
         c->VSSetShader(g_nebelVs, nullptr, 0);
         setzeSchritt("Nebel: Karte");
         const std::vector<DrawCall>& calls = zeichenliste(mesh, textures, zeitSekunden);
+        // REST3c: im Gluehen nur die Flaechen, deren Shader eine glow-Stufe hat (tr_backend.cpp:724 MD: !shader->hasGlow faellt weg)
+        std::vector<char> glueht;
+        if (g_nebelNurGlueh) {
+            glueht.assign(mesh.batches.size(), 0);
+            for (const DrawCall& call : calls) {
+                if ((call.state.features & kGlow) != 0U && call.batch < glueht.size()) { glueht[call.batch] = 1; }
+            }
+        }
         for (const DrawCall& call : calls) {
+            if (g_nebelNurGlueh && (call.batch >= glueht.size() || glueht[call.batch] == 0)) { continue; }
             // Nur Shader bis SS_SEE_THROUGH bekommen den Nebeldurchgang
             // (GeneratePermanentShader: fogPass = FP_EQUAL). Durchscheinendes
             // bleibt in der Engine ungenebelt - ausser den Nebelflaechen
@@ -9243,6 +9298,8 @@ int zeichneGluehen(const BspMesh&, const TextureSet*, const BspGeometry*,
     return 0;
 }
 int gluehenMoverAufrufe() { return 0; }
+void gluehenNebel(const std::vector<NebelGpu>*, const float*) {}
+int gluehenNebelAufrufe() { return 0; }
 void gluehenCpuInstanzen(int& eigen, int& fremd) {
     eigen = 0;
     fremd = 0;

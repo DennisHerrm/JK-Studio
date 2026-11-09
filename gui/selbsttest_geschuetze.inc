@@ -509,6 +509,10 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             }));
         }
     }
+    // REST3c: BHED_GV_EFFEKTE=0 zeigt die Karte ohne Effekte (welcher Anteil des Bildes von den Effekten kommt).
+    if (const char* fx = std::getenv("BHED_GV_EFFEKTE"); fx != nullptr && fx[0] == '0') {
+        add(tu("Geschuetze Vergleich: ohne Effekte", [] { g_app->showEffects = false; }));
+    }
     // rc608 Teil 10b: BHED_GV_DREHANIM=1 wie cg_turnAnims 1 im Spiel.
     if (const char* da = std::getenv("BHED_GV_DREHANIM"); da != nullptr && da[0] == '1') {
         add(tu("Geschuetze Vergleich: cg_turnAnims 1", [] { g_app->settings.cgTurnAnims = true; }));
@@ -609,6 +613,16 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Anbau-Stufen 0:%d 1:%d 2:%d 3+:%d", st[0], st[1], st[2], st[3]);
             diag::detail(z);
             anbauStufenProbe() = {};
+            // REST3c: Emittermodelle und die schaltbaren Lichtstile (32..) dieses Bildes (duel_exegol: Nebel und Blitzlichter)
+            {
+                double massstab = 0.0;
+                for (const EmitterModelDraw& em : g_app->emitterFlug) { massstab += static_cast<double>(em.scale); }
+                const auto gw = lichtStilGewichteZuZeit(g_app->map.entities, g_app->moverSim.lichtSchaltungen(), g_app->playMs);
+                std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Emittermodelle %zu (Massstab Summe %.1f), Lichtstil 32 %.2f, 33 %.2f, Nebelaufrufe %d, uebersprungen %d",
+                              g_app->emitterFlug.size(), massstab, static_cast<double>(gw[32][0]), static_cast<double>(gw[33][0]),
+                              g_app->nebelAufrufe, g_app->gpuUebersprungen);
+                diag::detail(z);
+            }
             std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Bildzeit %.1f ms", static_cast<double>(1000.0F / std::max(ImGui::GetIO().Framerate, 0.1F)));
             diag::detail(z);
             std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Ansicht von %.0f %.0f bis %.0f %.0f", static_cast<double>(g_app->kartenAnsicht[0]), static_cast<double>(g_app->kartenAnsicht[1]),

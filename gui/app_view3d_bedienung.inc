@@ -4442,8 +4442,13 @@ void drawMapView() {
                         gpu::baueMoverWelt(mv.pivot, mv.offset, mv.yaw, mv.pitch, mv.roll,
                                            mv.pitch != 0.0F || mv.roll != 0.0F, q.welt, mv.scale);
                         q.modellLicht = mv.licht;
+                        q.nebel = nebelFuer(mv.offset);
                         gluehMover.push_back(q);
                     }
+                    // REST3c: der Nebel der Flaechen mit glow-Stufe geht mit ins Gluehen (RB_FogPass im Gluehdurchgang)
+                    const std::vector<gpu::NebelGpu> gluehNebel =
+                        (!g_app->imSpiegelDurchgang && g_app->showFog) ? nebelListe() : std::vector<gpu::NebelGpu>{};
+                    gpu::gluehenNebel(&gluehNebel, bildCam.pos);
                     // rc602 kartenpruefung: die Effektteilchen mit glow-Stufe dazu.
                     gpu::gluehenEffekte(g_app->showEffects ? &g_app->effectMesh : nullptr);
                     gpu::gluehenKlingen(&klingen);   // rc602: die Leuchtklingen dazu

@@ -334,6 +334,7 @@ struct GluehQuelle {
     const BspMesh* mesh = nullptr;
     float welt[16]{};
     GridLight modellLicht;   // rc608: Licht der Entity, wenn das Netz ein .md3 ist
+    int nebel = -1;          // REST3c: Nebel am Ursprung eines .md3 (R_ComputeFogNum), fuer den Nebel im Gluehen
 };
 int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
                    const BspGeometry* geo, const float* viewProj,
@@ -342,6 +343,12 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
                    const std::vector<GluehQuelle>& weitere);
 // Wie viele Aufrufe der weiteren Quellen das letzte Gluehen gezeichnet hat.
 int gluehenMoverAufrufe();
+// REST3c: vor zeichneGluehen die Nebel der Karte und das Auge nennen (nullptr = keiner): RB_FogPass laeuft im Spiel auch im
+// Gluehdurchgang fuer jede Flaeche mit glow-Stufe (tr_shade.cpp:2198-2203 MD) und legt die Nebelfarbe in den Gluehpuffer.
+// Gilt nur fuer den naechsten zeichneGluehen; gluehenNebelAufrufe zaehlt die Nebelaufrufe darin (Selbsttest).
+struct NebelGpu;
+void gluehenNebel(const std::vector<NebelGpu>* nebel, const float auge[3]);
+int gluehenNebelAufrufe();
 // REST3b: im letzten Gluehen die Aufrufe von Instanzen mit CPU-Ecken (autosprite), die mit den eigenen Ecken (eigen) bzw.
 // mit denen einer anderen Instanz desselben Netzes (fremd) zeichneten.
 void gluehenCpuInstanzen(int& eigen, int& fremd);
@@ -386,6 +393,8 @@ long long spritePatchEcken();
 // REST3: die letzte Sicht von verformeTess an einem Mover (links, hoch, vorn im Raum des Modells, vornWelt), dazu seine Stellung
 // (welt, Zeilen) und die Kameraachsen der Welt (vorn, rechts, hoch); false: noch keine.
 bool spriteSichtProbe(float welt[16], float weltAchsen[9], float sicht[12]);
+// REST3c: die Blickrichtung (gVorn), mit der der Nebel der Karte im letzten Bild gerechnet wurde - Selbsttest.
+void nebelVornProbe(float vorn[3]);
 // rc603: der schnelle Stufenweg - dieselben Aufrufe wie rc602, die Werte
 // einer Flaeche mit einem Map im Ring, die Zustaende gemerkt.
 // figurStufenSchnellAufrufe: seine Stufenaufrufe im letzten Hauptbild;

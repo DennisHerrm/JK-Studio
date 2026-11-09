@@ -344,6 +344,10 @@ struct TextureSet {
         // Environment werden sie je Ecke aus Normale und Blickrichtung
         // gerechnet statt aus der .bsp genommen.
         TexGen texGen = TexGen::Base;
+        // REST3c: eine weitere `map $lightmap`-Stufe (nach der ersten, die in der Grundstufe steckt): ihr Bild ist die Lightmap der
+        // Flaeche (tr.lightmaps[lightmapIndex], ohne Lightmap tr.whiteImage; ParseStage tr_shader.cpp OpenJK/MD), gelesen wie die
+        // Lightmap selbst (geklemmt, ohne Mipmaps). `rgba` traegt dafuer nur ein weisses Ersatzbild.
+        bool lightmapBild = false;
         // rc605: tcGen vector - s [0..2], t [3..5] (ComputeTexCoords TCGEN_VECTOR).
         float tcGenVec[6]{0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F};
         // Die beiden Faktoren aus glBlendFunc - siehe BlendFactor. `blend`
@@ -896,6 +900,7 @@ struct BatchState {
     AlphaGen alphaGen = AlphaGen::FromImage;
     DepthFunc depthFunc = DepthFunc::LEqual;
     TexGen texGen = TexGen::Base;
+    bool lightmapBild = false;   // REST3c: siehe TextureSet::Tex::lightmapBild
     float alphaConst = -1.0F;
     bool depthWrite = false;
     bool autosprite = false;

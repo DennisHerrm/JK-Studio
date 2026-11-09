@@ -2666,7 +2666,14 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
         return;
     }
     TextureSet::Tex zusatz;
-    if (!loadImageFile(st.image, zusatz)) {
+    if (st.lightmap) {
+        // REST3c: eine weitere `map $lightmap`-Stufe - das Bild ist die Lightmap der Flaeche (beim Zeichnen gebunden, kLightmapBild);
+        // hier nur ein weisses Ersatzbild wie tr.whiteImage (R_CreateBuiltinImages: 8 x 8), das ohne Lightmap gilt.
+        zusatz.width = 8;
+        zusatz.height = 8;
+        zusatz.rgba.assign(8U * 8U * 4U, 255);
+        zusatz.lightmapBild = true;
+    } else if (!loadImageFile(st.image, zusatz)) {
         diag::detail("Stufe \"" + st.image +
                      "\" von " + shaderName +
                      " nicht ladbar - wird uebersprungen");
@@ -2713,7 +2720,15 @@ void zusatzstufeLaden(const ShaderInfo& info, const ShaderInfo::Stage& st, const
     zusatz.clamp = st.clamp;
     zusatz.keinTc = st.keinTc;   // MR7 P43: ParseStage, allowTC = !noTC beim Lesen dieser Stufe
     zusatz.keinMip = st.keinMip;
-    wieErsterLaden(st.image, zusatz);   // MR8 Punkt 1
+    if (st.lightmap) {
+        // REST3c: ohne tcGen nimmt eine $lightmap-Stufe die Lightmap-Koordinaten (ParseStage: TCGEN_BAD -> TCGEN_LIGHTMAP); die
+        // Lightmap ist geklemmt und ohne Mipmaps hochgeladen (R_LoadLightmaps / R_FindLightmap: GL_CLAMP, mipmap qfalse)
+        if (zusatz.texGen == TexGen::Base) { zusatz.texGen = TexGen::Lightmap; }
+        zusatz.clamp = true;
+        zusatz.keinMip = true;
+    } else {
+        wieErsterLaden(st.image, zusatz);   // MR8 Punkt 1
+    }
     zusatz.depthWrite = st.depthWrite;
     zusatz.depthFunc = st.depthFunc;
     zusatz.alphaGen = st.alphaGen;
@@ -3142,7 +3157,17 @@ void loadMapTextures() {
                         diag::detail("Shader \"" + sh.name + "\": Bild der Lichtstufe anders gross als die Abdeckung - Stufen wie bisher");
                     }
                 }
+                // REST3c: die ERSTE `map $lightmap`-Stufe steckt in der Grundstufe (bzw. im Lichtfilter); jede weitere ist eine
+                // eigene Stufe mit der Lightmap als Bild (ParseStage, tr_shader.cpp OpenJK/MD) - auf duel_exegol leuchten so die
+                // Waende und Boeden im Gluehen (map $lightmap, tcgen lightmap, glow). Bis REST3c fielen sie still weg.
+                bool ersteLichtstufe = true;
                 for (const ShaderInfo::Stage& st : si->second.stages) {
+                    if (st.lightmap && !ersteLichtstufe && !st.ss.aktiv() &&
+                        !(absorbiert && &st - si->second.stages.data() <= ersetzt)) {
+                        zusatzstufeLaden(si->second, st, sh.name, t);
+                        continue;
+                    }
+                    if (st.lightmap) { ersteLichtstufe = false; }
                     if (st.lightmap && lichtZuletzt) {
                         lightmapFilterLaden(t);
                         continue;

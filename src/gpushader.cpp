@@ -1446,6 +1446,9 @@ struct VSOut {
         s += "        precise float tvT = welt.x * gTcGenT.x + welt.y * gTcGenT.y + welt.z * gTcGenT.z;\n";
         s += "        aus.uv = float2(tvS, tvT);\n";
         s += "    }\n";
+    } else if ((features & kTexGenLm) != 0U) {
+        // REST3c: tcGen lightmap - ComputeTexCoords TCGEN_LIGHTMAP (tr_shade.cpp OpenJK/MD): st = tess.texCoords[i][1]
+        s += "    aus.uv = ein.uvLm;\n";
     } else {
         s += "    aus.uv = ein.uv;\n";
     }
@@ -1589,6 +1592,9 @@ float4 main(VSOut ein) : SV_TARGET {
     } else {
         if ((features & kSpiegelBild) != 0U) {
             s += "    float4 c = float4(gPortal.Load(int3(int2(ein.pos.xy), 0)).rgb, 1.0);\n";
+        } else if ((features & kLightmapBild) != 0U) {
+            // REST3c: das Bild einer weiteren `map $lightmap`-Stufe ist die Lightmap (tr.lightmaps, GL_CLAMP, ohne Mipmaps, Alpha 255)
+            s += "    float4 c = float4(gLightmap.Sample(gLmAbtaster, ein.uv).rgb, 1.0);\n";
         } else {
             s += "    float4 c = gBild.Sample(gSampler, ein.uv);\n";
         }

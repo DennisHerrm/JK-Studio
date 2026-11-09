@@ -216,6 +216,11 @@ PipelineState pipelineFor(const BatchState& bs, bool hatLightmap,
         f |= kTexGenEnv;
     } else if (bs.texGen == TexGen::Vector) {
         f |= kTexGenVec;   // rc605
+    } else if (bs.texGen == TexGen::Lightmap) {
+        f |= kTexGenLm;   // REST3c
+    }
+    if (bs.lightmapBild) {
+        f |= kLightmapBild;   // REST3c
     }
     if (bs.alphaTest != AlphaTest::None) {
         f |= kAlphaTest;

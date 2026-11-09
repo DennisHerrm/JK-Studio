@@ -590,8 +590,13 @@ int sichtZeichnen(Szene& s, const Camera& cam, int breite, int hoehe, float zeit
             q.mesh = m.netz;
             std::copy(m.welt, m.welt + 16, q.welt);
             q.modellLicht = m.licht;
+            q.nebel = nebelFuerIn(s.geo, m.ort);
             gluehModelle.push_back(q);
         }
+        // REST3c: der Nebel der Flaechen mit glow-Stufe geht mit ins Gluehen (RB_FogPass im Gluehdurchgang)
+        const std::vector<gpu::NebelGpu> gluehNebel =
+            (!spiegel && g_app->showFog) ? nebelListeFuer(s.geo) : std::vector<gpu::NebelGpu>{};
+        gpu::gluehenNebel(&gluehNebel, cam.pos);
         // Die Effektteilchen mit glow-Stufe gehen mit ins Gluehen, der Rauch nach dem Schalter der Vorschau.
         gpu::gluehenEffekte(g_app->showEffects ? &effekte : nullptr);
         const int gl = gpu::zeichneGluehen(s.netz, &s.bilder, &s.geo, vp, zeit, gpu::kGluehBreite, gpu::kGluehHoehe, true, &f,

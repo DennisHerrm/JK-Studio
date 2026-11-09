@@ -142,6 +142,10 @@ enum Feature : std::uint32_t {
     // FIX5: eine tcMod turb in der Kette - nur dann rechnet der Vertexshader den turb-Teil (turbIndex); ohne bleibt er
     // schlanker bei gleichen Bits.
     kTurb          = 1U << 27,
+    // REST3c: tcGen lightmap (auch die Vorgabe einer `map $lightmap`-Stufe) - st sind die Lightmap-Koordinaten der Ecke.
+    kTexGenLm      = 1U << 28,
+    // REST3c: das Bild der Stufe ist die Lightmap der Flaeche (weitere `map $lightmap`-Stufe), gelesen wie die Lightmap.
+    kLightmapBild  = 1U << 29,
 
     // Alles, was Ecken woanders hinlegt als die Datei - Licht- und
     // Nebeldurchgang zeichnen die Flaeche ohne diese Rechnung und lassen

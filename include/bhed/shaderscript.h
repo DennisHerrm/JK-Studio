@@ -218,7 +218,9 @@ enum class CullMode : std::uint8_t { Front, Two, Back };
 // rc605: Vector - `tcGen vector ( s ) ( t )`: st = (xyz . s, xyz . t) je Ecke
 // (ComputeTexCoords TCGEN_VECTOR, code/rd-vanilla/tr_shade.cpp:1675-1680 MD;
 // ParseStage liest die zwei Vektoren mit ParseVector, tr_shader.cpp:1611-1617 MD).
-enum class TexGen : std::uint8_t { Base, Environment, Vector };
+// REST3c: Lightmap - tcGen lightmap, und die Vorgabe jeder `map $lightmap`-Stufe (ParseStage: TCGEN_BAD wird bei isLightmap zu
+// TCGEN_LIGHTMAP, tr_shader.cpp OpenJK/MD): st sind die Lightmap-Koordinaten der Ecke.
+enum class TexGen : std::uint8_t { Base, Environment, Vector, Lightmap };
 
 // rc602 kartenpruefung: WELCHES rgbGen eine Stufe hat (ParseStage,
 // tr_shader.cpp). Die Welt fasst vertex/exactVertex/lightingDiffuse zu
