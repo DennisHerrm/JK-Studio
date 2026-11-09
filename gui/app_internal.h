@@ -1421,6 +1421,12 @@ struct App {
         // Bild wie G2_ComputeLOD mit dem Radius der Entity (s.radius: InitMover 120, SP_misc_model_ghoul 50).
         int glmStufen = 0;
         float glmRadius = 0.0F;
+        // REST3d: ein .md3 mit Detailstufen (RE_RegisterModel: Name_2.md3, Name_1.md3, dann Name.md3) - die Datei der Stufe n
+        // steht wie bei glmStufen unter path + "|lod<n>", gewaehlt je Bild nach R_ComputeLOD (kartenModellStufe). Jede Stufe hat
+        // ihre eigenen Flaechen und Shader: md3StufenBasis[n] ist ihre erste Nummer in textures.byShader (Stufe 0: shaderBase).
+        int md3Stufen = 0;
+        int md3StufenBasis[3]{};
+        std::vector<float> md3BildRadius;   // RadiusFromBounds je Bild der vollen Stufe (md3[0])
         // MRESTE 4: "modelAngles" eines Movers mit model2 (CG_Mover: AnglesToAxis(lerpAngles + modelAngles),
         // cg_ents.cpp:1356-1361 OpenJK; JK2 kennt den Schluessel nicht).
         float modellWinkel[3]{};
@@ -2992,7 +2998,10 @@ struct KartenModellZiel {
 void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehlt);
 // MRESTE 4: die LOD-Stufe eines Ghoul2-Kartenmodells in diesem Bild nach G2_ComputeLOD (tr_ghoul2.cpp:834-905) fuer die
 // Sicht `cam` am Ort `ort` (0 auch fuer jedes andere Modell); die Datei der Stufe n > 0 steht unter path + "|lod<n>".
-int kartenModellStufe(const App::MapModel& mm, const float ort[3], const Camera& cam);
+// REST3d: ein .md3 mit Detailstufen nach R_ComputeLOD mit dem Radius des Bildes `bild` (ent->e.frame).
+int kartenModellStufe(const App::MapModel& mm, const float ort[3], const Camera& cam, int bild = 0);
+// REST3d: die erste Shader-Nummer der Stufe (ein .md3 hat je Stufe eigene Flaechen, Ghoul2 die von Stufe 0).
+int kartenModellBasis(const App::MapModel& mm, int stufe);
 // MERGE2 Punkt 4: das Netz der Detailstufe, die G2_ComputeLOD fuer diese Figur in diesem Bild waehlt (fw: ihre Weltmatrix).
 const GlmModel& figurNetzImBild(const ActorDraw& a, const float fw[16], const Camera& cam);
 // REST3b: das Netz eines Anbaus (Waffe, Griff, Kinomodell) in der Stufe, die G2_ComputeLOD mit der Entity der Figur waehlt.
@@ -3003,6 +3012,8 @@ std::array<int, 4>& anbauStufenProbe();
 // (`ort`: der Ursprung in diesem Bild); gegenstandStufenProbe zaehlt die Wahl wie anbauStufenProbe.
 const GlmModel& gegenstandNetzImBild(const App::GegenstandGlm& gg, const App::ActorAssets& as, const float ort[3], const Camera& cam);
 std::array<int, 4>& gegenstandStufenProbe();
+// REST3d: die Wahl der .md3-Kartenmodelle mit Detailstufen (kartenModellStufe nach R_ComputeLOD), je Stufe gezaehlt.
+std::array<int, 4>& md3StufenProbe();
 // MRESTE 4: ein Ghoul2-Kartenmodell (.glm-Bytes `data`) je LOD-Stufe als starres Netz nach `dateien` (Stufe 0 unter `low`,
 // Stufe n unter "low|lod<n>"); zurueck die Zahl der Stufen, 0: nicht lesbar oder ohne passende GLA (Grund in `fehler`).
 int glmStufenLaden(const std::string& data, const std::string& low, std::map<std::string, Md3Model>& dateien, std::string& fehler);

@@ -95,6 +95,13 @@ struct LodLage {
 };
 [[nodiscard]] float projiziereRadius(float r, float abstand, float projektion5) noexcept;   // ProjectRadius
 [[nodiscard]] int lodWieImSpiel(const LodLage& l) noexcept;                                    // G2_ComputeLOD
+// REST3d: ein .md3 mit Detailstufen (Name_1.md3, Name_2.md3) waehlt nach R_ComputeLOD (code/rd-vanilla/tr_mesh.cpp:176-219
+// MD9, OpenJK gleich): der Radius aus den Grenzen des gezeichneten Bildes (RadiusFromBounds), ohne s.radius, ohne modelScale,
+// ohne die 0,75 von G2_ComputeLOD und ohne die Grenze 20 fuer r_lodscale. Benutzt stufenZahl, abstand, projektion5, lodscale
+// und lodbias der Lage; `radius` ist der Radius des Bildes.
+[[nodiscard]] int md3LodWieImSpiel(const LodLage& l) noexcept;                                  // R_ComputeLOD
+// RadiusFromBounds (q_math.c): Laenge des Vektors der groessten Betraege je Achse.
+[[nodiscard]] float radiusAusGrenzen(const float mins[3], const float maxs[3]) noexcept;
 
 // --- MRESTE 4: ein Ghoul2-Kartenmodell ohne Animation als starres Netz --------
 // model2 an einem Brush-Mover (InitMover, code/game/g_mover.cpp:1069-1080 OpenJK, codeJK2 :1061-1073; s.radius 120)

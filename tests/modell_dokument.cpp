@@ -301,6 +301,73 @@ int main(int argc, char** argv) {
         expect("ProjectRadius: hoechstens 1", std::fabs(projiziereRadius(1000.0F, 10.0F, 1.0F) - 1.0F) < 1e-6F);
     }
 
+    // --- REST3d: .md3 mit Detailstufen wie R_ComputeLOD -------------------------------
+    {
+        // R_ComputeLOD aus code/rd-vanilla/tr_mesh.cpp:176-219 (Movie Duels 9, OpenJK gleich) abgeschrieben, mit ProjectRadius
+        // (:31-62) und der Projektionsmatrix von R_SetupProjection ([5] = 1/tan(fovY/2), [11] = -1, sonst 0 in den Spalten)
+        const auto spiel = [](int numLods, const float b0[3], const float b1[3], float dist, float p5, float lodscale, int lodbias) {
+            float c[3];
+            for (int i = 0; i < 3; ++i) { c[i] = std::max(std::fabs(b0[i]), std::fabs(b1[i])); }
+            const float radius = std::sqrt(c[0] * c[0] + c[1] * c[1] + c[2] * c[2]);
+            if (numLods < 2) { return 0; }
+            float pr = 0.0F;
+            if (dist > 0.0F) {
+                const float p[3] = {0.0F, std::fabs(radius), -dist};
+                const float width = p[1] * p5;
+                const float depth = p[2] * -1.0F;
+                pr = width / depth;
+                if (pr > 1.0F) { pr = 1.0F; }
+            }
+            float flod = 0.0F;
+            if (pr != 0.0F) {
+                flod = 1.0F - pr * lodscale;
+                flod *= static_cast<float>(numLods);
+            }
+            int lod = static_cast<int>(flod);
+            if (lod < 0) { lod = 0; } else if (lod >= numLods) { lod = numLods - 1; }
+            lod += lodbias;
+            if (lod >= numLods) { lod = numLods - 1; }
+            if (lod < 0) { lod = 0; }
+            return lod;
+        };
+        // Grenzen etwa wie saber_w.md3 (assets1.pk3, Bild 0: -0.9 -1.1 -9.2 bis 1.0 0.9 4.3); Kamera cg_fov 80 bei 4:3 (fovY 64.36644)
+        const float b0[3] = {-0.9375F, -1.0625F, -9.1875F};
+        const float b1[3] = {0.96875F, 0.90625F, 4.296875F};
+        const float p5 = 1.0F / std::tan(64.36644F * 3.14159265F / 360.0F);
+        int gleich = 0;
+        int faelle = 0;
+        bool stufe1 = false;
+        for (int numLods = 1; numLods <= 3; ++numLods) {
+            for (int bias = 0; bias <= 1; ++bias) {
+                for (float d = -20.0F; d < 2000.0F; d += 1.25F) {
+                    LodLage x;
+                    x.stufenZahl = numLods;
+                    x.radius = radiusAusGrenzen(b0, b1);
+                    x.abstand = d;
+                    x.projektion5 = p5;
+                    x.lodscale = 10.0F;
+                    x.lodbias = bias;
+                    const int a = md3LodWieImSpiel(x);
+                    const int s = spiel(numLods, b0, b1, d, p5, 10.0F, bias);
+                    gleich += a == s ? 1 : 0;
+                    ++faelle;
+                    stufe1 = stufe1 || (numLods == 2 && bias == 0 && s == 1);
+                }
+            }
+        }
+        expect("R_ComputeLOD: md3LodWieImSpiel gleich dem abgeschriebenen Spielcode in " + std::to_string(gleich) + " von " +
+                   std::to_string(faelle) + " Faellen (1-3 Stufen, r_lodbias 0/1, Abstand -20..2000)",
+               gleich == faelle && stufe1);
+        // Anders als G2_ComputeLOD: ohne 0,75 und ohne die Grenze 20 fuer r_lodscale
+        LodLage g;
+        g.stufenZahl = 2;
+        g.radius = 10.0F;
+        g.abstand = 400.0F;
+        g.projektion5 = 1.0F;
+        g.lodscale = 30.0F;
+        expect("R_ComputeLOD rechnet r_lodscale 30 ungekappt (G2_ComputeLOD kappt auf 20)", md3LodWieImSpiel(g) == 0 && lodWieImSpiel(g) == 1);
+    }
+
     // --- Grenzen knapp unter und ueber ----------------------------------------------
     {
         const Grenzen& jka = grenzen(Zielspiel::JkaSp);

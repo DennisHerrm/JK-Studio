@@ -365,7 +365,7 @@ std::vector<ModellBild> modelleImBild(Szene& s, float zeit, const Camera& cam) {
             const auto datei = s.md3.find(pfad);
             if (datei == s.md3.end()) { continue; }
             auto netz = s.modellNetze.find(pfad + "#0");
-            if (netz == s.modellNetze.end()) { netz = s.modellNetze.emplace(pfad + "#0", md3ToMesh(datei->second, 0, mm.shaderBase)).first; }
+            if (netz == s.modellNetze.end()) { netz = s.modellNetze.emplace(pfad + "#0", md3ToMesh(datei->second, 0, kartenModellBasis(mm, stufe))).first; }
             if (netz->second.indexes.empty()) { continue; }
             const BrushStellung& b = st->second;
             ModellBild m;
@@ -377,7 +377,9 @@ std::vector<ModellBild> modelleImBild(Szene& s, float zeit, const Camera& cam) {
             aus.push_back(m);
             continue;
         }
-        const int stufe = kartenModellStufe(mm, mm.origin, cam);   // MRESTE 4: misc_model_ghoul
+        // MRESTE 4: misc_model_ghoul; REST3d: .md3 mit Detailstufen nach dem Radius des Bildes
+        const int bildVorher = mm.frames > 1 && !mm.standbild ? static_cast<int>(static_cast<double>(zeit) * 1000.0 * 0.020) % mm.frames : 0;
+        const int stufe = kartenModellStufe(mm, mm.origin, cam, bildVorher);
         std::string stufenPfad;
         const std::string& pfad = stufe == 0 ? mm.path : (stufenPfad = mm.path + "|lod" + std::to_string(stufe));
         const auto datei = s.md3.find(pfad);
@@ -387,7 +389,7 @@ std::vector<ModellBild> modelleImBild(Szene& s, float zeit, const Camera& cam) {
         if (bilder > 1 && !mm.standbild) { bild = static_cast<int>(static_cast<double>(zeit) * 1000.0 * 0.020) % bilder; }
         const std::string key = pfad + "#" + std::to_string(bild);
         auto netz = s.modellNetze.find(key);
-        if (netz == s.modellNetze.end()) { netz = s.modellNetze.emplace(key, md3ToMesh(datei->second, bild, mm.shaderBase)).first; }
+        if (netz == s.modellNetze.end()) { netz = s.modellNetze.emplace(key, md3ToMesh(datei->second, bild, kartenModellBasis(mm, stufe))).first; }
         if (netz->second.indexes.empty()) { continue; }
         ModellBild m;
         m.netz = &netz->second;

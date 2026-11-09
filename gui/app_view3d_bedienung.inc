@@ -2559,8 +2559,15 @@ void drawMapView() {
                 pfad = bruch.modell;
                 basis = nb->second;
             }
-            if (const int stufe = kartenModellStufe(mm, bewegt ? figStand.pos : mm.origin, useCam); stufe > 0) {   // MRESTE 4
-                pfad += "|lod" + std::to_string(stufe);
+            // MRESTE 4 / REST3d: die Detailstufe (Ghoul2 bzw. .md3 mit dem Radius des Bildes, das gleich gezeichnet wird);
+            // Schadens- und Benutzmodelle haben eigene Dateien ohne Stufen hier
+            if (pfad == mm.path) {
+                const int bildVorher = mm.frames > 1 && !bruch.angehalten && !mm.standbild
+                                           ? static_cast<int>(g_app->playMs * 0.020) % mm.frames : 0;
+                if (const int stufe = kartenModellStufe(mm, bewegt ? figStand.pos : mm.origin, useCam, bildVorher); stufe > 0) {
+                    pfad += "|lod" + std::to_string(stufe);
+                    basis = kartenModellBasis(mm, stufe);
+                }
             }
             const auto have = g_app->md3Files.find(pfad);
             if (have == g_app->md3Files.end()) {
@@ -2840,7 +2847,7 @@ void drawMapView() {
             const std::string key = datei + "#0";
             auto netz = g_app->md3Meshes.find(key);
             if (netz == g_app->md3Meshes.end()) {
-                netz = g_app->md3Meshes.emplace(key, md3ToMesh(have->second, 0, mm.shaderBase)).first;
+                netz = g_app->md3Meshes.emplace(key, md3ToMesh(have->second, 0, kartenModellBasis(mm, stufe))).first;
             }
             if (netz->second.indexes.empty()) { continue; }
             MoverDraw d = st->second;

@@ -2943,14 +2943,36 @@ int glmStufenLaden(const std::string& data, const std::string& low, std::map<std
     return stufen;
 }
 
-int kartenModellStufe(const App::MapModel& mm, const float ort[3], const Camera& cam) {
-    if (mm.glmStufen < 2) { return 0; }
+std::array<int, 4>& md3StufenProbe() {
+    static std::array<int, 4> zahl{};
+    return zahl;
+}
+
+int kartenModellBasis(const App::MapModel& mm, int stufe) {
+    return mm.md3Stufen >= 2 && stufe > 0 && stufe < 3 ? mm.md3StufenBasis[stufe] : mm.shaderBase;
+}
+
+int kartenModellStufe(const App::MapModel& mm, const float ort[3], const Camera& cam, int bild) {
+    if (mm.glmStufen < 2 && mm.md3Stufen < 2) { return 0; }
     const modell::Zielspiel ziel = regelwerkJediOutcast() ? modell::Zielspiel::Jk2Sp
                                    : regelwerkMovieDuels() ? modell::Zielspiel::MdSp
                                                            : modell::Zielspiel::JkaSp;
     float vorn[3];
     cam.forward(vorn);
     modell::LodLage l;
+    if (mm.md3Stufen >= 2) {
+        // REST3d: R_ComputeLOD - md3[0] (die volle Stufe), frame += ent->e.frame, RadiusFromBounds; ProjectRadius mit
+        // ent->e.origin; r_lodscale und r_lodbias wie bei Ghoul2 (tr_init.cpp)
+        if (mm.md3BildRadius.empty()) { return 0; }
+        l.stufenZahl = mm.md3Stufen;
+        l.radius = mm.md3BildRadius[static_cast<std::size_t>(std::clamp(bild, 0, static_cast<int>(mm.md3BildRadius.size()) - 1))];
+        l.lodscale = modell::grenzen(ziel).lodscale;
+        l.abstand = vorn[0] * (ort[0] - cam.pos[0]) + vorn[1] * (ort[1] - cam.pos[1]) + vorn[2] * (ort[2] - cam.pos[2]);
+        l.projektion5 = 1.0F / std::tan(cam.fovY * 3.14159265F / 360.0F);
+        const int stufe = modell::md3LodWieImSpiel(l);
+        ++md3StufenProbe()[static_cast<std::size_t>(std::clamp(stufe, 0, 3))];
+        return stufe;
+    }
     l.stufenZahl = mm.glmStufen;
     l.radius = mm.glmRadius;
     l.skala = std::max({mm.scale[0], mm.scale[1], mm.scale[2]});   // largestScale (CG_Mover: 0 -> 1)
@@ -2976,6 +2998,9 @@ const NpcDef* figurNpcDef(const Actor& a) {
 }
 
 float figurLodRadius(const Actor& a, const NpcDef* npc) {
+    // REST3d: Fahrzeuge (CLASS_VEHICLE) sind eigene NPC-Entities mit eigener Ghoul2-Instanz und nehmen dieselbe Regel: "height"
+    // der .npc (NPC_stats.cpp:3659-3686 MD9, bei VH_FIGHTER mittig) bzw. mins/maxs in G_SetG2PlayerModelInfo. "g2radius" der .veh
+    // liest im Einzelspieler nur die Radaranzeige (cg_draw.cpp:10065 MD9); als Zeichenradius (s.g2radius) gilt er nur im Mehrspieler.
     // REST3b: SP_misc_atst_drivable setzt s.radius 320 (code/game/g_misc.cpp:3084 OpenJK, codeJK2/game/g_misc.cpp:2737), ebenso
     // G_DriveATST fuer den Spieler im AT-ST (codeJK2/game/g_client.cpp:1466, code/game/g_misc.cpp:3116)
     if (a.kartenEntity >= 0 && static_cast<std::size_t>(a.kartenEntity) < g_app->map.entities.size() &&
@@ -3196,6 +3221,24 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
                     continue;
                 }
                 (*z.dateien)[low] = std::move(mm);
+                // REST3d: die Detailstufen wie RE_RegisterModel (tr_model.cpp:656-736 MD9): von Name_2.md3 abwaerts; fehlt eine
+                // Stufe unter einer schon geladenen, bricht das Spiel ab ("has LOD %d but is missing LOD %d") - dann hier ohne
+                // Stufen und eine Meldung.
+                Md3Model stufe[3];
+                bool da[3] = {true, false, false};
+                bool abbruch = false;
+                const std::string stamm = low.substr(0, low.size() - 4);
+                for (int n = 2; n >= 1; --n) {
+                    std::string sd;
+                    std::string se;
+                    da[n] = readFromArchives(stamm + "_" + std::to_string(n) + ".md3", sd) && readMd3(sd, stufe[n], &se);
+                    abbruch = abbruch || (!da[n] && n == 1 && da[2]);
+                }
+                if (abbruch) {
+                    diag::info("Spielabbruch im Spiel: " + *mp + " hat LOD 2, aber nicht LOD 1 (R_LoadMD3) - ohne Detailstufen gezeichnet");
+                } else {
+                    for (int n = 1; n <= 2 && da[n]; ++n) { (*z.dateien)[low + "|lod" + std::to_string(n)] = std::move(stufe[n]); }
+                }
             }
         }
         const Md3Model& mm = (*z.dateien)[low];
@@ -3210,6 +3253,12 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
             item.glmStufen = 1;
             while (z.dateien->count(low + "|lod" + std::to_string(item.glmStufen)) != 0U) { ++item.glmStufen; }
             item.glmRadius = anBrush > 0 ? 120.0F : 50.0F;   // s.radius: InitMover / SP_misc_model_ghoul
+        } else if (z.dateien->count(low + "|lod1") != 0U) {
+            // REST3d: mod->numLods = die geladenen Dateien; die Radien je Bild von md3[0] fuer R_ComputeLOD
+            item.md3Stufen = z.dateien->count(low + "|lod2") != 0U ? 3 : 2;
+            for (std::size_t f = 0; f + 6U <= mm.bildGrenzen.size(); f += 6U) {
+                item.md3BildRadius.push_back(modell::radiusAusGrenzen(&mm.bildGrenzen[f], &mm.bildGrenzen[f + 3U]));
+            }
         }
         item.entity = static_cast<std::size_t>(&e - z.entities->data());
         item.anBrush = anBrush;
@@ -3307,6 +3356,18 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
                 z.textures->byShader.push_back(std::move(t));
             }
         });
+        // REST3d: jede Detailstufe eines .md3 mit ihren eigenen Flaechen und Shadern (R_LoadMD3 je Datei)
+        for (int n = 1; n < item.md3Stufen; ++n) {
+            const std::string stufenPfad = low + "|lod" + std::to_string(n);
+            const Md3Model& sm = (*z.dateien)[stufenPfad];
+            item.md3StufenBasis[n] = modellBlockIn(*z.textures, "m|" + stufenPfad + (fassung > 0 ? "|v" + std::to_string(fassung) : std::string()), [&] {
+                for (const Md3Surface& sf : sm.surfaces) {
+                    TextureSet::Tex t;
+                    loadTextureFor(sf.shader, t);
+                    z.textures->byShader.push_back(std::move(t));
+                }
+            });
+        }
         // SP_misc_camera: der Fuss impcam_base.md3 ist eine eigene Entity,
         // 16 hoeher, mit denselben Winkeln (G_SetAngles(base, self->s.angles)).
         if (e.classname == "misc_camera") {

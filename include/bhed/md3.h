@@ -119,6 +119,9 @@ struct Md3Model {
     // fehlt oder liegt ausserhalb der Datei (dann gilt der Kasten der Ecken von Bild 0).
     bool kopfGrenzen = false;
     float grenzen[2][3]{};
+    // REST3d: die Grenzen JEDES Bildes (md3Frame_t bounds, 6 Werte je Bild: mins, maxs) - R_ComputeLOD nimmt den Radius des
+    // gezeichneten Bildes (tr_mesh.cpp:186-191 OpenJK/MD). Leer: Bild-Lump fehlt.
+    std::vector<float> bildGrenzen;
 
     [[nodiscard]] bool empty() const noexcept { return surfaces.empty(); }
 

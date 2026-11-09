@@ -234,6 +234,36 @@ int lodWieImSpiel(const LodLage& l) noexcept {
     return lod;
 }
 
+float radiusAusGrenzen(const float mins[3], const float maxs[3]) noexcept {
+    float ecke[3];
+    for (int i = 0; i < 3; ++i) {
+        const float a = std::fabs(mins[i]);
+        const float b = std::fabs(maxs[i]);
+        ecke[i] = a > b ? a : b;
+    }
+    return std::sqrt(ecke[0] * ecke[0] + ecke[1] * ecke[1] + ecke[2] * ecke[2]);   // VectorLength
+}
+
+int md3LodWieImSpiel(const LodLage& l) noexcept {
+    if (l.stufenZahl < 2) { return 0; }   // "model has only 1 LOD level, skip computations and bias"
+    float flod = 0.0F;
+    const float pr = projiziereRadius(l.radius, l.abstand, l.projektion5);
+    if (pr != 0.0F) {
+        flod = 1.0F - pr * l.lodscale;
+        flod *= static_cast<float>(l.stufenZahl);
+    }
+    int lod = static_cast<int>(flod);   // Q_ftol
+    if (lod < 0) {
+        lod = 0;
+    } else if (lod >= l.stufenZahl) {
+        lod = l.stufenZahl - 1;
+    }
+    lod += l.lodbias;
+    if (lod >= l.stufenZahl) { lod = l.stufenZahl - 1; }
+    if (lod < 0) { lod = 0; }
+    return lod;
+}
+
 const GlaAnimation& standardGla() {
     // FakeGLAFile, code/rd-vanilla/tr_model.cpp:112-131 OpenJK (Movie Duels Update 9 gleich)
     static const unsigned char kDatei[] = {

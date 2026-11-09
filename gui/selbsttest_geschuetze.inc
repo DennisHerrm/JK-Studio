@@ -618,6 +618,11 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
             std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Gegenstand-Stufen 0:%d 1:%d 2:%d 3+:%d", gs[0], gs[1], gs[2], gs[3]);
             diag::detail(z);
             gegenstandStufenProbe() = {};
+            // REST3d: die .md3-Kartenmodelle mit Detailstufen (R_ComputeLOD)
+            const std::array<int, 4>& ms = md3StufenProbe();
+            std::snprintf(z, sizeof(z), "Geschuetze Vergleich: md3-Stufen 0:%d 1:%d 2:%d 3+:%d", ms[0], ms[1], ms[2], ms[3]);
+            diag::detail(z);
+            md3StufenProbe() = {};
             // REST3c: Emittermodelle und die schaltbaren Lichtstile (32..) dieses Bildes (duel_exegol: Nebel und Blitzlichter)
             {
                 double massstab = 0.0;

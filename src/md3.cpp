@@ -146,6 +146,16 @@ bool readMd3(const std::string& b, Md3Model& out, std::string* error) {
             }
             out.kopfGrenzen = true;
         }
+        // REST3d: alle Bilder (je 56 Byte), fuer R_ComputeLOD
+        if (ofsFrames >= static_cast<std::int32_t>(kHeader) &&
+            static_cast<std::size_t>(ofsFrames) + static_cast<std::size_t>(numFrames) * 56U <= b.size()) {
+            out.bildGrenzen.resize(static_cast<std::size_t>(numFrames) * 6U);
+            for (std::size_t f = 0; f < static_cast<std::size_t>(numFrames); ++f) {
+                for (std::size_t k = 0; k < 6U; ++k) {
+                    out.bildGrenzen[f * 6U + k] = f32(b, static_cast<std::size_t>(ofsFrames) + f * 56U + k * 4U);
+                }
+            }
+        }
     }
 
     // --- Die Tags (Lump zwischen Bildern und Flaechen) --------------------
