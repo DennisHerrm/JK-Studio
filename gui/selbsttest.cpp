@@ -6953,8 +6953,11 @@ void selbsttest() {
                 }
             }
         } else {
-            // Nach "No" haette das Programm schon zu sein.
-            meldeFehler("Beenden: Programm laeuft nach \"No\" weiter");
+            // Nach "No" haette das Programm schon zu sein. REST5 P2: eine offene Frage des Map Editors (karteneditor::beendenFrage
+            // wartet auf sie, antworteNein kennt nur die Fragen des Programms) mit Titel nennen.
+            const karteneditor::Editor& ke = karteneditor::editor();
+            meldeFehler(std::string("Beenden: Programm laeuft nach \"No\" weiter") +
+                        (ke.frageOffen ? " (offene Frage im Map Editor: \"" + ke.frageTitel + "\")" : ""));
             a.teil = 3;
             g_app->quitConfirmed = true;
             g_app->wantQuit = true;

@@ -64,6 +64,9 @@ std::vector<Schritt> decals() {
         e.filterMaske &= ~static_cast<unsigned int>(karte::EXCLUDE_POINT_ENT);
         karte::filterAnwenden(e.karte, e.filterMaske);
         e.echtLicht.an = false;
+        // REST5 P2: der fx_runner hat die Karte geaendert - ohne das fragte neueKarte "New Map" und liess die Frage offen,
+        // das Beenden am Ende des Teillaufs wartete dann auf sie (wie selbsttest_editorportal.inc)
+        e.karte.undo.alsGespeichertMarkieren();
         ke::neueKarte();
     }));
     return s;
