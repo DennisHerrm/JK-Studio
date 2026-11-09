@@ -65,7 +65,10 @@ verschmiert, um bis 0,35 Bildpunkte verschoben.
 
 ## Schlussrunde
 
-(siehe Bericht)
+- Sauberer Neubau (--clean-first) 0 Warnungen, 0 Fehler. Parallel (Y:/werkzeuge/r3b/schluss.sh, Summe schluss_summe.txt): ctest 245/245,
+  Modus 1 2635/0, mission1 98/0, figurlicht 8/0, karteneditor rd 38/0, r3 22/0, editorportal 19/0, laserfalle 9/0, modellblock md 86/0,
+  funktionen 61/0, rest605 moversprite 2/0. Lints wie die Basis (portability 99, pruefcodes 11, link/tidy nur unter Linux), Handbuch
+  --pruefen ok. Keine Bildzeit-Messung (Auftrag). Handbuch inhaltlich nicht geaendert.
 
 ## Changelog
 
