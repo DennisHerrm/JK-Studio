@@ -780,6 +780,191 @@ int uvAusEiner(const PolyNetz& n, const PFlaeche& f, const std::vector<UvFlaeche
     return -1;
 }
 
+// REST5 Punkt 1: die letzten Chamfer-Abweichungen gegen Blender 5.0 bmesh_bevel.cc
+int eckeAn(const PFlaeche& f, int q) {
+    for (std::size_t i = 0; i < f.ecken.size(); ++i) {
+        if (f.ecken[i].punkt == q) { return static_cast<int>(i); }
+    }
+    return -1;
+}
+// die Nachbarn eines Punkts im Vieleck (Vorgaenger, Nachfolger)
+std::pair<int, int> nachbarnIn(const PFlaeche& f, int q) {
+    const int i = eckeAn(f, q), k = static_cast<int>(f.ecken.size());
+    return {f.ecken[uz((i + k - 1) % k)].punkt, f.ecken[uz((i + 1) % k)].punkt};
+}
+void chamferRest5Test() {
+    // (1) build_boundary :3218 / offset_on_edge_between :1788: genau eine ungewaehlte Kante (in der Ebene) zwischen zwei gefasten
+    // -> die Mitte der zwei Treffpunkte auf ihr. 2x2-Kasten, oben die Mitte; der Nachbar -x nach (-0,5 / 0,25) geschoben, gefast
+    // +x und die Kante zu ihm: auf +y und -y je 1 / sin 90 und 1 / sin 63,43 Grad -> Betrag (1 + Wurzel 5 / 2) / 2 = 0,10590
+    // (vorher die naehere Versetzung, 0,1).
+    {
+        PolyNetz n = kasten(1.0F, 2);
+        n.punkte[uz(punktBei(n, -0.5F, 0.0F, 1.0F))].ort[1] = 0.25F;
+        Plan p = chamferKanten(n, {kanteZwischen(n, 0.0F, 0.0F, 1.0F, 0.5F, 0.0F, 1.0F), kanteZwischen(n, 0.0F, 0.0F, 1.0F, -0.5F, 0.25F, 1.0F)}, 1, 0.5F);
+        betragAnwenden(n, p, 0.1F);
+        const float d = static_cast<float>(0.1 * (1.0 + std::sqrt(5.0) / 2.0) / 2.0);
+        const bool oben = punktBei(n, 0.0F, d, 1.0F) >= 0, unten = punktBei(n, 0.0F, -d, 1.0F) >= 0;
+        if (!oben || !unten) { std::printf("        +y %d -y %d (erwartet bei +-%.5f, alt +-0,1: %d %d)\n", oben ? 1 : 0, unten ? 1 : 0, static_cast<double>(d), punktBei(n, 0.0F, 0.1F, 1.0F) >= 0 ? 1 : 0, punktBei(n, 0.0F, -0.1F, 1.0F) >= 0 ? 1 : 0); }
+        expect("Chamfer, eine ungewaehlte Kante zwischen zwei gefasten: der Punkt in der Mitte der zwei Treffpunkte (Blender offset_on_edge_between)", !p.abgelehnt() && oben && unten);
+    }
+    // (2) update_uv_vert_map :676 / determine_uv_vert_connectivity :764: die Eimer der alten UV am Punkt. Wuerfelecke, Naht an
+    // jeder Kante, die UV am Punkt in BM_LOOPS_OF_VERT-Reihenfolge u, u + 0,00016, u + 0,00008: Eimer {1, 3} und {2} (die dritte
+    // kommt in den ersten Eimer); paarweise waeren 2 und 3 verbunden (Abstand 0,00008). Gefast die Kante zwischen der 1. und 2.
+    // Flaeche: am neuen Punkt auf der Kante zwischen 2. und 3. behalten beide ihre eigene UV.
+    {
+        PolyNetz n = kasten();
+        (void)nahtUv(n);
+        const int v = punktBei(n, 0.5F, 0.5F, 1.0F);
+        std::vector<std::pair<int, int>> folge;   // (Kante zum Vorgaenger, Vieleck)
+        for (std::size_t f = 0; f < n.flaechen.size(); ++f) {
+            if (eckeAn(n.flaechen[f], v) < 0) { continue; }
+            folge.emplace_back(n.kanteVon(v, nachbarnIn(n.flaechen[f], v).first), static_cast<int>(f));
+        }
+        std::sort(folge.begin(), folge.end());
+        const float uv[3] = {0.3F, 0.30016F, 0.30008F};
+        for (std::size_t i = 0; i < folge.size() && i < 3U; ++i) {
+            PFlaeche& f = n.flaechen[uz(folge[i].second)];
+            f.ecken[uz(eckeAn(f, v))].e.uv[0] = uv[i];
+            f.ecken[uz(eckeAn(f, v))].e.uv[1] = 0.3F;
+        }
+        const auto gemeinsam = [&](int fa, int fb) {
+            const auto [a1, a2] = nachbarnIn(n.flaechen[uz(fa)], v);
+            const auto [b1, b2] = nachbarnIn(n.flaechen[uz(fb)], v);
+            return (a1 == b1 || a1 == b2) ? a1 : a2;
+        };
+        const int fa = folge[0].second, fb = folge[1].second, fc = folge[2].second;
+        const int w12 = gemeinsam(fa, fb), w23 = gemeinsam(fb, fc);
+        Plan p = chamferKanten(n, {{v, w12}}, 1, 0.5F);
+        betragAnwenden(n, p, 0.2F);
+        int q = -1;
+        for (const PEcke& e : n.flaechen[uz(fb)].ecken) {
+            if (e.punkt != w23 && eckeAn(n.flaechen[uz(fc)], e.punkt) >= 0) { q = e.punkt; }
+        }
+        float ua[2] = {0.0F, 0.0F}, ub[2] = {0.0F, 0.0F};
+        if (q >= 0) {
+            for (int c = 0; c < 2; ++c) {
+                ua[c] = n.flaechen[uz(fb)].ecken[uz(eckeAn(n.flaechen[uz(fb)], q))].e.uv[c];
+                ub[c] = n.flaechen[uz(fc)].ecken[uz(eckeAn(n.flaechen[uz(fc)], q))].e.uv[c];
+            }
+        }
+        const bool getrennt = q >= 0 && std::abs(ua[0] - ub[0]) + std::abs(ua[1] - ub[1]) > 0.01F;
+        if (!getrennt) { std::printf("        Punkt %d: UV %.4f %.4f gegen %.4f %.4f\n", q, static_cast<double>(ua[0]), static_cast<double>(ua[1]), static_cast<double>(ub[0]), static_cast<double>(ub[1])); }
+        expect("Chamfer, alte UV am Punkt in Eimern wie Blender (erster passender Eimer): zwei Flaechen aus verschiedenen Eimern mitteln nicht", !p.abgelehnt() && getrennt);
+    }
+    // (3) bevel_build_trifan :5971 mit BM_face_split: die neuen Ecken an jedem Schnitt kopieren die UV vor bevel_merge_uvs und
+    // liegen in keinem Eimer. 2x2-Kasten, eine obere Randkante gefast (2 Segmente), am Randmittelpunkt vier Kanten: Faecher aus
+    // zwei Dreiecken mit der Spitze auf der gegenueberliegenden Kante. UV je Ebene affin (Deckel und Seite je eine Insel). Das
+    // Vieleck L0 L1 L2 L3 (L1 der Profilpunkt) wird [Kopie L1, L3, L0] und [Kopie L3, L1, L2]: L1 ist im zweiten Dreieck die
+    // Ecke des Vielecks (gemittelt wie die Streifen an ihm), im ersten die Kopie (ungemittelt). Vorher: beide gemittelt.
+    {
+        PolyNetz n = kasten(1.0F, 2);
+        for (PFlaeche& f : n.flaechen) {
+            int achse = 0;
+            for (int a = 0; a < 3; ++a) {
+                bool gleich = true;
+                for (const PEcke& e : f.ecken) { gleich = gleich && std::abs(n.punkte[uz(e.punkt)].ort[a] - n.punkte[uz(f.ecken[0].punkt)].ort[a]) < 1e-5F; }
+                if (gleich) { achse = a; }
+            }
+            const float ebene = n.punkte[uz(f.ecken[0].punkt)].ort[achse];
+            const float versatz = 10.0F * static_cast<float>(achse * 2 + (ebene > 0.0F ? 1 : 0));
+            for (PEcke& e : f.ecken) {
+                const float* o = n.punkte[uz(e.punkt)].ort;
+                e.e.uv[0] = o[(achse + 1) % 3] + versatz;
+                e.e.uv[1] = o[(achse + 2) % 3] * 0.5F + 0.25F * o[(achse + 1) % 3];
+            }
+        }
+        Plan p = chamferKanten(n, {kanteZwischen(n, 0.5F, 0.0F, 1.0F, 0.5F, 0.5F, 1.0F)}, 2, 0.5F);
+        betragAnwenden(n, p, 0.2F);
+        // die Dreiecke an der Spitze und ihr gemeinsamer Punkt ausser der Spitze (der Profilpunkt L1)
+        const int spitze = punktBei(n, 0.5F, -0.2F, 1.0F);
+        std::vector<int> dreiecke;
+        for (std::size_t f = 0; f < n.flaechen.size(); ++f) {
+            if (!n.flaechen[f].weg && n.flaechen[f].ecken.size() == 3U && eckeAn(n.flaechen[f], spitze) >= 0) { dreiecke.push_back(static_cast<int>(f)); }
+        }
+        int l1 = -1;
+        if (dreiecke.size() == 2U) {
+            for (const PEcke& e : n.flaechen[uz(dreiecke[0])].ecken) {
+                if (e.punkt != spitze && eckeAn(n.flaechen[uz(dreiecke[1])], e.punkt) >= 0) { l1 = e.punkt; }
+            }
+        }
+        const auto uvAn = [&](int f) {
+            const PEcke& e = n.flaechen[uz(f)].ecken[uz(eckeAn(n.flaechen[uz(f)], l1))];
+            return std::array<float, 2>{e.e.uv[0], e.e.uv[1]};
+        };
+        int wieNachbar = 0;
+        bool verschieden = false;
+        if (l1 >= 0) {
+            const auto d0 = uvAn(dreiecke[0]), d1 = uvAn(dreiecke[1]);
+            verschieden = std::abs(d0[0] - d1[0]) + std::abs(d0[1] - d1[1]) > 1e-4F;
+            for (const auto& d : {d0, d1}) {
+                bool gleich = false;
+                for (std::size_t f = 0; f < n.flaechen.size(); ++f) {
+                    if (n.flaechen[f].weg || n.flaechen[f].ecken.size() == 3U || eckeAn(n.flaechen[f], l1) < 0) { continue; }
+                    const auto a = uvAn(static_cast<int>(f));
+                    gleich = gleich || (std::abs(d[0] - a[0]) < 1e-5F && std::abs(d[1] - a[1]) < 1e-5F);
+                }
+                wieNachbar += gleich ? 1 : 0;
+            }
+        }
+        if (!verschieden || wieNachbar != 1) { std::printf("        L1 %d: %zu Dreiecke, verschieden %d, %d gemittelt wie die Streifen\n", l1, dreiecke.size(), verschieden ? 1 : 0, wieNachbar); }
+        expect("Chamfer, Faecher: der Profilpunkt ist nur im zweiten Dreieck die gemittelte Ecke, im ersten die Kopie vor dem Mitteln (Blender BM_face_split)", !p.abgelehnt() && verschieden && wieNachbar == 1);
+    }
+    // (4) bevel_vert_construct :6460 / find_bevel_edge_order / next_bev :596: das Eckvieleck beginnt bei boundstart, dem
+    // Randpunkt rechts von efirst. 2x2-Kasten, oben die Mitte, gefast +x, +y, -x (1 Segment): ein Dreieck. efirst nach den
+    // Kantennummern (BM_EDGES_OF_VERT): die erste gewaehlte, ausser ihr Nachbar gegen den Uhrzeiger kommt vor dem anderen und
+    // der andere ist gewaehlt - dann dieser. Alle vier Lagen der ungewaehlten Kante.
+    int startGut = 0;
+    for (int frei = 0; frei < 4; ++frei) {
+        PolyNetz n = kasten(1.0F, 2);
+        const int c = punktBei(n, 0.0F, 0.0F, 1.0F);
+        const int nb[4] = {punktBei(n, 0.5F, 0.0F, 1.0F), punktBei(n, 0.0F, 0.5F, 1.0F), punktBei(n, -0.5F, 0.0F, 1.0F), punktBei(n, 0.0F, -0.5F, 1.0F)};
+        bool gew[4] = {true, true, true, true};   // gegen den Uhrzeiger von oben: +x, +y, -x, -y
+        gew[frei] = false;
+        // der Randpunkt rechts der Kante e: zur naechsten gewaehlten gegen den Uhrzeiger der Gehrungspunkt, ueber die freie hinweg
+        // der Punkt auf ihr
+        const float dx[4] = {1.0F, 0.0F, -1.0F, 0.0F}, dy[4] = {0.0F, 1.0F, 0.0F, -1.0F};
+        float start[4][2] = {};
+        for (int e = 0; e < 4; ++e) {
+            const int nx = (e + 1) % 4;
+            if (gew[nx]) {
+                start[e][0] = 0.1F * (dx[e] + dx[nx]);
+                start[e][1] = 0.1F * (dy[e] + dy[nx]);
+            } else {
+                start[e][0] = 0.1F * dx[nx];
+                start[e][1] = 0.1F * dy[nx];
+            }
+        }
+        int erste = -1;
+        for (int e = 0; e < 4; ++e) {
+            if (gew[e] && (erste < 0 || n.kanteVon(c, nb[e]) < n.kanteVon(c, nb[erste]))) { erste = e; }
+        }
+        const int gegen = (erste + 1) % 4, mit = (erste + 3) % 4;
+        const int efirst = n.kanteVon(c, nb[gegen]) < n.kanteVon(c, nb[mit]) && gew[mit] ? mit : erste;
+        std::vector<std::pair<int, int>> kanten;
+        for (int e = 0; e < 4; ++e) {
+            if (gew[e]) { kanten.emplace_back(c, nb[e]); }
+        }
+        Plan p = chamferKanten(n, kanten, 1, 0.5F);
+        betragAnwenden(n, p, 0.1F);
+        int dreieck = -1;
+        for (std::size_t f = 0; f < n.flaechen.size(); ++f) {
+            const PFlaeche& fl = n.flaechen[f];
+            if (fl.weg || fl.ecken.size() != 3U) { continue; }
+            bool nah = true;
+            for (const PEcke& e : fl.ecken) {
+                const float* o = n.punkte[uz(e.punkt)].ort;
+                nah = nah && std::abs(o[0]) < 0.15F && std::abs(o[1]) < 0.15F && std::abs(o[2] - 1.0F) < 1e-4F;
+            }
+            if (nah) { dreieck = static_cast<int>(f); }
+        }
+        const int erwartet = punktBei(n, start[efirst][0], start[efirst][1], 1.0F);
+        const int ist = dreieck >= 0 ? n.flaechen[uz(dreieck)].ecken[0].punkt : -1;
+        if (ist != erwartet || ist < 0) { std::printf("        frei %d, efirst %d: erste Ecke %d, erwartet %d\n", frei, efirst, ist, erwartet); }
+        startGut += !p.abgelehnt() && ist >= 0 && ist == erwartet ? 1 : 0;
+    }
+    expect("Chamfer, das Eckvieleck beginnt bei Blenders boundstart (Randpunkt rechts von efirst), alle vier Lagen", startGut == 4);
+}
+
 void chamferFeinTest() {
     std::printf("Chamfer-Feinheiten (Blender bmesh_bevel.cc)\n");
     // (c) build_boundary :3153: zwischen zwei gefasten Kanten teilen alle ungewaehlten Kanten EINEN Randpunkt. 2x2-Kasten,
@@ -868,6 +1053,7 @@ void chamferFeinTest() {
         }
         expect("Chamfer alle Kanten, 1 Segment, Naht: die 12 Streifen nehmen ihre UV aus einer alten Flaeche", streifen == 12 && sEine == 12);
     }
+    chamferRest5Test();
 }
 
 void zusammenTest() {
