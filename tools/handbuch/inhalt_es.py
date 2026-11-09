@@ -1278,12 +1278,12 @@ TEXTE = {
         "**Busca una versión nueva.** **{{MenuHelp}} → {{UpdMenu}}**. El programa pregunta a GitHub por la versión más reciente, solo ahora, porque tú lo has elegido.",
     "The tutorial points at the Help menu.":
         "El tutorial señala el menú Ayuda.",
-    "**Read the answer.** The window says that you have the newest version - or shows the new one with its notes and **{{UpdInstall}}**. Without a connection it says so; **{{UpdRetry}}** tries again. After the installation it offers **{{UpdRestart}}** until you restart, even if you look again; closing the program while it installs lets the installation finish first.":
-        "**Lee la respuesta.** La ventana dice que tienes la versión más reciente, o muestra la nueva con sus notas y **{{UpdInstall}}**. Sin conexión lo dice; **{{UpdRetry}}** lo vuelve a intentar. Después de la instalación ofrece **{{UpdRestart}}** hasta que reinicies, aunque vuelvas a buscar; si cierras el programa mientras instala, la instalación termina primero.",
+    "**Read the answer.** The bar under the menu bar says that JK Studio is up to date - or shows the new version with **{{UpdBarNow}}**, **{{UpdBarWhatsNew}}** and **{{UpdLater}}**. Without a connection it says why and offers **{{UpdBarReleases}}**; **{{UpdBarClose}}** closes the message. While it downloads, **{{UpdBarCancel}}** stops it; afterwards it offers **{{UpdRestart}}** until you restart, even if you look again; closing the program while it installs lets the installation finish first.":
+        "**Lee la respuesta.** La barra bajo la barra de menús dice que JK Studio está actualizado, o muestra la versión nueva con **{{UpdBarNow}}**, **{{UpdBarWhatsNew}}** y **{{UpdLater}}**. Sin conexión dice el motivo y ofrece **{{UpdBarReleases}}**; **{{UpdBarClose}}** cierra el mensaje. Durante la descarga, **{{UpdBarCancel}}** la detiene; después ofrece **{{UpdRestart}}** hasta que reinicies, aunque vuelvas a buscar; si cierras el programa mientras instala, la instalación termina primero.",
     "**At start or not.** **{{MenuHelp}} → {{UpdAutoCheck}}** switches the check at start on or off. Nothing else is ever sent.":
         "**Al iniciar o no.** **{{MenuHelp}} → {{UpdAutoCheck}}** activa o desactiva la comprobación al iniciar. Nunca se envía nada más.",
-    "**What changed?** **{{ChangelogMenu}}** in the window (or in **{{MenuHelp}}**) lists the changes of every version.":
-        "**¿Qué cambió?** **{{ChangelogMenu}}** en la ventana (o en **{{MenuHelp}}**) lista los cambios de cada versión.",
+    "**What changed?** **{{MenuHelp}} → {{ChangelogMenu}}** lists the changes of every version; **{{UpdBarWhatsNew}}** in the bar shows the notes of a new one.":
+        "**¿Qué cambió?** **{{MenuHelp}} → {{ChangelogMenu}}** lista los cambios de cada versión; **{{UpdBarWhatsNew}}** en la barra muestra las notas de una nueva.",
     "A door and a trigger in the map editor":
         "Una puerta y un trigger en el editor de mapas",
     "Turn a brush into a door, tell it which way to open, and let a trigger open it when the player walks in.":

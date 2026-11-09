@@ -1107,19 +1107,19 @@
       "bild": "h_tour_update",
       "unter": "El tutorial señala el menú Ayuda.",
       "ziel": "menue:MenuHelp>UpdMenu",
-      "fertig": "zahl:update.fenster",
+      "fertig": "zahl:update.leiste",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**Lee la respuesta.** La ventana dice que tienes la versión más reciente, o muestra la nueva con sus notas y **{{UpdInstall}}**. Sin conexión lo dice; **{{UpdRetry}}** lo vuelve a intentar. Después de la instalación ofrece **{{UpdRestart}}** hasta que reinicies, aunque vuelvas a buscar; si cierras el programa mientras instala, la instalación termina primero.",
+      "text": "**Lee la respuesta.** La barra bajo la barra de menús dice que JK Studio está actualizado, o muestra la versión nueva con **{{UpdBarNow}}**, **{{UpdBarWhatsNew}}** y **{{UpdLater}}**. Sin conexión dice el motivo y ofrece **{{UpdBarReleases}}**; **{{UpdBarClose}}** cierra el mensaje. Durante la descarga, **{{UpdBarCancel}}** la detiene; después ofrece **{{UpdRestart}}** hasta que reinicies, aunque vuelvas a buscar; si cierras el programa mientras instala, la instalación termina primero.",
       "bild": "h_tut_update_2",
       "unter": "Paso 2 en el programa: el tutorial resalta dónde seguir.",
-      "ziel": "fenster:###update",
+      "ziel": "gezeichnet:update.leiste",
       "fertig": "zahl:update.ergebnis",
-      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.leiste < menue:MenuHelp>UpdMenu",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
@@ -1136,10 +1136,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**¿Qué cambió?** **{{ChangelogMenu}}** en la ventana (o en **{{MenuHelp}}**) lista los cambios de cada versión.",
+      "text": "**¿Qué cambió?** **{{MenuHelp}} → {{ChangelogMenu}}** lista los cambios de cada versión; **{{UpdBarWhatsNew}}** en la barra muestra las notas de una nueva.",
       "bild": "h_tut_update_4",
       "unter": "Paso 4 en el programa: el tutorial resalta dónde seguir.",
-      "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
+      "ziel": "menue:MenuHelp>ChangelogMenu",
       "fertig": "offen:###changelog",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
       "einrichten": "",

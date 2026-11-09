@@ -1107,19 +1107,19 @@
       "bild": "h_tour_update",
       "unter": "教程指向“帮助”菜单。",
       "ziel": "menue:MenuHelp>UpdMenu",
-      "fertig": "zahl:update.fenster",
+      "fertig": "zahl:update.leiste",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**阅读答复。** 窗口会告诉你已是最新版本,或显示新版本及其说明和 **{{UpdInstall}}**。没有网络时它会说明;**{{UpdRetry}}** 会再试一次。安装完成后,窗口会一直提供 **{{UpdRestart}}**,直到你重新启动,即使你再次检查也是如此;如果在安装过程中关闭程序,安装会先完成。",
+      "text": "**阅读答复。** 菜单栏下方的栏会告诉你 JK Studio 已是最新版本,或显示新版本以及 **{{UpdBarNow}}**、**{{UpdBarWhatsNew}}** 和 **{{UpdLater}}**。没有网络时它会说明原因并提供 **{{UpdBarReleases}}**;**{{UpdBarClose}}** 关闭该消息。下载期间 **{{UpdBarCancel}}** 可停止下载;之后它会一直提供 **{{UpdRestart}}**,直到你重新启动,即使你再次检查也是如此;如果在安装过程中关闭程序,安装会先完成。",
       "bild": "h_tut_update_2",
       "unter": "程序中的第 2 步:教程高亮显示下一步的位置。",
-      "ziel": "fenster:###update",
+      "ziel": "gezeichnet:update.leiste",
       "fertig": "zahl:update.ergebnis",
-      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.leiste < menue:MenuHelp>UpdMenu",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
@@ -1136,10 +1136,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**有哪些变化?** 窗口中(或 **{{MenuHelp}}** 菜单中)的 **{{ChangelogMenu}}** 列出每个版本的更改。",
+      "text": "**有哪些变化?** **{{MenuHelp}} → {{ChangelogMenu}}** 列出每个版本的更改;栏中的 **{{UpdBarWhatsNew}}** 显示新版本的说明。",
       "bild": "h_tut_update_4",
       "unter": "程序中的第 4 步:教程高亮显示下一步的位置。",
-      "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
+      "ziel": "menue:MenuHelp>ChangelogMenu",
       "fertig": "offen:###changelog",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
       "einrichten": "",

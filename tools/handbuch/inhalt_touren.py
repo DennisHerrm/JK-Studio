@@ -272,10 +272,11 @@ NACH_SCHRITT.update({
     ("k-spielordner", "classic", 5): A("knopf:PrefsRegelwerk", "zahl:programm.regelwerk~",
                                        voraus=HAUPTMENUE + " && zahl:programm.einstellungen < menue:MenuEdit>AppPrefs"),
     # k-update: suchen -> Antwort -> beim Start -> Aenderungen
-    ("k-update", "classic", 1): A("menue:MenuHelp>UpdMenu", "zahl:update.fenster", voraus=HAUPTMENUE),
-    ("k-update", "classic", 2): A("fenster:###update", "zahl:update.ergebnis", voraus=HAUPTMENUE + " && zahl:update.fenster < menue:MenuHelp>UpdMenu"),
+    # REST10: das Ergebnis der Suche von Hand steht in der Update-Leiste oben (wie G2C), nicht mehr im Fenster
+    ("k-update", "classic", 1): A("menue:MenuHelp>UpdMenu", "zahl:update.leiste", voraus=HAUPTMENUE),
+    ("k-update", "classic", 2): A("gezeichnet:update.leiste", "zahl:update.ergebnis", voraus=HAUPTMENUE + " && zahl:update.leiste < menue:MenuHelp>UpdMenu"),
     ("k-update", "classic", 3): A("menue:MenuHelp>UpdAutoCheck", "zahl:update.auto~", voraus=HAUPTMENUE),
-    ("k-update", "classic", 4): A("knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu", "offen:###changelog", voraus=HAUPTMENUE),
+    ("k-update", "classic", 4): A("menue:MenuHelp>ChangelogMenu", "offen:###changelog", voraus=HAUPTMENUE),
     # tut-karte-tuer (Karten-Editor): Brush -> func_door -> angle -> Trigger -> verbinden -> ausprobieren
     ("tut-karte-tuer", "classic", 1): A("knopf:ViewMapEditor@modebar", "modus:3", einrichten="modus:3", sicher=True),
     ("tut-karte-tuer", "classic", 2): A("fenster:##feldXY", "zahl:karte.pinsel+", voraus=KARTE, falsch=[

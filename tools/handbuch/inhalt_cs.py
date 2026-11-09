@@ -1275,12 +1275,12 @@ TEXTE = {
         "**Vyhledejte novou verzi.** **{{MenuHelp}} → {{UpdMenu}}**. Program se zeptá GitHubu na nejnovější vydání - jen teď, protože jste to zvolili.",
     "The tutorial points at the Help menu.":
         "Tutoriál ukazuje na nabídku Nápověda.",
-    "**Read the answer.** The window says that you have the newest version - or shows the new one with its notes and **{{UpdInstall}}**. Without a connection it says so; **{{UpdRetry}}** tries again. After the installation it offers **{{UpdRestart}}** until you restart, even if you look again; closing the program while it installs lets the installation finish first.":
-        "**Přečtěte si odpověď.** Okno řekne, že máte nejnovější verzi - nebo ukáže novou s poznámkami a **{{UpdInstall}}**. Bez připojení to oznámí; **{{UpdRetry}}** to zkusí znovu. Po instalaci nabízí **{{UpdRestart}}**, dokud program nerestartujete, i když hledáte znovu; zavřete-li program během instalace, instalace se nejdřív dokončí.",
+    "**Read the answer.** The bar under the menu bar says that JK Studio is up to date - or shows the new version with **{{UpdBarNow}}**, **{{UpdBarWhatsNew}}** and **{{UpdLater}}**. Without a connection it says why and offers **{{UpdBarReleases}}**; **{{UpdBarClose}}** closes the message. While it downloads, **{{UpdBarCancel}}** stops it; afterwards it offers **{{UpdRestart}}** until you restart, even if you look again; closing the program while it installs lets the installation finish first.":
+        "**Přečtěte si odpověď.** Pruh pod nabídkovým řádkem řekne, že je JK Studio aktuální - nebo ukáže novou verzi s **{{UpdBarNow}}**, **{{UpdBarWhatsNew}}** a **{{UpdLater}}**. Bez připojení uvede důvod a nabídne **{{UpdBarReleases}}**; **{{UpdBarClose}}** zprávu zavře. Během stahování ji **{{UpdBarCancel}}** zastaví; potom nabízí **{{UpdRestart}}**, dokud program nerestartujete, i když hledáte znovu; zavřete-li program během instalace, instalace se nejdřív dokončí.",
     "**At start or not.** **{{MenuHelp}} → {{UpdAutoCheck}}** switches the check at start on or off. Nothing else is ever sent.":
         "**Při spuštění, nebo ne.** **{{MenuHelp}} → {{UpdAutoCheck}}** zapíná nebo vypíná kontrolu při spuštění. Nic jiného se nikdy neposílá.",
-    "**What changed?** **{{ChangelogMenu}}** in the window (or in **{{MenuHelp}}**) lists the changes of every version.":
-        "**Co se změnilo?** **{{ChangelogMenu}}** v okně (nebo v **{{MenuHelp}}**) vypíše změny každé verze.",
+    "**What changed?** **{{MenuHelp}} → {{ChangelogMenu}}** lists the changes of every version; **{{UpdBarWhatsNew}}** in the bar shows the notes of a new one.":
+        "**Co se změnilo?** **{{MenuHelp}} → {{ChangelogMenu}}** vypíše změny každé verze; **{{UpdBarWhatsNew}}** v pruhu ukáže poznámky k nové.",
     "A door and a trigger in the map editor":
         "Dveře a trigger v editoru map",
     "Turn a brush into a door, tell it which way to open, and let a trigger open it when the player walks in.":

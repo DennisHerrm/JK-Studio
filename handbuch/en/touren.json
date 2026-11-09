@@ -1107,19 +1107,19 @@
       "bild": "h_tour_update",
       "unter": "The tutorial points at the Help menu.",
       "ziel": "menue:MenuHelp>UpdMenu",
-      "fertig": "zahl:update.fenster",
+      "fertig": "zahl:update.leiste",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**Read the answer.** The window says that you have the newest version - or shows the new one with its notes and **{{UpdInstall}}**. Without a connection it says so; **{{UpdRetry}}** tries again. After the installation it offers **{{UpdRestart}}** until you restart, even if you look again; closing the program while it installs lets the installation finish first.",
+      "text": "**Read the answer.** The bar under the menu bar says that JK Studio is up to date - or shows the new version with **{{UpdBarNow}}**, **{{UpdBarWhatsNew}}** and **{{UpdLater}}**. Without a connection it says why and offers **{{UpdBarReleases}}**; **{{UpdBarClose}}** closes the message. While it downloads, **{{UpdBarCancel}}** stops it; afterwards it offers **{{UpdRestart}}** until you restart, even if you look again; closing the program while it installs lets the installation finish first.",
       "bild": "h_tut_update_2",
       "unter": "Step 2 in the program: the tutorial highlights where to go next.",
-      "ziel": "fenster:###update",
+      "ziel": "gezeichnet:update.leiste",
       "fertig": "zahl:update.ergebnis",
-      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.leiste < menue:MenuHelp>UpdMenu",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
@@ -1136,10 +1136,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**What changed?** **{{ChangelogMenu}}** in the window (or in **{{MenuHelp}}**) lists the changes of every version.",
+      "text": "**What changed?** **{{MenuHelp}} → {{ChangelogMenu}}** lists the changes of every version; **{{UpdBarWhatsNew}}** in the bar shows the notes of a new one.",
       "bild": "h_tut_update_4",
       "unter": "Step 4 in the program: the tutorial highlights where to go next.",
-      "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
+      "ziel": "menue:MenuHelp>ChangelogMenu",
       "fertig": "offen:###changelog",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
       "einrichten": "",

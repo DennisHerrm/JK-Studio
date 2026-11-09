@@ -1107,19 +1107,19 @@
       "bild": "h_tour_update",
       "unter": "Tutoriál ukazuje na nabídku Nápověda.",
       "ziel": "menue:MenuHelp>UpdMenu",
-      "fertig": "zahl:update.fenster",
+      "fertig": "zahl:update.leiste",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**Přečtěte si odpověď.** Okno řekne, že máte nejnovější verzi - nebo ukáže novou s poznámkami a **{{UpdInstall}}**. Bez připojení to oznámí; **{{UpdRetry}}** to zkusí znovu. Po instalaci nabízí **{{UpdRestart}}**, dokud program nerestartujete, i když hledáte znovu; zavřete-li program během instalace, instalace se nejdřív dokončí.",
+      "text": "**Přečtěte si odpověď.** Pruh pod nabídkovým řádkem řekne, že je JK Studio aktuální - nebo ukáže novou verzi s **{{UpdBarNow}}**, **{{UpdBarWhatsNew}}** a **{{UpdLater}}**. Bez připojení uvede důvod a nabídne **{{UpdBarReleases}}**; **{{UpdBarClose}}** zprávu zavře. Během stahování ji **{{UpdBarCancel}}** zastaví; potom nabízí **{{UpdRestart}}**, dokud program nerestartujete, i když hledáte znovu; zavřete-li program během instalace, instalace se nejdřív dokončí.",
       "bild": "h_tut_update_2",
       "unter": "Krok 2 v programu: tutoriál zvýrazní, kde pokračovat.",
-      "ziel": "fenster:###update",
+      "ziel": "gezeichnet:update.leiste",
       "fertig": "zahl:update.ergebnis",
-      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.leiste < menue:MenuHelp>UpdMenu",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
@@ -1136,10 +1136,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Co se změnilo?** **{{ChangelogMenu}}** v okně (nebo v **{{MenuHelp}}**) vypíše změny každé verze.",
+      "text": "**Co se změnilo?** **{{MenuHelp}} → {{ChangelogMenu}}** vypíše změny každé verze; **{{UpdBarWhatsNew}}** v pruhu ukáže poznámky k nové.",
       "bild": "h_tut_update_4",
       "unter": "Krok 4 v programu: tutoriál zvýrazní, kde pokračovat.",
-      "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
+      "ziel": "menue:MenuHelp>ChangelogMenu",
       "fertig": "offen:###changelog",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
       "einrichten": "",

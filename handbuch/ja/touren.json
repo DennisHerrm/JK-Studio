@@ -1107,19 +1107,19 @@
       "bild": "h_tour_update",
       "unter": "チュートリアルがヘルプ メニューを示しています。",
       "ziel": "menue:MenuHelp>UpdMenu",
-      "fertig": "zahl:update.fenster",
+      "fertig": "zahl:update.leiste",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
      },
      {
-      "text": "**答えを読みます。** 最新版であること、または新しいバージョンとその説明と **{{UpdInstall}}** が表示されます。接続がないときはそう表示され、**{{UpdRetry}}** で再試行します。インストール後は、もう一度確認しても、再起動するまで **{{UpdRestart}}** が表示されます。インストール中にプログラムを閉じると、先にインストールが完了します。",
+      "text": "**答えを読みます。** メニューバーの下のバーに、JK Studio が最新であること、または新しいバージョンと **{{UpdBarNow}}**、**{{UpdBarWhatsNew}}**、**{{UpdLater}}** が表示されます。接続がないときは理由が表示され、**{{UpdBarReleases}}** が提示されます。**{{UpdBarClose}}** でメッセージを閉じます。ダウンロード中は **{{UpdBarCancel}}** で中止できます。その後は、もう一度確認しても、再起動するまで **{{UpdRestart}}** が表示されます。インストール中にプログラムを閉じると、先にインストールが完了します。",
       "bild": "h_tut_update_2",
       "unter": "プログラムでの手順 2: チュートリアルが次の操作場所を強調表示します。",
-      "ziel": "fenster:###update",
+      "ziel": "gezeichnet:update.leiste",
       "fertig": "zahl:update.ergebnis",
-      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.fenster < menue:MenuHelp>UpdMenu",
+      "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar && zahl:update.leiste < menue:MenuHelp>UpdMenu",
       "einrichten": "",
       "sicher": false,
       "ueberspringen": ""
@@ -1136,10 +1136,10 @@
       "ueberspringen": ""
      },
      {
-      "text": "**何が変わった?** ウィンドウ(または **{{MenuHelp}}** メニュー)の **{{ChangelogMenu}}** に各バージョンの変更が並びます。",
+      "text": "**何が変わった?** **{{MenuHelp}} → {{ChangelogMenu}}** に各バージョンの変更が並びます。バーの **{{UpdBarWhatsNew}}** で新しいバージョンのノートを表示します。",
       "bild": "h_tut_update_4",
       "unter": "プログラムでの手順 4: チュートリアルが次の操作場所を強調表示します。",
-      "ziel": "knopf:ChangelogMenu@###update;menue:MenuHelp>ChangelogMenu",
+      "ziel": "menue:MenuHelp>ChangelogMenu",
       "fertig": "offen:###changelog",
       "voraus": "zahl:programm.hauptmenue < knopf:ViewEvents@modebar",
       "einrichten": "",
