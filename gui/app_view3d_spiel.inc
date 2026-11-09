@@ -2932,6 +2932,12 @@ const NpcDef* figurNpcDef(const Actor& a) {
 }
 
 float figurLodRadius(const Actor& a, const NpcDef* npc) {
+    // REST3b: SP_misc_atst_drivable setzt s.radius 320 (code/game/g_misc.cpp:3084 OpenJK, codeJK2/game/g_misc.cpp:2737), ebenso
+    // G_DriveATST fuer den Spieler im AT-ST (codeJK2/game/g_client.cpp:1466, code/game/g_misc.cpp:3116)
+    if (a.kartenEntity >= 0 && static_cast<std::size_t>(a.kartenEntity) < g_app->map.entities.size() &&
+        g_app->map.entities[static_cast<std::size_t>(a.kartenEntity)].classname == "misc_atst_drivable") {
+        return 320.0F;
+    }
     if (npc != nullptr && npc->klasse == "class_sand_creature") { return 256.0F; }
     if (npc != nullptr && npc->klasse == "class_rancor") { return (a.spawnflags & 1) != 0 ? 300.0F : 150.0F; }
     if (npc != nullptr && npc->hoehe >= 0.0F && static_cast<int>(npc->hoehe) > 0) { return static_cast<float>(static_cast<int>(npc->hoehe)); }
@@ -2941,20 +2947,14 @@ float figurLodRadius(const Actor& a, const NpcDef* npc) {
     return r != 0 ? static_cast<float>(r) : 60.0F;
 }
 
-const GlmModel& figurNetzImBild(const ActorDraw& a, const float fw[16], const Camera& cam) {
-    if (a.figur < 0 || static_cast<std::size_t>(a.figur) >= g_app->actorAssets.size() ||
-        static_cast<std::size_t>(a.figur) >= g_app->scene.actors.size()) {
-        return *a.model;
-    }
-    const std::shared_ptr<const App::ActorAssets>& as = g_app->actorAssets[static_cast<std::size_t>(a.figur)];
-    if (!as || as->lodModelle.empty() || a.model != &as->model) { return *a.model; }
+// REST3b: die Lage fuer G2_ComputeLOD aus der refEntity der Figur (ohne die Stufenzahl, die je Modell gilt)
+bool figurLodLage(const ActorDraw& a, const float fw[16], const Camera& cam, modell::LodLage& l) {
+    if (a.figur < 0 || static_cast<std::size_t>(a.figur) >= g_app->scene.actors.size()) { return false; }
     const modell::Zielspiel ziel = regelwerkJediOutcast() ? modell::Zielspiel::Jk2Sp
                                    : regelwerkMovieDuels() ? modell::Zielspiel::MdSp
                                                            : modell::Zielspiel::JkaSp;
     float vorn[3];
     cam.forward(vorn);
-    modell::LodLage l;
-    l.stufenZahl = static_cast<int>(as->lodModelle.size()) + 1;
     const Actor& akteur = g_app->scene.actors[static_cast<std::size_t>(a.figur)];
     const NpcDef* npc = figurNpcDef(akteur);
     l.radius = figurLodRadius(akteur, npc);
@@ -2964,6 +2964,36 @@ const GlmModel& figurNetzImBild(const ActorDraw& a, const float fw[16], const Ca
     // ProjectRadius mit ent->e.origin (samt 24 * (scale - 1), CG_Player) entlang der Blickachse
     l.abstand = vorn[0] * (fw[3] - cam.pos[0]) + vorn[1] * (fw[7] - cam.pos[1]) + vorn[2] * (fw[11] - cam.pos[2]);
     l.projektion5 = 1.0F / std::tan(cam.fovY * 3.14159265F / 360.0F);
+    return true;
+}
+
+std::array<int, 4>& anbauStufenProbe() {
+    static std::array<int, 4> zahl{};
+    return zahl;
+}
+
+const GlmModel& anbauNetzImBild(const ActorDraw& a, const AnbauDraw& an, const float fw[16], const Camera& cam) {
+    modell::LodLage l;
+    if (an.lodModelle == nullptr || an.lodModelle->empty() || !figurLodLage(a, fw, cam, l)) {
+        ++anbauStufenProbe()[0];
+        return *an.model;
+    }
+    l.stufenZahl = static_cast<int>(an.lodModelle->size()) + 1;
+    const int stufe = modell::lodWieImSpiel(l);
+    ++anbauStufenProbe()[static_cast<std::size_t>(std::clamp(stufe, 0, 3))];
+    return stufe <= 0 ? *an.model : (*an.lodModelle)[static_cast<std::size_t>(stufe - 1)];
+}
+
+const GlmModel& figurNetzImBild(const ActorDraw& a, const float fw[16], const Camera& cam) {
+    if (a.figur < 0 || static_cast<std::size_t>(a.figur) >= g_app->actorAssets.size() ||
+        static_cast<std::size_t>(a.figur) >= g_app->scene.actors.size()) {
+        return *a.model;
+    }
+    const std::shared_ptr<const App::ActorAssets>& as = g_app->actorAssets[static_cast<std::size_t>(a.figur)];
+    if (!as || as->lodModelle.empty() || a.model != &as->model) { return *a.model; }
+    modell::LodLage l;
+    if (!figurLodLage(a, fw, cam, l)) { return *a.model; }
+    l.stufenZahl = static_cast<int>(as->lodModelle.size()) + 1;
     const int stufe = modell::lodWieImSpiel(l);
     return stufe <= 0 ? as->model : as->lodModelle[static_cast<std::size_t>(stufe - 1)];
 }

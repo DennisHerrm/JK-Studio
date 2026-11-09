@@ -622,6 +622,10 @@ struct KlingeDraw {
 // Kinomodell.
 struct AnbauDraw {
     const GlmModel* model = nullptr;
+    // REST3b: die Detailstufen 1.. des Modells (leer: nur Stufe 0). Waffe, Griff und Kinomodell stehen in der Ghoul2-Liste der
+    // Figur; R_AddGhoulSurfaces waehlt je Modell die Stufe mit G2_ComputeLOD aus der refEntity der FIGUR (Radius, Ursprung,
+    // Massstab) und den numLods des Modells (tr_ghoul2.cpp:2668-2674 OpenJK).
+    const std::vector<GlmModel>* lodModelle = nullptr;
     const ModelTextures* textures = nullptr;
     // Der Bolzen der FIGUR: "*r_hand", "*l_hand" - bei boltToWrist
     // "*r_hand_cap_r_arm" / "*l_hand_cap_l_arm" (wp_saber.cpp:858 ff.).

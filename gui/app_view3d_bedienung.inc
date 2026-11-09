@@ -3933,8 +3933,10 @@ void drawMapView() {
                                 // MD / 902 OJ) rechnet Normale und Blick in IHREN
                                 // Achsen. rc602 nahm die Spalten von gw2 - der Chrom
                                 // jedes Schwertgriffs drehte mit der Hand.
+                                // REST3b: die Detailstufe des Anbaus wie G2_ComputeLOD mit der Entity der Figur
+                                const GlmModel& anNetz = anbauNetzImBild(a, an, fw, bildCam);
                                 const int nh = gpu::zeichneFigur(
-                                    *an.model, an.textures, kStarr, gw2, vp, &fh,
+                                    anNetz, an.textures, kStarr, gw2, vp, &fh,
                                     &licht, g_app->showCaps);
                                 g_app->gpuAufrufe += nh;
                                 g_app->gpuFiguren2 += nh;
@@ -3942,7 +3944,7 @@ void drawMapView() {
                                 // werfen denselben Schatten mit.
                                 if (mitSchatten || figurNebel >= 0) {
                                     gpu::FigurSchatten fs;
-                                    fs.model = an.model;
+                                    fs.model = &anNetz;
                                     fs.textures = an.textures;
                                     std::memcpy(fs.welt, gw2, sizeof(fs.welt));
                                     for (int k = 0; k < 3; ++k) { fs.richtung[k] = schattenLicht[k]; }

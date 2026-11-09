@@ -604,6 +604,11 @@ std::vector<Schritt> geschuetzVergleichSchritte(const std::string& archiv) {
                               st.animation.c_str(), st.visible ? "" : " (verborgen)", a.fahrzeug.da ? (" " + a.fahrzeug.typ).c_str() : "");
                 diag::detail(z);
             }
+            // REST3b: die Detailstufen der Anbauten (Waffen, Griffe) seit dem letzten Bild dieses Vergleichs (anbauNetzImBild)
+            const std::array<int, 4>& st = anbauStufenProbe();
+            std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Anbau-Stufen 0:%d 1:%d 2:%d 3+:%d", st[0], st[1], st[2], st[3]);
+            diag::detail(z);
+            anbauStufenProbe() = {};
             std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Bildzeit %.1f ms", static_cast<double>(1000.0F / std::max(ImGui::GetIO().Framerate, 0.1F)));
             diag::detail(z);
             std::snprintf(z, sizeof(z), "Geschuetze Vergleich: Ansicht von %.0f %.0f bis %.0f %.0f", static_cast<double>(g_app->kartenAnsicht[0]), static_cast<double>(g_app->kartenAnsicht[1]),

@@ -4538,6 +4538,23 @@ const App::ActorAssets* hiltFor(const std::string& pfad) {
                 }
             }
             a.textures = texturesFor(a.model);
+            // REST3b: alle Detailstufen wie bei der Figur (R_LoadMDXM), Haut und Flaechen aus Stufe 0 - G2_ComputeLOD waehlt je Bild
+            // (anbauNetzImBild)
+            const GlmModel huelle = a.model.numLods > 1 ? glmOhneNetz(a.model) : GlmModel{};
+            for (int n = 1; n < a.model.numLods && n < 16; ++n) {
+                GlmModel g;
+                std::string fehlerStufe;
+                if (!readGlm(data, g, &fehlerStufe, n) || g.surfaces.size() != a.model.surfaces.size()) {
+                    diag::info("Griff " + pfad + ": Detailstufe " + std::to_string(n) + " nicht lesbar - " + fehlerStufe);
+                    break;
+                }
+                GlmModel stufe = huelle;
+                for (std::size_t s = 0; s < stufe.surfaces.size(); ++s) {
+                    stufe.surfaces[s].verts = std::move(g.surfaces[s].verts);
+                    stufe.surfaces[s].indexes = std::move(g.surfaces[s].indexes);
+                }
+                a.lodModelle.push_back(std::move(stufe));
+            }
         }
     } else {
         diag::detail("Griff " + pfad + " nicht gefunden");
@@ -5388,6 +5405,7 @@ void anbautenFuer(const Actor& a, const ActorState& st, double ms, ActorDraw& d)
         ++d.anbauten;
         an = AnbauDraw{};
         an.model = &hg->model;
+        an.lodModelle = &hg->lodModelle;   // REST3b
         an.textures = &hg->textures;
         an.bolzen = bolzen;
         return &an;

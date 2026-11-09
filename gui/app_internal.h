@@ -2992,6 +2992,10 @@ void kartenModelleAufstellen(const KartenModellZiel& z, int& gefunden, int& fehl
 int kartenModellStufe(const App::MapModel& mm, const float ort[3], const Camera& cam);
 // MERGE2 Punkt 4: das Netz der Detailstufe, die G2_ComputeLOD fuer diese Figur in diesem Bild waehlt (fw: ihre Weltmatrix).
 const GlmModel& figurNetzImBild(const ActorDraw& a, const float fw[16], const Camera& cam);
+// REST3b: das Netz eines Anbaus (Waffe, Griff, Kinomodell) in der Stufe, die G2_ComputeLOD mit der Entity der Figur waehlt.
+const GlmModel& anbauNetzImBild(const ActorDraw& a, const AnbauDraw& an, const float fw[16], const Camera& cam);
+// REST3b: wie oft anbauNetzImBild seit dem letzten Leeren welche Stufe gewaehlt hat (Platz 3: 3 und mehr) - Selbsttest.
+std::array<int, 4>& anbauStufenProbe();
 // MRESTE 4: ein Ghoul2-Kartenmodell (.glm-Bytes `data`) je LOD-Stufe als starres Netz nach `dateien` (Stufe 0 unter `low`,
 // Stufe n unter "low|lod<n>"); zurueck die Zahl der Stufen, 0: nicht lesbar oder ohne passende GLA (Grund in `fehler`).
 int glmStufenLaden(const std::string& data, const std::string& low, std::map<std::string, Md3Model>& dateien, std::string& fehler);
