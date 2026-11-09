@@ -103,7 +103,8 @@ int main() {
     const auto& bd = figurStufen(m["models/players/battledroid/arms"]);
     pruefe(bd.size() == 4U, "Kampfdroide: vier Stufen");
     if (bd.size() == 4U) {
-        pruefe(bd[0].farbe == FigurFarbe::Fest && nah(bd[0].rgb[0], 0.815686F) && nah(bd[0].rgb[2], 0.603922F),
+        // REST8: constantColor als byte wie ParseStage - 255 * 0.815686 = 207,9999 -> 207, 255 * 0.603922 = 154,0001 -> 154
+        pruefe(bd[0].farbe == FigurFarbe::Fest && nah(bd[0].rgb[0], 207.0F / 255.0F) && nah(bd[0].rgb[2], 154.0F / 255.0F),
                "Stufe 0: rgbGen const (unbeleuchtet getoent)");
         pruefe(bd[1].farbe == FigurFarbe::Weiss && bd[1].alpha == FigurAlpha::Eins,
                "Stufe 1: ohne rgbGen bei GL_SRC_ALPHA -> identityLighting (weiss)");
@@ -120,7 +121,7 @@ int main() {
     if (ch.size() == 3U) {
         pruefe(ch[1].umgebung && ch[1].farbe == FigurFarbe::Welle, "tcGen environment, rgbGen wave");
         pruefe(ch[2].glow && ch[2].farbe == FigurFarbe::Schwarz && ch[2].alpha == FigurAlpha::Fest &&
-                   nah(ch[2].a, 0.25F),
+                   nah(ch[2].a, 63.0F / 255.0F),   // REST8: 255 * 0.25 = 63,75 -> 63 (constantColor ist ein byte)
                "glow, oneMinusEntity (schwarz), alphaGen const 0.25");
         // FIX5: wie RB_CalcWaveColor - sinTable[256] (knapp unter 1), als Byte: 0,5 -> 127/255, 0,99999 -> 254/255
         pruefe(figurWelle(ch[1].rgbWelle, 0.25F) == 254.0F / 255.0F && figurWelle(ch[1].rgbWelle, 0.0F) == 127.0F / 255.0F,

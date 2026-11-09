@@ -774,9 +774,9 @@ int main() {
 
         // --- rgbGen const und clampmap ----------------------------------
         //
-        // Wortgetreu aus asjc_coruscant.shader. Beide Schreibweisen von
-        // rgbGen const kommen in den pk3 vor - mit und ohne Klammern -,
-        // deshalb stehen hier beide.
+        // Wortgetreu aus asjc_coruscant.shader. REST8: ohne "(" als eigenes Wort
+        // bleibt die Farbe im Spiel schwarz (ParseVector, tr_shader.cpp:108-134
+        // OpenJK/MD9); in den Daten von Movie Duels, JKA und JK2 steht keine so.
         {
             const char* rk =
                 "textures/p/dome1\n"
@@ -824,10 +824,8 @@ int main() {
                            d.stages[1].rgbConst[2] > 0.64F);
             }
             const bhed::ShaderInfo& o = sm["textures/p/ohneklammern"];
-            expect("rgbGen const ohne Klammern",
-                   o.rgbConst[0] > 0.49F && o.rgbConst[0] < 0.51F &&
-                       o.rgbConst[1] > 0.24F && o.rgbConst[1] < 0.26F &&
-                       o.rgbConst[2] > 0.12F && o.rgbConst[2] < 0.13F);
+            expect("rgbGen const ohne Klammern: schwarz wie ParseVector",
+                   o.rgbConst[0] == 0.0F && o.rgbConst[1] == 0.0F && o.rgbConst[2] == 0.0F);
             // alphaGen portal ist seit rc593 gebaut (unten) - sonst
             // wuerde die Stufe mit dem Bildalpha gezeichnet, und das ist
             // etwas anderes, kein Naeherungswert.

@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cctype>
 #include <cstddef>
+#include <cstdint>
 #include <set>
 #include <string>
 #include <string_view>
@@ -54,6 +55,15 @@ namespace {
 // strtof/from_chars<float> (MERGE3 Punkt 5: doppelte Rundung, "+0.5", Hex-Zahlen). Kein Wert heisst null.
 float readNum(const std::string& w) {
     return static_cast<float>(std::strtod(w.c_str(), nullptr));
+}
+
+// REST8: stage->constantColor ist im Spiel ein byte (tr_local.h:388 OpenJK, :376 MD9, JK2 :367); ParseStage weist ihm 255 * Wert zu.
+// Die Wandlung schneidet zur Null hin ab und behaelt das untere Byte der 32-Bit-Ganzzahl (MSVC x64: cvttss2si/cvttsd2si); ausserhalb
+// des Ganzzahlbereichs und bei NaN liefert der Befehl 0x80000000, also 0. Beispiele: 0.125 -> 31 (nicht 31,875), 0.752941 -> 191.
+float spielKonstantByte(double v) {
+    if (!(v > -2147483649.0 && v < 2147483648.0)) { return 0.0F; }
+    const auto ganz = static_cast<std::int32_t>(v);
+    return static_cast<float>(static_cast<std::uint32_t>(ganz) & 0xFFU);
 }
 
 // Die Woerter einer Zeile (COM_ParseExt mit allowLineBreaks = qfalse).
@@ -805,24 +815,16 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 if (lower(firstWord(rest)) == "const") {
                     // rgbGen const ( 0.85 0.65 0.65 )
                     //
-                    // Die Klammern sind KEIN Muss - in den pk3 stehen beide
-                    // Schreibweisen. Deshalb werden sie wie Trennzeichen
-                    // behandelt statt erwartet.
-                    std::string zahlen = trim(secondWord(rest));
-                    for (char& c : zahlen) {
-                        if (c == '(' || c == ')' || c == ',') {
-                            c = ' ';
-                        }
+                    // REST8: wie ParseStage (tr_shader.cpp:1466-1478 OpenJK, :1443-1455 MD9, JK2 :1291-1300): VectorClear, dann
+                    // ParseVector (:108-134) - erst ein eigenes Wort "(", dann je Wert atof (float), ein fehlendes Wort bricht ab;
+                    // ohne "(" bleibt die Farbe schwarz (Jedi Outcast laesst sie uninitialisiert, hier wie OpenJK 0). In den Daten
+                    // von Movie Duels stehen alle 683 mit "(". Dann constantColor = 255 * Wert als byte (spielKonstantByte).
+                    const std::vector<std::string> w = ssWoerter(secondWord(rest));
+                    float farbe[3] = {0.0F, 0.0F, 0.0F};
+                    if (!w.empty() && w[0] == "(") {
+                        for (std::size_t k = 0; k < 3 && k + 1 < w.size(); ++k) { farbe[k] = readNum(w[k + 1]); }
                     }
-                    zahlen = trim(zahlen);
-                    for (int k = 0; k < 3; ++k) {
-                        const std::string w = firstWord(zahlen);
-                        if (w.empty()) {
-                            break;
-                        }
-                        stageRgbConst[k] = readNum(w);
-                        zahlen = trim(secondWord(zahlen));
-                    }
+                    for (int k = 0; k < 3; ++k) { stageRgbConst[k] = spielKonstantByte(255.0F * farbe[k]) / 255.0F; }
                 } else if (lower(firstWord(rest)) == "vertex" ||
                            lower(firstWord(rest)) == "exactvertex" ||
                            lower(firstWord(rest)) == "oneminusvertex" ||
@@ -1094,11 +1096,11 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 stageAlphaWave = Wave{};
                 stageAlphaConst = -1.0F;
                 if (firstWord(rest) == "const") {
-                    const std::string v = trim(secondWord(rest));
-                    if (!v.empty()) {
-                        stageAlphaConst = readNum(v);   // atof wie ParseStage
-                        stageAlphaGen = AlphaGen::Const;
-                    }
+                    // REST8: ParseStage (tr_shader.cpp:1553-1558 OpenJK, :1530-1535 MD9, JK2 :1360-1365): das naechste Wort der
+                    // Zeile, constantColor[3] = 255 * atof (double) als byte, AGEN_CONST auch ohne Wort (atof("") = 0)
+                    const std::vector<std::string> w = ssWoerter(secondWord(rest));
+                    stageAlphaConst = spielKonstantByte(255.0 * std::strtod(w.empty() ? "" : w[0].c_str(), nullptr)) / 255.0F;
+                    stageAlphaGen = AlphaGen::Const;
                 } else if (lower(firstWord(rest)) == "lightingspecular") {
                     stageAlphaGen = AlphaGen::LightingSpecular;
                 } else if (lower(firstWord(rest)) == "vertex") {

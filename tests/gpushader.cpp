@@ -18,6 +18,7 @@
 
 #include "bhed/gpushader.h"
 #include "bhed/gpustate.h"
+#include "bhed/shaderscript.h"
 
 #include <cstddef>
 #include <cmath>
@@ -511,6 +512,35 @@ int main() {
     erwarte("spielGammaWert 5 wird 3", std::fabs(bytes(5.0F) - 3.0F) < 0.5F);
     erwarte("spielGammaWert 13 wird 11", std::fabs(bytes(13.0F) - 11.0F) < 0.5F);
     erwarte("spielGammaWert 128 bleibt", std::fabs(bytes(128.0F) - 128.0F) < 1.0F);
+
+    // REST8: rgbGen const / alphaGen const als byte wie ParseStage (stage->constantColor, tr_local.h:388 OpenJK, :376 MD9, JK2 :367):
+    // 255 * Wert, zur Null hin abgeschnitten, das untere Byte der Ganzzahl; rgbGen const nur mit "(" (ParseVector, sonst schwarz),
+    // alphaGen const auch ohne Wert (atof("") = 0)
+    {
+        using bhed::AlphaGen;
+        using bhed::ShaderInfo;
+        const auto stufe = [](const char* zeilen) {
+            bhed::ShaderMap m;
+            bhed::parseShaderScript(std::string("textures/rest8/x\n{\n{\nmap x\n") + zeilen + "}\n}\n", m);
+            const auto it = m.find("textures/rest8/x");
+            return it == m.end() || it->second.stages.empty() ? ShaderInfo::Stage{} : it->second.stages[0];
+        };
+        const auto byteGleich = [](float ist, int byte) { return ist == static_cast<float>(byte) / 255.0F; };
+        const ShaderInfo::Stage a = stufe("rgbGen const ( 0.125 0.5 0.752941 )\nalphaGen const 0.125\n");
+        erwarte("rgbGen const ( 0.125 0.5 0.752941 ): 31, 127, 191 von 255",
+                byteGleich(a.rgbConst[0], 31) && byteGleich(a.rgbConst[1], 127) && byteGleich(a.rgbConst[2], 191));
+        erwarte("alphaGen const 0.125: 31 von 255", byteGleich(a.alphaConst, 31) && a.alphaGen == AlphaGen::Const);
+        const ShaderInfo::Stage b = stufe("rgbGen const ( 2 -0.5 1 )\n");
+        erwarte("rgbGen const ( 2 -0.5 1 ): 510 -> 254, -127 -> 129, 255",
+                byteGleich(b.rgbConst[0], 254) && byteGleich(b.rgbConst[1], 129) && byteGleich(b.rgbConst[2], 255));
+        const ShaderInfo::Stage c = stufe("rgbGen const 0.5 0.5 0.5\nalphaGen const\n");
+        erwarte("rgbGen const ohne \"(\": schwarz (ParseVector); alphaGen const ohne Wert: 0",
+                byteGleich(c.rgbConst[0], 0) && byteGleich(c.rgbConst[1], 0) && byteGleich(c.rgbConst[2], 0) && byteGleich(c.alphaConst, 0) &&
+                    c.alphaGen == AlphaGen::Const);
+        const ShaderInfo::Stage d = stufe("rgbGen const ( 0.25 )\n");
+        erwarte("rgbGen const ( 0.25 ): 63, atof(\")\") = 0, dann fehlt ein Wort",
+                byteGleich(d.rgbConst[0], 63) && byteGleich(d.rgbConst[1], 0) && byteGleich(d.rgbConst[2], 0));
+    }
 
     if (fehler != 0) {
         std::printf("FEHLGESCHLAGEN (%d)\n", fehler);
