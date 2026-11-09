@@ -4750,41 +4750,64 @@ std::string windowTitle() {
 // blieb mapDirty stehen, und er ruhte nie); dafuer der Model-Tab, solange eine
 // Animation laeuft oder der Drehteller dreht (sonst vier Bilder je Sekunde,
 // sobald die Maus stillsteht).
+// REST5 P3: die Gruende in App::ruheSperre (Reihenfolge wie ruheSperreName)
+const char* ruheSperreName(std::size_t i) {
+    static const char* const namen[] = {"Nachricht", "Selbsttest", "Abspielen", "Karte neu", "Tongeraet", "Model-Tab",
+                                        "Ton laeuft", "Tour", "Kamera der Karte", "q3map2", "Textfeld", "Maustaste"};
+    return i < std::size(namen) ? namen[i] : "?";
+}
+void ruheNachricht() {
+    if (g_app != nullptr) { ++g_app->ruheSperre[0]; }
+}
+
 bool darfRuhen() {
     if (g_app == nullptr) {
         return false;
     }
+    const auto sperre = [](std::size_t grund) {
+        ++g_app->ruheSperre[grund];
+        return false;
+    };
     static const bool imTest = std::getenv("BHED_EDITORTEST") != nullptr;
     const bool karteNeu = g_app->mapDirty && g_app->kartenAnsichtBild == ImGui::GetFrameCount();
-    if ((imTest && !g_app->ruheImTest) || g_app->playing || karteNeu || g_app->tonVorab.valid()) {
-        return false;
+    if (imTest && !g_app->ruheImTest) {
+        return sperre(1);
+    }
+    if (g_app->playing) {
+        return sperre(2);
+    }
+    if (karteNeu) {
+        return sperre(3);
+    }
+    if (g_app->tonVorab.valid()) {
+        return sperre(4);
     }
     if (modellBrauchtBilder()) {
-        return false;
+        return sperre(5);
     }
     if (g_app->audio.activeBuffers() > 0 || g_app->musicAudio.activeBuffers() > 0) {
-        return false;
+        return sperre(6);
     }
     // rc601 tour: Puls, "Zeig es mir" und das Weiterschalten nach einem
     // erledigten Schritt brauchen Bilder.
     if (tourAnimiert()) {
-        return false;
+        return sperre(7);
     }
     // Karten-Editor: Kamerafahrt (IdleDraw2-Schleife), Freelook, Texturen laden.
     if (tabfenster::sichtbar(3) && karteneditor::kameraBrauchtBilder()) {   // rc609 T1: auch in eigenem Fenster
-        return false;
+        return sperre(8);
     }
     // Stufe 3: waehrend q3map2 baut, Bild fuer Bild seine Ausgabe lesen
     if (karteneditor::bauLaeuft()) {
-        return false;
+        return sperre(9);
     }
     const ImGuiIO& io = ImGui::GetIO();
     if (io.WantTextInput) {
-        return false;
+        return sperre(10);
     }
     for (const bool unten : io.MouseDown) {
         if (unten) {
-            return false;
+            return sperre(11);
         }
     }
     return true;

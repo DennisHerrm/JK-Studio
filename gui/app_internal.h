@@ -1667,6 +1667,9 @@ struct App {
     int grafikNeuAufbauten = 0;   // wie oft das Geraet neu aufgebaut wurde (rc596)
     std::size_t vorgewaermt = 0;   // Stand von Karte, Bildern und Effekten beim letzten Vorwaermen
     bool ruheImTest = false;      // Selbsttest: den Ruhezustand ausnahmsweise erlauben
+    // REST5 P3: wie oft die Hauptschleife aus welchem Grund nicht ruhte (darfRuhen, eine Nachricht); der Selbsttest
+    // "Reste1/5" setzt sie zurueck und nennt sie
+    std::array<int, 12> ruheSperre{};
     // --- Was das Skript bewegt (rc597) ----------------------------------------
     //
     // "sollte sich die ent nicht mit dem schiff mitbewegen?" - je Entity der
@@ -4160,6 +4163,7 @@ sound::Mischpegel tonPegel();
 float tonMusikPegel();
 // Die im Hintergrund geoeffneten Tongeraete uebernehmen (app.cpp).
 void tonUebernehmen(bool warten);
+const char* ruheSperreName(std::size_t i);   // REST5 P3: Name eines Grundes in App::ruheSperre
 // rc601 ton (Review): Einblick fuer Selbsttest und Protokoll - wie viele
 // Schleifenkanaele bzw. gefuehrte Einmalklaenge der Raumklang gerade hat
 // (datei leer: alle), und der Puffer, den der Mischer fuer eine Datei bekommt.

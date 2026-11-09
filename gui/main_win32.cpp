@@ -75,6 +75,7 @@ void setApp(App* a);
 void draw();
 bool wantsQuit();
 bool darfRuhen();
+void ruheNachricht();
 void grafikNeuAufgebaut();
 bool confirmQuit();
 void selbsttestVorBild();
@@ -1096,6 +1097,7 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
                 bhed::diag::detail(z);
             }
         }
+        if (nachricht) { bhed::gui::ruheNachricht(); }
         if (nachricht || !bhed::gui::darfRuhen()) {
             letzteUnruhe = std::chrono::steady_clock::now();
         }

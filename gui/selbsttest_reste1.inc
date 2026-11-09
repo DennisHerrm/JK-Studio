@@ -87,27 +87,87 @@ std::vector<Schritt> ruheOhneKarte() {
     std::vector<Schritt> s;
     auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
     auto vorher = std::make_shared<std::pair<int, int>>(0, 0);
-    auto bilder = std::make_shared<int>(0);
-    auto seit = std::make_shared<std::chrono::steady_clock::time_point>();
+    auto ergebnis = std::make_shared<bool>(false);
     add(tu("Reste1/5: Map-Tab ohne Karte, Ruhe im Test erlauben", [vorher] {
         vorher->first = g_app->leftMode;
         g_app->leftMode = 1;
         g_app->playing = false;
         g_app->ruheImTest = true;
+        g_app->ruheSperre.fill(0);
     }));
-    add(pause(2.0));
-    add(tu("Reste1/5: Bilder zaehlen", [bilder, seit] {
-        *bilder = ImGui::GetFrameCount();
-        *seit = std::chrono::steady_clock::now();
-    }));
-    add(pause(2.0));
-    add(pruefe("Reste1/5: Map-Tab ohne geladene Karte ruht (hoechstens wenige Bilder je Sekunde)", [bilder, seit] {
-        const double sek = std::chrono::duration<double>(std::chrono::steady_clock::now() - *seit).count();
-        const int n = ImGui::GetFrameCount() - *bilder;
+    // REST5 P3: einmal 253 Bilder in 3,5 s unter Volllast (Modus 1 in der Schlussrunde von REST2), in 18 Laeufen unter Last
+    // (10 parallel, BHED_TEST_BREMSE 20-200) nicht wieder. Statt einer festen Pause von 2 s erst warten, bis das Programm eine
+    // volle Sekunde lang nichts mehr vom Ruhen abhaelt (Nachladen nach dem Wechsel in den Map-Tab braucht unter Last laenger),
+    // hoechstens 30 s - danach wird trotzdem gemessen. Gemessen werden weiter 2 s, die Grenze bleibt 8 Bilder je Sekunde.
+    {
+        auto summe = std::make_shared<long long>(-1);
+        auto ruhigSeit = std::make_shared<std::chrono::steady_clock::time_point>();
+        auto anfang = std::make_shared<std::chrono::steady_clock::time_point>();
+        Schritt w{"Reste1/5: warten, bis das Programm eine Sekunde lang ruhen darf", [summe, ruhigSeit, anfang](int b) {
+                      const auto jetzt = std::chrono::steady_clock::now();
+                      long long z = 0;
+                      for (const int x : g_app->ruheSperre) { z += x; }
+                      if (b == 0) {
+                          *anfang = jetzt;
+                          *summe = -1;
+                      }
+                      if (z != *summe) {
+                          *summe = z;
+                          *ruhigSeit = jetzt;
+                      }
+                      if (std::chrono::duration<double>(jetzt - *ruhigSeit).count() >= 1.0) { return true; }
+                      if (std::chrono::duration<double>(jetzt - *anfang).count() > 30.0) {
+                          diag::detail("Knopftest: Reste1/5 - nach 30 s noch keine ruhige Sekunde");
+                          return true;
+                      }
+                      return false;
+                  }};
+        w.eigeneZeitgrenze = true;
+        add(std::move(w));
+    }
+    // Messen: 2 s Bilder zaehlen. Weckten nur Fensternachrichten (von aussen, z. B. unter Last) und kein Grund des Programms,
+    // die Messung bis zu dreimal wiederholen - ein Grund aus darfRuhen schlaegt sofort fehl.
+    {
+        auto bilder = std::make_shared<int>(0);
+        auto seit = std::make_shared<std::chrono::steady_clock::time_point>();
+        auto versuch = std::make_shared<int>(0);
+        Schritt m{"Reste1/5: Bilder zaehlen (2 s)", [bilder, seit, versuch, ergebnis](int b) {
+                      const auto jetzt = std::chrono::steady_clock::now();
+                      if (b == 0) {
+                          *bilder = ImGui::GetFrameCount();
+                          *seit = jetzt;
+                          g_app->ruheSperre.fill(0);
+                          return false;
+                      }
+                      const double sek = std::chrono::duration<double>(jetzt - *seit).count();
+                      if (sek < 2.0) { return false; }
+                      const int n = ImGui::GetFrameCount() - *bilder;
+                      std::string gruende;
+                      bool nurNachricht = true;
+                      for (std::size_t i = 0; i < g_app->ruheSperre.size(); ++i) {
+                          if (g_app->ruheSperre[i] <= 0) { continue; }
+                          gruende += std::string(gruende.empty() ? "" : ", ") + ruheSperreName(i) + " " + std::to_string(g_app->ruheSperre[i]);
+                          nurNachricht = nurNachricht && i == 0;
+                      }
+                      *ergebnis = g_app->geo.surfaces.empty() && static_cast<double>(n) / sek <= 8.0;
+                      diag::detail("Knopftest: Reste1/5 - Karte geladen " + std::to_string(!g_app->geo.surfaces.empty()) + ", mapDirty " +
+                                   std::to_string(g_app->mapDirty) + ", " + std::to_string(n) + " Bilder in " + std::to_string(sek) +
+                                   " s; nicht geruht wegen: " + (gruende.empty() ? "-" : gruende));
+                      if (!*ergebnis && nurNachricht && !gruende.empty() && ++*versuch < 3) {
+                          diag::detail("Knopftest: Reste1/5 - nur Fensternachrichten, Messung " + std::to_string(*versuch + 1) + " von 3");
+                          *bilder = ImGui::GetFrameCount();
+                          *seit = jetzt;
+                          g_app->ruheSperre.fill(0);
+                          return false;
+                      }
+                      return true;
+                  }};
+        m.eigeneZeitgrenze = true;
+        add(std::move(m));
+    }
+    add(pruefe("Reste1/5: Map-Tab ohne geladene Karte ruht (hoechstens wenige Bilder je Sekunde)", [ergebnis] {
         g_app->ruheImTest = false;
-        diag::detail("Knopftest: Reste1/5 - Karte geladen " + std::to_string(!g_app->geo.surfaces.empty()) + ", mapDirty " +
-                     std::to_string(g_app->mapDirty) + ", " + std::to_string(n) + " Bilder in " + std::to_string(sek) + " s");
-        return g_app->geo.surfaces.empty() && sek > 0.5 && static_cast<double>(n) / sek <= 8.0;
+        return *ergebnis;
     }));
     add(tu("Reste1/5: zurueck", [vorher] {
         g_app->ruheImTest = false;
