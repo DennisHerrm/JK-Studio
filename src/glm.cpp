@@ -66,15 +66,6 @@ std::string fixed(const std::string& b, std::size_t at, std::size_t len) {
     return b.substr(at, n);
 }
 
-std::string trim(const std::string& s) {
-    std::size_t a = 0;
-    std::size_t e = s.size();
-    auto sp = [](char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; };
-    while (a < e && sp(s[a])) { ++a; }
-    while (e > a && sp(s[e - 1])) { --e; }
-    return s.substr(a, e - a);
-}
-
 }  // namespace
 
 bool GlmSurface::isOffByName() const noexcept {
@@ -427,123 +418,160 @@ void wendeHautNeuAn(const std::string& text, GlmModel& model) {
         s.texture.clear();
         s.skinnedOff = false;
         s.hautZeile = -1;
+        s.hautStandard = false;
     }
     applySkin(text, model);
 }
 
+namespace {
+// CommaParse (tr_skin.cpp:45-140 OpenJK, MD9 gleich; Raven-JK2 codeJK2/renderer/tr_image.cpp:1951-2045 a09d4827). `t` endet wie
+// der Puffer von FS_ReadFile am ersten NUL. Leerraum ist alles <= ' ' - in JKA als unsigned char ("eurofix"), in JK2 als char,
+// dort sind Zeichen ab 0x80 also auch Leerraum. Das Wort selbst endet an einem char <= 32 oder ',' (c = *data, char in beiden),
+// das erste Zeichen nimmt do-while immer, auch ein Komma. Laenge: JKA kappt bei MAX_TOKEN_CHARS - 1, JK2 verwirft ein Wort mit
+// MAX_TOKEN_CHARS Zeichen ganz (len = 0). `anfang` die Stelle des Wortes (fuer die Zeilennummer).
+std::string kommaParse(const std::string& t, std::size_t& p, bool jk2, std::size_t& anfang) {
+    constexpr std::size_t kMaxToken = 1024;   // MAX_TOKEN_CHARS (q_shared.h:197)
+    const std::size_t n = t.size();
+    const auto zeichen = [&t, n](std::size_t i) { return i < n ? static_cast<int>(static_cast<signed char>(t[i])) : 0; };
+    int c = 0;
+    for (;;) {
+        for (;;) {
+            c = zeichen(p);
+            const bool leer = jk2 ? c <= ' ' : static_cast<unsigned char>(static_cast<signed char>(c)) <= ' ';
+            if (!leer || c == 0) { break; }
+            ++p;
+        }
+        c = zeichen(p);
+        if (c == '/' && zeichen(p + 1) == '/') {
+            while (zeichen(p) != 0 && zeichen(p) != '\n') { ++p; }
+        } else if (c == '/' && zeichen(p + 1) == '*') {
+            while (zeichen(p) != 0 && (zeichen(p) != '*' || zeichen(p + 1) != '/')) { ++p; }
+            if (zeichen(p) != 0) { p += 2; }
+        } else {
+            break;
+        }
+    }
+    anfang = p;
+    std::string w;
+    if (c == 0) {
+        p = n;   // *data_p bleibt am Ende
+        return w;
+    }
+    const std::size_t grenze = jk2 ? kMaxToken : kMaxToken - 1;
+    if (c == '"') {
+        ++p;
+        for (;;) {
+            c = zeichen(p);
+            ++p;
+            if (c == '"' || c == 0) {
+                if (c == 0) { p = n; }
+                return w;
+            }
+            if (w.size() < grenze) { w += static_cast<char>(c); }
+        }
+    }
+    do {
+        if (w.size() < grenze) { w += static_cast<char>(c); }
+        ++p;
+        c = zeichen(p);
+    } while (c > 32 && c != ',');
+    if (jk2 && w.size() == kMaxToken) { w.clear(); }
+    return w;
+}
+}  // namespace
+
+std::vector<HautEintrag> hautEintraege(const std::string& text, bool jk2, int eintraegeBisher) {
+    // RE_RegisterIndividualSkin (tr_skin.cpp:286-334 OpenJK, MD9 gleich; JK2 codeJK2/renderer/tr_image.cpp:2264-2287 a09d4827)
+    constexpr std::size_t kQpath = 64;   // MAX_QPATH: surfName und skinSurface_t::name
+    // skin_t::surfaces[128] (tr_local.h:517, Warnung und Abbruch tr_skin.cpp:318-323); JK2 surfaces[MD3_MAX_SURFACES/2] mit
+    // MD3_MAX_SURFACES "32 + 32" = 48 (tr_local.h:504, qfiles.h:100) - ohne Pruefung, darueber schriebe jk2sp ueber das Feld
+    const int grenze = jk2 ? 48 : 128;
+    const std::string t(text.c_str());   // FS_ReadFile: der Text endet am ersten NUL
+    std::vector<HautEintrag> out;
+    std::size_t p = 0;
+    std::size_t zeilenStelle = 0;
+    int zeile = 0;
+    while (p < t.size()) {
+        std::size_t anfang = p;
+        const std::string wort = kommaParse(t, p, jk2, anfang);
+        if (wort.empty()) { break; }
+        HautEintrag e;
+        e.flaeche = wort.substr(0, kQpath - 1);
+        for (char& c : e.flaeche) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }   // Q_strlwr
+        for (; zeilenStelle < anfang && zeilenStelle < t.size(); ++zeilenStelle) {
+            if (t[zeilenStelle] == '\n') { ++zeile; }
+        }
+        e.zeile = zeile;
+        if (p < t.size() && t[p] == ',') { ++p; }
+        // "tag_": JKA strncmp am Wortanfang (tr_skin.cpp:303), JK2 strstr irgendwo (tr_image.cpp:2275) - beide am Wort, wie es
+        // dasteht; der Shader der Zeile bleibt ungelesen
+        if (jk2 ? wort.find("tag_") != std::string::npos : wort.compare(0, 4, "tag_") == 0) { continue; }
+        std::size_t shaderAnfang = p;
+        e.shader = kommaParse(t, p, jk2, shaderAnfang);
+        if (!jk2 && e.flaeche.size() >= 4U && e.flaeche.compare(e.flaeche.size() - 4, 4, "_off") == 0) {
+            if (e.shader == "*off") { continue; }   // "don't need these double offs"
+            e.flaeche.resize(e.flaeche.size() - 4);
+        }
+        if (eintraegeBisher >= grenze) { break; }
+        ++eintraegeBisher;
+        out.push_back(std::move(e));
+    }
+    return out;
+}
+
 int applySkin(const std::string& text, GlmModel& model, int eintraegeBisher) {
-    std::size_t at = 0;
-    int zeile = -1;
-    // MERGE2: RE_RegisterIndividualSkin haengt jede Zeile an die Liste der Haut (tr_skin.cpp:286-334 OpenJK, MD9 gleich);
+    // MERGE2: RE_RegisterIndividualSkin haengt jeden Eintrag an die Liste der Haut (tr_skin.cpp:286-334 OpenJK, MD9 gleich);
     // RenderSurfaces nimmt den ERSTEN Eintrag einer Flaeche (tr_ghoul2.cpp:2279-2289, break), G2API_SetSurfaceOnOffFromSkin
-    // schaltet bei JEDER Zeile "*off" ab (tr_ghoul2.cpp:2207-2234, ohne break). Beide Namen sind klein (Q_strlwr in
-    // tr_skin.cpp:293, R_LoadMDXM tr_ghoul2.cpp:3723). Vorher galt die letzte Zeile, und ein spaeteres Bild schaltete "*off" an.
+    // schaltet bei JEDEM Eintrag "*off" ab (tr_ghoul2.cpp:2207-2234, ohne break). Beide Namen sind klein (Q_strlwr in
+    // tr_skin.cpp:293, R_LoadMDXM tr_ghoul2.cpp:3723). REST4 Punkt 3: die Eintraege Wort fuer Wort wie CommaParse (hautEintraege)
+    // statt Zeile fuer Zeile. Unter Jedi Outcast setzt G2API_SetSkin nur mCustomSkin (Raven-JK2 g2_api.cpp:598-607 a09d4827,
+    // OpenJK G2_API.cpp:842-848 JK2_MODE): "*off" ist dort ein Shadername ohne Bild (R_FindShader: keine Stufe, nichts gezeichnet),
+    // und eine Flaeche, die die Haut nicht nennt, zeichnet tr.defaultShader (codeJK2/renderer/tr_ghoul2.cpp:1526-1539).
+    const bool jk2 = gGhoul2Jk2.load(std::memory_order_relaxed);
+    const std::vector<HautEintrag> eintraege = hautEintraege(text, jk2, eintraegeBisher);
     std::vector<char> vergeben(model.surfaces.size(), 0);
     const auto klein = [](std::string s) {
         for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
         return s;
     };
-    while (at < text.size()) {
-        std::size_t eol = text.find('\n', at);
-        if (eol == std::string::npos) {
-            eol = text.size();
-        }
-        const std::string line = trim(text.substr(at, eol - at));
-        at = eol + 1;
-        ++zeile;
-        if (line.empty() || line[0] == '/') {
-            continue;
-        }
-        const std::size_t comma = line.find(',');
-        if (comma == std::string::npos) {
-            continue;
-        }
-        const std::string rohName = trim(line.substr(0, comma));
-        std::string surface = klein(rohName);
-        const std::string tex = trim(line.substr(comma + 1));
-        // MERGE3 P53: RE_RegisterIndividualSkin (tr_skin.cpp:288-305 OpenJK, MD9 gleich) - ohne Flaechennamen endet die Datei
-        // (if (!token[0]) break), "tag_..." (strncmp am Wort, wie geschrieben) wird uebersprungen und zaehlt nicht
-        if (surface.empty()) { break; }
-        if (rohName.rfind("tag_", 0) == 0) { continue; }
-
-        // --- Die Endung "_off" im FLAECHENnamen ---------------------------
-        //
-        // Eine zweite Schreibweise neben "*off", die ich beim Nachlesen von
-        // tr_skin.cpp gefunden habe (Zeile 310 ff.):
-        //
-        //     if ( !strcmp( &surfName[strlen(surfName)-4], "_off") )
-        //     {
-        //         if ( !strcmp( token ,"*off" ) )
-        //             continue;             // don't need these double offs
-        //         surfName[strlen(surfName)-4] = 0;   // remove the "_off"
-        //     }
-        //
-        // Zwei Dinge stecken darin, und beide sind leicht zu uebersehen:
-        //
-        // 1. Heisst die Zeile "x_off,*off", wird sie GANZ uebersprungen -
-        //    nicht etwa die Flaeche "x_off" abgeschaltet. Die Engine nennt
-        //    das "double offs".
-        // 2. Sonst wird das Suffix GESTRICHEN: "torso_off,irgendwas" faerbt
-        //    die Flaeche "torso", nicht "torso_off".
-        //
-        // Ohne den zweiten Punkt sucht behaved eine Flaeche, die es nicht
-        // gibt, und die Zeile bleibt wirkungslos.
-        // MERGE3 Punkt 2: das Streichen steht unter #ifndef JK2_MODE (tr_skin.cpp:308-316 OpenJK) - jk2sp vergleicht den
-        // Hautnamen so, wie er dasteht.
-        if (!gGhoul2Jk2.load(std::memory_order_relaxed) && surface.size() > 4 &&
-            surface.compare(surface.size() - 4, 4, "_off") == 0) {
-            if (tex == "*off") {
-                continue;   // doppeltes Aus - die Engine ueberspringt es
-            }
-            surface.resize(surface.size() - 4);
-        }
-        // MERGE3 P53: skin_t::surfaces[128] (tr_local.h:517) - ab dem 129. Eintrag der GANZEN Haut (auch doppelte Zeilen, bei
-        // dreiteiligen Haeuten alle Teile zusammen) Warnung und Abbruch (tr_skin.cpp:318-323)
-        constexpr int kHautEintraege = 128;
-        if (eintraegeBisher >= kHautEintraege) { break; }
-        ++eintraegeBisher;
-
+    for (const HautEintrag& e : eintraege) {
+        const std::string& tex = e.shader;
         for (std::size_t si = 0; si < model.surfaces.size(); ++si) {
             GlmSurface& s = model.surfaces[si];
-            // mb1a1: R_LoadMDXM streicht "_off" auch am Ende des FLAECHENnamens
-            // (tr_ghoul2.cpp:3722-3735 OpenJK; unter JK2_MODE nur bei einem
-            // JKA-Modell, isANewModelFile) - RenderSurfaces vergleicht die Haut
-            // mit diesem Namen. "force_shield_off" (Droideka, Movie Duels) heisst
-            // im Spiel "force_shield" und bekommt die Zeile "force_shield_off,...".
-            const bool streichen = !gGhoul2Jk2.load(std::memory_order_relaxed) || model.jkaUmgewandelt;
+            // mb1a1: R_LoadMDXM streicht "_off" auch am Ende des FLAECHENnamens (tr_ghoul2.cpp:3722-3735 OpenJK; unter
+            // JK2_MODE nur bei einem JKA-Modell, isANewModelFile) - RenderSurfaces vergleicht die Haut mit diesem Namen.
+            // "force_shield_off" (Droideka, Movie Duels) heisst im Spiel "force_shield" und bekommt "force_shield_off,...".
+            const bool streichen = !jk2 || model.jkaUmgewandelt;
             const bool offName = s.name.size() > 4 && s.name.compare(s.name.size() - 4, 4, "_off") == 0;
             const std::string spielName = klein(streichen && offName ? s.name.substr(0, s.name.size() - 4) : s.name);
-            if (spielName != surface) {
+            if (spielName != e.flaeche) {
                 continue;
             }
-            if (tex == "*off") {
-                s.skinnedOff = true;   // jede Zeile "*off" schaltet ab, auch hinter einem Bild
+            if (!jk2 && tex == "*off") {
+                s.skinnedOff = true;   // jeder Eintrag "*off" schaltet ab, auch hinter einem Bild
             }
             if (vergeben[si] != 0) {
-                continue;   // die Flaeche hat ihren Shader schon aus einer frueheren Zeile
+                continue;   // die Flaeche hat ihren Shader schon aus einem frueheren Eintrag
             }
             vergeben[si] = 1;
-            // "*off" schaltet die Flaeche ab, statt ihr eine Textur zu geben.
-            //
-            // Belegt in tr_ghoul2.cpp: dort wird bei shader->name == "*off"
-            // G2_SetSurfaceOnOff mit G2SURFACEFLAG_OFF gerufen. Ohne das
-            // werden alle Varianten eines Modells gleichzeitig gezeichnet -
-            // zwei Koepfe ineinander.
-            if (!tex.empty() && tex[0] == '*') {
+            // "*off" schaltet die Flaeche ab, statt ihr eine Textur zu geben (tr_ghoul2.cpp: bei shader->name == "*off"
+            // G2_SetSurfaceOnOff mit G2SURFACEFLAG_OFF). Ohne das werden alle Varianten eines Modells gleichzeitig gezeichnet.
+            if (!jk2 && !tex.empty() && tex[0] == '*') {
                 s.skinnedOff = (tex == "*off");
                 if (!s.skinnedOff) {
-                    // "*default" und Verwandte: die Flaeche bleibt an, nur
-                    // ohne eigene Textur.
-                    s.texture.clear();
+                    s.texture.clear();   // "*default" und Verwandte: die Flaeche bleibt an, ohne eigene Textur
                 }
                 continue;
             }
-            s.skinnedOff = false;
+            if (!jk2) { s.skinnedOff = false; }
             s.texture = tex;
-            s.hautZeile = zeile;
+            s.hautZeile = e.zeile;
         }
     }
-    return eintraegeBisher;
+    if (jk2 && !eintraege.empty()) {
+        for (std::size_t si = 0; si < model.surfaces.size(); ++si) { model.surfaces[si].hautStandard = vergeben[si] == 0; }
+    }
+    return eintraegeBisher + static_cast<int>(eintraege.size());
 }
 
 

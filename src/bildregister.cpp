@@ -2,6 +2,7 @@
 #include "bhed/bildregister.h"
 
 #include "bhed/bspgeo.h"
+#include "bhed/glm.h"
 #include "bhed/efx/gp2.h"
 #include "bhed/image.h"
 
@@ -98,31 +99,6 @@ std::vector<std::string> glmShader(const std::string& d) {
     return out;
 }
 
-// CommaParse (tr_skin.cpp:45-140): Leerraum, // und /* */ ueberspringen, "..." am Stueck, sonst bis Leerraum oder Komma.
-std::string kommaWort(const std::string& t, std::size_t& p) {
-    for (;;) {
-        while (p < t.size() && static_cast<unsigned char>(t[p]) <= ' ') { ++p; }
-        if (p + 1 < t.size() && t[p] == '/' && t[p + 1] == '/') {
-            while (p < t.size() && t[p] != '\n') { ++p; }
-        } else if (p + 1 < t.size() && t[p] == '/' && t[p + 1] == '*') {
-            while (p < t.size() && !(t[p] == '*' && p + 1 < t.size() && t[p + 1] == '/')) { ++p; }
-            if (p < t.size()) { p += 2; }
-        } else {
-            break;
-        }
-    }
-    std::string w;
-    if (p >= t.size()) { return w; }
-    if (t[p] == '"') {
-        ++p;
-        while (p < t.size() && t[p] != '"') { w += t[p++]; }
-        if (p < t.size()) { ++p; }
-        return w;
-    }
-    while (p < t.size() && static_cast<unsigned char>(t[p]) > ' ' && t[p] != ',') { w += t[p++]; }
-    return w;
-}
-
 }  // namespace
 
 void BildRegister::modell(const std::string& pfad, const Leser& lies, const Skripte& skripte) {
@@ -149,26 +125,30 @@ void BildRegister::modell(const std::string& pfad, const Leser& lies, const Skri
 
 void BildRegister::haut(const std::string& name, const Leser& lies, const Skripte& skripte) {
     if (name.empty() || !lies) { return; }
-    // RE_RegisterIndividualSkin: false, wenn die Datei fehlt (dann laedt RE_RegisterSkin die weiteren Teile nicht)
+    const bool jk2 = ghoul2Jk2();
+    int zahl = 0;   // skin_t::numSurfaces ueber alle Teile
+    // RE_RegisterIndividualSkin: false, wenn die Datei fehlt (dann laedt RE_RegisterSkin die weiteren Teile nicht). REST4 Punkt 3:
+    // die Eintraege Wort fuer Wort wie CommaParse (hautEintraege, bhed/glm.h); je Eintrag R_FindShader(shader, ..., qtrue)
     const auto eine = [&](const std::string& datei) {
         std::string t;
         if (!lies(datei, t)) { return false; }
-        std::size_t p = 0;
-        int zahl = 0;
-        while (p < t.size()) {
-            const std::string flaeche = klein(kommaWort(t, p));
-            if (flaeche.empty()) { break; }
-            if (p < t.size() && t[p] == ',') { ++p; }
-            if (flaeche.compare(0, 4, "tag_") == 0) { continue; }
-            const std::string sh = kommaWort(t, p);
-            if (flaeche.size() >= 4U && flaeche.compare(flaeche.size() - 4, 4, "_off") == 0 && sh == "*off") { continue; }
-            if (zahl >= 128) { break; }   // skin_t::surfaces[128] (tr_local.h:517)
-            shader(sh, skripte);
-            ++zahl;
+        const std::vector<HautEintrag> e = hautEintraege(t, jk2, zahl);
+        for (const HautEintrag& x : e) {
+            if (!x.shader.empty()) { shader(x.shader, skripte); }   // R_FindShader("") gibt tr.defaultShader (tr_shader.cpp:3444)
         }
+        zahl += static_cast<int>(e.size());
         return true;
     };
-    // RE_SplitSkins (tr_skin.cpp:162-200): "ordner/|kopf|rumpf|beine"
+    // RE_SplitSkins (tr_skin.cpp:162-200): "ordner/|kopf|rumpf|beine". Raven-JK2 kennt das nicht (codeJK2/renderer/
+    // tr_image.cpp:2130-2199 a09d4827): ein Name ohne ".skin" ist dort EIN Shader, R_FindShader(name)
+    if (jk2) {
+        if (name.size() < 5U || name.compare(name.size() - 5, 5, ".skin") != 0) {
+            shader(name, skripte);
+        } else {
+            (void)eine(name);
+        }
+        return;
+    }
     const std::size_t a = name.find('|');
     const std::size_t b = a == std::string::npos ? a : name.find('|', a + 1);
     const std::size_t c = b == std::string::npos ? b : name.find('|', b + 1);

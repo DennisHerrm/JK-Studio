@@ -2292,6 +2292,34 @@ ModelTextures texturenMitShader(const GlmModel& model, const std::string& shader
     return out;
 }
 
+// REST4 Punkt 3: Was eine Figurenflaeche zeichnet, wenn ihr Shader keine Stufe hat - R_FindShader findet weder Skript noch Bild
+// (tr_shader.cpp:3500-3509 OpenJK): defaultShader ohne Stufe, numUnfoggedPasses 0, SS_FOG (FinishShader :3265-3270), nichts
+// gezeichnet. Eine Stufe, die nichts aendert: blendFunc GL_ZERO GL_ONE, ohne Tiefe, ein Bildpunkt.
+TextureSet::Tex figurOhneStufe() {
+    TextureSet::Tex z;
+    z.ausSkript = true;
+    z.width = 1;
+    z.height = 1;
+    z.blend = BlendMode::Alpha;   // wie der Parser fuer GL_ZERO GL_ONE
+    z.srcFactor = BlendFactor::Zero;
+    z.dstFactor = BlendFactor::One;
+    z.depthWrite = false;
+    z.rgba.assign(4U, 0U);
+    return z;
+}
+
+// tr.defaultShader an einer Figur (CreateInternalShaders, tr_shader.cpp:3836-3848 OpenJK): tr.defaultImage 16x16 mit weissem Rand
+// (figurErsatzbild), GLS_DEFAULT mit Tiefe, cull front.
+TextureSet::Tex figurStandardShader() {
+    TextureSet::Tex z;
+    z.ausSkript = true;
+    z.width = 16;
+    z.height = 16;
+    z.rgba = figurErsatzbild();
+    z.depthWrite = true;
+    return z;
+}
+
 ModelTextures texturesFor(const GlmModel& model) {
     ModelTextures out;
     if (model.empty()) {
@@ -2387,6 +2415,13 @@ ModelTextures texturesFor(const GlmModel& model) {
     for (std::size_t i = 0; i < model.surfaces.size(); ++i) {
         const GlmSurface& s = model.surfaces[i];
         if (s.isTag()) {
+            continue;
+        }
+        if (s.hautStandard) {
+            // REST4 Punkt 3: Jedi Outcast - die Haut nennt die Flaeche nicht, jk2sp zeichnet tr.defaultShader (Raven-JK2
+            // RenderSurfaces, codeJK2/renderer/tr_ghoul2.cpp:1526-1539 a09d4827)
+            out.bySurface[i] = figurStandardShader();
+            ++out.found;
             continue;
         }
         // --- Wo der Texturname steht -----------------------------------
@@ -2493,6 +2528,7 @@ ModelTextures texturesFor(const GlmModel& model) {
             break;
         }
         // Nichts gefunden? Dann ueber das Shaderskript.
+        bool skriptDa = false;
         if (!got) {
             readShaders();
             std::string lowered = name;
@@ -2514,6 +2550,7 @@ ModelTextures texturesFor(const GlmModel& model) {
                 if (it == shaderMap.end()) {
                     continue;
                 }
+                skriptDa = true;
                 for (const std::string& kandidat : textureCandidates(it->second.image)) {
                     // Auch dieser Weg endet in der Tabelle, damit eine Flaeche, deren Bild nur ueber ein
                     // Shaderskript zu finden ist, nicht jedes Mal neu entziffert wird ("ueber Shaderskripte"
@@ -2555,6 +2592,13 @@ ModelTextures texturesFor(const GlmModel& model) {
                 }
             }
         }
+        if (!got && !skriptDa && !s.texture.empty()) {
+            // REST4 Punkt 3: ein Shader aus der Haut ohne Skript und ohne Bild (auch "*off" unter Jedi Outcast) - R_FindShader
+            // gibt einen defaultShader ohne Stufe, RenderSurfaces zeichnet ihn, sichtbar wird nichts (figurOhneStufe)
+            out.bySurface[i] = figurOhneStufe();
+            diag::detail("Figur: Hautshader " + name + " ohne Skript und Bild - keine Stufe wie im Spiel");
+            continue;
+        }
         if (!got) {
             ++out.missing;
             diag::info("keine Textur fuer " + s.name + " (" + name + ")");
@@ -2581,7 +2625,7 @@ ModelTextures texturesFor(const GlmModel& model) {
     int leuchtStufen = 0;
     for (std::size_t i = 0; i < model.surfaces.size(); ++i) {
         const GlmSurface& s = model.surfaces[i];
-        if (s.isTag()) {
+        if (s.isTag() || s.hautStandard) {
             continue;
         }
         std::string name = s.texture.empty() ? s.shader : s.texture;
@@ -2656,7 +2700,7 @@ ModelTextures texturesFor(const GlmModel& model) {
     int stufenFlaechen = 0;
     for (std::size_t i = 0; i < model.surfaces.size(); ++i) {
         const GlmSurface& s = model.surfaces[i];
-        if (s.isTag()) { continue; }
+        if (s.isTag() || s.hautStandard) { continue; }
         std::string name = s.texture.empty() ? s.shader : s.texture;
         std::replace(name.begin(), name.end(), '\\', '/');
         if (name.empty()) { continue; }

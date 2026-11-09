@@ -3846,7 +3846,9 @@ bool figurMitSchluessel(const Actor& a) {
 bool figurHautAnwenden(const std::string& dir, const std::string& customSkin, GlmModel& gm, const std::string& figur) {
     const std::string name = customSkin.empty() ? std::string("default") : customSkin;
     bool gefunden = false;
-    if (name.find('|') != std::string::npos) {
+    // REST4 Punkt 3: Jedi Outcast kennt keine dreiteilige Haut - G_SetSkin baut immer model_<customSkin>.skin (codeJK2
+    // g_client.cpp:742-763 a09d4827), RE_RegisterSkin hat kein RE_SplitSkins (codeJK2/renderer/tr_image.cpp:2130-2199)
+    if (!ghoul2Jk2() && name.find('|') != std::string::npos) {
         gefunden = hautAusDreiTeilen(dir, name[0] == '|' ? name : "|" + name, gm);
     } else {
         std::string skin;

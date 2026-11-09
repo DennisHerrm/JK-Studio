@@ -155,7 +155,8 @@ int main(int argc, char** argv) {
     // Teile zusammen (applySkin bekommt die Zahl der Eintraege davor und gibt die neue zurueck)
     {
         bhed::GlmModel m;
-        std::string haut = "tag_kopf,models/players/x/tag.tga\n";
+        // REST4 Punkt 3: die tag_-Zeile ohne Shaderwort - mit einem ("tag_kopf,bild") verschoebe CommaParse alle Woerter danach
+        std::string haut = "tag_kopf,\n";
         for (int i = 0; i < 130; ++i) {
             bhed::GlmSurface s;
             s.name = "f" + std::to_string(i);
@@ -196,7 +197,71 @@ int main(int argc, char** argv) {
         bhed::applySkin("torso_off,models/players/x/torso.tga\narm_off,*off\n", m);
         bhed::setzeGhoul2Jk2(false);
         expect("Punkt 2: JK2 - Hautzeile torso_off faerbt die Flaeche torso_off", m.surfaces[0].texture == "models/players/x/torso.tga");
-        expect("Punkt 2: JK2 - arm_off,*off schaltet arm_off ab", m.surfaces[1].skinnedOff);
+        // REST4 Punkt 3: jk2sp schaltet ueber die Haut nichts ab (G2API_SetSkin setzt nur mCustomSkin) - "*off" ist der Shader
+        expect("Punkt 2: JK2 - arm_off,*off gibt arm_off den Shader *off (nicht abgeschaltet)",
+               !m.surfaces[1].skinnedOff && m.surfaces[1].texture == "*off");
+    }
+
+    // --- REST4 Punkt 3: Woerter wie CommaParse (tr_skin.cpp:45-140 OpenJK, MD9 gleich) in RE_RegisterIndividualSkin (:286-334) ----
+    // Eine "tag_"-Zeile liest nur den Flaechennamen und das Komma - ihr Shader wird zum naechsten Flaechennamen, alle Woerter danach
+    // verschieben sich; ein Wort beginnt auch mit einem Komma (do-while nimmt das erste Zeichen immer). Eine Zeile ohne Komma
+    // nimmt das erste Wort der naechsten Zeile als Shader. Leerraum trennt wie ein Komma, // beendet die Zeile.
+    {
+        const auto figur = [](std::initializer_list<const char*> namen) {
+            bhed::GlmModel m;
+            for (const char* n : namen) {
+                bhed::GlmSurface s;
+                s.name = n;
+                s.verts.resize(3);
+                m.surfaces.push_back(s);
+            }
+            return m;
+        };
+        bhed::GlmModel a = figur({"kopf", "rumpf", "models/x/tag.tga"});
+        bhed::applySkin("tag_kopf,models/x/tag.tga\nkopf,models/x/kopf.tga\nrumpf,models/x/rumpf.tga\n", a);
+        expect("REST4 P3: nach tag_ mit Shader verschieben sich die Woerter - kopf und rumpf bleiben ohne Haut",
+               a.surfaces[0].texture.empty() && a.surfaces[1].texture.empty() && a.surfaces[2].texture == "kopf");
+        bhed::GlmModel b = figur({"kopf", "rumpf"});
+        bhed::applySkin("kopf\nrumpf,models/x/rumpf.tga\n", b);
+        expect("REST4 P3: Zeile ohne Komma - das erste Wort der naechsten Zeile ist der Shader",
+               b.surfaces[0].texture == "rumpf" && b.surfaces[1].texture.empty());
+        bhed::GlmModel c = figur({"kopf", "rumpf"});
+        bhed::applySkin("kopf models/x/kopf.tga\r\nrumpf,models/x/rumpf.tga // alt\r\n", c);
+        expect("REST4 P3: Leerraum trennt wie ein Komma, // nach dem Shader gehoert nicht dazu",
+               c.surfaces[0].texture == "models/x/kopf.tga" && c.surfaces[1].texture == "models/x/rumpf.tga");
+        // Raven-JK2 (OpenJK a09d4827 codeJK2/renderer/tr_image.cpp:2242-2296): strstr(token, "tag_") statt strncmp, kein "_off",
+        // skin_t::surfaces[MD3_MAX_SURFACES/2] = 32 + 32/2 = 48 (tr_local.h:504, qfiles.h:100) ohne Pruefung; G2API_SetSkin setzt
+        // nur mCustomSkin (codeJK2/ghoul2/g2_api.cpp:598-607) - "*off" schaltet nicht ab, die Flaeche bekommt den Shader "*off"
+        // (kein Bild, keine Stufe); eine Flaeche, die die Haut nicht nennt, zeichnet tr.defaultShader (tr_ghoul2.cpp:1526-1539).
+        bhed::GlmModel d = figur({"kopf", "rumpf", "kopf_tag_x"});
+        bhed::setzeGhoul2Jk2(true);
+        bhed::applySkin("kopf,*off\nkopf_tag_x,models/x/a.tga\nrumpf,models/x/r.tga\n", d);
+        bhed::setzeGhoul2Jk2(false);
+        expect("REST4 P3: JK2 - kopf,*off schaltet nicht ab, der Shader heisst *off",
+               !d.surfaces[0].skinnedOff && d.surfaces[0].texture == "*off" && !d.surfaces[0].hautStandard);
+        expect("REST4 P3: JK2 - tag_ irgendwo im Namen (strstr) verschiebt die Woerter, rumpf ohne Haut -> tr.defaultShader",
+               d.surfaces[2].texture.empty() && d.surfaces[1].texture.empty() && d.surfaces[1].hautStandard);
+        bhed::GlmModel e = figur({"kopf", "rumpf"});
+        bhed::applySkin("kopf,*off\n", e);
+        expect("REST4 P3: JKA - ungenannte Flaeche behaelt den Shader der .glm", e.surfaces[0].skinnedOff && !e.surfaces[1].hautStandard);
+        bhed::GlmModel f;
+        std::string h50;
+        for (int i = 0; i < 50; ++i) {
+            bhed::GlmSurface s;
+            s.name = "f" + std::to_string(i);
+            s.verts.resize(3);
+            f.surfaces.push_back(s);
+            h50 += s.name + ",models/x/b" + std::to_string(i) + ".tga\n";
+        }
+        bhed::setzeGhoul2Jk2(true);
+        bhed::applySkin(h50, f);
+        bhed::setzeGhoul2Jk2(false);
+        expect("REST4 P3: JK2 - 48 Eintraege je Haut, der 49. wirkt nicht",
+               f.surfaces[47].texture == "models/x/b47.tga" && f.surfaces[48].texture.empty());
+        const std::vector<bhed::HautEintrag> l = bhed::hautEintraege("tag_a,s1\nb,s2\n\"c d\",s3\n", false);
+        expect("REST4 P3: hautEintraege - Woerter wie die Engine (Komma am Wortanfang, Anfuehrungszeichen)",
+               l.size() == 3U && l[0].flaeche == "s1" && l[0].shader == "b" && l[1].flaeche == ",s2" && l[1].shader == "c d" &&
+                   l[2].flaeche == ",s3" && l[2].shader.empty() && l[0].zeile == 0 && l[1].zeile == 1);
     }
 
     // --- "*off" schaltet eine Flaeche ab ---------------------------------

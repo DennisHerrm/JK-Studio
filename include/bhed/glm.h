@@ -94,6 +94,9 @@ struct GlmSurface {
     // dann gelten Haut und Name wie bis rc610 (Model-Tab alt, Anbauten).
     std::int8_t g2An = -1;
     std::int8_t g2Kappen = -1;
+    // REST4 Punkt 3: unter Jedi Outcast nennt die Haut diese Flaeche nicht - jk2sp zeichnet dann tr.defaultShader (Raven-JK2
+    // RenderSurfaces, codeJK2/renderer/tr_ghoul2.cpp:1526-1539 a09d4827; JKA nimmt den Shader der .glm, tr_ghoul2.cpp:2279)
+    bool hautStandard = false;
 
     [[nodiscard]] bool isVisible(bool showCaps) const noexcept {
         if (isTag() || verts.empty()) {
@@ -154,6 +157,21 @@ struct GlmModel {
 // MERGE3 P53: `eintraegeBisher` die Eintraege, die fruehere Teile derselben Haut schon belegt haben (dreiteilige Haut); zurueck
 // kommt die neue Zahl (skin_t::numSurfaces).
 int applySkin(const std::string& skinText, GlmModel& model, int eintraegeBisher = 0);
+
+// REST4 Punkt 3: ein Eintrag der Haut, wie RE_RegisterIndividualSkin ihn anlegt (tr_skin.cpp:286-334 OpenJK, MD9 gleich;
+// Raven-JK2 codeJK2/renderer/tr_image.cpp:2242-2296 im OpenJK-Verlauf a09d4827): `flaeche` klein und auf 63 Zeichen
+// (MAX_QPATH), `shader` das Wort danach (auch leer), `zeile` die Zeile des Flaechennamens (ab 0).
+struct HautEintrag {
+    std::string flaeche;
+    std::string shader;
+    int zeile = -1;
+};
+// Die Eintraege der Datei in ihrer Folge - die Woerter wie CommaParse (Leerraum, // und /* */ ueberspringen, "..." am Stueck,
+// sonst bis Leerraum oder Komma, das erste Zeichen immer): eine "tag_"-Zeile liest nur Namen und Komma (ihr Shader wird zum
+// naechsten Namen), eine Zeile ohne Komma nimmt das erste Wort der naechsten als Shader. `jk2` wie jk2sp: "tag_" irgendwo im
+// Namen (strstr), kein "_off", hoechstens 48 Eintraege, Zeichen ab 0x80 sind Leerraum; sonst 128 und "x_off,*off" faellt weg.
+// `eintraegeBisher` wie bei applySkin.
+[[nodiscard]] std::vector<HautEintrag> hautEintraege(const std::string& skinText, bool jk2, int eintraegeBisher = 0);
 
 // MERGE3 Punkt 3: eine neue Haut wie G2API_SetSkin auf das Modell legen ("Skin oeffnen", Wechsel in der Hautliste).
 void wendeHautNeuAn(const std::string& skinText, GlmModel& model);

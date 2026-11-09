@@ -12,6 +12,7 @@
 #include "bhed/shaderscript.h"
 #include "bhed/bildregister.h"
 #include "bhed/bspgeo.h"
+#include "bhed/glm.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -993,6 +994,19 @@ int main() {
                 bhed::BildRegister h2;
                 h2.haut("models/players/m9/|fehlt|t|t", lies, sk9);
                 expect("RE_RegisterSkin: fehlt der Kopf, laedt der Rumpf nicht", !h2.kenntShader("models/m9/rumpf"));
+                // REST4 Punkt 3: CommaParse nach einer tag_-Zeile mit Shader (tr_skin.cpp:286-334 OpenJK) - die Woerter verschieben
+                // sich, ",models/m9/k" ist ein Flaechenname, "models/m9/rumpf" der Shader danach; Raven-JK2 kennt keine dreiteilige
+                // Haut (codeJK2/renderer/tr_image.cpp:2130-2199 a09d4827: ein Name ohne ".skin" ist EIN Shader)
+                dateien["models/players/r4/model_default.skin"] = "tag_a,models/m9/x\nmodels/m9/kopf,models/m9/k\nmodels/m9/rumpf,models/m9/r\n";
+                bhed::BildRegister h4;
+                h4.haut("models/players/r4/model_default.skin", lies, sk9);
+                expect("REST4 P3: RE_RegisterSkin nach tag_ mit Shader - die Woerter verschieben sich wie CommaParse",
+                       h4.kenntShader("models/m9/kopf") && h4.kenntShader("models/m9/rumpf") && !h4.kenntShader("models/m9/k"));
+                bhed::setzeGhoul2Jk2(true);
+                bhed::BildRegister h5;
+                h5.haut("models/players/m9/|h|t|t", lies, sk9);
+                bhed::setzeGhoul2Jk2(false);
+                expect("REST4 P3: Jedi Outcast - keine dreiteilige Haut", h5.wahl("textures/m9/haut") == nullptr && !h5.kenntShader("models/m9/kopf"));
                 // P59: dieselbe Datei zweimal im selben Shader, die zweite nach noTC - der erste R_FindImageFile entscheidet
                 bhed::ShaderMap s59;
                 bhed::parseShaderScript("textures/m9/zweimal\n{\n{\nmap textures/m9/z.tga\n}\nnoTC\n{\nmap textures/m9/z\nblendFunc GL_ONE GL_ONE\n}\n}\n", s59);
