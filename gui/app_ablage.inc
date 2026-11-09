@@ -2285,6 +2285,22 @@ bool texturLaden(const std::string& shaderName, TextureSet::Tex& out, bool nurBi
         if (it != shaderMap.end() && !it->second.image.empty()) {
             tries = textureCandidates(it->second.image);
         }
+        // REST3b Punkt 5: ein Shader ohne Bildstufe mit "map $whiteimage" zeichnet tr.whiteImage (ParseStage, tr_shader.cpp:1236-1255
+        // OpenJK: R_CreateBuiltinImages, tr_image.cpp: 8 x 8 weiss) - mit den Werten dieser Stufe wie jedes andere Bild. Bis REST3b
+        // blieb die Flaeche leer (keine Textur, kein Ersatz), im Spiel ist sie weiss.
+        if (it != shaderMap.end() && it->second.image.empty() &&
+            std::any_of(it->second.stages.begin(), it->second.stages.end(), [](const ShaderInfo::Stage& s) { return s.weiss; })) {
+            const std::string weiss = "$whiteimage";
+            const std::string key = image::mappingName(weiss) + "@" + bildStufeText(weiss);
+            if (g_app->texCache.find(key) == g_app->texCache.end()) {
+                TextureSet::Tex w;
+                w.width = 8;
+                w.height = 8;
+                w.rgba.assign(8U * 8U * 4U, 255);
+                g_app->texCache[key] = w;
+            }
+            tries.push_back(weiss);
+        }
         for (const std::string& c : textureCandidates(shaderName)) {
             tries.push_back(c);
         }

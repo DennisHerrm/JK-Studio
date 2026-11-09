@@ -330,6 +330,9 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
     // Hat DIESE Stufe das gemeldete Bild geliefert? Nur dann gelten ihre
     // Einzelfelder - siehe beim Stufenende.
     bool stageHatFound = false;
+    // REST3b Punkt 5: ein Shader ohne Bildstufe, aber mit "map $whiteimage" (tr.whiteImage, tr_shader.cpp:1236-1255 OpenJK):
+    // die erste solche Stufe liefert die Einzelfelder (Mischart, rgbGen ...) wie sonst die Bildstufe
+    bool weissBasis = false;
     std::string stageImage;
     std::string stageVideo;   // Menue-Editor M2: videoMap (RoQ in einer Stufe)
     bool stageLightmap = false;
@@ -438,7 +441,9 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 // nur aus der Stufe, die auch das gemeldete Bild geliefert
                 // hat - sonst ueberschreibt eine spaetere Stufe sie, und
                 // genau das haben in rc342 zwei bestehende Proben gemeldet.
-                if (inImageStage && stageHatFound) {
+                const bool weissAlsBasis = inImageStage && stageWeiss && found.empty() && !weissBasis;
+                if (weissAlsBasis) { weissBasis = true; }
+                if (inImageStage && (stageHatFound || weissAlsBasis)) {
                     bildKeinTc = noTC;
                     for (int k = 0; k < stageNumTexMods; ++k) {
                         texMods[k] = stageTexMods[k];
@@ -661,6 +666,7 @@ void parseShaderScript(const std::string& text, ShaderMap& out) {
                 stageLightmap = false;
                 stageWeiss = false;
                 stageHatFound = false;
+                weissBasis = false;
                 blend = BlendMode::Opaque;
                 cull = CullMode::Front;
                 stageGlow = false;
