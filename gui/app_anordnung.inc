@@ -1752,6 +1752,17 @@ float drawModeBar(float height, float headerH) {
     return barW;
 }
 
+// REST9: die Hoehe der Update-Leiste unter der Menueleiste des zeichnenden
+// Fensters (fensterKopf setzt sie je Fenster; in den eigenen Fenstern der Tabs 0).
+float g_updateLeisteH = 0.0F;
+
+// Die Unterkante von Menueleiste und Update-Leiste: dort beginnen Karten- und
+// Menue-Editor (ohne Reiter- und Kopfzeile, ohne den Fensterrand dazwischen).
+float unterDerMenueleiste() {
+    const ImGuiWindow* w = ImGui::GetCurrentWindow();
+    return w->Pos.y + w->TitleBarHeight + w->MenuBarHeight + g_updateLeisteH;
+}
+
 // --- Stufe 1b: der Arbeitsbereich Karten-Editor ---------------------------
 //
 // Zwei Spalten wie die anderen Modi (eigene Tabellen-ID, rc495): die
@@ -1762,10 +1773,7 @@ float drawModeBar(float height, float headerH) {
 void drawKartenEditorBereich(const Layout& l) {
     // Stufe 3 Punkt 0b: ohne Reiter- und Kopfzeile direkt unter der
     // Menueleiste - auch ohne den Fensterrand oben dazwischen.
-    {
-        const ImGuiWindow* w = ImGui::GetCurrentWindow();
-        ImGui::SetCursorScreenPos(ImVec2{ImGui::GetCursorScreenPos().x, w->Pos.y + w->TitleBarHeight + w->MenuBarHeight});
-    }
+    ImGui::SetCursorScreenPos(ImVec2{ImGui::GetCursorScreenPos().x, unterDerMenueleiste()});
     if (!ImGui::BeginTable("##spaltenKarteneditor", 2,
                            ImGuiTableFlags_NoSavedSettings | ImGuiTableFlags_NoPadOuterX,
                            ImVec2{0.0F, 0.0F})) {
@@ -1787,10 +1795,7 @@ void drawKartenEditorBereich(const Layout& l) {
 // Wie der Karten-Editor: links die Modusleiste, rechts der ganze Editor
 // (gui/app_menue.cpp), ohne Skript-Reiter und Kopfzeile.
 void drawMenueEditorBereich(const Layout& l) {
-    {
-        const ImGuiWindow* w = ImGui::GetCurrentWindow();
-        ImGui::SetCursorScreenPos(ImVec2{ImGui::GetCursorScreenPos().x, w->Pos.y + w->TitleBarHeight + w->MenuBarHeight});
-    }
+    ImGui::SetCursorScreenPos(ImVec2{ImGui::GetCursorScreenPos().x, unterDerMenueleiste()});
     if (!ImGui::BeginTable("##spaltenMenueeditor", 2,
                            ImGuiTableFlags_NoSavedSettings | ImGuiTableFlags_NoPadOuterX,
                            ImVec2{0.0F, 0.0F})) {

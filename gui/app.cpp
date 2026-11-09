@@ -6234,13 +6234,19 @@ void bereichZeichnen(const Layout& l) {
 
 // Menueleiste und Reiterleiste der Skripte - im Hauptfenster und in jedem
 // eigenen Fenster eines Tabs (rc609 T1) dieselben Zeilen.
-void fensterKopf() {
+void fensterKopf(bool hauptfenster) {
     const bool kartenLeiste = (g_app->leftMode == 3);
     if (kartenLeiste) {
         karteneditor::zeichneHauptmenue();
     } else {
         drawMenu();
     }
+    // REST9: die Update-Leiste direkt unter der Menueleiste, ueber allen Reitern -
+    // nur im Hauptfenster. Alles darunter rueckt um ihre Hoehe nach unten; der Map
+    // Editor setzt sich selbst an die Unterkante der Menueleiste (leisteUnten), Karten-
+    // und Menue-Editor an unterDerMenueleiste - beide beginnen jetzt unter der Leiste.
+    g_updateLeisteH = hauptfenster ? updater::zeichneLeiste() : 0.0F;
+    if (kartenLeiste && g_updateLeisteH > 0.0F) { karteneditor::leisteUntenVerschieben(g_updateLeisteH); }
     // --- Die Reiterleiste, ganz oben --------------------------------------
     //
     // Ueber Events, Script Flow und Actions - so, wie du es beschrieben
@@ -6385,7 +6391,7 @@ void tabFensterZeichnen() {
         const bool sichtbar = tabfenster::begin(i);
         if (kartenLeiste) { karteneditor::hauptleisteStilAus(); }
         if (sichtbar) {
-            fensterKopf();
+            fensterKopf(false);
             const Layout l = computeLayout();
             // Das Einschwingbild beim ersten Bild des Fensters wie beim Moduswechsel im Hauptfenster.
             g_app->moduswechselBild = (g_app->letzterModus != g_app->leftMode);
@@ -6530,7 +6536,7 @@ void draw() {
                  // defaults breaks all keyboard shortcuts").
                  ImGuiWindowFlags_NoBringToFrontOnFocus);
     if (kartenLeiste) { karteneditor::hauptleisteStilAus(); }
-    fensterKopf();
+    fensterKopf(true);
 
     const Layout l = computeLayout();
 

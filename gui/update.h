@@ -7,6 +7,7 @@
 #ifndef BHED_GUI_UPDATE_H
 #define BHED_GUI_UPDATE_H
 
+#include <functional>
 #include <string>
 
 #include "bhed/update.h"
@@ -21,6 +22,9 @@ struct Zustand {
     bhed::update::Release release;
     double fortschritt = 0.0;     // 0..1 beim Laden
     int dateien = 0;              // so viele wurden ersetzt
+    // REST9: der Fehler kam beim Installieren (nicht beim Nachsehen) - nur dann
+    // zeigt die Leiste oben ihn mit "Erneut versuchen".
+    bool beimInstallieren = false;
 };
 
 // Beim Programmstart: Reste eines frueheren Updates wegraeumen und - wenn
@@ -54,6 +58,46 @@ void zeichneFenster();
 void zeichneStatus();
 void oeffneFenster();
 [[nodiscard]] bool fensterOffen();
+
+// --- REST9 (shank 09.11., "wie bei G2C"): die Leiste oben ----------------
+//
+// Sobald ein neueres Release gefunden ist, steht direkt unter der Menueleiste
+// des Hauptfensters, ueber allen Reitern, eine auffaellige Leiste: "Neues
+// Update rcNNN verfuegbar (installiert rcMMM)" mit [Jetzt aktualisieren]
+// [Was ist neu?] [Spaeter] [Diese Fassung ueberspringen] [x]; waehrend des
+// Ladens ein Fortschrittsbalken, danach [Jetzt neu starten], bei einem Fehler
+// [Erneut versuchen]. Spaeter und x blenden sie bis zum naechsten Start aus
+// (der Hinweis in der Statuszeile bleibt); "ueberspringen" merkt die Fassung
+// in den Einstellungen (updateUebersprungen) - eine neuere meldet sich wieder.
+//
+// Aus fensterKopf, direkt nach der Menueleiste. Rueckgabe: um so viel rueckt
+// der Arbeitsbereich darunter nach unten (0 = keine Leiste in diesem Bild).
+float zeichneLeiste();
+// Wird die Leiste gerade gezeigt (Zustand, Spaeter, uebersprungene Fassung)?
+[[nodiscard]] bool leisteSichtbar();
+// Was die Leiste im letzten Bild gezeigt hat (zeilen 0 = nicht gezeichnet):
+// ihr Rechteck in Bildschirmpunkten, wie viele Zeilen (2, wenn die Knoepfe nicht
+// neben den Text passen) und den Text (vollstaendig, auch wenn er gekuerzt stand).
+struct LeistenBild {
+    float x0 = 0.0F, y0 = 0.0F, x1 = 0.0F, y1 = 0.0F;
+    int zeilen = 0;
+    bool gekuerzt = false;
+    std::string text;
+};
+[[nodiscard]] LeistenBild leisteBild();
+// Ist ein Neustart vorgemerkt ("Jetzt neu starten" gedrueckt, Beenden laeuft)?
+[[nodiscard]] bool neustartVorgemerkt();
+
+// Nur fuer den Selbsttest: statt GitHub antwortet `netz` (Adresse -> HTTP-Status
+// und Inhalt; false = keine Verbindung). Leer = das echte Netz.
+using TestNetz = std::function<bool(const std::string& adresse, int& status, std::string& inhalt)>;
+void testNetzSetzen(TestNetz netz);
+// Nur fuer den Selbsttest: wie nach einem neuen Start - Zustand Ruhe, "Spaeter"
+// (Leiste und Statuszeile) vergessen, das Fenster zu.
+void testNeuerStart();
+// Nur fuer den Selbsttest: so viel Breite hat die Leiste fuer Text und Knoepfe
+// (ein schmales Fenster; 0 = die des Fensters).
+void testLeistenBreite(float breite);
 
 // Aus main: "--nach-update=<pid>" - auf das Ende der alten Instanz warten,
 // damit sie ihre Einstellungen fertig schreibt, bevor diese sie liest.

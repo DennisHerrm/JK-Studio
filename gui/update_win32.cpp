@@ -51,6 +51,11 @@ struct Geteilt {
     Zustand z;
     bool fensterOffen = false;
     bool hinweisWeg = false;   // "Spaeter" - der Hinweis unten verschwindet bis zum naechsten Fund
+    // REST9: "Spaeter"/x in der Leiste oben - fuer dieses Release bis zum naechsten Start
+    // (ein noch neueres, in dieser Sitzung gefunden, zeigt sie wieder).
+    std::string leisteWegTag;
+    // Nur Selbsttest: das Netz (testNetzSetzen).
+    TestNetz testNetz;
     std::atomic<bool> laeuft{false};
     // rc610 F78 (Fund B8-4): das Programm endet - Laden und Entpacken hoeren auf,
     // ein begonnener Tausch laeuft zu Ende (beimBeenden wartet darauf).
@@ -176,6 +181,32 @@ struct Antwort {
 Antwort holen(const std::wstring& url, const std::vector<std::wstring>& kopf, bool folgen,
               const std::function<void(std::uint64_t, std::uint64_t)>& fortschritt = {}) {
     Antwort a;
+    // Nur Selbsttest (REST9): die simulierte Antwort statt GitHub - danach derselbe
+    // Weg wie mit dem Netz (Fortschritt in Stuecken, Abbruch beim Beenden).
+    TestNetz netz;
+    {
+        std::lock_guard<std::mutex> l(g().m);
+        netz = g().testNetz;
+    }
+    if (netz) {
+        int status = 0;
+        std::string inhalt;
+        if (!netz(schmal(url), status, inhalt)) {
+            a.fehler = text(Str::UpdErrConnect, schmal(url));
+            return a;
+        }
+        a.status = static_cast<DWORD>(status);
+        const std::size_t stueck = std::max<std::size_t>(1, inhalt.size() / 16);
+        for (std::size_t i = 0; i < inhalt.size(); i += stueck) {
+            if (g().beenden.load()) {
+                a.fehler = text(Str::UpdErrAbort);
+                return a;
+            }
+            a.body.append(inhalt, i, stueck);
+            if (fortschritt) { fortschritt(a.body.size(), inhalt.size()); }
+        }
+        return a;
+    }
     URL_COMPONENTSW teile{};
     teile.dwStructSize = sizeof(teile);
     wchar_t host[256] = {};
@@ -469,6 +500,7 @@ void pruefen(bool stumm) {
     setze([](Zustand& z) {
         z.stand = Stand::Pruefe;
         z.meldung.clear();
+        z.beimInstallieren = false;
     });
     imHintergrund(pruefAuftrag);
 }
@@ -481,6 +513,7 @@ void installieren() {
         x.stand = Stand::Laedt;
         x.fortschritt = 0.0;
         x.meldung.clear();
+        x.beimInstallieren = true;
     });
     imHintergrund([r = z.release] { installAuftrag(r); });
 }
@@ -532,6 +565,8 @@ void neuStarten() {
 }
 
 void neustartVergessen() { g_neustartVorgemerkt = false; }
+
+bool neustartVorgemerkt() { return g_neustartVorgemerkt; }
 
 void neustartWennVorgemerkt() {
     if (!g_neustartVorgemerkt) { return; }
@@ -696,6 +731,243 @@ void zeichneFenster() {
     ImGui::End();
     std::lock_guard<std::mutex> l(g().m);
     g().fensterOffen = offen;
+}
+
+// --- REST9: die Leiste oben (wie im Programm G2C) -------------------------
+//
+// shank 09.11.: "wie bei g2c programm das wenn man es startet oben eine Leiste
+// erscheint mit neues update verfuegbar und jetzt updaten ... dass man gleich
+// gewarnt wird". Bis rc610 stand ein Fund nur als kleiner gruener Text unten in
+// der Statuszeile (zeichneStatus) - leicht zu uebersehen.
+namespace {
+
+LeistenBild g_leiste;
+float g_testBreite = 0.0F;   // testLeistenBreite
+
+// "v1.0.0-rc612" -> "rc612" (die Schreibweise von kFassung); ohne Nummer der Tag selbst.
+std::string kurzTag(const std::string& tag) {
+    const int n = bhed::update::rcNummer(tag);
+    return n >= 0 ? "rc" + std::to_string(n) : tag;
+}
+
+// "Diese Fassung ueberspringen": gilt fuer dieses Release und aeltere; ohne
+// erkennbare Nummer in der Einstellung gilt nichts als uebersprungen.
+bool uebersprungen(const std::string& tag) {
+    if (g_app == nullptr) { return false; }
+    const std::string& u = g_app->settings.updateUebersprungen;
+    return bhed::update::rcNummer(u) >= 0 && !bhed::update::istNeuer(tag, u);
+}
+
+bool leisteZeigen(const Zustand& z) {
+    if (z.release.tag.empty()) { return false; }
+    {
+        std::lock_guard<std::mutex> l(g().m);
+        if (g().leisteWegTag == z.release.tag) { return false; }
+    }
+    switch (z.stand) {
+        case Stand::Verfuegbar: return !uebersprungen(z.release.tag);
+        case Stand::Laedt:
+        case Stand::Fertig: return true;
+        case Stand::Fehler: return z.beimInstallieren;   // ein gescheitertes Nachsehen meldet die Leiste nicht
+        default: return false;
+    }
+}
+
+std::string mitText(Str id, const std::string& a, const std::string& b = {}) {
+    char z[1024];
+    std::snprintf(z, sizeof(z), tr(id), a.c_str(), b.c_str());
+    return z;
+}
+
+void tipp(const std::string& t) {
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", t.c_str()); }
+}
+
+// Breite eines Knopfs mit seiner sichtbaren Beschriftung (bis "##").
+float knopfBreite(const std::string& label) {
+    const std::string sichtbar = label.substr(0, label.find("##"));
+    return ImGui::CalcTextSize(sichtbar.c_str()).x + ImGui::GetStyle().FramePadding.x * 2.0F;
+}
+
+// Auf `breite` kuerzen (an Zeichengrenzen, mit "..."), wenn es nicht passt.
+std::string gekuerzt(const std::string& t, float breite, bool& kurz) {
+    kurz = false;
+    if (ImGui::CalcTextSize(t.c_str()).x <= breite) { return t; }
+    kurz = true;
+    std::string s = t;
+    while (!s.empty()) {
+        // ein ganzes UTF-8-Zeichen weg: Folgebytes, dann das Kopfbyte
+        while (!s.empty() && (static_cast<unsigned char>(s.back()) & 0xC0U) == 0x80U) { s.pop_back(); }
+        if (!s.empty()) { s.pop_back(); }
+        const std::string probe = s + "...";
+        if (ImGui::CalcTextSize(probe.c_str()).x <= breite) { return probe; }
+    }
+    return "...";
+}
+
+}  // namespace
+
+bool leisteSichtbar() { return leisteZeigen(zustand()); }
+
+LeistenBild leisteBild() { return g_leiste; }
+
+float zeichneLeiste() {
+    g_leiste = LeistenBild{};
+    const Zustand z = zustand();
+    if (!leisteZeigen(z)) { return 0.0F; }
+    ImGuiWindow* w = ImGui::GetCurrentWindow();
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float zeileH = ImGui::GetFrameHeight();
+    const std::string neu = kurzTag(z.release.tag);
+    const std::string tag = z.release.tag;
+
+    std::string satz;
+    struct Knopf {
+        std::string label;
+        std::string tipp;
+        std::function<void()> tun;
+        bool haupt = false;
+    };
+    std::vector<Knopf> knoepfe;
+    const auto spaeter = [tag] {
+        std::lock_guard<std::mutex> l(g().m);
+        g().leisteWegTag = tag;
+    };
+    const Knopf wasNeu{std::string(tr(Str::UpdBarWhatsNew)) + "###updleiste_neu", tr(Str::UpdBarWhatsNewHint), [] { oeffneFenster(); }};
+    const Knopf spaeterKnopf{std::string(tr(Str::UpdLater)) + "###updleiste_spaeter", tr(Str::UpdBarLaterHint), spaeter};
+    switch (z.stand) {
+        case Stand::Verfuegbar:
+            satz = mitText(Str::UpdBarAvail, neu, kurzTag(lokaleFassung()));
+            knoepfe.push_back({std::string(tr(Str::UpdBarNow)) + "###updleiste_jetzt", mitText(Str::UpdBarNowHint, neu),
+                               [] { installieren(); }, true});
+            knoepfe.push_back(wasNeu);
+            knoepfe.push_back(spaeterKnopf);
+            knoepfe.push_back({std::string(tr(Str::UpdBarSkip)) + "###updleiste_skip", mitText(Str::UpdBarSkipHint, neu), [tag] {
+                                   if (g_app != nullptr) { g_app->settings.updateUebersprungen = tag; }
+                               }});
+            break;
+        case Stand::Laedt:
+            satz = mitText(Str::UpdBarLoading, neu);
+            break;
+        case Stand::Fertig:
+            satz = mitText(Str::UpdBarDone, neu);
+            knoepfe.push_back({std::string(tr(Str::UpdRestart)) + "###updleiste_neustart", tr(Str::UpdBarRestartHint),
+                               [] { neuStarten(); }, true});
+            knoepfe.push_back(wasNeu);
+            knoepfe.push_back(spaeterKnopf);
+            break;
+        default:   // Fehler beim Installieren
+            satz = mitText(Str::UpdBarError, neu, z.meldung);
+            knoepfe.push_back({std::string(tr(Str::UpdBarRetry)) + "###updleiste_nochmal", mitText(Str::UpdBarRetryHint, neu),
+                               [] { installieren(); }, true});
+            knoepfe.push_back(wasNeu);
+            knoepfe.push_back(spaeterKnopf);
+            break;
+    }
+
+    // Passen Text und Knoepfe in eine Zeile? Sonst stehen die Knoepfe darunter
+    // (schmales Fenster, lange Uebersetzung); ein zu langer Text (Fehlermeldung)
+    // endet mit "..." und steht ganz im Tooltip.
+    const float lueckeText = st.ItemSpacing.x * 3.0F;
+    const float zuB = zeileH;
+    const float fortschrittB = z.stand == Stand::Laedt ? ImGui::GetFontSize() * 14.0F : 0.0F;
+    float knoepfeB = fortschrittB;
+    for (std::size_t i = 0; i < knoepfe.size(); ++i) { knoepfeB += knopfBreite(knoepfe[i].label) + (i > 0 ? st.ItemSpacing.x : 0.0F); }
+    const float innenB = g_testBreite > 0.0F ? g_testBreite : w->Size.x - st.WindowPadding.x * 2.0F;
+    const float textB = ImGui::CalcTextSize(satz.c_str()).x;
+    const bool eineZeile = textB + lueckeText + knoepfeB + lueckeText + zuB <= innenB;
+    const int zeilen = eineZeile ? 1 : 2;
+    const float rand = st.ItemSpacing.y + 1.0F;
+    const float h = std::floor(zeileH * static_cast<float>(zeilen) + st.ItemSpacing.y * static_cast<float>(zeilen - 1) + rand * 2.0F + 0.5F);
+    const float oben = w->Pos.y + w->TitleBarHeight + w->MenuBarHeight;
+    const ImVec2 r0{w->Pos.x, oben};
+    const ImVec2 r1{w->Pos.x + w->Size.x, oben + h};
+
+    // Farben: hell auf dunklem Thema, dunkel auf hellem - je Zustand blau
+    // (verfuegbar, laedt), gruen (fertig) oder rot (Fehler).
+    const ImVec4 hg = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
+    const bool dunkel = 0.299F * hg.x + 0.587F * hg.y + 0.114F * hg.z < 0.5F;
+    ImVec4 grund = dunkel ? ImVec4{0.11F, 0.30F, 0.54F, 1.0F} : ImVec4{0.80F, 0.89F, 1.00F, 1.0F};
+    ImVec4 kante = dunkel ? ImVec4{0.32F, 0.58F, 0.90F, 1.0F} : ImVec4{0.35F, 0.55F, 0.88F, 1.0F};
+    if (z.stand == Stand::Fertig) {
+        grund = dunkel ? ImVec4{0.10F, 0.36F, 0.20F, 1.0F} : ImVec4{0.82F, 0.95F, 0.84F, 1.0F};
+        kante = dunkel ? ImVec4{0.30F, 0.70F, 0.42F, 1.0F} : ImVec4{0.30F, 0.65F, 0.38F, 1.0F};
+    } else if (z.stand == Stand::Fehler) {
+        grund = dunkel ? ImVec4{0.45F, 0.14F, 0.14F, 1.0F} : ImVec4{1.00F, 0.86F, 0.84F, 1.0F};
+        kante = ImVec4{0.85F, 0.35F, 0.35F, 1.0F};
+    }
+    const ImVec4 schrift = dunkel ? ImVec4{1.0F, 1.0F, 1.0F, 1.0F} : ImVec4{0.04F, 0.10F, 0.22F, 1.0F};
+    w->DrawList->PushClipRect(r0, r1, false);
+    w->DrawList->AddRectFilled(r0, r1, ImGui::GetColorU32(grund));
+    w->DrawList->AddLine(ImVec2{r0.x, r1.y - 1.0F}, ImVec2{r1.x, r1.y - 1.0F}, ImGui::GetColorU32(kante), 1.0F);
+    w->DrawList->PopClipRect();
+
+    const ImVec2 start = ImGui::GetCursorScreenPos();
+    const float y = oben + rand;
+    ImGui::SetCursorScreenPos(ImVec2{start.x, y});
+    bool kurz = false;
+    const float textPlatz = innenB - zuB - lueckeText - (eineZeile ? lueckeText + knoepfeB : 0.0F);
+    const std::string gezeigt = gekuerzt(satz, textPlatz, kurz);
+    ImGui::PushStyleColor(ImGuiCol_Text, schrift);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(gezeigt.c_str());
+    ImGui::PopStyleColor();
+    if (kurz) { tipp(satz); }
+    if (eineZeile) {
+        ImGui::SameLine(0.0F, lueckeText);
+    } else {
+        ImGui::SetCursorScreenPos(ImVec2{start.x, y + zeileH + st.ItemSpacing.y});
+    }
+    if (z.stand == Stand::Laedt) {
+        char prozent[32];
+        std::snprintf(prozent, sizeof(prozent), "%d %%", static_cast<int>(z.fortschritt * 100.0 + 0.5));
+        ImGui::ProgressBar(static_cast<float>(z.fortschritt), ImVec2{fortschrittB, zeileH}, prozent);
+    }
+    for (std::size_t i = 0; i < knoepfe.size(); ++i) {
+        if (i > 0) { ImGui::SameLine(); }
+        const Knopf& k = knoepfe[i];
+        if (k.haupt) {
+            // Wie der Compile-Knopf: gruen mit weisser Schrift - der naechste Schritt.
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.18F, 0.55F, 0.30F, 1.0F});
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{0.26F, 0.65F, 0.38F, 1.0F});
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4{0.14F, 0.46F, 0.25F, 1.0F});
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4{1.0F, 1.0F, 1.0F, 1.0F});
+        }
+        const bool geklickt = ImGui::Button(k.label.c_str());
+        if (k.haupt) { ImGui::PopStyleColor(4); }
+        tipp(k.tipp);
+        if (geklickt) {
+            diag::detail("Update: Leiste - " + k.label.substr(k.label.find("###") + 3) + " (" + tag + ")");
+            k.tun();
+        }
+    }
+    // x ganz rechts in der ersten Zeile: wie Spaeter.
+    ImGui::SetCursorScreenPos(ImVec2{r1.x - st.WindowPadding.x - zuB, y});
+    if (ImGui::Button("x###updleiste_zu", ImVec2{zuB, zeileH})) {
+        diag::detail("Update: Leiste - zu (" + tag + ")");
+        spaeter();
+    }
+    tipp(tr(Str::UpdBarCloseHint));
+    // Der Arbeitsbereich darunter beginnt um die Hoehe der Leiste tiefer.
+    ImGui::SetCursorScreenPos(start);
+    ImGui::Dummy(ImVec2{0.0F, h - st.ItemSpacing.y});
+    g_leiste = LeistenBild{r0.x, r0.y, r1.x, r1.y, zeilen, kurz, satz};
+    return h;
+}
+
+void testNetzSetzen(TestNetz netz) {
+    std::lock_guard<std::mutex> l(g().m);
+    g().testNetz = std::move(netz);
+}
+
+void testLeistenBreite(float breite) { g_testBreite = breite; }
+
+void testNeuerStart() {
+    setze([](Zustand& z) { z = Zustand{}; });
+    std::lock_guard<std::mutex> l(g().m);
+    g().leisteWegTag.clear();
+    g().hinweisWeg = false;
+    g().fensterOffen = false;
 }
 
 }  // namespace bhed::gui::updater

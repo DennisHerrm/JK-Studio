@@ -1848,6 +1848,8 @@ void zeichneHauptmenue() {
     }
 }
 
+void leisteUntenVerschieben(float dy) { g().leisteUnten += dy; }
+
 namespace {
 bool g_nachBedarfImTest = false;
 

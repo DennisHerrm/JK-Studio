@@ -7544,6 +7544,8 @@ from inhalt_r3 import ES as _R3  # noqa: E402
 TEXTE.update(_R3)
 from inhalt_rest8 import ES as _REST8  # noqa: E402
 TEXTE.update(_REST8)
+from inhalt_rest9 import ES as _REST9  # noqa: E402
+TEXTE.update(_REST9)
 
 # Modell-Block 1a-1: Model-Tab, Ansehen/Pruefen
 from inhalt_mb1a1 import ES as _MB1  # noqa: E402

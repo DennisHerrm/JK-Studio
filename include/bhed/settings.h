@@ -134,6 +134,9 @@ struct Settings {
     // (gui/update_win32.cpp). Gefunden wird nur angezeigt - installiert wird
     // erst auf Klick.
     bool updateCheck = true;
+    // REST9: "Diese Fassung ueberspringen" in der Update-Leiste - der Tag dieses
+    // Releases ("v1.0.0-rc612"). Die Leiste meldet erst wieder eine neuere Fassung.
+    std::string updateUebersprungen;
     // Befehle, die GENAU so aussehen wie der ausgewaehlte, schwach
     // hervorheben (View-Menue). Vorgabe aus - shank: "I probably won't want
     // it on all the time".

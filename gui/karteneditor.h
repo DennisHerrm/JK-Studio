@@ -1252,6 +1252,9 @@ void zeichne(float hoehe);
 void hauptleisteStilAn();
 void hauptleisteStilAus();
 void zeichneHauptmenue();
+// REST9: zwischen der Menueleiste und dem Editor steht die Update-Leiste - der
+// Editor beginnt um `dy` tiefer (nach zeichneHauptmenue, im selben Bild).
+void leisteUntenVerschieben(float dy);
 void bildBeginnen();
 
 // --- Befehle (app_karte_befehle.cpp) ---

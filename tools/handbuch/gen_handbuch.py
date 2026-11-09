@@ -220,6 +220,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _def1()})
             from i18n_rest8 import zeilen_vier as _rest8   # REST8: Optimierer meldet doppelte Shader (shadervorrang)
             texte.update({e[0]: e[1:] for e in _rest8()})
+            from i18n_rest9 import zeilen_vier as _rest9   # REST9: die Update-Leiste oben
+            texte.update({e[0]: e[1:] for e in _rest9()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

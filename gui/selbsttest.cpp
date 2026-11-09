@@ -5779,6 +5779,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_editorportal.inc"   // rc609 P: Spiegel und Portalkameras im Karten-Editor
 #include "selbsttest_r3.inc"            // rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht (karteneditor, BHED_KARTE_NUR=r3)
 #include "selbsttest_rd.inc"            // p_render: bewegte Stufen, Gluehen im Spiegel und an Effekten (karteneditor, BHED_KARTE_NUR=rd)
+#include "selbsttest_rest9.inc"         // REST9: die Update-Leiste oben (updateleiste, updateleiste2, Handbuch BHED_HB_NUR=updateleiste)
 #include "selbsttest_rest8.inc"         // REST8: doppelte Shadernamen - Echtzeit-Licht nach q3map2, Kartenpruefung (karteneditor, BHED_KARTE_NUR=rest8)
 #include "selbsttest_cjkweit.inc"       // MR4 Punkt 5: CJK-Umbruch ausserhalb des Model-Tabs (karteneditor, BHED_KARTE_NUR=cjkweit)
 #include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen
@@ -6116,6 +6117,8 @@ void selbsttest() {
     static const bool nurZeitleiste = std::strcmp(modus, "zeitleiste") == 0;
     static const bool nurFenster = std::strcmp(modus, "fenster") == 0;
     static const bool nurUpdate = std::strcmp(modus, "update") == 0;
+    static const bool nurUpdateleiste = std::strcmp(modus, "updateleiste") == 0;     // REST9
+    static const bool nurUpdateleiste2 = std::strcmp(modus, "updateleiste2") == 0;   // REST9: zweiter Start
     // rc601 release: die .exe allein, ohne data\base daneben (eigene Kopie).
     static const bool nurEigenstaendig = std::strcmp(modus, "eigenstaendig") == 0;
     static const bool nurKuerzel = std::strcmp(modus, "kuerzel") == 0;
@@ -6608,6 +6611,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurUpdate) {
                 a.schritte = updateSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurUpdateleiste || nurUpdateleiste2) {
+                a.schritte = nurUpdateleiste ? rest9::schritte() : rest9::neustartSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurEigenstaendig) {

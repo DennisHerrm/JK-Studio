@@ -336,6 +336,9 @@ namespace r3 {
 std::vector<Schritt> schritte();   // selbsttest_r3.inc: rc610 R3, gespiegelte Modelle und Glow im Echtzeit-Licht
 std::vector<Schritt> handbuchSchritte();   // dito: das Bild h_r3_glow (BHED_HB_NUR=r3)
 }  // namespace r3
+namespace rest9 {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_rest9.inc: REST9, das Bild h_update_leiste (BHED_HB_NUR=updateleiste)
+}  // namespace rest9
 namespace rest8 {
 std::vector<Schritt> schritte();   // selbsttest_rest8.inc: REST8, doppelte Shadernamen (Echtzeit-Licht, Kartenpruefung)
 }  // namespace rest8
@@ -2474,6 +2477,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karteneditor") == 0) {
         return karteneditorHandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "updateleiste") == 0) {
+        return rest9::handbuchSchritte();   // REST9: die Update-Leiste (Seite "Einstellungen und Updates")
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "mb1a1") == 0) {
         return mb1::handbuchSchritte();   // Modell-Block 1a-1: die Bilder der Seite "Model-Tab: Ansehen und Pruefen"
