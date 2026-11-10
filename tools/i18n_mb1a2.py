@@ -9,8 +9,6 @@ ZEILEN = [
     # --- Anzeige (ModView-Reste) ---
     ("MbAnEckNummern", "Vertex numbers (selected surface)", "Ecken-Nummern (gewählte Fläche)", "顶点编号 (所选面)", "頂点番号 (選択サーフェス)",
      "Números de vértice (superficie elegida)", "Čísla vrcholů (vybraný povrch)"),
-    ("MbAnDreieckNummern", "Triangle numbers (selected surface)", "Dreieck-Nummern (gewählte Fläche)", "三角形编号 (所选面)", "三角形番号 (選択サーフェス)",
-     "Números de triángulo (superficie elegida)", "Čísla trojúhelníků (vybraný povrch)"),
     ("MbAnLineal", "Height ruler", "Höhenlineal", "高度标尺", "高さ定規", "Regla de altura", "Výškové pravítko"),
     ("MbAnHintergrund", "Plain background", "Einfarbiger Hintergrund", "纯色背景", "単色の背景", "Fondo de un color", "Jednobarevné pozadí"),
     ("MbAnsichtHinten", "Back", "Hinten", "后", "後", "Atrás", "Zezadu"),

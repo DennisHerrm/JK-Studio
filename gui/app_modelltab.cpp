@@ -1023,75 +1023,18 @@ void rolloutLod() {
     }
 }
 
-void rolloutAnzeige() {
-    ModellTab& t = mt();
-    ModellAnzeige& a = t.an;
-    bool neu = false;
-    const auto schalter = [&](Str text, bool& wert) {
-        if (ImGui::Checkbox(tr(text), &wert)) { neu = true; }
-    };
-    schalter(Str::MbAnDraht, a.drahtgitter);
-    schalter(Str::MbAnKanten, a.kanten);
-    schalter(Str::MbAnKnochen, g_app->modellKnochen);
-    if (ImGui::Checkbox(tr(Str::MbAnFlossen), &g_app->settings.modellFlossen)) { neu = true; }
-    schalter(Str::MbAnGewichte, a.gewichte);
-    schalter(Str::MbAnNormalen, a.normalen);
-    schalter(Str::MbAnTags, a.tags);
-    schalter(Str::MbAnUrsprung, a.ursprung);
-    schalter(Str::MbAnHuelle, a.huelle);
-    schalter(Str::MbAnBoden, a.boden);
-    if (a.boden) {
-        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6.0F);
-        if (ImGui::DragFloat(tr(Str::MbAnBodenZ), &a.bodenZ, 0.5F, -512.0F, 512.0F, "%.1f")) { neu = true; }
-    }
-    schalter(Str::MbAnRaster, a.raster);
-    bool weiss = !g_app->showModelTextures;
-    if (ImGui::Checkbox(tr(Str::MbAnWeiss), &weiss)) {
-        g_app->showModelTextures = !weiss;
-        neu = true;
-    }
-    schalter(Str::MbAnRisse, a.risse);
-    schalter(Str::MbAnZweiseitig, a.zweiseitig);
-    schalter(Str::MbAnStatistik, a.statistik);
-    schalter(Str::MbAnKlammer, a.klammer);
-    schalter(Str::MbAnEckNummern, a.eckNummern);   // mb1a2: ModView, an der gewaehlten Flaeche
-    ImGui::SetItemTooltip("%s", tr(Str::MbAnEckNummernHint));
-    schalter(Str::MbAnDreieckNummern, a.dreieckNummern);
-    ImGui::SetItemTooltip("%s", tr(Str::MbAnEckNummernHint));
-    schalter(Str::MbAnLineal, a.lineal);
-    ImGui::SetItemTooltip("%s", tr(Str::MbAnLinealHint));
-    {   // mb1a2: Hintergrund wie ModView (Farbwahl; Vorgabe dort 256/5 = 51 je Kanal) oder der Verlauf
-        bool eigen = g_app->settings.modellHintergrund >= 0;
-        if (ImGui::Checkbox(tr(Str::MbAnHintergrund), &eigen)) {
-            g_app->settings.modellHintergrund = eigen ? 0x333333 : -1;
-            neu = true;
-        }
-        ImGui::SetItemTooltip("%s", tr(Str::MbAnHintergrundHint));
-        if (eigen) {
-            ImGui::SameLine();
-            const int h = g_app->settings.modellHintergrund;
-            float f[3] = {static_cast<float>((h >> 16) & 0xFF) / 255.0F, static_cast<float>((h >> 8) & 0xFF) / 255.0F,
-                          static_cast<float>(h & 0xFF) / 255.0F};
-            if (ImGui::ColorEdit3("##mthg", f, ImGuiColorEditFlags_NoInputs)) {
-                const auto b = [](float x) { return static_cast<int>(std::lround(std::clamp(x, 0.0F, 1.0F) * 255.0F)); };
-                g_app->settings.modellHintergrund = (b(f[0]) << 16) | (b(f[1]) << 8) | b(f[2]);
-                neu = true;
-            }
-        }
-    }
-    // Blickwinkel: ModView kennt 10, 80 und 90 Grad.
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 7.0F);
-    if (ImGui::SliderFloat(tr(Str::MbAnFov), &g_app->modelCam.fovY, 10.0F, 120.0F, "%.0f")) { neu = true; }
-    for (const float f : {10.0F, 80.0F, 90.0F}) {
-        ImGui::SameLine();
-        char n[8];
-        std::snprintf(n, sizeof n, "%.0f", static_cast<double>(f));
-        if (ImGui::SmallButton(n)) {
-            g_app->modelCam.fovY = f;
-            neu = true;
-        }
-    }
-    if (neu) { g_app->modelDirty = true; }
+// MBKOPF: die Gruppe "Anzeige" ist in die Kopfzeile der Ansicht gewandert (shank 10.11.: "weil das sieht da rechts einfach
+// nicht gut aus") - fuer bisherige Nutzer einmal der Hinweis, wo sie jetzt steht.
+void anzeigeUmzugHinweis() {
+    if (g_app->settings.modellAnzeigeUmzugGesehen) { return; }
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+    ImGui::BeginChild("##mkumzug", ImVec2{-1.0F, 0.0F}, ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders);
+    ImGui::PushTextWrapPos(0.0F);
+    cjkTextUnformatted(tr(modellBlender() ? Str::MkUmzugBl : Str::MkUmzug));
+    ImGui::PopTextWrapPos();
+    if (ImGui::SmallButton(tr(Str::MkVerstanden))) { g_app->settings.modellAnzeigeUmzugGesehen = true; }
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
 }
 
 void rolloutAnbauten() {
@@ -1207,13 +1150,7 @@ void drawModellBefehlsfeld() {
     if (!g_app->model.empty()) {
         if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRModell), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutModell(); }
         if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRLod), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutLod(); }
-        // Die Anzeige gilt in jedem Bereich (Entwurf: "Die Anzeige-Schalter gelten auch in den anderen Bereichen").
-        // Stufe 2: im Bereich Animation ab Werk zu (eigene Kennung) - dort brauchen GLA, animation.cfg und Plaetze den Platz.
-        const bool anim = t.bereich == ModellBereich::Animation;
-        if (ImGui::CollapsingHeader((std::string(tr(Str::MbRAnzeige)) + (anim ? "###anzeigeAnim" : "")).c_str(),
-                                    anim ? ImGuiTreeNodeFlags_None : ImGuiTreeNodeFlags_DefaultOpen)) {
-            rolloutAnzeige();
-        }
+        anzeigeUmzugHinweis();   // MBKOPF: die Anzeige-Schalter stehen in der Kopfzeile der Ansicht
         if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRAnbauten), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutAnbauten(); }
         if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRPruefen), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutPruefen(); }
     }
@@ -1259,8 +1196,17 @@ void bildRand(bool ende) {
 
 void ansichtArt(AnsichtArt a) {
     ModellTab& t = mt();
+    t.ansichten[t.aktiv].animStart = -1.0;
     t.ansichten[t.aktiv].art = a;
     modellAnsichtEinpassenAktiv();
+}
+
+// MBKOPF: U - Isometrische Benutzeransicht (max_hotkeys_de.txt), die Richtung bleibt
+void orthoBenutzer() {
+    ModellTab& t = mt();
+    float w[3];
+    modellAnsichtWinkel(t.ansichten[t.aktiv], w);
+    modellBlickSetzen(t.aktiv, AnsichtArt::Orthographisch, w, false);
 }
 
 void achseSetzen(int a) {
@@ -1279,8 +1225,8 @@ const std::vector<MaxTaste>& maxTasten() {
         {ImGuiKey_R, Str::MbAktSkalieren, [] { mt().gizmo = 3; }},
         {ImGuiMod_Alt | ImGuiKey_W, Str::MbAktMax, [] { mt().vierAnsichten = !mt().vierAnsichten; }},
         {ImGuiKey_Z, Str::MbAktZoom, [] { modellAnsichtEinpassenAktiv(); }},
-        {ImGuiKey_F3, Str::MbAnDraht, [] { mt().an.drahtgitter = !mt().an.drahtgitter; }},
-        {ImGuiKey_F4, Str::MbAnKanten, [] { mt().an.kanten = !mt().an.kanten; }},
+        {ImGuiKey_F3, Str::MbAnDraht, [] { modellSch().drahtgitter = !modellSch().drahtgitter; }},   // MBKOPF: die aktive Ansicht
+        {ImGuiKey_F4, Str::MbAnKanten, [] { modellSch().kanten = !modellSch().kanten; }},
         {ImGuiKey_F5, Str::MbAktX, [] { achseSetzen(0); }},
         {ImGuiKey_F6, Str::MbAktY, [] { achseSetzen(1); }},
         {ImGuiKey_F7, Str::MbAktZ, [] { achseSetzen(2); }},
@@ -1292,6 +1238,7 @@ const std::vector<MaxTaste>& maxTasten() {
         {ImGuiKey_F, Str::MbAktVorne, [] { ansichtArt(AnsichtArt::Vorne); }},
         {ImGuiKey_L, Str::MbAktLinks, [] { ansichtArt(AnsichtArt::Links); }},
         {ImGuiKey_B, Str::MbAktUnten, [] { ansichtArt(AnsichtArt::Unten); }},
+        {ImGuiKey_U, Str::MkAktOrtho, [] { orthoBenutzer(); }},
         {ImGuiMod_Ctrl | ImGuiKey_A, Str::MbAktAlle, [] { blenderAlle(true); }},
         {ImGuiMod_Ctrl | ImGuiKey_D, Str::MbAktNichts, [] { blenderAlle(false); }},
         {ImGuiMod_Ctrl | ImGuiKey_I, Str::MbAktUmkehren, [] { blenderUmkehren(); }},
@@ -1302,9 +1249,9 @@ const std::vector<MaxTaste>& maxTasten() {
          }},
         {ImGuiKey_Home, Str::MbAktAnfang, [] { bildRand(false); }},
         {ImGuiKey_End, Str::MbAktEnde, [] { bildRand(true); }},
-        {ImGuiKey_G, Str::MbAnRaster, [] { mt().an.raster = !mt().an.raster; }},
+        {ImGuiKey_G, Str::MbAnRaster, [] { modellSch().raster = !modellSch().raster; }},
         {ImGuiKey_J, Str::MbAnKlammer, [] { mt().an.klammer = !mt().an.klammer; }},
-        {ImGuiKey_7, Str::MbAnStatistik, [] { mt().an.statistik = !mt().an.statistik; }},
+        {ImGuiKey_7, Str::MbAnStatistik, [] { modellSch().statistik = !modellSch().statistik; }},
         // mb1a2: Unterobjekt-Ebenen (Autodesk-Karte: 1 Scheitelpunkt, 2 Kante, 3 Rand, 4 Polygon, 5 Element, 6 Objekt;
         // vorbilder_max_blender.md) - Polygon ist in der .glm ein Dreieck
         {ImGuiKey_1, Str::MbMaxEcke, [] { modellAuswahlArtSetzen(AuswahlArt::Ecke); }},
@@ -1421,17 +1368,16 @@ const std::vector<BlenderTaste>& blenderTasten() {
         {ImGuiKey_Keypad6, Str::MbBlKreisRechts, [] { modellKreisenSchritt(-15.0F, 0.0F); }, "Doku | view3d.view_orbit | NUMPAD_6 ORBITRIGHT"},
         {ImGuiKey_Keypad8, Str::MbBlKreisOben, [] { modellKreisenSchritt(0.0F, 15.0F); }, "Doku | view3d.view_orbit | NUMPAD_8 ORBITUP"},
         {ImGuiKey_Keypad2, Str::MbBlKreisUnten, [] { modellKreisenSchritt(0.0F, -15.0F); }, "Doku | view3d.view_orbit | NUMPAD_2 ORBITDOWN"},
+        // MBKOPF: Gegenseite, Rollen, Drahtgitter, Gizmos (blender_default.py; Strg+` aus blender_keys.txt)
+        {ImGuiKey_Keypad9, Str::MkBlGegenseite, [] { modellGegenseite(); }, "Doku | view3d.view_orbit | NUMPAD_9 angle=pi ORBITRIGHT"},
+        {ImGuiMod_Shift | ImGuiKey_Keypad4, Str::MkBlRollLinks, [] { modellRollenSchritt(-15.0F); }, "Doku | view3d.view_roll | Umschalt+NUMPAD_4 LEFT"},
+        {ImGuiMod_Shift | ImGuiKey_Keypad6, Str::MkBlRollRechts, [] { modellRollenSchritt(15.0F); }, "Doku | view3d.view_roll | Umschalt+NUMPAD_6 RIGHT"},
+        {ImGuiMod_Shift | ImGuiKey_Z, Str::MkBlDrahtTaste, [] { modellSch().drahtgitter = !modellSch().drahtgitter; },
+         "Doku | view3d.toggle_shading | Umschalt+Z type=WIREFRAME"},
+        {ImGuiMod_Ctrl | ImGuiKey_GraveAccent, Str::MkBlGizmoTaste, [] { g_app->settings.modellNavigation = !g_app->settings.modellNavigation; },
+         "3D View | wm.context_toggle | Strg+ACCENT_GRAVE PRESS data_path=space_data.show_gizmo"},
         {ImGuiKey_KeypadDecimal, Str::MbBlGewaehlte, [] { modellAnsichtEinpassenAktiv(); }, "3D View | view3d.view_selected | NUMPAD_PERIOD PRESS"},
-        {ImGuiKey_Home, Str::MbBlAlles, [] {
-             ModellTab& t = mt();
-             const std::vector<int> a = t.auswahl;
-             const std::vector<modell::EckOrt> e = t.eckenWahl;
-             t.auswahl.clear();
-             t.eckenWahl.clear();
-             modellAnsichtEinpassenAktiv();
-             t.auswahl = a;
-             t.eckenWahl = e;
-         },
+        {ImGuiKey_Home, Str::MbBlAlles, [] { modellAllesEinpassenIn(mt().aktiv); },
          "Doku | view3d.view_all | HOME"},
         {ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_Q, Str::MbBlVier, [] { mt().vierAnsichten = !mt().vierAnsichten; },
          "Doku | screen.region_quadview | Strg+Alt+Q"},
@@ -1460,7 +1406,7 @@ struct ZusatzAktion {
     Str hinweis;
     const char* taste;
     std::function<void()> tun;
-    int gruppe;   // 0 Weights, 1 Auswahl, 2 Anzeige, 3 Skript
+    int gruppe;   // 0 Weights, 1 Auswahl, 3 Skript, 4 Animation (die Anzeige: MBKOPF, modellAnzeigeKontext)
 };
 
 void weights(int art) {
@@ -1487,13 +1433,6 @@ const std::vector<ZusatzAktion>& zusatzAktionen() {
         {Str::MbGwSpiegelnPlus, Str::MbGwSpiegelHint, "", [] { (void)modellSpiegeln(1); }, 0},
         {Str::MbGwSpiegelnMinus, Str::MbGwSpiegelHint, "", [] { (void)modellSpiegeln(-1); }, 0},
         {Str::MbGwUebernehmen, Str::MbGwUebernehmenHint, "", [] { (void)modellUebernehmen(); }, 0},
-        {Str::MbAnEckNummern, Str::MbAnEckNummernHint, "", [] { mt().an.eckNummern = !mt().an.eckNummern; }, 2},
-        {Str::MbAnDreieckNummern, Str::MbAnEckNummernHint, "", [] { mt().an.dreieckNummern = !mt().an.dreieckNummern; }, 2},
-        {Str::MbAnLineal, Str::MbAnLinealHint, "", [] { mt().an.lineal = !mt().an.lineal; }, 2},
-        {Str::MbAnHintergrund, Str::MbAnHintergrundHint, "", [] {
-             g_app->settings.modellHintergrund = g_app->settings.modellHintergrund >= 0 ? -1 : 0x333333;
-         },
-         2},
         {Str::MbAuswahlAusblenden, Str::MbAugeHint, "", [] { modellAuswahlAusblenden(false); }, 1},
         {Str::MbAndereAusblenden, Str::MbAugeHint, "", [] { modellAuswahlAusblenden(true); }, 1},
         {Str::MbAllesEinblenden, Str::MbAugeHint, "", [] { modellAllesEinblenden(); }, 1},
@@ -1557,10 +1496,11 @@ void drawModellKontextMenue() {
         if (a.gruppe != gruppe) {
             if (unter) { ImGui::EndMenu(); }
             unter = false;
+            if (gruppe == 0) { modellAnzeigeKontext(); }   // MBKOPF: nach Weights dieselben Menues wie die Kopfzeile der Ansicht
             gruppe = a.gruppe;
-            if (gruppe == 0 || gruppe == 2 || gruppe == 4) {
-                if (gruppe != 2) { ImGui::Separator(); }
-                unter = ImGui::BeginMenu(tr(gruppe == 0 ? Str::MbBereichWeights : gruppe == 2 ? Str::MbRAnzeige : Str::MbBereichAnimation));
+            if (gruppe == 0 || gruppe == 4) {
+                ImGui::Separator();
+                unter = ImGui::BeginMenu(tr(gruppe == 0 ? Str::MbBereichWeights : Str::MbBereichAnimation));
                 zeigen = unter;
             } else {
                 ImGui::Separator();
@@ -1569,12 +1509,7 @@ void drawModellKontextMenue() {
         }
         if (!zeigen) { continue; }
         ImGui::PushID(static_cast<int>(i));
-        bool an = false;
-        if (a.text == Str::MbAnEckNummern) { an = t.an.eckNummern; }
-        if (a.text == Str::MbAnDreieckNummern) { an = t.an.dreieckNummern; }
-        if (a.text == Str::MbAnLineal) { an = t.an.lineal; }
-        if (a.text == Str::MbAnHintergrund) { an = g_app->settings.modellHintergrund >= 0; }
-        if (ImGui::MenuItem(tr(a.text), a.taste[0] != '\0' ? a.taste : nullptr, an)) { zusatzAusloesen(a); }
+        if (ImGui::MenuItem(tr(a.text), a.taste[0] != '\0' ? a.taste : nullptr)) { zusatzAusloesen(a); }
         ImGui::SetItemTooltip("%s", tr(a.hinweis));
         ImGui::PopID();
     }
@@ -1674,7 +1609,8 @@ void drawModellAktionen() {
     bool erster = enter;
     if (modellBlender()) {   // mb1a2: F3 sucht in der Belegung wie Blender
         for (const BlenderTaste& k : blenderTasten()) {
-            if (!passt(tr(k.text), such)) { continue; }
+            // MBKOPF: die Tasten der Anzeige-Schalter stehen unten einmal - als Schalter mit Haken und Ort (Enter loest sie weiter aus)
+            if (!passt(tr(k.text), such) || (modellKopfSucheHatTaste(k.chord) && !erster)) { continue; }
             if (ImGui::Selectable(tr(k.text)) || erster) {
                 k.tun();
                 ++t.tastenZaehler;
@@ -1686,7 +1622,7 @@ void drawModellAktionen() {
         }
     } else {
         for (const MaxTaste& k : maxTasten()) {
-            if (!passt(tr(k.text), such)) { continue; }
+            if (!passt(tr(k.text), such) || (modellKopfSucheHatTaste(k.chord) && !erster)) { continue; }
             if (ImGui::Selectable(tr(k.text)) || erster) {
                 tasteAusloesen(k);
                 ImGui::CloseCurrentPopup();
@@ -1717,6 +1653,7 @@ void drawModellAktionen() {
     if (!rigAusgeloest && modellUvAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // Modell-Block 1b
     if (!rigAusgeloest && modellMeshAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // Modell-Block 1d
     if (!rigAusgeloest && modellMalenAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // Modell-Block 1c
+    if (!rigAusgeloest && modellKopfAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }    // MBKOPF: die Anzeige-Schalter
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
 }

@@ -272,9 +272,14 @@ void modellAnsichtEinpassen() {
     }
     float size = 0.0F;
     for (int k = 0; k < 3; ++k) { size = std::max(size, g_app->model.maxs[k] - g_app->model.mins[k]); }
+    // Abstand so, dass die Figur das Bild fuellt. 2.2 war zu weit - eine 66 Einheiten hohe Figur stand als Streichholz
+    // in der Mitte.
     g_app->modelOrbit.distance = std::max(size * 1.15F, 24.0F);
     g_app->modelCam.angles[0] = 0.0F;
-    g_app->modelCam.angles[1] = 180.0F;
+    g_app->modelCam.angles[2] = 0.0F;   // MBKOPF: ohne den Rollwinkel von Umschalt+Ziffernblock 4/6
+    // MBKOPF: von vorne - die Figur schaut in der .glm nach -Y (REST M9), die Kamera also entlang +Y; bis rc611 180 (von
+    // der Seite). Der Model-Tab passt danach auf die gezeichneten Flaechen in der Pose ein (mittig, einpassenOffen).
+    g_app->modelCam.angles[1] = 90.0F;
     // mb1a1: die Kamera VOR die Mitte, nicht in sie hinein. Orbit::turn nimmt
     // den Drehpunkt vor der Kamera (pos + vorn * Abstand); mit pos = Mitte lag
     // er hinter der Figur, und die Kamera blieb in ihrer Mitte stehen (seit
@@ -282,6 +287,7 @@ void modellAnsichtEinpassen() {
     float vorn[3];
     g_app->modelCam.forward(vorn);
     for (int k = 0; k < 3; ++k) { g_app->modelCam.pos[k] -= vorn[k] * g_app->modelOrbit.distance; }
+    g_app->mtab.einpassenOffen = true;
     g_app->modelDirty = true;
 }
 

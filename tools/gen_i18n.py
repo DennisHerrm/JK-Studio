@@ -2322,6 +2322,8 @@ from i18n_lcb1 import zeilen_vier as _lcb1  # noqa: E402  (LCB1: Licht-Cache auc
 S += _lcb1()
 from i18n_lcb2 import zeilen_vier as _lcb2  # noqa: E402  (LCB2: Licht-Cache nach Geometrie-Aenderungen, Gruende im Baufortschritt)
 S += _lcb2()
+from i18n_mbkopf import zeilen_vier as _mbkopf  # noqa: E402  (MBKOPF: Kopfzeile der Ansicht, Anzeige-Schalter dort, ViewCube/Gizmo)
+S += _mbkopf()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

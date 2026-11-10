@@ -85,6 +85,14 @@ void ansichtAchsen(AnsichtArt a, float r[3], float h[3], float v[3]) {
             c.forward(v);
             break;
         }
+        case AnsichtArt::Orthographisch: {   // MBKOPF: frei gedreht (Max "Orthographic", Blender "User Orthographic")
+            Camera c;
+            for (int k = 0; k < 3; ++k) { c.angles[k] = mt().orthoWinkel[k]; }
+            c.right(r);
+            c.up(h);
+            c.forward(v);
+            break;
+        }
     }
 }
 
@@ -96,6 +104,7 @@ Str ansichtName(AnsichtArt a) {
         case AnsichtArt::Unten: return Str::MbAnsichtUnten;
         case AnsichtArt::Hinten: return Str::MbAnsichtHinten;
         case AnsichtArt::Rechts: return Str::MbAnsichtRechts;
+        case AnsichtArt::Orthographisch: return Str::MkOrtho;
         case AnsichtArt::Perspektive: break;
     }
     return Str::MbAnsichtPersp;
@@ -439,6 +448,48 @@ void knochenZeichnen(ImDrawList* dl, const ModellAnsicht& a) {
     }
 }
 
+// MBKOPF (4a, shank 10.11.: "die sachen scheinen auch keine funktion zu haben"): Ecken-/Dreiecksnummern und der
+// Riss-Finder zeigen sich nur an der gewaehlten Flaeche (ModView: "Show vertex indexes" an der gewaehlten Flaeche) -
+// ohne Auswahl sagt die Ansicht, was fehlt, statt still nichts zu zeigen.
+void ueberlagerungHinweise(const ModellAnsicht& a, ImDrawList* dl) {
+    const ModellTab& t = mt();
+    const ModellAnzeige& z = t.an;
+    if (!(z.eckNummern || z.dreieckNummern || z.risse) || !t.auswahl.empty() || g_app->model.empty()) { return; }
+    std::string was;
+    const std::pair<bool, Str> schalter[3] = {{z.eckNummern, Str::MkEckNummern}, {z.dreieckNummern, Str::MkDreieckNummern}, {z.risse, Str::MkRisse}};
+    for (const auto& [an, text] : schalter) {
+        if (!an) { continue; }
+        was += (was.empty() ? "" : ", ") + std::string(tr(text));
+    }
+    char zeile[400];
+    std::snprintf(zeile, sizeof zeile, tr(Str::MkBrauchtFlaeche), was.c_str());
+    const float y = a.lo[1] + ImGui::GetFontSize() + 10.0F;   // unter der Kopfzeile (auch im Foto, das eigene Bildpunkte hat)
+    const ImVec2 o{a.lo[0] + 6.0F, y};
+    const ImVec2 g = cjkTextSize(zeile, nullptr, false, a.groesse[0] - 12.0F);
+    dl->AddRectFilled(ImVec2{o.x - 3.0F, o.y - 1.0F}, ImVec2{o.x + g.x + 3.0F, o.y + g.y + 1.0F}, IM_COL32(0, 0, 0, 150), 3.0F);
+    cjkAddText(dl, nullptr, 0.0F, o, IM_COL32(255, 220, 90, 255), zeile, nullptr, a.groesse[0] - 12.0F);
+    ++mt().ueber[13];
+}
+
+// MBKOPF: Statistik (7) je Ansicht - in der Ueberlagerung, damit auch das Foto sie zeigt
+void statistikZeichnen(const ModellAnsicht& a, ImDrawList* dl) {
+    ModellTab& t = mt();
+    if (!a.sch.statistik) { return; }
+    int fl = 0;
+    int dr = 0;
+    int ec = 0;
+    for (std::size_t i = 0; i < t.anzeige.surfaces.size(); ++i) {
+        if (!gezeichnet(i)) { continue; }
+        ++fl;
+        dr += static_cast<int>(t.anzeige.surfaces[i].indexes.size() / 3U);
+        ec += static_cast<int>(t.anzeige.surfaces[i].verts.size());
+    }
+    char z[200];
+    std::snprintf(z, sizeof z, trN(Str::MbStatistik, fl, dr, ec), fl, dr, ec);
+    dl->AddText(ImVec2{a.lo[0] + 6.0F, a.lo[1] + a.groesse[1] - ImGui::GetFontSize() * 1.4F}, IM_COL32(230, 230, 230, 230), z);
+    ++t.ueber[14];
+}
+
 void ueberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     ModellTab& t = mt();
     const ImVec2 lo{a.lo[0], a.lo[1]};
@@ -630,6 +681,8 @@ void ueberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     modellRigUeberlagerung(a, dl);   // Stufe 3: Griffe und Bewegungspfade
     if (t.bereich == ModellBereich::Modellieren) { modellMeshUeberlagerung(a, dl); }   // Modell-Block 1d: Vielecke, Auswahl
     modellMalenUeberlagerung(a, dl);   // Modell-Block 1c: der Pinsel
+    ueberlagerungHinweise(a, dl);      // MBKOPF: Schalter, die eine gewaehlte Flaeche brauchen
+    statistikZeichnen(a, dl);
     // Modell-Block 1b: im Bereich UV die Naehte auf dem Modell (rot wie im UV-Editor)
     t.uv.nahtStriche3d = 0;
     if (t.bereich == ModellBereich::Uv) {
@@ -1861,7 +1914,7 @@ void einpassen(ModellAnsicht& a) {
 std::string g_eingepasst;                // Modell, fuer das die Ansichten eingepasst sind
 std::array<std::string, 4> g_sichtStand;   // je Ansicht: was zuletzt gezeichnet wurde
 
-std::vector<gpu::ModellZusatz> zusaetze() {
+std::vector<gpu::ModellZusatz> zusaetze(const ModellSchattierung& sch) {
     const ModellTab& t = mt();
     std::vector<gpu::ModellZusatz> z;
     for (const ModellAnbau& a : t.anbauten) {
@@ -1869,16 +1922,16 @@ std::vector<gpu::ModellZusatz> zusaetze() {
         gpu::ModellZusatz x;
         if (!anbauWelt(a, x.welt)) { continue; }
         x.modell = &a.modell;
-        x.texturen = g_app->showModelTextures && a.texturen.found != 0 ? &a.texturen : nullptr;
+        x.texturen = g_app->showModelTextures && !sch.weiss && a.texturen.found != 0 ? &a.texturen : nullptr;
         z.push_back(std::move(x));
     }
-    if (t.an.boden || t.an.raster) {
+    if (t.an.boden || sch.raster) {
         float groesse = 0.0F;
         for (int k = 0; k < 2; ++k) { groesse = std::max(groesse, std::fabs(g_app->model.mins[k]) + std::fabs(g_app->model.maxs[k])); }
         groesse = std::max(groesse, 32.0F);
         const float einheit[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
         for (const bool raster : {false, true}) {
-            if (raster ? !t.an.raster : !t.an.boden) { continue; }
+            if (raster ? !sch.raster : !t.an.boden) { continue; }
             gpu::ModellZusatz x;
             x.modell = &bodenModell(t.an.bodenZ, raster, groesse);
             x.figur = false;   // Stufe 3: keine Silhouette
@@ -1889,12 +1942,12 @@ std::vector<gpu::ModellZusatz> zusaetze() {
     return z;
 }
 
-gpu::ModellAnsichtArt zeichenArt() {
+gpu::ModellAnsichtArt zeichenArt(const ModellSchattierung& sch) {
     gpu::ModellAnsichtArt art;
     art.hintergrund = g_app->settings.modellHintergrund;   // mb1a2
-    art.drahtgitter = mt().an.drahtgitter;
-    art.kantenUeber = mt().an.kanten;
-    art.zweiseitig = mt().an.zweiseitig;
+    art.drahtgitter = sch.drahtgitter;   // MBKOPF: je Ansicht
+    art.kantenUeber = sch.kanten;
+    art.zweiseitig = sch.zweiseitig;
     // Stufe 3: Silhouette (Figur schwarz auf hellem Grund) und Ghosts
     if (mt().silhouette) {
         art.silhouette[0] = art.silhouette[1] = art.silhouette[2] = 0.04F;
@@ -1905,8 +1958,9 @@ gpu::ModellAnsichtArt zeichenArt() {
     return art;
 }
 
-const ModelTextures* texturen() {
-    return (g_app->showModelTextures && g_app->modelTextures.found != 0) ? &g_app->modelTextures : nullptr;
+// MBKOPF: "Weisse Texturen" der Ansicht (Blender: Solid) zusaetzlich zum Schalter Texturen der Werkzeugleiste
+const ModelTextures* texturen(const ModellSchattierung& sch) {
+    return (g_app->showModelTextures && !sch.weiss && g_app->modelTextures.found != 0) ? &g_app->modelTextures : nullptr;
 }
 
 void eineAnsicht(int n, ImVec2 groesse, bool neu) {
@@ -1925,9 +1979,11 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     a.groesse[0] = static_cast<float>(w);
     a.groesse[1] = static_cast<float>(h);
     a.sichtbar = true;
+    modellAnsichtAnimieren(n);   // MBKOPF: weicher Wechsel von ViewCube/Gizmo
     baueSicht(a, w, h, a.viewProj);
     ImGuiIO& io = ImGui::GetIO();
-    const bool ueber = ImGui::IsWindowHovered();
+    // MBKOPF: Kopfzeile, ViewCube und Gizmo bedienen sich selbst - dort waehlt, kreist und oeffnet kein Klick die Ansicht
+    const bool ueber = ImGui::IsWindowHovered() && !modellKopfTreffer(a, io.MousePos);
     // --- Maus wie 3ds Max ---------------------------------------------------
     if (ueber && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Middle) ||
                   ImGui::IsMouseClicked(ImGuiMouseButton_Right))) {
@@ -2048,11 +2104,15 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     // --- Zeichnen -----------------------------------------------------------
     // REST Punkt 1: mit dem Stand der bemalten Textur - ein Tupfer (3D hier oben, 2D im Bild links) zeigt sich im selben
     // Bild; modelDirty allein kam zu spaet (die Ansichten fragen es vor dem Malen, am Ende des Bilds geht es aus)
-    char stand[220];
-    std::snprintf(stand, sizeof stand, "%d|%d|%d|%d|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f", w, h, static_cast<int>(a.art), t.malen.ansichtStand,
+    char stand[300];
+    std::snprintf(stand, sizeof stand, "%d|%d|%d|%d|%d%d%d%d%d|%.3f|%.3f|%.3f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f|%.4f", w, h,
+                  static_cast<int>(a.art), t.malen.ansichtStand, a.sch.drahtgitter ? 1 : 0, a.sch.kanten ? 1 : 0, a.sch.zweiseitig ? 1 : 0,
+                  a.sch.weiss ? 1 : 0, a.sch.raster ? 1 : 0, static_cast<double>(t.orthoWinkel[0]), static_cast<double>(t.orthoWinkel[1]),
+                  static_cast<double>(t.orthoWinkel[2]),
                   static_cast<double>(g_app->modelCam.pos[0]), static_cast<double>(g_app->modelCam.pos[1]),
                   static_cast<double>(g_app->modelCam.pos[2]), static_cast<double>(g_app->modelCam.angles[0]),
-                  static_cast<double>(g_app->modelCam.angles[1]), static_cast<double>(g_app->modelCam.fovY),
+                  static_cast<double>(g_app->modelCam.angles[1]), static_cast<double>(g_app->modelCam.angles[2]),
+                  static_cast<double>(g_app->modelCam.fovY),
                   static_cast<double>(a.mitte[0]), static_cast<double>(a.mitte[1]), static_cast<double>(a.mitte[2]),
                   static_cast<double>(a.halbHoehe), static_cast<double>(g_app->modelOrbit.distance));
     if (neu || g_sichtStand[static_cast<std::size_t>(n)] != stand) {
@@ -2061,8 +2121,8 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
             const auto ab = std::chrono::steady_clock::now();
             std::string fehler;
             const bool gw = gewichtsAnsicht();
-            const int aufrufe = gpu::zeichneModellAnsicht(gw ? gewichtsModell() : t.anzeige, gw ? &g_gewTex : texturen(), g_knochen, a.viewProj, true,
-                                                          &fehler, zeichenArt(), zusaetze());
+            const int aufrufe = gpu::zeichneModellAnsicht(gw ? gewichtsModell() : t.anzeige, gw ? &g_gewTex : texturen(a.sch), g_knochen, a.viewProj,
+                                                          true, &fehler, zeichenArt(a.sch), zusaetze(a.sch));
             if (aufrufe == 0 && !fehler.empty()) { diag::detail("Modellfenster: " + fehler); }
             g_app->modellAufrufe = aufrufe;
             ++g_app->modellNeuGezeichnet;
@@ -2091,31 +2151,10 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     if (t.aktiv == n && t.rahmen && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
         dl->AddRect(ImVec2{t.rahmenStart[0], t.rahmenStart[1]}, io.MousePos, IM_COL32(255, 255, 255, 200));
     }
-    // Kopfzeile wie Max: [+] [Ansicht] [Standard]
-    char kopf[200];
-    std::snprintf(kopf, sizeof kopf, "[+] [%s] [%s]%s%s", tr(ansichtName(a.art)), tr(Str::MbAnsichtStandard), t.vierAnsichten ? "" : "  ",
-                  t.vierAnsichten ? "" : tr(modellBlender() ? Str::MbAnsichtMaxBlender : Str::MbAnsichtMax));
-    // Modell-Block 1b: neben dem UV-Editor ist die Ansicht schmaler - passt der Hinweis "maximiert (Alt+W ...)" nicht,
-    // bleibt nur [+] [Ansicht] [Standard] stehen (nichts abgeschnitten)
-    if (ImGui::CalcTextSize(kopf).x > groesse.x - 12.0F) {
-        std::snprintf(kopf, sizeof kopf, "[+] [%s] [%s]", tr(ansichtName(a.art)), tr(Str::MbAnsichtStandard));
-    }
-    dl->AddText(ImVec2{lo.x + 6.0F, lo.y + 4.0F}, IM_COL32(220, 220, 220, 230), kopf);
-    if (t.an.statistik) {
-        int fl = 0;
-        int dr = 0;
-        int ec = 0;
-        for (std::size_t i = 0; i < t.anzeige.surfaces.size(); ++i) {
-            if (!gezeichnet(i)) { continue; }
-            ++fl;
-            dr += static_cast<int>(t.anzeige.surfaces[i].indexes.size() / 3U);
-            ec += static_cast<int>(t.anzeige.surfaces[i].verts.size());
-        }
-        char z[200];
-        std::snprintf(z, sizeof z, trN(Str::MbStatistik, fl, dr, ec), fl, dr, ec);
-        dl->AddText(ImVec2{lo.x + 6.0F, lo.y + static_cast<float>(h) - ImGui::GetFontSize() * 1.4F}, IM_COL32(230, 230, 230, 230), z);
-    }
     if (t.aktiv == n) { dl->AddRect(lo, ImVec2{lo.x + static_cast<float>(w), lo.y + static_cast<float>(h)}, IM_COL32(230, 180, 40, 255), 0.0F, 0, 2.0F); }
+    // MBKOPF: ViewCube bzw. Gizmo und die Kopfzeile wie die Viewport Label Menus von 3ds Max / die Kopfzeile von Blender
+    drawModellNavigation(n, a);
+    drawModellKopfzeile(n, a);
     ImGui::EndChild();
     ImGui::PopID();
 }
@@ -2141,14 +2180,24 @@ void drawModellArbeitsflaeche() {
         const AnsichtArt arten[4] = {AnsichtArt::Oben, AnsichtArt::Vorne, AnsichtArt::Links, AnsichtArt::Perspektive};
         for (int i = 0; i < 4; ++i) {
             t.ansichten[i].art = arten[i];
+            t.ansichten[i].animStart = -1.0;
             if (i < 3) { einpassen(t.ansichten[i]); }
         }
+        // MBKOPF: die Perspektive von vorne und mittig (shank 10.11.: "das das model immer von vorne angezeigt wird und
+        // nicht von der Seite") - eingepasst, sobald die Ansicht ihre Groesse und die Pose kennt
+        t.einpassenOffen = true;
+        t.homeDa = false;   // ein gesetztes Home gehoert zur Figur
         g_eingepasst = g_app->modelPath;
     }
     modellDrehteller();
     // Stufe 3: ein Griff, der in der Ansicht gezogen wird, aendert das Dokument erst nach posieren() dieses Bilds - und
     // modelDirty geht am Ende des Bilds aus. Darum: neu posieren, sobald sich das Dokument geaendert hat (mb4_rig1: der
     // gezogene Griff drehte die Hand nicht, 0,00 Grad statt 30).
+    if (t.einpassenOffen && t.ansichten[3].groesse[0] > 0.0F) {
+        posieren();
+        t.einpassenOffen = false;
+        modellStartansicht(3);
+    }
     const bool neu = g_app->modelDirty || t.dok.stand() != g_posiertBeiStand;
     if (neu) {
         posieren();
@@ -2279,19 +2328,23 @@ void modellPerspektiveUmschalten() {
     }
     float v[3];
     g_app->modelCam.forward(v);
+    // MBKOPF: die Blickachsen aus ansichtAchsen selbst - die Tabelle hier hatte seit REST M9 (Vorne zeigt das Gesicht)
+    // Vorne und Hinten vertauscht: von vorne umgeschaltet zeigte die Ansicht den Ruecken
     static const AnsichtArt kArten[6] = {AnsichtArt::Links, AnsichtArt::Rechts, AnsichtArt::Hinten, AnsichtArt::Vorne, AnsichtArt::Unten, AnsichtArt::Oben};
-    // Blickachsen: Links +X, Rechts -X, Hinten +Y, Vorne -Y, Unten +Z, Oben -Z (ansichtAchsen)
-    static const float kV[6][3] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
-    int best = 3;
+    AnsichtArt best = AnsichtArt::Vorne;
     float bd = -2.0F;
-    for (int i = 0; i < 6; ++i) {
-        const float d = v[0] * kV[i][0] + v[1] * kV[i][1] + v[2] * kV[i][2];
+    for (const AnsichtArt art : kArten) {
+        float r[3];
+        float h[3];
+        float achse[3];
+        ansichtAchsen(art, r, h, achse);
+        const float d = v[0] * achse[0] + v[1] * achse[1] + v[2] * achse[2];
         if (d > bd) {
             bd = d;
-            best = i;
+            best = art;
         }
     }
-    modellAnsichtSetzen(kArten[best]);
+    modellAnsichtSetzen(best);
 }
 
 // Ziffernblock 2/4/6/8: um 15 Grad kreisen (Blender: Preferences > Navigation > Rotation Amount, Vorgabe 15);
@@ -2301,6 +2354,279 @@ void modellKreisenSchritt(float gier, float nick) {
     if (t.ansichten[t.aktiv].art != AnsichtArt::Perspektive) { modellAnsichtSetzen(AnsichtArt::Perspektive); }
     g_app->modelOrbit.turn(g_app->modelCam, gier, nick);
     g_app->modelDirty = true;
+}
+
+// --- MBKOPF: Blickrichtung, weicher Wechsel, Startansicht --------------------------------------------------------
+
+const char* modellAnsichtText(AnsichtArt a) { return tr(ansichtName(a)); }
+
+ModellSchattierung& modellSch() {
+    ModellTab& t = mt();
+    return t.ansichten[std::clamp(t.aktiv, 0, 3)].sch;
+}
+
+// Blender: Preferences > Viewport > Smooth Rotation, Vorgabe 200 ms (userdef_default.c: .smooth_viewtx = 200). Der
+// ViewCube im Modus wie 3ds Max dreht in 0,28 s wie seine Vorlage (WhiteoutDex max_viewcube.h, State::duration).
+float modellBlickDauer() { return modellBlender() ? 0.2F : 0.28F; }
+
+namespace {
+
+// Winkel aus Blick- und Rechtsachse: die Umkehrung von Camera::forward/right mit Rollwinkel 0. Senkrecht (Oben/Unten)
+// legt die Rechtsachse den Gierwinkel fest (right = (sin y, -cos y, 0)).
+void winkelAusAchsen(const float r[3], const float v[3], float w[3]) {
+    w[0] = -std::asin(std::clamp(v[2], -1.0F, 1.0F)) * 180.0F / kPi;
+    w[1] = std::fabs(v[2]) < 0.999F ? std::atan2(v[1], v[0]) * 180.0F / kPi : std::atan2(r[0], -r[1]) * 180.0F / kPi;
+    w[2] = 0.0F;
+}
+
+float winkelDiff(float a, float b) {   // b - a auf dem kuerzesten Weg
+    float d = std::fmod(b - a, 360.0F);
+    if (d > 180.0F) { d -= 360.0F; }
+    if (d < -180.0F) { d += 360.0F; }
+    return d;
+}
+
+// Die Perspektive auf die Winkel `w` drehen, der Drehpunkt bleibt (wie Orbit::turn, aber absolut und ohne Kappen auf
+// 89 Grad - Oben/Unten sind 90).
+void kameraWinkel(const float w[3]) {
+    float p[3];
+    g_app->modelOrbit.pivot(g_app->modelCam, p);
+    for (int k = 0; k < 3; ++k) { g_app->modelCam.angles[k] = w[k]; }
+    float f[3];
+    g_app->modelCam.forward(f);
+    for (int k = 0; k < 3; ++k) { g_app->modelCam.pos[k] = p[k] - f[k] * g_app->modelOrbit.distance; }
+}
+
+// Die Perspektive ganz setzen: Winkel, Abstand und Drehpunkt.
+void kameraFlug(const float w[3], float abstand, const float punkt[3]) {
+    for (int k = 0; k < 3; ++k) { g_app->modelCam.angles[k] = w[k]; }
+    g_app->modelOrbit.distance = abstand;
+    float f[3];
+    g_app->modelCam.forward(f);
+    for (int k = 0; k < 3; ++k) { g_app->modelCam.pos[k] = punkt[k] - f[k] * abstand; }
+}
+
+void zielAnwenden(int n, AnsichtArt art, const float w[3]) {
+    ModellTab& t = mt();
+    ModellAnsicht& a = t.ansichten[n];
+    if (art == AnsichtArt::Perspektive) {
+        if (a.art != AnsichtArt::Perspektive) { modellAnsichtSetzenIn(n, AnsichtArt::Perspektive); }
+        kameraWinkel(w);
+    } else if (art == AnsichtArt::Orthographisch) {
+        if (a.art == AnsichtArt::Perspektive) { modellAnsichtSetzenIn(n, AnsichtArt::Orthographisch); }
+        for (int k = 0; k < 3; ++k) { t.orthoWinkel[k] = w[k]; }
+        a.art = AnsichtArt::Orthographisch;
+    } else {
+        modellAnsichtSetzenIn(n, art);
+    }
+    g_app->modelDirty = true;
+}
+
+}  // namespace
+
+void modellAnsichtWinkel(const ModellAnsicht& a, float winkel[3]) {
+    if (a.art == AnsichtArt::Perspektive) {
+        for (int k = 0; k < 3; ++k) { winkel[k] = g_app->modelCam.angles[k]; }
+        return;
+    }
+    if (a.art == AnsichtArt::Orthographisch) {
+        for (int k = 0; k < 3; ++k) { winkel[k] = mt().orthoWinkel[k]; }
+        return;
+    }
+    float r[3];
+    float h[3];
+    float v[3];
+    ansichtAchsen(a.art, r, h, v);
+    winkelAusAchsen(r, v, winkel);
+}
+
+void modellBlickSetzen(int n, AnsichtArt art, const float winkel[3], bool weich) {
+    ModellTab& t = mt();
+    if (n < 0 || n > 3) { return; }
+    ModellAnsicht& a = t.ansichten[n];
+    float ziel[3] = {0.0F, 0.0F, 0.0F};
+    if (art == AnsichtArt::Perspektive || art == AnsichtArt::Orthographisch) {
+        for (int k = 0; k < 3; ++k) { ziel[k] = winkel[k]; }
+    } else {
+        ModellAnsicht probe;
+        probe.art = art;
+        modellAnsichtWinkel(probe, ziel);
+    }
+    if (!weich || modellBlickDauer() <= 0.0F) {
+        a.animStart = -1.0;
+        zielAnwenden(n, art, ziel);
+        return;
+    }
+    modellAnsichtWinkel(a, a.animVon);
+    for (int k = 0; k < 3; ++k) { a.animZu[k] = a.animVon[k] + winkelDiff(a.animVon[k], ziel[k]); }
+    a.animArt = art;
+    a.animDauer = modellBlickDauer();
+    a.animFlug = false;
+    a.animStart = ImGui::GetTime();
+    // eine Achsenansicht dreht als freie Orthographische (Max: "Orthographic"), die Perspektive bleibt Perspektive
+    if (a.art != AnsichtArt::Perspektive && a.art != AnsichtArt::Orthographisch) {
+        for (int k = 0; k < 3; ++k) { t.orthoWinkel[k] = a.animVon[k]; }
+        a.art = AnsichtArt::Orthographisch;
+    }
+    g_app->modelDirty = true;
+}
+
+void modellAnsichtAnimieren(int n) {
+    ModellTab& t = mt();
+    ModellAnsicht& a = t.ansichten[n];
+    if (a.animStart < 0.0) { return; }
+    float s = static_cast<float>((ImGui::GetTime() - a.animStart) / static_cast<double>(std::max(a.animDauer, 1e-3F)));
+    if (s >= 1.0F) {
+        a.animStart = -1.0;
+        if (a.animFlug) {   // genau die Home-Ansicht: Winkel, Abstand, Drehpunkt
+            a.animFlug = false;
+            kameraFlug(a.animEnde, a.animAbstand[1], a.animZiel[1]);
+            g_app->modelDirty = true;
+            return;
+        }
+        zielAnwenden(n, a.animArt, a.animZu);
+        return;
+    }
+    s = std::clamp(s, 0.0F, 1.0F);
+    s = 3.0F * s * s - 2.0F * s * s * s;   // Blender view3d_smoothview_apply: step = 3 s^2 - 2 s^3 (max_viewcube.h ebenso)
+    float w[3];
+    for (int k = 0; k < 3; ++k) { w[k] = a.animVon[k] + (a.animZu[k] - a.animVon[k]) * s; }
+    if (a.animFlug) {
+        // max_viewcube.h: der Abstand geometrisch (gleichmaessiges Zoomen fuer das Auge), der Drehpunkt geradlinig
+        const float d = a.animAbstand[0] > 0.0F && a.animAbstand[1] > 0.0F ? a.animAbstand[0] * std::pow(a.animAbstand[1] / a.animAbstand[0], s)
+                                                                         : a.animAbstand[0] + (a.animAbstand[1] - a.animAbstand[0]) * s;
+        float p[3];
+        for (int k = 0; k < 3; ++k) { p[k] = a.animZiel[0][k] + (a.animZiel[1][k] - a.animZiel[0][k]) * s; }
+        kameraFlug(w, d, p);
+    } else if (a.art == AnsichtArt::Perspektive) {
+        kameraWinkel(w);
+    } else {
+        for (int k = 0; k < 3; ++k) { t.orthoWinkel[k] = w[k]; }
+    }
+    g_app->modelDirty = true;
+}
+
+// Home (3ds Max ViewCube "Home", Blender Pos1 "Frame All" bzw. Startansicht): die Figur von vorne - ihr Gesicht schaut
+// in der .glm nach -Y (REST M9), die Kamera also entlang +Y (Gier 90) - und mittig: eingepasst auf die gezeichneten
+// Flaechen in der Pose.
+void modellStartansicht(int n) {
+    ModellTab& t = mt();
+    if (n < 0 || n > 3) { return; }
+    ModellAnsicht& a = t.ansichten[n];
+    a.animStart = -1.0;
+    if (a.art != AnsichtArt::Perspektive) { modellAnsichtSetzenIn(n, AnsichtArt::Perspektive); }
+    const float w[3] = {0.0F, 90.0F, 0.0F};
+    kameraWinkel(w);
+    modellAllesEinpassenIn(n);
+}
+
+// Home wie 3ds Max und die Vorlage (max_viewcube.h goHome): die Kamera fliegt hin - Winkel, Abstand und Drehpunkt
+// zusammen in 0,5 s. Ohne gesetztes Home ist das Ziel die Startansicht (von vorne, eingepasst). Home ist eine Perspektive.
+void modellHomeFlug(int n) {
+    ModellTab& t = mt();
+    if (n < 0 || n > 3) { return; }
+    ModellAnsicht& a = t.ansichten[n];
+    a.animStart = -1.0;
+    if (a.art != AnsichtArt::Perspektive) { modellAnsichtSetzenIn(n, AnsichtArt::Perspektive); }
+    const Camera vorher = g_app->modelCam;
+    const float abstandVorher = g_app->modelOrbit.distance;
+    g_app->modelOrbit.pivot(vorher, a.animZiel[0]);
+    if (t.homeDa) {
+        for (int k = 0; k < 3; ++k) {
+            a.animEnde[k] = t.homeWinkel[k];
+            a.animZiel[1][k] = t.homeZiel[k];
+        }
+        a.animAbstand[1] = t.homeAbstand;
+    } else {
+        modellStartansicht(n);   // das Ziel ausrechnen lassen, dann zurueck an den Anfang des Flugs
+        for (int k = 0; k < 3; ++k) { a.animEnde[k] = g_app->modelCam.angles[k]; }
+        a.animAbstand[1] = g_app->modelOrbit.distance;
+        g_app->modelOrbit.pivot(g_app->modelCam, a.animZiel[1]);
+        g_app->modelCam = vorher;
+        g_app->modelOrbit.distance = abstandVorher;
+    }
+    for (int k = 0; k < 3; ++k) {
+        a.animVon[k] = vorher.angles[k];
+        a.animZu[k] = a.animVon[k] + winkelDiff(a.animVon[k], a.animEnde[k]);
+    }
+    a.animAbstand[0] = abstandVorher;
+    a.animArt = AnsichtArt::Perspektive;
+    a.animFlug = true;
+    a.animDauer = 0.5F;   // max_viewcube.h goHome: st.duration = 0.5
+    a.animStart = ImGui::GetTime();
+    g_app->modelDirty = true;
+}
+
+// ViewCube Rechtsklick "Aktuelle Ansicht als Home setzen": Winkel, Abstand und Drehpunkt der Ansicht (eine Orthoansicht
+// mit dem Abstand, in dem die Perspektive dasselbe zeigt).
+void modellHomeSetzen(int n) {
+    ModellTab& t = mt();
+    if (n < 0 || n > 3) { return; }
+    const ModellAnsicht& a = t.ansichten[n];
+    modellAnsichtWinkel(a, t.homeWinkel);
+    if (a.art == AnsichtArt::Perspektive) {
+        t.homeAbstand = g_app->modelOrbit.distance;
+        g_app->modelOrbit.pivot(g_app->modelCam, t.homeZiel);
+    } else {
+        t.homeAbstand = std::max(a.halbHoehe / std::max(std::tan(g_app->modelCam.fovY * kPi / 360.0F), 1e-3F), 8.0F);
+        for (int k = 0; k < 3; ++k) { t.homeZiel[k] = a.mitte[k]; }
+    }
+    t.homeDa = true;
+}
+
+void modellAnsichtSetzenIn(int n, AnsichtArt art) {
+    ModellTab& t = mt();
+    const int alt = t.aktiv;
+    t.aktiv = std::clamp(n, 0, 3);
+    t.ansichten[t.aktiv].animStart = -1.0;
+    modellAnsichtSetzen(art);
+    t.aktiv = alt;
+}
+
+void modellAnsichtEinpassenIn(int n) {
+    if (n < 0 || n > 3) { return; }
+    einpassen(mt().ansichten[n]);
+}
+
+// Die ganze Figur, nicht die Auswahl (3ds Max Zoom Grenzen ohne Auswahl, Blender Pos1 view3d.view_all): die Richtung bleibt.
+void modellAllesEinpassenIn(int n) {
+    ModellTab& t = mt();
+    if (n < 0 || n > 3) { return; }
+    const std::vector<int> auswahl = t.auswahl;
+    const std::vector<modell::EckOrt> ecken = t.eckenWahl;
+    t.auswahl.clear();
+    t.eckenWahl.clear();
+    einpassen(t.ansichten[n]);
+    t.auswahl = auswahl;
+    t.eckenWahl = ecken;
+}
+
+// Blender Umschalt+Ziffernblock 4/6 (view3d.view_roll, 15 Grad wie das Kreisen): eine Achsenansicht rollt als
+// "User Orthographic", die Perspektive um ihre Blickachse.
+void modellRollenSchritt(float grad) {
+    ModellTab& t = mt();
+    ModellAnsicht& a = t.ansichten[t.aktiv];
+    float w[3];
+    modellAnsichtWinkel(a, w);
+    w[2] += grad;
+    modellBlickSetzen(t.aktiv, a.art == AnsichtArt::Perspektive ? AnsichtArt::Perspektive : AnsichtArt::Orthographisch, w, false);
+}
+
+// Blender Ziffernblock 9 (view3d.view_orbit angle=pi, ORBITRIGHT): auf die Gegenseite - eine Achsenansicht wird zu ihrer
+// Gegenansicht (Oben <-> Unten ...), sonst 180 Grad um die senkrechte Achse.
+void modellGegenseite() {
+    ModellTab& t = mt();
+    ModellAnsicht& a = t.ansichten[t.aktiv];
+    static const AnsichtArt kGegen[8] = {AnsichtArt::Unten, AnsichtArt::Hinten, AnsichtArt::Rechts, AnsichtArt::Perspektive,
+                                         AnsichtArt::Oben,  AnsichtArt::Vorne,  AnsichtArt::Links,  AnsichtArt::Orthographisch};
+    if (a.art != AnsichtArt::Perspektive && a.art != AnsichtArt::Orthographisch) {
+        modellAnsichtSetzen(kGegen[static_cast<int>(a.art)]);
+        return;
+    }
+    float w[3];
+    modellAnsichtWinkel(a, w);
+    w[1] += 180.0F;
+    modellBlickSetzen(t.aktiv, a.art, w, false);
 }
 
 // mb1a2: das Foto mit der Ueberlagerung (Knochen, Tags, Nummern, Lineal ...) wie in der Ansicht - die Linien und Texte
@@ -2321,8 +2647,8 @@ bool modellFotoMitUeberlagerung(int breite, std::vector<unsigned char>& rgba, in
     std::string fehler;
     const bool gw = gewichtsAnsicht();
     if (!gpu::bereiteModellZiel(w, h) ||
-        gpu::zeichneModellAnsicht(gw ? gewichtsModell() : t.anzeige, gw ? &g_gewTex : texturen(), g_knochen, a.viewProj, true, &fehler, zeichenArt(),
-                                  zusaetze()) <= 0) {
+        gpu::zeichneModellAnsicht(gw ? gewichtsModell() : t.anzeige, gw ? &g_gewTex : texturen(a.sch), g_knochen, a.viewProj, true, &fehler,
+                                  zeichenArt(a.sch), zusaetze(a.sch)) <= 0) {
         return false;
     }
     ImDrawList liste(ImGui::GetDrawListSharedData());
@@ -2396,7 +2722,7 @@ bool modellFotoPixel(int breite, int hoehe, std::vector<unsigned char>& rgba, bo
     if (ueberDokument) {
         modellAnzeigeAktualisieren();
         posieren();
-        n = gpu::zeichneModellAnsicht(t.anzeige, texturen(), g_knochen, vp, true, &fehler, gpu::ModellAnsichtArt{}, {});
+        n = gpu::zeichneModellAnsicht(t.anzeige, texturen(ModellSchattierung{}), g_knochen, vp, true, &fehler, gpu::ModellAnsichtArt{}, {});
     } else {
         // Der Weg bis rc610 (drawModelView): das gelesene Modell, das Bild der
         // Animation ohne Mischen, Kappen nach der Leiste.
@@ -2406,7 +2732,7 @@ bool modellFotoPixel(int breite, int hoehe, std::vector<unsigned char>& rgba, bo
             g_app->anim.worldMatrices(std::clamp(g_app->animFrame, 0, g_app->anim.numFrames - 1), welt);
             gpu::baueKnochenmatrizen(welt, g_app->anim.bones, knochen);
         }
-        n = gpu::zeichneModellAnsicht(g_app->model, texturen(), knochen, vp, g_app->showCaps, &fehler);
+        n = gpu::zeichneModellAnsicht(g_app->model, texturen(ModellSchattierung{}), knochen, vp, g_app->showCaps, &fehler);
     }
     int w = 0;
     int h = 0;

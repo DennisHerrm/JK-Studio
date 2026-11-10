@@ -168,6 +168,11 @@ std::string writeSettings(const Settings& s) {
     put(o, "entTextOffen", s.entTextOffen);
     put(o, "insSkriptOffen", s.insSkriptOffen);                        // mb1a2
     put(o, "modelBackground", std::to_string(s.modellHintergrund));   // mb1a2
+    put(o, "modelViewCube", s.modellNavigation);                       // MBKOPF
+    put(o, "modelViewCubeAll", s.modellNavigationAlle);
+    put(o, "modelCompass", s.modellKompass);
+    put(o, "modelCompassNorth", std::to_string(s.modellKompassNord));
+    put(o, "modelDisplayMovedSeen", s.modellAnzeigeUmzugGesehen);
     put(o, "lumpEditOffen", s.lumpEditOffen);
     put(o, "lumpEditKarteOffen", s.lumpEditKarteOffen);
     put(o, "texListeOffen", s.texListeOffen);
@@ -334,6 +339,11 @@ bool readSettings(const std::string& text, Settings& out) {
         else if (key == "entTextOffen") { out.entTextOffen = toBool(value); }
         else if (key == "insSkriptOffen") { out.insSkriptOffen = toBool(value); }                       // mb1a2
         else if (key == "modelBackground") { out.modellHintergrund = std::atoi(value.c_str()); }       // mb1a2
+        else if (key == "modelViewCube") { out.modellNavigation = toBool(value); }                       // MBKOPF
+        else if (key == "modelViewCubeAll") { out.modellNavigationAlle = toBool(value); }
+        else if (key == "modelCompass") { out.modellKompass = toBool(value); }
+        else if (key == "modelCompassNorth") { out.modellKompassNord = ((std::atoi(value.c_str()) % 360) + 360) % 360; }
+        else if (key == "modelDisplayMovedSeen") { out.modellAnzeigeUmzugGesehen = toBool(value); }
         else if (key == "lumpEditOffen") { out.lumpEditOffen = toBool(value); }
         else if (key == "lumpEditKarteOffen") { out.lumpEditKarteOffen = toBool(value); }
         else if (key == "texListeOffen") { out.texListeOffen = toBool(value); }

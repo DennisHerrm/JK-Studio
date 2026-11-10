@@ -260,6 +260,16 @@ struct Settings {
     bool insSkriptOffen = false;   // mb1a2: das Fenster "Ins Skript" des Model-Tabs (ab Werk zu)
     // mb1a2: Hintergrund der Modellansicht - -1 der Verlauf, sonst 0xRRGGBB (ModView: AppVars._R/_G/_B, 256/5 = 51)
     int modellHintergrund = -1;
+    // MBKOPF: ViewCube (wie 3ds Max) bzw. Navigations-Gizmo (wie Blender) - an (Max "Show the ViewCube", Blender
+    // show_gizmo_navigate), Vorgabe wie Max nur in der aktiven Ansicht; der Hinweis, dass die Anzeige-Optionen aus dem
+    // rechten Feld in die Kopfzeile gewandert sind, einmal
+    bool modellNavigation = true;
+    bool modellNavigationAlle = false;
+    // Kompass unter dem ViewCube (3ds Max: ViewCube-Konfiguration "Show the compass below the ViewCube", "Angle of north");
+    // 0 Grad: Norden liegt hinter der Flaeche Vorne (Welt +Y) wie in 3ds Max, im Uhrzeigersinn von oben
+    bool modellKompass = true;
+    int modellKompassNord = 0;
+    bool modellAnzeigeUmzugGesehen = false;
     // rc609 J: das Fenster "Shader und Flaechen" im Mission-Tab und im Karten-Editor
     bool lumpEditOffen = false;
     bool lumpEditKarteOffen = false;

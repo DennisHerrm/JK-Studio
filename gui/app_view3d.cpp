@@ -1894,29 +1894,8 @@ void modellDateiOeffnen(const std::string& p) {
     g_app->animList.clear();
     g_app->animIndex = -1;
     g_app->animFrame = 0;
-    for (int k = 0; k < 3; ++k) {
-        g_app->modelCam.pos[k] =
-            (g_app->model.mins[k] + g_app->model.maxs[k]) * 0.5F;
-    }
-    float size = 0.0F;
-    for (int k = 0; k < 3; ++k) {
-        size = std::max(size, g_app->model.maxs[k] - g_app->model.mins[k]);
-    }
-    // Abstand so, dass die Figur das Bild fuellt. 2.2 war zu weit - eine
-    // 66 Einheiten hohe Figur stand als Streichholz in der Mitte.
-    g_app->modelOrbit.distance = std::max(size * 1.15F, 24.0F);
-    g_app->modelCam.angles[0] = 0.0F;
-    g_app->modelCam.angles[1] = 180.0F;
-    // Die Kamera VOR die Figur setzen: der Drehpunkt liegt in ihrer Mitte.
-    {
-        float f[3];
-        g_app->modelCam.forward(f);
-        for (int k = 0; k < 3; ++k) {
-            g_app->modelCam.pos[k] =
-                (g_app->model.mins[k] + g_app->model.maxs[k]) * 0.5F -
-                f[k] * g_app->modelOrbit.distance;
-        }
-    }
+    // MBKOPF: die Kamera vor das Gesicht der Figur (bis rc611 Gier 180 - von der Seite), wie der Ladeweg aus dem Archiv
+    modellAnsichtEinpassen();
     g_app->modelDirty = true;
     g_app->leftMode = 2;
 

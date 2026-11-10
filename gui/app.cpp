@@ -3763,7 +3763,7 @@ bool oeffneModellAusArchiv(const std::string& name, std::string* fehler) {
         }
         g_app->modelSkins.clear();
         g_app->modelSkinIndex = -1;
-        for (int k = 0; k < 3; ++k) { g_app->modelCam.pos[k] = (g_app->model.mins[k] + g_app->model.maxs[k]) * 0.5F; }
+        modellAnsichtEinpassen();   // MBKOPF: wie jede Figur von vorne (bis rc611 blieb die Kamera in der Mitte des Modells)
         return true;
     }
     if (!readGlm(data, gm, &gerr)) {
@@ -3806,31 +3806,9 @@ bool oeffneModellAusArchiv(const std::string& name, std::string* fehler) {
         g_app->model = std::move(gm);
         g_app->modelPath = name;
         modellDokumentLaden(data);   // Modell-Block 1a-1: alle LOD-Stufen ins Modelldokument
-        // Kamera vor die Figur, auf halbe Hoehe.
-        for (int k = 0; k < 3; ++k) {
-            g_app->modelCam.pos[k] =
-                (g_app->model.mins[k] + g_app->model.maxs[k]) * 0.5F;
-        }
-        float size = 0.0F;
-        for (int k = 0; k < 3; ++k) {
-            size = std::max(size,
-                            g_app->model.maxs[k] - g_app->model.mins[k]);
-        }
-        g_app->modelOrbit.distance = std::max(size * 1.15F, 24.0F);
-        g_app->modelCam.angles[0] = 0.0F;
-        g_app->modelCam.angles[1] = 180.0F;
-        {
-            // "vorn" statt "f": weiter oben steht schon ein
-            // f fuer die gefundene Datei.
-            float vorn[3];
-            g_app->modelCam.forward(vorn);
-            for (int k = 0; k < 3; ++k) {
-                g_app->modelCam.pos[k] =
-                    (g_app->model.mins[k] +
-                     g_app->model.maxs[k]) * 0.5F -
-                    vorn[k] * g_app->modelOrbit.distance;
-            }
-        }
+        // MBKOPF: die Kamera vor das Gesicht der Figur, auf halbe Hoehe (bis rc611 Gier 180 - von der Seite); der
+        // Model-Tab passt danach auf die Figur in der Pose ein. Auch beim erneuten Laden derselben Figur.
+        modellAnsichtEinpassen();
         g_app->anim = GlaAnimation{};
         g_app->animList.clear();
         g_app->animIndex = -1;
@@ -4148,6 +4126,7 @@ void drawAbout() {
     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 40.0F);
     ImGui::BulletText("%s", tr(Str::AboutUvLizenz));     // Modell-Block 1b: Herkunft und Lizenz der UV-Werkzeuge (BSD-3 verlangt den Hinweis)
     ImGui::BulletText("%s", tr(Str::AboutMeshLizenz));   // Modell-Block 1d: Herkunft und Lizenz der Modellier-Werkzeuge
+    ImGui::BulletText("%s", tr(Str::AboutViewCubeLizenz));   // MBKOPF: der ViewCube des Model-Tabs (BSD-3 verlangt den Hinweis)
     ImGui::BulletText("%s", tr(Str::AboutBlenderLizenz));   // FIX2 P10: aus Blender portierte Teile (GPL-2.0-or-later)
     ImGui::BulletText("%s", tr(Str::AboutAnimLizenz));   // Preset-Bibliothek: Quaternius (CC0), 100STYLE (CC BY 4.0 verlangt die Nennung)
     ImGui::PopTextWrapPos();

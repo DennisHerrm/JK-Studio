@@ -217,6 +217,28 @@ std::vector<Schritt> laden(const std::string& pfad) {
     return s;
 }
 
+// MBKOPF: die Startansicht bis rc611 - von der Seite (Gier 180), vor der Mitte des Huellkastens der Datei im 1,15-fachen
+// seiner groessten Seite. Fuer die Tests, deren Klick- und Malstellen an der Figur von der Seite ausgemessen sind; seit
+// MBKOPF zeigt die Startansicht die Figur von vorne (das pruefen kopfrot und kopf).
+std::vector<Schritt> ladenSeite(const std::string& pfad) {
+    std::vector<Schritt> s = laden(pfad);
+    s.push_back(tu("MB1: Ansicht von der Seite wie bis rc611", [] {
+        Camera& c = g_app->modelCam;
+        float groesse = 0.0F;
+        for (int k = 0; k < 3; ++k) { groesse = std::max(groesse, g_app->model.maxs[k] - g_app->model.mins[k]); }
+        g_app->modelOrbit.distance = std::max(groesse * 1.15F, 24.0F);
+        c.angles[0] = 0.0F;
+        c.angles[1] = 180.0F;
+        c.angles[2] = 0.0F;
+        float vorn[3];
+        c.forward(vorn);
+        for (int k = 0; k < 3; ++k) { c.pos[k] = (g_app->model.mins[k] + g_app->model.maxs[k]) * 0.5F - vorn[k] * g_app->modelOrbit.distance; }
+        g_app->modelDirty = true;
+    }));
+    s.push_back(pause(0.3));
+    return s;
+}
+
 // Der Schirmort einer gezeichneten Flaeche (Mitte ihrer verformten Ecken) in der aktiven Ansicht.
 std::function<ImVec2()> flaechenOrt(const std::string& name) {
     return [name] {
@@ -236,14 +258,19 @@ std::vector<Schritt> funktionenSchritte() {
         modellAnsichtEinpassen();
     }));
     add(pause(0.2));
-    add(pruefe("MB1 Einpassen: die Kamera steht vor der Figur, ausserhalb des Huellkastens, im Abstand der Kreiskamera", [] {
+    // MBKOPF: vor der Figur heisst vor ihrem Gesicht - sie schaut in der .glm nach -Y (kopfrot misst es am Skelett); bis
+    // rc611 stand die Kamera bei +X (von der Seite). Der Model-Tab passt auf die Figur in der Pose ein: der Drehpunkt
+    // der Kreiskamera liegt in ihrem Huellkasten.
+    add(pruefe("MB1 Einpassen: die Kamera steht vor der Figur, ausserhalb des Huellkastens, der Drehpunkt der Kreiskamera in ihm", [] {
         const Camera& c = g_app->modelCam;
-        float m[3];
-        for (int k = 0; k < 3; ++k) { m[k] = (g_app->model.mins[k] + g_app->model.maxs[k]) * 0.5F; }
-        const float d = std::sqrt((c.pos[0] - m[0]) * (c.pos[0] - m[0]) + (c.pos[1] - m[1]) * (c.pos[1] - m[1]) + (c.pos[2] - m[2]) * (c.pos[2] - m[2]));
+        float p[3];
+        g_app->modelOrbit.pivot(c, p);
+        bool drin = true;
+        for (int k = 0; k < 3; ++k) { drin = drin && p[k] >= g_app->model.mins[k] && p[k] <= g_app->model.maxs[k]; }
         diag::detail("Knopftest: MB1 Einpassen - Kamera " + std::to_string(c.pos[0]) + " " + std::to_string(c.pos[1]) + " " +
-                     std::to_string(c.pos[2]) + ", Abstand zur Mitte " + std::to_string(d) + ", Kreis " + std::to_string(g_app->modelOrbit.distance));
-        return c.pos[0] > g_app->model.maxs[0] && std::fabs(d - g_app->modelOrbit.distance) < 0.01F;
+                     std::to_string(c.pos[2]) + ", Drehpunkt " + std::to_string(p[0]) + " " + std::to_string(p[1]) + " " + std::to_string(p[2]) +
+                     ", Kreis " + std::to_string(g_app->modelOrbit.distance));
+        return c.pos[1] < g_app->model.mins[1] && drin;
     }));
     add(pruefe("MB1: Sturmtruppler geladen, Dokument mit allen LOD-Stufen, Bereich Ansehen/Pruefen", [] {
         const modell::Inhalt& in = g_app->mtab.dok.inhalt();
@@ -440,10 +467,10 @@ std::vector<Schritt> funktionenSchritte() {
     auto grund = std::make_shared<AnsichtBild>();
     add(tu("MB1 Anzeige: Grundbild", [=] { (void)ansichtLesen(*grund); }));
     const std::vector<std::pair<std::string, std::function<bool&()>>> gpuSchalter = {
-        {"Drahtgitter (F3)", [] () -> bool& { return g_app->mtab.an.drahtgitter; }},
-        {"Kanten (F4)", [] () -> bool& { return g_app->mtab.an.kanten; }},
+        {"Drahtgitter (F3)", [] () -> bool& { return modellSch().drahtgitter; }},
+        {"Kanten (F4)", [] () -> bool& { return modellSch().kanten; }},
         {"Boden", [] () -> bool& { return g_app->mtab.an.boden; }},
-        {"Raster (G)", [] () -> bool& { return g_app->mtab.an.raster; }},
+        {"Raster (G)", [] () -> bool& { return modellSch().raster; }},
     };
     for (const auto& [name, wert] : gpuSchalter) {
         add(tu("MB1 Anzeige: " + name + " an", [=] {
@@ -489,7 +516,7 @@ std::vector<Schritt> funktionenSchritte() {
     add(pause(0.2));
     add(tu("MB1 Anzeige: Bild innen einseitig", [=] { (void)ansichtLesen(*grund); }));
     add(tu("MB1 Anzeige: zweiseitig", [] {
-        g_app->mtab.an.zweiseitig = true;
+        modellSch().zweiseitig = true;
         g_app->modelDirty = true;
     }));
     add(pause(0.2));
@@ -500,7 +527,7 @@ std::vector<Schritt> funktionenSchritte() {
         return d > 1000;
     }));
     add(tu("MB1 Anzeige: einseitig, Texturen, eingepasst", [] {
-        g_app->mtab.an.zweiseitig = false;
+        modellSch().zweiseitig = false;
         g_app->showModelTextures = true;
         modellAnsichtEinpassen();
     }));
@@ -653,7 +680,7 @@ std::vector<Schritt> funktionenSchritte() {
     add(pause(0.2));
     add(ziehenAn("Rahmen ueber die ganze Ansicht", [] {
         const ModellAnsicht& a = g_app->mtab.ansichten[g_app->mtab.aktiv];
-        return ImVec2{a.lo[0] + 4.0F, a.lo[1] + 24.0F};
+        return ImVec2{a.lo[0] + 4.0F, a.kopfUnten + 6.0F};   // MBKOPF: unter der Kopfzeile - ihre Felder oeffnen jetzt Menues
     }, 1500.0F, 1500.0F, 0));
     add(pause(0.2));
     add(pruefe("MB1 Auswahl: Rahmen waehlt alle gezeichneten Flaechen", [] {
@@ -664,14 +691,17 @@ std::vector<Schritt> funktionenSchritte() {
     }));
     auto ecke = std::make_shared<modell::Ecke>();
     auto grob0 = std::make_shared<modell::Ecke>();
-    add(tu("MB1 Gizmo: torso gewaehlt, Taste W", [=] {
+    add(tu("MB1 Gizmo: torso gewaehlt, Ansicht von der Seite, Taste W", [=] {
         g_app->mtab.auswahl = {teil("torso")};
+        // MBKOPF: seit der Startansicht von vorne (Blick +Y) zeigt der Y-Griff in den Schirm - fuer den Zug von der Seite
+        g_app->modelOrbit.turn(g_app->modelCam, 90.0F, 0.0F);
+        g_app->modelDirty = true;
         *ecke = g_app->mtab.dok.inhalt().teile[static_cast<std::size_t>(teil("torso"))].stufen[0].ecken[0];
         *grob0 = g_app->mtab.dok.inhalt().teile[static_cast<std::size_t>(teil("torso"))].stufen.back().ecken[0];
     }));
     add(tasteKombi(ImGuiKey_W, "W"));
     add(pruefe("MB1 Gizmo: W - verschieben", [] { return g_app->mtab.gizmo == 1; }));
-    // Y: in der Ansicht von vorn (Blick nach -X) waagerecht auf dem Schirm.
+    // Y: in der Ansicht von der Seite (Blick nach -X) waagerecht auf dem Schirm.
     add(ziehenAn("am Y-Griff des Gizmos", [] {
         ImVec2 p{0.0F, 0.0F};
         (void)modellGizmoGriffOrt(2, p);
@@ -700,6 +730,10 @@ std::vector<Schritt> funktionenSchritte() {
     }));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
     add(tasteKombi(ImGuiKey_Q, "Q"));
+    add(tu("MB1 Gizmo: Ansicht wieder von vorne", [] {
+        g_app->modelOrbit.turn(g_app->modelCam, -90.0F, 0.0F);
+        g_app->modelDirty = true;
+    }));
     // --- Vier Ansichten -------------------------------------------------------------------
     add(tasteKombi(ImGuiMod_Alt | ImGuiKey_W, "Alt+W"));
     add(pause(0.3));
@@ -779,10 +813,10 @@ std::vector<Schritt> tastenSchritte() {
              float m[3];
              return modellAuswahlMitte(m) && std::fabs(g_app->modelOrbit.distance) < 200.0F;
          }},
-        {ImGuiKey_F3, "F3", "Drahtgittermodell/Glatt ein/aus", [] { return g_app->mtab.an.drahtgitter; }},
-        {ImGuiKey_F3, "F3", "Drahtgittermodell/Glatt ein/aus", [] { return !g_app->mtab.an.drahtgitter; }},
-        {ImGuiKey_F4, "F4", "Flaechen mit Kanten anzeigen ein/aus", [] { return g_app->mtab.an.kanten; }},
-        {ImGuiKey_F4, "F4", "Flaechen mit Kanten anzeigen ein/aus", [] { return !g_app->mtab.an.kanten; }},
+        {ImGuiKey_F3, "F3", "Drahtgittermodell/Glatt ein/aus", [] { return modellSch().drahtgitter; }},
+        {ImGuiKey_F3, "F3", "Drahtgittermodell/Glatt ein/aus", [] { return !modellSch().drahtgitter; }},
+        {ImGuiKey_F4, "F4", "Flaechen mit Kanten anzeigen ein/aus", [] { return modellSch().kanten; }},
+        {ImGuiKey_F4, "F4", "Flaechen mit Kanten anzeigen ein/aus", [] { return !modellSch().kanten; }},
         {ImGuiKey_F5, "F5", "Auf X beschraenken", [] { return g_app->mtab.achse == 0; }},
         {ImGuiKey_F6, "F6", "Auf Y beschraenken", [] { return g_app->mtab.achse == 1; }},
         {ImGuiKey_F7, "F7", "Auf Z beschraenken", [] { return g_app->mtab.achse == 2; }},
@@ -806,12 +840,12 @@ std::vector<Schritt> tastenSchritte() {
         {ImGuiKey_Home, "Pos1", "Gehe zu Start-Frame", [] { return g_app->animFrame == g_app->animList[static_cast<std::size_t>(g_app->animIndex)].firstFrame; }},
         {ImGuiKey_Slash, "/", "Abspielen (Doku)", [] { return g_app->animPlaying; }},
         {ImGuiKey_Slash, "/", "Anhalten (Doku)", [] { return !g_app->animPlaying; }},
-        {ImGuiKey_G, "G", "Raster ein/aus", [] { return g_app->mtab.an.raster; }},
-        {ImGuiKey_G, "G", "Raster ein/aus", [] { return !g_app->mtab.an.raster; }},
+        {ImGuiKey_G, "G", "Raster ein/aus", [] { return modellSch().raster; }},
+        {ImGuiKey_G, "G", "Raster ein/aus", [] { return !modellSch().raster; }},
         {ImGuiKey_J, "J", "Auswahlklammer zeigen ein/aus", [] { return !g_app->mtab.an.klammer; }},
         {ImGuiKey_J, "J", "Auswahlklammer zeigen ein/aus", [] { return g_app->mtab.an.klammer; }},
-        {ImGuiKey_7, "7", "Ansichtsfenster-Statistiken anzeigen ein/aus", [] { return g_app->mtab.an.statistik; }},
-        {ImGuiKey_7, "7", "Ansichtsfenster-Statistiken anzeigen ein/aus", [] { return !g_app->mtab.an.statistik; }},
+        {ImGuiKey_7, "7", "Ansichtsfenster-Statistiken anzeigen ein/aus", [] { return modellSch().statistik; }},
+        {ImGuiKey_7, "7", "Ansichtsfenster-Statistiken anzeigen ein/aus", [] { return !modellSch().statistik; }},
         {ImGuiMod_Alt | ImGuiKey_R, "Alt+R", "ModView: Texturen neu laden", [] { return g_app->modelTextures.found > 0; }},
         {ImGuiKey_X, "X", "Alle Aktionen suchen", [] { return g_app->mtab.aktionenSichtbar; }},
         {ImGuiKey_Escape, "Esc", "(schliesst die Suche)", [] { return !g_app->mtab.aktionenSichtbar; }},

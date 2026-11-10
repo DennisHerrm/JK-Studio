@@ -79,10 +79,40 @@ struct ModellGeisterEinst {
     float farbeDanach[4] = {1.00F, 0.55F, 0.25F, 0.35F};
 };
 
-enum class AnsichtArt : int { Oben = 0, Vorne = 1, Links = 2, Perspektive = 3, Unten = 4, Hinten = 5, Rechts = 6 };
+// MBKOPF: Orthographisch = 3ds Max "Orthographic" (U) / Blender "User Orthographic" - frei gedreht; die Richtung
+// (ModellTab::orthoWinkel) teilen sich alle Ansichten dieser Art, wie die Perspektive sich modelCam teilt
+enum class AnsichtArt : int { Oben = 0, Vorne = 1, Links = 2, Perspektive = 3, Unten = 4, Hinten = 5, Rechts = 6, Orthographisch = 7 };
+
+// MBKOPF: die Schattierung gehoert der einen Ansicht wie in 3ds Max (Viewport Shading Label Menu: Drahtgitter nur in
+// einer Ansicht) und Blender (Viewport Shading je 3D-Ansicht); Raster (G) und Statistik (7) schalten in Max ebenso
+// nur die aktive Ansicht.
+struct ModellSchattierung {
+    bool drahtgitter = false;   // F3 / Blender: Wireframe
+    bool kanten = false;        // F4: Flaechen mit Kanten / Blender: Overlay Wireframe
+    bool zweiseitig = false;    // Blender: Backface Culling aus
+    bool weiss = false;         // weisse Texturen / Blender: Solid
+    bool raster = false;        // G
+    bool statistik = false;     // 7
+};
 
 struct ModellAnsicht {
     AnsichtArt art = AnsichtArt::Perspektive;
+    ModellSchattierung sch;    // MBKOPF
+    // MBKOPF: ViewCube/Gizmo - weicher Wechsel der Blickrichtung (Winkel wie Camera::angles), danach `animArt`
+    double animStart = -1.0;
+    float animVon[3]{};
+    float animZu[3]{};
+    AnsichtArt animArt = AnsichtArt::Perspektive;
+    float animDauer = 0.2F;    // Sekunden dieses Wechsels
+    // Home des ViewCube fliegt (max_viewcube.h goHome): Abstand und Drehpunkt der Perspektive gehen mit, das Ende ist genau `animEnde`
+    bool animFlug = false;
+    float animAbstand[2]{};    // von, zu
+    float animZiel[2][3]{};    // Drehpunkt von, zu
+    float animEnde[3]{};       // Winkel am Ende des Flugs
+    float kopfRechts = 0.0F;   // MBKOPF: Schirm-x, bis zu dem die Felder der Kopfzeile reichen (links)
+    float kopfLinks2 = 0.0F;   // MBKOPF: Blender - ab hier die Felder rechts (Overlays, Shading)
+    float kopfUnten = 0.0F;    // MBKOPF: Schirm-y der Unterkante der Kopfzeile
+    float wuerfel[4]{};        // MBKOPF: Rechteck von ViewCube/Gizmo (x0, y0, x1, y1), 0 wenn nicht gezeichnet
     float mitte[3]{};          // orthographisch: der Punkt in der Bildmitte
     float halbHoehe = 64.0F;   // orthographisch: halbe Bildhoehe in Einheiten
     // vom letzten Bild: Lage auf dem Schirm und die Matrix (fuer Ueberlagerung und Auswahl)
@@ -96,11 +126,9 @@ enum class ModellBereich : int { Ansehen = 0, Modellieren, Uv, Weights, Painting
 inline constexpr int kModellBereiche = 6;
 
 // Was in der Ansicht ueber dem Modell liegt (ModView: Menue "View").
+// MBKOPF: Drahtgitter, Kanten, zweiseitig, weiss, Raster und Statistik je Ansicht (ModellSchattierung); Knochen
+// (g_app->modellKnochen) und Flossen (settings.modellFlossen) liegen ausserhalb.
 struct ModellAnzeige {
-    bool drahtgitter = false;   // F3
-    bool kanten = false;        // F4: Flaechen mit Kanten
-    bool knochen = false;       // die Knochen als Bone-Objekte
-    bool flossen = false;       // Bone-Kasten mit Flossen
     bool gewichte = false;      // Gewichte an den Ecken
     bool normalen = false;
     bool tags = false;
@@ -108,12 +136,7 @@ struct ModellAnzeige {
     bool huelle = false;        // Huellkasten
     bool boden = false;
     float bodenZ = -24.0F;      // DT85 ModView: grauer Boden auf -24
-    bool raster = false;        // G
-    bool weiss = false;         // weisse Texturen (Risse finden)
     bool risse = false;         // offene Kanten der gewaehlten Flaeche
-    bool zweiseitig = false;
-    bool durchsicht = false;    // Alt+X
-    bool statistik = false;     // 7
     bool klammer = true;        // J: Auswahlklammer
     // mb1a2: ModView "Show vertex indexes" / "Show triangle indexes" (r_surface.cpp:864-935) an der gewaehlten
     // Flaeche, "Ruler" (model.cpp:2431-2462)
@@ -474,6 +497,14 @@ struct ModellTab {
     bool vierAnsichten = false;
     int aktiv = 3;            // aktive Ansicht
     ModellAnsicht ansichten[4];
+    float orthoWinkel[3] = {0.0F, 90.0F, 0.0F};   // MBKOPF: AnsichtArt::Orthographisch - pitch, yaw, roll (Quake)
+    bool einpassenOffen = false;   // MBKOPF: neue Figur - die Perspektive einpassen, sobald die Ansicht ihre Groesse kennt
+    int kopfMenueZaehler = 0;      // MBKOPF: Selbsttest - Menues der Kopfzeile, die offen gezeichnet wurden
+    // MBKOPF: ViewCube "Aktuelle Ansicht als Home setzen" - gilt bis zur naechsten Figur (in der Vorlage bis zum Programmende)
+    bool homeDa = false;
+    float homeWinkel[3]{};
+    float homeAbstand = 0.0F;
+    float homeZiel[3]{};
     bool fokus = false;       // die Ansicht hat den Fokus (Tasten des Max-Modus)
     bool aktionenOffen = false;   // X: "Alle Aktionen suchen"
     int klickDrinBild = -1;   // Bild des letzten Klicks in Ansicht, Explorer, Befehlsfeld oder Leiste
@@ -494,8 +525,8 @@ struct ModellTab {
     int neuGebaut = 0;        // wie oft die Anzeige neu gebaut wurde
     // je Bild gezeichnete Ueberlagerung: 0 Knochen-Striche, 1 Normalen, 2 Gewichte, 3 Tags, 4 Huelle, 5 Ursprung,
     // 6 Randecken (Risse), 7 Auswahl-Striche; mb1a2: 8 Ecknummern, 9 Dreiecknummern, 10 Lineal-Striche, 11 Pinselkreis,
-    // 12 gewaehlte Ecken
-    int ueber[13]{};
+    // 12 gewaehlte Ecken; MBKOPF: 13 Hinweis "Flaeche waehlen", 14 Statistik
+    int ueber[15]{};
     bool aktionenSichtbar = false;   // die Suche "Alle Aktionen" ist offen
     // Stufe 2: Speichern, Frage im Programm, animation.cfg, Karten-GLA, Marker
     std::string speicherPfad;     // wohin Strg+S schreibt (nach dem ersten Speichern)
@@ -963,6 +994,46 @@ bool modellBmp(const std::string& pfad, int breite, int hoehe, const std::vector
 [[nodiscard]] bool modellGizmoRingOrt(int achse, float grad, ImVec2& out);   // Stufe 3
 [[nodiscard]] bool modellAnbauWelt(int anbau, float welt[16]);
 [[nodiscard]] bool modellAuswahlMitte(float mitte[3]);
+
+// --- MBKOPF: Kopfzeile der Ansicht (gui/app_modelltab_kopf.cpp), ViewCube und Navigations-Gizmo
+// (gui/wof/app_modelltab_viewcube.cpp) -------------------------------------------------------------------------------
+[[nodiscard]] ModellSchattierung& modellSch();   // die Schattierung der aktiven Ansicht
+void drawModellKopfzeile(int n, ModellAnsicht& a);
+void modellAnzeigeKontext();                       // Rechtsklick-Menue: die Menues der Kopfzeile der aktiven Ansicht
+bool modellKopfAktionenSuche(const std::string& such);   // "Alle Aktionen suchen": jeder Anzeige-Schalter
+[[nodiscard]] const char* modellAnsichtText(AnsichtArt a);
+[[nodiscard]] bool modellKopfTreffer(const ModellAnsicht& a, ImVec2 maus);   // Maus auf Kopfzeile, ViewCube oder Gizmo
+void drawModellNavigation(int n, ModellAnsicht& a);    // ViewCube (Max) oder Gizmo (Blender), nach dem Bild der Ansicht
+[[nodiscard]] bool modellNavigationSichtbar(int n);
+// Blickrichtung (pitch, yaw, roll wie Camera::angles) der Ansicht n; Ziel: `art` (eine Achsenansicht, Perspektive oder
+// Orthographisch mit `winkel`), weich wie 3ds Max (ViewCube "animated transitions") und Blender (Smooth View).
+void modellAnsichtWinkel(const ModellAnsicht& a, float winkel[3]);
+void modellBlickSetzen(int n, AnsichtArt art, const float winkel[3], bool weich);
+void modellAnsichtAnimieren(int n);
+void modellStartansicht(int n);              // die Figur von vorne, mittig, Perspektive - sofort (Laden, Zuruecksetzen)
+void modellHomeFlug(int n);                  // Home: die Kamera fliegt zur Home-Ansicht (gesetzt oder die Startansicht)
+void modellHomeSetzen(int n);                // die Ansicht n ist ab jetzt Home
+void modellRollenSchritt(float grad);         // Blender Umschalt+Ziffernblock 4/6
+void modellGegenseite();                      // Blender Ziffernblock 9
+void modellAnsichtSetzenIn(int n, AnsichtArt a);   // eine Ansicht der Kopfzeile (Menue [Ansicht]) - wie die Tasten
+void modellAnsichtEinpassenIn(int n);
+void modellAllesEinpassenIn(int n);            // Blender Pos1 (view3d.view_all): die ganze Figur, die Richtung bleibt
+// "Alle Aktionen suchen": diese Taste steht dort schon als Anzeige-Schalter (mit Haken und Ort) - nicht doppelt
+[[nodiscard]] bool modellKopfSucheHatTaste(ImGuiKeyChord chord);
+[[nodiscard]] float modellBlickDauer();       // Sekunden eines weichen Wechsels
+// Selbsttest
+[[nodiscard]] int modellKopfSchalterZahl();
+[[nodiscard]] const char* modellKopfSchalterText(int i);
+[[nodiscard]] const char* modellKopfSchalterHinweis(int i);
+[[nodiscard]] bool& modellKopfSchalterWert(int i, int ansicht);
+[[nodiscard]] bool modellKopfSchalterGeht(int i);
+[[nodiscard]] bool modellKopfSchalterBrauchtAuswahl(int i);
+[[nodiscard]] bool modellKopfFeldOrt(int ansicht, int feld, ImVec2& out);   // 0 [+], 1 [Ansicht], 2 [Schattierung], 3 Overlays, 4 Shading-Menue
+[[nodiscard]] bool modellWuerfelOrt(int ansicht, int x, int y, int z, ImVec2& out);   // Flaeche/Kante/Ecke (-1/0/1 je Achse); 9,9,9 = Home
+[[nodiscard]] bool modellGizmoOrt(int ansicht, int teil, ImVec2& out);   // 0..5 +X -X +Y -Y +Z -Z, 6 Zoom, 7 Verschieben, 8 Persp/Ortho
+[[nodiscard]] bool modellKompassOrt(int ansicht, int teil, ImVec2& out);   // 0..3 N O S W, 4 ein Punkt des Rings vor dem Wuerfel
+[[nodiscard]] bool modellWuerfelPfeilOrt(int ansicht, int teil, ImVec2& out);   // 0..3 Pfeil oben/unten/links/rechts, 4/5 Rollpfeil rechts/links
+[[nodiscard]] float modellWuerfelAlpha(int ansicht);   // Deckkraft des ViewCube im letzten Bild (0: nicht gezeichnet)
 
 }  // namespace bhed::gui
 #endif

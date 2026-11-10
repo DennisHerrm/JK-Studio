@@ -506,6 +506,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_modell.cpp
     gui/app_modelltab.cpp
     gui/app_modelltab_ansicht.cpp
+    gui/app_modelltab_kopf.cpp   # MBKOPF: Kopfzeile der Ansicht bedienbar, Anzeige-Schalter dort
     gui/app_modelltab_mb2.cpp
     gui/app_modelltab_mb3.cpp
     gui/app_modelltab_rig.cpp
@@ -515,6 +516,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_modelltab_retarget.cpp
     gui/wof/app_modelltab_uv.cpp
     gui/wof/app_modelltab_mesh.cpp
+    gui/wof/app_modelltab_viewcube.cpp   # MBKOPF: ViewCube (Max) und Navigations-Gizmo (Blender)
     gui/app_modelltab_malen.cpp
     gui/app_animation.cpp
     gui/app_figuranim.cpp
