@@ -3090,6 +3090,8 @@ from i18n_rest10 import texte as _rest10  # noqa: E402
 TEXTE.update(_rest10("cs"))
 from i18n_lcb1 import texte as _lcb1  # noqa: E402
 TEXTE.update(_lcb1("cs"))
+from i18n_lcb2 import texte as _lcb2  # noqa: E402
+TEXTE.update(_lcb2("cs"))
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.
 TEXTE.update({_e[0]: _e[1] for _e in _nrc()})

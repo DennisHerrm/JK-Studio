@@ -15,6 +15,9 @@ e) lcb1: -light -bhedlightcache mit -bounce (1, 2, 8, die Final-Eintraege des Ka
    verschoben, nichts, nur Nachbearbeitung, Entity, Brush, Shader geaendert - jede .bsp und jede
    externe Lightmap Byte fuer Byte (cmp) gleich dem vollen Bau ohne Cache, Treffer je Durchgang.
    BHED_TEILBAU_NUR=bounce: nur dieser Teil.
+f) lcb2: -light -bhedlightcache nach Geometrie-Aenderungen in Raum B (Struktur-Brush verschoben, dazu,
+   geloescht, Detail-Brush, Patch, misc_model, Shader-Tausch, Brush-Entity; bounce 0/1/8, CPU/GPU): Raum A
+   kommt aus dem Cache, jede Datei Byte fuer Byte gleich dem vollen Bau. BHED_TEILBAU_NUR=geometrie.
 Die Karten aus tests/karte/q3map2 brauchen kein Spiel (-game quake3 nicht, sondern ja
 ohne Spielordner: die Shader fehlen, die Geometrie ist trotzdem dieselbe).
 """
@@ -89,7 +92,7 @@ def start(text):
 
 
 NUR = os.environ.get('BHED_TEILBAU_NUR', '')
-for quelle in ([] if NUR == 'bounce' else KARTEN):
+for quelle in ([] if NUR in ('bounce', 'geometrie') else KARTEN):
     name = os.path.splitext(os.path.basename(quelle))[0]
     text = open(quelle, encoding='latin-1', newline='').read()
     sx, sy, sz = start(text)
@@ -236,8 +239,8 @@ def start_weg(text):
     return text.replace('"origin" "-768 0 24"', '"origin" "-704 64 24"', 1)
 
 
-def shader_a(text):   # die erste Wand (Raum A, Westseite) bekommt einen anderen Shader
-    i = text.index('test/wand')
+def shader_a(text):   # die erste Wand (Raum A) bekommt innen einen anderen Shader (ihre erste Seite liegt verdeckt unter der Decke)
+    i = text.index('test/wand', text.index('test/wand') + 1)
     return text[:i] + 'test/wand2' + text[i + len('test/wand'):]
 
 
@@ -263,8 +266,8 @@ if NUR in ('', 'bounce') and os.path.exists(ZWEI):
         ('-bounce 2, nichts geaendert', LICHT + ['-bounce', '2'], None, lambda t: t, 'alle'),
         ('-bounce 2, nur Nachbearbeitung', LICHT + ['-bounce', '2'], LICHT + ['-bounce', '2'] + nach, lambda t: t, 'erster'),
         ('-bounce 2, Entity (info_player_start)', LICHT + ['-bounce', '2'], None, start_weg, 'alle'),
-        ('-bounce 2, Brush (Detail in Raum B)', LICHT + ['-bounce', '2'], None, lambda t: zusatz_pinsel(t, True, 960, -192, 40), 'geometry'),
-        ('-bounce 2, Shader (Wand in Raum A)', LICHT + ['-bounce', '2'], None, shader_a, 'geometry'),
+        ('-bounce 2, Brush (Detail in Raum B)', LICHT + ['-bounce', '2'], None, lambda t: zusatz_pinsel(t, True, 960, -192, 40), 'treffer'),
+        ('-bounce 2, Shader (Wand in Raum A)', LICHT + ['-bounce', '2'], None, shader_a, 'treffer'),
     ]
     if GPU:
         faelle += [
@@ -310,6 +313,103 @@ if NUR in ('', 'bounce') and os.path.exists(ZWEI):
                   and all(x[2] == 0 for x in p))
         pruefe(cache and ok, 'zweiraum, %s: aus dem Cache je Durchgang %s' % (was, text_p))
         pruefe(not anders and len(da) >= 1, 'zweiraum, %s: %d Dateien gleich dem vollen Bau (andere: %s)' % (was, len(da), anders))
+
+# f) lcb2: der Licht-Cache nach Geometrie-, Shader- und Brush-Entity-Aenderungen (Raum B), Raum A bleibt
+def quader(x0, y0, z0, x1, y1, z1, tex, detail=False):
+    flags = ' 134217728 0 0' if detail else ' 0 0 0'
+    e = [((x1, y1, z1), (x1, y0, z1), (x0, y1, z1)), ((x1, y1, z1), (x0, y1, z1), (x1, y1, z0)),
+         ((x1, y1, z1), (x1, y1, z0), (x1, y0, z1)), ((x0, y0, z0), (x1, y0, z0), (x0, y1, z0)),
+         ((x0, y0, z0), (x0, y0, z1), (x1, y0, z0)), ((x0, y0, z0), (x0, y1, z0), (x0, y0, z1))]
+    return '{\n' + ''.join('( %g %g %g ) ( %g %g %g ) ( %g %g %g ) %s 0 0 0 0.5 0.5%s\n' % (a + b + c + (tex, flags)) for a, b, c in e) + '}\n'
+
+
+def in_welt(text, b):   # vor die schliessende Klammer der worldspawn
+    tiefe = 0
+    for i, ch in enumerate(text):
+        if ch == '{':
+            tiefe += 1
+        elif ch == '}':
+            tiefe -= 1
+            if tiefe == 0:
+                return text[:i] + b + text[i:]
+    return text
+
+
+def patch(x, y, z):   # ein gewoelbter 3x3-Patch, 128 x 128, 32 hoch
+    zeilen = []
+    for i in range(3):
+        zeilen.append('( ' + ' '.join('( %g %g %g %g %g )' % (x + 64 * i, y + 64 * j, z + (32 if i == 1 and j == 1 else 0), i / 2, j / 2)
+                                      for j in range(3)) + ' )')
+    return '{\npatchDef2\n{\ntest/boden\n( 3 3 0 0 0 )\n(\n' + '\n'.join(zeilen) + '\n)\n}\n}\n'
+
+
+def modell(x, y, z, winkel=0):
+    return '{\n"classname" "misc_model"\n"model" "models/test/marken.ase"\n"origin" "%g %g %g"\n"angle" "%g"\n}\n' % (x, y, z, winkel)
+
+
+def brushent(x, y):
+    return '{\n"classname" "func_static"\n' + quader(x, y, 0, x + 48, y + 48, 96, 'test/wand') + '}\n'
+
+
+SAEULE = quader(640, -160, 0, 704, -96, 256, 'test/wand')   # Struktur-Saeule in Raum B (Boden bis Decke)
+
+
+def shader_b(text):   # die Saeule in Raum B bekommt einen anderen Shader
+    return text.replace(SAEULE, SAEULE.replace('test/wand', 'test/wand2'), 1)
+
+
+if NUR in ('', 'geometrie') and os.path.exists(ZWEI):
+    name = 'zweiraum'
+    os.makedirs(os.path.join(ARBEIT, 'base', 'models', 'test'), exist_ok=True)
+    shutil.copyfile(os.path.join(DATEN, 'marken.ase'), os.path.join(ARBEIT, 'base', 'models', 'test', 'marken.ase'))
+    # Grundkarte: zweiraum mit Saeule, Patch, Modell und Brush-Entity in Raum B
+    grund = in_welt(open(ZWEI, encoding='latin-1', newline='').read(), SAEULE + patch(800, -224, 0)) + modell(900, 160, 0) + brushent(560, 128)
+    final_fast = ['-fast', '-patchshadows', '-samples', '2', '-filter', '-bounce', '8']
+    gpu = ['-bhedgpubake', '-bhedgpubakecheck', '0']
+    aenderungen = [
+        ('Struktur-Brush verschoben', lambda t: t.replace(SAEULE, quader(672, -160, 0, 736, -96, 256, 'test/wand'), 1)),
+        ('Struktur-Brush dazu', lambda t: in_welt(t, quader(880, 0, 0, 944, 64, 256, 'test/wand'))),
+        ('Struktur-Brush geloescht', lambda t: t.replace(SAEULE, '', 1)),
+        ('Detail-Brush dazu', lambda t: in_welt(t, quader(880, 0, 0, 912, 32, 32, 'test/boden', True))),
+        ('Patch verschoben', lambda t: t.replace(patch(800, -224, 0), patch(816, -224, 0), 1)),
+        ('misc_model gedreht', lambda t: t.replace(modell(900, 160, 0), modell(900, 160, 0, 90), 1)),
+        ('Shader-Tausch', shader_b),
+        ('Brush-Entity verschoben', lambda t: t.replace(brushent(560, 128), brushent(592, 128), 1)),
+    ]
+    # (Schalter, welche Aenderungen): bounce 0 und 1 alle, [Final] Fast (bounce 8) und GPU eine Auswahl
+    reihen = [(LICHT, aenderungen),
+              (LICHT + ['-bounce', '1'], aenderungen),
+              (final_fast, [aenderungen[0], aenderungen[3], aenderungen[6]]),
+              (final_fast + gpu if GPU else None, [aenderungen[1], aenderungen[4], aenderungen[7]])]
+    for r, (schalter, liste) in enumerate(reihen):
+        if schalter is None:
+            continue
+        erst = os.path.join(ARBEIT, 'f%d_erst' % r)
+        shutil.rmtree(erst, ignore_errors=True)
+        os.makedirs(erst)
+        lichtbau(erst, name, grund, schalter, True)
+        for was, aendern in liste:
+            a = os.path.join(ARBEIT, 'f_teil')
+            b = os.path.join(ARBEIT, 'f_voll')
+            for o in (a, b):
+                shutil.rmtree(o, ignore_errors=True)
+            shutil.copytree(erst, a)
+            os.makedirs(b)
+            cache = os.path.exists(os.path.join(a, name + '.bhedlight'))
+            neu = aendern(grund)
+            ausgabe = lichtbau(a, name, neu, schalter, True)
+            lichtbau(b, name, neu, schalter, False)
+            da, db = dateien(a, name), dateien(b, name)
+            anders = sorted(k for k in set(da) | set(db) if da.get(k) != db.get(k))
+            if name + '.bsp' in anders:
+                la, lb = lumps(os.path.join(a, name + '.bsp')), lumps(os.path.join(b, name + '.bsp'))
+                anders.append('Lumps %s' % [i for i in range(18) if la[i] != lb[i]])
+            p = paesse(ausgabe)
+            text_p = ', '.join('%d/%d' % (x[2], x[3]) for x in p) or '(keine Zeile)'
+            # Raum A sieht die Aenderung nicht: der erste Durchgang nimmt Lightmaps aus dem Cache, aber nicht alle
+            ok = neu != grund and len(p) >= 1 and 0 < p[0][2] < p[0][3]
+            pruefe(cache and ok, 'zweiraum %s, %s: aus dem Cache je Durchgang %s' % (' '.join(schalter), was, text_p))
+            pruefe(not anders and len(da) >= 1, 'zweiraum %s, %s: %d Dateien gleich dem vollen Bau (andere: %s)' % (' '.join(schalter), was, len(da), anders))
 
 print('q3map2_teilbau: %d Fehlschlaege' % fehler)
 sys.exit(1 if fehler else 0)

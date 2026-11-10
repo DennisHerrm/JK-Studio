@@ -159,7 +159,12 @@ bool bauLichtCacheZeile(const std::string& zeile, BauLichtCache& c) {
     } else if (rest.rfind(" found", 0) == 0) {
         c.zustand = BauLichtCache::Zustand::Gefunden;
         c.grund = BauLichtCache::Grund::Keiner;
-        if (std::sscanf(s, " found (geometry and switches unchanged, %d of %d passes kept)", &a, &b) == 2) {
+        // lcb2: nach Geometrie-Aenderungen sagt die Zeile, dass die Lightmaps ueber ihren Inhalt gefunden werden
+        static const char kInhalt[] = " found (geometry, shaders or brush entities changed: lightmaps are found by content";
+        c.nachInhalt = rest.rfind(kInhalt, 0) == 0;
+        const std::size_t k = rest.rfind("; ");
+        if (std::sscanf(s, " found (geometry and switches unchanged, %d of %d passes kept)", &a, &b) == 2 ||
+            (c.nachInhalt && k != std::string::npos && std::sscanf(rest.c_str() + k, "; %d of %d passes kept)", &a, &b) == 2)) {
             c.behalten = a;
             c.paesse = b;
         }
@@ -169,7 +174,7 @@ bool bauLichtCacheZeile(const std::string& zeile, BauLichtCache& c) {
         c.grund = g.rfind("no cache yet", 0) == 0          ? BauLichtCache::Grund::KeinCache
                   : g.rfind("older cache format", 0) == 0  ? BauLichtCache::Grund::AltesFormat
                   : g.rfind("light switches", 0) == 0      ? BauLichtCache::Grund::Schalter
-                  : g.rfind("geometry", 0) == 0            ? BauLichtCache::Grund::Geometrie
+                  : g.rfind("worldspawn keys", 0) == 0     ? BauLichtCache::Grund::Welt
                                                           : BauLichtCache::Grund::Beschaedigt;
     }
     return true;

@@ -68,14 +68,16 @@ struct BauLaufZeiten {
 
 // lcb1: was bhed_q3map2 -light -bhedlightcache ueber seinen Licht-Cache sagt (bhed_lichtcache.cpp):
 //   "BehavEd: light cache found (geometry and switches unchanged, k of n passes kept)"
+//   "BehavEd: light cache found (geometry, shaders or brush entities changed: lightmaps are found by content, ...; k of n passes kept)" (lcb2)
 //   "BehavEd: light cache not usable: <grund> - everything is traced"
 //   "BehavEd: light cache pass x of y: a of b lightmaps from the cache (p % of the work to trace)"
 //   "BehavEd: light cache: a of b lightmaps and ... taken from the cache, grid ...; m MB written" (alle Durchgaenge)
 struct BauLichtCache {
     enum class Zustand { Unbekannt, Gefunden, Aus };
-    enum class Grund { Keiner, KeinCache, AltesFormat, Beschaedigt, Schalter, Geometrie };
+    enum class Grund { Keiner, KeinCache, AltesFormat, Beschaedigt, Schalter, Welt };
     Zustand zustand = Zustand::Unbekannt;
     Grund grund = Grund::Keiner;
+    bool nachInhalt = false; // lcb2: Geometrie geaendert, die Lightmaps werden ueber ihren Inhalt zugeordnet
     int behalten = 0;        // Durchgaenge im alten Cache
     int pass = 0;            // laufender Durchgang (1 = der erste), 0 vor dem ersten
     int paesse = 0;          // erster Durchgang und Bounces

@@ -1,11 +1,14 @@
 // bhed_lichtcache.cpp - BehavEd stage 8a: -light -bhedlightcache (see bhed_lichtcache.h).
 // lcb1: every pass on its own (also -bounce), the file holds one section per pass.
+// lcb2: lightmaps are found by their content, also after changes to geometry, shaders and brush entities.
 //
 //   Copyright (C) 2026 BehavEd-Remake contributors. GPL v2 (LICENSE).
 #include "q3map2.h"
 #include "bhed_lichtcache.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -14,67 +17,8 @@
 
 namespace {
 
-// --- the fingerprint ---------------------------------------------------------------------------
-
-struct Sig {
-	std::uint64_t a = 0;
-	std::uint64_t b = 0;
-	[[nodiscard]] bool da() const { return a != 0 || b != 0; }
-	bool operator==( const Sig& o ) const { return a == o.a && b == o.b; }
-};
-
-// two 64 bit lanes over 8 byte words (the old byte wise FNV took seconds on big maps)
-struct Hash {
-	std::uint64_t a = 0x243F6A8885A308D3ULL;
-	std::uint64_t b = 0x13198A2E03707344ULL;
-	static std::uint64_t rotl( std::uint64_t x, int r ){ return ( x << r ) | ( x >> ( 64 - r ) ); }
-	static std::uint64_t mix( std::uint64_t x ){
-		x ^= x >> 32;
-		x *= 0xD6E8FEB86659FD93ULL;
-		x ^= x >> 32;
-		x *= 0xD6E8FEB86659FD93ULL;
-		x ^= x >> 32;
-		return x;
-	}
-	void wort( std::uint64_t w ){
-		a = rotl( ( a ^ w ) * 0x9E3779B97F4A7C15ULL, 29 );
-		b = ( b + w ) * 0xC2B2AE3D27D4EB4FULL;
-		b ^= b >> 31;
-	}
-	void daten( const void* p, std::size_t n ){
-		const unsigned char* c = static_cast<const unsigned char*>( p );
-		while ( n >= 8 ) {
-			std::uint64_t w;
-			memcpy( &w, c, 8 );
-			wort( w );
-			c += 8;
-			n -= 8;
-		}
-		std::uint64_t rest = 0x80ULL << 56 | std::uint64_t( n ) << 48;   // the tail and its length
-		for ( std::size_t i = 0; i < n; ++i )
-			rest |= std::uint64_t( c[i] ) << ( 8 * i );
-		wort( rest );
-	}
-	void text( const char* s ){
-		const std::size_t n = s != nullptr ? strlen( s ) : 0;
-		wert( n );
-		if ( n != 0 )
-			daten( s, n );
-	}
-	template<typename T> void wert( const T& v ){ daten( &v, sizeof( v ) ); }
-	template<typename T> void feld( const std::vector<T>& v ){
-		const std::size_t n = v.size();
-		wert( n );
-		if ( n != 0 )
-			daten( v.data(), n * sizeof( T ) );
-	}
-	[[nodiscard]] Sig ende() const {
-		Sig s{ mix( a ^ rotl( b, 17 ) ), mix( b + a * 3 ) };
-		if ( !s.da() )
-			s.a = 1;
-		return s;
-	}
-};
+using Sig = BhedSig;
+using Hash = BhedHash;
 
 bool istNachbearbeitung( const char* s ){
 	static const char* const kSchalter[] = { "-gamma", "-exposure", "-compensate", "-saturation", "-contrast", "-gridscale", "-gridambientscale" };
@@ -89,12 +33,42 @@ bool istNachbearbeitungsSchluessel( const char* k ){
 	    || striEqualPrefix( k, "_q3map2_" );
 }
 
-// every field of a light that LightContributionToSample/Point reads (its shader by name, the scripts are in the geometry key)
-Sig lichtHash( const light_t& l ){
+std::unordered_map<const shaderInfo_t*, Sig> g_shaderSigs;
+
+/* a shader by content: name, script, the flags the light code reads and, for the shadow of alpha shadow and
+   light filter surfaces, the image (TraceTriangle reads its pixels) */
+Sig shaderSigRechnen( const shaderInfo_t* si ){
+	Hash h;
+	h.text( "shader" );
+	if ( si == nullptr )
+		return h.ende();
+	h.text( si->shader.c_str() );
+	h.text( si->shaderText );
+	h.wert( si->surfaceFlags );
+	h.wert( si->contentFlags );
+	h.wert( si->compileFlags );
+	h.wert( si->skyIndex );
+	h.wert( si->twoSided );
+	if ( si->lightImage != nullptr && si->lightImage->pixels != nullptr ) {
+		h.wert( si->lightImage->width );
+		h.wert( si->lightImage->height );
+		h.daten( si->lightImage->pixels, std::size_t( si->lightImage->width ) * si->lightImage->height * 4 );
+	}
+	return h.ende();
+}
+
+Sig shaderSig( const shaderInfo_t* si ){
+	const auto it = g_shaderSigs.find( si );
+	return it != g_shaderSigs.end() ? it->second : shaderSigRechnen( si );
+}
+
+/* every field of a light that LightContributionToSample/Point reads except the cluster (lcb2: a number of the
+   BSP - the fingerprint of a lightmap carries the clusters as they relate) */
+Sig lichtHashOhneCluster( const light_t& l ){
 	Hash h;
 	h.wert( l.type );
 	h.wert( l.flags );
-	h.text( l.si != nullptr ? l.si->shader.c_str() : "" );
+	h.wert( shaderSig( l.si ) );
 	h.wert( l.origin );
 	h.wert( l.normal );
 	h.wert( l.dist );
@@ -109,11 +83,17 @@ Sig lichtHash( const light_t& l ){
 	h.wert( l.envelope );
 	h.wert( l.envelope2 );
 	h.wert( l.minmax );
-	h.wert( l.cluster );
 	h.feld( l.w );
 	h.wert( l.falloffTolerance );
 	h.wert( l.filterRadius );
 	h.wert( l.skyIndex );
+	return h.ende();
+}
+
+Sig lichtHash( const light_t& l ){   // with the cluster number (vertex lit surfaces and the grid: same geometry only)
+	Hash h;
+	h.wert( lichtHashOhneCluster( l ) );
+	h.wert( l.cluster );
 	return h.ende();
 }
 
@@ -125,7 +105,9 @@ std::string g_bspName;
 std::string g_cachePfad;
 std::string g_neuPfad;                 // written while the run goes, renamed at the end
 Sig g_opt;                             // the light switches
-Sig g_geo;                             // the geometry
+Sig g_welt;                            // worldspawn without the post-processing keys
+Sig g_geo;                             // the geometry (lumps, .srf, shader scripts, brush entities)
+bool g_geoGleich = false;              // ... the same as in the cache
 int g_paesse = 1;                      // first pass and the bounces
 
 // the old cache: its passes in the file, the loaded one parsed
@@ -145,7 +127,10 @@ bool g_altDa = false;
 Sig g_altGitterSig;
 std::size_t g_altGitterPos = 0;
 std::size_t g_altGitterAnzahl = 0;
-std::vector<Alt> g_altLm;
+struct SigHasher {
+	std::size_t operator()( const Sig& s ) const { return std::size_t( s.a ^ ( s.b * 0x9E3779B97F4A7C15ULL ) ); }
+};
+std::unordered_map<Sig, std::size_t, SigHasher> g_altLm;   // fingerprint -> offset of its data (lcb2: by content)
 std::vector<Alt> g_altFlaeche;
 
 // this run
@@ -159,7 +144,18 @@ std::vector<Sig> g_lmSig;
 std::vector<Sig> g_flaecheSig;
 std::string g_lmDaten;                 // lightmap part of the pass, made before StitchSurfaceLightmaps
 bool g_lmDatenDa = false;
-std::unordered_map<const light_t*, Sig> g_lichtHash;
+std::unordered_map<const light_t*, Sig> g_lichtHash;          // with the cluster
+std::unordered_map<const light_t*, Sig> g_lichtHashOC;        // without (lcb2)
+// lcb2: content ids and the fixed part of every raw lightmap's fingerprint (made in the first pass)
+std::vector<Sig> g_flaecheId;          // per draw surface: its content, unique (equal ones get their rank)
+struct LmFest {
+	Sig sig;                           // all of the lightmap that is the same in every pass
+	std::vector<int> roh;              // its clusters in order of appearance (canonical id = index)
+	std::vector<std::pair<int, int>> nachId;   // cluster -> id, sorted
+	double box[6] = { 1, 1, 1, 0, 0, 0 };      // where its samples can be (empty: lo > hi)
+	bool da = false;
+};
+std::vector<LmFest> g_fest;
 std::mutex g_sperre;
 std::atomic<int> g_lmAus{ 0 };
 std::atomic<int> g_flaecheAus{ 0 };
@@ -170,7 +166,7 @@ int g_summeLmAus = 0, g_summeLmAlle = 0, g_summeFlAus = 0, g_summeFlAlle = 0;
 int g_gitterPaesse = 0, g_gitterPaesseAus = 0;
 double g_geschriebenMB = 0.0;
 
-Sig listenSig( const trace_t& trace ){
+Sig listenSigRoh( const trace_t& trace ){
 	Hash h;
 	h.wert( trace.numLights );
 	for ( int i = 0; i < trace.numLights; ++i ) {
@@ -198,7 +194,12 @@ bool debugFuellung(){
    without the debug fills the style lightmaps 1-3 are cleared, only whether they exist counts), the flags,
    the clusters (the filter pass floods unmapped luxels), the deluxels. Stitching writes into neighbouring
    lightmaps' luxels between the passes - the mapped ones are overwritten, a changed unmapped one counts. */
-void lmZustand( Hash& h, const rawLightmap_t* lm ){
+int kanonId( const LmFest& f, int c ){
+	const auto it = std::lower_bound( f.nachId.begin(), f.nachId.end(), std::pair<int, int>( c, -1 ) );
+	return it != f.nachId.end() && it->first == c ? it->second : -1000000;
+}
+
+void lmZustand( Hash& h, const rawLightmap_t* lm, const LmFest& f ){
 	const std::size_t n = std::size_t( lm->sw ) * lm->sh;
 	const bool debug = debugFuellung();
 	h.wert( lm->styles );
@@ -226,9 +227,269 @@ void lmZustand( Hash& h, const rawLightmap_t* lm ){
 				h.daten( lm->superLuxels[l], n * sizeof( SuperLuxel ) );
 	if ( lm->superFlags != nullptr )
 		h.daten( lm->superFlags, n );
-	h.daten( lm->superClusters, n * sizeof( int ) );
+	/* lcb2: a cluster >= 0 as its canonical id (the numbers are the BSP's), the flags < 0 as they are */
+	for ( std::size_t i = 0; i < n; ++i ) {
+		const int c = lm->superClusters[i];
+		h.wert( c < 0 ? c : kanonId( f, c ) );
+	}
+	if ( debug )   // -debugcluster colours by the number
+		h.daten( lm->superClusters, n * sizeof( int ) );
 	if ( lm->superDeluxels != nullptr )
 		h.daten( lm->superDeluxels, n * sizeof( Vector3 ) );
+}
+
+
+// --- lcb2: content ids, the fixed part of a raw lightmap ----------------------------------------------
+
+/* a draw surface by content: shader, fog, type, vertices, indexes, the plane of a planar one, its surface info
+   (from the .srf and the shader: shadows, sample size, axis, patch iterations, portal sky); equal ones get
+   their rank, so the ids are unique within a run (TraceTriangle compares surface numbers for equality) */
+Sig flaecheInhalt( std::size_t i ){
+	const bspDrawSurface_t& ds = bspDrawSurfaces[i];
+	const surfaceInfo_t& info = surfaceInfos[i];
+	Hash h;
+	h.text( "flaeche" );
+	if ( ds.shaderNum >= 0 && ds.shaderNum < int( bspShaders.size() ) ) {
+		h.text( bspShaders[ds.shaderNum].shader );
+		h.wert( bspShaders[ds.shaderNum].surfaceFlags );
+		h.wert( bspShaders[ds.shaderNum].contentFlags );
+	}
+	h.wert( ds.fogNum );
+	h.wert( ds.surfaceType );
+	h.wert( ds.numVerts );
+	h.wert( ds.numIndexes );
+	h.wert( ds.lightmapVecs[2] );
+	h.wert( ds.patchWidth );
+	h.wert( ds.patchHeight );
+	for ( int v = 0; v < ds.numVerts; ++v ) {
+		const std::size_t k = std::size_t( ds.firstVert ) + v;
+		if ( k < bspDrawVerts.size() ) {
+			h.wert( bspDrawVerts[k].xyz );
+			h.wert( bspDrawVerts[k].st );
+			h.wert( bspDrawVerts[k].normal );
+		}
+	}
+	if ( ds.numIndexes > 0 && ds.firstIndex >= 0 && std::size_t( ds.firstIndex ) + ds.numIndexes <= bspDrawIndexes.size() )
+		h.daten( &bspDrawIndexes[ds.firstIndex], std::size_t( ds.numIndexes ) * sizeof( bspDrawIndexes[0] ) );
+	h.wert( shaderSig( info.si ) );
+	h.wert( info.parentSurfaceNum >= 0 );
+	h.wert( info.childSurfaceNum < 0 );
+	h.wert( info.castShadows );
+	h.wert( info.recvShadows );
+	h.wert( info.sampleSize );
+	h.wert( info.patchIterations );
+	h.wert( info.ambientColor );
+	h.wert( info.longestCurve );
+	h.wert( info.axis );
+	h.wert( info.minmax );
+	h.wert( info.hasLightmap );
+	h.wert( info.approximated );
+	if ( info.plane != nullptr )
+		h.wert( *info.plane );
+	return h.ende();
+}
+
+// a surface number as TraceTriangle compares it with the lightmap's surfaces (out of range: none of them)
+Sig flaecheVonNummer( int n ){
+	if ( n >= 0 && n < int( g_flaecheId.size() ) )
+		return g_flaecheId[n];
+	Hash h;
+	h.text( "keine flaeche" );
+	return h.ende();
+}
+
+Sig shaderVonZeiger( const shaderInfo_t* si ){ return shaderSig( si ); }
+
+// once per run, in the first pass (after SetupSurfaceLightmaps, SetupTraceNodes, MapRawLightmap)
+void inhaltAnlegen(){
+	g_shaderSigs.clear();
+	for ( const shaderInfo_t& si : shaderInfo )
+		g_shaderSigs.emplace( &si, shaderSigRechnen( &si ) );
+	const std::size_t n = bspDrawSurfaces.size();
+	std::vector<Sig> roh( n );
+	for ( std::size_t i = 0; i < n; ++i )
+		roh[i] = flaecheInhalt( i );
+	std::unordered_map<Sig, int, SigHasher> rang;
+	g_flaecheId.assign( n, Sig{} );
+	for ( std::size_t i = 0; i < n; ++i ) {
+		Hash h;
+		h.wert( roh[i] );
+		h.wert( rang[roh[i]]++ );
+		g_flaecheId[i] = h.ende();
+	}
+	BhedSpurHashesAnlegen( flaecheVonNummer, shaderVonZeiger );
+	g_fest.assign( numRawLightmaps, LmFest{} );
+}
+
+constexpr double kRand = 1.0;   // > the float rounding of a sample point and of the BSP plane distance
+
+/* the BSP below node as far as a point query (PointInLeafNum_r: front above 0.1, back below -0.1, both in
+   between; ClusterForPointExt: the leaf's cluster and its opaque brushes in order) inside box can see it */
+template<typename F> void bspWeg( Hash& h, int node, const double* box, F& kl ){
+	while ( true ) {
+		if ( node < 0 ) {
+			const std::size_t leafNum = std::size_t( -node - 1 );
+			h.wert( 'L' );
+			if ( leafNum >= bspLeafs.size() ) {
+				h.wert( leafNum );
+				return;
+			}
+			const bspLeaf_t& leaf = bspLeafs[leafNum];
+			kl( h, leaf.cluster );
+			if ( leaf.cluster > CLUSTER_OPAQUE )
+				for ( int k = 0; k < leaf.numBSPLeafBrushes; ++k ) {
+					const int b = bspLeafBrushes[std::size_t( leaf.firstBSPLeafBrush ) + k];
+					if ( b > maxOpaqueBrush || b < 0 || std::size_t( b ) >= opaqueBrushes.size() || !opaqueBrushes[b] )
+						continue;
+					const bspBrush_t& brush = bspBrushes[b];
+					h.wert( brush.numSides );
+					for ( int j = 0; j < brush.numSides; ++j )
+						h.wert( bspPlanes[bspBrushSides[std::size_t( brush.firstSide ) + j].planeNum] );
+				}
+			h.wert( 'l' );
+			return;
+		}
+		const bspNode_t& nd = bspNodes[node];
+		const bspPlane_t& pl = bspPlanes[nd.planeNum];
+		double mn = -double( pl.dist() ), mx = -double( pl.dist() );
+		for ( int a = 0; a < 3; ++a ) {
+			const double nv = pl.normal()[a];
+			mn += nv * ( nv >= 0 ? box[a] : box[3 + a] );
+			mx += nv * ( nv >= 0 ? box[3 + a] : box[a] );
+		}
+		if ( mn - kRand > 0.1 ) {
+			node = nd.children[0];
+			continue;
+		}
+		if ( mx + kRand < -0.1 ) {
+			node = nd.children[1];
+			continue;
+		}
+		h.wert( 'X' );
+		h.wert( pl );
+		bspWeg( h, nd.children[0], box, kl );
+		node = nd.children[1];
+	}
+}
+
+/* the fixed part of raw lightmap r (the same in every pass; made in the first pass before it lights anything):
+   every field and array IlluminateRawLightmap reads of it (also the luxel origins, normals, dirt and floodlight
+   that MapRawLightmap, DirtyRawLightmap and FloodlightRawLightmaps made), its surfaces by content, its clusters
+   as they relate (canonical ids in order of appearance, cluster 0 marked - StoreSurfaceLightmaps treats it
+   apart), the box its samples can be in (SubmapRawLuxel moves a sample by at most 2.74 * bias times the
+   distance to a mapped neighbour per axis: random subsamples, bias 0.5 * lightSamplesSearchBoxSize; the
+   recursive ones at most 2 * 0.25 * that), the BSP a point query in that box can see, and the PVS among its
+   clusters. */
+void festRechnen( int r ){
+	const rawLightmap_t* lm = &rawLightmaps[r];
+	LmFest& f = g_fest[r];
+	const int sw = lm->sw, sh = lm->sh;
+	const std::size_t n = std::size_t( sw ) * sh;
+	std::unordered_map<int, int> ids;
+	auto kl = [&]( Hash& h, int c ){
+		if ( c < 0 ) {
+			h.wert( 'n' );
+			h.wert( c );
+			return;
+		}
+		const auto [it, neu] = ids.emplace( c, int( f.roh.size() ) );
+		if ( neu )
+			f.roh.push_back( c );
+		h.wert( 'p' );
+		h.wert( it->second );
+		h.wert( c == 0 );
+	};
+	Hash h;
+	h.text( "lmfest" );
+	if ( debugSurfaces )   // -debugsurfaces colours by the number
+		h.wert( r );
+	h.wert( lm->splotchFix );
+	h.wert( lm->wrap );
+	h.wert( lm->customWidth );
+	h.wert( lm->customHeight );
+	h.wert( lm->brightness );
+	h.wert( lm->filterRadius );
+	h.wert( lm->numLightSurfaces );
+	h.wert( lm->numLightClusters );
+	h.wert( lm->sampleSize );
+	h.wert( lm->actualSampleSize );
+	h.wert( lm->axisNum );
+	h.wert( lm->ambientColor );
+	h.wert( lm->recvShadows );
+	h.wert( lm->minmax );
+	h.wert( lm->axis );
+	h.wert( lm->origin );
+	h.wert( lm->vecs != nullptr );
+	if ( lm->vecs != nullptr )
+		h.daten( lm->vecs, 3 * sizeof( Vector3 ) );
+	h.wert( lm->plane != nullptr );
+	if ( lm->plane != nullptr )
+		h.wert( *lm->plane );
+	h.wert( lm->w );
+	h.wert( lm->h );
+	h.wert( sw );
+	h.wert( sh );
+	for ( int k = 0; k < lm->numLightSurfaces; ++k )
+		h.wert( flaecheVonNummer( lightSurfaces[std::size_t( lm->firstLightSurface ) + k] ) );
+	unsigned char maske = 0;
+	if ( lm->superOrigins != nullptr ) maske |= 1;
+	if ( lm->superNormals != nullptr ) maske |= 2;
+	if ( lm->superDirt != nullptr ) maske |= 4;
+	if ( lm->superFloodLight != nullptr ) maske |= 8;
+	h.wert( maske );
+	if ( lm->superOrigins != nullptr )
+		h.daten( lm->superOrigins, n * sizeof( Vector3 ) );
+	if ( lm->superNormals != nullptr )
+		h.daten( lm->superNormals, n * sizeof( Vector3 ) );
+	if ( lm->superDirt != nullptr )
+		h.daten( lm->superDirt, n * sizeof( float ) );
+	if ( lm->superFloodLight != nullptr )
+		h.daten( lm->superFloodLight, n * sizeof( SuperFloodLight ) );
+	for ( std::size_t i = 0; i < n; ++i )
+		kl( h, lm->superClusters[i] );
+	for ( int k = 0; k < lm->numLightClusters; ++k )
+		kl( h, lm->lightClusters[k] );
+	// where the samples can be
+	double* b = f.box;
+	b[0] = b[1] = b[2] = 1e30;
+	b[3] = b[4] = b[5] = -1e30;
+	double d0[3] = { 0, 0, 0 }, d1[3] = { 0, 0, 0 };
+	if ( lm->superOrigins != nullptr )
+		for ( int y = 0; y < sh; ++y )
+			for ( int x = 0; x < sw; ++x ) {
+				const std::size_t i = std::size_t( y ) * sw + x;
+				if ( lm->superClusters[i] < CLUSTER_NORMAL )
+					continue;
+				const Vector3& o = lm->superOrigins[i];
+				for ( int a = 0; a < 3; ++a ) {
+					b[a] = std::min( b[a], double( o[a] ) );
+					b[3 + a] = std::max( b[3 + a], double( o[a] ) );
+					if ( x + 1 < sw && lm->superClusters[i + 1] >= CLUSTER_NORMAL )
+						d0[a] = std::max( d0[a], std::fabs( double( lm->superOrigins[i + 1][a] ) - o[a] ) );
+					if ( y + 1 < sh && lm->superClusters[i + sw] >= CLUSTER_NORMAL )
+						d1[a] = std::max( d1[a], std::fabs( double( lm->superOrigins[i + sw][a] ) - o[a] ) );
+				}
+			}
+	if ( b[0] <= b[3] ) {
+		const double faktor = 3.0 * std::max( 1, lightSamplesSearchBoxSize );   // > 2.74 * 0.5 * size
+		for ( int a = 0; a < 3; ++a ) {
+			const double e = faktor * ( d0[a] + d1[a] ) + kRand;
+			b[a] -= e;
+			b[3 + a] += e;
+		}
+		h.daten( b, 6 * sizeof( double ) );
+		bspWeg( h, 0, b, kl );
+	}
+	// the PVS among its clusters (ClusterForPointExtFilter, the light list)
+	for ( const int ca : f.roh )
+		for ( const int cb : f.roh )
+			h.wert( ClusterVisible( ca, cb ) );
+	f.sig = h.ende();
+	f.nachId.clear();
+	for ( std::size_t i = 0; i < f.roh.size(); ++i )
+		f.nachId.emplace_back( f.roh[i], int( i ) );
+	std::sort( f.nachId.begin(), f.nachId.end() );
+	f.da = true;
 }
 
 template<typename T> void anhaengen( std::string& s, const T& v ){ s.append( reinterpret_cast<const char*>( &v ), sizeof( v ) ); }
@@ -278,13 +539,15 @@ bool passZerlegen(){
 	std::uint32_t nlm = 0;
 	if ( !lesen( pos, nlm ) )
 		return false;
-	g_altLm.assign( nlm, Alt{} );
+	g_altLm.clear();
+	g_altLm.reserve( nlm );
 	for ( std::uint32_t i = 0; i < nlm; ++i ) {
-		if ( !lesen( pos, g_altLm[i].sig ) )
+		Sig sig;
+		if ( !lesen( pos, sig ) )
 			return false;
-		if ( !g_altLm[i].sig.da() )
+		if ( !sig.da() )
 			continue;
-		g_altLm[i].pos = pos;
+		g_altLm.emplace( sig, pos );
 		const std::size_t g = lmGroesse( pos );
 		if ( g == 0 || pos + g > g_alt.size() )
 			return false;
@@ -322,7 +585,7 @@ void altVergessen(){
 	g_altGitterAnzahl = 0;
 }
 
-constexpr char kKopf[8] = { 'B', 'H', 'L', 'I', 'C', 'H', 'T', '3' };   // 3: one section per pass (lcb1)
+constexpr char kKopf[8] = { 'B', 'H', 'L', 'I', 'C', 'H', 'T', '4' };   // 3: one section per pass (lcb1), 4: by content (lcb2)
 
 }  // namespace
 
@@ -354,11 +617,22 @@ void BhedLichtCacheGeometrie(){
 	g_paesse = bounce + 1;
 	{
 		Hash h;
-		h.text( "bhedlicht3" );
+		h.text( "bhedlicht4" );
 		h.text( g_game->arg );
 		for ( const std::string& o : g_optionen )
 			h.text( o.c_str() );
 		g_opt = h.ende();
+	}
+	{   // lcb2: worldspawn on its own (ambient, colour, scales ... reach every lightmap)
+		Hash w;
+		if ( !entities.empty() )
+			for ( const auto& ep : entities[0].epairs ) {
+				if ( istNachbearbeitungsSchluessel( ep.key.c_str() ) )
+					continue;
+				w.text( ep.key.c_str() );
+				w.text( ep.value.c_str() );
+			}
+		g_welt = w.ende();
 	}
 	Hash h;
 	h.feld( bspShaders );
@@ -444,25 +718,29 @@ void BhedLichtCacheGeometrie(){
 	g_altPaesse.clear();
 	altVergessen();
 	g_cacheGilt = false;
+	g_geoGleich = false;
 	const char* grund = "no cache yet";
 	g_altDatei = fopen( pfad, "rb" );
 	if ( g_altDatei != nullptr ) {
 		char kopf[8] = {};
-		Sig opt, geo;
+		Sig opt, welt, geo;
 		if ( fread( kopf, 1, 8, g_altDatei ) != 8 || memcmp( kopf, kKopf, 8 ) != 0 ) {
 			grund = "older cache format";
 		}
-		else if ( fread( &opt, sizeof( opt ), 1, g_altDatei ) != 1 || fread( &geo, sizeof( geo ), 1, g_altDatei ) != 1 ) {
+		else if ( fread( &opt, sizeof( opt ), 1, g_altDatei ) != 1 || fread( &welt, sizeof( welt ), 1, g_altDatei ) != 1 ||
+		          fread( &geo, sizeof( geo ), 1, g_altDatei ) != 1 ) {
 			grund = "cache file damaged";
 		}
 		else if ( !( opt == g_opt ) ) {
 			grund = "light switches changed";
 		}
-		else if ( !( geo == g_geo ) ) {
-			grund = "geometry, shaders or brush entities changed";
+		else if ( !( welt == g_welt ) ) {
+			grund = "worldspawn keys changed";
 		}
 		else {
+			/* lcb2: geometry, shaders or brush entities changed - the lightmaps are found by their content */
 			g_cacheGilt = true;
+			g_geoGleich = geo == g_geo;
 			while ( true ) {
 				std::int32_t b = 0;
 				std::uint64_t laenge = 0;
@@ -479,8 +757,11 @@ void BhedLichtCacheGeometrie(){
 			g_altDatei = nullptr;
 		}
 	}
-	if ( g_cacheGilt )
+	if ( g_cacheGilt && g_geoGleich )
 		Sys_Printf( "BehavEd: light cache found (geometry and switches unchanged, %d of %d passes kept)\n", int( g_altPaesse.size() ), g_paesse );
+	else if ( g_cacheGilt )
+		Sys_Printf( "BehavEd: light cache found (geometry, shaders or brush entities changed: lightmaps are found by content, "
+		            "vertex lit surfaces and the grid are traced; %d of %d passes kept)\n", int( g_altPaesse.size() ), g_paesse );
 	else
 		Sys_Printf( "BehavEd: light cache not usable: %s - everything is traced\n", grund );
 	// the new cache, written pass by pass
@@ -488,6 +769,7 @@ void BhedLichtCacheGeometrie(){
 	if ( g_neu != nullptr ) {
 		fwrite( kKopf, 1, 8, g_neu );
 		fwrite( &g_opt, sizeof( g_opt ), 1, g_neu );
+		fwrite( &g_welt, sizeof( g_welt ), 1, g_neu );
 		fwrite( &g_geo, sizeof( g_geo ), 1, g_neu );
 	}
 	g_summeLmAus = g_summeLmAlle = g_summeFlAus = g_summeFlAlle = 0;
@@ -527,6 +809,7 @@ bool BhedGitterAusCache( std::uint64_t ursprung ){
 		return false;
 	Hash h;
 	h.text( "gitter" );
+	h.wert( g_geo );   // lcb2: the grid traces against everything - same geometry only
 	h.wert( g_pass );
 	h.wert( lights.size() );
 	for ( const light_t& l : lights )
@@ -569,8 +852,17 @@ void BhedLichtCacheLichter(){
 	g_lichtHash.clear();
 	if ( !g_an )
 		return;
-	for ( const light_t& l : lights )
-		g_lichtHash.emplace( &l, lichtHash( l ) );
+	g_lichtHashOC.clear();
+	for ( const light_t& l : lights ) {
+		const Sig oc = lichtHashOhneCluster( l );
+		g_lichtHashOC.emplace( &l, oc );
+		Hash h;
+		h.wert( oc );
+		h.wert( l.cluster );
+		g_lichtHash.emplace( &l, h.ende() );
+	}
+	if ( g_pass == 0 || g_fest.size() != std::size_t( numRawLightmaps ) )
+		inhaltAnlegen();   // lcb2
 	g_lmSig.assign( numRawLightmaps, Sig{} );
 	g_flaecheSig.assign( bspDrawSurfaces.size(), Sig{} );
 	g_arbeitAlle = 0;
@@ -581,21 +873,102 @@ bool BhedLmVorab( int lmNum, const trace_t& trace, unsigned int seed ){
 	if ( !g_an || lmNum < 0 || lmNum >= int( g_lmSig.size() ) )
 		return false;
 	rawLightmap_t* lm = &rawLightmaps[lmNum];
-	Hash h;
-	h.text( "lm" );
-	h.wert( g_pass );
-	h.wert( seed );
-	h.wert( listenSig( trace ) );
-	lmZustand( h, lm );
-	const Sig sig = h.ende();
-	g_lmSig[lmNum] = sig;
+	LmFest& f = g_fest[lmNum];
+	if ( !f.da )
+		festRechnen( lmNum );   // lcb2: before the first pass lights it
 	const unsigned long long arbeit = static_cast<unsigned long long>( lm->sw ) * lm->sh * static_cast<unsigned long long>( std::max( 1, trace.numLights ) );
 	g_arbeitAlle += arbeit;
-	if ( !g_altDa || lmNum >= int( g_altLm.size() ) || !( g_altLm[lmNum].sig == sig ) ) {
+	/* lcb2: the fingerprint of the pass - pass number, the generator (only random subsamples draw from it), the
+	   fixed part, the culled light list (every light with every field, in list order, its cluster as it relates
+	   to the lightmap's), the PVS from the lightmap's clusters to the lights', where the rays can run with the
+	   trace tree there (BhedSpurRaumSig) and the own state at the beginning of the pass */
+	Hash h;
+	h.text( "lm4" );
+	h.wert( g_pass );
+	if ( lightRandomSamples )
+		h.wert( seed );
+	h.wert( f.sig );
+	h.wert( trace.recvShadows );
+	h.wert( trace.twoSided );
+	h.wert( trace.testOcclusion );
+	h.wert( trace.forceSunlight );
+	h.wert( trace.numSurfaces );
+	h.wert( trace.numLights );
+	const bool proben = f.box[0] <= f.box[3];
+	BhedStrahlRaum raum;
+	raum.komp.push_back( BhedStrahlRaum::Komp{ { 1e30, 1e30, 1e30 }, { -1e30, -1e30, -1e30 }, { 0, 0, 0 } } );
+	BhedStrahlRaum::Komp& A = raum.komp[0];
+	bool punkt = false;
+	std::vector<int> lichtCl;   // the light clusters that are none of the lightmap's, in order of appearance
+	std::unordered_map<int, int> ids;
+	if ( trace.numLights > 0 )
+		for ( std::size_t i = 0; i < f.roh.size(); ++i )
+			ids.emplace( f.roh[i], int( i ) );
+	const auto ziel = [&]( const Vector3& p ){
+		for ( int a = 0; a < 3; ++a ) {
+			A.lo[a] = std::min( A.lo[a], double( p[a] ) - kRand );
+			A.hi[a] = std::max( A.hi[a], double( p[a] ) + kRand );
+		}
+	};
+	for ( int i = 0; i < trace.numLights; ++i ) {
+		const light_t* l = trace.lights[i];
+		const auto it = g_lichtHashOC.find( l );
+		h.wert( it != g_lichtHashOC.end() ? it->second : lichtHashOhneCluster( *l ) );
+		const int c = l->cluster;
+		if ( c < 0 ) {
+			h.wert( 'n' );
+			h.wert( c );
+		}
+		else {
+			const auto [jt, neu] = ids.emplace( c, int( f.roh.size() + lichtCl.size() ) );
+			if ( neu )
+				lichtCl.push_back( c );
+			h.wert( 'p' );
+			h.wert( jt->second );
+			h.wert( c == 0 );
+		}
+		/* the rays (LightContributionToSample): to the origin, an area light also to origin - normal * 2,
+		   a sun from the sample along its vector */
+		if ( l->type == ELightType::Sun ) {
+			raum.himmel = true;
+			if ( proben )
+				raum.komp.push_back( BhedStrahlRaum::Komp{ { f.box[0], f.box[1], f.box[2] }, { f.box[3], f.box[4], f.box[5] },
+				                                           { l->origin[0], l->origin[1], l->origin[2] } } );
+		}
+		else {
+			punkt = true;
+			ziel( l->origin );
+			if ( l->type == ELightType::Area )
+				ziel( Vector3( l->origin - l->normal * 2.f ) );
+		}
+	}
+	if ( punkt && proben )
+		for ( int a = 0; a < 3; ++a ) {
+			A.lo[a] = std::min( A.lo[a], f.box[a] );
+			A.hi[a] = std::max( A.hi[a], f.box[3 + a] );
+		}
+	else {
+		A.lo[0] = 1;
+		A.hi[0] = 0;
+	}
+	for ( const int ca : f.roh )
+		for ( const int cb : lichtCl )
+			h.wert( ClusterVisible( ca, cb ) );
+	const Sig spur = BhedSpurRaumSig( raum );
+	if ( !spur.da() ) {   // no trace tree hashes (or too many suns): traced, not kept
 		g_arbeitNeu += arbeit;
 		return false;
 	}
-	std::size_t pos = g_altLm[lmNum].pos;
+	h.wert( spur );
+	lmZustand( h, lm, f );
+	const Sig sig = h.ende();
+	g_lmSig[lmNum] = sig;
+	const auto alt = g_altDa ? g_altLm.find( sig ) : g_altLm.end();
+	if ( alt == g_altLm.end() ) {
+		g_arbeitNeu += arbeit;
+		return false;
+	}
+	std::size_t pos = alt->second;
 	Array4<byte> styles;
 	memcpy( styles.data(), g_alt.data() + pos, 4 );
 	pos += 4;
@@ -634,10 +1007,16 @@ bool BhedLmVorab( int lmNum, const trace_t& trace, unsigned int seed ){
 		memcpy( lm->superFlags, g_alt.data() + pos, n );
 		pos += n;
 	}
-	/* the filter pass of IlluminateRawLightmap marks filled unmapped luxels CLUSTER_FLOODED;
-	   StoreSurfaceLightmaps reads that when it averages super samples (-super), the next pass too */
+	/* the filter pass of IlluminateRawLightmap marks filled unmapped luxels CLUSTER_FLOODED (cluster < 0 ->
+	   CLUSTER_FLOODED, nothing else); StoreSurfaceLightmaps reads that when it averages super samples (-super),
+	   the next pass too. lcb2: only that mark is taken - the cluster numbers are the BSP's of this run */
 	if ( maske & 64 ) {
-		memcpy( lm->superClusters, g_alt.data() + pos, n * sizeof( int ) );
+		for ( std::size_t i = 0; i < n; ++i ) {
+			int c;
+			memcpy( &c, g_alt.data() + pos + i * sizeof( int ), sizeof( int ) );
+			if ( c == CLUSTER_FLOODED && lm->superClusters[i] < CLUSTER_NORMAL )
+				lm->superClusters[i] = CLUSTER_FLOODED;
+		}
 		pos += n * sizeof( int );
 	}
 	++g_lmAus;
@@ -700,9 +1079,10 @@ bool BhedFlaecheAusCache( int surfaceNum, const trace_t& trace, unsigned int see
 	bspDrawSurface_t& ds = bspDrawSurfaces[surfaceNum];
 	Hash h;
 	h.text( "vertex" );
+	h.wert( g_geo );   // lcb2: raw cluster and surface numbers - same geometry only
 	h.wert( g_pass );
 	h.wert( seed );
-	h.wert( listenSig( trace ) );
+	h.wert( listenSigRoh( trace ) );
 	h.wert( ds.vertexStyles );
 	h.wert( ds.numVerts );
 	for ( int i = 0; i < ds.numVerts; ++i )

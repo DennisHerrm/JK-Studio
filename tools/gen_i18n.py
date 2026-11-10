@@ -2320,6 +2320,8 @@ from i18n_rest10 import zeilen_vier as _rest10  # noqa: E402  (REST10: Update-Le
 S += _rest10()
 from i18n_lcb1 import zeilen_vier as _lcb1  # noqa: E402  (LCB1: Licht-Cache auch mit -bounce, Anzeige im Baufortschritt)
 S += _lcb1()
+from i18n_lcb2 import zeilen_vier as _lcb2  # noqa: E402  (LCB2: Licht-Cache nach Geometrie-Aenderungen, Gruende im Baufortschritt)
+S += _lcb2()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

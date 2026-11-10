@@ -33,6 +33,7 @@
 #include "bhed_gpuschatten.h"
 #include "bhed_dxr.h" /* BehavEd stage 8g: -bhedgpudxr */ /* BehavEd stage 8b: -bhedgpu, shadow tests on the GPU */
 #include "bhed_gpubacken.h" /* BehavEd stage 8c: -bhedgpubake, light contributions on the GPU */
+#include "bhed_lichtcache.h" /* BehavEd lcb2: the trace tree in the light cache fingerprint */
 #include <bit>
 #include <emmintrin.h> /* BehavEd vis4: SSE2 (the x64 baseline) for four triangles at once */
 #include <vector>
@@ -1948,4 +1949,201 @@ float SetupTrace( trace_t *trace ){
 	trace->distance = VectorFastNormalize( trace->direction );
 	trace->hit = trace->origin;
 	return trace->distance;
+}
+
+
+
+/* -------------------------------------------------------------------------------
+
+   BehavEd lcb2: the trace tree in the fingerprint of the light cache (-bhedlightcache after geometry changes)
+
+   TraceLine_r walks a ray from the head node: at an inner node it computes front/back of both ends (for the
+   axial types p[axis] - dist, else plane3_distance_to_point) and goes on with the unchanged ends into one child
+   when both are on one side (front >= -TRACE_ON_EPSILON, else back < TRACE_ON_EPSILON), otherwise it cuts the ray
+   at the plane; an inner node with no items ends a testAll trace; a solid leaf ends the walk, a leaf with items
+   is noted (in walk order, at most MAX_TRACE_TEST_NODES) and its triangles are tested afterwards in item order.
+   So for every ray inside a region R the result is fixed by: the planes that can cut a ray of R (with their
+   order in the walk), the empty inner nodes on the way, and the leaves the walk can reach with all their
+   triangles in order - nodes whose plane has all of R on one side pass the ray on unchanged and drop out.
+   BhedSpurRaumSig hashes exactly that (or the full hash of a whole subtree, which says more); equal signatures
+   mean every ray of R gives the same result in both trees, bit for bit (same float operations, same order).
+
+   ------------------------------------------------------------------------------- */
+
+namespace
+{
+std::vector<BhedSig> g_bhedSpurVoll;                      /* per trace node: its whole subtree */
+std::vector<std::array<double, 6>> g_bhedSpurBox;         /* per trace node: a box holding every point a ray can have there */
+bool g_bhedSpurDa = false;
+constexpr double kBhedSpurRand = 2.0;                     /* > the float rounding of front/back and of a cut point (|p| < 2^20) */
+}
+
+void BhedSpurHashesAnlegen( BhedSig ( *flaeche )( int surfaceNum ), BhedSig ( *shader )( const shaderInfo_t* si ) ){
+	g_bhedSpurDa = false;
+	std::vector<BhedSig> info( numTraceInfos );
+	for ( int i = 0; i < numTraceInfos; ++i )
+	{
+		const traceInfo_t& ti = traceInfos[ i ];
+		BhedHash h;
+		h.wert( shader( ti.si ) );
+		h.wert( flaeche( ti.surfaceNum ) );
+		h.wert( ti.castShadows );
+		h.wert( ti.skipGrid );
+		info[ i ] = h.ende();
+	}
+	g_bhedSpurVoll.assign( numTraceNodes, BhedSig{} );
+	g_bhedSpurBox.assign( numTraceNodes, { -1e30, -1e30, -1e30, 1e30, 1e30, 1e30 } );
+	/* children are allocated after their parent (SetupTraceNodes_r, SubdivideTraceNode_r): bottom up from the end */
+	for ( int n = numTraceNodes - 1; n >= 0; --n )
+	{
+		const traceNode_t& node = traceNodes[ n ];
+		BhedHash h;
+		if ( node.type >= 0 ) {
+			if ( node.children[ 0 ] <= n || node.children[ 1 ] <= n || node.children[ 0 ] >= numTraceNodes || node.children[ 1 ] >= numTraceNodes ) {
+				return; /* not the expected order: no geometry-independent reuse */
+			}
+			h.wert( 'I' );
+			h.wert( node.type );
+			h.wert( node.plane );
+			h.wert( node.numItems == 0 );
+			h.wert( g_bhedSpurVoll[ node.children[ 0 ] ] );
+			h.wert( g_bhedSpurVoll[ node.children[ 1 ] ] );
+		}
+		else
+		{
+			h.wert( node.type == TRACE_LEAF_SOLID ? 'S' : 'L' );
+			h.wert( node.numItems );
+			for ( int j = 0; j < node.numItems; ++j )
+			{
+				const traceTriangle_t& tt = traceTriangles[ node.items[ j ] ];
+				for ( const traceVert_t& v : tt.v )
+				{
+					h.wert( v.xyz );
+					h.wert( v.st );
+				}
+				h.wert( tt.edge1 );
+				h.wert( tt.edge2 );
+				h.wert( info[ tt.infoNum ] );
+			}
+		}
+		g_bhedSpurVoll[ n ] = h.ende();
+	}
+	/* boxes top down: an axial cut bounds its children (a cut point lies on the plane up to rounding) */
+	for ( int n = 0; n < numTraceNodes; ++n )
+	{
+		const traceNode_t& node = traceNodes[ n ];
+		if ( node.type < 0 ) {
+			continue;
+		}
+		std::array<double, 6> vorn = g_bhedSpurBox[ n ], hinten = g_bhedSpurBox[ n ];
+		if ( node.type <= ePlaneZ ) {
+			const int a = node.type;
+			const double d = node.plane.dist();
+			vorn[ a ] = std::max( vorn[ a ], d - TRACE_ON_EPSILON - kBhedSpurRand );
+			hinten[ 3 + a ] = std::min( hinten[ 3 + a ], d + TRACE_ON_EPSILON + kBhedSpurRand );
+		}
+		g_bhedSpurBox[ node.children[ 0 ] ] = vorn;
+		g_bhedSpurBox[ node.children[ 1 ] ] = hinten;
+	}
+	g_bhedSpurDa = true;
+}
+
+/* the range of front/back (TraceLine_r) over component k */
+static void BhedSpurBereich( const traceNode_t& node, const BhedStrahlRaum::Komp& k, double& mn, double& mx ){
+	if ( node.type <= ePlaneZ ) {
+		const int a = node.type;
+		mn = k.lo[ a ] - node.plane.dist() + std::min( 0.0, k.v[ a ] );
+		mx = k.hi[ a ] - node.plane.dist() + std::max( 0.0, k.v[ a ] );
+		return;
+	}
+	mn = mx = -double( node.plane.dist() );
+	double sv = 0;
+	for ( int a = 0; a < 3; ++a )
+	{
+		const double n = node.plane.normal()[ a ];
+		mn += n * ( n >= 0 ? k.lo[ a ] : k.hi[ a ] );
+		mx += n * ( n >= 0 ? k.hi[ a ] : k.lo[ a ] );
+		sv += n * k.v[ a ];
+	}
+	mn += std::min( 0.0, sv );
+	mx += std::max( 0.0, sv );
+}
+
+static void BhedSpurWeg( BhedHash& h, int n, std::uint64_t maske, const BhedStrahlRaum& raum ){
+	while ( true )
+	{
+		const traceNode_t& node = traceNodes[ n ];
+		if ( node.type < 0 ) {
+			h.wert( 'B' );
+			h.wert( g_bhedSpurVoll[ n ] );
+			return;
+		}
+		if ( maske & 1 ) {   /* the node's box inside A: its whole subtree */
+			const BhedStrahlRaum::Komp& A = raum.komp[ 0 ];
+			const std::array<double, 6>& b = g_bhedSpurBox[ n ];
+			if ( b[ 0 ] >= A.lo[ 0 ] && b[ 1 ] >= A.lo[ 1 ] && b[ 2 ] >= A.lo[ 2 ] && b[ 3 ] <= A.hi[ 0 ] && b[ 4 ] <= A.hi[ 1 ] && b[ 5 ] <= A.hi[ 2 ] ) {
+				h.wert( 'V' );
+				h.wert( g_bhedSpurVoll[ n ] );
+				return;
+			}
+		}
+		std::uint64_t vorn = 0, hinten = 0;
+		for ( std::uint64_t m = maske; m != 0; m &= m - 1 )
+		{
+			const int k = std::countr_zero( m );
+			double mn, mx;
+			BhedSpurBereich( node, raum.komp[ k ], mn, mx );
+			if ( mn - kBhedSpurRand >= -TRACE_ON_EPSILON ) {
+				vorn |= 1ULL << k;
+			}
+			else if ( mx + kBhedSpurRand < TRACE_ON_EPSILON ) {
+				hinten |= 1ULL << k;
+			}
+			else
+			{
+				vorn |= 1ULL << k;
+				hinten |= 1ULL << k;
+			}
+		}
+		if ( vorn == 0 || hinten == 0 ) {   /* the plane cuts no ray: passed on unchanged (an empty node ends a testAll trace) */
+			if ( node.numItems == 0 ) {
+				h.wert( 'E' );
+			}
+			n = node.children[ vorn != 0 ? 0 : 1 ];
+			continue;
+		}
+		h.wert( 'X' );
+		h.wert( node.type );
+		h.wert( node.plane );
+		h.wert( node.numItems == 0 );
+		h.wert( vorn );
+		h.wert( hinten );
+		BhedSpurWeg( h, node.children[ 0 ], vorn, raum );
+		n = node.children[ 1 ];
+		maske = hinten;
+	}
+}
+
+BhedSig BhedSpurRaumSig( const BhedStrahlRaum& raum ){
+	if ( !g_bhedSpurDa || raum.komp.empty() || raum.komp.size() > 64 ) {
+		return BhedSig{};
+	}
+	std::uint64_t maske = 0;
+	for ( size_t k = 0; k < raum.komp.size(); ++k )
+	{
+		const BhedStrahlRaum::Komp& c = raum.komp[ k ];
+		if ( c.lo[ 0 ] <= c.hi[ 0 ] && c.lo[ 1 ] <= c.hi[ 1 ] && c.lo[ 2 ] <= c.hi[ 2 ] ) {
+			maske |= 1ULL << k;
+		}
+	}
+	BhedHash h;
+	h.wert( maske );
+	if ( maske != 0 ) {
+		BhedSpurWeg( h, headNodeNum, maske, raum );
+		if ( raum.himmel ) {
+			h.wert( 'H' );
+			BhedSpurWeg( h, skyboxNodeNum, maske, raum );
+		}
+	}
+	return h.ende();
 }

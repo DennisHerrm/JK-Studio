@@ -5584,8 +5584,9 @@ enum class Str {
     KeLcGrundFormat,
     KeLcGrundDefekt,
     KeLcGrundSchalter,
-    KeLcGrundGeometrie,
     KeLcAusSchalter,
+    KeLcGefundenInhalt,
+    KeLcGrundWelt,
     Count,
 };
 

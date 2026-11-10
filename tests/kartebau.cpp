@@ -265,14 +265,19 @@ void fortschrittPruefen(const std::string& q3) {
         const bool z3 = bauLichtCacheZeile("BehavEd: light cache pass 3 of 9: 1 of 2 vertex lit surfaces from the cache, grid none", c) && c.aus == 812;
         const bool z4 = bauLichtCacheZeile("BehavEd: light cache: 7000 of 7560 lightmaps and 3 of 4 vertex lit surfaces taken from the cache, grid traced; 1.0 MB written", c) &&
                         c.summeAus == 7000 && c.summeAlle == 7560;
+        // lcb2: nach Geometrie-Aenderungen greift der Cache (nach Inhalt), nur geaenderte worldspawn-Schluessel sperren ihn
         BauLichtCache g;
-        const bool z5 = bauLichtCacheZeile("BehavEd: light cache not usable: geometry, shaders or brush entities changed - everything is traced", g) &&
-                        g.zustand == BauLichtCache::Zustand::Aus && g.grund == BauLichtCache::Grund::Geometrie;
+        const bool z5 = bauLichtCacheZeile("BehavEd: light cache not usable: worldspawn keys changed - everything is traced", g) &&
+                        g.zustand == BauLichtCache::Zustand::Aus && g.grund == BauLichtCache::Grund::Welt;
+        BauLichtCache n;
+        const bool z5b = bauLichtCacheZeile("BehavEd: light cache found (geometry, shaders or brush entities changed: lightmaps are found by content, "
+                                            "vertex lit surfaces and the grid are traced; 2 of 9 passes kept)", n) &&
+                         n.zustand == BauLichtCache::Zustand::Gefunden && n.nachInhalt && n.behalten == 2 && n.paesse == 9 && !c.nachInhalt;
         BauLichtCache k;
         const bool z6 = bauLichtCacheZeile("BehavEd: light cache not usable: no cache yet - everything is traced", k) && k.grund == BauLichtCache::Grund::KeinCache &&
                         bauLichtCacheZeile("BehavEd: light cache not usable: light switches changed - everything is traced", k) &&
                         k.grund == BauLichtCache::Grund::Schalter && !bauLichtCacheZeile("--- IlluminateRawLightmap ---", k);
-        pruefe(z1 && z2 && z3 && z4 && z5 && z6, "lcb1: Zeilen des Licht-Caches gelesen (gefunden, Durchgang, Flaechen, Summe, Gruende)");
+        pruefe(z1 && z2 && z3 && z4 && z5 && z5b && z6, "lcb1: Zeilen des Licht-Caches gelesen (gefunden, Durchgang, Flaechen, Summe, Gruende)");
 
         // der letzte Bau: voll, ohne Cache (Gitter 10 s, Licht 100 s, Radiosity 10 s, Bounce-Licht 100 s)
         const std::string bef = q + "-light -fast -bounce 1 -bhedlightcache \"C:/m/a.map\"";

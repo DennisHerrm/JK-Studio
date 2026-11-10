@@ -2046,8 +2046,8 @@ std::string bauLichtCacheText(const BauFortschrittStand& st, bool* warnung) {
         case karte::BauLichtCache::Grund::Schalter:
             g = Str::KeLcGrundSchalter;
             break;
-        case karte::BauLichtCache::Grund::Geometrie:
-            g = Str::KeLcGrundGeometrie;
+        case karte::BauLichtCache::Grund::Welt:
+            g = Str::KeLcGrundWelt;
             break;
         case karte::BauLichtCache::Grund::Keiner:
         case karte::BauLichtCache::Grund::Beschaedigt:
@@ -2061,7 +2061,7 @@ std::string bauLichtCacheText(const BauFortschrittStand& st, bool* warnung) {
         std::snprintf(z, sizeof(z), trK(Str::KeLcUebernommen), c.aus, c.alle, c.pass, c.paesse);
         return z;
     }
-    if (c.zustand == karte::BauLichtCache::Zustand::Gefunden) { return trK(Str::KeLcGefunden); }
+    if (c.zustand == karte::BauLichtCache::Zustand::Gefunden) { return trK(c.nachInhalt ? Str::KeLcGefundenInhalt : Str::KeLcGefunden); }
     return {};
 }
 
