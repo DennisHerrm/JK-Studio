@@ -98,6 +98,7 @@ void orteProben() {
     int kette2 = 0;       // H2: verkettete Vorbedingungen
     int inhaltOhne = 0;   // H2: Kennungen im Inhalt ohne Text
     bool prefsKette = false;
+    bool rasterSeite = false;   // rc612 NUMPAD: "Numpad sets the grid" steht im Inhalt der Seite Preferences > Grid
     for (const bhed::hilfe::Ort& x : o) {
         const std::string z = x.ziel;
         const std::string b = x.bereich;
@@ -105,6 +106,7 @@ void orteProben() {
         if (z.rfind("menue:", 0) == 0) { ++menue; }
         if (z.rfind("knopf:", 0) == 0 && (b == "vorschau" || b == "modell")) { ++leisten; }
         if (z.rfind("gezeichnet:karte.einstseite.", 0) == 0) { ++keSeiten; }
+        if (std::string(x.kette).ends_with(">KePgGrid")) { rasterSeite = std::string(x.inhalt).find("KeZbRaster") != std::string::npos; }
         if (z.rfind("knopf:Me", 0) == 0 && b == "menue") { ++menueEd; }
         if (std::string(x.voraus).find("&&") != std::string::npos) { ++kette2; }
         if (z == "knopf:PrefsRegelwerk") {
@@ -140,6 +142,7 @@ void orteProben() {
     expect("H2: mindestens 8 Orte im Menue-Editor", menueEd >= 8);
     expect("H2: Einstellung des Hauptprogramms: erst Events, dann Bearbeiten > Einstellungen (verkettet)", prefsKette);
     expect("H2: jede Kennung im Inhalt hat einen Text", inhaltOhne == 0);
+    expect("NUMPAD: die Seite Preferences > Grid nennt \"Numpad sets the grid\" (KeZbRaster)", rasterSeite);
 }
 
 struct Frage {

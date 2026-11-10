@@ -108,6 +108,7 @@ struct Entwurf {
     bool abtrennbar = true;
     bool nrc = false;
     bool menueNrc = false;          // Stufe 7 Punkt 6b: Editor::menueNrcStil
+    bool ziffernRaster = true;      // rc612 NUMPAD: Belegung::ziffernblockRaster
     int knopfStufe = 1;             // mass::knopfStufe
     karte::KameraEinstellungen kamera;
     int waehlEpsilon = 12;          // g_SELECT_EPSILON
@@ -868,6 +869,9 @@ void gridSeite() {
     int index = std::clamp(g_entwurf.rasterMax, 0, 4);   // maxGridCoordPowerExport
     if (klappe("##rastermax", &index, koordinaten, 5)) { g_entwurf.rasterMax = index; }
     feldEnde();
+    // rc612 NUMPAD (eigene Einstellung, nicht in NRC): Ziffernblock wie die Ziffernreihe oder wie NRC - auch im Menue Grid
+    (void)haken(Str::Count, (std::string(trK(Str::KeZbRaster)) + "##ziffernblock").c_str(), g_entwurf.ziffernRaster);
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::KeZbRasterTip)); }
 }
 
 // Orthographic_constructPreferences (xywindow.cpp:2236-2251; Foto pref_Orthographic.png)
@@ -1493,6 +1497,7 @@ void zeichneEinstellungen() {
         g_entwurf.splitFrei = ed.splitFrei;
         g_entwurf.nrc = nrcBegriffe();
         g_entwurf.menueNrc = ed.menueNrcStil;
+        g_entwurf.ziffernRaster = ed.belegung.ziffernblockRaster();
         g_entwurf.knopfStufe = mass::knopfStufe;
         g_entwurf.kamera = ed.kameraE;
         g_entwurf.waehlEpsilon = static_cast<int>(ed.bearbeitung.waehlEpsilon);
@@ -1717,6 +1722,7 @@ void zeichneEinstellungen() {
             }
             setzeNrcBegriffe(g_entwurf.nrc);
             ed.menueNrcStil = g_entwurf.menueNrc;     // Stufe 7 Punkt 6b (gespeichert unten mit einstellungenSpeichern)
+            ed.belegung.ziffernblockRaster(g_entwurf.ziffernRaster);   // rc612 NUMPAD (ebenso)
             mass::knopfStufe = g_entwurf.knopfStufe;
             // CamWnd_Move_Discrete_Import / Camera_SetFarClip / fieldOfViewImport;
             // Cubic-Skala, Show-Schalter und das Tempo-Kuerzel bleiben.
@@ -1891,6 +1897,7 @@ struct TastenDialog {
     std::string frageBefehl;     // der bearbeitete Befehl
     std::string frageAnderer;    // der, der die Taste schon hat
     befehle::Taste frageTaste = 0;
+    bool frageReset = false;     // rc612 NUMPAD: die Rueckfrage kam von Reset (beide Vorgaben des Befehls)
     bool frageAlle = false;      // "Boo!" - Reset All
     int sortSpalte = 0;          // sortByColumn( 0, AscendingOrder )
     bool absteigend = false;
@@ -1935,20 +1942,31 @@ befehle::Taste tasteAufnehmen() {
     return 0;
 }
 
-// accelerator_alter (commands.cpp:224-256)
+// accelerator_alter (commands.cpp:224-256). neu == 0 ist Reset: beide Vorgaben des Befehls kommen zurueck (rc612
+// NUMPAD: auch die Zweittaste des Ziffernblocks); gefragt wird fuer die erste, die ein anderer Befehl schon hat.
 void tasteAendern(const std::string& befehl, befehle::Taste neu) {
     Editor& ed = editor();
-    const befehle::Taste t = neu != 0 ? neu : ed.belegung.standard(befehl);
-    const std::string anderer = ed.belegung.belegtVon(t, befehl);
+    const bool reset = neu == 0;
+    befehle::Taste t = reset ? ed.belegung.standard(befehl) : neu;
+    std::string anderer = ed.belegung.belegtVon(t, befehl);
+    if (reset && anderer.empty()) {
+        t = ed.belegung.zweitStandard(befehl);
+        anderer = ed.belegung.belegtVon(t, befehl);
+    }
     if (!anderer.empty()) {
         g_td.frage = true;
         g_td.frageAlle = false;
+        g_td.frageReset = reset;
         g_td.frageBefehl = befehl;
         g_td.frageAnderer = anderer;
         g_td.frageTaste = t;
         return;
     }
-    ed.belegung.setzen(befehl, t);
+    if (reset) {
+        ed.belegung.zuruecksetzen(befehl);
+    } else {
+        ed.belegung.setzen(befehl, t);
+    }
     einstellungenSpeichern();
 }
 
@@ -1981,13 +1999,20 @@ void frageZeichnen() {
         ImGui::SameLine();
         if (ImGui::Button(trK(Str::KeCancel))) { wahl = 2; }
         if (wahl == 0) {
-            // "clear the ACTUAL accelerator too" beim anderen, dann setzen
-            ed.belegung.setzen(g_td.frageAnderer, 0);
-            ed.belegung.setzen(g_td.frageBefehl, g_td.frageTaste);
-            einstellungenSpeichern();
-        } else if (wahl == 1) {
-            // eIDNO : keep duplicate key
-            ed.belegung.setzen(g_td.frageBefehl, g_td.frageTaste);
+            // "clear the ACTUAL accelerator too" beim anderen - nur die Taste, um die es geht (rc612 NUMPAD: seine
+            // andere Taste bleibt); bei Reset ebenso die zweite Vorgabe, falls auch sie vergeben ist
+            ed.belegung.loesen(g_td.frageAnderer, g_td.frageTaste);
+            if (g_td.frageReset) {
+                const befehle::Taste zweite = ed.belegung.zweitStandard(g_td.frageBefehl);
+                ed.belegung.loesen(ed.belegung.belegtVon(zweite, g_td.frageBefehl), zweite);
+            }
+        }
+        if (wahl == 0 || wahl == 1) {   // eIDNO : keep duplicate key
+            if (g_td.frageReset) {
+                ed.belegung.zuruecksetzen(g_td.frageBefehl);
+            } else {
+                ed.belegung.setzen(g_td.frageBefehl, g_td.frageTaste);
+            }
             einstellungenSpeichern();
         }
     }
@@ -2008,7 +2033,7 @@ void befehlslisteSchreiben() {
     for (const std::string& n : ed.belegung.namen()) {
         std::string zeile = n;
         while (zeile.size() < 32) { zeile += ' '; }
-        f << zeile << befehle::tasteAlsText(ed.belegung.taste(n)) << '\n';
+        f << zeile << ed.belegung.text(n) << '\n';   // rc612 NUMPAD: beide Tasten ("1 / Num+1")
     }
 }
 
@@ -2092,8 +2117,7 @@ void zeichneTastenDialog() {
         };
         std::vector<std::pair<std::string, std::string>> zeilen;
         for (const std::string& n : ed.belegung.namen()) {
-            const std::string tx = ed.tastenDialogBearbeitet == n ? std::string(trK(Str::KePressKey))
-                                                                   : befehle::tasteAlsText(ed.belegung.taste(n));
+            const std::string tx = ed.tastenDialogBearbeitet == n ? std::string(trK(Str::KePressKey)) : ed.belegung.text(n);
             if (!enthaelt(n, g_td.suchName) || !enthaelt(tx, g_td.suchTaste)) { continue; }
             zeilen.emplace_back(n, tx);
         }
@@ -2183,11 +2207,13 @@ void zeichneTastenDialog() {
             zl->AddText(ImVec2{zp.x + px(3.0F), ty}, ImGui::GetColorU32(ImGuiCol_Text), n.c_str());
             zl->AddText(ImVec2{zp.x + px(static_cast<float>(w[0]) + 3.0F), ty}, ImGui::GetColorU32(ImGuiCol_Text), tx.c_str());
             // accelerator_item_set_icon: geaendert gegenueber der Vorgabe
-            if (ed.belegung.taste(n) != ed.belegung.standard(n)) {
+            if (ed.belegung.geaendert(n)) {
                 const float mx = zp.x + px(static_cast<float>(w[0]) + 3.0F) + ImGui::CalcTextSize(tx.c_str()).x + px(4.0F);
                 zl->AddText(ImVec2{mx, ty}, ImGui::GetColorU32(ImVec4{0.85F, 0.2F, 0.2F, 1.0F}), "(x)");
                 if (ImGui::IsMouseHoveringRect(ImVec2{mx, zp.y}, ImVec2{mx + ImGui::CalcTextSize("(x)").x, zp.y + zeileH})) {
-                    ImGui::SetTooltip("%s: %s", tr(Str::KeKeyChanged), befehle::tasteAlsText(ed.belegung.standard(n)).c_str());
+                    // rc612 NUMPAD: wo der Ziffernblock die Vorgabe stellt, ist sie nicht die von NetRadiant-Custom
+                    ImGui::SetTooltip("%s: %s", tr(ed.belegung.vorgabeWieNrc(n) ? Str::KeKeyChanged : Str::KeZbKeyChanged),
+                                      ed.belegung.standardText(n).c_str());
                 }
             }
         }
@@ -2204,7 +2230,7 @@ void zeichneTastenDialog() {
         if (ImGui::Button(trK(Str::KeEdit), kg) && hatWahl) { ed.tastenDialogBearbeitet = g_td.gewaehlt; }
         ImGui::SetCursorScreenPos(bp(308.0F, 67.0F));
         if (ImGui::Button(trK(Str::KeClear), kg) && hatWahl) {   // accelerator_clear_button_clicked
-            ed.belegung.setzen(g_td.gewaehlt, 0);
+            ed.belegung.leeren(g_td.gewaehlt);   // rc612 NUMPAD: auch die Zweittaste
             einstellungenSpeichern();
         }
         ImGui::SetCursorScreenPos(bp(308.0F, 95.0F));

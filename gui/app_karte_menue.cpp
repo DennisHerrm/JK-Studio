@@ -673,6 +673,16 @@ void listeZeichnen(const std::string& name) {
             }
             qtMenueEnde();
         }
+    } else if (name == "ProgrammGrid") {
+        // rc612 NUMPAD (eigene Einstellung, nicht in NetRadiant-Custom): der Ziffernblock setzt das Raster
+        qtTrenner();
+        const std::string id = std::string(trK(Str::KeZbRaster)) + "###progziffernblock";
+        QtPunkt p;
+        p.id = id.c_str();
+        p.art = QtArt::Pruefbar;
+        p.haken = e().belegung.ziffernblockRaster();
+        p.tooltip = trK(Str::KeZbRasterTip);
+        if (qtPunkt(p)) { ziffernblockSetzen(!e().belegung.ziffernblockRaster()); }
     } else if (name == "ProgrammTexturen") {
         // rc609 K (eigene Funktion, nicht in NetRadiant-Custom): das Fenster "Texturen der Karte"
         qtTrenner();

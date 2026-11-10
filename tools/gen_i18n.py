@@ -2330,6 +2330,8 @@ from i18n_mbnav import zeilen_vier as _mbnav  # noqa: E402  (MBNAV: Navigation i
 S += _mbnav()
 from i18n_mbvers import zeilen_vier as _mbvers  # noqa: E402  (mbvers: Bearbeiten in einer Pose)
 S += _mbvers()
+from i18n_numpad import zeilen_vier as _numpad  # noqa: E402  (NUMPAD: Ziffernblock setzt das Raster im Karten-Editor)
+S += _numpad()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

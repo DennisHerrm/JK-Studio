@@ -207,7 +207,7 @@ def menues_inc(befehle):
                 z.append('    {MenueArt::Ruf, %s, "%s", %s, %s},' % (cstr(e[1]), e[2], str_id('KeL', e[1]),
                                                                    BEDINGUNG[e[3]]))
             elif art == 'LISTE':
-                z.append('    {MenueArt::Liste, "", "%s", Str::Count, kImmer},' % e[1])
+                z.append('    {MenueArt::Liste, "", "%s", Str::Count, kImmer},%s' % (e[1], '   // ' + e[2] if len(e) > 2 else ''))
             elif art == 'SUB':
                 z.append('    {MenueArt::Unter, %s, "", %s, kImmer},' % (cstr(e[1]), str_id('KeL', e[1])))
                 lauf(e[2])

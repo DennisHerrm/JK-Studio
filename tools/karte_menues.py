@@ -19,6 +19,7 @@ Eintraege eines Menues:
   ('SEP',)                                   addSeparator
   ('SUB', '&Label', [eintraege])             addMenu
   ('LISTE', 'name')                          dynamische Eintraege (MRU, Themen, Farben, Hilfe ...)
+  ('LISTE', 'name', 'Bemerkung')             ebenso, mit Bemerkung hinter der erzeugten Zeile (eigene Listen des Programms)
 bedingung: '' immer; 'floating' nur Floating; 'nichtRegular' nicht Regular/RegularLeft;
 'texturen' nicht Regular/RegularLeft oder Built-In Group Dialog; 'nichtSplit'
 Regular/RegularLeft/Floating; 'split' nur Split (mainframe.cpp:932-1050).
@@ -239,6 +240,7 @@ MENUES = [
         ('CHECK', 'Grid256', 'SetGrid256', ''),
         ('CHECK', 'Grid512', 'SetGrid512', ''),
         ('CHECK', 'Grid1024', 'SetGrid1024', ''),
+        ('LISTE', 'ProgrammGrid', 'rc612 NUMPAD: der Ziffernblock setzt das Raster (nicht in NRC)'),
     ]),
     ('M&isc', 'radiant/mainframe.cpp:1161', [
         ('SUB', 'Theming', [                     # create_colours_menu (colors.cpp:210)
@@ -254,6 +256,7 @@ MENUES = [
         ('RUF', 'Set 2D &Background image...', 'WXY_SetBackgroundImage', ''),
         ('ITEM', 'Fullscreen', 'Fullscreen', ''),
         ('ITEM', 'Maximize view', 'MaximizeView', ''),
+        ('LISTE', 'ProgrammTexturen', 'rc609 K: Texturen der Karte (nicht in NRC)'),
         # Stufe 3 Punkt 0b (eine Leiste, die umschaltet): Sprache, Farbschema
         # und Skalierung des Programms - nicht in NRC, als Abweichung notiert.
         ('LISTE', 'ProgrammMisc'),
@@ -344,6 +347,7 @@ MENUES = [
         ('SEP',),
         ('ITEM', 'Deform...', 'PatchDeform', ''),
         ('ITEM', 'Thicken...', 'PatchThicken', ''),
+        ('LISTE', 'ProgrammCurve', 'Stufe 9d: Patch-Bruecke (nicht in NRC)'),
     ]),
     ('&Plugins', 'radiant/pluginmenu.cpp:131', [
         ('LISTE', 'Plugins'),
@@ -377,6 +381,7 @@ TEXTUR_MENUES = [
         ('CHECK', 'Transparency', 'EnableAlpha', ''),
         ('SEP',),
         ('CHECK', 'Tags GUI', 'TagsToggleGui', ''),
+        ('LISTE', 'ProgrammTexturen', 'rc609 K (nicht in NRC)'),
     ]),
     ('Tags', 'radiant/texwindow.cpp:1281', [
         ('ITEM', 'Add tag', 'TagAdd', ''),

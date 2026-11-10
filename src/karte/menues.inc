@@ -217,6 +217,7 @@ const MenueEintrag kMenues[] = {
     {MenueArt::Haken, "Grid256", "SetGrid256", Str::KeLGrid256, kImmer},
     {MenueArt::Haken, "Grid512", "SetGrid512", Str::KeLGrid512, kImmer},
     {MenueArt::Haken, "Grid1024", "SetGrid1024", Str::KeLGrid1024, kImmer},
+    {MenueArt::Liste, "", "ProgrammGrid", Str::Count, kImmer},   // rc612 NUMPAD: der Ziffernblock setzt das Raster (nicht in NRC)
     {MenueArt::Ende, "", "", Str::Count, kImmer},
     // Misc (radiant/mainframe.cpp:1161)
     {MenueArt::Menue, "M&isc", "", Str::KeLMisc, kImmer},
