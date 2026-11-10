@@ -1125,6 +1125,7 @@ struct Editor {
     // Stufe 8a Punkt 1: Fortschrittsfenster (zu bis zum naechsten Bau), Restzeit-Text, Meldungen im Selbsttest
     bool bauFortschrittZu = false;
     std::string bauFortschrittText;
+    std::string bauLichtCacheLetzt;   // lcb1: die Licht-Cache-Zeile am Ende des letzten Licht-Schritts (fuer den Selbsttest)
     int bauMeldungenTest = 0;
     // Stufe 5: der Optimierer (eigene Funktion, nicht in NRC; Einstellungsseite "Optimizer")
     struct OptimiererEinstellungen {
@@ -1920,8 +1921,12 @@ struct BauFortschrittStand {
     int bounceVon = 0;
     karte::BauSchaetzung schaetzung;
     double vergangen = 0;
+    bool lichtCacheAn = false;       // lcb1: der Licht-Schritt hat -bhedlightcache
+    karte::BauLichtCache lichtCache;   // lcb1: was bhed_q3map2 ueber den Cache sagt
 };
 [[nodiscard]] BauFortschrittStand bauFortschrittStand();
+// lcb1: die Zeile des Licht-Caches im Fenster Baufortschritt ("" ausserhalb des Licht-Schritts); warnung = greift nicht
+[[nodiscard]] std::string bauLichtCacheText(const BauFortschrittStand& st, bool* warnung = nullptr);
 void bauFortschrittZeichnen();      // "Q3Map debug window" (CDbgDlg)
 void bauRueckmeldungWaehlen(int zeile);   // feedback_selection_changed
 // Abweichung (Auftrag): der Ordner, in dem gebaut wird ("" = neben der Karte;

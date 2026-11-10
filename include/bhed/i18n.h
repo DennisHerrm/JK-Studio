@@ -5577,6 +5577,15 @@ enum class Str {
     UpdBarClose,
     UpdBarCloseResultHint,
     UpdBarCloseCheckHint,
+    KeLcUebernommen,
+    KeLcGefunden,
+    KeLcNicht,
+    KeLcGrundKein,
+    KeLcGrundFormat,
+    KeLcGrundDefekt,
+    KeLcGrundSchalter,
+    KeLcGrundGeometrie,
+    KeLcAusSchalter,
     Count,
 };
 

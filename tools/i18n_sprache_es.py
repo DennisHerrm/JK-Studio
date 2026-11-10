@@ -1873,7 +1873,7 @@ TEXTE = {
     "KeTkVis": "Compilación parcial: reutilizar VIS",
     "KeTkVisTip": "Cada paso -vis recibe -bhedvisreuse: si el archivo de portales (.prt), las opciones de vis y la clave del plano lejano no han cambiado desde el último -vis de este mapa, bhed_q3map2 toma la visibilidad de <mapa>.bhedvis en vez de calcularla; los cambios en brushes de detalle, patches, modelos y entidades no necesitan un VIS nuevo. Los cambios estructurales se calculan como siempre. El .bsp es idéntico byte a byte a un -vis completo (con -threads 1; con más hilos el propio -vis varía entre ejecuciones) (no está en NetRadiant-Custom)",
     "KeTkLicht": "Compilación parcial: reutilizar la luz",
-    "KeTkLichtTip": "Cada paso -light recibe -bhedlightcache: bhed_q3map2 guarda la luz trazada en <mapa>.bhedlight. La vez siguiente, con la misma geometría, shaders y opciones, una superficie con lightmap o iluminada por vértices cuyas luces (todos los valores, mismo orden) no han cambiado se toma de la caché y las demás se trazan; la rejilla de luz se toma si no cambió ninguna luz. Cambiar solo gamma, exposure, contrast, compensate, saturation, gridscale o _minlight/_maxlight no vuelve a trazar nada. El .bsp es idéntico byte a byte a un -light completo. Desactivado con -bounce (la radiosidad depende de todas las luces) (no está en NetRadiant-Custom)",
+    "KeTkLichtTip": "Cada paso -light recibe -bhedlightcache: bhed_q3map2 guarda la luz trazada en <mapa>.bhedlight. La vez siguiente, con la misma geometría, shaders y opciones, una superficie con lightmap o iluminada por vértices cuyas luces (todos los valores, mismo orden) no han cambiado se toma de la caché y las demás se trazan; la rejilla de luz se toma si no cambió ninguna luz. Cambiar solo gamma, exposure, contrast, compensate, saturation, gridscale o _minlight/_maxlight no vuelve a trazar nada. El .bsp es idéntico byte a byte a un -light completo. También con -bounce: se guarda cada pasada, y una pasada de rebote reutiliza un lightmap si la luz rebotada que le llega no ha cambiado. La ventana de progreso muestra cuántos se reutilizaron o por qué no se usa la caché (no está en NetRadiant-Custom)",
     "KeZfMenue": "Añadir al mapa compilado...",
     "KeZfMenueTip": "Carga un .bsp como plantilla fija y visible, compila solo una capa de este mapa y la inserta con q3map2 -mergebsp -world -fixnames; el mapa en sí no se vuelve a compilar. Comprueba brushes de clima, zonas, nombres, límites y la colisión de los brushes nuevos (no está en NetRadiant-Custom)",
     "KeZfTitel": "Añadir al mapa compilado",
@@ -3086,6 +3086,8 @@ from i18n_rest9 import texte as _rest9  # noqa: E402
 TEXTE.update(_rest9("es"))
 from i18n_rest10 import texte as _rest10  # noqa: E402
 TEXTE.update(_rest10("es"))
+from i18n_lcb1 import texte as _lcb1  # noqa: E402
+TEXTE.update(_lcb1("es"))
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch
 # wie in NRC (das nur Englisch kennt) - so passen die JKHub-Tutorials auch auf

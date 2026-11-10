@@ -254,6 +254,72 @@ void fortschrittPruefen(const std::string& q3) {
         std::printf("INFO  %s\n", z);
         pruefe(messungen >= 5 && schlimmste < 0.25 && steigend, z);
     }
+    // lcb1: der Licht-Cache mit -bounce - Zeilen von bhed_q3map2, Pacifier nach der Zeile des Durchgangs,
+    // Restzeit mit dem Anteil, den der Cache neu rechnen laesst
+    {
+        BauLichtCache c;
+        const bool z1 = bauLichtCacheZeile("BehavEd: light cache found (geometry and switches unchanged, 9 of 9 passes kept)", c) &&
+                        c.zustand == BauLichtCache::Zustand::Gefunden && c.behalten == 9 && c.paesse == 9;
+        const bool z2 = bauLichtCacheZeile("BehavEd: light cache pass 3 of 9: 812 of 840 lightmaps from the cache (2.5 % of the work to trace)", c) &&
+                        c.pass == 3 && c.aus == 812 && c.alle == 840 && std::fabs(c.anteil - 0.025) < 1e-9;
+        const bool z3 = bauLichtCacheZeile("BehavEd: light cache pass 3 of 9: 1 of 2 vertex lit surfaces from the cache, grid none", c) && c.aus == 812;
+        const bool z4 = bauLichtCacheZeile("BehavEd: light cache: 7000 of 7560 lightmaps and 3 of 4 vertex lit surfaces taken from the cache, grid traced; 1.0 MB written", c) &&
+                        c.summeAus == 7000 && c.summeAlle == 7560;
+        BauLichtCache g;
+        const bool z5 = bauLichtCacheZeile("BehavEd: light cache not usable: geometry, shaders or brush entities changed - everything is traced", g) &&
+                        g.zustand == BauLichtCache::Zustand::Aus && g.grund == BauLichtCache::Grund::Geometrie;
+        BauLichtCache k;
+        const bool z6 = bauLichtCacheZeile("BehavEd: light cache not usable: no cache yet - everything is traced", k) && k.grund == BauLichtCache::Grund::KeinCache &&
+                        bauLichtCacheZeile("BehavEd: light cache not usable: light switches changed - everything is traced", k) &&
+                        k.grund == BauLichtCache::Grund::Schalter && !bauLichtCacheZeile("--- IlluminateRawLightmap ---", k);
+        pruefe(z1 && z2 && z3 && z4 && z5 && z6, "lcb1: Zeilen des Licht-Caches gelesen (gefunden, Durchgang, Flaechen, Summe, Gruende)");
+
+        // der letzte Bau: voll, ohne Cache (Gitter 10 s, Licht 100 s, Radiosity 10 s, Bounce-Licht 100 s)
+        const std::string bef = q + "-light -fast -bounce 1 -bhedlightcache \"C:/m/a.map\"";
+        BauLaufZeiten voll;
+        voll.schritte.push_back({bef, 220.0, {{"TraceGrid#1", 0.0}, {"IlluminateRawLightmap#1", 10.0}, {"Radiosity#1", 110.0}, {"IlluminateRawLightmap#2", 120.0}}});
+        const auto lauf = [&](const char* cacheZeile, double anteilProzent) {
+            BauSchrittBeobachter b;
+            b.text(std::string(cacheZeile) + "\n--- TraceGrid ---\n0...1...2...3...4...5...6...7...8...9... (10)\n", 0.0);
+            b.text("--- IlluminateRawLightmap ---\n", 10.0);
+            if (anteilProzent >= 0.0) {
+                char z[200];
+                std::snprintf(z, sizeof(z), "BehavEd: light cache pass 1 of 2: 90 of 100 lightmaps from the cache (%.1f %% of the work to trace)\n", anteilProzent);
+                b.text(z, 10.5);
+            }
+            b.text("0...1...2...3...4...5", 12.0);
+            return b;
+        };
+        const BauSchrittBeobachter mit = lauf("BehavEd: light cache found (geometry and switches unchanged, 2 of 2 passes kept)", 10.0);
+        const BauSchaetzung sMit = bauSchaetzen(&voll, {bef}, 0, mit, 12.0, {});
+        const bool pac = std::fabs(mit.pacifier() - 0.5) < 1e-9 && !mit.marken().empty() && std::fabs(mit.marken().back().anteil - 0.1) < 1e-9;
+        // 10 % neu: die Licht-Phasen 10 statt 100 s; nach 12 s sind 10 + 5 (skaliert) von 40 s des letzten Laufs durch,
+        // Tempo 12/15 -> noch 25 * 0,8 = 20 s (ohne den Cache-Anteil: (220 - 60) * 0,5 = 80 s)
+        char z[200];
+        std::snprintf(z, sizeof(z), "lcb1: Restzeit mit dem Licht-Cache (10 %% neu): %.1f s (erwartet 20), Pacifier nach der Cache-Zeile %.2f", sMit.rest, mit.pacifier());
+        pruefe(pac && sMit.ausVerlauf && std::fabs(sMit.rest - 20.0) < 0.01, z);
+        const BauSchrittBeobachter aus = lauf("BehavEd: light cache not usable: geometry, shaders or brush entities changed - everything is traced", 100.0);
+        const BauSchaetzung sAus = bauSchaetzen(&voll, {bef}, 0, aus, 12.0, {});
+        std::snprintf(z, sizeof(z), "lcb1: Cache greift nicht: Restzeit wie ohne Cache %.1f s (erwartet 80)", sAus.rest);
+        pruefe(std::fabs(sAus.rest - 80.0) < 0.01, z);
+        // der letzte Bau war selbst ein Teilbau (10 % neu, Licht-Phasen je 10 s): greift der Cache jetzt nicht, zaehlt der volle Bau (je 100 s)
+        BauLaufZeiten teil;
+        teil.schritte.push_back({bef, 40.0, {{"TraceGrid#1", 0.0}, {"IlluminateRawLightmap#1", 10.0, 0.1}, {"Radiosity#1", 20.0}, {"IlluminateRawLightmap#2", 30.0, 0.1}}});
+        const BauSchaetzung sTeil = bauSchaetzen(&teil, {bef}, 0, aus, 12.0, {});
+        // Position 10 + 0,5 * 10 = 15 s des Teilbaus = 10 + 50 voll; Rest 50 + 10 + 100 = 160 s, Tempo 12/60 -> 0,5
+        std::snprintf(z, sizeof(z), "lcb1: letzter Bau ein Teilbau (10 %%), jetzt alles neu: Restzeit %.1f s (erwartet 80, aus dem Teilbau allein 20)", sTeil.rest);
+        pruefe(std::fabs(sTeil.rest - 80.0) < 0.01, z);
+        // Anteil im Verlauf gespeichert und gelesen
+        BauZeitenSpeicher sp;
+        BauLaufZeiten l2;
+        l2.schritte.push_back({bef, 40.0, mit.marken()});
+        sp.setzen("C:/m/a.map", "Final", l2);
+        BauZeitenSpeicher sp2;
+        const BauLaufZeiten* zurueck = sp2.lesen(sp.schreiben()) ? sp2.finden("C:/m/a.map", "Final") : nullptr;
+        pruefe(zurueck != nullptr && zurueck->schritte[0].phasen.size() == 2 && zurueck->schritte[0].phasen[0].anteil < 0.0 &&
+                   std::fabs(zurueck->schritte[0].phasen[1].anteil - 0.1) < 1e-9,
+               "lcb1: Anteil der Licht-Phase in karte_bauzeiten.json geschrieben und gelesen (ohne Anteil: -1)");
+    }
     // Mehrere Schritte: die spaeteren Schritte zaehlen mit ihrer Dauer aus dem Verlauf
     {
         BauLaufZeiten drei;

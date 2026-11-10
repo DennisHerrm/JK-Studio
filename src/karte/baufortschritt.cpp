@@ -136,8 +136,56 @@ std::string bauPhasenGrundname(const std::string& name) {
     return n;
 }
 
+bool bauLichtCacheZeile(const std::string& zeile, BauLichtCache& c) {
+    static const std::string kKopf = "BehavEd: light cache";
+    const std::size_t p = zeile.find(kKopf);
+    if (p == std::string::npos) { return false; }
+    const std::string rest = zeile.substr(p + kKopf.size());
+    const char* s = rest.c_str();
+    int a = 0;
+    int b = 0;
+    int x = 0;
+    int y = 0;
+    double prozent = 0.0;
+    if (std::sscanf(s, " pass %d of %d: %d of %d lightmaps from the cache (%lf", &x, &y, &a, &b, &prozent) == 5) {
+        c.pass = x;
+        c.paesse = y;
+        c.aus = a;
+        c.alle = b;
+        c.anteil = std::clamp(prozent / 100.0, 0.0, 1.0);
+    } else if (std::sscanf(s, ": %d of %d lightmaps", &a, &b) == 2) {
+        c.summeAus = a;
+        c.summeAlle = b;
+    } else if (rest.rfind(" found", 0) == 0) {
+        c.zustand = BauLichtCache::Zustand::Gefunden;
+        c.grund = BauLichtCache::Grund::Keiner;
+        if (std::sscanf(s, " found (geometry and switches unchanged, %d of %d passes kept)", &a, &b) == 2) {
+            c.behalten = a;
+            c.paesse = b;
+        }
+    } else if (rest.rfind(" not usable: ", 0) == 0) {
+        c.zustand = BauLichtCache::Zustand::Aus;
+        const std::string g = rest.substr(13);
+        c.grund = g.rfind("no cache yet", 0) == 0          ? BauLichtCache::Grund::KeinCache
+                  : g.rfind("older cache format", 0) == 0  ? BauLichtCache::Grund::AltesFormat
+                  : g.rfind("light switches", 0) == 0      ? BauLichtCache::Grund::Schalter
+                  : g.rfind("geometry", 0) == 0            ? BauLichtCache::Grund::Geometrie
+                                                          : BauLichtCache::Grund::Beschaedigt;
+    }
+    return true;
+}
+
 void BauSchrittBeobachter::zeileFertig(double t) {
     std::string name;
+    // lcb1: die Zeilen des Licht-Caches - die Zeile eines Durchgangs steht zwischen dem Kopf von
+    // IlluminateRawLightmap und dessen Pacifier (der Pacifier wird weiter erwartet)
+    if (bauLichtCacheZeile(m_zeile, m_lichtCache)) {
+        if (m_zeile.find("lightmaps from the cache (") != std::string::npos && !m_marken.empty() && m_phase == "IlluminateRawLightmap") {
+            m_marken.back().anteil = m_lichtCache.anteil;
+        }
+        m_zeile.clear();
+        return;
+    }
     if (bauPhasenKopf(m_zeile, &name)) {
         m_phase = bauPhasenGrundname(name);
         int n = 1;
@@ -179,7 +227,7 @@ void BauSchrittBeobachter::text(const std::string& stueck, double t) {
                 m_zeile += c;
                 continue;
             }
-            m_zustand = Zustand::Normal;
+            // lcb1: erst am Zeilenende entscheiden - eine Zeile des Licht-Caches laesst den Pacifier weiter erwarten
         } else if (m_zustand == Zustand::Pacifier) {
             if (c == '.' || std::isdigit(static_cast<unsigned char>(c)) != 0) {
                 ++m_zeichen;
@@ -224,14 +272,48 @@ BauSchaetzung bauSchaetzen(const BauLaufZeiten* letzter, const std::vector<std::
             pos = std::min(d, tk + in);
             break;
         }
+        // lcb1: der Licht-Cache - je Phase des letzten Laufs ein Faktor (1 = so lang wie damals)
+        std::vector<double> faktor(p.phasen.size(), 1.0);
+        if (bauStufeAusBefehl(befehle[schritt]) == BauStufe::Licht && befehle[schritt].find("-bhedlightcache") != std::string::npos) {
+            const BauLichtCache& lc = b.lichtCache();
+            const double jetzt = lc.zustand == BauLichtCache::Zustand::Aus ? 1.0 : lc.anteil;   // fuer die kommenden Phasen
+            for (std::size_t k = 0; k < p.phasen.size(); ++k) {
+                const std::string& sk = p.phasen[k].schluessel;
+                if (sk.compare(0, sk.find('#'), "IlluminateRawLightmap") != 0) { continue; }
+                const double damals = p.phasen[k].anteil;
+                if (damals >= 0.0 && damals < 0.05) { continue; }   // damals fast nichts gerechnet: die volle Dauer ist unbekannt
+                const double voll = damals < 0.0 ? 1.0 : 1.0 / damals;
+                double heute = -1.0;
+                for (const BauPhasenMarke& m : b.marken()) {
+                    if (m.schluessel == sk) {
+                        heute = m.anteil;
+                        break;
+                    }
+                }
+                if (heute < 0.0) { heute = jetzt; }
+                if (heute >= 0.0) { faktor[k] = voll * heute; }
+            }
+        }
+        // die Zeit des letzten Laufs von 0 bis x, je Phase mit ihrem Faktor
+        const auto skaliert = [&](double x) {
+            double summe = std::min(x, p.phasen.empty() ? d : p.phasen[0].start);
+            for (std::size_t k = 0; k < p.phasen.size(); ++k) {
+                const double tk = p.phasen[k].start;
+                const double tn = k + 1 < p.phasen.size() ? p.phasen[k + 1].start : d;
+                summe += std::max(0.0, std::min(x, tn) - tk) * faktor[k];
+            }
+            return summe;
+        };
+        const double posS = skaliert(pos);
+        const double dS = std::max(skaliert(d), 1e-3);
         // Tempo gegen den letzten Lauf (laeuft der Rechner gerade langsamer, ist es
         // auch der Rest); erst ab einer Sekunde, begrenzt
         double tempo = 1.0;
-        if (pos > 1.0 && t > 1.0) { tempo = std::clamp(t / pos, 0.5, 2.0); }
-        double rest = std::max(0.0, d - pos) * tempo;
+        if (posS > 1.0 && t > 1.0) { tempo = std::clamp(t / posS, 0.5, 2.0); }
+        double rest = std::max(0.0, dS - posS) * tempo;
         for (std::size_t i = schritt + 1; i < n; ++i) { rest += letzter->schritte[i].dauer * tempo; }
         s.ausVerlauf = true;
-        s.schrittAnteil = std::clamp(pos / d, 0.0, 1.0);
+        s.schrittAnteil = std::clamp(posS / dS, 0.0, 1.0);
         s.rest = rest;
         const double gesamt = summeFertig + t + rest;
         s.gesamtAnteil = gesamt > 0.0 ? std::clamp((summeFertig + t) / gesamt, 0.0, 1.0) : 0.0;
@@ -275,7 +357,9 @@ bool BauZeitenSpeicher::lesen(const std::string& text) {
                 z.dauer = s.zahlVon("dauer", -1.0);
                 if (const json::Wert* ph = s.feld("phasen"); ph != nullptr && ph->art == json::Wert::Art::Liste) {
                     for (const json::Wert& m : ph->liste) {
-                        if (m.art == json::Wert::Art::Liste && m.liste.size() == 2) { z.phasen.push_back({m.liste[0].text, m.liste[1].zahl}); }
+                        if (m.art == json::Wert::Art::Liste && (m.liste.size() == 2 || m.liste.size() == 3)) {
+                            z.phasen.push_back({m.liste[0].text, m.liste[1].zahl, m.liste.size() == 3 ? m.liste[2].zahl : -1.0});   // lcb1: Anteil
+                        }
                     }
                 }
                 lauf.schritte.push_back(std::move(z));
@@ -303,6 +387,7 @@ std::string BauZeitenSpeicher::schreiben() const {
                 json::Wert paar = json::Wert::alsListe();
                 paar.liste.push_back(json::Wert::alsText(m.schluessel));
                 paar.liste.push_back(json::Wert::alsZahl(std::round(m.start * 1000.0) / 1000.0));
+                if (m.anteil >= 0.0) { paar.liste.push_back(json::Wert::alsZahl(std::round(m.anteil * 10000.0) / 10000.0)); }   // lcb1
                 ph.liste.push_back(std::move(paar));
             }
             s.setze("phasen", std::move(ph));

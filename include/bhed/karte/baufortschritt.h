@@ -53,6 +53,9 @@ enum class BauStufe { Bsp, Vis, Licht, Andere };
 struct BauPhasenMarke {
     std::string schluessel;   // Name ohne Klammern, mit Zaehler: "IlluminateRawLightmap#2"
     double start = 0.0;       // Sekunden seit Beginn des Schritts
+    // lcb1: Anteil der Arbeit, den der Licht-Cache in dieser IlluminateRawLightmap-Phase neu rechnen liess
+    // (0..1, aus "light cache pass x of y: ... (p % of the work to trace)"); -1 unbekannt bzw. ohne Cache
+    double anteil = -1.0;
 };
 struct BauSchrittZeit {
     std::string befehl;
@@ -62,6 +65,28 @@ struct BauSchrittZeit {
 struct BauLaufZeiten {
     std::vector<BauSchrittZeit> schritte;
 };
+
+// lcb1: was bhed_q3map2 -light -bhedlightcache ueber seinen Licht-Cache sagt (bhed_lichtcache.cpp):
+//   "BehavEd: light cache found (geometry and switches unchanged, k of n passes kept)"
+//   "BehavEd: light cache not usable: <grund> - everything is traced"
+//   "BehavEd: light cache pass x of y: a of b lightmaps from the cache (p % of the work to trace)"
+//   "BehavEd: light cache: a of b lightmaps and ... taken from the cache, grid ...; m MB written" (alle Durchgaenge)
+struct BauLichtCache {
+    enum class Zustand { Unbekannt, Gefunden, Aus };
+    enum class Grund { Keiner, KeinCache, AltesFormat, Beschaedigt, Schalter, Geometrie };
+    Zustand zustand = Zustand::Unbekannt;
+    Grund grund = Grund::Keiner;
+    int behalten = 0;        // Durchgaenge im alten Cache
+    int pass = 0;            // laufender Durchgang (1 = der erste), 0 vor dem ersten
+    int paesse = 0;          // erster Durchgang und Bounces
+    int aus = -1;            // Lightmaps dieses Durchgangs aus dem Cache
+    int alle = 0;
+    double anteil = -1.0;    // Anteil der Arbeit, der neu gerechnet wird (0..1), -1 unbekannt
+    int summeAus = -1;       // am Ende: ueber alle Durchgaenge
+    int summeAlle = 0;
+};
+// Eine Zeile von bhed_q3map2 lesen; false, wenn sie nicht vom Licht-Cache ist.
+bool bauLichtCacheZeile(const std::string& zeile, BauLichtCache& c);
 
 // Liest die Ausgabe eines Schritts.
 class BauSchrittBeobachter {
@@ -77,6 +102,7 @@ public:
     [[nodiscard]] int bounce() const { return m_bounce; }          // laufender Bounce (0 = der erste Durchgang)
     [[nodiscard]] int bounceVon() const { return m_bounceVon; }    // y aus "bounce x of y"
     [[nodiscard]] const std::vector<BauPhasenMarke>& marken() const { return m_marken; }
+    [[nodiscard]] const BauLichtCache& lichtCache() const { return m_lichtCache; }   // lcb1
 
 private:
     void zeileFertig(double t);
@@ -92,6 +118,7 @@ private:
     int m_bounceVon = 0;
     std::vector<BauPhasenMarke> m_marken;
     std::vector<std::pair<std::string, int>> m_zaehler;
+    BauLichtCache m_lichtCache;
 };
 
 // Eine Kopfzeile von q3map2? name = der Text dazwischen ("Radiosity (bounce 1 of 2)").
@@ -108,6 +135,10 @@ struct BauSchaetzung {
 };
 
 // Schaetzung waehrend des Schritts `schritt` von `befehle`.
+// lcb1: im Licht-Schritt mit -bhedlightcache zaehlen die IlluminateRawLightmap-Phasen des letzten Baus mit dem
+// Anteil, den der Cache jetzt neu rechnen laesst (vergangene Phasen dieses Laufs mit ihrem eigenen, kommende mit dem
+// des letzten Durchgangs; greift der Cache nicht: alles) - umgerechnet auf den vollen Bau, wenn der letzte selbst
+// ein Teilbau war (mit dessen Anteil).
 //   letzter     die Zeiten des letzten Baus (nullptr: erster Bau)
 //   fertig      die Dauern der schon fertigen Schritte dieses Laufs
 //   t           Sekunden seit Beginn des laufenden Schritts

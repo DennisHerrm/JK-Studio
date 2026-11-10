@@ -1875,7 +1875,7 @@ TEXTE = {
     "KeTkVis": "Dílčí kompilace: znovu použít VIS",
     "KeTkVisTip": "Každý krok -vis dostane -bhedvisreuse: pokud se soubor portálů (.prt), přepínače vis a klíč vzdálené roviny od posledního -vis této mapy nezměnily, bhed_q3map2 převezme viditelnost z <map>.bhedvis místo jejího výpočtu - změny detailních brushů, patchů, modelů a entit nepotřebují nový VIS. Strukturální změny se počítají jako obvykle. .bsp je bajtově shodný s úplným -vis (s -threads 1; s více vlákny se -vis sám liší mezi běhy) (není v NetRadiant-Custom)",
     "KeTkLicht": "Dílčí kompilace: znovu použít světlo",
-    "KeTkLichtTip": "Každý krok -light dostane -bhedlightcache: bhed_q3map2 uchová trasované světlo v <map>.bhedlight. Příště se při stejné geometrii, shaderech a přepínačích povrch s lightmapou nebo vrcholovým světlem, jehož světla (všechny hodnoty, stejné pořadí) jsou beze změny, převezme z mezipaměti, ostatní se trasují; mřížka světla se převezme, když se žádné světlo nezměnilo. Změna jen gamma, exposure, contrast, compensate, saturation, gridscale nebo _minlight/_maxlight netrasuje nic. .bsp je bajtově shodný s úplným -light. Vypnuto s -bounce (radiozita závisí na každém světle) (není v NetRadiant-Custom)",
+    "KeTkLichtTip": "Každý krok -light dostane -bhedlightcache: bhed_q3map2 uchová trasované světlo v <map>.bhedlight. Příště se při stejné geometrii, shaderech a přepínačích povrch s lightmapou nebo vrcholovým světlem, jehož světla (všechny hodnoty, stejné pořadí) jsou beze změny, převezme z mezipaměti, ostatní se trasují; mřížka světla se převezme, když se žádné světlo nezměnilo. Změna jen gamma, exposure, contrast, compensate, saturation, gridscale nebo _minlight/_maxlight netrasuje nic. .bsp je bajtově shodný s úplným -light. I s -bounce: každý průchod se uchová a průchod odrazu znovu použije lightmapu, když se odražené světlo, které na ni dopadá, nezměnilo. Okno průběhu sestavení ukazuje, kolik se jich znovu použilo, nebo proč se mezipaměť nepoužije (není v NetRadiant-Custom)",
     "KeZfMenue": "Přidat do zkompilované mapy...",
     "KeZfMenueTip": "Načte .bsp jako pevnou viditelnou šablonu, sestaví jen jednu vrstvu této mapy a vloží ji pomocí q3map2 -mergebsp -world -fixnames - samotná mapa se znovu nekompiluje. Kontroluje brushe počasí, zóny, názvy, limity a kolize nových brushů (není v NetRadiant-Custom)",
     "KeZfTitel": "Přidat do zkompilované mapy",
@@ -3088,6 +3088,8 @@ from i18n_rest9 import texte as _rest9  # noqa: E402
 TEXTE.update(_rest9("cs"))
 from i18n_rest10 import texte as _rest10  # noqa: E402
 TEXTE.update(_rest10("cs"))
+from i18n_lcb1 import texte as _lcb1  # noqa: E402
+TEXTE.update(_lcb1("cs"))
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.
 TEXTE.update({_e[0]: _e[1] for _e in _nrc()})

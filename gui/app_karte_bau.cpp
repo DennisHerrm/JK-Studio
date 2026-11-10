@@ -1381,6 +1381,7 @@ void schrittZeitMerken() {
     BauLauf& l = g_lauf;
     if (l.schritt >= l.befehle.size() || l.jetzt.schritte.size() != l.schritt) { return; }
     const double d = sekundenSeit(l.schrittStart);
+    if (karte::bauStufeAusBefehl(l.befehle[l.schritt]) == karte::BauStufe::Licht) { e().bauLichtCacheLetzt = bauLichtCacheText(bauFortschrittStand()); }   // lcb1
     l.jetzt.schritte.push_back({l.befehle[l.schritt], d, l.beob.marken()});
     l.fertig.push_back(d);
 }
@@ -2021,7 +2022,47 @@ BauFortschrittStand bauFortschrittStand() {
     const double t = sekundenSeit(l.schrittStart);
     st.schaetzung = karte::bauSchaetzen(l.hatVerlauf ? &l.verlauf : nullptr, l.befehle, l.schritt, l.beob, t, l.fertig);
     st.vergangen = sekundenSeit(l.start);
+    st.lichtCacheAn = st.schritt < l.befehle.size() && l.befehle[st.schritt].find("-bhedlightcache") != std::string::npos;
+    st.lichtCache = l.beob.lichtCache();
     return st;
+}
+
+// lcb1 (nicht in NRC): was der Licht-Cache im Licht-Schritt tut - nie still alles neu rechnen
+std::string bauLichtCacheText(const BauFortschrittStand& st, bool* warnung) {
+    if (warnung != nullptr) { *warnung = false; }
+    if (st.stufe != "LIGHT") { return {}; }
+    if (!st.lichtCacheAn) { return trK(Str::KeLcAusSchalter); }
+    const karte::BauLichtCache& c = st.lichtCache;
+    char z[512];
+    if (c.zustand == karte::BauLichtCache::Zustand::Aus) {
+        Str g = Str::KeLcGrundDefekt;
+        switch (c.grund) {
+        case karte::BauLichtCache::Grund::KeinCache:
+            g = Str::KeLcGrundKein;
+            break;
+        case karte::BauLichtCache::Grund::AltesFormat:
+            g = Str::KeLcGrundFormat;
+            break;
+        case karte::BauLichtCache::Grund::Schalter:
+            g = Str::KeLcGrundSchalter;
+            break;
+        case karte::BauLichtCache::Grund::Geometrie:
+            g = Str::KeLcGrundGeometrie;
+            break;
+        case karte::BauLichtCache::Grund::Keiner:
+        case karte::BauLichtCache::Grund::Beschaedigt:
+            break;
+        }
+        std::snprintf(z, sizeof(z), trK(Str::KeLcNicht), trK(g));
+        if (warnung != nullptr) { *warnung = true; }
+        return z;
+    }
+    if (c.aus >= 0) {
+        std::snprintf(z, sizeof(z), trK(Str::KeLcUebernommen), c.aus, c.alle, c.pass, c.paesse);
+        return z;
+    }
+    if (c.zustand == karte::BauLichtCache::Zustand::Gefunden) { return trK(Str::KeLcGefunden); }
+    return {};
 }
 
 void bauFortschrittZeichnen() {
@@ -2084,6 +2125,14 @@ void bauFortschrittZeichnen() {
         if (!g_lauf.visWarnung.empty() && st.stufe == "VIS") {   // Stufe 9d
             ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 127, 0, 255));   // wie Warnungen in der Konsole
             cjkTextWrapped("%s", g_lauf.visWarnung.c_str());
+            ImGui::PopStyleColor();
+        }
+        bool cacheWarnung = false;   // lcb1: der Licht-Cache
+        if (const std::string lc = bauLichtCacheText(st, &cacheWarnung); !lc.empty()) {
+            ImGui::PushStyleColor(ImGuiCol_Text, cacheWarnung ? ImVec4(1.0F, 127.0F / 255.0F, 0.0F, 1.0F)   // wie Warnungen in der Konsole
+                                                              : st.lichtCacheAn ? ImGui::GetStyleColorVec4(ImGuiCol_Text)
+                                                                                : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            cjkTextWrapped("%s", lc.c_str());
             ImGui::PopStyleColor();
         }
         if (!g_lauf.patchWarnung.empty() && st.stufe == "LIGHT") {   // rc609 L

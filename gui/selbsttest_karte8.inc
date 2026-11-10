@@ -753,6 +753,88 @@ std::vector<Schritt> teilbau() {
         if (p != std::string::npos) { (void)std::sscanf(k.c_str() + p, "light cache: %d of %d", &aus, &alle); }
         return aus == alle && k.find("grid from the cache") != std::string::npos;
     }));
+    // lcb1: der Licht-Cache mit -bounce und die Zeile im Fenster Baufortschritt - erst greift er nicht (andere Schalter),
+    // nach einer Licht-Aenderung uebernimmt jeder Durchgang einen Teil, ohne "Licht wiederverwenden" sagt er, dass er aus ist
+    // (Byte-Gleichheit gegen den vollen Bau: ctest q3map2_teilbau, Teil e)
+    const auto cacheZeile = [] {
+        const std::string k = konsoleText();
+        int pass = 0;
+        int von = 0;
+        int aus = -1;
+        int alle = -1;
+        for (std::size_t p = k.find("light cache pass "); p != std::string::npos; p = k.find("light cache pass ", p + 1)) {
+            int a = 0;
+            int b = 0;
+            int c = 0;
+            int d = 0;
+            const std::size_t zeilenEnde = k.find('\n', p);
+            const std::string zeile = k.substr(p, zeilenEnde == std::string::npos ? std::string::npos : zeilenEnde - p);
+            if (zeile.find(" lightmaps from the cache") != std::string::npos &&
+                std::sscanf(zeile.c_str(), "light cache pass %d of %d: %d of %d", &a, &b, &c, &d) == 4) {   // nicht die Zeile der Flaechen
+                pass = a;
+                von = b;
+                aus = c;
+                alle = d;
+            }
+        }
+        return std::array<int, 4>{pass, von, aus, alle};
+    };
+    add(tu("lcb1: Eintrag Test Teilbau Bounce (-light -fast -bounce 2), Konsole leeren", [] {
+        ke::editor().bauProjekt.eintraege.push_back(karte::BauEintrag{
+            "Test Teilbau Bounce", {"[q3map2] -meta \"[MapFile]\"", "[q3map2] -vis -threads 1 \"[MapFile]\"", "[q3map2] -light -fast -bounce 2 \"[MapFile]\""}});
+        ke::editor().bauLichtCacheLetzt.clear();
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Test Teilbau Bounce"));
+    add(warteSek("Bounce-Bau 1 fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(pruefe("lcb1: andere Schalter als im Cache (-bounce 2): Fenster sagt \"Licht-Cache greift nicht: die Licht-Schalter haben sich geaendert\"", [] {
+        char z[512];
+        std::snprintf(z, sizeof(z), ke::trK(Str::KeLcNicht), ke::trK(Str::KeLcGrundSchalter));
+        diag::detail("Knopftest: lcb1 " + ke::editor().bauLichtCacheLetzt);
+        return ke::editor().bauLichtCacheLetzt == z && konsoleText().find("light cache not usable: light switches changed") != std::string::npos;
+    }));
+    add(tu("lcb1: das Licht verschieben (256 64 96 -> 256 128 96), speichern, Konsole leeren", [] {
+        karte::Karte& k = ke::editor().karte;
+        k.undo.start();
+        for (const auto& en : k.entitaeten()) {
+            if (en->klassenname() == "light" && en->wert("origin") == "256 64 96") { en->setzen("origin", "256 128 96"); }
+        }
+        k.undo.finish("lcb1 test: move light");
+        (void)ke::karteSpeichern();
+        ke::editor().bauLichtCacheLetzt.clear();
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Test Teilbau Bounce"));
+    add(warteSek("Bounce-Bau 2 fertig", [] { return !ke::bauLaeuft(); }, 300));
+    // (in diesem einen Raum erreicht das geaenderte Bounce-Licht jede Lightmap: die Bounces rechnen alles neu - Treffer in den
+    // Bounces auf zwei getrennten Raeumen prueft der ctest q3map2_teilbau)
+    add(pruefe("lcb1: nach der Licht-Aenderung: der erste Durchgang nimmt einen Teil aus dem Cache, das Fenster nennt den letzten Durchgang", [cacheZeile] {
+        const std::string k = konsoleText();
+        const std::array<int, 4> z = cacheZeile();
+        char soll[512];
+        std::snprintf(soll, sizeof(soll), ke::trK(Str::KeLcUebernommen), z[2], z[3], z[0], z[1]);
+        int erster = -1;
+        int ersterAlle = -1;
+        if (const std::size_t p = k.find("light cache pass 1 of 3: "); p != std::string::npos) {
+            (void)std::sscanf(k.c_str() + p, "light cache pass 1 of 3: %d of %d", &erster, &ersterAlle);
+        }
+        diag::detail("Knopftest: lcb1 " + ke::editor().bauLichtCacheLetzt + " (erster Durchgang " + std::to_string(erster) + "/" + std::to_string(ersterAlle) +
+                     ")");
+        return z[0] == 3 && z[1] == 3 && z[2] >= 0 && erster > 0 && erster < ersterAlle && ke::editor().bauLichtCacheLetzt == soll &&
+               k.find("light cache found") != std::string::npos;
+    }));
+    add(tu("lcb1: Licht wiederverwenden aus, Konsole leeren", [] {
+        ke::editor().bau.lichtWieder = false;
+        ke::editor().bauLichtCacheLetzt.clear();
+        ke::konsoleLeeren();
+    }));
+    add(bauMenuepunkt("Test Teilbau Bounce"));
+    add(warteSek("Bounce-Bau 3 (ohne Cache) fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(pruefe("lcb1: ohne Licht wiederverwenden: das Fenster sagt, dass der Licht-Cache aus ist und wo er angeht", [] {
+        const bool ok = ke::editor().bauLichtCacheLetzt == ke::trK(Str::KeLcAusSchalter) && konsoleText().find("-bhedlightcache") == std::string::npos;
+        ke::editor().bau.lichtWieder = true;
+        return ok;
+    }));
     // c) Zur fertigen Karte hinzufuegen
     auto ebene = std::make_shared<int>(-1);
     add(tu("Zur fertigen Karte hinzufuegen: Ebene \"Neu\" mit einer Saeule (32 -160 0 .. 96 -96 128), Vorlage = die gebaute Testkarte", [ebene] {
