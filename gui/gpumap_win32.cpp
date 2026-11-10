@@ -7179,6 +7179,21 @@ SpeicherStand speicherStand() {
     if (K32GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pm),
                                 sizeof(pm)) != 0) {
         s.prozessBytes = static_cast<long long>(pm.PrivateUsage);
+        s.arbeitsBytes = static_cast<long long>(pm.WorkingSetSize);
+    }
+    std::vector<HANDLE> heaps(GetProcessHeaps(0, nullptr) + 16U);
+    const DWORD zahl = GetProcessHeaps(static_cast<DWORD>(heaps.size()), heaps.data());
+    if (zahl > 0 && zahl <= heaps.size()) {
+        s.heapZugeteilt = 0;
+        s.heapBelegt = 0;
+        for (DWORD k = 0; k < zahl; ++k) {
+            HEAP_SUMMARY hs{};
+            hs.cb = sizeof(hs);
+            if (HeapSummary(heaps[k], 0, &hs) != 0) {
+                s.heapZugeteilt += static_cast<long long>(hs.cbAllocated);
+                s.heapBelegt += static_cast<long long>(hs.cbCommitted);
+            }
+        }
     }
     return s;
 }

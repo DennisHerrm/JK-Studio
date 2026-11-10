@@ -90,6 +90,12 @@ struct SpeicherStand {
     int figurBildInhalte = 0;   // reste2 Punkt 2: die nach Inhalt geteilten Figurenbilder
     long long grafikBytes = -1;    // DXGI: belegter Grafikspeicher, -1 = unbekannt
     long long prozessBytes = -1;   // private Bytes des Prozesses, -1 = unbekannt
+    // rc611b: woher die privaten Bytes kommen - Arbeitssatz, und die Heaps des Prozesses (HeapSummary): zugeteilt = lebende
+    // Bloecke (new/malloc und die Heaps der Treiber), belegt = davon festgelegter Speicher. Was privat darueber hinaus
+    // belegt ist, kam per VirtualAlloc (Grafiktreiber, Abbilder). -1 = unbekannt.
+    long long arbeitsBytes = -1;
+    long long heapZugeteilt = -1;
+    long long heapBelegt = -1;
 };
 [[nodiscard]] SpeicherStand speicherStand();
 

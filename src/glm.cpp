@@ -417,6 +417,7 @@ void wendeHautNeuAn(const std::string& text, GlmModel& model) {
     for (GlmSurface& s : model.surfaces) {
         s.texture.clear();
         s.skinnedOff = false;
+        s.hautOhneStufe = false;
         s.hautZeile = -1;
         s.hautStandard = false;
     }
@@ -558,6 +559,7 @@ int applySkin(const std::string& text, GlmModel& model, int eintraegeBisher) {
             // G2_SetSurfaceOnOff mit G2SURFACEFLAG_OFF). Ohne das werden alle Varianten eines Modells gleichzeitig gezeichnet.
             if (!jk2 && !tex.empty() && tex[0] == '*') {
                 s.skinnedOff = (tex == "*off");
+                s.hautOhneStufe = s.skinnedOff;   // rc611: die erste Zeile ist der Shader von RenderSurfaces
                 if (!s.skinnedOff) {
                     s.texture.clear();   // "*default" und Verwandte: die Flaeche bleibt an, ohne eigene Textur
                 }

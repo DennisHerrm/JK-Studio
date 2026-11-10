@@ -31,7 +31,7 @@ int figur(const std::string& name) {
 // Eine neue Mission `name` auf md_am_sith mit Figuren (Name, Versatz in x,
 // Gierwinkel) am gemerkten Ort und dem Skript `skript` (ohne Kopfzeile).
 void szeneBauen(Zustand& z, const std::string& name, const std::vector<std::tuple<std::string, float, float>>& figuren,
-                const std::string& skript) {
+                const std::string& skript, float raeumen = 600.0F) {
     z.bereit = false;
     const std::string wurzel = mb::verbinde(mb::laufOrdner(), "missionen");
     _putenv_s("BHED_MISSIONEN", wurzel.c_str());
@@ -39,6 +39,21 @@ void szeneBauen(Zustand& z, const std::string& name, const std::vector<std::tupl
     if (!neueMissionAnlegen("maps/md_am_sith.bsp", name, name, &f)) {
         z.fehler += " New mission " + name + ": " + f;
         return;
+    }
+    // rc611 (frueher nur in teil6, MRESTE Punkt 8): die Figuren der Grundkarte am gemerkten Ort weg (NPC_* naeher als 600
+    // Einheiten). Seit dem Wechsel der Movie-Duels-Daten (05.11.) ist die erste laufende Figur ani1, und ihr NPC_spawner steht
+    // genau am gemerkten Ort. Seit MB7 erscheint eine Figur wie im Spiel erst, wenn ihr Platz frei ist (NPC_Begin) - die Figuren
+    // der Pruefung erschienen nicht, ihre affect-Bloecke entfielen, und das Wachgeschuetz traf ani1 (pruefung3, geschuetze).
+    for (int i = static_cast<int>(g_app->map.entities.size()) - 1; i >= 0; --i) {
+        const MapEntity& e = g_app->map.entities[static_cast<std::size_t>(i)];
+        if (e.classname.rfind("NPC_", 0) != 0) { continue; }
+        float o[3] = {0, 0, 0};
+        if (std::sscanf(e.origin.c_str(), "%f %f %f", &o[0], &o[1], &o[2]) != 3) { continue; }
+        if (std::hypot(o[0] - z.ort[0], o[1] - z.ort[1]) < raeumen && std::fabs(o[2] - z.ort[2]) < 200.0F) {
+            const std::string* tn = e.find("NPC_targetname");
+            diag::detail("Knopftest: Pruefung3 - Figur der Grundkarte am gemerkten Ort entfernt: " + (tn != nullptr ? *tn : e.classname));
+            (void)entityLoeschen(i);
+        }
     }
     for (const auto& [n, dx, gier] : figuren) {
         const float o[3] = {z.ort[0] + dx, z.ort[1], z.ort[2]};

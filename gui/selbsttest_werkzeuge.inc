@@ -495,9 +495,11 @@ std::vector<Schritt> umrissR2aSchritte() {
     // --- B3-3 ---
     auto b33 = std::make_shared<std::array<double, 4>>();   // Lesezugriffe, ms, Hash vorher, Hash nachher
     add(tu("R2a B3-3: ein Figurenmodell der Szene, neues Level mit denselben Figuren, ein zweites Modell mit derselben Haut", [b33] {
+        // rc611: eine Figur der Szene (actorAssets), die im neuen Level bleibt - vorher das erste Modell des Zwischenspeichers mit
+        // fremdem Halter.
         std::shared_ptr<const App::ActorAssets> modell;
-        for (const auto& [k, v] : g_app->modelCache) {
-            if (v && v.use_count() > 1 && !v->model.empty()) {
+        for (const auto& v : g_app->actorAssets) {
+            if (v && !v->model.empty()) {
                 modell = v;
                 break;
             }
@@ -521,16 +523,35 @@ std::vector<Schritt> umrissR2aSchritte() {
         loadActorModels();
         medienLevelEnde();
         const std::uint64_t vorher = g_app->archivLesen.load();
+        std::vector<std::string> namen;
+        g_app->archivLeseNamen.store(&namen);
         const auto t0 = std::chrono::steady_clock::now();
         const ModelTextures t = texturesFor(modell->model);
+        {
+            const std::lock_guard<std::mutex> sperre(g_app->archivLeseSperre);
+            g_app->archivLeseNamen.store(nullptr);
+        }
         (*b33)[1] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-        (*b33)[0] = static_cast<double>(g_app->archivLesen.load() - vorher);
+        const std::uint64_t aufrufe = g_app->archivLesen.load() - vorher;
+        // rc611b: gezaehlt wird jede Suche in den Archiven, auch die vergebliche. Seit mb1a1 tragen auch die Kappen ("_off",
+        // RE_ParseSkin) ihren Hautnamen models/players/stormtrooper/caps.tga - die Datei gibt es nicht, wohl aber das Skript
+        // gleichen Namens (shaders/common.shader). Das Spiel findet das Skript zuerst (R_FindShader) und fragt nie nach
+        // caps.tga/.jpg/.png; die Vorschau tat es bei jeder Ladung (3 Suchen).
+        int gelesen = 0;
+        for (const std::string& n : namen) {
+            std::string inhalt;
+            const bool da = readFromArchives(n, inhalt);
+            gelesen += da ? 1 : 0;
+            diag::detail("Knopftest: R2a B3-3 - gesucht: " + n + (da ? " (gelesen)" : " (gibt es nicht)"));
+        }
+        diag::detail("Knopftest: R2a B3-3 - " + std::to_string(aufrufe) + " Aufrufe von readFromArchives, davon " + std::to_string(gelesen) + " mit Datei");
+        (*b33)[0] = static_cast<double>(aufrufe);
         (*b33)[3] = hash(t);
         g_app->mapDirty = true;
     }));
-    add(pruefe("R2a B3-3: das zweite Modell liest die Haut nicht neu (0 Lesezugriffe), dieselben Bildpunkte", [b33] {
+    add(pruefe("R2a B3-3: das zweite Modell sucht nichts in den Archiven (0 Suchen), dieselben Bildpunkte", [b33] {
         char z[240];
-        std::snprintf(z, sizeof(z), "Knopftest: R2a B3-3 - Lesezugriffe %.0f, texturesFor %.2f ms, Bildpunkte gleich %s", (*b33)[0], (*b33)[1],
+        std::snprintf(z, sizeof(z), "Knopftest: R2a B3-3 - Suchen %.0f, texturesFor %.2f ms, Bildpunkte gleich %s", (*b33)[0], (*b33)[1],
                       (*b33)[2] == (*b33)[3] ? "ja" : "nein");
         diag::detail(z);
         return (*b33)[0] == 0.0 && (*b33)[2] == (*b33)[3];

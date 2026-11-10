@@ -2007,10 +2007,16 @@ std::vector<Schritt> lavaWetterSchritte() {
         // fx_snow, g_AllowWeather 0 Nebel und Schnee, 1 nichts). md_afif2_sith hat diese Datei: im Spiel keine Lava
         // (alle drei Karten mit fx_lava - md_afif2_jedi/_sith, md_extra - haben sie).
         std::string cfg;
-        const bool geraeumt = regelwerkMovieDuels() && readFromArchives("Weather/md_afif2_sith.cfg", cfg) && cfg.find("r_weather 0") != std::string::npos;
+        const bool da = regelwerkMovieDuels() && readFromArchives("Weather/md_afif2_sith.cfg", cfg);
+        const bool geraeumt = da && cfg.find("r_weather 0") != std::string::npos;
+        // rc611: Die Spieldaten sagen "r_weather 3" (MD_Missions_Ep3.pk3). Preset 3 legt eine WEITERE Lavawolke
+        // gfx/effects/snowflake2 an, ohne zu raeumen (RE_WorldEffectCommand "Create A lava Storm", MD 9 tr_WorldEffects.cpp:2274-2288,
+        // mParticleClouds.push_back) - wie teil6 "Weather/duel_mustafar.cfg (r_weather 3: eine Wolke snowflake2)".
+        const bool preset3 = da && cfg.find("r_weather 3") != std::string::npos;
         const bool erwartet = (flaggen & 1) == 0 && (flaggen & 4) == 0 && !geraeumt;
-        diag::detail(std::string("Knopftest: Lavawetter - Weather/md_afif2_sith.cfg raeumt ") + (geraeumt ? "ja" : "nein"));
-        return lava == 1 && wolken == (erwartet ? 1 : 0);
+        diag::detail(std::string("Knopftest: Lavawetter - Weather/md_afif2_sith.cfg raeumt ") + (geraeumt ? "ja" : "nein") +
+                     (preset3 ? ", r_weather 3 legt eine Lavawolke dazu" : ""));
+        return lava == 1 && wolken == (erwartet ? 1 : 0) + (preset3 ? 1 : 0);
     }));
     return s;
 }

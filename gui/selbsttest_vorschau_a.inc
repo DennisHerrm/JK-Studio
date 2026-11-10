@@ -3906,7 +3906,12 @@ std::string speicherZeile(const gpu::SpeicherStand& s) {
     std::snprintf(z2, sizeof(z2), " | texCache %zu (%.1f MB), modelCache %zu, soundCache %zu, klangPuffer %.1f MB, effects %zu",
                   g_app->texCache.size(), static_cast<double>(texBytes) / 1048576.0, g_app->modelCache.size(),
                   g_app->soundCache.size(), static_cast<double>(klangBytes) / 1048576.0, g_app->effects.size());
-    return std::string(z) + z2;
+    // rc611b: Arbeitssatz und Heaps (gpu::SpeicherStand)
+    char z3[200];
+    std::snprintf(z3, sizeof(z3), " | Arbeitssatz %.1f MB, Heaps zugeteilt %.1f MB, belegt %.1f MB",
+                  static_cast<double>(s.arbeitsBytes) / 1048576.0, static_cast<double>(s.heapZugeteilt) / 1048576.0,
+                  static_cast<double>(s.heapBelegt) / 1048576.0);
+    return std::string(z) + z2 + z3;
 }
 
 std::vector<Schritt> alleKartenSchritte() {
@@ -4099,7 +4104,14 @@ std::vector<Schritt> alleKartenSchritte() {
                      // Grosszuegig: Figuren- und Klangspeicher duerfen wachsen,
                      // und der Heap gibt nicht alles zurueck. Vorher waren es
                      // nach 8 Karten 806 MB.
-                     const bool prozessOk = vorher->prozessBytes < 0 || prozess < 512.0;
+                     // rc611b: 1024 statt 512. Mit den Movie-Duels-Daten vom 05.11. (282 Karten) liegt schon das Programm von
+                     // rc610 allein bei +578 MB (bei seiner Freigabe +311), rc611 allein +672, unter Last bis +801. Zerlegt mit
+                     // den Heaps (Teilliste, 3 Runden, BHED_RUNDEN): einmaliger Warmlauf der Zwischenspeicher nach Namen (GLA,
+                     // Figuren, Klaenge), Verschnitt des Heaps (belegt minus zugeteilt +200 MB) und je Ladung +0,26 MB, die der
+                     // Grafiktreiber anlegt (die Bloecke zeigen in nvwgf2umx.dll; rc610 +0,18 MB). Die Zaehler oben und der
+                     // Grafikspeicher bleiben die Pruefung auf liegengebliebene Karten; ein Leck wie in rc608 (+3,4 GB) faellt
+                     // weiter auf.
+                     const bool prozessOk = vorher->prozessBytes < 0 || prozess < 1024.0;
                      return zaehlerOk && grafikOk && prozessOk;
                  }));
              }

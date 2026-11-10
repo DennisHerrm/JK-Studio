@@ -1693,6 +1693,8 @@ struct App {
     int umrissBilder = 0;         // wie oft ein Umriss der Auswahl gezeichnet wurde (Selbsttest)
     int testOhneBrush = -1;       // rc610 R2a, Selbsttest umriss: dieses Brush-Modell nicht zeichnen (welche Bildpunkte es aendert)
     std::atomic<std::uint64_t> archivLesen{0};   // rc610 R2a, Selbsttest: Aufrufe von readFromArchives (B3-3, Bilder nicht neu lesen)
+    std::atomic<std::vector<std::string>*> archivLeseNamen{nullptr};   // rc611, Selbsttest B3-3: gesetzt, sammelt readFromArchives die Namen
+    std::mutex archivLeseSperre;                            // ... auch aus den Bildvorrat-Faeden
     int vorschauEffektNetze = 0;  // Effektnetze fuer die Kameravorschau gebaut (Selbsttest)
     int vorschauEffektEcken = 0;  // Ecken im letzten davon
     int gizmoBox[4] = {0, 0, 0, 0};

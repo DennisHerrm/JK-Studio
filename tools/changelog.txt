@@ -6,6 +6,380 @@
 #   [en] ... [de] ... [zh] ... [ja] ...   (je Sprache Zeilen mit "- ", gegliedert mit "### Bereich", in jeder Sprache gleich viele)
 # Zeilen mit # am Anfang sind Kommentare. Jede Fassung braucht alle vier Sprachen.
 
+## rc611 2026-11-09
+[en]
+- A new Model tab built for Jedi Academy: model, unwrap UVs, paint textures and bone weights, and animate with a control rig, IK/FK, retargeting, presets and auto physics - with controls like 3ds Max or like Blender. In the mission tab you animate figures right on the map and build everything for the game.
+- An update bar at the start, shaders and graphics even closer to the game (texture compression, shader waves and tcMod bit for bit, levels of detail, shine and chrome), faster loading, chamfer like Blender.
+### Updates
+- When a newer version is found, a coloured bar appears under the menu bar above all tabs: Update now (progress in the bar with "x.x / y.y MB" and Cancel, then Restart now or Later), What's new?, Later, Skip this version and x. A failed installation shows the reason and Try again.
+- Help > Check for updates answers in the same bar - searching, up to date, or the error with a link to the Releases page - instead of a window; info, tick and error symbols in the light and the dark theme.
+### Shaders like the game
+- The tcMod chain is computed step by step like the game, bit for bit (turb with the game's sine table, rotate, scale, scroll, transform, stretch); several tcMod turb in one stage each act at their own place.
+- Shader waves (rgbGen and alphaGen wave, tcMod stretch, deformVertexes move) use the game's tables: "triangle" swings below zero, "noise" and "random" move like in the game, colours change in steps of 1/255; an unknown wave name waves as a sine; rgbGen const and alphaGen const are stored as a byte like in the game.
+- deformVertexes wave, normal, bulge, move, autosprite and autosprite2 are computed per vertex in the order of the shader, like the game - several lines of the same kind all act, at most three count, an incomplete line does nothing; also on patches, brush entities, models, figures and in mirrors.
+- Stages that use the lightmap again after the first one, rgbGen lightingDiffuse on map surfaces (black like in the game), shaders made only of $whiteimage, a missing stage picture (default box) and external lightmaps with their alpha channel are drawn like the game.
+- When several shader files define the same name, the preview uses the definition the game uses, and the real-time light of the map editor the one the map compiler builds with; the map check warns when the build and the game resolve a shader of the map differently.
+- Optimizer: a new check finds shaders that stop the game with an error (a wave without a valid function, more than four tcMod in a stage); the map check warns about deformVertexes autosprite on a patch.
+- The clouds of the sky and the vertex shaders of the map round like the game on every graphics card (shader model 5, also on Intel).
+### Graphics like the game
+- Under Jedi Academy and Jedi Outcast textures are compressed like in the game (S3TC) - in the preview, the real-time light and the built map, also lightmap stages and sky boxes - so the colours match the original; Movie Duels stays uncompressed like the game. noTC, nomipmaps and clampMap act from the line where they stand, and the shader that loads a shared picture first decides for all, as in the game.
+- Picture files are found in the game's order (the named extension only if the game reads it, then jpg, png, tga; Jedi Outcast only jpg and tga), and before the map the preview loads what a freshly started game loads first - menus, HUD, fonts, effects and weapons.
+- Characters use the level of detail the game picks by distance and size, and so do weapons in a hand, items on the ground, turrets and map models with _1/_2 .md3 levels.
+- Shine and chrome sit where the game draws them - in the entity's own axes, on scaled figures and with a different scale per axis, a vertex between two bones takes the normal of the first bone; characters with a size are lit like in the game, and figures stand 0.125 units above the floor like in the game.
+- Skins are read word for word like the engine (the first line counts, "*off" in any line, three-part skins, 128 entries, the rules of Jedi Outcast); a missing or empty skin draws the model's own shaders; surfOff/surfOn of the .npc files and Movie Duels' force_shield are followed like in the game.
+- A surface whose skin entry is "*off" stays invisible even when the model keeps it switched on, like the game - Movie Duels imperial officers no longer show a bright torso in the mission preview.
+- A skin entry whose shader script names another image draws that script like the game, which looks for the script first - in Movie Duels e.g. Darth Vader's armour and the droideka shield; the preview no longer searches the archives for image files the game never asks for.
+- Fog also lies in the glow of glowing surfaces, the glow shell of a lightsaber on the floor is drawn, and the shadow of a figure playing an animation of the map GLA follows the figure.
+- An NPC that would spawn inside another body appears when the place is free; NPC_type nullDriver appears at once; when a name is defined in several .npc files the first one counts; two weather effects of the same kind give one cloud; maps without textures show the default box of the game.
+- The bit-identical parts of the picture are proven from the shader code for every graphics card; the guide says what is measured and what follows from the code.
+### Faster loading and less memory
+- Maps load faster: map shaders with deformVertexes compile about ten times faster, the texture compression is about ten times faster, and the check which pictures the game finds asks each picture only once.
+- A picture that several views show with the same bytes lies on the graphics card only once (a map in the preview and as built map: 257 instead of 526 MB); detail levels of characters keep no copy of the whole model - the picture stays the same.
+- The real-time light computes the game look of each shader only once instead of every frame; Japanese and Chinese texts are no longer wrapped again in every frame.
+### Model tab
+- Built anew for Jedi Academy models (.glm and .md3): areas View/Check, Modeling, UV, Weights, Painting and Animation, a scene explorer with surfaces, tags and bones (own icons, an eye to hide), one or four views and a command panel with rollouts. Controls like 3ds Max or like Blender (keys, timeline from 0 or 1, bone objects or octahedra); every function is in the menu, the right-click, the action search (X) and has a tooltip; every step can be undone.
+- View/Check like ModView, drawn the way the game draws it: surfaces on and off, skins, LOD 1-10 or automatic, sabers and models on tags or bones, upper and lower body animation, wireframe, weights, normals, crack finder, photos at least 1920 pixels wide; checks for Jedi Academy, Jedi Outcast and Movie Duels (vertices, 32 bones, 4 weights, T-pose lines).
+- Modeling like Editable Poly or Edit Mode: extrude, inset, bevel, connect, loop cut, cut, weld, bridge, symmetrize, slice, hinge, QuickSlice, make planar, collapse, primitives and more - live with Apply, + and Cancel, UVs and weights carried over, the limits of the game checked live.
+- Chamfer like Blender's bevel: segments and tension (Blender: shape) for round edges, square corners, corner grids and fans like Blender, UVs from the neighbouring faces.
+- UVs: a UV editor with seams by hand, by angle or from the skeleton, unwrap, projections, relax, pins, pack, match density and "Quick unwrap"; untouched files are saved byte for byte.
+- Painting directly on the textures, in 3D and in the 2D image: draw, soften, smear, clone, fill, mask and erase, layers, pen pressure and mirror painting; "Bake to new UVs" and "Build for the game" in the size and format of the original; fast also on large images.
+- Weights: paint bone weights while the animation runs (blue to red) - add, subtract, smooth, set, mirror and live checks; Apply writes exactly what the game reads.
+- Save as .glm with every level of detail (an unchanged model byte for byte - checked with every .glm of Jedi Academy, Jedi Outcast and Movie Duels), as .md3, and GLA and animation.cfg with checks per target game; broken files from other tools are refused with a message.
+- A prop goes into the open map with one click (misc_model at the camera); Ctrl+S updates every copy, and the model key of the entity opens it in the Model tab again.
+### Model tab: animation
+- Control rig with one click: every bone of Jedi Academy, Jedi Outcast and the droids and creatures of Movie Duels is recognised; FK controls, poses (copy, paste mirrored, hand poses), ghosts, silhouette and motion paths.
+- Dope sheet and curve editor like the Track View of 3ds Max or Blender's Graph Editor, tangents computed like Blender's F-curves; breakdown, push/pull, ease, smooth, mirror, pose library, clean up and reduce baked frames.
+- Two-bone IK for arms and legs, switching IK/FK without a jump (like 3ds Max or Rigify), foot roll, space switching ("Saber to the other hand"), drag the motion paths of hands, feet and saber tip.
+- Retargeting between skeletons (Jedi Outcast to Jedi Academy, onto a Movie Duels figure, a human walk onto a creature) with rig templates for every skeleton of the game and for HumanIK, Biped and CAT; in the game the transferred walk matches the preview.
+- Import animations from FBX (for example Mixamo), glTF/GLB, BVH and COLLADA, record dotXSI like Carcass; free presets from Quaternius (CC0) and 100STYLE (CC BY 4.0) and an own walk and run generator.
+- Auto physics as a filter over the keys: the centre of mass on the parabola of the game's gravity, steady spin in the air, feet without sliding, cloaks and hair as spring chains; your keys stay untouched.
+- Bake into the map GLA _humanoid_<map> (BOTH_CIN slots), into _humanoid.gla in your mod folder or into an own GLA; timeline markers edit the line of animation.cfg; animations go into a script through the window "Into script".
+### Mission tab
+- Animate a figure right on the map: "Animate figure" gives an NPC its own animation with the controls of the Model tab - IK targets on the floor or on any surface, the path of the pelvis as its way, several figures with signals and hand-overs, auto physics with the floor and the gravity of the map.
+- The preview plays what the game gets (every change bakes the map GLA again); "Build for the game" writes the map GLA, its animation.cfg and the script as .txt and .IBI with SET_ANIM_BOTH and SET_ORIGIN, as measured in Movie Duels and the original Jedi Academy.
+### Map editor
+- File > Import geometry as brushes reads .ase, .md3 and every model format q3map2 reads; right-click on a misc_model > Convert model to brushes turns it into brushes in the same place, matching a real build (parts outside textures/ become model + clip).
+- Real-time light: stages with tcMod, tcGen, waves and animMap move like in the game, further stages and glow are drawn like the game (also in mirrors, portals and the sky portal), and under Movie Duels every image is the game's version.
+- Ghoul2 models as model2 and as misc_model_ghoul are drawn like in the game; a model2 stands at the entity's origin and follows modelAngles and model2scale; "Built map as in the game" no longer draws misc_model twice; mirrored models no longer show their inside.
+- Converted models of other formats are lit in the game instead of black; the quick bake finds models in the extra resource paths; mirror mode snaps like NetRadiant-Custom; closing while images still load no longer risks a crash.
+### Menu editor
+- A Movie Duels multiplayer menu without the Movie Duels multiplayer menu set in the game data says so instead of showing an empty preview.
+- The menu flow and the tab order no longer show menus of a closed document; the search line of the text editor wraps its switches in a narrow column; with little space the left column closes again for every new menu.
+### Interface and languages
+- Chinese and Japanese text wraps between characters in every window and tab; "Duplicate" in Chinese reads 创建副本.
+- A connected game controller no longer becomes a keyboard shortcut.
+- The About window, the guide and THIRD-PARTY.md name the parts ported from Blender (GPL-2.0-or-later) and the source and licence of every preset.
+[de]
+- Ein neuer Model-Tab für Jedi Academy: modellieren, UV abwickeln, Texturen und Knochengewichte malen und mit Control Rig, IK/FK, Retargeting, Presets und Auto-Physik animieren - bedient wie 3ds Max oder wie Blender. Im Mission-Tab animiert man Figuren direkt auf der Karte und baut alles für das Spiel.
+- Eine Update-Leiste beim Start, Shader und Grafik noch näher am Spiel (Texturkompression, Shaderwellen und tcMod Bit für Bit, Detailstufen, Glanz und Chrom), schnelleres Laden, Abkanten wie in Blender.
+### Updates
+- Wird eine neuere Version gefunden, erscheint unter der Menüleiste über allen Tabs eine farbige Leiste: Jetzt aktualisieren (Fortschritt in der Leiste mit „x,x / y,y MB“ und Abbrechen, danach Jetzt neu starten oder Später), Was ist neu?, Später, Diese Version überspringen und x. Eine gescheiterte Installation nennt den Grund und bietet Erneut versuchen.
+- Hilfe > Nach Updates suchen antwortet in derselben Leiste - Suche, aktuell oder der Fehler mit Link zur Releases-Seite - statt in einem Fenster; Info-, Haken- und Fehlersymbol im hellen und dunklen Thema.
+### Shader wie im Spiel
+- Die tcMod-Kette wird wie im Spiel Schritt für Schritt gerechnet, Bit für Bit (turb mit der Sinustafel des Spiels, rotate, scale, scroll, transform, stretch); mehrere tcMod turb in einer Stufe wirken jeder an seiner Stelle.
+- Shaderwellen (rgbGen und alphaGen wave, tcMod stretch, deformVertexes move) nehmen die Tafeln des Spiels: „triangle“ schwingt unter null, „noise“ und „random“ bewegen sich wie im Spiel, Farben ändern sich in Schritten von 1/255; ein unbekannter Wellenname schwingt als Sinus; rgbGen const und alphaGen const werden wie im Spiel als Byte gespeichert.
+- deformVertexes wave, normal, bulge, move, autosprite und autosprite2 werden wie im Spiel je Ecke in der Reihenfolge des Shaders gerechnet - mehrere Zeilen derselben Art wirken alle, höchstens drei zählen, eine unvollständige Zeile wirkt nicht; auch auf Patches, Brush-Entities, Modellen, Figuren und in Spiegeln.
+- Stufen, die nach der ersten wieder die Lightmap nutzen, rgbGen lightingDiffuse auf Kartenflächen (schwarz wie im Spiel), Shader nur aus $whiteimage, ein fehlendes Stufenbild (Standardbox) und externe Lightmaps mit ihrem Alphakanal werden wie im Spiel gezeichnet.
+- Definieren mehrere Shaderdateien denselben Namen, nimmt die Vorschau die Definition des Spiels und das Echtzeit-Licht des Karten-Editors die, mit der der Kartencompiler baut; die Kartenprüfung warnt, wenn Bau und Spiel einen Shader der Karte verschieden auflösen.
+- Optimierer: eine neue Prüfung findet Shader, an denen das Spiel mit einem Fehler abbricht (eine Welle ohne gültige Funktion, mehr als vier tcMod in einer Stufe); die Kartenprüfung warnt vor deformVertexes autosprite auf einem Patch.
+- Die Wolken des Himmels und die Vertex-Shader der Karte runden auf jeder Grafikkarte wie das Spiel (Shader-Modell 5, auch auf Intel).
+### Grafik wie im Spiel
+- Unter Jedi Academy und Jedi Outcast werden Texturen wie im Spiel komprimiert (S3TC) - in der Vorschau, im Echtzeit-Licht und in der gebauten Karte, auch Lightmap-Stufen und Himmelsboxen -, damit die Farben dem Original gleichen; Movie Duels bleibt wie im Spiel unkomprimiert. noTC, nomipmaps und clampMap wirken ab ihrer Zeile, und der Shader, der ein geteiltes Bild zuerst lädt, entscheidet für alle, wie im Spiel.
+- Bilddateien werden in der Reihenfolge des Spiels gesucht (die genannte Endung nur, wenn das Spiel sie liest, dann jpg, png, tga; Jedi Outcast nur jpg und tga), und vor der Karte lädt die Vorschau, was ein frisch gestartetes Spiel zuerst lädt - Menüs, HUD, Schriften, Effekte und Waffen.
+- Figuren nehmen die Detailstufe, die das Spiel nach Abstand und Größe wählt, ebenso Waffen in der Hand, Gegenstände am Boden, Geschütze und Kartenmodelle mit _1/_2-Stufen als .md3.
+- Glanz und Chrom sitzen, wo das Spiel sie zeichnet - in den Achsen der Entity, an skalierten Figuren und bei ungleichem Maßstab je Achse, eine Ecke zwischen zwei Knochen nimmt die Normale des ersten Knochens; Figuren mit einer Größe werden wie im Spiel beleuchtet und stehen wie im Spiel 0,125 Einheiten über dem Boden.
+- Skins werden wie in der Engine Wort für Wort gelesen (die erste Zeile zählt, „*off“ in jeder Zeile, dreiteilige Skins, 128 Einträge, die Regeln von Jedi Outcast); ein fehlender oder leerer Skin zeichnet die Shader des Modells; surfOff/surfOn der .npc-Dateien und force_shield von Movie Duels wirken wie im Spiel.
+- Eine Fläche, deren Hauteintrag „*off“ ist, bleibt unsichtbar, auch wenn das Modell sie anlässt, wie im Spiel - imperiale Offiziere von Movie Duels zeigen in der Missions-Vorschau keinen hellen Oberkörper mehr.
+- Ein Hauteintrag, dessen Shaderskript ein anderes Bild nennt, zeichnet wie im Spiel dieses Skript (das Spiel sucht das Skript zuerst) - in Movie Duels z. B. die Rüstung von Darth Vader und der Schild des Droideka; die Vorschau sucht in den Archiven keine Bilddateien mehr, nach denen das Spiel nie fragt.
+- Nebel liegt auch im Leuchten leuchtender Flächen, die Leuchthülle eines Lichtschwerts am Boden wird gezeichnet, und der Schatten einer Figur mit einer Animation der Karten-GLA folgt der Figur.
+- Ein NPC, der in einem anderen Körper erscheinen würde, erscheint, sobald der Platz frei ist; NPC_type nullDriver erscheint sofort; ist ein Name in mehreren .npc-Dateien definiert, zählt der erste; zwei Wettereffekte derselben Art geben eine Wolke; Karten ohne Texturen zeigen die Standardbox des Spiels.
+- Die bitgleichen Teile des Bildes sind für jede Grafikkarte aus dem Shadercode belegt; das Handbuch sagt, was gemessen ist und was aus dem Code folgt.
+### Schneller laden, weniger Speicher
+- Karten laden schneller: Kartenshader mit deformVertexes übersetzen etwa zehnmal schneller, die Texturkompression ist etwa zehnmal schneller, und die Prüfung, welche Bilder das Spiel findet, fragt jedes Bild nur einmal.
+- Ein Bild, das mehrere Ansichten mit denselben Bytes zeigen, liegt nur einmal auf der Grafikkarte (eine Karte in der Vorschau und als gebaute Karte: 257 statt 526 MB); die Detailstufen der Figuren behalten keine Kopie des ganzen Modells - das Bild bleibt gleich.
+- Das Echtzeit-Licht rechnet das Spielbild jedes Shaders nur einmal statt in jedem Bild; japanische und chinesische Texte werden nicht mehr in jedem Bild neu umbrochen.
+### Model-Tab
+- Neu gebaut für Modelle von Jedi Academy (.glm und .md3): Bereiche Ansehen/Prüfen, Modellieren, UV, Weights, Painting und Animation, ein Szenen-Explorer mit Flächen, Tags und Knochen (eigene Symbole, ein Auge zum Ausblenden), eine oder vier Ansichten und ein Befehlsfeld mit Rollouts. Bedienung wie 3ds Max oder wie Blender (Tasten, Zeitleiste ab 0 oder 1, Bone-Objekte oder Oktaeder); jede Funktion steht im Menü, im Rechtsklick, in der Aktionssuche (X) und hat einen Tooltip; jeder Schritt lässt sich rückgängig machen.
+- Ansehen/Prüfen wie ModView, gezeichnet wie im Spiel: Flächen an und aus, Skins, LOD 1-10 oder automatisch, Säbel und Modelle an Tags oder Knochen, Ober- und Unterkörper-Animation, Drahtgitter, Gewichte, Normalen, Rissfinder, Fotos mindestens 1920 Pixel breit; Prüfungen für Jedi Academy, Jedi Outcast und Movie Duels (Ecken, 32 Knochen, 4 Gewichte, T-Pose-Zeilen).
+- Modellieren wie Editable Poly oder Edit Mode: Extrudieren, Einfügen, Abschrägen, Verbinden, Schleifenschnitt, Schneiden, Verschweißen, Brücke, Symmetrie, Slice, Hinge, QuickSlice, Make Planar, Collapse, Grundkörper und mehr - live mit Übernehmen, + und Abbrechen, UV und Gewichte bleiben, die Grenzen des Spiels werden live geprüft.
+- Abkanten (Chamfer) wie Bevel in Blender: Segmente und Spannung (Blender: Shape) für runde Kanten, eckige Ecken, Eckgitter und Fächer wie in Blender, UV aus den Nachbarflächen.
+- UV: ein UV-Editor mit Nähten von Hand, nach Winkel oder aus dem Skelett, Abwickeln, Projektionen, Entspannen, Pins, Packen, Dichte angleichen und „Quick unwrap“; unberührte Dateien werden Byte für Byte gespeichert.
+- Painting direkt auf die Texturen, in 3D und im 2D-Bild: Malen, Weichzeichnen, Verwischen, Klonen, Füllen, Maske und Radieren, Ebenen, Stiftdruck und gespiegeltes Malen; „Auf neue UV umbacken“ und „Für das Spiel bauen“ in Größe und Format des Originals; schnell auch auf großen Bildern.
+- Weights: Knochengewichte malen, während die Animation läuft (Blau bis Rot) - Hinzufügen, Abziehen, Glätten, Setzen, Spiegeln und Live-Prüfungen; Übernehmen schreibt genau, was das Spiel liest.
+- Speichern als .glm mit jeder Detailstufe (ein unverändertes Modell Byte für Byte - geprüft mit jeder .glm von Jedi Academy, Jedi Outcast und Movie Duels), als .md3, dazu GLA und animation.cfg mit Prüfungen je Zielspiel; kaputte Dateien anderer Werkzeuge werden mit einer Meldung abgelehnt.
+- Ein Requisit kommt mit einem Klick in die offene Karte (misc_model an der Kamera); Strg+S aktualisiert jedes Exemplar, und der Schlüssel model der Entity öffnet es wieder im Model-Tab.
+### Model-Tab: Animation
+- Control Rig mit einem Klick: jeder Knochen von Jedi Academy, Jedi Outcast und den Droiden und Kreaturen von Movie Duels wird erkannt; FK-Steuerung, Posen (kopieren, gespiegelt einfügen, Handposen), Ghosts, Silhouette und Bewegungspfade.
+- Dope Sheet und Kurveneditor wie die Track View von 3ds Max oder der Graph Editor von Blender, Tangenten wie die F-Kurven von Blender; Breakdown, Push/Pull, Ease, Glätten, Spiegeln, Posenbibliothek, Aufräumen und Reduzieren gebackener Bilder.
+- Zwei-Knochen-IK für Arme und Beine, IK/FK umschalten ohne Sprung (wie 3ds Max oder Rigify), Fußrollen, Space Switching („Säbel in die andere Hand“), Bewegungspfade von Händen, Füßen und Säbelspitze ziehen.
+- Retargeting zwischen Skeletten (Jedi Outcast nach Jedi Academy, auf eine Movie-Duels-Figur, ein menschlicher Gang auf eine Kreatur) mit Rig-Vorlagen für jedes Skelett des Spiels und für HumanIK, Biped und CAT; im Spiel gleicht der übertragene Gang der Vorschau.
+- Animationen aus FBX (zum Beispiel Mixamo), glTF/GLB, BVH und COLLADA importieren, dotXSI wie Carcass aufnehmen; freie Presets von Quaternius (CC0) und 100STYLE (CC BY 4.0) und ein eigener Geh- und Laufgenerator.
+- Auto-Physik als Filter über den Schlüsseln: der Schwerpunkt auf der Parabel der Schwerkraft des Spiels, gleichmäßige Drehung in der Luft, Füße ohne Rutschen, Umhänge und Haare als Federketten; die eigenen Schlüssel bleiben unberührt.
+- Backen in die Karten-GLA _humanoid_<karte> (BOTH_CIN-Plätze), in _humanoid.gla im Mod-Ordner oder in eine eigene GLA; Marken in der Zeitleiste bearbeiten die Zeile der animation.cfg; Animationen kommen über das Fenster „Ins Skript“ in ein Skript.
+### Mission-Tab
+- Eine Figur direkt auf der Karte animieren: „Figur animieren“ gibt einem NPC eine eigene Animation mit der Bedienung des Model-Tabs - IK-Ziele auf dem Boden oder auf jeder Fläche, der Pfad des Beckens als sein Weg, mehrere Figuren mit Signalen und Übergaben, Auto-Physik mit Boden und Schwerkraft der Karte.
+- Die Vorschau spielt, was das Spiel bekommt (jede Änderung backt die Karten-GLA neu); „Für das Spiel bauen“ schreibt die Karten-GLA, ihre animation.cfg und das Skript als .txt und .IBI mit SET_ANIM_BOTH und SET_ORIGIN, wie in Movie Duels und im Original-Jedi-Academy gemessen.
+### Karten-Editor
+- Datei > Geometrie als Brushes importieren liest .ase, .md3 und jedes Modellformat, das q3map2 liest; Rechtsklick auf ein misc_model > Modell in Brushes umwandeln macht an derselben Stelle Brushes daraus, passend zu einem echten Bau (Teile außerhalb von textures/ werden Modell + Clip).
+- Echtzeit-Licht: Stufen mit tcMod, tcGen, Wellen und animMap bewegen sich wie im Spiel, weitere Stufen und Glow werden wie im Spiel gezeichnet (auch in Spiegeln, Portalen und im Himmelsportal), und unter Movie Duels ist jedes Bild die Fassung des Spiels.
+- Ghoul2-Modelle als model2 und als misc_model_ghoul werden wie im Spiel gezeichnet; ein model2 steht am Ursprung der Entity und folgt modelAngles und model2scale; „Gebaute Karte wie im Spiel“ zeichnet misc_model nicht mehr doppelt; gespiegelte Modelle zeigen nicht mehr ihr Inneres.
+- Umgewandelte Modelle anderer Formate sind im Spiel beleuchtet statt schwarz; das Schnell-Backen findet Modelle in den Extra Resource Paths; der Spiegel-Modus rastet wie NetRadiant-Custom; Schließen, während noch Bilder laden, riskiert keinen Absturz mehr.
+### Menü-Editor
+- Ein Mehrspieler-Menü von Movie Duels ohne den Mehrspieler-Menüsatz von Movie Duels in den Spieldaten sagt das, statt eine leere Vorschau zu zeigen.
+- Menüfluss und Tab-Reihenfolge zeigen keine Menüs eines geschlossenen Dokuments mehr; die Suchzeile des Text-Editors bricht ihre Schalter in einer schmalen Spalte um; bei wenig Platz schließt sich die linke Spalte für jedes neue Menü wieder.
+### Oberfläche und Sprachen
+- Chinesischer und japanischer Text bricht in jedem Fenster und Tab zwischen den Zeichen um; „Duplizieren“ heißt auf Chinesisch 创建副本.
+- Ein angeschlossener Gamecontroller wird nicht mehr zum Tastenkürzel.
+- Fenster Über, Handbuch und THIRD-PARTY.md nennen die aus Blender portierten Teile (GPL-2.0-or-later) und Quelle und Lizenz jedes Presets.
+[zh]
+- 为 Jedi Academy 打造的全新模型选项卡:建模、展开 UV、绘制纹理和骨骼权重,并用控制绑定、IK/FK、重定向、预设和自动物理制作动画——操作方式可选 3ds Max 或 Blender。在任务选项卡中可以直接在地图上为角色制作动画,并为游戏构建全部内容。
+- 启动时的更新栏,着色器和图形更接近游戏(纹理压缩、着色器波形和 tcMod 逐位一致、细节级别、光泽和镀铬),加载更快,倒角与 Blender 相同。
+### 更新
+- 发现新版本时,菜单栏下方、所有选项卡上方会出现一条彩色栏:“立即更新”(栏内显示进度和“x.x / y.y MB”,可“取消”,之后“立即重新启动”或“稍后”)、“有什么新内容?”、“稍后”、“跳过此版本”和 x。安装失败时会显示原因并提供“重试”。
+- “帮助 > 检查更新...”在同一条栏中给出结果——正在检查、已是最新版本,或带有发布页面链接的错误——而不再打开窗口;信息、对勾和错误图标在浅色和深色主题中都清晰可见。
+### 着色器与游戏一致
+- tcMod 链按游戏的方式逐步计算,逐位一致(使用游戏正弦表的 turb、rotate、scale、scroll、transform、stretch);同一阶段中的多个 tcMod turb 各自在自己的位置生效。
+- 着色器波形(rgbGen 和 alphaGen wave、tcMod stretch、deformVertexes move)使用游戏的表:“triangle”会摆到零以下,“noise”和“random”与游戏中一样变化,颜色以 1/255 为步长变化;未知的波形名称按正弦波摆动;rgbGen const 和 alphaGen const 与游戏一样按字节存储。
+- deformVertexes wave、normal、bulge、move、autosprite 和 autosprite2 与游戏一样按顶点、按着色器中的顺序计算——同类的多行全部生效,最多计三行,不完整的行不起作用;在面片、笔刷实体、模型、角色和镜子中也是如此。
+- 在第一阶段之后再次使用光照贴图的阶段、地图表面上的 rgbGen lightingDiffuse(与游戏一样为黑色)、只由 $whiteimage 组成的着色器、缺失的阶段图片(默认方块)以及带 Alpha 通道的外部光照贴图,都按游戏的方式绘制。
+- 多个着色器文件定义同一名称时,预览使用游戏所用的定义,地图编辑器的实时光照使用地图编译器构建时所用的定义;构建和游戏对地图着色器的解析不同时,地图检查会发出警告。
+- 优化器:新的检查会找出让游戏报错中止的着色器(没有有效波形函数的波形、一个阶段中超过四个 tcMod);地图检查会对面片上的 deformVertexes autosprite 发出警告。
+- 天空的云层和地图的顶点着色器在每块显卡上都按游戏的方式取整(着色器模型 5,Intel 显卡也是如此)。
+### 图形与游戏一致
+- 在 Jedi Academy 和 Jedi Outcast 下,纹理像游戏中一样压缩(S3TC)——在预览、实时光照和已构建地图中,包括光照贴图阶段和天空盒——因此颜色与原版一致;Movie Duels 与游戏一样不压缩。noTC、nomipmaps 和 clampMap 从其所在行开始生效,首先加载共享图片的着色器决定所有使用者的设置,与游戏相同。
+- 图片文件按游戏的顺序查找(只有游戏能读取时才使用指定的扩展名,然后依次为 jpg、png、tga;Jedi Outcast 只用 jpg 和 tga);在加载地图之前,预览会先加载刚启动的游戏首先加载的内容——菜单、HUD、字体、特效和武器。
+- 角色使用游戏根据距离和大小选择的细节级别,手中的武器、地上的物品、炮塔以及带 _1/_2 级别的 .md3 地图模型也是如此。
+- 光泽和镀铬出现在游戏绘制它们的位置——在实体自身的坐标轴中,在缩放的角色上以及各轴缩放不同时也正确,位于两根骨骼之间的顶点使用第一根骨骼的法线;带有尺寸的角色按游戏方式照明,角色像游戏中一样站在地面上方 0.125 单位处。
+- 皮肤按引擎的方式逐词读取(第一行有效,任何行中的 "*off"、三段式皮肤、128 个条目、Jedi Outcast 的规则);缺失或空的皮肤会使用模型自身的着色器;.npc 文件的 surfOff/surfOn 和 Movie Duels 的 force_shield 与游戏中一样生效。
+- 皮肤条目为 "*off" 的面即使模型让它保持开启也不显示,与游戏相同——Movie Duels 的帝国军官在任务预览中不再显示明亮的上身。
+- 若皮肤条目的着色器脚本指定了另一张图像,则与游戏相同地按该脚本绘制(游戏先查找脚本)——例如 Movie Duels 中达斯·维达的盔甲和毁灭者机器人的护盾;预览不再在存档中搜索游戏从不请求的图像文件。
+- 雾也会出现在发光表面的辉光中,地上光剑的发光外壳会被绘制,播放地图 GLA 动画的角色的阴影会跟随角色。
+- 会生成在另一个身体内部的 NPC 会在位置空出后出现;NPC_type nullDriver 会立即出现;一个名称在多个 .npc 文件中定义时以第一个为准;两个同类天气效果只产生一团云;没有纹理的地图显示游戏的默认方块。
+- 画面中逐位一致的部分已根据着色器代码针对每块显卡得到证明;手册说明了哪些是测量的,哪些是由代码推出的。
+### 更快加载,更少内存
+- 地图加载更快:带 deformVertexes 的地图着色器编译速度约快十倍,纹理压缩约快十倍,检查游戏能找到哪些图片时每张图片只查询一次。
+- 多个视图以相同字节显示的图片在显卡上只存一份(同一张地图在预览中和作为已构建地图:257 MB 而不是 526 MB);角色的细节级别不再保留整个模型的副本——画面保持不变。
+- 实时光照对每个着色器的游戏外观只计算一次,而不是每帧计算;日文和中文文本不再在每一帧重新换行。
+### 模型选项卡
+- 为 Jedi Academy 模型(.glm 和 .md3)重新构建:查看/检查、建模、UV、权重、绘制和动画区域,带面、标记和骨骼的场景资源管理器(独立图标,用眼睛隐藏),一个或四个视图,以及带卷展栏的命令面板。操作方式可选 3ds Max 或 Blender(按键、时间轴从 0 或 1 开始、骨骼对象或八面体);每个功能都在菜单、右键菜单和操作搜索(X)中,并带有工具提示;每一步都可以撤销。
+- 像 ModView 一样查看/检查,并按游戏的方式绘制:面的开关、皮肤、LOD 1-10 或自动、在标记或骨骼上挂载光剑和模型、上半身和下半身动画、线框、权重、法线、裂缝查找器、至少 1920 像素宽的照片;针对 Jedi Academy、Jedi Outcast 和 Movie Duels 的检查(顶点、32 根骨骼、4 个权重、T 姿势行)。
+- 像 Editable Poly 或编辑模式一样建模:挤出、内插、倒角、连接、环切、切割、焊接、桥接、对称、切片、铰链、快速切片、平面化、塌陷、基本体等——带“应用”、+ 和“取消”的实时预览,UV 和权重会保留,游戏限制实时检查。
+- 倒角(Chamfer)与 Blender 的 Bevel 相同:用于圆角边的段数和张力(Blender:形状),方形拐角,与 Blender 相同的拐角网格和扇形,UV 取自相邻面。
+- UV:UV 编辑器,可手动、按角度或根据骨骼设置接缝,展开、投影、松弛、固定、打包、匹配密度和“快速展开”;未改动的文件逐字节保存。
+- 直接在纹理上绘制,可在 3D 和 2D 图像中进行:绘制、柔化、涂抹、克隆、填充、遮罩和擦除,图层、笔压和镜像绘制;“烘焙到新 UV”和“为游戏构建”保持原始图片的尺寸和格式;在大图上也很快。
+- 权重:在动画播放时绘制骨骼权重(从蓝到红)——添加、减去、平滑、设置、镜像和实时检查;“应用”写入的正是游戏读取的内容。
+- 保存为包含所有细节级别的 .glm(未改动的模型逐字节相同——已用 Jedi Academy、Jedi Outcast 和 Movie Duels 的每个 .glm 检查)、保存为 .md3,以及按目标游戏检查后保存 GLA 和 animation.cfg;其他工具生成的损坏文件会被拒绝并给出提示。
+- 一键将道具放入打开的地图(在摄像机处放置 misc_model);Ctrl+S 会更新每个副本,实体的 model 键可再次在模型选项卡中打开它。
+### 模型选项卡:动画
+- 一键创建控制绑定:能识别 Jedi Academy、Jedi Outcast 以及 Movie Duels 中机器人和生物的每根骨骼;FK 控制器、姿势(复制、镜像粘贴、手部姿势)、洋葱皮、剪影和运动路径。
+- 摄影表和曲线编辑器,如同 3ds Max 的轨迹视图或 Blender 的曲线编辑器,切线与 Blender 的 F 曲线计算方式相同;中间帧、推/拉、缓入缓出、平滑、镜像、姿势库、清理和精简烘焙帧。
+- 手臂和腿的双骨骼 IK,无跳变地切换 IK/FK(如 3ds Max 或 Rigify)、脚部滚动、空间切换(“光剑换到另一只手”)、拖动手、脚和剑尖的运动路径。
+- 骨架之间的重定向(Jedi Outcast 到 Jedi Academy、到 Movie Duels 角色、把人类步行用到生物上),带有游戏中每种骨架以及 HumanIK、Biped 和 CAT 的绑定模板;在游戏中,转移后的步行与预览一致。
+- 从 FBX(例如 Mixamo)、glTF/GLB、BVH 和 COLLADA 导入动画,像 Carcass 一样录制 dotXSI;来自 Quaternius(CC0)和 100STYLE(CC BY 4.0)的免费预设,以及自带的步行和跑步生成器。
+- 自动物理作为关键帧上的过滤器:质心沿游戏重力的抛物线运动,空中旋转保持稳定,脚不打滑,斗篷和头发作为弹簧链跟随;您自己的关键帧保持不变。
+- 烘焙到地图 GLA _humanoid_<地图>(BOTH_CIN 槽位)、模组文件夹中的 _humanoid.gla 或自己的 GLA;时间轴标记可编辑 animation.cfg 的行;动画通过“放入脚本”窗口进入脚本。
+### 任务选项卡
+- 直接在地图上为角色制作动画:“为角色制作动画”用模型选项卡的操作方式为 NPC 赋予自己的动画——地面或任意表面上的 IK 目标、以骨盆路径作为行走路线、多个角色之间的信号和交接,以及使用地图地面和重力的自动物理。
+- 预览播放的就是游戏得到的内容(每次修改都会重新烘焙地图 GLA);“为游戏构建”会写入地图 GLA、它的 animation.cfg 以及 .txt 和 .IBI 脚本,包含 SET_ANIM_BOTH 和 SET_ORIGIN,已在 Movie Duels 和原版 Jedi Academy 中测量。
+### 地图编辑器
+- “文件 > 将几何体导入为笔刷”可读取 .ase、.md3 以及 q3map2 能读取的所有模型格式;在 misc_model 上右键 > “将模型转换为笔刷”会在原位置把它变成笔刷,与真实构建一致(textures/ 之外的部分会变成模型 + 碰撞)。
+- 实时光照:带 tcMod、tcGen、波形和 animMap 的阶段与游戏中一样运动,其他阶段和辉光按游戏的方式绘制(在镜子、传送门和天空传送门中也是如此),在 Movie Duels 下每张图片都使用游戏的版本。
+- 作为 model2 和 misc_model_ghoul 的 Ghoul2 模型按游戏的方式绘制;model2 位于实体原点,并遵循 modelAngles 和 model2scale;“按游戏方式构建的地图”不再重复绘制 misc_model;镜像的模型不再显示内侧。
+- 转换后的其他格式模型在游戏中会被照亮,而不是黑色;快速烘焙能找到额外资源路径中的模型;镜像模式的吸附与 NetRadiant-Custom 相同;在图片仍在加载时关闭程序不再有崩溃风险。
+### 菜单编辑器
+- 游戏数据中没有 Movie Duels 多人菜单集时,Movie Duels 多人菜单会给出提示,而不是显示空白预览。
+- 菜单流程和 Tab 顺序不再显示已关闭文档的菜单;文本编辑器的搜索行在狭窄的栏中会把开关换行;空间不足时,每打开一个新菜单左栏都会再次收起。
+### 界面和语言
+- 中文和日文文本在每个窗口和选项卡中都在字符之间换行;中文的“Duplicate”现在显示为“创建副本”。
+- 连接的游戏手柄不再变成键盘快捷键。
+- “关于”窗口、手册和 THIRD-PARTY.md 列出了从 Blender 移植的部分(GPL-2.0-or-later)以及每个预设的来源和许可证。
+[ja]
+- Jedi Academy 向けの新しいモデルタブ: モデリング、UV 展開、テクスチャとボーンウェイトのペイント、コントロールリグ・IK/FK・リターゲット・プリセット・自動物理によるアニメーション。操作は 3ds Max 風か Blender 風を選べます。ミッションタブではマップ上で直接キャラクターをアニメーションさせ、すべてをゲーム用にビルドできます。
+- 起動時のアップデートバー、さらにゲームに近づいたシェーダーとグラフィックス (テクスチャ圧縮、シェーダーの波形と tcMod がビット単位で一致、詳細レベル、光沢とクローム)、より速い読み込み、Blender と同じ面取り。
+### アップデート
+- 新しいバージョンが見つかると、メニューバーの下、すべてのタブの上に色付きのバーが表示されます: 「今すぐ更新」(バーに進行状況と「x.x / y.y MB」、「キャンセル」、その後「今すぐ再起動」または「後で」)、「新機能は?」、「後で」、「このバージョンをスキップ」、x。インストールに失敗すると理由と「再試行」が表示されます。
+- 「ヘルプ > アップデートを確認...」の結果はウィンドウではなく同じバーに表示されます (確認中、最新、またはリリースページへのリンク付きのエラー)。情報・チェック・エラーのアイコンはライトとダークのどちらのテーマでも読めます。
+### ゲームと同じシェーダー
+- tcMod のチェーンをゲームと同じく 1 ステップずつ、ビット単位で一致するように計算します (ゲームのサインテーブルを使う turb、rotate、scale、scroll、transform、stretch)。1 つのステージにある複数の tcMod turb はそれぞれの位置で効きます。
+- シェーダーの波形 (rgbGen と alphaGen の wave、tcMod stretch、deformVertexes move) はゲームのテーブルを使います: 「triangle」は 0 より下にも振れ、「noise」と「random」はゲームと同じように動き、色は 1/255 刻みで変わります。不明な波形名はサイン波として振れ、rgbGen const と alphaGen const はゲームと同じくバイトとして保存されます。
+- deformVertexes の wave、normal、bulge、move、autosprite、autosprite2 をゲームと同じく頂点ごとにシェーダーの順番で計算します。同じ種類の複数行はすべて効き、数えるのは最大 3 行、不完全な行は効きません。パッチ、ブラシエンティティ、モデル、キャラクター、鏡の中でも同じです。
+- 最初のステージの後に再びライトマップを使うステージ、マップ面の rgbGen lightingDiffuse (ゲームと同じく黒)、$whiteimage だけのシェーダー、ステージ画像がない場合 (デフォルトのボックス)、アルファチャンネル付きの外部ライトマップをゲームと同じように描きます。
+- 複数のシェーダーファイルが同じ名前を定義している場合、プレビューはゲームが使う定義を、マップエディターのリアルタイムライトはマップコンパイラーがビルドに使う定義を使います。ビルドとゲームでマップのシェーダーの解決が異なるとマップチェックが警告します。
+- オプティマイザー: ゲームがエラーで止まるシェーダー (有効な関数のない波形、1 ステージに 5 つ以上の tcMod) を見つける新しいチェック。マップチェックはパッチ上の deformVertexes autosprite を警告します。
+- 空の雲とマップの頂点シェーダーは、どのグラフィックカードでもゲームと同じように丸めます (シェーダーモデル 5、Intel でも)。
+### ゲームと同じグラフィックス
+- Jedi Academy と Jedi Outcast ではテクスチャをゲームと同じく圧縮します (S3TC)。プレビュー、リアルタイムライト、ビルド済みマップのいずれでも、ライトマップのステージやスカイボックスも含めて圧縮するので、色がオリジナルと一致します。Movie Duels はゲームと同じく非圧縮のままです。noTC、nomipmaps、clampMap は書かれた行から効き、共有される画像を最初に読み込んだシェーダーがすべてに対して決めます (ゲームと同じ)。
+- 画像ファイルはゲームと同じ順番で探します (指定された拡張子はゲームが読める場合だけ、その後 jpg、png、tga。Jedi Outcast は jpg と tga のみ)。マップの前に、起動したばかりのゲームが最初に読み込むもの (メニュー、HUD、フォント、エフェクト、武器) をプレビューも読み込みます。
+- キャラクターはゲームが距離と大きさから選ぶ詳細レベルを使います。手に持った武器、地面のアイテム、タレット、_1/_2 レベル付きの .md3 マップモデルも同じです。
+- 光沢とクロームはゲームが描く位置に出ます。エンティティ自身の軸で、スケールされたキャラクターや軸ごとに違うスケールでも正しく、2 本のボーンの間にある頂点は最初のボーンの法線を使います。サイズを持つキャラクターはゲームと同じように照らされ、キャラクターはゲームと同じく床から 0.125 ユニット上に立ちます。
+- スキンはエンジンと同じく単語ごとに読みます (最初の行が有効、どの行の "*off" も有効、3 分割スキン、128 項目、Jedi Outcast のルール)。スキンがないか空の場合はモデル自身のシェーダーで描きます。.npc ファイルの surfOff/surfOn と Movie Duels の force_shield はゲームと同じように効きます。
+- スキンの項目が "*off" のサーフェスは、モデルがオンのままにしていても、ゲームと同じく表示されません。Movie Duels の帝国士官がミッションプレビューで明るい上半身を見せることはなくなりました。
+- スキン項目のシェーダースクリプトが別の画像を指す場合、ゲームと同じくそのスクリプトで描きます (ゲームはスクリプトを先に探します)。Movie Duels ではたとえばダース・ベイダーの鎧やドロイデカのシールドです。プレビューは、ゲームが要求しない画像ファイルをアーカイブで探さなくなりました。
+- 光るサーフェスのグローにも霧がかかり、床に落ちたライトセーバーのグロー殻が描かれ、マップ GLA のアニメーションを再生するキャラクターの影がキャラクターについて行きます。
+- 別の体の中に出現しそうな NPC は場所が空いてから出現します。NPC_type nullDriver はすぐに出現します。名前が複数の .npc ファイルで定義されていれば最初のものが有効です。同じ種類の天候エフェクトが 2 つあっても雲は 1 つです。テクスチャのないマップはゲームのデフォルトのボックスを表示します。
+- 画像のビット単位で一致する部分は、どのグラフィックカードについてもシェーダーコードから証明されています。マニュアルは何を測定し、何がコードから導かれるかを説明しています。
+### より速い読み込み、より少ないメモリー
+- マップの読み込みが速くなりました: deformVertexes を持つマップシェーダーのコンパイルが約 10 倍、テクスチャ圧縮が約 10 倍速くなり、ゲームが見つける画像のチェックは各画像を 1 回だけ問い合わせます。
+- 複数のビューが同じバイトで表示する画像は、グラフィックカード上に 1 つだけ置かれます (プレビューとビルド済みマップで同じマップ: 526 MB ではなく 257 MB)。キャラクターの詳細レベルはモデル全体のコピーを持ちません。画像は同じままです。
+- リアルタイムライトは各シェーダーのゲームの見た目を毎フレームではなく 1 回だけ計算します。日本語と中国語のテキストを毎フレーム折り返し直すことはなくなりました。
+### モデルタブ
+- Jedi Academy のモデル (.glm と .md3) 用に作り直しました: 表示/チェック、モデリング、UV、ウェイト、ペイント、アニメーションの各領域、サーフェス・タグ・ボーンを持つシーンエクスプローラー (専用アイコン、目のアイコンで非表示)、1 つまたは 4 つのビュー、ロールアウト付きのコマンドパネル。操作は 3ds Max 風か Blender 風 (キー、0 または 1 から数えるタイムライン、ボーンオブジェクトまたは八面体)。すべての機能はメニュー、右クリック、アクション検索 (X) にあり、ツールチップ付きです。どの操作も元に戻せます。
+- ModView のような表示/チェックを、ゲームと同じ描画で: サーフェスのオン・オフ、スキン、LOD 1-10 または自動、タグやボーンへのセーバーやモデルの取り付け、上半身と下半身のアニメーション、ワイヤーフレーム、ウェイト、法線、クラック検出、幅 1920 ピクセル以上の写真。Jedi Academy、Jedi Outcast、Movie Duels 向けのチェック (頂点、32 ボーン、4 ウェイト、T ポーズの行)。
+- Editable Poly や編集モードのようなモデリング: 押し出し、差し込み、ベベル、接続、ループカット、カット、溶接、ブリッジ、対称化、スライス、ヒンジ、クイックスライス、平面化、集約、プリミティブなど。「適用」、+、「キャンセル」でライブ表示し、UV とウェイトは引き継がれ、ゲームの制限をライブでチェックします。
+- 面取り (Chamfer) は Blender のベベルと同じ: 丸い辺のためのセグメントとテンション (Blender: シェイプ)、四角い角、Blender と同じ角のグリッドと扇形、UV は隣の面から取ります。
+- UV: 手動・角度・スケルトンからのシーム、展開、投影、リラックス、ピン、パック、密度の統一、「クイック展開」を備えた UV エディター。触れていないファイルはバイト単位でそのまま保存します。
+- テクスチャに直接、3D でも 2D 画像でもペイント: 描画、ぼかし、こすり、クローン、塗りつぶし、マスク、消去、レイヤー、筆圧、ミラーペイント。「新しい UV にベイク」と「ゲーム用にビルド」はオリジナルのサイズと形式で。大きな画像でも高速です。
+- ウェイト: アニメーション再生中にボーンウェイトをペイント (青から赤)。加算、減算、スムーズ、設定、ミラー、ライブチェック。「適用」はゲームが読むとおりに書き込みます。
+- すべての詳細レベルを含む .glm として保存 (変更のないモデルはバイト単位で同一。Jedi Academy、Jedi Outcast、Movie Duels のすべての .glm で確認)、.md3 として保存、対象ゲームごとのチェック付きで GLA と animation.cfg を保存。ほかのツールが作った壊れたファイルはメッセージを出して拒否します。
+- ワンクリックで小道具を開いているマップに配置 (カメラの位置に misc_model)。Ctrl+S ですべてのコピーを更新し、エンティティの model キーからモデルタブで再び開けます。
+### モデルタブ: アニメーション
+- ワンクリックでコントロールリグ: Jedi Academy、Jedi Outcast、Movie Duels のドロイドやクリーチャーのすべてのボーンを認識します。FK コントロール、ポーズ (コピー、ミラー貼り付け、手のポーズ)、ゴースト、シルエット、モーションパス。
+- 3ds Max のトラックビューや Blender のグラフエディターのようなドープシートとカーブエディター。接線は Blender の F カーブと同じ計算です。ブレイクダウン、プッシュ/プル、イーズ、スムーズ、ミラー、ポーズライブラリー、ベイクしたフレームのクリーンアップと削減。
+- 腕と脚の 2 ボーン IK、ジャンプなしの IK/FK 切り替え (3ds Max 風または Rigify 風)、フットロール、スペース切り替え (「セーバーを反対の手へ」)、手・足・セーバー先端のモーションパスのドラッグ。
+- スケルトン間のリターゲット (Jedi Outcast から Jedi Academy へ、Movie Duels のキャラクターへ、人間の歩きをクリーチャーへ)。ゲームのすべてのスケルトンと HumanIK、Biped、CAT 用のリグテンプレート付き。ゲーム内でも転送した歩きはプレビューと一致します。
+- FBX (例: Mixamo)、glTF/GLB、BVH、COLLADA からアニメーションをインポートし、Carcass と同じく dotXSI を記録します。Quaternius (CC0) と 100STYLE (CC BY 4.0) の無料プリセット、独自の歩き・走りジェネレーター。
+- キーに掛けるフィルターとしての自動物理: 重心はゲームの重力の放物線上を動き、空中の回転は一定、足は滑らず、マントや髪はばねのチェーンとして追従します。自分のキーはそのまま残ります。
+- マップ GLA _humanoid_<マップ> (BOTH_CIN スロット)、MOD フォルダーの _humanoid.gla、または独自の GLA にベイク。タイムラインのマーカーで animation.cfg の行を編集し、アニメーションは「スクリプトへ」ウィンドウからスクリプトに入れます。
+### ミッションタブ
+- マップ上で直接キャラクターをアニメーション: 「キャラクターをアニメーション」でモデルタブと同じ操作で NPC に独自のアニメーションを付けます。床や任意の面の IK ターゲット、骨盤のパスを移動経路に、複数キャラクター間のシグナルと受け渡し、マップの床と重力を使う自動物理。
+- プレビューはゲームが受け取るものを再生します (変更のたびにマップ GLA をベイクし直します)。「ゲーム用にビルド」はマップ GLA、その animation.cfg、SET_ANIM_BOTH と SET_ORIGIN を含む .txt と .IBI のスクリプトを書き出します。Movie Duels とオリジナルの Jedi Academy で測定済みです。
+### マップエディター
+- 「ファイル > ジオメトリをブラシとしてインポート」は .ase、.md3、q3map2 が読めるすべてのモデル形式を読みます。misc_model を右クリック > 「モデルをブラシに変換」で同じ場所にブラシを作り、実際のビルドと一致します (textures/ 以外の部分はモデル + クリップになります)。
+- リアルタイムライト: tcMod、tcGen、波形、animMap を持つステージはゲームと同じように動き、追加のステージとグローもゲームと同じように描きます (鏡、ポータル、スカイポータルの中でも)。Movie Duels ではすべての画像がゲームの版です。
+- model2 や misc_model_ghoul としての Ghoul2 モデルをゲームと同じように描きます。model2 はエンティティの原点に立ち、modelAngles と model2scale に従います。「ゲームと同じビルド済みマップ」で misc_model を二重に描かなくなり、反転したモデルの内側が見えなくなりました。
+- ほかの形式から変換したモデルはゲーム内で黒くならずに照らされます。クイックベイクは追加リソースパスのモデルを見つけます。ミラーモードは NetRadiant-Custom と同じようにスナップします。画像の読み込み中に閉じてもクラッシュの恐れがなくなりました。
+### メニューエディター
+- ゲームデータに Movie Duels のマルチプレイヤーメニューセットがない場合、Movie Duels のマルチプレイヤーメニューは空のプレビューではなくその旨を表示します。
+- メニューフローとタブ順に、閉じたドキュメントのメニューが出なくなりました。テキストエディターの検索行は狭い列でスイッチを折り返します。スペースが少ないとき、新しいメニューを開くたびに左の列が再び閉じます。
+### インターフェースと言語
+- 中国語と日本語のテキストは、すべてのウィンドウとタブで文字の間で折り返します。中国語の「Duplicate」は「创建副本」になりました。
+- 接続したゲームコントローラーがキーボードショートカットにならなくなりました。
+- 「バージョン情報」ウィンドウ、マニュアル、THIRD-PARTY.md に、Blender から移植した部分 (GPL-2.0-or-later) と各プリセットの出典とライセンスを記載しました。
+[es]
+- Una nueva pestaña Model hecha para Jedi Academy: modelar, desplegar UV, pintar texturas y pesos de huesos, y animar con un rig de control, IK/FK, retargeting, presets y física automática, con controles como 3ds Max o como Blender. En la pestaña de misión se animan figuras directamente en el mapa y se construye todo para el juego.
+- Una barra de actualización al iniciar, shaders y gráficos aún más cerca del juego (compresión de texturas, ondas de shader y tcMod bit a bit, niveles de detalle, brillo y cromo), carga más rápida, chaflán como en Blender.
+### Actualizaciones
+- Cuando se encuentra una versión más nueva, aparece bajo la barra de menús, encima de todas las pestañas, una barra de color: Actualizar ahora (progreso en la barra con «x.x / y.y MB» y Cancelar, después Reiniciar ahora o Más tarde), ¿Qué hay de nuevo?, Más tarde, Omitir esta versión y x. Una instalación fallida muestra el motivo y Reintentar.
+- Ayuda > Buscar actualizaciones responde en la misma barra (buscando, actualizado o el error con un enlace a la página de versiones) en lugar de una ventana; símbolos de información, marca y error legibles en el tema claro y en el oscuro.
+### Shaders como en el juego
+- La cadena tcMod se calcula paso a paso como en el juego, bit a bit (turb con la tabla de senos del juego, rotate, scale, scroll, transform, stretch); varios tcMod turb en una etapa actúan cada uno en su lugar.
+- Las ondas de shader (rgbGen y alphaGen wave, tcMod stretch, deformVertexes move) usan las tablas del juego: «triangle» oscila por debajo de cero, «noise» y «random» se mueven como en el juego, los colores cambian en pasos de 1/255; un nombre de onda desconocido oscila como un seno; rgbGen const y alphaGen const se guardan como un byte, como en el juego.
+- deformVertexes wave, normal, bulge, move, autosprite y autosprite2 se calculan por vértice en el orden del shader, como en el juego: varias líneas del mismo tipo actúan todas, cuentan como máximo tres y una línea incompleta no hace nada; también en parches, entidades de brush, modelos, figuras y espejos.
+- Las etapas que vuelven a usar el lightmap después de la primera, rgbGen lightingDiffuse en superficies del mapa (negro como en el juego), los shaders hechos solo de $whiteimage, una imagen de etapa que falta (caja por defecto) y los lightmaps externos con su canal alfa se dibujan como en el juego.
+- Cuando varios archivos de shaders definen el mismo nombre, la vista previa usa la definición que usa el juego, y la luz en tiempo real del editor de mapas la que usa el compilador de mapas; la comprobación del mapa avisa cuando la compilación y el juego resuelven de forma distinta un shader del mapa.
+- Optimizador: una nueva comprobación encuentra shaders que detienen el juego con un error (una onda sin función válida, más de cuatro tcMod en una etapa); la comprobación del mapa avisa de deformVertexes autosprite en un parche.
+- Las nubes del cielo y los vertex shaders del mapa redondean como el juego en todas las tarjetas gráficas (shader model 5, también en Intel).
+### Gráficos como en el juego
+- Con Jedi Academy y Jedi Outcast las texturas se comprimen como en el juego (S3TC) en la vista previa, la luz en tiempo real y el mapa compilado, también las etapas de lightmap y los skyboxes, así que los colores coinciden con el original; Movie Duels sigue sin comprimir como el juego. noTC, nomipmaps y clampMap actúan desde la línea donde están, y el shader que carga primero una imagen compartida decide para todos, como en el juego.
+- Los archivos de imagen se buscan en el orden del juego (la extensión indicada solo si el juego la lee, luego jpg, png, tga; Jedi Outcast solo jpg y tga), y antes del mapa la vista previa carga lo que un juego recién iniciado carga primero: menús, HUD, fuentes, efectos y armas.
+- Los personajes usan el nivel de detalle que el juego elige por distancia y tamaño, igual que las armas en la mano, los objetos en el suelo, las torretas y los modelos de mapa con niveles _1/_2 en .md3.
+- El brillo y el cromo aparecen donde los dibuja el juego: en los ejes propios de la entidad, en figuras escaladas y con escala distinta por eje, y un vértice entre dos huesos toma la normal del primer hueso; los personajes con tamaño se iluminan como en el juego y las figuras están 0,125 unidades por encima del suelo, como en el juego.
+- Las skins se leen palabra por palabra como el motor (cuenta la primera línea, «*off» en cualquier línea, skins de tres partes, 128 entradas, las reglas de Jedi Outcast); una skin que falta o está vacía dibuja los shaders propios del modelo; surfOff/surfOn de los archivos .npc y el force_shield de Movie Duels actúan como en el juego.
+- Una superficie cuya entrada de skin es «*off» queda invisible aunque el modelo la deje activada, como en el juego: los oficiales imperiales de Movie Duels ya no muestran un torso claro en la vista previa de misiones.
+- Una entrada de skin cuyo script de shader nombra otra imagen dibuja ese script como el juego, que busca primero el script; en Movie Duels, por ejemplo, la armadura de Darth Vader y el escudo del droideka; la vista previa ya no busca en los archivos imágenes que el juego nunca pide.
+- La niebla también aparece en el brillo de las superficies que brillan, se dibuja la envoltura luminosa de un sable de luz en el suelo y la sombra de una figura que reproduce una animación de la GLA del mapa sigue a la figura.
+- Un NPC que aparecería dentro de otro cuerpo aparece cuando el sitio queda libre; NPC_type nullDriver aparece enseguida; si un nombre está definido en varios archivos .npc, cuenta el primero; dos efectos de tiempo del mismo tipo dan una sola nube; los mapas sin texturas muestran la caja por defecto del juego.
+- Las partes de la imagen idénticas bit a bit están demostradas a partir del código de los shaders para todas las tarjetas gráficas; el manual explica qué está medido y qué se deduce del código.
+### Carga más rápida y menos memoria
+- Los mapas cargan más rápido: los shaders de mapa con deformVertexes se compilan unas diez veces más rápido, la compresión de texturas es unas diez veces más rápida y la comprobación de qué imágenes encuentra el juego consulta cada imagen una sola vez.
+- Una imagen que varias vistas muestran con los mismos bytes está una sola vez en la tarjeta gráfica (un mapa en la vista previa y como mapa compilado: 257 en lugar de 526 MB); los niveles de detalle de los personajes no guardan una copia del modelo entero; la imagen sigue igual.
+- La luz en tiempo real calcula el aspecto de juego de cada shader una sola vez en lugar de en cada fotograma; los textos en japonés y chino ya no se vuelven a ajustar en cada fotograma.
+### Pestaña Model
+- Construida de nuevo para modelos de Jedi Academy (.glm y .md3): áreas Ver/Comprobar, Modelado, UV, Pesos, Pintura y Animación, un explorador de escena con superficies, tags y huesos (iconos propios, un ojo para ocultar), una o cuatro vistas y un panel de comandos con rollouts. Controles como 3ds Max o como Blender (teclas, línea de tiempo desde 0 o 1, objetos hueso u octaedros); cada función está en el menú, el clic derecho y la búsqueda de acciones (X) y tiene tooltip; cada paso se puede deshacer.
+- Ver/Comprobar como ModView, dibujado como lo dibuja el juego: superficies activadas y desactivadas, skins, LOD 1-10 o automático, sables y modelos en tags o huesos, animación del torso y de las piernas, malla, pesos, normales, buscador de grietas y fotos de al menos 1920 píxeles de ancho; comprobaciones para Jedi Academy, Jedi Outcast y Movie Duels (vértices, 32 huesos, 4 pesos, líneas de pose T).
+- Modelado como Editable Poly o el modo Edición: extruir, insertar, biselar, conectar, corte de bucle, cortar, soldar, puente, simetrizar, slice, hinge, QuickSlice, hacer plano, colapsar, primitivas y más, en vivo con Aplicar, + y Cancelar; las UV y los pesos se conservan y los límites del juego se comprueban en vivo.
+- Chaflán (Chamfer) como el bisel de Blender: segmentos y tensión (Blender: forma) para aristas redondeadas, esquinas cuadradas, rejillas de esquina y abanicos como en Blender, UV tomadas de las caras vecinas.
+- UV: un editor UV con costuras a mano, por ángulo o desde el esqueleto, desplegar, proyecciones, relajar, fijar, empaquetar, igualar densidad y «Quick unwrap»; los archivos sin tocar se guardan byte a byte.
+- Pintura directamente sobre las texturas, en 3D y en la imagen 2D: pintar, suavizar, difuminar, clonar, rellenar, máscara y borrar, capas, presión del lápiz y pintura en espejo; «Hornear a nuevas UV» y «Construir para el juego» con el tamaño y el formato del original; rápido también en imágenes grandes.
+- Pesos: pinta pesos de huesos mientras corre la animación (de azul a rojo): añadir, restar, suavizar, fijar, reflejar y comprobaciones en vivo; Aplicar escribe exactamente lo que lee el juego.
+- Guardar como .glm con todos los niveles de detalle (un modelo sin cambios byte a byte, comprobado con todos los .glm de Jedi Academy, Jedi Outcast y Movie Duels), como .md3, y GLA y animation.cfg con comprobaciones por juego de destino; los archivos rotos de otras herramientas se rechazan con un mensaje.
+- Un objeto de atrezo va al mapa abierto con un clic (misc_model en la cámara); Ctrl+S actualiza cada copia y la clave model de la entidad lo vuelve a abrir en la pestaña Model.
+### Pestaña Model: animación
+- Rig de control con un clic: se reconoce cada hueso de Jedi Academy, Jedi Outcast y de los droides y criaturas de Movie Duels; controles FK, poses (copiar, pegar reflejado, poses de mano), fantasmas, silueta y trayectorias de movimiento.
+- Dope sheet y editor de curvas como la Track View de 3ds Max o el Graph Editor de Blender, con tangentes calculadas como las F-curves de Blender; breakdown, empujar/tirar, suavizado de entrada y salida, suavizar, reflejar, biblioteca de poses, limpiar y reducir fotogramas horneados.
+- IK de dos huesos para brazos y piernas, cambio IK/FK sin salto (como 3ds Max o Rigify), balanceo del pie, cambio de espacio («Sable a la otra mano»), arrastrar las trayectorias de manos, pies y punta del sable.
+- Retargeting entre esqueletos (de Jedi Outcast a Jedi Academy, a una figura de Movie Duels, un paso humano a una criatura) con plantillas de rig para todos los esqueletos del juego y para HumanIK, Biped y CAT; en el juego el paso transferido coincide con la vista previa.
+- Importar animaciones de FBX (por ejemplo Mixamo), glTF/GLB, BVH y COLLADA, grabar dotXSI como Carcass; presets gratuitos de Quaternius (CC0) y 100STYLE (CC BY 4.0) y un generador propio de andar y correr.
+- Física automática como filtro sobre las claves: el centro de masas sobre la parábola de la gravedad del juego, giro constante en el aire, pies que no resbalan, capas y pelo como cadenas de muelles; tus claves quedan intactas.
+- Hornear en la GLA del mapa _humanoid_<mapa> (ranuras BOTH_CIN), en _humanoid.gla de tu carpeta de mod o en una GLA propia; las marcas de la línea de tiempo editan la línea de animation.cfg; las animaciones entran en un script con la ventana «Al script».
+### Pestaña de misión
+- Animar una figura directamente en el mapa: «Animar figura» da a un NPC su propia animación con los controles de la pestaña Model: objetivos IK en el suelo o en cualquier superficie, la trayectoria de la pelvis como su camino, varias figuras con señales y entregas, física automática con el suelo y la gravedad del mapa.
+- La vista previa reproduce lo que recibe el juego (cada cambio vuelve a hornear la GLA del mapa); «Construir para el juego» escribe la GLA del mapa, su animation.cfg y el script como .txt e .IBI con SET_ANIM_BOTH y SET_ORIGIN, tal como se midió en Movie Duels y en el Jedi Academy original.
+### Editor de mapas
+- Archivo > Importar geometría como brushes lee .ase, .md3 y todos los formatos de modelo que lee q3map2; clic derecho sobre un misc_model > Convertir modelo en brushes lo convierte en brushes en el mismo sitio, igual que una compilación real (las partes fuera de textures/ pasan a modelo + clip).
+- Luz en tiempo real: las etapas con tcMod, tcGen, ondas y animMap se mueven como en el juego, las demás etapas y el glow se dibujan como en el juego (también en espejos, portales y el portal del cielo), y con Movie Duels cada imagen es la versión del juego.
+- Los modelos Ghoul2 como model2 y como misc_model_ghoul se dibujan como en el juego; un model2 está en el origen de la entidad y sigue modelAngles y model2scale; «Mapa compilado como en el juego» ya no dibuja misc_model dos veces; los modelos reflejados ya no muestran su interior.
+- Los modelos convertidos de otros formatos se iluminan en el juego en lugar de verse negros; el horneado rápido encuentra modelos en las rutas de recursos extra; el modo espejo se ajusta como NetRadiant-Custom; cerrar mientras aún se cargan imágenes ya no arriesga un fallo.
+### Editor de menús
+- Un menú multijugador de Movie Duels sin el conjunto de menús multijugador de Movie Duels en los datos del juego lo indica en lugar de mostrar una vista previa vacía.
+- El flujo de menús y el orden de tabulación ya no muestran menús de un documento cerrado; la línea de búsqueda del editor de texto ajusta sus interruptores en una columna estrecha; con poco espacio, la columna izquierda vuelve a cerrarse para cada menú nuevo.
+### Interfaz e idiomas
+- El texto chino y japonés se ajusta entre caracteres en todas las ventanas y pestañas; «Duplicar» en chino es 创建副本.
+- Un mando de juego conectado ya no se convierte en un atajo de teclado.
+- La ventana Acerca de, el manual y THIRD-PARTY.md nombran las partes portadas de Blender (GPL-2.0-or-later) y el origen y la licencia de cada preset.
+[cs]
+- Nová karta Model vytvořená pro Jedi Academy: modelování, rozbalení UV, malování textur a vah kostí a animace s ovládacím rigem, IK/FK, retargetingem, předvolbami a automatickou fyzikou - s ovládáním jako 3ds Max nebo jako Blender. Na kartě mise animujete postavy přímo na mapě a vše sestavíte pro hru.
+- Pruh aktualizace při spuštění, shadery a grafika ještě blíž hře (komprese textur, vlny shaderů a tcMod bit po bitu, úrovně detailů, lesk a chrom), rychlejší načítání, zkosení jako v Blenderu.
+### Aktualizace
+- Když se najde novější verze, objeví se pod nabídkovým řádkem nad všemi kartami barevný pruh: Aktualizovat nyní (průběh v pruhu s „x,x / y,y MB“ a Zrušit, potom Restartovat nyní nebo Později), Co je nového?, Později, Přeskočit tuto verzi a x. Nepovedená instalace ukáže důvod a Zkusit znovu.
+- Nápověda > Vyhledat aktualizace odpovídá ve stejném pruhu - hledání, aktuální verze nebo chyba s odkazem na stránku vydání - místo v okně; symboly informace, zaškrtnutí a chyby jsou čitelné ve světlém i tmavém motivu.
+### Shadery jako ve hře
+- Řetězec tcMod se počítá krok za krokem jako ve hře, bit po bitu (turb s tabulkou sinů hry, rotate, scale, scroll, transform, stretch); několik tcMod turb v jedné fázi působí každý na svém místě.
+- Vlny shaderů (rgbGen a alphaGen wave, tcMod stretch, deformVertexes move) používají tabulky hry: „triangle“ kmitá pod nulu, „noise“ a „random“ se pohybují jako ve hře, barvy se mění po krocích 1/255; neznámý název vlny kmitá jako sinus; rgbGen const a alphaGen const se ukládají jako bajt, jako ve hře.
+- deformVertexes wave, normal, bulge, move, autosprite a autosprite2 se počítají po vrcholech v pořadí shaderu, jako ve hře - několik řádků stejného druhu působí všechny, počítají se nejvýše tři a neúplný řádek nedělá nic; také na patchích, brush entitách, modelech, postavách a v zrcadlech.
+- Fáze, které po první znovu používají lightmapu, rgbGen lightingDiffuse na plochách mapy (černé jako ve hře), shadery jen z $whiteimage, chybějící obrázek fáze (výchozí krabice) a externí lightmapy s alfa kanálem se kreslí jako ve hře.
+- Když několik souborů shaderů definuje stejný název, náhled použije definici, kterou používá hra, a světlo v reálném čase editoru map tu, se kterou staví kompilátor map; kontrola mapy varuje, když stavba a hra rozloží shader mapy jinak.
+- Optimalizátor: nová kontrola najde shadery, na kterých hra skončí chybou (vlna bez platné funkce, více než čtyři tcMod v jedné fázi); kontrola mapy varuje před deformVertexes autosprite na patchi.
+- Mraky oblohy a vertex shadery mapy zaokrouhlují na každé grafické kartě jako hra (shader model 5, i na Intelu).
+### Grafika jako ve hře
+- U Jedi Academy a Jedi Outcast se textury komprimují jako ve hře (S3TC) - v náhledu, ve světle v reálném čase i v sestavené mapě, také fáze lightmapy a skyboxy - takže barvy odpovídají originálu; Movie Duels zůstává jako ve hře nekomprimované. noTC, nomipmaps a clampMap platí od řádku, kde stojí, a shader, který sdílený obrázek načte první, rozhoduje za všechny, jako ve hře.
+- Obrázky se hledají v pořadí hry (uvedená přípona jen tehdy, když ji hra čte, pak jpg, png, tga; Jedi Outcast jen jpg a tga) a před mapou náhled načte to, co čerstvě spuštěná hra načte nejdřív - nabídky, HUD, písma, efekty a zbraně.
+- Postavy používají úroveň detailů, kterou hra volí podle vzdálenosti a velikosti, stejně jako zbraně v ruce, předměty na zemi, věže a modely mapy s úrovněmi _1/_2 v .md3.
+- Lesk a chrom jsou tam, kde je kreslí hra - ve vlastních osách entity, na zvětšených postavách i s různým měřítkem v každé ose, vrchol mezi dvěma kostmi bere normálu první kosti; postavy s velikostí jsou osvětlené jako ve hře a postavy stojí jako ve hře 0,125 jednotky nad podlahou.
+- Skiny se čtou slovo po slově jako v enginu (platí první řádek, „*off“ v kterémkoli řádku, trojdílné skiny, 128 položek, pravidla Jedi Outcast); chybějící nebo prázdný skin kreslí vlastní shadery modelu; surfOff/surfOn souborů .npc a force_shield z Movie Duels působí jako ve hře.
+- Povrch, jehož položka skinu je „*off“, zůstává neviditelný, i když ho model nechává zapnutý, jako ve hře - imperiální důstojníci z Movie Duels už v náhledu misí neukazují světlý trup.
+- Položka skinu, jejíž shaderový skript uvádí jiný obrázek, se kreslí podle tohoto skriptu jako ve hře, která skript hledá nejdřív - v Movie Duels např. brnění Dartha Vadera a štít droideky; náhled už v archivech nehledá obrázky, o které hra nikdy nežádá.
+- Mlha leží i v záři svítících ploch, kreslí se zářící obal světelného meče na zemi a stín postavy přehrávající animaci z GLA mapy postavu následuje.
+- NPC, které by se objevilo uvnitř jiného těla, se objeví, až bude místo volné; NPC_type nullDriver se objeví hned; je-li název definován ve více souborech .npc, platí první; dva efekty počasí stejného druhu dají jeden mrak; mapy bez textur ukazují výchozí krabici hry.
+- Části obrazu shodné bit po bitu jsou pro každou grafickou kartu doloženy z kódu shaderů; příručka říká, co je změřené a co plyne z kódu.
+### Rychlejší načítání, méně paměti
+- Mapy se načítají rychleji: shadery mapy s deformVertexes se překládají asi desetkrát rychleji, komprese textur je asi desetkrát rychlejší a kontrola, které obrázky hra najde, se na každý obrázek ptá jen jednou.
+- Obrázek, který několik pohledů ukazuje se stejnými bajty, leží na grafické kartě jen jednou (mapa v náhledu a jako sestavená mapa: 257 místo 526 MB); úrovně detailů postav si nenechávají kopii celého modelu - obraz zůstává stejný.
+- Světlo v reálném čase počítá herní vzhled každého shaderu jen jednou místo v každém snímku; japonské a čínské texty se už nezalamují znovu v každém snímku.
+### Karta Model
+- Nově postavená pro modely Jedi Academy (.glm a .md3): oblasti Prohlížet/Kontrola, Modelování, UV, Váhy, Malování a Animace, průzkumník scény s povrchy, tagy a kostmi (vlastní ikony, oko ke skrytí), jeden nebo čtyři pohledy a panel příkazů s rollouty. Ovládání jako 3ds Max nebo jako Blender (klávesy, časová osa od 0 nebo 1, objekty kostí nebo osmistěny); každá funkce je v nabídce, v pravém tlačítku, ve vyhledávání akcí (X) a má popisek; každý krok lze vrátit.
+- Prohlížet/Kontrola jako ModView, vykresleno jako ve hře: povrchy zapnout a vypnout, skiny, LOD 1-10 nebo automaticky, meče a modely na tagy nebo kosti, animace horní a dolní části těla, drátový model, váhy, normály, hledač trhlin, fotky široké nejméně 1920 pixelů; kontroly pro Jedi Academy, Jedi Outcast a Movie Duels (vrcholy, 32 kostí, 4 váhy, řádky T-pózy).
+- Modelování jako Editable Poly nebo Edit Mode: vytažení, vsazení, zkosení, spojení, smyčkový řez, řez, svaření, most, symetrie, slice, hinge, QuickSlice, zarovnání do roviny, sbalení, primitiva a další - živě s Použít, + a Zrušit, UV a váhy zůstávají, limity hry se kontrolují živě.
+- Zkosení (Chamfer) jako Bevel v Blenderu: segmenty a napětí (Blender: tvar) pro zaoblené hrany, hranaté rohy, rohové mřížky a vějíře jako v Blenderu, UV ze sousedních ploch.
+- UV: editor UV se švy ručně, podle úhlu nebo z kostry, rozbalení, projekce, uvolnění, připíchnutí, sbalení, vyrovnání hustoty a „Quick unwrap“; nedotčené soubory se ukládají bajt po bajtu.
+- Malování přímo na textury, ve 3D i ve 2D obrázku: malování, změkčení, rozmazání, klonování, výplň, maska a guma, vrstvy, přítlak pera a zrcadlové malování; „Zapéct na nové UV“ a „Sestavit pro hru“ ve velikosti a formátu originálu; rychlé i na velkých obrázcích.
+- Váhy: malování vah kostí za běhu animace (od modré po červenou) - přidat, ubrat, vyhladit, nastavit, zrcadlit a živé kontroly; Použít zapíše přesně to, co čte hra.
+- Uložení jako .glm se všemi úrovněmi detailů (nezměněný model bajt po bajtu - ověřeno na každém .glm z Jedi Academy, Jedi Outcast a Movie Duels), jako .md3 a také GLA a animation.cfg s kontrolami pro cílovou hru; poškozené soubory jiných nástrojů se odmítnou se zprávou.
+- Rekvizita se jedním klepnutím dostane do otevřené mapy (misc_model u kamery); Ctrl+S aktualizuje každou kopii a klíč model entity ji znovu otevře na kartě Model.
+### Karta Model: animace
+- Ovládací rig jedním klepnutím: rozpozná se každá kost Jedi Academy, Jedi Outcast a droidů a tvorů z Movie Duels; ovladače FK, pózy (kopírovat, vložit zrcadlově, pózy rukou), duchové, silueta a dráhy pohybu.
+- Dope sheet a editor křivek jako Track View v 3ds Max nebo Graph Editor v Blenderu, tečny počítané jako F-křivky Blenderu; breakdown, push/pull, ease, vyhlazení, zrcadlení, knihovna póz, úklid a redukce zapečených snímků.
+- Dvoukostní IK pro ruce a nohy, přepínání IK/FK bez skoku (jako 3ds Max nebo Rigify), odvalení chodidla, přepínání prostoru („Meč do druhé ruky“), tažení drah rukou, nohou a špičky meče.
+- Retargeting mezi kostrami (z Jedi Outcast do Jedi Academy, na postavu z Movie Duels, lidská chůze na tvora) se šablonami rigů pro každou kostru hry a pro HumanIK, Biped a CAT; ve hře přenesená chůze odpovídá náhledu.
+- Import animací z FBX (například Mixamo), glTF/GLB, BVH a COLLADA, nahrávání dotXSI jako Carcass; volné předvolby od Quaternius (CC0) a 100STYLE (CC BY 4.0) a vlastní generátor chůze a běhu.
+- Automatická fyzika jako filtr nad klíči: těžiště na parabole gravitace hry, stálá rotace ve vzduchu, chodidla bez klouzání, pláště a vlasy jako pružinové řetězy; vaše klíče zůstanou nedotčené.
+- Zapečení do GLA mapy _humanoid_<mapa> (sloty BOTH_CIN), do _humanoid.gla ve složce modu nebo do vlastní GLA; značky na časové ose upravují řádek animation.cfg; animace se do skriptu dostanou oknem „Do skriptu“.
+### Karta mise
+- Animace postavy přímo na mapě: „Animovat postavu“ dá NPC vlastní animaci s ovládáním karty Model - cíle IK na podlaze nebo na libovolné ploše, dráha pánve jako její cesta, několik postav se signály a předáváním, automatická fyzika s podlahou a gravitací mapy.
+- Náhled přehrává to, co dostane hra (každá změna znovu zapeče GLA mapy); „Sestavit pro hru“ zapíše GLA mapy, její animation.cfg a skript jako .txt a .IBI se SET_ANIM_BOTH a SET_ORIGIN, jak bylo změřeno v Movie Duels a v původním Jedi Academy.
+### Editor map
+- Soubor > Importovat geometrii jako brushe čte .ase, .md3 a každý formát modelu, který čte q3map2; pravé tlačítko na misc_model > Převést model na brushe z něj udělá brushe na stejném místě, shodně se skutečnou stavbou (části mimo textures/ se stanou model + clip).
+- Světlo v reálném čase: fáze s tcMod, tcGen, vlnami a animMap se pohybují jako ve hře, další fáze a glow se kreslí jako ve hře (i v zrcadlech, portálech a portálu oblohy) a u Movie Duels je každý obrázek verzí hry.
+- Modely Ghoul2 jako model2 a jako misc_model_ghoul se kreslí jako ve hře; model2 stojí v počátku entity a řídí se modelAngles a model2scale; „Sestavená mapa jako ve hře“ už nekreslí misc_model dvakrát; zrcadlené modely už neukazují svůj vnitřek.
+- Převedené modely jiných formátů jsou ve hře osvětlené místo černých; rychlé zapečení najde modely v dalších cestách ke zdrojům; zrcadlový režim přichytává jako NetRadiant-Custom; zavření během načítání obrázků už nehrozí pádem.
+### Editor menu
+- Multiplayerové menu Movie Duels bez sady multiplayerových menu Movie Duels v herních datech to oznámí místo prázdného náhledu.
+- Tok menu a pořadí tabulátoru už neukazují menu zavřeného dokumentu; řádek hledání textového editoru v úzkém sloupci zalomí své přepínače; při malém prostoru se levý sloupec pro každé nové menu znovu zavře.
+### Rozhraní a jazyky
+- Čínský a japonský text se v každém okně a na každé kartě zalamuje mezi znaky; „Duplikovat“ v čínštině zní 创建副本.
+- Připojený herní ovladač se už nestane klávesovou zkratkou.
+- Okno O programu, příručka a THIRD-PARTY.md uvádějí části převzaté z Blenderu (GPL-2.0-or-later) a zdroj a licenci každé předvolby.
+
 ## rc610 2026-11-06
 [en]
 - Real-time light in the map editor shows every light with its shadows and grows grass, the model browser takes .obj, .fbx and the other formats of NetRadiant-Custom and converts them to .md3, doors, movers and scripts in the mission preview follow the game more closely, the menu editor reads Movie Duels multiplayer menus, safer updates and settings, a new tutorial from a model to brushes.

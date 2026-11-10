@@ -1873,8 +1873,10 @@ void drawEbenenInhalt(const Layout& l) {
         const float zeile = ImGui::GetTextLineHeightWithSpacing();
         // Die Hoehe, die wirklich da ist: im Andockraum steht frameH auf
         // -FLT_MIN ("bis an den Rand", panelInhalt) - dann der freie Platz.
+        // rc611: Ohne Andockraum ist frameH negativ wie fuer BeginChild ("der Rest minus Band und Statuszeile") -
+        // vorher nahm die Spalte den ganzen Rest und lag ueber dem Band (Zeitleiste) und der Statuszeile (dock2mass, dock5).
         const float frei = ImGui::GetContentRegionAvail().y;
-        const float hoehe = l.frameH > 0.0F ? std::min(l.frameH, frei) : frei;
+        const float hoehe = l.frameH > 0.0F ? std::min(l.frameH, frei) : std::max(frei + l.frameH, 0.0F);
         const float baumH = std::floor(hoehe * 0.55F);
         drawModellExplorer(baumH);
         ImGui::TextUnformatted(tr(Str::ModelAnimations));

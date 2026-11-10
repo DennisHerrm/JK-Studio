@@ -935,6 +935,9 @@ Schritt bildVergleich2(const std::string& spiel) {
                               g_app->animTime = 0.5F;
                           }
                           g_app->mtab.interpolieren = true;
+                          // rc611: Stufe 0 wie der Mission-Tab-Weg hier (dasselbe gelesene Modell) - "automatisch wie im Spiel" nimmt im
+                          // Model-Tab den Einzelspieler-Radius 40 (MERGE2), grosse Fahrzeuge bekamen Stufe 1 (siehe mb1 Bild).
+                          g_app->mtab.lodWahl = 1;
                           return false;
                       }
                       std::vector<unsigned char> tab;
@@ -1205,6 +1208,7 @@ std::vector<Schritt> schritte(const std::string& n) {
         s.push_back(bildVergleich2(spiel));
         s.push_back(tu("MB2 Bild: zurueck", [] {
             g_app->leftMode = 1;
+            g_app->mtab.lodWahl = 0;   // wieder automatisch
             g_app->doc.markSaved();
         }));
         return s;

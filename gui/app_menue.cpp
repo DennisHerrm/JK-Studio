@@ -7657,6 +7657,8 @@ bool oeffneText(const std::string& name, const std::string& text) {
 
 std::vector<std::string> platzhalterImSpiel();   // M7 (app_menue_m7.inc)
 
+std::string& meldungZeile() { return Z().meldung; }
+
 Stand stand() {
     Stand s;
     Zustand& z = Z();

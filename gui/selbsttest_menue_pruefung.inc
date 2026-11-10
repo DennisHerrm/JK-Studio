@@ -1279,8 +1279,15 @@ std::vector<Schritt> schritteEng() {
         g_app->settings.menueRechtsBreite = 0.0F;
         me::waehle(me::itemNummer("knopf"), false);
         *skala = g_app->uiScale;
-        *groesse = platform::hauptfensterGroesse(1920, 1080);
+        // rc611b: die Innenflaeche 1920 x 1080 (vorher das Fenster samt Rahmen, das Bild war 1898 breit) - der Rahmen aus
+        // Aussen- minus Innenmass des laufenden Fensters
+        const std::pair<int, int> aussen = platform::hauptfensterGroesse(0, 0);
+        const ImVec2 innen = ImGui::GetIO().DisplaySize;
+        const int rahmenB = std::max(0, aussen.first - static_cast<int>(innen.x));
+        const int rahmenH = std::max(0, aussen.second - static_cast<int>(innen.y));
+        *groesse = platform::hauptfensterGroesse(1920 + rahmenB, 1080 + rahmenH);
         g_app->uiScale = 2.0F;
+        setzeMaus(ImVec2{1900.0F, 20.0F});   // rechts in die leere Menueleiste: kein Tooltip im Bild (Lauf nur dieses Teils)
     }));
     add(pause(0.8));
     add(foto("menue_eng_zu"));

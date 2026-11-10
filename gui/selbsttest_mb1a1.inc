@@ -149,6 +149,10 @@ Schritt bildVergleich(const std::string& spiel) {
                           diag::detail("Knopftest: MB1 Bild - nicht ladbar: " + pfad + " (" + fehler + ")");
                           ++z->i;
                       }
+                      // rc611: beide Wege mit Stufe 0 - der Weg bis rc610 zeichnet die gelesene Stufe 0, das Dokument "automatisch wie
+                      // im Spiel" seit MERGE2 mit dem Einzelspieler-Radius 40 (G2_ComputeLOD): grosse Fahrzeuge (x-wing, lambdashuttle,
+                      // YT-1300) bekamen im Bildausschnitt Stufe 1. Verglichen wird der Zeichenweg, nicht die Stufenwahl (modellblock funktionen).
+                      g_app->mtab.lodWahl = 1;
                       return false;
                   }
                   std::vector<unsigned char> alt;
@@ -913,6 +917,7 @@ std::vector<Schritt> schritte() {
         s.push_back(bildVergleich(spiel));
         s.push_back(tu("MB1 Bild: zurueck", [] {
             g_app->leftMode = 1;
+            g_app->mtab.lodWahl = 0;   // wieder automatisch
             g_app->doc.markSaved();
         }));
         return s;

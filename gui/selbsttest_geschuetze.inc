@@ -14,17 +14,18 @@
 //    (G_RadiusDamage) trifft die Figur, misc_trip_mine explodiert, ein func_breakable der Karte
 //    zerbricht (Endrunde rc608: funcBBrushPain/funcBBrushDie, G_FreeEntity).
 // 5. Turbolaser (misc_turretG2 spawnflags 8, Movie Duels: SP_misc_turretG2 mit MP_RULES): Werte aus
-//    SP_misc_turretG2 (wait 500, damage 10, splashDamage 200), turb_muzzle_flash, Muendungen
+//    SP_misc_turretG2 (wait 1000, damage 500, splashDamage 200), Ziel im Spielerteam, turb_muzzle_flash, Muendungen
 //    abwechselnd (alt_fire, TurboLaser_SetBoneAnim 0/1 und 2/3), die Figur stirbt (Endrunde rc608).
 // Fotos nur mit BHED_FOTOS. Mit BHED_GV_PK3 (Testkarte gv_turm in einem pk3) nur die Fotos fuer den
 // Vergleich mit dem Spiel, mit BHED_GESCHUETZ_BILD nur das Bild fuer das Handbuch.
 namespace geschuetze_probe {
 
-// Das Skript einer Figur: steht still, Team Feind (damit jedes Geschuetz sie sieht), Lebenspunkte.
-std::string ziel(const std::string& name, int leben, const std::string& mehr = {}, int wartenMs = 12000) {
+// Das Skript einer Figur: steht still, Team Feind (damit die Geschuetze ohne Team sie sehen), Lebenspunkte.
+std::string ziel(const std::string& name, int leben, const std::string& mehr = {}, int wartenMs = 12000,
+                 const std::string& team = "TEAM_ENEMY") {
     return "affect ( \"" + name + "\", /*@AFFECT_TYPE*/ FLUSH )\r\n{\r\n"
            "\tset ( /*@SET_TYPES*/ \"SET_BEHAVIOR_STATE\", \"BS_CINEMATIC\" );\r\n"
-           "\tset ( /*@SET_TYPES*/ \"SET_PLAYER_TEAM\", \"TEAM_ENEMY\" );\r\n"
+           "\tset ( /*@SET_TYPES*/ \"SET_PLAYER_TEAM\", \"" + team + "\" );\r\n"
            "\tset ( /*@SET_TYPES*/ \"SET_HEALTH\", " + std::to_string(leben) + " );\r\n" + mehr +
            "\twait ( " + std::to_string(wartenMs) + ".000 );\r\n}\r\n\r\n";
 }
@@ -431,18 +432,30 @@ std::vector<Schritt> geschuetzSimSchritte() {
     // --- 5. Turbolaser (Endrunde rc608) ------------------------------------------------------
     auto turbo = std::make_shared<int>(-1);
     add(tu("Geschuetze 5: Mission g5 - misc_turretG2 mit spawnflags 8 (Turbolaser) ueber der Figur", [=] {
-        pruefung3::szeneBauen(*z, "g5turbo", {{"g5_ziel", 0.0F, 0.0F}}, gp::ziel("g5_ziel", 40));
+        // rc611: Movie Duels gibt misc_turretG2 immer MP_RULES (SP_misc_turretG2, g_turret.cpp:1162 MD9), der Turbolaser sucht
+        // seine Feinde also selbst (turret_find_enemies :609). Ohne alliedTeam/teamnodmg steht er auf der Seite des Imperiums:
+        // noDamageTeam TEAM_ENEMY (:1245), eine Figur dieses Teams uebergeht er (:701). Das Ziel ist darum TEAM_PLAYER; mit
+        // TEAM_ENEMY schoss er nur auf eine Figur der Grundkarte, und g5_ziel starb hoechstens an deren Splitterwirkung.
+        // 1200 Lebenspunkte: ein Treffer nimmt 500 (damage :1240), die Figur faellt erst nach mehreren Schuessen.
+        // Die Figur 480 vor dem Ort (rund 580 vom Geschuetz): turret_aim zielt von der Muendung (*muzzle1/2 des doppelt grossen
+        // Modells) aus; eine Figur 130 vor dem Geschuetz lag hinter den Muendungen, es drehte sich hin und her und traf den Boden.
+        pruefung3::szeneBauen(*z, "g5turbo", {{"g5_ziel", -480.0F, 0.0F}}, gp::ziel("g5_ziel", 1200, {}, 12000, "TEAM_PLAYER"));
         const float o[3] = {z->ort[0] + 96.0F, z->ort[1] + 64.0F, z->ort[2] + 60.0F};
         *turbo = gp::neue("misc_turretG2", o, {{"spawnflags", "8"}, {"angle", "180"}});
         g_app->camTrackValid = false;
         g_app->mapDirty = true;
     }));
     warteSzene("g5", "g5_ziel");
-    add(pruefe("Geschuetze 5: Turbolaser - turb_muzzle_flash alle 500 ms, Muendungen abwechselnd (Knochen 0/1, 2/3), die Figur stirbt", [=] {
+    add(pruefe("Geschuetze 5: Turbolaser schiesst auf die Figur des Spielerteams, turb_muzzle_flash alle 1000 ms, Muendungen abwechselnd (Knochen 0/1, 2/3), sie stirbt", [=] {
         prepareScene();
         const GeschuetzLauf* l = gp::lauf(*turbo);
         const int fi = pruefung3::figur("g5_ziel");
-        if (l == nullptr || fi < 0 || l->schuesse.size() < 2U) { return false; }
+        if (l == nullptr || fi < 0 || l->schuesse.size() < 2U) {
+            diag::detail("Knopftest: Geschuetze 5 - Lauf " + std::string(l != nullptr ? "da" : "fehlt") + ", g5_ziel " + std::to_string(fi) +
+                         ", Schuesse " + std::to_string(l != nullptr ? l->schuesse.size() : 0U) +
+                         (fi >= 0 ? ", Tod " + std::to_string(g_app->scene.actors[static_cast<std::size_t>(fi)].getoetetMs) : std::string()));
+            return false;
+        }
         bool effekt = true;
         double kleinsterAbstand = 1.0e30;
         for (std::size_t k = 0; k < l->schuesse.size(); ++k) {
@@ -461,7 +474,21 @@ std::vector<Schritt> geschuetzSimSchritte() {
         const double tod = g_app->scene.actors[static_cast<std::size_t>(fi)].getoetetMs;
         diag::detail("Knopftest: Geschuetze 5 - Schuesse " + std::to_string(l->schuesse.size()) + ", kleinster Abstand " + std::to_string(kleinsterAbstand) +
                      ", Effekt " + l->schuesse.front().effekt + ", Knochen " + anims + ", Tod " + std::to_string(tod));
-        return l->turbo && effekt && kleinsterAbstand >= 500.0 - 1e-6 && wechselt && vorher >= 0 && tod > 0.0;
+        // Wohin die Geschosse gingen (Entity, Fleisch), die ersten vier
+        const std::size_t li = static_cast<std::size_t>(l - g_app->geschuetzSim.laeufe().data());
+        std::string wohin;
+        int n = 0;
+        for (const Geschoss& g : g_app->geschuetzSim.geschosse()) {
+            if (g.geschuetz != li || n >= 4) { continue; }
+            ++n;
+            wohin += std::to_string(g.getroffen) + (g.fleisch ? "F" : "") + "@" + std::to_string(static_cast<int>(g.endeMs)) + " " +
+                     mission1::v3(g.ende) + " ";
+        }
+        diag::detail("Knopftest: Geschuetze 5 - Geschosse " + wohin + "(g5_ziel Figur " + std::to_string(fi) + ", Entity " +
+                     std::to_string(g_app->scene.actors[static_cast<std::size_t>(fi)].kartenEntity) + " bei " + mission1::v3(z->ort) +
+                     ", Geschuetz bei " + mission1::v3(l->ursprung) + ")");
+        // wait 1000 (Turbo ohne "wait" der Karte, :1236); die Figur faellt nach dem zweiten Schuss (500 je Treffer)
+        return l->turbo && effekt && kleinsterAbstand >= 1000.0 - 1e-6 && wechselt && vorher >= 0 && tod > l->schuesse[1].ms;
     }));
     return s;
 }

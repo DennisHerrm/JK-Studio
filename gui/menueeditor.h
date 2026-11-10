@@ -84,6 +84,8 @@ struct Stand {
     std::vector<std::string> diagnosen;   // "Zeile: Meldung"
 };
 [[nodiscard]] Stand stand();
+// rc611 (Selbsttest, Bildlauf): die Meldungszeile ueber der Vorschau, zum Kuerzen der Laufordner-Pfade vor einem Handbuchbild
+[[nodiscard]] std::string& meldungZeile();
 // Befehle wie die Knoepfe (Selbsttest)
 void waehle(int item, bool dazu);
 [[nodiscard]] int itemNummer(const std::string& name);   // M4: Item der Seite nach Namen, -1 = keins

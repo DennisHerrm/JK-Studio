@@ -1670,6 +1670,10 @@ void refreshPk3List() {
 bool readFromArchives(const std::string& name, std::string& out,
                       std::string* fromArchive, bool* istLose) {
     ++g_app->archivLesen;   // rc610 R2a: Zaehler fuer den Selbsttest
+    if (g_app->archivLeseNamen.load() != nullptr) {   // rc611: welche (Selbsttest B3-3)
+        const std::lock_guard<std::mutex> sperre(g_app->archivLeseSperre);
+        if (std::vector<std::string>* namen = g_app->archivLeseNamen.load(); namen != nullptr) { namen->push_back(name); }
+    }
     // RUECKWAERTS durch die Spielordner - der SPAETERE gewinnt.
     //
     // Das war ein handfester Fehler, und er hat still das halbe Programm

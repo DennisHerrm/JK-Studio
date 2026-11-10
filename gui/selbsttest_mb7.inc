@@ -453,10 +453,15 @@ std::vector<Schritt> uiSchritte(std::shared_ptr<Zustand> z) {
                 h = o[i][2];
             }
         }
+        // rc611: Seit REST3b ruht eine stehende Figur SURFACE_CLIP_EPSILON (0,125) ueber dem Boden wie im Spiel - ihre Sohle (Ursprung
+        // - 24) liegt dort, nicht auf der Flaeche. "Fuss auf den Boden" stellt den Fuss so hoch wie ein stehender Fuss: ueber der Sohle
+        // der ruhenden Figur so hoch wie im ersten Bild, ueber der Flaeche also 0,125 mehr. Vorher fielen Sohle und Flaeche zusammen.
         const ActorState st = g_app->scene.actors[static_cast<std::size_t>(figur("mb7_a"))].at(500.0);
-        diag::detail("Knopftest: MB7 Fuss - Bild 0 " + std::to_string(h0 - (st.pos[2] - 24.0F)) + " ueber der Sohle, Bild 30 " + std::to_string(h - z->boden) +
-                     " ueber dem Boden, Meldung " + g_app->figAnim.meldung);
-        return std::fabs((h - z->boden) - (h0 - (st.pos[2] - 24.0F))) < 0.05F;
+        const float sohle = st.pos[2] - 24.0F;
+        diag::detail("Knopftest: MB7 Fuss - Bild 0 " + std::to_string(h0 - sohle) + " ueber der Sohle, Bild 30 " + std::to_string(h - sohle) +
+                     " ueber der Sohle, " + std::to_string(h - z->boden) + " ueber dem Boden (Sohle " + std::to_string(sohle - z->boden) +
+                     " ueber dem Boden), Meldung " + g_app->figAnim.meldung);
+        return std::fabs((h - sohle) - (h0 - sohle)) < 0.05F && std::fabs((sohle - z->boden) - 0.125F) < 0.01F;
     }));
     add(tu("MB7: rechte Hand waehlen, Ziel auf Flaeche", [] {
         g_app->figAnim.griffWahl = figurAnimGriffSuchen("rhand");

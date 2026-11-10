@@ -2339,7 +2339,8 @@ ModelTextures texturesFor(const GlmModel& model) {
     //
     // Erst wenn die direkte Suche nichts ergibt, wird nachgesehen: bei den
     // meisten Modellen ist der Umweg unnoetig.
-    // Die Tabelle lebt im Programmzustand, nicht hier.
+    // Die Tabelle lebt im Programmzustand, nicht hier. Gelesen wird sie vorab
+    // (die Leuchtstufen unten brauchen sie fuer jede Flaeche ohnehin).
     //
     // Vorher stand sie als oertliche Veraenderliche genau an dieser Stelle -
     // also wurde sie JE MODELL neu aufgebaut. Bei 40 Archiven, 9014
@@ -2347,6 +2348,26 @@ ModelTextures texturesFor(const GlmModel& model) {
     // Shadereintraege gelesen", und das Programm schien zu haengen.
     ShaderMap& shaderMap = g_app->shaderMap;
     auto readShaders = [] { shaderTabelleLesen(); };
+    readShaders();
+    // rc611b (R2a B3-3): R_FindShader sucht das Skript vor der Bilddatei (FindShaderInShaderText vor R_FindImageFile,
+    // code/rd-vanilla/tr_shader.cpp OpenJK, MD gleich). Nennt das Skript ein ANDERES Bild als die Haut, sucht das Spiel die
+    // Datei der Haut nie: models/players/stormtrooper/caps.tga steht in jeder Haut des Sturmtrupplers, das Skript gleichen
+    // Namens (shaders/common.shader) nimmt textures/common/caps - vorher fragte jede Ladung caps.tga/.jpg/.png in allen
+    // Archiven nach. Nennt eine Stufe des Skripts die Datei der Haut, bleibt es beim direkten Weg (das Bild ist dasselbe).
+    // Movie Duels hat 12 solche Hautnamen MIT eigener Datei (u. a. darthvader/armor -> body2, droideka/shield ->
+    // energyshield): dort zeigte die Vorschau bisher die Datei, das Spiel das Skript.
+    const auto skriptMitAnderemBild = [&shaderMap](const std::string& name) -> bool {
+        const std::string k = image::mappingName(name);
+        const auto it = shaderMap.find(k);
+        if (it == shaderMap.end() || it->second.image.empty()) { return false; }
+        for (const ShaderInfo::Stage& st : it->second.stages) {
+            if (!st.image.empty() && image::mappingName(st.image) == k) { return false; }
+            for (const std::string& b : st.animImages) {
+                if (image::mappingName(b) == k) { return false; }
+            }
+        }
+        return image::mappingName(it->second.image) != k;
+    };
     out.bySurface.resize(model.surfaces.size());
     // rc608 Teil 12: alle Bilder dieses Modells vorab nebenlaeufig (bildVorratFuellen) - die Hautbilder samt dem
     // Rueckfall ueber das Shaderskript und die Bilder seiner Stufen. Die Schleifen unten nehmen sie mit bildLesen ab;
@@ -2367,7 +2388,8 @@ ModelTextures texturesFor(const GlmModel& model) {
             if (klein == "[nomaterial]") {
                 continue;
             }
-            std::vector<std::string> tries = textureCandidates(name);
+            const bool skriptZuerst = skriptMitAnderemBild(name);
+            std::vector<std::string> tries = skriptZuerst ? std::vector<std::string>{} : textureCandidates(name);
             const std::size_t dot = klein.find_last_of('.');
             const std::size_t slash = klein.find_last_of('/');
             const std::string ohneEndung = (dot != std::string::npos && (slash == std::string::npos || dot > slash)) ? klein.substr(0, dot) : klein;
@@ -2380,6 +2402,9 @@ ModelTextures texturesFor(const GlmModel& model) {
                     for (const std::string& c : textureCandidates(it->second.image)) { tries.push_back(c); }
                 }
                 if (const auto it = shaderMap.find(ohneEndung); it != shaderMap.end()) { info = &it->second; }
+            }
+            if (skriptZuerst) {   // die Datei der Haut nur, wenn das Bild des Skripts fehlt (wie unten)
+                for (const std::string& c : textureCandidates(name)) { tries.push_back(c); }
             }
             auftraege.push_back(std::move(tries));
             if (info == nullptr) {
@@ -2494,25 +2519,29 @@ ModelTextures texturesFor(const GlmModel& model) {
             const auto s2 = shaderMap.find(k);
             return s2 != shaderMap.end() && s2->second.bildKeinTc;
         };
-        if (imCache != g_app->texCache.end()) {
-            out.bySurface[i] = imCache->second;
-            out.bySurface[i].keinTc = skriptKeinTc(name);
-            ++out.found;
-            continue;
-        }
-
-        for (const std::string& kandidat : tries) {
-            TextureSet::Tex t;
-            if (!bildLesen(kandidat, t)) {   // rc608 Teil 12: lesen, entziffern, verkleinern
-                continue;
+        const auto direkt = [&]() -> bool {
+            if (imCache != g_app->texCache.end()) {
+                out.bySurface[i] = imCache->second;
+                out.bySurface[i].keinTc = skriptKeinTc(name);
+                ++out.found;
+                return true;
             }
-            g_app->texCache[schluessel] = t;
-            out.bySurface[i] = std::move(t);
-            out.bySurface[i].keinTc = skriptKeinTc(name);
-            ++out.found;
-            got = true;
-            break;
-        }
+            for (const std::string& kandidat : tries) {
+                TextureSet::Tex t;
+                if (!bildLesen(kandidat, t)) {   // rc608 Teil 12: lesen, entziffern, verkleinern
+                    continue;
+                }
+                g_app->texCache[schluessel] = t;
+                out.bySurface[i] = std::move(t);
+                out.bySurface[i].keinTc = skriptKeinTc(name);
+                ++out.found;
+                return true;
+            }
+            return false;
+        };
+        // rc611b: das Skript zuerst, wenn es ein anderes Bild nennt (skriptMitAnderemBild, oben)
+        const bool skriptZuerst = skriptMitAnderemBild(name);
+        got = !skriptZuerst && direkt();
         // Nichts gefunden? Dann ueber das Shaderskript.
         bool skriptDa = false;
         if (!got) {
@@ -2577,6 +2606,9 @@ ModelTextures texturesFor(const GlmModel& model) {
                     break;
                 }
             }
+        }
+        if (!got && skriptZuerst) {
+            got = direkt();   // das Bild des Skripts fehlt: die Datei der Haut wie bisher
         }
         if (!got && !skriptDa && !s.texture.empty()) {
             // REST4 Punkt 3: ein Shader aus der Haut ohne Skript und ohne Bild (auch "*off" unter Jedi Outcast) - R_FindShader

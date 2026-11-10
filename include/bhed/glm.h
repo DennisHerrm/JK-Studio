@@ -67,6 +67,11 @@ struct GlmSurface {
     // werden ALLE Varianten gleichzeitig gezeichnet - bei einem Modell mit
     // zwei Koepfen sieht man beide ineinander.
     bool skinnedOff = false;
+    // rc611: der Shader, den RenderSurfaces fuer diese Flaeche in der Haut findet (die erste passende Zeile), ist "*off" -
+    // R_FindShader findet kein Bild und gibt einen Shader ohne Stufe zurueck (tr_shader.cpp:3502-3509, MD9 :3457-3466),
+    // RB_StageIteratorGeneric zeichnet nichts (tr_ghoul2.cpp:2276-2288). Auch wenn die Ghoul2-Regeln die Flaeche anlassen
+    // (Movie Duels imperial: zwei Flaechen "hips", G2_IsSurfaceLegal findet nur die erste).
+    bool hautOhneStufe = false;
 
     // Die Flaggen aus dem Modell selbst. Aus mdx_format.h der Engine:
     //     G2SURFACEFLAG_ISBOLT 0x1   Verbindungspunkt, keine Geometrie
@@ -103,7 +108,7 @@ struct GlmSurface {
             return false;
         }
         if (g2An >= 0) {
-            return (showCaps ? g2Kappen : g2An) > 0;
+            return (showCaps ? g2Kappen : g2An) > 0 && !hautOhneStufe;
         }
         if (skinnedOff) {
             return false;   // die .skin hat sie abgeschaltet

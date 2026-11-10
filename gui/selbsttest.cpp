@@ -3347,11 +3347,39 @@ Schritt klickRand(const std::string& name, int nte) {
             }};
 }
 
+// rc611: Im Bildlauf (Handbuchbilder) nennen Meldungen wie "Gespeichert <pfad>" den Laufordner des Selbsttests
+// (Y:\...\laeufe\<lauf>\einst\...). Vor dem Bild bleibt von einem solchen Pfad nur der Dateiname.
+std::string ohneLaufordner(std::string s) {
+    static const std::string vorsatz = [] {
+        std::error_code ec;
+        const std::u8string p = std::filesystem::current_path(ec).u8string();
+        return ec ? std::string() : std::string(p.begin(), p.end());
+    }();
+    if (vorsatz.size() < 4) { return s; }
+    std::string vorsatz2 = vorsatz;
+    std::replace(vorsatz2.begin(), vorsatz2.end(), '\\', '/');
+    const std::string* const vorsaetze[] = {&vorsatz, &vorsatz2};
+    for (const std::string* v : vorsaetze) {
+        for (std::size_t pos = s.find(*v); pos != std::string::npos; pos = s.find(*v, pos)) {
+            std::size_t ende = s.find_first_of(" \t\n\")", pos);
+            if (ende == std::string::npos) { ende = s.size(); }
+            const std::size_t strich = s.find_last_of("\\/", ende - 1);
+            s.erase(pos, (strich != std::string::npos && strich >= pos ? strich + 1 : pos + v->size()) - pos);
+        }
+    }
+    return s;
+}
+
 // Ein Foto des fertigen Bildes, wenn BHED_FOTOS gesetzt ist (Ordner).
 Schritt foto(const std::string& name) {
     return {"Foto " + name, [=](int b) {
                 const char* ordner = std::getenv("BHED_FOTOS");
                 if (ordner == nullptr) { return true; }
+                if (g_bildlauf) {   // rc611: vor dem Bild, auch in den Bildern davor (die Zeile steht schon im Bild)
+                    for (std::string& z : g_app->statusLines) { z = ohneLaufordner(z); }
+                    std::string& m = menueeditor::meldungZeile();
+                    m = ohneLaufordner(m);
+                }
                 if (b == 2) {
                     render::fotoAnfordern(std::string(ordner) + "\\" + name + ".bmp");
                     if (g_bildlauf && !g_bildlaufLetzter.empty()) {
