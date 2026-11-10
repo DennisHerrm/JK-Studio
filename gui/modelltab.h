@@ -33,6 +33,7 @@
 #include "bhed/modell/physik.h"
 #include "bhed/modell/retarget.h"
 #include "bhed/modell/rig.h"
+#include "bhed/modell/posiert.h"
 #include "bhed/modell/wof/poly.h"
 #include "bhed/modell/wof/uv.h"
 #include "bhed/modell/malen.h"
@@ -330,6 +331,9 @@ struct ModellMesh {
     modell::wof::PAuswahl basisAuswahl;
     modell::wof::PolyNetz planNetz;   // nach dem Plan, Betrag 0
     modell::wof::Plan plan;
+    // mbvers: geplant in der Pose der Ansicht (planNetz gezeigt) - die Orte der Bindepose und die Pose zum Zurueckrechnen
+    modell::wof::NetzPose planPose;
+    std::vector<BoneMatrix> planKnochen;
     bool neuPlanen = true;
     float betrag = 0.0F;
     int art = 0;                      // Extrude/Inset/Bevel: Art; Detach: 0 Element 1 neuer Teil; Merge: Art
@@ -524,6 +528,9 @@ struct ModellTab {
     float ziehStart[2]{};
     std::vector<modell::Inhalt> ziehVorher;
     float ziehWeg[3]{};
+    // mbvers: die Pose (Knochenmatrizen der Ansicht), in der die letzte Umformung gerechnet wurde - leer ohne Skelett und in
+    // der exakten Bindepose (modellBearbeitungsPose)
+    std::vector<BoneMatrix> umformKnochen;
     // Rahmen ziehen (Auswahl)
     bool rahmen = false;
     float rahmenStart[2]{};
@@ -750,6 +757,9 @@ bool modellRequisitBearbeiten(const std::string& vfsPfad);   // Rueckweg: ein .m
 // fuer die Ansicht (gui/app_modelltab_ansicht.cpp)
 bool modellDreieckUnter(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck);
 const std::vector<std::vector<std::array<float, 3>>>& modellHaut();
+// mbvers: die Pose, in der dieses Bild bearbeitet wird: die Knochenmatrizen der Ansicht; leer ohne Skelett und wenn die Pose exakt die
+// Bindepose ist (modell::bindepose) - dann ist das Gezeigte die Bindepose, und alles rechnet wie ohne Skelett
+const std::vector<BoneMatrix>& modellBearbeitungsPose();
 bool modellTeilGezeichnet(int teil);
 
 // Fuer den Selbsttest und die Leiste (gui/app_modelltab.cpp)

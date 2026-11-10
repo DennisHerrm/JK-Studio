@@ -299,6 +299,16 @@ void ausMd3(const Md3Model& m, Inhalt& out, int bild) {
     }
 }
 
+GlmVertex anzeigeVertex(const Netz& n, std::size_t ei) {
+    const Ecke& e = n.ecken[ei];
+    // 1a-2: waehrend des Malens zeichnet die Figur, was das Spiel aus der Malliste machte.
+    if (ei < n.mal.size()) {
+        Ecke spiel = e;
+        if (aufEcke(n.mal[ei], spiel)) { return vertexAus(spiel); }
+    }
+    return vertexAus(e);
+}
+
 GlmModel zuGlm(const Inhalt& in, int stufe) {
     GlmModel m;
     m.name = in.name;
@@ -322,12 +332,7 @@ GlmModel zuGlm(const Inhalt& in, int stufe) {
         g.verts.reserve(n.ecken.size());
         for (std::size_t ei = 0; ei < n.ecken.size(); ++ei) {
             const Ecke& e = n.ecken[ei];
-            g.verts.push_back(vertexAus(e));
-            // 1a-2: waehrend des Malens zeichnet die Figur, was das Spiel aus der Malliste machte.
-            if (ei < n.mal.size()) {
-                Ecke spiel = e;
-                if (aufEcke(n.mal[ei], spiel)) { g.verts.back() = vertexAus(spiel); }
-            }
+            g.verts.push_back(anzeigeVertex(n, ei));
             // Grenzen wie readGlm: ueber alle Ecken aller Flaechen der Stufe.
             for (int k = 0; k < 3; ++k) {
                 if (erste) {

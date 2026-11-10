@@ -21,6 +21,7 @@
 #ifndef BHED_MODELL_DOKUMENT_H
 #define BHED_MODELL_DOKUMENT_H
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -185,6 +186,8 @@ void ausMd3(const Md3Model& m, Inhalt& out, int bild = 0);
 // Eine Stufe zum Zeichnen - fuer eine .glm gleich dem, was readGlm fuer
 // dieselbe Stufe liefert (Stufe 0 samt groebster Stufe in grobVerts).
 [[nodiscard]] GlmModel zuGlm(const Inhalt& in, int stufe);
+// mbvers: die Ecke `ei` eines Netzes, wie zuGlm sie zeichnet (waehrend des Malens mit den Gewichten der Malliste).
+[[nodiscard]] GlmVertex anzeigeVertex(const Netz& n, std::size_t ei);
 
 // Das Dokument: ein Inhalt mit Rueckgaengig und Wiederholen.
 //

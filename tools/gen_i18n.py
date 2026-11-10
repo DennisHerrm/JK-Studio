@@ -2328,6 +2328,8 @@ from i18n_mbraster import zeilen_vier as _mbraster  # noqa: E402  (MBRASTER: Bod
 S += _mbraster()
 from i18n_mbnav import zeilen_vier as _mbnav  # noqa: E402  (MBNAV: Navigation im Model-Tab wie 3ds Max / Blender)
 S += _mbnav()
+from i18n_mbvers import zeilen_vier as _mbvers  # noqa: E402  (mbvers: Bearbeiten in einer Pose)
+S += _mbvers()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

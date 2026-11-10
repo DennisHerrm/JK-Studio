@@ -26,6 +26,7 @@
 #include "bhed/gpuskin.h"
 #include "bhed/modell/dokument.h"
 #include "bhed/modell/g2.h"
+#include "bhed/modell/posiert.h"
 #include "bhed/modell/rig.h"
 
 #include <algorithm>
@@ -143,6 +144,7 @@ bool aufSchirm(const ModellAnsicht& a, const float p[3], ImVec2& out, float* tie
 // --- Pose und Haut auf der CPU ----------------------------------------------------------------
 
 std::vector<BoneMatrix> g_knochen;           // skinM je Knochen (baueKnochenmatrizen)
+bool g_bindepose = true;                     // mbvers: die Pose ist exakt die Bindepose (modell::bindepose) oder es gibt kein Skelett
 int g_poseStand = 0;                         // zaehlt jede neue Pose
 int g_posiertBeiStand = -1;                  // Stufe 3: dok.stand() beim letzten posieren()
 std::vector<std::vector<std::array<float, 3>>> g_haut;   // verformte Ecken der Anzeige je Flaeche
@@ -163,6 +165,7 @@ void posieren() {
     const GlaAnimation& a = g_app->anim;
     g_app->modellWelt.clear();
     g_knochen.clear();
+    g_bindepose = true;
     ++g_poseStand;
     if (a.bones.empty() || a.numFrames <= 0) { return; }
     const int bilder = a.bildZahl();
@@ -192,21 +195,17 @@ void posieren() {
     a.worldMatricesLerp(fA, fB, anteil, ueber, rigM, g_app->modellWelt);
     (void)modellRtPose(g_app->modellWelt);   // Stufe 5: die Vorschau des Retargetings (gepackt wie im Spiel)
     gpu::baueKnochenmatrizen(g_app->modellWelt, a.bones, g_knochen);
+    g_bindepose = modell::bindepose(a.bones, g_app->modellWelt);
 }
 
-void verforme(const GlmVertex& v, float out[3]) {
-    if (g_knochen.empty()) {
-        std::memcpy(out, v.xyz, sizeof(float) * 3U);
-        return;
-    }
-    out[0] = out[1] = out[2] = 0.0F;
-    for (int k = 0; k < 4; ++k) {
-        if (v.weights[k] <= 0.0F || v.bones[k] >= g_knochen.size()) { continue; }
-        float p[3];
-        g_knochen[v.bones[k]].transform(v.xyz, p);
-        for (int i = 0; i < 3; ++i) { out[i] += p[i] * v.weights[k]; }
-    }
+// mbvers: die Pose, in der bearbeitet wird (Knochenmatrizen wie gezeigt) - leer ohne Skelett und in der exakten Bindepose:
+// dort ist das Gezeigte die Bindepose selbst, und das Bearbeiten rechnet wie bisher (bitgleich)
+const std::vector<BoneMatrix>& bearbeitungsPose() {
+    static const std::vector<BoneMatrix> keine;
+    return g_bindepose ? keine : g_knochen;
 }
+
+void verforme(const GlmVertex& v, float out[3]) { modell::gezeigterOrt(g_knochen, v, out); }
 
 const std::vector<std::vector<std::array<float, 3>>>& haut() {
     const ModellTab& t = mt();
@@ -1132,6 +1131,7 @@ void drehMatrix(const float achse[3], float grad, float r[3][3]) {
 // (wert = Faktoren je Achse). Normalen drehen mit.
 void umformen(modell::Inhalt& x, const modell::Inhalt& vorher, int art, const float m[3], const float wert[3]) {
     float rot[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+    mt().umformKnochen = bearbeitungsPose();
     if (art == 2) {
         for (int k = 0; k < 3; ++k) {
             if (wert[k] == 0.0F) { continue; }
@@ -1874,6 +1874,7 @@ float modalZahl(bool& da) {
 }
 
 void fuerAuswahlDrehen(const modell::Inhalt& vorher, const float rot[3][3], const float m[3]) {
+    mt().umformKnochen = bearbeitungsPose();
     mt().dok.vorschau([&](modell::Inhalt& x) {
         fuerAuswahl(x, vorher, [&](modell::Ecke& e) {
             const float d[3] = {e.ort[0] - m[0], e.ort[1] - m[1], e.ort[2] - m[2]};
@@ -2322,6 +2323,8 @@ bool modellGrenzen(bool nurAuswahl, float mn[3], float mx[3]) { return grenzen(n
 // Modell-Block 1d: fuer das Modellieren (gui/wof/app_modelltab_mesh.cpp)
 bool modellDreieckUnter(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck) { return dreieckUnter(a, maus, teil, dreieck); }
 const std::vector<std::vector<std::array<float, 3>>>& modellHaut() { return haut(); }
+
+const std::vector<BoneMatrix>& modellBearbeitungsPose() { return bearbeitungsPose(); }
 bool modellTeilGezeichnet(int teil) { return teil >= 0 && gezeichnet(static_cast<std::size_t>(teil)); }
 
 void modellAnsichtEinpassenAktiv() {

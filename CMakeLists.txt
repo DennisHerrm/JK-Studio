@@ -135,6 +135,8 @@ add_library(bhed_core STATIC
   src/modell/retarget.cpp
   src/modell/animimport.cpp
   src/modell/md3datei.cpp
+  # mbvers: Bearbeiten in der Pose - gezogene Wege je Ecke ueber die Umkehrung ihrer Knochenmischung in die Bindepose
+  src/modell/posiert.cpp
   # Modell-Block 1b: UV erstellen - abgeleitet aus WhiteoutLib/WhiteoutFlakes (BSD-3 mit LICENSE-AI.md), eigener Ordner
   # wof/ mit Lizenzkopf je Datei (licenses/WhiteoutFlakes-BSD-3.txt). Siehe bhed/modell/wof/uv.h.
   src/modell/wof/uv_inseln.cpp
@@ -1097,6 +1099,10 @@ if(BEHAVED_TESTS)
   target_link_libraries(modelluvtest PRIVATE bhed_core)
   add_test(NAME modell_uv COMMAND modelluvtest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
   # Modell-Block 1d: Modellieren (Werkzeuge, Grundkoerper, Grenzen, Rundlauf)
+  # mbvers: Bearbeiten in der Pose (Umkehrung der Knochenmischung, Arbeitsnetz in die Pose und zurueck)
+  add_executable(modellposierttest tests/modell_posiert.cpp)
+  target_link_libraries(modellposierttest PRIVATE bhed_core)
+  add_test(NAME modell_posiert COMMAND modellposierttest)
   add_executable(modellmeshtest tests/modell_mesh.cpp)
   target_link_libraries(modellmeshtest PRIVATE bhed_core)
   add_test(NAME modell_mesh COMMAND modellmeshtest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
