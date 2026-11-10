@@ -38,8 +38,13 @@
 #include <algorithm>
 #include <atomic>
 #include <bit>
+#include <climits>
 #include <condition_variable>
+#include <filesystem>
+#include <memory>
 #include <mutex>
+#include <string>
+#include <thread>
 #include <vector>
 
 
@@ -174,62 +179,175 @@ static void BhedHeadDone( pstack_t& head ){
    order - waiting for one that is still running - and portalflood for all after it, finished
    or not: the result of one thread. While a thread waits it gives its turn to another
    (BhedTurnTake/BhedTurnGive: at most numthreads compute at a time, more threads are started).
-   Slower than NRC's way where flows wait for long ones (duel_mos_espa), hence a switch. */
+   BehavEd vis2: the wait ends as soon as the running flow has found every bit that is asked for
+   (BhedResolve, BhedWaitFound) - on t3_byss three of five waits were for portals whose result for
+   the question was portalflood anyway. What remains are the flows that really need the end of an
+   earlier one; chains of them keep the deterministic VIS behind NRC's rule on open maps
+   (docs/intern/NOTIZEN_vis2_1011.md), hence a switch. */
 namespace
 {
 std::vector<int> g_bhedRank;            /* position of each portal in sorted_portals */
 bool g_bhedRankOrder = false;
 
-/* waiting for a portal: its stripe of 64 (only the threads waiting on these portals wake up) */
-struct alignas( 64 ) BhedDoneStripe
+/* waiting for a portal: the flows waiting for it sleep on its epoch (std::atomic wait). A waiting flow
+   misses m bits, so the portal's flow has to find at least m more: it counts the bits it finds (marks)
+   and wakes the sleepers when the count reaches the smallest such number (wakeAt), and when it is done.
+   (t3_byss: waking on every new bit woke a waiting flow 250 times on average.) */
+struct BhedWaitSlot
 {
-	std::mutex mutex;
-	std::condition_variable cv;
-	std::atomic<int> waiters{ 0 };
+	std::atomic<uint32_t> epoch{ 0 };
+	std::atomic<int> marks{ 0 };
+	std::atomic<int> wakeAt{ INT_MAX };
 };
-BhedDoneStripe g_bhedDone[64];
+std::unique_ptr<BhedWaitSlot[]> g_bhedWait;
 
-/* the turns: at most numthreads flows compute at a time; a free turn goes to the waiting flow that
-   comes first in the sorted order (the later ones may wait for it) */
+/* the turns: at most numthreads flows compute at a time. A flow that waits for a portal keeps its
+   thread and gives its turn away: to a flow whose wait is over (the one that comes first in the
+   sorted order - the later ones may wait for it), else to a new flow on a parked or a new thread.
+   A thread that has no turn holds no flow: in vis1 every thread took a flow from NRC's thread loop
+   first and then waited for a turn, so most of the threads held flows that could not start anyway
+   (t3_byss, 128 threads under the same load: 50 s, now 33 s; NRC's rule 27 to 29 s). */
 struct BhedTurnWaiter
 {
 	int rank;
 	bool granted;
 	std::condition_variable cv;
 };
-std::mutex g_bhedTurnMutex;
-std::vector<BhedTurnWaiter*> g_bhedTurnWaiters;     /* heap, smallest rank on top */
-int g_bhedTurnsFree = 0;
-thread_local int t_bhedRank = 0;                     /* the flow this thread computes */
+struct BhedFlowPool
+{
+	std::mutex mutex;
+	std::vector<BhedTurnWaiter*> waiters;   /* flows whose wait is over: heap, smallest rank on top */
+	int turnsFree = 0;
+	int next = 0, count = 0;                /* the next flow to start */
+	int parked = 0, parkedTurns = 0;        /* workers without a flow, turns handed to them */
+	int alive = 0, maxAlive = 0;            /* worker threads */
+	std::condition_variable parkCv, doneCv;
+	std::vector<std::thread> threads;
+	void ( *work )( int ) = nullptr;
+};
+BhedFlowPool g_bhedPool;
+thread_local int t_bhedRank = 0;        /* the flow this thread computes */
 
 bool BhedTurnLater( const BhedTurnWaiter *a, const BhedTurnWaiter *b ){
 	return a->rank > b->rank;
 }
+
+/* a worker thread that went deeper than this ends after its flow and a new one takes over: its stack
+   and its frame buffers stay as large as the deepest flow needed them */
+constexpr size_t c_bhedDeepFlow = 48;
+
+void BhedPoolWorker();
+
+/* the mutex is held: the turn to the waiting flow that comes first */
+bool BhedTurnToWaiter(){
+	BhedFlowPool& pool = g_bhedPool;
+	if ( pool.waiters.empty() ) {
+		return false;
+	}
+	std::pop_heap( pool.waiters.begin(), pool.waiters.end(), BhedTurnLater );
+	BhedTurnWaiter *next = pool.waiters.back();
+	pool.waiters.pop_back();
+	next->granted = true;
+	next->cv.notify_one();
+	return true;
+}
+
+/* the mutex is held, a turn is free */
+void BhedTurnFree(){
+	BhedFlowPool& pool = g_bhedPool;
+	if ( BhedTurnToWaiter() ) {
+		return;
+	}
+	if ( pool.next < pool.count ) {
+		if ( pool.parked > pool.parkedTurns ) {
+			++pool.parkedTurns;
+			pool.parkCv.notify_one();
+			return;
+		}
+		if ( pool.alive < pool.maxAlive ) {
+			++pool.alive;
+			pool.threads.emplace_back( BhedPoolWorker );
+			return;
+		}
+	}
+	++pool.turnsFree;
+}
+
+/* a worker: starts with a turn */
+void BhedPoolWorker(){
+	BhedFlowPool& pool = g_bhedPool;
+	std::unique_lock<std::mutex> lock( pool.mutex );
+	while ( true )
+	{
+		if ( BhedTurnToWaiter() ) {
+			/* flows whose wait is over come first: park until there is a turn for a new flow */
+			++pool.parked;
+			pool.parkCv.wait( lock, [&pool]{ return pool.parkedTurns > 0 || pool.next >= pool.count; } );
+			--pool.parked;
+			if ( pool.parkedTurns == 0 ) {
+				break;
+			}
+			--pool.parkedTurns;
+			continue;
+		}
+		if ( pool.next >= pool.count ) {
+			++pool.turnsFree;
+			break;
+		}
+		const int flow = pool.next++;
+		if ( pool.next >= pool.count ) {
+			pool.parkCv.notify_all();   /* the last flow is taken: the parked workers end */
+		}
+		lock.unlock();
+		t_bhedRank = flow;
+		pool.work( flow );
+		lock.lock();
+		if ( t_visFrames.bits.size() > c_bhedDeepFlow && pool.next < pool.count ) {
+			pool.threads.emplace_back( BhedPoolWorker );    /* takes over the turn */
+			return;
+		}
+	}
+	if ( --pool.alive == 0 ) {
+		pool.doneCv.notify_all();
+	}
+}
+
+void BhedPoolRun( int count, int maxThreads, void ( *work )( int ) ){
+	BhedFlowPool& pool = g_bhedPool;
+	{
+		std::unique_lock<std::mutex> lock( pool.mutex );
+		pool.next = 0;
+		pool.count = count;
+		pool.turnsFree = pool.parked = pool.parkedTurns = 0;
+		pool.work = work;
+		pool.maxAlive = maxThreads;
+		pool.alive = numthreads;
+		for ( int i = 0; i < numthreads; ++i )
+			pool.threads.emplace_back( BhedPoolWorker );
+		pool.doneCv.wait( lock, [&pool]{ return pool.alive == 0; } );
+	}
+	for ( std::thread& t : pool.threads )
+		t.join();
+	pool.threads.clear();
+}
 }
 
 static void BhedTurnTake(){
-	std::unique_lock<std::mutex> lock( g_bhedTurnMutex );
-	if ( g_bhedTurnsFree > 0 ) {
-		--g_bhedTurnsFree;
+	BhedFlowPool& pool = g_bhedPool;
+	std::unique_lock<std::mutex> lock( pool.mutex );
+	if ( pool.turnsFree > 0 ) {
+		--pool.turnsFree;
 		return;
 	}
 	BhedTurnWaiter me{ t_bhedRank, false, {} };
-	g_bhedTurnWaiters.push_back( &me );
-	std::push_heap( g_bhedTurnWaiters.begin(), g_bhedTurnWaiters.end(), BhedTurnLater );
+	pool.waiters.push_back( &me );
+	std::push_heap( pool.waiters.begin(), pool.waiters.end(), BhedTurnLater );
 	me.cv.wait( lock, [&me]{ return me.granted; } );
 }
 
 static void BhedTurnGive(){
-	std::lock_guard<std::mutex> lock( g_bhedTurnMutex );
-	if ( g_bhedTurnWaiters.empty() ) {
-		++g_bhedTurnsFree;
-		return;
-	}
-	std::pop_heap( g_bhedTurnWaiters.begin(), g_bhedTurnWaiters.end(), BhedTurnLater );
-	BhedTurnWaiter *next = g_bhedTurnWaiters.back();
-	g_bhedTurnWaiters.pop_back();
-	next->granted = true;
-	next->cv.notify_one();
+	std::lock_guard<std::mutex> lock( g_bhedPool.mutex );
+	BhedTurnFree();
 }
 
 static EVStatus BhedStatus( const vportal_t *p ){
@@ -238,32 +356,64 @@ static EVStatus BhedStatus( const vportal_t *p ){
 
 static void BhedSetStatus( vportal_t *p, EVStatus status ){
 	std::atomic_ref<EVStatus>( p->status ).store( status, std::memory_order_seq_cst );
-	BhedDoneStripe& stripe = g_bhedDone[( p - portals ) & 63];
-	if ( status == EVStatus::Done && stripe.waiters.load( std::memory_order_seq_cst ) != 0 ) {
-		{
-			std::lock_guard<std::mutex> lock( stripe.mutex );
-		}
-		stripe.cv.notify_all();
+	if ( status == EVStatus::Done && g_bhedWait ) {
+		BhedWaitSlot& slot = g_bhedWait[p - portals];
+		slot.epoch.fetch_add( 1, std::memory_order_seq_cst );
+		slot.epoch.notify_all();
 	}
 }
 
-static void BhedWaitDone( const vportal_t *p ){
+/* BehavEd vis2: set when the VIS is paused (stop file, see BhedVisState below) - the running flows
+   end without a result, the finished ones go into the state file */
+namespace
+{
+std::atomic<bool> g_bhedVisStop{ false };
+}
+
+static bool BhedStopped(){
+	return g_bhedVisStop.load( std::memory_order_relaxed );
+}
+
+/* waits until p is done (false) or its flow has found every bit the caller misses (true);
+   missing() is the number of bits still missing */
+template<typename Missing>
+static bool BhedWaitFound( const vportal_t *p, Missing missing ){
 	for ( int i = 0; i < 1000; ++i )
 	{
-		if ( BhedStatus( p ) == EVStatus::Done ) {
-			return;
+		if ( BhedStatus( p ) == EVStatus::Done || BhedStopped() ) {
+			return false;
 		}
 		_mm_pause();
 	}
 	BhedTurnGive();
+	bool foundAll = false;
+	BhedWaitSlot& slot = g_bhedWait[p - portals];
+	while ( true )
 	{
-		BhedDoneStripe& stripe = g_bhedDone[( p - portals ) & 63];
-		std::unique_lock<std::mutex> lock( stripe.mutex );
-		stripe.waiters.fetch_add( 1, std::memory_order_seq_cst );
-		stripe.cv.wait( lock, [p]{ return std::atomic_ref<const EVStatus>( p->status ).load( std::memory_order_seq_cst ) == EVStatus::Done; } );
-		stripe.waiters.fetch_sub( 1, std::memory_order_seq_cst );
+		const uint32_t epoch = slot.epoch.load( std::memory_order_seq_cst );
+		if ( BhedStatus( p ) == EVStatus::Done || g_bhedVisStop.load( std::memory_order_seq_cst ) ) {
+			break;
+		}
+		/* the count first: the bits read after it are at least that many */
+		const int marks = slot.marks.load( std::memory_order_seq_cst );
+		const int m = missing();
+		if ( m == 0 ) {
+			foundAll = true;
+			break;
+		}
+		const int target = marks + m;
+		int at = slot.wakeAt.load( std::memory_order_seq_cst );
+		while ( target < at && !slot.wakeAt.compare_exchange_weak( at, target, std::memory_order_seq_cst ) )
+		{
+		}
+		/* the flow of p counts first and then looks at wakeAt, this one the other way round: one of them sees the other */
+		if ( slot.marks.load( std::memory_order_seq_cst ) >= target ) {
+			continue;
+		}
+		slot.epoch.wait( epoch, std::memory_order_seq_cst );
 	}
 	BhedTurnTake();
+	return foundAll;
 }
 
 /* the vector a flow from thread->base reads for p (see above); nullptr: p comes before the flow and
@@ -285,17 +435,23 @@ template<typename ForEach>
 static const uint64_t *BhedResolve( const vportal_t *p, ForEach forEach ){
 	const uint64_t *flood = reinterpret_cast<const uint64_t*>( p->portalflood );
 	uint64_t *found = reinterpret_cast<uint64_t*>( p->portalvis );
-	bool missing = false;
+	bool any = false;
 	forEach( [&]( int w, uint64_t query ){
-		if ( !missing && ( query & flood[w] & ~std::atomic_ref<uint64_t>( found[w] ).load( std::memory_order_relaxed ) ) != 0 ) {
-			missing = true;
+		if ( !any && ( query & flood[w] & ~std::atomic_ref<uint64_t>( found[w] ).load( std::memory_order_relaxed ) ) != 0 ) {
+			any = true;
 		}
 	} );
-	if ( missing ) {
-		BhedWaitDone( p );
-		return found;
+	const auto missing = [&]{
+		int m = 0;
+		forEach( [&]( int w, uint64_t query ){
+			m += std::popcount( query & flood[w] & ~std::atomic_ref<uint64_t>( found[w] ).load( std::memory_order_seq_cst ) );
+		} );
+		return m;
+	};
+	if ( !any || BhedWaitFound( p, missing ) ) {
+		return flood;
 	}
-	return flood;
+	return found;
 }
 
 /* marks a portal visible for the flow of base - other flows may read base->portalvis meanwhile */
@@ -303,7 +459,16 @@ static void BhedMark( vportal_t *base, int pnum ){
 	uint64_t& word = reinterpret_cast<uint64_t*>( base->portalvis )[pnum >> 6];
 	const uint64_t bit = uint64_t( 1 ) << ( pnum & 63 );
 	if ( ( std::atomic_ref<uint64_t>( word ).load( std::memory_order_relaxed ) & bit ) == 0 ) {
-		std::atomic_ref<uint64_t>( word ).fetch_or( bit, std::memory_order_relaxed );
+		std::atomic_ref<uint64_t>( word ).fetch_or( bit, std::memory_order_seq_cst );
+		/* a flow may wait for exactly this bit (BhedWaitFound) */
+		if ( g_bhedRankOrder ) {
+			BhedWaitSlot& slot = g_bhedWait[base - portals];
+			if ( slot.marks.fetch_add( 1, std::memory_order_seq_cst ) + 1 >= slot.wakeAt.load( std::memory_order_seq_cst ) ) {
+				slot.wakeAt.store( INT_MAX, std::memory_order_seq_cst );
+				slot.epoch.fetch_add( 1, std::memory_order_seq_cst );
+				slot.epoch.notify_all();
+			}
+		}
 	}
 }
 
@@ -312,6 +477,7 @@ void BhedSortedRanks( bool rankOrder ){
 	for ( int i = 0; i < numportals * 2; ++i )
 		g_bhedRank[sorted_portals[i] - portals] = i;
 	g_bhedRankOrder = rankOrder;
+	g_bhedWait = std::make_unique<BhedWaitSlot[]>( numportals * 2 );
 }
 
 /* BehavEd vis1: the pacifier of the flow counts work, not portals. The portals come sorted by
@@ -349,6 +515,192 @@ static void BhedPacifier( uint64_t done ){
 	}
 }
 
+/* BehavEd vis2: VIS state - pause and resume (-bhedvisstate, vis.cpp).
+   Every few minutes (and when paused) the portalvis vectors of all finished flows go into
+   <map>.bhedvisstate, together with the portal file and the switches. A stop file <map>.bhedvisstop
+   pauses the VIS: no new flows, the running ones end without a result, the state is written and
+   -vis ends without writing the .bsp. The next -vis -bhedvisstate with the same portal file and
+   switches takes the finished flows from the state and computes only the others.
+   With -bhedvisexact byte for byte the result of a VIS without pause: the flows run in the order
+   of one thread (g_bhedRankOrder), a finished flow is final whatever runs beside it, and the others
+   read exactly what they read without the pause (portalvis of the flows before them in the sorted
+   order - restored or computed - and portalflood of all after them).
+   With NRC's rule (several threads without -bhedvisexact) no two runs give the same bytes anyway;
+   the restored flows are finished flows of that rule, and the rest is computed by it. The switch
+   is part of the key: a state of one rule is not taken by the other. */
+namespace
+{
+struct BhedVisState
+{
+	bool on = false;
+	std::string file, stop, key, prt;
+	double every = 120;
+	int stopAfter = 0;              /* BHED_VIS_STOPAFTER (ctest q3map2_vispause): pause after that many flows */
+	std::atomic<int> computed{ 0 };
+	int resumed = 0;
+	bool stopped = false;
+	std::vector<char> restored;     /* by sorted position */
+};
+BhedVisState g_bhedState;
+
+constexpr char c_bhedStateMagic[] = "BHVST1";
+
+bool BhedFileExists( const char *name ){
+	if ( FILE *f = fopen( name, "rb" ) ) {
+		fclose( f );
+		return true;
+	}
+	return false;
+}
+
+/* the finished flows (status Done after the acquire load: their portalvis is complete), written straight
+   into a new file beside the old one that then replaces it: a crash while writing keeps the old state */
+int BhedStateWrite(){
+	const std::string tmp = g_bhedState.file + ".tmp";
+	FILE *f = fopen( tmp.c_str(), "wb" );
+	if ( !f ) {
+		return -1;
+	}
+	bool ok = fwrite( c_bhedStateMagic, 1, 6, f ) == 6;
+	for ( const std::string *block : { &g_bhedState.key, &g_bhedState.prt } )
+	{
+		const uint32_t len = uint32_t( block->size() );
+		ok = ok && fwrite( &len, 4, 1, f ) == 1 && fwrite( block->data(), 1, block->size(), f ) == block->size();
+	}
+	const uint32_t words = uint32_t( portalwords );
+	uint32_t count = 0;
+	ok = ok && fwrite( &words, 4, 1, f ) == 1;
+	const long countAt = ftell( f );
+	ok = ok && fwrite( &count, 4, 1, f ) == 1;
+	std::vector<uint64_t> vis( portalwords );
+	for ( int i = 0; ok && i < numportals * 2; ++i )
+	{
+		const vportal_t& p = portals[i];
+		if ( p.removed || BhedStatus( &p ) != EVStatus::Done ) {
+			continue;
+		}
+		const uint32_t index = uint32_t( i );
+		for ( int w = 0; w < portalwords; ++w )
+			vis[w] = std::atomic_ref<uint64_t>( reinterpret_cast<uint64_t*>( p.portalvis )[w] ).load( std::memory_order_relaxed );
+		ok = fwrite( &index, 4, 1, f ) == 1 && fwrite( vis.data(), 8, vis.size(), f ) == vis.size();
+		++count;
+	}
+	ok = ok && fseek( f, countAt, SEEK_SET ) == 0 && fwrite( &count, 4, 1, f ) == 1;
+	std::error_code ec;
+	if ( fclose( f ) != 0 || !ok ) {
+		remove( tmp.c_str() );
+		return -1;
+	}
+	std::filesystem::rename( tmp, g_bhedState.file, ec );
+	if ( ec ) {
+		remove( tmp.c_str() );
+		return -1;
+	}
+	return int( count );
+}
+
+/* restores the finished flows of a matching state; the reason if there is none */
+const char *BhedStateRead(){
+	std::string d;
+	if ( FILE *f = fopen( g_bhedState.file.c_str(), "rb" ) ) {
+		char buf[65536];
+		size_t n;
+		while ( ( n = fread( buf, 1, sizeof( buf ), f ) ) > 0 )
+			d.append( buf, n );
+		fclose( f );
+	}
+	else{
+		return "no state";
+	}
+	size_t pos = 6;
+	const auto block = [&]( std::string& out ){
+		uint32_t n = 0;
+		if ( pos + 4 > d.size() ) {
+			return false;
+		}
+		memcpy( &n, d.data() + pos, 4 );
+		pos += 4;
+		if ( n > d.size() - pos ) {
+			return false;
+		}
+		out.assign( d.data() + pos, n );
+		pos += n;
+		return true;
+	};
+	std::string key, prt;
+	if ( d.size() < 6 || d.compare( 0, 6, c_bhedStateMagic ) != 0 || !block( key ) || !block( prt ) || pos + 8 > d.size() ) {
+		return "state damaged";
+	}
+	if ( key != g_bhedState.key ) {
+		return "other vis switches";
+	}
+	if ( prt != g_bhedState.prt ) {
+		return "other portals";
+	}
+	uint32_t words, count;
+	memcpy( &words, d.data() + pos, 4 );
+	memcpy( &count, d.data() + pos + 4, 4 );
+	pos += 8;
+	const size_t entry = 4 + size_t( portalwords ) * 8;
+	if ( words != uint32_t( portalwords ) || count > uint32_t( numportals * 2 ) || d.size() - pos != count * entry ) {
+		return "state damaged";
+	}
+	/* check all entries before taking one */
+	for ( uint32_t k = 0; k < count; ++k )
+	{
+		uint32_t index;
+		memcpy( &index, d.data() + pos + k * entry, 4 );
+		if ( index >= uint32_t( numportals * 2 ) || portals[index].removed || portals[index].portalvis == nullptr ) {
+			return "state damaged";
+		}
+	}
+	for ( uint32_t k = 0; k < count; ++k )
+	{
+		uint32_t index;
+		memcpy( &index, d.data() + pos + k * entry, 4 );
+		vportal_t& p = portals[index];
+		memcpy( p.portalvis, d.data() + pos + k * entry + 4, size_t( portalwords ) * 8 );
+		p.status = EVStatus::Done;
+		g_bhedState.restored[g_bhedRank[index]] = 1;
+	}
+	g_bhedState.resumed = int( count );
+	return nullptr;
+}
+}
+
+void BhedVisStateSetup( const char *file, const char *stop, const std::string& key, const std::string& prt, double every ){
+	g_bhedState.on = true;
+	g_bhedState.file = file;
+	g_bhedState.stop = stop;
+	g_bhedState.key = key;
+	g_bhedState.prt = prt;
+	g_bhedState.every = every;
+	if ( const char *after = getenv( "BHED_VIS_STOPAFTER" ) ) {
+		g_bhedState.stopAfter = atoi( after );
+	}
+}
+
+bool BhedVisPaused(){
+	return g_bhedState.stopped;
+}
+
+void BhedVisStateDone(){
+	if ( g_bhedState.on && !g_bhedState.stopped ) {
+		remove( g_bhedState.file.c_str() );
+		remove( g_bhedState.stop.c_str() );     /* a stop file that came after the last flow */
+	}
+}
+
+/* pauses the VIS: no new flows, the running and the waiting ones end without a result */
+static void BhedStopFlows(){
+	g_bhedVisStop.store( true, std::memory_order_seq_cst );
+	for ( int i = 0; i < numportals * 2; ++i )
+	{
+		g_bhedWait[i].epoch.fetch_add( 1, std::memory_order_seq_cst );
+		g_bhedWait[i].epoch.notify_all();
+	}
+}
+
 void BhedRunFlow( void ( *flow )( int ) ){
 	static void ( *s_flow )( int );
 	s_flow = flow;
@@ -356,24 +708,94 @@ void BhedRunFlow( void ( *flow )( int ) ){
 	for ( const vportal_t *p : Span( sorted_portals, numportals * 2 ) )
 		g_bhedWorkTotal += BhedFlowWork( p );
 	g_bhedWorkDone = 0;
+	g_bhedState.restored.assign( numportals * 2, 0 );
+	if ( g_bhedState.on ) {
+		if ( const char *why = BhedStateRead() ) {
+			Sys_Printf( "BehavEd: vis state not used (%s): %s\n", why, g_bhedState.file.c_str() );
+		}
+		else{
+			uint64_t work = 0;
+			for ( int i = 0; i < numportals * 2; ++i )
+				if ( g_bhedState.restored[i] ) {
+					work += BhedFlowWork( sorted_portals[i] );
+				}
+			g_bhedWorkDone = work;
+			Sys_Printf( "BehavEd: vis resumed from %s: %i of %i portals done (%.1f %% of the work)\n", g_bhedState.file.c_str(), g_bhedState.resumed,
+			            numportals * 2, 100.0 * double( work ) / double( std::max<uint64_t>( g_bhedWorkTotal, 1 ) ) );
+		}
+	}
 	g_bhedPacifierShown = -1;
-	BhedPacifier( 0 );
+	BhedPacifier( g_bhedWorkDone );
 	Timer timer;
-	if ( !g_bhedRankOrder || numthreads <= 1 ) {
-		RunThreadsOnIndividual( numportals * 2, false, []( int portalnum ){
-			s_flow( portalnum );
-			BhedPacifier( g_bhedWorkDone += BhedFlowWork( sorted_portals[portalnum] ) );
+
+	/* a stop file that is already there (the pause came while the portals were loaded): no flow at all */
+	if ( g_bhedState.on && BhedFileExists( g_bhedState.stop.c_str() ) ) {
+		BhedStopFlows();
+	}
+
+	/* the state: a thread that writes it every few minutes and watches for the stop file */
+	std::mutex writerMutex;
+	std::condition_variable writerCv;
+	bool flowDone = false;
+	std::thread writer;
+	if ( g_bhedState.on ) {
+		writer = std::thread( [&]{
+			Timer since;
+			double pause = g_bhedState.every;
+			std::unique_lock<std::mutex> lock( writerMutex );
+			while ( !flowDone )
+			{
+				writerCv.wait_for( lock, std::chrono::milliseconds( std::clamp( int( g_bhedState.every * 500 ), 10, 250 ) ) );
+				if ( flowDone ) {
+					break;
+				}
+				if ( BhedFileExists( g_bhedState.stop.c_str() ) ) {
+					BhedStopFlows();
+					break;
+				}
+				if ( since.elapsed_sec() >= pause ) {
+					/* a large state takes a while to write (md_rev_TarisUpper2: 152168 vectors of 9.5 KB): at most 5 % of the time */
+					Timer writing;
+					BhedStateWrite();
+					pause = std::max( g_bhedState.every, 20 * writing.elapsed_sec() );
+					since.start();
+				}
+			}
 		} );
 	}
-	else{
-		g_bhedTurnsFree = numthreads;
-		BhedRunThreadsOnIndividual( numportals * 2, false, []( int portalnum ){
-			t_bhedRank = portalnum;
-			BhedTurnTake();
-			s_flow( portalnum );
-			BhedTurnGive();
+
+	const auto one = []( int portalnum ){
+		s_flow( portalnum );
+		if ( !g_bhedState.restored[portalnum] && !BhedStopped() ) {    /* paused: the flow has no result */
 			BhedPacifier( g_bhedWorkDone += BhedFlowWork( sorted_portals[portalnum] ) );
-		}, std::min( numthreads * 4, 1024 ) ); /* mb2_manaan, 32 threads: 2 / 4 / 8 / 16 times as many threads 21 / 19 / 19 / 30 s */
+			if ( g_bhedState.stopAfter > 0 && ++g_bhedState.computed == g_bhedState.stopAfter ) {
+				BhedStopFlows();
+			}
+		}
+	};
+	if ( !g_bhedRankOrder || numthreads <= 1 ) {
+		RunThreadsOnIndividual( numportals * 2, false, one );
+	}
+	else{
+		BhedThreaded( true );
+		/* t3_byss, 32 turns: 128 and 512 threads 33 s (2048: 41 s), with 250, 520 and 1320 MB at the peak */
+		BhedPoolRun( numportals * 2, std::max( numthreads * 4, 64 ), one );
+		BhedThreaded( false ); /* mb2_manaan, 32 threads: 2 / 4 / 8 / 16 times as many threads 21 / 19 / 19 / 30 s */
+	}
+	if ( writer.joinable() ) {
+		{
+			std::lock_guard<std::mutex> lock( writerMutex );
+			flowDone = true;
+		}
+		writerCv.notify_all();
+		writer.join();
+	}
+	if ( BhedStopped() ) {
+		g_bhedState.stopped = true;
+		const int n = BhedStateWrite();
+		Sys_Printf( "\nBehavEd: vis paused, %i of %i portals done, state saved in %s\n", n, numportals * 2, g_bhedState.file.c_str() );
+		remove( g_bhedState.stop.c_str() );
+		return;
 	}
 	Sys_Printf( " (%i)\n", int( timer.elapsed_sec() ) );
 }
@@ -714,6 +1136,9 @@ static void RecursiveLeafFlow( int leafnum, threaddata_t *thread, pstack_t *prev
 	// check all portals for flowing into other leafs
 	for ( vportal_t *p : Span( leaf->portals, leaf->numportals ) )
 	{
+		if ( BhedStopped() ) {
+			break;      /* BehavEd vis2: paused */
+		}
 		if ( p->removed ) {
 			continue;
 		}
@@ -920,6 +1345,10 @@ void PortalFlow( int portalnum ){
 		BhedSetStatus( p, EVStatus::Done );
 		return;
 	}
+	/* BehavEd vis2: restored from the vis state, or the VIS is paused */
+	if ( BhedStatus( p ) == EVStatus::Done || BhedStopped() ) {
+		return;
+	}
 
 	BhedSetStatus( p, EVStatus::Working );
 
@@ -935,6 +1364,9 @@ void PortalFlow( int portalnum ){
 
 	RecursiveLeafFlow( p->leaf, &data, &data.pstack_head );
 	BhedHeadDone( data.pstack_head );
+	if ( g_bhedVisStop.load( std::memory_order_seq_cst ) ) {
+		return;     /* BehavEd vis2: paused - no result, it may have read unfinished vectors */
+	}
 
 	BhedSetStatus( p, EVStatus::Done );
 
@@ -969,6 +1401,9 @@ static void RecursivePassageFlow( vportal_t *portal, threaddata_t *thread, pstac
 	// check all portals for flowing into other leafs
 	for ( i = 0; i < leaf->numportals; ++i )
 	{
+		if ( BhedStopped() ) {
+			break;      /* BehavEd vis2: paused */
+		}
 		p = leaf->portals[i];
 		if ( p->removed ) {
 			continue;
@@ -1033,6 +1468,10 @@ void PassageFlow( int portalnum ){
 		BhedSetStatus( p, EVStatus::Done );
 		return;
 	}
+	/* BehavEd vis2: restored from the vis state, or the VIS is paused */
+	if ( BhedStatus( p ) == EVStatus::Done || BhedStopped() ) {
+		return;
+	}
 
 	BhedSetStatus( p, EVStatus::Working );
 
@@ -1048,6 +1487,9 @@ void PassageFlow( int portalnum ){
 
 	RecursivePassageFlow( p, &data, &data.pstack_head );
 	BhedHeadDone( data.pstack_head );
+	if ( g_bhedVisStop.load( std::memory_order_seq_cst ) ) {
+		return;     /* BehavEd vis2: paused - no result, it may have read unfinished vectors */
+	}
 
 	BhedSetStatus( p, EVStatus::Done );
 
@@ -1095,6 +1537,9 @@ static void RecursivePassagePortalFlow( vportal_t *portal, threaddata_t *thread,
 	// check all portals for flowing into other leafs
 	for ( i = 0; i < leaf->numportals; ++i )
 	{
+		if ( BhedStopped() ) {
+			break;      /* BehavEd vis2: paused */
+		}
 		p = leaf->portals[i];
 		if ( p->removed ) {
 			continue;
@@ -1275,6 +1720,10 @@ void PassagePortalFlow( int portalnum ){
 		BhedSetStatus( p, EVStatus::Done );
 		return;
 	}
+	/* BehavEd vis2: restored from the vis state, or the VIS is paused */
+	if ( BhedStatus( p ) == EVStatus::Done || BhedStopped() ) {
+		return;
+	}
 
 	BhedSetStatus( p, EVStatus::Working );
 
@@ -1290,6 +1739,9 @@ void PassagePortalFlow( int portalnum ){
 
 	RecursivePassagePortalFlow( p, &data, &data.pstack_head );
 	BhedHeadDone( data.pstack_head );
+	if ( g_bhedVisStop.load( std::memory_order_seq_cst ) ) {
+		return;     /* BehavEd vis2: paused - no result, it may have read unfinished vectors */
+	}
 
 	BhedSetStatus( p, EVStatus::Done );
 

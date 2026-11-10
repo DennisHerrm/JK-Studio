@@ -119,13 +119,9 @@ void ThreadWorkerFunction( int threadnum ){
 
 void RunThreadsOn( void ( *func )( int ) );
 
-/* BehavEd vis1: see qthreads.h */
-static int g_bhedPoolThreads = 0;
-
-void BhedRunThreadsOnIndividual( int workcnt, bool showpacifier, void ( *func )( int ), int threads ){
-	g_bhedPoolThreads = threads;
-	RunThreadsOnIndividual( workcnt, showpacifier, func );
-	g_bhedPoolThreads = 0;
+/* BehavEd vis2: see qthreads.h */
+void BhedThreaded( bool on ){
+	threaded = on;
 }
 
 void RunThreadsOnIndividual( int workcnt, bool showpacifier, void ( *func )( int ) ){
@@ -193,7 +189,7 @@ void ThreadUnlock(){
    =============
  */
 void RunThreadsOn( void ( *func )( int ) ){
-	const int count = g_bhedPoolThreads > 0 ? g_bhedPoolThreads : numthreads; /* BehavEd vis1 */
+	const int count = numthreads;
 	if ( count == 1 ) { // use same thread
 		func( 0 );
 	}

@@ -27,9 +27,9 @@ extern int numthreads;
 
 void ThreadSetDefault();
 void RunThreadsOnIndividual( int workcnt, bool showpacifier, void ( *func )( int ) );
-/* BehavEd vis1: the same on `threads` threads instead of numthreads (the deterministic vis flow
-   keeps more threads than cores, of which numthreads compute at a time) */
-void BhedRunThreadsOnIndividual( int workcnt, bool showpacifier, void ( *func )( int ), int threads );
+/* BehavEd vis2: the deterministic vis flow runs its own threads (visflow.cpp BhedPoolRun) - while they
+   run, ThreadLock has to lock as in RunThreadsOnIndividual */
+void BhedThreaded( bool on );
 void ThreadLock();
 void ThreadUnlock();
 

@@ -301,6 +301,9 @@ static void CalcVis(){
 	else {
 		CalcPassagePortalVis();
 	}
+	if ( BhedVisPaused() ) {
+		return;     /* BehavEd vis2: paused, the state is saved - no leaf vis, no .bsp */
+	}
 	//
 	// assemble the leaf vis lists by oring and compressing the portal lists
 	//
@@ -924,6 +927,12 @@ int VisMain( Args& args ){
 	const char *fileName = args.takeBack();
 	const bool bhedReuse = args.takeArg( "-bhedvisreuse" ); /* BehavEd stage 8a: before argsToInject */
 	bhedExact = args.takeArg( "-bhedvisexact" );            /* BehavEd vis1: the same */
+	/* BehavEd vis2: -bhedvisstate [-bhedvisstatetime s] - pause and resume (visflow.cpp BhedVisState), the same */
+	const bool bhedState = args.takeArg( "-bhedvisstate" );
+	double bhedStateEvery = 120;
+	if ( args.takeArg( "-bhedvisstatetime" ) ) {
+		bhedStateEvery = std::max( 0.02, atof( args.takeNext() ) );
+	}
 	if ( bhedExact ) {
 		Sys_Printf( "BehavEd: deterministic vis (the result of -threads 1)\n" );
 	}
@@ -985,7 +994,7 @@ int VisMain( Args& args ){
 	strcpy( portalfile, ExpandArg( fileName ) );
 	bhed_set_map_extension( portalfile, ".prt" ); /* BehavEd stage 6 (NRC#102): was path_set_extension */
 	Sys_Printf( "Loading %s\n", portalfile );
-	const std::string bhedPortalData = bhedReuse ? BhedReadFile( portalfile ) : std::string(); /* BehavEd stage 8a */
+	const std::string bhedPortalData = bhedReuse || bhedState ? BhedReadFile( portalfile ) : std::string(); /* BehavEd stage 8a, vis2 */
 	LoadPortals( portalfile );
 
 	/* ydnar: exit if no portals, hence no vis */
@@ -1040,9 +1049,29 @@ int VisMain( Args& args ){
 		}
 	}
 
+	if ( bhedState && !bhedReused ) {
+		/* BehavEd vis2: the inputs of the flows are the portal file and the switches, as for -bhedvisreuse */
+		const char *far = "";
+		entities[ 0 ].read_keyvalue( far, "_farplanedist", "fogclip", "distancecull" );
+		char stateFile[1024], stopFile[1024];
+		strcpy( stateFile, ExpandArg( fileName ) );
+		bhed_set_map_extension( stateFile, ".bhedvisstate" );
+		strcpy( stopFile, ExpandArg( fileName ) );
+		bhed_set_map_extension( stopFile, ".bhedvisstop" );
+		BhedVisStateSetup( stateFile, stopFile,
+		                   StringStream( "vis2 fast=", fastvis, " merge=", mergevis, " mergeportals=", mergevisportals, " nopassage=", noPassageVis,
+		                                 " passageOnly=", passageVisOnly, " nosort=", nosort, " hint=", hint, " far=", far, " exact=", bhedExact ).c_str(),
+		                   bhedPortalData, bhedStateEvery );
+	}
+
 	if ( !bhedReused ) {
 		CalcVis();
 	}
+
+	if ( BhedVisPaused() ) {
+		return 3;   /* BehavEd vis2: paused - the .prt stays for the resume, the .bsp is not written */
+	}
+	BhedVisStateDone();
 
 	if ( bhedReuse && !bhedReused && !bhedPortalData.empty() ) {
 		if ( FILE *f = fopen( bhedCache, "wb" ) ) {
