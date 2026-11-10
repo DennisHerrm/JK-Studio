@@ -1343,6 +1343,9 @@ std::vector<Schritt> robust() {
 // --- Teil "tasten": jedes Standardkuerzel ueber echte Tastenereignisse ------------------
 std::vector<Schritt> tasten() {
     std::vector<Schritt> s;
+    // rc612 NUMPAD: der Teil drueckt NRCs Vorgaben (auch Num 1/3/7 = ViewFront/ViewSide/ViewTop) - also mit dem Schalter
+    // "Numpad sets the grid" aus. Die Vorgabe des Programms prueft selbsttest_numpad.inc.
+    s.push_back(tu("Tasten: Ziffernblock wie NetRadiant-Custom", [] { ke::ziffernblockSetzen(false); }));
     for (const kb::Befehl& b : kb::alle()) {
         if (b.taste[0] == 0 || !gewuenscht(b.name)) { continue; }
         const std::string n = b.name;
@@ -1391,6 +1394,7 @@ std::vector<Schritt> tasten() {
         }
         s.push_back(wirkungsSchritt(name, n, a, [chord](std::string*) { return tastenDruck(chord); }));
     }
+    s.push_back(tu("Tasten: Ziffernblock setzt wieder das Raster", [] { ke::ziffernblockSetzen(true); }));
     return s;
 }
 

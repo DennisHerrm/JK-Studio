@@ -5812,6 +5812,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_rest9.inc"         // REST9: die Update-Leiste oben (updateleiste, updateleiste2, Handbuch BHED_HB_NUR=updateleiste)
 #include "selbsttest_rest8.inc"         // REST8: doppelte Shadernamen - Echtzeit-Licht nach q3map2, Kartenpruefung (karteneditor, BHED_KARTE_NUR=rest8)
 #include "selbsttest_cjkweit.inc"       // MR4 Punkt 5: CJK-Umbruch ausserhalb des Model-Tabs (karteneditor, BHED_KARTE_NUR=cjkweit)
+#include "selbsttest_numpad.inc"        // rc612 NUMPAD: der Ziffernblock setzt das Raster (karteneditor, BHED_KARTE_NUR=numpad)
 #include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen
 #include "selbsttest_mb1a1.inc"      // Modell-Block 1a-1: der neue Model-Tab (modellblock)
 #include "selbsttest_mb1a2.inc"      // Modell-Block 1a-2: Weights, wie Blender, Model-Tab ohne Skriptteile (modellblock)

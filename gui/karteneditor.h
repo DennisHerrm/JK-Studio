@@ -1665,6 +1665,11 @@ void einstellungenLaden();
 // (true: wie NRC) setzen und gleich speichern.
 void knopfGroesseSetzen(int stufe);
 void menueStilSetzen(bool nrc);
+// rc612 NUMPAD: Ziffernblock setzt das Raster (true, Vorgabe) oder wirkt wie NRC (Ansichten); gespeichert
+void ziffernblockSetzen(bool raster);
+// Die Tastenbelegung aus den Einstellungen (Teil von einstellungenLaden; ohne gespeicherten Schalter: Belegung wie NRC
+// lesen, dann die Vorgabe "Raster" - eigene Tasten auf dem Ziffernblock bleiben)
+void belegungLaden();
 void einstellungenSpeichern();
 // true, solange der Karten-Editor Tastatur und Maus fuer sich hat (der
 // Arbeitsbereich ist sichtbar). Dann gelten die BehavEd-Kuerzel nicht.

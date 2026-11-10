@@ -242,6 +242,100 @@ void tasten() {
     plus.qtKey = {'+', '+', '+', '+', '+', '+', '+', '+', '+'};
     const auto t7 = bel.treffer(moeglicheTasten(plus, kShift | kNum));
     pruefe(t7.size() == 1 && t7[0] == "CameraSpeedInc", "Shift+Ziffernblock-Plus = CameraSpeedInc");
+    // rc612 NUMPAD (Vorgabe): der Ziffernblock tut, was die obere Ziffernreihe tut - Num 1..9 = SetGrid1..SetGrid256,
+    // Num 0 = ToggleGrid (NRC: grid.cpp:192-200, xywindow.cpp:2216)
+    {
+        static const char* const kSoll[10] = {"ToggleGrid", "SetGrid1",  "SetGrid2",  "SetGrid4",   "SetGrid8",
+                                              "SetGrid16",  "SetGrid32", "SetGrid64", "SetGrid128", "SetGrid256"};
+        for (int d = 0; d <= 9; ++d) {
+            TastenBelegung num;
+            num.vorhanden = true;
+            num.qtKey.fill(static_cast<std::uint32_t>('0' + d));
+            const auto t = bel.treffer(moeglicheTasten(num, kNum));
+            pruefe(t.size() == 1 && t[0] == kSoll[d], std::string("Vorgabe: Num ") + std::to_string(d) + " = " + kSoll[d]);
+        }
+    }
+    // rc612 NUMPAD: Zweittaste, Schalter und eigene Belegungen
+    {
+        const auto num = [](int d) {
+            TastenBelegung kb;
+            kb.vorhanden = true;
+            kb.qtKey.fill(static_cast<std::uint32_t>('0' + d));
+            return moeglicheTasten(kb, kNum);
+        };
+        const auto allein = [&num](const Belegung& b, int d, const char* soll) {
+            const auto t = b.treffer(num(d));
+            return t.size() == 1 && t[0] == soll;
+        };
+        Belegung b;
+        pruefe(b.ziffernblockRaster() && b.text("SetGrid16") == "5 / Num+5" && b.text("ToggleGrid") == "0 / Num+0" &&
+                   b.text("ViewFront").empty() && b.text("ViewSide").empty() && b.text("ViewTop").empty() && b.text("NextView") == "Ctrl+Tab",
+               "Vorgabe: Anzeige \"5 / Num+5\", die Ansichten ohne Taste, NextView Ctrl+Tab");
+        pruefe(b.belegtVon(kNum | '5', "Zoom100") == "SetGrid16" && b.abweichende().empty() && !b.geaendert("SetGrid16"),
+               "Vorgabe: belegtVon kennt die Zweittaste, nichts weicht ab");
+        pruefe(b.standardText("SetGrid16") == "5 / Num+5" && !b.vorgabeWieNrc("SetGrid16") && !b.vorgabeWieNrc("ViewTop") &&
+                   b.vorgabeWieNrc("NextView"),
+               "Vorgabe: SetGrid16 und ViewTop weichen von NRCs Vorgabe ab, NextView nicht");
+        // Schalter: wie NetRadiant-Custom (xywindow.cpp:2273-2275)
+        b.ziffernblockRaster(false);
+        pruefe(!b.ziffernblockRaster() && allein(b, 1, "ViewFront") && allein(b, 3, "ViewSide") && allein(b, 7, "ViewTop") &&
+                   b.treffer(num(5)).empty() && b.treffer(num(0)).empty() && b.text("SetGrid16") == "5" && b.text("ViewTop") == "Num+7" &&
+                   b.abweichende().empty() && b.vorgabeWieNrc("SetGrid16") && b.vorgabeWieNrc("ViewTop") && b.standardText("ViewTop") == "Num+7",
+               "Schalter aus: Num 1/3/7 = ViewFront/ViewSide/ViewTop, Num 5 und Num 0 ohne Befehl, nichts weicht ab, Vorgaben wie NRC");
+        b.ziffernblockRaster(true);
+        pruefe(allein(b, 1, "SetGrid1") && allein(b, 7, "SetGrid64") && b.abweichende().empty(), "Schalter wieder an: die Vorgabe ist zurueck");
+        // "Yes" bei "Key already used": nur die Zweittaste weicht, gespeichert als "<Befehl>#Num"
+        b.loesen("SetGrid16", kNum | '5');
+        b.setzen("Zoom100", kNum | '5');
+        const auto ab = b.abweichende();
+        pruefe(allein(b, 5, "Zoom100") && b.text("SetGrid16") == "5" && b.geaendert("SetGrid16") && ab.size() == 2 &&
+                   ab[0] == std::pair<std::string, std::string>("SetGrid16#Num", "") &&
+                   ab[1] == std::pair<std::string, std::string>("Zoom100", "Num+5"),
+               "Zoom100 auf Num+5: SetGrid16 behaelt \"5\", abweichend SetGrid16#Num= und Zoom100=Num+5");
+        Belegung c;
+        (void)c.laden(ab);
+        pruefe(allein(c, 5, "Zoom100") && c.text("SetGrid16") == "5" && c.text("SetGrid32") == "6 / Num+6" && c.abweichende() == ab,
+               "Rundlauf: laden(abweichende) stellt beide Tasten her");
+        // Schalter hin und zurueck: die eigene Taste bleibt, die Vorgabe des Rasters weicht ihr
+        b.ziffernblockRaster(false);
+        pruefe(allein(b, 5, "Zoom100") && allein(b, 1, "ViewFront"), "eigene Num-Taste, Schalter aus: Zoom100 bleibt auf Num 5");
+        b.ziffernblockRaster(true);
+        pruefe(allein(b, 5, "Zoom100") && b.text("SetGrid16") == "5" && allein(b, 6, "SetGrid32"),
+               "eigene Num-Taste, Schalter wieder an: Num 5 bleibt Zoom100 (nicht mehrdeutig), SetGrid16 nur \"5\"");
+        // Eigene Taste auf Num+1 im Raster-Modus, dann wie NRC: ViewFront weicht der eigenen Taste
+        Belegung d;
+        d.loesen("SetGrid1", kNum | '1');
+        d.setzen("Zoom100", kNum | '1');
+        d.ziffernblockRaster(false);
+        pruefe(allein(d, 1, "Zoom100") && d.text("ViewFront").empty() && allein(d, 3, "ViewSide"),
+               "eigene Taste Num+1, Schalter aus: Num 1 bleibt Zoom100, ViewFront ohne Taste, Num 3 = ViewSide");
+        // Einstellungen von vor rc612 (kein Schalter gespeichert): wie NRC laden, dann die Vorgabe - eigene Tasten behalten ihre Wirkung
+        Belegung alt;
+        alt.ziffernblockRaster(false);
+        (void)alt.laden({{"Zoom100", "Num+5"}, {"ViewTop", "F9"}});
+        alt.ziffernblockRaster(true);
+        pruefe(allein(alt, 5, "Zoom100") && alt.text("SetGrid16") == "5" && alt.text("SetGrid32") == "6 / Num+6" && alt.text("ViewTop") == "F9" &&
+                   alt.text("ViewFront").empty() && allein(alt, 1, "SetGrid1"),
+               "Belegung von rc611 (Zoom100=Num+5, ViewTop=F9): beide bleiben, die uebrigen Num-Tasten setzen das Raster");
+        // Dieselbe Taste zweimal am selben Befehl wird einmal gezeigt; Clear leert beide; Reset stellt beide her
+        Belegung e;
+        e.setzen("SetGrid16", kNum | '5');
+        pruefe(e.text("SetGrid16") == "Num+5" && allein(e, 5, "SetGrid16"), "SetGrid16 auf Num+5: Anzeige \"Num+5\", nicht doppelt");
+        e.leeren("SetGrid16");
+        pruefe(e.text("SetGrid16").empty() && e.treffer(num(5)).empty() && e.abweichende().size() == 2, "Clear: beide Tasten leer, beide abweichend");
+        e.zuruecksetzen("SetGrid16");
+        pruefe(e.text("SetGrid16") == "5 / Num+5" && e.abweichende().empty(), "Reset: beide Tasten wieder da");
+        e.loesen("ToggleGrid", kNum | '0');
+        e.setzen("NextView", 'Q');
+        e.alleZuruecksetzen();
+        pruefe(e.text("ToggleGrid") == "0 / Num+0" && e.text("NextView") == "Ctrl+Tab" && e.abweichende().empty(), "Reset All: beide Tasten aller Befehle");
+        // Eine Zweittaste aus der Einstellung (von Hand eingetragen) wird gelesen; eine unlesbare gemeldet
+        Belegung f;
+        const auto m = f.laden({{"Zoom100#Num", "Num+5"}, {"SetGrid16#Num", ""}, {"ZoomIn#Num", "Kaputt"}, {"Gibts#Num", "X"}});
+        pruefe(allein(f, 5, "Zoom100") && f.zweitTaste("Zoom100") == (kNum | '5') && f.taste("Zoom100") == 0 && m.size() == 1 &&
+                   m[0].find("ZoomIn#Num") != std::string::npos,
+               "laden: \"<Befehl>#Num\" setzt die Zweittaste, unlesbar wird gemeldet, unbekannt uebergangen");
+    }
     // Mehrdeutig: zwei Befehle auf derselben Taste
     Belegung zwei;
     zwei.setzen("ZoomIn", kKeyInsert);   // ZoomOut hat schon Insert

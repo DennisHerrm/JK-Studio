@@ -5652,9 +5652,11 @@ std::vector<Schritt> karteneditorFotoSchritte() {
     // laengste: trK) - so gelten die Masse in jeder Sprache des Laufs (auf
     // Spanisch war Help 233, auf Tschechisch 227 statt 247 breit, solange der
     // Eintrag in der Programmsprache stand).
-    add(tu("Fotos: Begriffe wie NetRadiant an, Menues wie NetRadiant-Custom", [] {
+    add(tu("Fotos: Begriffe wie NetRadiant an, Menues wie NetRadiant-Custom, Ziffernblock wie NetRadiant-Custom", [] {
         ke::setzeNrcBegriffe(true);
         ke::menueStilSetzen(true);   // Stufe 7 Punkt 6b (Preferences > Clean der Stufe 6 setzt es zurueck)
+        // rc612 NUMPAD: die NRC-Fotos zeigen NRCs Tasten (Grid "1", View > Orthographic "Num+7") - nach den Menues zurueck
+        ke::ziffernblockSetzen(false);
     }));
     add(pause(0.3));
     add(pruefe("Fotos: Anordnung Regular wie die NRC-Fotos", [] {
@@ -5786,6 +5788,7 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         }));
     }
     add(menuesZu());
+    add(tu("Fotos: Ziffernblock setzt wieder das Raster (Vorgabe)", [] { ke::ziffernblockSetzen(true); }));
     add(pause(0.2));
     // Mnemoniken (QMenuBar/QMenu::keyPressEvent): Alt+E oeffnet Edit, F
     // waehlt Pre&ferences; E trifft "D&elete" und dreimal "&Expand ..." -

@@ -1741,11 +1741,22 @@ void einstellungenLaden() {
             p = q + 1;
         }
     }
-    // Tastenbelegung (LoadCommandMap)
+    belegungLaden();
+    ed.belegungGeladen = true;
+}
+
+// Tastenbelegung (LoadCommandMap). rc612 NUMPAD: vorher stehen die Vorgaben des Ziffernblocks fest. Einstellungen von
+// vor rc612 kennen den Schalter nicht - ihre Belegung gilt wie in NRC, danach kommt die Vorgabe "Raster": eine eigene
+// Taste auf dem Ziffernblock behaelt so ihre Wirkung (Belegung::ziffernblockRaster).
+void belegungLaden() {
+    Editor& ed = e();
+    const auto& k = g_app->settings.karte;
+    const auto zb = k.find("BhedNumpad");
+    ed.belegung.ziffernblockRaster(zb != k.end() && zb->second != "views");
     std::vector<std::pair<std::string, std::string>> eigene(g_app->settings.karteTasten.begin(),
                                                              g_app->settings.karteTasten.end());
     for (const std::string& m : ed.belegung.laden(eigene)) { warnung(m); }
-    ed.belegungGeladen = true;
+    if (zb == k.end()) { ed.belegung.ziffernblockRaster(true); }
 }
 
 // Stufe 7 Punkt 6b: Knopfgroesse der Werkzeugleisten (0 klein, 1 normal wie
@@ -1759,12 +1770,17 @@ void menueStilSetzen(bool nrc) {
     e().menueNrcStil = nrc;
     einstellungenSpeichern();
 }
+void ziffernblockSetzen(bool raster) {
+    e().belegung.ziffernblockRaster(raster);
+    einstellungenSpeichern();
+}
 
 void einstellungenSpeichern() {
     Editor& ed = e();
     auto& k = g_app->settings.karte;
     // Stufe 7 Punkt 6b: eigene Einstellungen (nicht in NRC)
     k["BhedMenuStyle"] = ed.menueNrcStil ? "nrc" : "program";
+    k["BhedNumpad"] = ed.belegung.ziffernblockRaster() ? "grid" : "views";   // rc612 NUMPAD
     k["BhedToolbarButtons"] = std::to_string(mass::knopfStufe);
     k["QE4StyleWindows"] = std::to_string(static_cast<int>(ed.anordnung));
     k["BuiltInGroupDialog"] = ed.gruppenDialogEingebaut ? "1" : "0";

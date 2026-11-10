@@ -352,6 +352,9 @@ std::vector<Schritt> model2Allein();   // MRESTE Teil 3
 namespace cjkweit {   // MR4 Punkt 5 (selbsttest_cjkweit.inc)
 std::vector<Schritt> schritte();
 }  // namespace cjkweit
+namespace numpad {   // rc612 NUMPAD (selbsttest_numpad.inc)
+std::vector<Schritt> schritte();
+}  // namespace numpad
 namespace optsicher {
 std::vector<Schritt> schritte();   // selbsttest_optsicher.inc: Fix all safe aendert nichts Sichtbares
 }  // namespace optsicher
@@ -735,6 +738,12 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =numpad: rc612 NUMPAD - der Ziffernblock setzt das Raster, Schalter wie NetRadiant-Custom
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "numpad") == 0) {
+        for (Schritt& x : numpad::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =rahmen: nur die Anordnungen und Rahmen (Abschluss rc607, gezielter Rot/Gruen-Test)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "rahmen") == 0) {
         for (Schritt& x : karteneditorRahmenSchritte()) { add(std::move(x)); }
@@ -743,6 +752,7 @@ std::vector<Schritt> karteneditorSchritte() {
     }
     for (Schritt& x : karteneditorRahmenSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorTastenSchritte()) { add(std::move(x)); }
+    for (Schritt& x : numpad::schritte()) { add(std::move(x)); }   // rc612 NUMPAD
     for (Schritt& x : karteneditorMassSchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorXySchritte()) { add(std::move(x)); }
     for (Schritt& x : karteneditorKameraSchritte()) { add(std::move(x)); }

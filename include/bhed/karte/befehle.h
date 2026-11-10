@@ -157,9 +157,19 @@ struct PluginEintrag {
 //
 // Je Befehl die aktuelle Taste (Vorgabe oder eigene Belegung aus der
 // Einstellung, LoadCommandMap) und das Suchen wie QShortcutMap::find.
+//
+// rc612 NUMPAD (Abweichung von NRC, Vorgabe): der Ziffernblock tut, was die
+// obere Ziffernreihe tut. Jeder Befehl, dessen NRC-Vorgabe eine Ziffer ohne
+// Zusatztaste ist (SetGrid1 .. SetGrid256 auf 1 .. 9, ToggleGrid auf 0), hat
+// dazu die Zweittaste "Num+<Ziffer>"; die NRC-Vorgaben "Num+<Ziffer>"
+// (ViewFront, ViewSide, ViewTop) entfallen. ziffernblockRaster(false) stellt
+// NRCs Belegung her. Die Zweittaste zaehlt beim Suchen, bei "Key already
+// used" und in der Anzeige ("1 / Num+1") mit.
 class Belegung {
 public:
     Belegung();
+    // Endung des Namens fuer eine geaenderte Zweittaste in der Einstellung ("SetGrid1#Num=").
+    static constexpr std::string_view kZweitEndung = "#Num";
     // Eigene Belegung (shortcuts.ini, ReadCommandMap): Name -> Text; leerer
     // Text heisst "keine Taste". Unbekannte Namen werden uebergangen,
     // unlesbare Tasten gemeldet ("WARNING: failed to parse user command ...").
@@ -170,9 +180,28 @@ public:
 
     [[nodiscard]] Taste taste(std::string_view name) const;
     [[nodiscard]] Taste standard(std::string_view name) const;
+    [[nodiscard]] Taste zweitTaste(std::string_view name) const;     // rc612 NUMPAD
+    [[nodiscard]] Taste zweitStandard(std::string_view name) const;
+    // Alle Tasten des Befehls als Text ("1 / Num+1", "Ctrl+Tab", "" = keine).
+    [[nodiscard]] std::string text(std::string_view name) const;
+    // Dasselbe fuer die Vorgaben des Befehls.
+    [[nodiscard]] std::string standardText(std::string_view name) const;
+    // Weicht eine der Tasten von der Vorgabe ab?
+    [[nodiscard]] bool geaendert(std::string_view name) const;
+    // Ist die Vorgabe des Befehls die von NRC (false: der Ziffernblock hat sie geaendert)?
+    [[nodiscard]] bool vorgabeWieNrc(std::string_view name) const;
     void setzen(std::string_view name, Taste t);        // accelerator_alter
+    void leeren(std::string_view name);                  // Clear: alle Tasten des Befehls
+    void loesen(std::string_view name, Taste t);         // "Yes" bei "Key already used": nur die Taste t
     void zuruecksetzen(std::string_view name);           // Reset
     void alleZuruecksetzen();                            // Reset All
+    // rc612 NUMPAD: true = Ziffernblock wie die obere Reihe (Vorgabe), false
+    // = wie NRC. Tasten, die der Nutzer geaendert hat, bleiben; eine Vorgabe,
+    // die dabei neu auf die eigene Taste eines anderen Befehls kaeme, bleibt
+    // leer (die Taste waere sonst mehrdeutig). Einstellungen von vor rc612
+    // laedt man darum wie NRC und schaltet danach um.
+    void ziffernblockRaster(bool raster);
+    [[nodiscard]] bool ziffernblockRaster() const { return m_zbRaster; }
     // Wer hat diese Taste schon (VerifyAcceleratorNotTaken)? "" = niemand.
     [[nodiscard]] std::string belegtVon(Taste t, std::string_view ausser) const;
 
@@ -186,8 +215,12 @@ public:
 
 private:
     std::vector<std::string> m_namen;   // nach Namen sortiert (std::map in NRC)
+    std::vector<Taste> m_nrc;             // NRCs Vorgabe (befehle_liste.inc)
     std::vector<Taste> m_tasten;
     std::vector<Taste> m_standard;
+    std::vector<Taste> m_zweit;           // rc612 NUMPAD: Zweittaste (Ziffernblock)
+    std::vector<Taste> m_zweitStandard;
+    bool m_zbRaster = true;
     [[nodiscard]] std::ptrdiff_t index(std::string_view name) const;
 };
 

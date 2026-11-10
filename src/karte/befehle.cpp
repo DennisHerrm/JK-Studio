@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <tuple>
 #include <utility>
 
 namespace bhed::karte::befehle {
@@ -313,6 +314,29 @@ std::string knopfTooltip(const std::vector<std::string>& zeilen, const std::stri
 
 // --- Belegung -----------------------------------------------------------------
 
+namespace {
+
+// rc612 NUMPAD: die Vorgaben eines Befehls aus seiner NRC-Taste. raster: eine
+// Ziffer ohne Zusatztaste bekommt "Num+<Ziffer>" als Zweittaste, und eine
+// NRC-Vorgabe "Num+<Ziffer>" entfaellt (die Taste gehoert dann dem Raster).
+std::pair<Taste, Taste> vorgaben(Taste nrc, bool raster) {
+    if (!raster) { return {nrc, 0}; }
+    const Taste k = nrc & ~kModMaske;
+    const bool ziffer = k >= '0' && k <= '9';
+    if (ziffer && (nrc & kModMaske) == 0U) { return {nrc, kNum | k}; }
+    if (ziffer && (nrc & kModMaske) == kNum) { return {0, 0}; }
+    return {nrc, 0};
+}
+
+// Beide Tasten eines Befehls als Text ("1 / Num+1"); dieselbe Taste nur einmal.
+std::string beideAlsText(Taste erste, Taste zweite) {
+    std::string s = tasteAlsText(erste);
+    if (zweite != 0 && zweite != erste) { s += (s.empty() ? "" : " / ") + tasteAlsText(zweite); }
+    return s;
+}
+
+}  // namespace
+
 Belegung::Belegung() {
     // g_shortcuts ist eine std::map: nach Namen sortiert (CopiedString <).
     std::vector<const Befehl*> sortiert;
@@ -321,10 +345,51 @@ Belegung::Belegung() {
               [](const Befehl* a, const Befehl* b) { return std::string_view(a->name) < std::string_view(b->name); });
     for (const Befehl* b : sortiert) {
         m_namen.emplace_back(b->name);
-        const Taste t = tasteAusText(b->taste);
+        m_nrc.push_back(tasteAusText(b->taste));
+        const auto [t, z] = vorgaben(m_nrc.back(), m_zbRaster);
         m_tasten.push_back(t);
         m_standard.push_back(t);
+        m_zweit.push_back(z);
+        m_zweitStandard.push_back(z);
     }
+}
+
+void Belegung::ziffernblockRaster(bool raster) {
+    m_zbRaster = raster;
+    const std::size_t n = m_namen.size();
+    // Eigene Belegungen bleiben; was der Vorgabe folgte, folgt der neuen.
+    std::vector<char> eigenErste(n);
+    std::vector<char> eigenZweite(n);
+    const std::vector<Taste> altErste = m_standard;
+    const std::vector<Taste> altZweite = m_zweitStandard;
+    for (std::size_t i = 0; i < n; ++i) {
+        eigenErste[i] = m_tasten[i] != m_standard[i] ? 1 : 0;
+        eigenZweite[i] = m_zweit[i] != m_zweitStandard[i] ? 1 : 0;
+        std::tie(m_standard[i], m_zweitStandard[i]) = vorgaben(m_nrc[i], raster);
+    }
+    // Eine Vorgabe, die mit dem Schalter neu auf eine Taste kommt, weicht der
+    // eigenen Belegung eines anderen Befehls: sonst waere die Taste
+    // mehrdeutig und loeste nichts mehr aus (QShortcutMap::find).
+    const auto eigene = [&](Taste t, std::size_t ausser) {
+        if (t == 0) { return false; }
+        for (std::size_t j = 0; j < n; ++j) {
+            if (j == ausser) { continue; }
+            if ((eigenErste[j] != 0 && m_tasten[j] == t) || (eigenZweite[j] != 0 && m_zweit[j] == t)) { return true; }
+        }
+        return false;
+    };
+    for (std::size_t i = 0; i < n; ++i) {
+        if (eigenErste[i] == 0 && m_standard[i] != altErste[i]) { m_tasten[i] = eigene(m_standard[i], i) ? 0 : m_standard[i]; }
+        if (eigenZweite[i] == 0 && m_zweitStandard[i] != altZweite[i]) {
+            m_zweit[i] = eigene(m_zweitStandard[i], i) ? 0 : m_zweitStandard[i];
+        }
+    }
+}
+
+bool Belegung::vorgabeWieNrc(std::string_view name) const {
+    const std::ptrdiff_t i = index(name);
+    return i < 0 || (m_standard[static_cast<std::size_t>(i)] == m_nrc[static_cast<std::size_t>(i)] &&
+                     m_zweitStandard[static_cast<std::size_t>(i)] == 0);
 }
 
 std::ptrdiff_t Belegung::index(std::string_view name) const {
@@ -337,18 +402,23 @@ std::ptrdiff_t Belegung::index(std::string_view name) const {
 // ReadCommandMap (commands.cpp:455-485)
 std::vector<std::string> Belegung::laden(const std::vector<std::pair<std::string, std::string>>& eigene) {
     std::vector<std::string> meldungen;
-    for (const auto& [name, text] : eigene) {
+    for (const auto& [eintrag, text] : eigene) {
+        // rc612 NUMPAD: "<Befehl>#Num" ist die Zweittaste des Befehls
+        const bool zweit = eintrag.size() > kZweitEndung.size() &&
+                           std::string_view(eintrag).substr(eintrag.size() - kZweitEndung.size()) == kZweitEndung;
+        const std::string name = zweit ? eintrag.substr(0, eintrag.size() - kZweitEndung.size()) : eintrag;
         const std::ptrdiff_t i = index(name);
         if (i < 0) { continue; }
+        std::vector<Taste>& ziel = zweit ? m_zweit : m_tasten;
         if (text.empty()) {
-            m_tasten[static_cast<std::size_t>(i)] = 0;
+            ziel[static_cast<std::size_t>(i)] = 0;
             continue;
         }
         const Taste t = tasteAusText(text);
         if (t != 0) {
-            m_tasten[static_cast<std::size_t>(i)] = t;
+            ziel[static_cast<std::size_t>(i)] = t;
         } else {
-            meldungen.push_back("WARNING: failed to parse user command \"" + name + "\": unknown key \"" + text + "\"");
+            meldungen.push_back("WARNING: failed to parse user command \"" + eintrag + "\": unknown key \"" + text + "\"");
         }
     }
     return meldungen;
@@ -358,6 +428,7 @@ std::vector<std::pair<std::string, std::string>> Belegung::abweichende() const {
     std::vector<std::pair<std::string, std::string>> v;
     for (std::size_t i = 0; i < m_namen.size(); ++i) {
         if (m_tasten[i] != m_standard[i]) { v.emplace_back(m_namen[i], tasteAlsText(m_tasten[i])); }
+        if (m_zweit[i] != m_zweitStandard[i]) { v.emplace_back(m_namen[i] + std::string(kZweitEndung), tasteAlsText(m_zweit[i])); }
     }
     return v;
 }
@@ -372,22 +443,59 @@ Taste Belegung::standard(std::string_view name) const {
     return i < 0 ? 0 : m_standard[static_cast<std::size_t>(i)];
 }
 
+Taste Belegung::zweitTaste(std::string_view name) const {
+    const std::ptrdiff_t i = index(name);
+    return i < 0 ? 0 : m_zweit[static_cast<std::size_t>(i)];
+}
+
+Taste Belegung::zweitStandard(std::string_view name) const {
+    const std::ptrdiff_t i = index(name);
+    return i < 0 ? 0 : m_zweitStandard[static_cast<std::size_t>(i)];
+}
+
+std::string Belegung::text(std::string_view name) const { return beideAlsText(taste(name), zweitTaste(name)); }
+
+std::string Belegung::standardText(std::string_view name) const { return beideAlsText(standard(name), zweitStandard(name)); }
+
+bool Belegung::geaendert(std::string_view name) const {
+    return taste(name) != standard(name) || zweitTaste(name) != zweitStandard(name);
+}
+
 void Belegung::setzen(std::string_view name, Taste t) {
     const std::ptrdiff_t i = index(name);
     if (i >= 0) { m_tasten[static_cast<std::size_t>(i)] = t; }
 }
 
-void Belegung::zuruecksetzen(std::string_view name) {
+void Belegung::leeren(std::string_view name) {
     const std::ptrdiff_t i = index(name);
-    if (i >= 0) { m_tasten[static_cast<std::size_t>(i)] = m_standard[static_cast<std::size_t>(i)]; }
+    if (i < 0) { return; }
+    m_tasten[static_cast<std::size_t>(i)] = 0;
+    m_zweit[static_cast<std::size_t>(i)] = 0;
 }
 
-void Belegung::alleZuruecksetzen() { m_tasten = m_standard; }
+void Belegung::loesen(std::string_view name, Taste t) {
+    const std::ptrdiff_t i = index(name);
+    if (i < 0) { return; }
+    if (m_tasten[static_cast<std::size_t>(i)] == t) { m_tasten[static_cast<std::size_t>(i)] = 0; }
+    if (m_zweit[static_cast<std::size_t>(i)] == t) { m_zweit[static_cast<std::size_t>(i)] = 0; }
+}
+
+void Belegung::zuruecksetzen(std::string_view name) {
+    const std::ptrdiff_t i = index(name);
+    if (i < 0) { return; }
+    m_tasten[static_cast<std::size_t>(i)] = m_standard[static_cast<std::size_t>(i)];
+    m_zweit[static_cast<std::size_t>(i)] = m_zweitStandard[static_cast<std::size_t>(i)];
+}
+
+void Belegung::alleZuruecksetzen() {
+    m_tasten = m_standard;
+    m_zweit = m_zweitStandard;
+}
 
 std::string Belegung::belegtVon(Taste t, std::string_view ausser) const {
     if (t == 0) { return std::string(); }
     for (std::size_t i = 0; i < m_namen.size(); ++i) {
-        if (m_tasten[i] == t && m_namen[i] != ausser) { return m_namen[i]; }
+        if ((m_tasten[i] == t || m_zweit[i] == t) && m_namen[i] != ausser) { return m_namen[i]; }
     }
     return std::string();
 }
@@ -396,7 +504,9 @@ std::vector<std::string> Belegung::treffer(const std::vector<Taste>& moegliche) 
     std::vector<std::string> v;
     for (const Taste t : moegliche) {
         for (std::size_t i = 0; i < m_namen.size(); ++i) {
-            if (m_tasten[i] == t && std::find(v.begin(), v.end(), m_namen[i]) == v.end()) { v.push_back(m_namen[i]); }
+            if ((m_tasten[i] == t || m_zweit[i] == t) && std::find(v.begin(), v.end(), m_namen[i]) == v.end()) {
+                v.push_back(m_namen[i]);
+            }
         }
     }
     return v;

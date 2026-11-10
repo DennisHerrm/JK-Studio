@@ -953,15 +953,16 @@ std::vector<Schritt> karteneditorXySchritte() {
         const std::string& t = ke::editor().statusPosition;
         return t.rfind("x: ", 0) == 0 && t.find("  y: ") != std::string::npos && t.find("  z:    0.0") != std::string::npos;
     }));
-    // Tasten (NRC-Standard): Ctrl+Tab, Num7, Insert, `, Ctrl+Shift+Tab, J, Shift+X, 0
+    // Tasten (NRC-Standard): Ctrl+Tab, Insert, `, Ctrl+Shift+Tab, J, Shift+X, 0 (rc612 NUMPAD: Num 7 setzt in der Vorgabe das
+    // Raster - ViewTop auf Num 7 prueft selbsttest_numpad.inc mit dem Schalter wie NRC, hier fuehrt Ctrl+Tab zurueck nach XY)
     add(tu("deutsche Tastatur", [] { ke::tastaturErsatz = deutscheTastatur; }));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Tab, "Strg+Tab"));
     add(pruefe("Ctrl+Tab = NextView: XY -> XZ", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::XZ; }));
     add(foto("karteneditor_xz"));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Tab, "Strg+Tab"));
     add(pruefe("Ctrl+Tab: XZ -> YZ", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::YZ; }));
-    add(tasteKombi(ImGuiKey_Keypad7, "Num 7"));
-    add(pruefe("Num 7 = ViewTop: XY", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::XY; }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Tab, "Strg+Tab"));
+    add(pruefe("Ctrl+Tab: YZ -> XY", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::XY; }));
     add(tu("Zustand merken", [zustand] { *zustand = ke::editor().xy[0].ansicht; }));
     add(tasteKombi(ImGuiKey_Insert, "Einfg"));
     add(pruefe("Insert = ZoomOut: Massstab x 4/5", [zustand] {
