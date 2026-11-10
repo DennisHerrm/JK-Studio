@@ -1301,6 +1301,12 @@ if(BEHAVED_TESTS)
                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_visgleich.py ctest
                        $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe ${CMAKE_CURRENT_BINARY_DIR}/q3map2_visgleich)
       set_tests_properties(q3map2_visgleich PROPERTIES TIMEOUT 900)
+      # Auftrag vis2 Punkt 3: -vis anhalten (Stoppdatei) und fortsetzen (-bhedvisstate) Byte fuer Byte gleich dem
+      # VIS ohne Pause (auch -nopassage, -passageOnly, zwei Pausen, beschaedigter oder fremder Zwischenstand)
+      add_test(NAME q3map2_vispause
+               COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_vispause.py ctest
+                       $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe ${CMAKE_CURRENT_BINARY_DIR}/q3map2_vispause)
+      set_tests_properties(q3map2_vispause PROPERTIES TIMEOUT 900)
       # Stufe 8a Punkt 5: Teil-Kompilierungen Byte fuer Byte gleich der vollen (VIS wiederverwenden, ...).
       # lcb2: vier Tests nebeneinander, je ein Teil des Skripts (BHED_TEILBAU_NUR) im eigenen Arbeitsordner - mit den
       # Faellen von lcb1 und lcb2 passt der eine Test unter Last nicht mehr in seine Zeitgrenze (die vier Teile brauchten
