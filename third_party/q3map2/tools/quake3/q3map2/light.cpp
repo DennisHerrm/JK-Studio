@@ -1476,6 +1476,12 @@ struct contribution_t
 static std::vector<Vector3> g_bhedGridOrigin;
 static std::vector<int> g_bhedGridCluster;
 static std::vector<char> g_bhedGridValid;
+/* BehavEd lcb1: the grid origins of the pass for -bhedlightcache (they come from the main thread's rand() state) */
+static std::uint64_t BhedGitterUrsprungHash(){
+	std::uint64_t h = BhedLichtCacheHash( g_bhedGridValid.data(), g_bhedGridValid.size(), 1 );
+	h = BhedLichtCacheHash( g_bhedGridOrigin.data(), g_bhedGridOrigin.size() * sizeof( Vector3 ), h );
+	return BhedLichtCacheHash( g_bhedGridCluster.data(), g_bhedGridCluster.size() * sizeof( int ), h );
+}
 
 /* BehavEd stage 7 (speed, same result): can any point of the box mins..maxs end in a leaf with
    a cluster? Same walk as PointInLeafNum_r (within 0.1 of a plane both sides count), for the
@@ -2369,6 +2375,9 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 	Sys_Printf( "%9d sun/sky lights\n", numSunLights );
 	BhedZeit( "CreateLights" );
 
+	/* BehavEd lcb1: -bhedlightcache, the first pass */
+	BhedLichtCacheDurchgang( 0 );
+
 	/* calculate lightgrid */
 	if ( !noGridLighting ) {
 		/* ydnar: set up light envelopes */
@@ -2381,10 +2390,11 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 		BhedZeit( "Gitter-Vorlauf" );
 		/* BehavEd stage 8a: the same grid lights as last time - only the store part (post-processing) runs,
 		   on the same number of work items (the pass numbering of the later passes stays the same) */
-		if ( BhedGitterAusCache() )
+		if ( BhedGitterAusCache( BhedGitterUrsprungHash() ) )
 			RunThreadsOnIndividual( rawGridPoints.size(), true, BhedGitterSpeichernGueltig );
 		else
 			BhedTraceGridAlle(); /* BehavEd stage 8g: was RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid ) */
+		BhedGitterMerken();
 		inGrid = false;
 		Sys_Printf( "%d x %d x %d = %zu grid\n",
 		            gridBounds[ 0 ], gridBounds[ 1 ], gridBounds[ 2 ], bspGridPoints.size() );
@@ -2427,7 +2437,6 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 	lightsClusterCulled = 0;
 
 	Sys_Printf( "--- IlluminateRawLightmap ---\n" );
-	BhedLichtCacheLichter(); /* BehavEd stage 8a */
 	BhedIlluminateRawLightmaps(); /* BehavEd stage 7: was RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmap ) */
 	BhedLmDatenMerken(); /* BehavEd stage 8a: the raw lightmaps before stitching */
 	Sys_Printf( "%9d luxels illuminated\n", numLuxelsIlluminated );
@@ -2440,7 +2449,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 	BhedIlluminateVertexesAll(); /* BehavEd vis1: was RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexes ) */
 	Sys_Printf( "%9d vertexes illuminated\n", numVertsIlluminated );
 	BhedZeit( "IlluminateVertexes" );
-	BhedLichtCacheSchreiben(); /* BehavEd stage 8a: <map>.bhedlight (only without -bounce) */
+	BhedLichtCacheDurchgangEnde(); /* BehavEd stage 8a, lcb1: the first pass into the new <map>.bhedlight */
 
 	/* ydnar: emit statistics on light culling */
 	Sys_FPrintf( SYS_VRB, "%9d lights plane culled\n", lightsPlaneCulled );
@@ -2464,6 +2473,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 
 		/* note it */
 		Sys_Printf( "\n--- Radiosity (bounce %d of %d) ---\n", b, bt );
+		BhedLichtCacheDurchgang( b ); /* BehavEd lcb1: -bhedlightcache, the bounce pass b */
 
 		/* flag bouncing */
 		bouncing = true;
@@ -2486,6 +2496,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 		if ( lights.empty() ) {
 			Sys_Printf( "No diffuse light to calculate, ending radiosity.\n" );
 			if( bounceStore ){ // already stored, just quit
+				BhedLichtCacheSchreiben(); /* BehavEd lcb1 */
 				return;
 			}
 			break; // break to StoreSurfaceLightmaps
@@ -2500,7 +2511,13 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 			inGrid = true;
 			BhedPrepareGridOrigins(); // BehavEd stage 6: see there
 			BhedZeit( "Bounce: Gitter-Vorlauf" );
-			BhedTraceGridAlle(); /* BehavEd stage 8g: was RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid ) */
+			/* BehavEd lcb1: -bhedlightcache - the same lights, origins and raw grid as in the cached pass: the raw grid
+			   after it, only the store part runs (on the same number of work items, as in the first pass) */
+			if ( BhedGitterAusCache( BhedGitterUrsprungHash() ) )
+				RunThreadsOnIndividual( rawGridPoints.size(), true, BhedGitterSpeichernGueltig );
+			else
+				BhedTraceGridAlle(); /* BehavEd stage 8g: was RunThreadsOnIndividual( rawGridPoints.size(), true, TraceGrid ) */
+			BhedGitterMerken();
 			inGrid = false;
 			Sys_FPrintf( SYS_VRB, "%9d grid points envelope culled\n", gridEnvelopeCulled );
 			Sys_FPrintf( SYS_VRB, "%9d grid points bounds culled\n", gridBoundsCulled );
@@ -2515,6 +2532,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 
 		Sys_Printf( "--- IlluminateRawLightmap ---\n" );
 		BhedIlluminateRawLightmaps(); /* BehavEd stage 7: was RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmap ) */
+		BhedLmDatenMerken(); /* BehavEd lcb1: the raw lightmaps of the bounce before stitching */
 		Sys_Printf( "%9d luxels illuminated\n", numLuxelsIlluminated );
 		Sys_Printf( "%9d vertexes illuminated\n", numVertsIlluminated );
 		BhedZeit( "Bounce: IlluminateRawLightmap" );
@@ -2526,6 +2544,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 		BhedIlluminateVertexesAll(); /* BehavEd vis1: was RunThreadsOnIndividual( bspDrawSurfaces.size(), true, IlluminateVertexes ) */
 		Sys_Printf( "%9d vertexes illuminated\n", numVertsIlluminated );
 		BhedZeit( "Bounce: IlluminateVertexes" );
+		BhedLichtCacheDurchgangEnde(); /* BehavEd lcb1 */
 
 		/* ydnar: emit statistics on light culling */
 		Sys_FPrintf( SYS_VRB, "%9d lights plane culled\n", lightsPlaneCulled );
@@ -2537,6 +2556,8 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 		bounce--;
 		b++;
 	}
+
+	BhedLichtCacheSchreiben(); /* BehavEd stage 8a, lcb1: <map>.bhedlight with every pass */
 
 	/* ydnar: store off lightmaps */
 	StoreSurfaceLightmaps( fastAllocate, true );

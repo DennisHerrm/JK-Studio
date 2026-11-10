@@ -2931,8 +2931,44 @@ static bhed_par::Pool& BhedPool(){
 	return bhed_par::pool( numthreads );
 }
 
+/* BehavEd stage 8a, lcb1: -bhedlightcache - before the pass, on all threads: every raw lightmap whose culled
+   light list (made as IlluminateRawLightmap_ makes it), generator and own state are the same as in the cached
+   pass is restored here; the pass (CPU and GPU) skips it. */
+static std::vector<char> g_bhedCacheFertig;
+static void BhedLichtCacheVorab(){
+	g_bhedCacheFertig.assign( numRawLightmaps, 0 );
+	if ( !BhedLichtCacheAn() ) {
+		return;
+	}
+	BhedLichtCacheLichter();
+	BhedPool().fuerAlle( numRawLightmaps, []( int r ){
+		const rawLightmap_t *lm = &rawLightmaps[ r ];
+		trace_t trace{};
+		trace.testOcclusion = !noTrace;
+		trace.forceSunlight = false;
+		trace.recvShadows = lm->recvShadows;
+		trace.numSurfaces = lm->numLightSurfaces;
+		trace.surfaces = &lightSurfaces[ lm->firstLightSurface ];
+		trace.inhibitRadius = DEFAULT_INHIBIT_RADIUS;
+		trace.twoSided = false;
+		for ( int i : Span( trace.surfaces, trace.numSurfaces ) )
+		{
+			if ( surfaceInfos[ i ].si->twoSided ) {
+				trace.twoSided = true;
+				break;
+			}
+		}
+		BhedTraceLights( lm->minmax, ( lm->plane == nullptr? nullptr : &lm->plane->normal() ), lm->numLightClusters, lm->lightClusters, &trace );
+		/* the generator its work item gets in the pass that follows (threaded pass, GPU round, the big ones) */
+		g_bhedCacheFertig[ r ] = BhedLmVorab( r, trace, BhedNextPassSeed( r ) ) ? 1 : 0;
+		FreeTraceLights( &trace );
+	} );
+	BhedLmVorabFertig();
+}
+
 void BhedIlluminateRawLightmaps(){
 	const BhedListenZeit listen( "lightmaps" ); /* BehavEd vis1: light lists through the light tree */
+	BhedLichtCacheVorab(); /* BehavEd lcb1 */
 	/* BehavEd stage 8c/8g: -bhedgpubake (not with deluxemaps or the debug fills; vis1: with random samples
 	   only from -samples 2 on - the GPU predicts the subsampling only then) */
 	if ( g_bhedBakeAn && BhedBakeBereit() && !deluxemap && ( !lightRandomSamples || lightSamples > 1 ) &&
@@ -2940,7 +2976,7 @@ void BhedIlluminateRawLightmaps(){
 		BhedIlluminateGpu();
 		return;
 	}
-	g_bhedVorab.assign( numRawLightmaps, 0 );
+	g_bhedVorab = g_bhedCacheFertig; /* BehavEd lcb1: the ones from the cache count as taken */
 	std::vector<std::pair<int, unsigned int>> gross;   /* the big ones, biggest first, with the seed of their work item */
 	if ( numthreads > 1 &&
 	     !( debugSurfaces || debugAxis || debugCluster || debugOrigin || dirtDebug || normalmap ) ) {
@@ -2952,7 +2988,7 @@ void BhedIlluminateRawLightmaps(){
 		const double grenze = total / numthreads;
 		for ( int i = 0; i < numRawLightmaps; ++i )
 		{
-			if ( double( rawLightmaps[ i ].sw ) * rawLightmaps[ i ].sh > grenze ) {
+			if ( double( rawLightmaps[ i ].sw ) * rawLightmaps[ i ].sh > grenze && !g_bhedCacheFertig[ i ] ) {
 				gross.emplace_back( i, BhedNextPassSeed( i ) );
 			}
 		}
@@ -3633,6 +3669,9 @@ static void BhedIlluminateGpu(){
 	if ( gpu ) {
 		baum.bauen( zeiger );
 		pool.fuerAlle( numRawLightmaps, [&]( int r ){
+			if ( g_bhedCacheFertig[ r ] ) {
+				return; /* BehavEd lcb1: from the cache */
+			}
 			rawLightmap_t *lm = &rawLightmaps[ r ];
 			trace_t trace{};
 			trace.recvShadows = lm->recvShadows;
@@ -3683,6 +3722,9 @@ static void BhedIlluminateGpu(){
 	const size_t budget = BhedBakeBudgetPaare();
 	for ( int r = 0; r < numRawLightmaps; ++r )
 	{
+		if ( g_bhedCacheFertig[ r ] ) {
+			continue; /* BehavEd lcb1: from the cache */
+		}
 		const size_t bedarf = size_t( abgebildet[ r ] ) * liste[ r ].size();
 		if ( !gpu ) {
 			cpu[ r ] = 1;
@@ -4448,19 +4490,13 @@ static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool, un
 
 	/* create a culled light list for this raw lightmap */
 	/* BehavEd stage 8g: -bhedgpubake - the list was made for the GPU already, and the light loop ran there:
-	   only its length is needed (not with -bhedlightcache, which hashes the list) */
-	if ( pool == nullptr && rawLightmapNum < int( g_bhedBakeFertig.size() ) && g_bhedBakeFertig[ rawLightmapNum ].da && !BhedLichtCacheAn() ) {
+	   only its length is needed */
+	if ( pool == nullptr && rawLightmapNum < int( g_bhedBakeFertig.size() ) && g_bhedBakeFertig[ rawLightmapNum ].da ) {
 		trace.lights = nullptr;
 		trace.numLights = g_bhedBakeFertig[ rawLightmapNum ].numLights;
 	}
 	else
 	BhedTraceLights( lm->minmax, ( lm->plane == nullptr? nullptr : &lm->plane->normal() ), lm->numLightClusters, lm->lightClusters, &trace ); /* BehavEd vis1: through the light tree */
-
-	/* BehavEd stage 8a: the same culled lights as in the cached run - the raw luxels are the same */
-	if ( BhedLmAusCache( rawLightmapNum, trace ) ) {
-		FreeTraceLights( &trace );
-		return;
-	}
 
 	/* BehavEd stage 8g: -bhedgpubake - the finished luxels of the light loop from the GPU, if this list was computed */
 	const BhedBakeFertig *bhedFertig = ( pool == nullptr && rawLightmapNum < int( g_bhedBakeFertig.size() ) && g_bhedBakeFertig[ rawLightmapNum ].da &&
@@ -5240,7 +5276,7 @@ void IlluminateVertexes( int num ){
 		CreateTraceLightsForSurface( num, &trace );
 
 		/* BehavEd stage 8a: the same lights as in the cached run - vertex light and colours from the cache */
-		if ( BhedFlaecheAusCache( num, trace ) ) {
+		if ( BhedFlaecheAusCache( num, trace, BhedPassSeed( num ) ) ) {
 			FreeTraceLights( &trace );
 			return;
 		}
