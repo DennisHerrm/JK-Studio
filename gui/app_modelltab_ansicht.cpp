@@ -2196,7 +2196,18 @@ void drawModellArbeitsflaeche() {
     if (t.einpassenOffen && t.ansichten[3].groesse[0] > 0.0F) {
         posieren();
         t.einpassenOffen = false;
-        modellStartansicht(3);
+        // Ein leeres Dokument (neues Requisit) hat nichts zum Einpassen: die Kamera bleibt, wie bis rc611. Eingepasst stand
+        // sie 8 Einheiten vor dem leeren Ursprung, und der erste Kasten (64 Einheiten) ragte weit ueber den Rand der Ansicht.
+        float mn[3];
+        float mx[3];
+        const bool leer = !grenzen(false, mn, mx) && !(g_app->model.maxs[0] > g_app->model.mins[0] || g_app->model.maxs[1] > g_app->model.mins[1] ||
+                                                       g_app->model.maxs[2] > g_app->model.mins[2]);
+        if (!leer) {
+            // die Orthoansichten der vier Ansichten ebenfalls in der Pose: oben beim Laden kannten sie nur die Ecken davor -
+            // Vorne und Links standen nach Alt+W unten abgeschnitten (Rahmen y 0,43..1,35)
+            for (int i = 0; i < 3; ++i) { einpassen(t.ansichten[i]); }
+            modellStartansicht(3);
+        }
     }
     const bool neu = g_app->modelDirty || t.dok.stand() != g_posiertBeiStand;
     if (neu) {

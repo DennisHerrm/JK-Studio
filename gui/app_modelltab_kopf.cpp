@@ -16,6 +16,7 @@
 #include "app_internal.h"
 #include "textumbruch.h"
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
@@ -410,12 +411,22 @@ void menueShadingBlender(int n) {
 constexpr ImU32 kText = IM_COL32(220, 220, 220, 230);
 constexpr ImU32 kTextHover = IM_COL32(255, 222, 120, 255);   // wie die Labels von 3ds Max unter der Maus: hell, gelblich
 
+// Wohin das Menue eines Feldes aufklappt: unter das Feld, wie die Viewport Label Menus von 3ds Max und die Menues der
+// Kopfzeile von Blender. Ohne Angabe oeffnet ImGui ein Popup an der Maus - es lag dann ueber seinem eigenen Feld.
+struct MenueAnker {
+    ImVec2 ort{};
+    float pivotX = 0.0F;   // 0: an der linken Kante des Feldes, 1: an der rechten (Felder am rechten Rand der Ansicht)
+};
+
 // Ein Feld: Text mit Rand, Hervorhebung unter der Maus und solange sein Menue offen ist; Klick links oder rechts oeffnet
 // das Menue. Gibt die rechte Kante zurueck.
-float feld(ImDrawList* dl, ImVec2 o, const char* id, const char* text, Str hinweis, const char* popup, int n, float hoehe) {
+float feld(ImDrawList* dl, ImVec2 o, const char* id, const char* text, Str hinweis, const char* popup, int n, float hoehe, MenueAnker& anker,
+           bool rechts = false) {
     const ImVec2 g = ImGui::CalcTextSize(text);
     const float rand = 4.0F;
     const ImVec2 groesse{g.x + rand * 2.0F, hoehe};
+    anker.ort = ImVec2{rechts ? o.x + groesse.x : o.x, o.y + groesse.y};
+    anker.pivotX = rechts ? 1.0F : 0.0F;
     ImGui::SetCursorScreenPos(o);
     ImGui::InvisibleButton(id, groesse, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
     const bool klick = ImGui::IsItemClicked(ImGuiMouseButton_Left) || ImGui::IsItemClicked(ImGuiMouseButton_Right);
@@ -493,21 +504,22 @@ void drawModellKopfzeile(int n, ModellAnsicht& a) {
     float x = lo.x + 3.0F;
     const float y = lo.y + 2.0F;
     char text[160];
+    std::array<MenueAnker, 5> anker{};   // je Menue ##mkm0 .. ##mkm4
     // --- links ---------------------------------------------------------------------------------------------------
     if (!bl) {
-        x = feld(dl, ImVec2{x, y}, "##mkplus", "[+]", Str::MkPlusHint, "##mkm0", n, hoehe) + 2.0F;
+        x = feld(dl, ImVec2{x, y}, "##mkplus", "[+]", Str::MkPlusHint, "##mkm0", n, hoehe, anker[0]) + 2.0F;
         std::snprintf(text, sizeof text, "[%s]", modellAnsichtText(a.art));
-        x = feld(dl, ImVec2{x, y}, "##mkansicht", text, Str::MkAnsichtHint, "##mkm1", n, hoehe) + 2.0F;
+        x = feld(dl, ImVec2{x, y}, "##mkansicht", text, Str::MkAnsichtHint, "##mkm1", n, hoehe, anker[1]) + 2.0F;
         const char* art = a.sch.drahtgitter ? tr(Str::MkDraht) : tr(Str::MbAnsichtStandard);
         if (a.sch.kanten) {
             std::snprintf(text, sizeof text, "[%s + %s]", art, tr(Str::MkKanten));
         } else {
             std::snprintf(text, sizeof text, "[%s]", art);
         }
-        x = feld(dl, ImVec2{x, y}, "##mkschatt", text, Str::MkSchattHint, "##mkm2", n, hoehe);
+        x = feld(dl, ImVec2{x, y}, "##mkschatt", text, Str::MkSchattHint, "##mkm2", n, hoehe, anker[2]);
     } else {
         std::snprintf(text, sizeof text, "%s", tr(Str::MkBlAnsicht));
-        x = feld(dl, ImVec2{x, y}, "##mkansicht", text, Str::MkAnsichtHintBl, "##mkm1", n, hoehe) + 6.0F;
+        x = feld(dl, ImVec2{x, y}, "##mkansicht", text, Str::MkAnsichtHintBl, "##mkm1", n, hoehe, anker[1]) + 6.0F;
     }
     a.kopfRechts = x;
     a.kopfUnten = y + hoehe;
@@ -523,9 +535,9 @@ void drawModellKopfzeile(int n, ModellAnsicht& a) {
         rx = std::max(rx, x + 4.0F);
         a.kopfLinks2 = rx;
         rechtsAb = rx;
-        rx = feld(dl, ImVec2{rx, y}, "##mkoverlays", tr(Str::MkBlOverlays), Str::MkOverlaysHint, "##mkm3", n, hoehe) + 6.0F;
+        rx = feld(dl, ImVec2{rx, y}, "##mkoverlays", tr(Str::MkBlOverlays), Str::MkOverlaysHint, "##mkm3", n, hoehe, anker[3], true) + 6.0F;
         for (int k = 0; k < 3; ++k) { rx = shadingKnopf(dl, ImVec2{rx, y}, n, k, knopf) + 2.0F; }
-        (void)feld(dl, ImVec2{rx, y}, "##mkshading", "v", Str::MkShadingHintBl, "##mkm4", n, hoehe);
+        (void)feld(dl, ImVec2{rx, y}, "##mkshading", "v", Str::MkShadingHintBl, "##mkm4", n, hoehe, anker[4], true);
     }
     // --- der Hinweis daneben (nur maximiert, nur wenn er passt) und im Blender-Modus der Name der Ansicht ----------
     {
@@ -545,7 +557,8 @@ void drawModellKopfzeile(int n, ModellAnsicht& a) {
         }
     }
     // --- die Menues ------------------------------------------------------------------------------------------------
-    const auto menue = [&](const char* id, auto&& inhalt) {
+    const auto menue = [&](const char* id, const MenueAnker& m, auto&& inhalt) {
+        if (ImGui::IsPopupOpen(id)) { ImGui::SetNextWindowPos(m.ort, ImGuiCond_Appearing, ImVec2{m.pivotX, 0.0F}); }
         if (ImGui::BeginPopup(id)) {
             ++t.kopfMenueZaehler;
             inhalt();
@@ -554,17 +567,17 @@ void drawModellKopfzeile(int n, ModellAnsicht& a) {
             ImGui::EndPopup();
         }
     };
-    menue("##mkm0", [&] { menueAllgemein(n); });
-    menue("##mkm1", [&] {
+    menue("##mkm0", anker[0], [&] { menueAllgemein(n); });
+    menue("##mkm1", anker[1], [&] {
         if (bl) {
             menueAnsichtBlender(n);
         } else {
             menueAnsichtMax(n);
         }
     });
-    menue("##mkm2", [&] { menueSchattierungMax(n); });
-    menue("##mkm3", [&] { menueOverlays(n); });
-    menue("##mkm4", [&] { menueShadingBlender(n); });
+    menue("##mkm2", anker[2], [&] { menueSchattierungMax(n); });
+    menue("##mkm3", anker[3], [&] { menueOverlays(n); });
+    menue("##mkm4", anker[4], [&] { menueShadingBlender(n); });
 }
 
 // Das Rechtsklick-Menue der Ansicht (Untermenue "Anzeige"): dieselben Menues wie in der Kopfzeile der aktiven Ansicht.

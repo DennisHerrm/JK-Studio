@@ -808,7 +808,11 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
     }));
     // --- Bewegungspfad des Beckens ziehen ----------------------------------------------------------------------------
     auto pfadVorher = std::make_shared<std::array<float, 3>>();
-    add(tu("MB5 Pfad: Schicht leer, Pfad pelvis und upper_lumbar, Frame +8, Ansicht Vorne", [pfadVorher] {
+    // MBKOPF: von der Seite wie bis rc611 - der Gang laeuft dann quer durchs Bild, die Punkte bei +8 und +9 liegen auseinander
+    // (von vorne laeuft er auf die Kamera zu, die Punkte liegen fast aufeinander: in schmaleren Ansichten - ja, es - griff
+    // der Zug den Punkt bei +9)
+    add(mb1::seitenAnsicht());
+    add(tu("MB5 Pfad: Schicht leer, Pfad pelvis und upper_lumbar, Frame +8", [pfadVorher] {
         g_app->mtab.dok.aendern("MB5 leer", [](modell::Inhalt& in) { in.rig.schichten.clear(); }, false);
         g_app->mtab.pfade.clear();
         for (const char* n : {"pelvis", "upper_lumbar"}) {   // Stufe 4: Haende/Fuesse ziehen per IK (mb6), ein Wirbel bleibt Anzeige

@@ -187,7 +187,14 @@ void meshSchritte(std::vector<Schritt>& s) {
         add(pruefe(std::string("MR Blender ") + name + ": die Auswahl wie die Rechnung", [art, erwartet, name] {
             const w::PAuswahl& a = g_app->mtab.mesh.auswahl;
             const std::size_t ist = art == AuswahlArt::Kante ? a.kanten.size() : a.flaechen.size();
-            diag::detail(std::string("Knopftest: MR ") + name + " - " + std::to_string(ist) + ", soll " + std::to_string(*erwartet));
+            const ModellAnsicht& v = g_app->mtab.ansichten[g_app->mtab.aktiv];
+            const int k = vorderKante();
+            const ImVec2 p = k < 0 ? ImVec2{} : kantenKlick(k);
+            char z[200];
+            std::snprintf(z, sizeof z, " | Klick %.0f/%.0f in der Ansicht %.0f/%.0f %.0fx%.0f, halbe Hoehe %.1f, Abstand %.1f", static_cast<double>(p.x),
+                          static_cast<double>(p.y), static_cast<double>(v.lo[0]), static_cast<double>(v.lo[1]), static_cast<double>(v.groesse[0]),
+                          static_cast<double>(v.groesse[1]), static_cast<double>(v.halbHoehe), static_cast<double>(g_app->modelOrbit.distance));
+            diag::detail(std::string("Knopftest: MR ") + name + " - " + std::to_string(ist) + ", soll " + std::to_string(*erwartet) + z);
             return *erwartet >= 12U && ist == *erwartet;
         }));
     };

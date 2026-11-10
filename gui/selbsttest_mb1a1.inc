@@ -220,9 +220,8 @@ std::vector<Schritt> laden(const std::string& pfad) {
 // MBKOPF: die Startansicht bis rc611 - von der Seite (Gier 180), vor der Mitte des Huellkastens der Datei im 1,15-fachen
 // seiner groessten Seite. Fuer die Tests, deren Klick- und Malstellen an der Figur von der Seite ausgemessen sind; seit
 // MBKOPF zeigt die Startansicht die Figur von vorne (das pruefen kopfrot und kopf).
-std::vector<Schritt> ladenSeite(const std::string& pfad) {
-    std::vector<Schritt> s = laden(pfad);
-    s.push_back(tu("MB1: Ansicht von der Seite wie bis rc611", [] {
+Schritt seitenAnsicht() {
+    return tu("MB1: Ansicht von der Seite wie bis rc611", [] {
         Camera& c = g_app->modelCam;
         float groesse = 0.0F;
         for (int k = 0; k < 3; ++k) { groesse = std::max(groesse, g_app->model.maxs[k] - g_app->model.mins[k]); }
@@ -234,7 +233,12 @@ std::vector<Schritt> ladenSeite(const std::string& pfad) {
         c.forward(vorn);
         for (int k = 0; k < 3; ++k) { c.pos[k] = (g_app->model.mins[k] + g_app->model.maxs[k]) * 0.5F - vorn[k] * g_app->modelOrbit.distance; }
         g_app->modelDirty = true;
-    }));
+    });
+}
+
+std::vector<Schritt> ladenSeite(const std::string& pfad) {
+    std::vector<Schritt> s = laden(pfad);
+    s.push_back(seitenAnsicht());
     s.push_back(pause(0.3));
     return s;
 }

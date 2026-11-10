@@ -28,6 +28,25 @@ std::function<ImVec2()> feldOrt(int n, int feld) {
     };
 }
 
+// Das offene Menue eines Feldes klappt unter dem Feld auf (Viewport Label Menus von 3ds Max, Kopfzeile von Blender) - nicht
+// an der Maus ueber dem Feld; ein Feld am rechten Rand der Ansicht richtet das Menue an seiner rechten Kante aus.
+Schritt menueUnterFeld(const std::string& name, int n, int feld, bool rechts) {
+    return pruefe("MBKOPF 2: das Menue " + name + " klappt unter seinem Feld auf", [=] {
+        ImVec2 p{0.0F, 0.0F};
+        const ImGuiWindow* w = GImGui->OpenPopupStack.empty() ? nullptr : GImGui->OpenPopupStack.back().Window;
+        if (w == nullptr || !modellKopfFeldOrt(n, feld, p)) { return false; }
+        const ModellAnsicht& a = ansicht(n);
+        const ImRect r = w->Rect();
+        char z[200];
+        std::snprintf(z, sizeof z, "Knopftest: MBKOPF Menue %s - %.0f,%.0f-%.0f,%.0f, Mitte des Feldes %.0f,%.0f, Kopfzeile unten %.0f", name.c_str(),
+                      static_cast<double>(r.Min.x), static_cast<double>(r.Min.y), static_cast<double>(r.Max.x), static_cast<double>(r.Max.y),
+                      static_cast<double>(p.x), static_cast<double>(p.y), static_cast<double>(a.kopfUnten));
+        diag::detail(z);
+        const bool kante = rechts ? (r.Max.x >= p.x && r.Max.x <= a.lo[0] + a.groesse[0] + 1.0F) : (r.Min.x <= p.x && r.Min.x >= a.lo[0] - 1.0F);
+        return r.Min.y >= a.kopfUnten - 1.0F && !r.Contains(p) && kante;
+    });
+}
+
 std::function<ImVec2()> wuerfelOrt(int x, int y, int z) {
     return [=] {
         ImVec2 p{0.0F, 0.0F};
@@ -221,6 +240,7 @@ void kopfSchritte(std::vector<Schritt>& s) {
     add(klickAn("MBKOPF 2: [+]", feldOrt(3, 0)));
     add(pause(0.2));
     add(pruefe("MBKOPF 2: [+] oeffnet sein Menue", [=] { return t().kopfMenueZaehler > *zaehler; }));
+    add(menueUnterFeld("[+]", 3, 0, false));
     add(klick(tr(Str::MkRaster)));
     add(pause(0.2));
     add(pruefe("MBKOPF 2: [+] > Raster schaltet das Raster der Ansicht", [] { return ansicht(3).sch.raster; }));
@@ -763,6 +783,7 @@ void kopfSchritte(std::vector<Schritt>& s) {
     add(klickAn("MBKOPF Blender: Overlays", feldOrt(3, 3)));
     add(pause(0.2));
     add(pruefe("MBKOPF Blender: Overlays oeffnet sein Menue", [=] { return t().kopfMenueZaehler > *zaehler; }));
+    add(menueUnterFeld("Blender Overlays", 3, 3, true));
     add(klick(tr(Str::MbAnUrsprung)));
     add(pause(0.2));
     add(pruefe("MBKOPF Blender: Overlays > Ursprung", [] { return t().an.ursprung; }));

@@ -73,6 +73,7 @@ struct Zustand {
     std::string laufendeId;
     // Was dieses Bild zeigt
     std::vector<ImRect> ziele;
+    std::vector<std::string> zielFenster;   // je Ziel das oberste Fenster (Element::fenster), leer ohne Element
     ImGuiID zielKennung = 0;
     std::string zielInnen;         // Fenster des ersten Ziels (zum Hinrollen)
     bool zielGanzSichtbar = true;
@@ -1361,6 +1362,7 @@ void tourSchliessen() {
     ansichtZurueck();   // rc601 tour (Review)
     s.fensterOffen = false;
     s.ziele.clear();
+    s.zielFenster.clear();
     s.overlay = false;
     s.geistStart = -1.0;
 }
@@ -1423,6 +1425,7 @@ void tourBild() {
     const bool frage = g_app->askSaveOpen || g_app->frageOffen;
     std::vector<std::string> labels;
     s.ziele.clear();
+    s.zielFenster.clear();
     s.zielKennung = 0;
     s.zielInnen.clear();
     s.zeigtOeffner = false;
@@ -1457,6 +1460,7 @@ void tourBild() {
                 s.zielGanzSichtbar = elemente::ganzImBild(*g.e);
             }
             s.ziele.push_back(g.r);
+            s.zielFenster.push_back(g.e != nullptr ? g.e->fenster : std::string());
         }
         // Ein Ziel in einer gerollten Liste (die Ereignisliste ist lang): einmal
         // je Schritt dorthin rollen.
@@ -1516,11 +1520,23 @@ void tourBild() {
     // rc601 tour (Review): steht ein Modal, in dem kein Ziel liegt (About,
     // Einstellungen ...), ruht die Abdunklung - sie laege sonst ueber einem
     // Fenster, das mit der Tour nichts zu tun hat.
+    // Ob ein Ziel im Modal liegt, entscheidet sein Fenster: das Modal selbst oder ein spaeter geoeffnetes Popup darueber
+    // (eine Klappliste im Modal). Die Lage allein reicht nicht - ein grosses Modal (About) ueberdeckt auch Ziele im
+    // Hauptfenster dahinter (MBKOPF: About wurde um eine Zeile hoeher und dunkelte dann ab). Nur ein Ziel ohne Element
+    // (ein Fensterrahmen) zaehlt nach der Lage.
     bool fremdesModal = false;
     if (const ImGuiWindow* m = ImGui::GetTopMostAndVisiblePopupModal(); m != nullptr) {
         fremdesModal = true;
-        for (const ImRect& r : s.ziele) {
-            if (m->Rect().Contains(r.GetCenter())) { fremdesModal = false; }
+        std::vector<std::string> imModal;
+        bool ab = false;
+        for (const ImGuiPopupData& p : GImGui->OpenPopupStack) {
+            ab = ab || p.Window == m;
+            if (ab && p.Window != nullptr) { imModal.emplace_back(p.Window->Name); }
+        }
+        for (std::size_t i = 0; i < s.ziele.size(); ++i) {
+            const std::string& f = i < s.zielFenster.size() ? s.zielFenster[i] : std::string();
+            const bool drin = f.empty() ? m->Rect().Contains(s.ziele[i].GetCenter()) : std::find(imModal.begin(), imModal.end(), f) != imModal.end();
+            if (drin) { fremdesModal = false; }
         }
     }
     if (s.ablauf.aktiv() && !s.ablauf.fertig() && !s.ziele.empty() && !fremdesModal) {

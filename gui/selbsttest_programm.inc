@@ -1435,6 +1435,15 @@ std::vector<Schritt> tourPruefungSchritte() {
     add(pause(0.4));
     add(pruefe("Tour-Pruefung: waehrend About offen ist, dunkelt die Tour nichts ab", [=] {
         melde("About offen");
+        // die Lage des Modals: ueberdeckt es das Ziel (dann half die Lage allein nicht, siehe tour.cpp "fremdesModal")
+        if (const ImGuiWindow* m = ImGui::GetTopMostAndVisiblePopupModal(); m != nullptr && !tourSicht().ziele.empty()) {
+            const ImVec2 z = tourSicht().ziele[0].GetCenter();
+            char t[200];
+            std::snprintf(t, sizeof t, "Knopftest: Tour-Pruefung - About %.0f,%.0f-%.0f,%.0f, Mitte des Ziels %.0f,%.0f %s", static_cast<double>(m->Rect().Min.x),
+                          static_cast<double>(m->Rect().Min.y), static_cast<double>(m->Rect().Max.x), static_cast<double>(m->Rect().Max.y), static_cast<double>(z.x),
+                          static_cast<double>(z.y), m->Rect().Contains(z) ? "(ueberdeckt)" : "(frei)");
+            diag::detail(t);
+        }
         return !tourSicht().overlay;
     }));
     add(tu("Tour-Pruefung: About zu", [] { g_app->aboutOpen = false; }));

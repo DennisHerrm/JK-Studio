@@ -4124,11 +4124,17 @@ void drawAbout() {
     ImGui::BulletText("%s", tr(Str::AboutIbi));
     ImGui::BulletText("%s", tr(Str::AboutIcarus));
     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 40.0F);
-    ImGui::BulletText("%s", tr(Str::AboutUvLizenz));     // Modell-Block 1b: Herkunft und Lizenz der UV-Werkzeuge (BSD-3 verlangt den Hinweis)
-    ImGui::BulletText("%s", tr(Str::AboutMeshLizenz));   // Modell-Block 1d: Herkunft und Lizenz der Modellier-Werkzeuge
-    ImGui::BulletText("%s", tr(Str::AboutViewCubeLizenz));   // MBKOPF: der ViewCube des Model-Tabs (BSD-3 verlangt den Hinweis)
-    ImGui::BulletText("%s", tr(Str::AboutBlenderLizenz));   // FIX2 P10: aus Blender portierte Teile (GPL-2.0-or-later)
-    ImGui::BulletText("%s", tr(Str::AboutAnimLizenz));   // Preset-Bibliothek: Quaternius (CC0), 100STYLE (CC BY 4.0 verlangt die Nennung)
+    // MBKOPF: Punkt und umbrochener Text - BulletText bricht nicht um, die langen Lizenzzeilen machten das Fenster 2290 Punkte
+    // breit (breiter als das Programmfenster auf einem 1920er Schirm, der Rest abgeschnitten)
+    const auto punkt = [](Str s) {
+        ImGui::Bullet();
+        cjkTextWrapped("%s", tr(s));
+    };
+    punkt(Str::AboutUvLizenz);         // Modell-Block 1b: Herkunft und Lizenz der UV-Werkzeuge (BSD-3 verlangt den Hinweis)
+    punkt(Str::AboutMeshLizenz);       // Modell-Block 1d: Herkunft und Lizenz der Modellier-Werkzeuge
+    punkt(Str::AboutViewCubeLizenz);   // MBKOPF: der ViewCube des Model-Tabs (BSD-3 verlangt den Hinweis)
+    punkt(Str::AboutBlenderLizenz);    // FIX2 P10: aus Blender portierte Teile (GPL-2.0-or-later)
+    punkt(Str::AboutAnimLizenz);       // Preset-Bibliothek: Quaternius (CC0), 100STYLE (CC BY 4.0 verlangt die Nennung)
     ImGui::PopTextWrapPos();
 
     ImGui::Separator();

@@ -247,6 +247,10 @@ std::vector<Schritt> schritte() {
     add(pause(0.4));
     add(pruefeVorne("vier Ansichten (Alt+W), die Perspektive", 3));
     add(pruefeMittig("vier Ansichten (Alt+W), die Perspektive", 3));
+    // Schlussrunde: auch die drei Orthoansichten (im Handbuchbild h_mb1_vier standen Vorne und Links unten abgeschnitten)
+    add(pruefeMittig("vier Ansichten (Alt+W), Oben", 0));
+    add(pruefeMittig("vier Ansichten (Alt+W), Vorne", 1));
+    add(pruefeMittig("vier Ansichten (Alt+W), Links", 2));
     add(tu("MBKOPF rot: wieder eine Ansicht", [] {
         g_app->mtab.vierAnsichten = false;
         g_app->modelDirty = true;

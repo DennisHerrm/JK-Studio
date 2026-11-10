@@ -2489,6 +2489,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     if (const char* sp = std::getenv("BHED_SPRACHE")) {
         if (const i18n::LanguageInfo* l = i18n::findLanguage(sp)) { i18n::setLanguage(l->language); }
     }
+    // MBKOPF: der einmalige Hinweis "Anzeige-Optionen jetzt oben in der Ansicht" (rechtes Feld des Model-Tabs) gehoert nicht
+    // in die Bilder - sie zeigen den Stand nach dem ersten Mal
+    g_app->settings.modellAnzeigeUmzugGesehen = true;
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karteneditor") == 0) {
         return karteneditorHandbuchSchritte();
     }
