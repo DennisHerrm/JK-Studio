@@ -226,6 +226,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _mbkopf()})
             from i18n_rest10 import zeilen_vier as _rest10   # REST10: Update-Leiste wie G2C ergaenzt
             texte.update({e[0]: e[1:] for e in _rest10()})
+            from i18n_mbraster import zeilen_vier as _mbraster   # MBRASTER: Boden-Raster wie 3ds Max / Blender
+            texte.update({e[0]: e[1:] for e in _mbraster()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)
