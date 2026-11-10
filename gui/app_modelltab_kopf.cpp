@@ -50,7 +50,30 @@ struct Schalter {
     std::function<bool&(int)> wert;
     std::function<bool()> geht;   // nullptr: immer
     Str grund;                    // Tooltip, wenn !geht()
+    // MBRASTER: 0 in beiden Bedienmodi, 1 nur wie 3ds Max, 2 nur wie Blender; Blender: im Block "Hilfslinien" der Overlays;
+    // `wirkt`: zeigt der Schalter in dieser Ansicht etwas (Blender: Grid nur in den Achsenansichten, Floor in den freien)
+    int modus = 0;
+    bool hilfslinie = false;
+    std::function<bool(int)> wirkt;
 };
+
+// MBRASTER: die freien Ansichten (Perspektive, Orthographisch) zeigen den Boden, die Achsenansichten ihre Ebene
+bool freieAnsicht(int n) {
+    const AnsichtArt a = mt().ansichten[n].art;
+    return a == AnsichtArt::Perspektive || a == AnsichtArt::Orthographisch;
+}
+
+// Liegt die Weltachse k in dem, was die Ansicht vom Raster zeigt (Boden: X und Y, dazu Z senkrecht; Oben/Unten: X, Y;
+// Vorne/Hinten: X, Z; Links/Rechts: Y, Z)?
+bool achseSichtbar(int n, int k) {
+    if (freieAnsicht(n)) { return true; }
+    const AnsichtArt a = mt().ansichten[n].art;
+    if (a == AnsichtArt::Oben || a == AnsichtArt::Unten) { return k != 2; }
+    if (a == AnsichtArt::Vorne || a == AnsichtArt::Hinten) { return k != 1; }
+    return k != 0;
+}
+
+bool imModus(const Schalter& s) { return s.modus == 0 || s.modus == (modellBlender() ? 2 : 1); }
 
 bool& schDraht(int n) { return mt().ansichten[n].sch.drahtgitter; }
 
@@ -66,9 +89,9 @@ const std::vector<Schalter>& schalter() {
          Str::MkGewichteHint},
         {Str::MkSilhouette, Str::MkSilhouetteHint, "", "", Ort::Schattierung, true, [](int) -> bool& { return mt().silhouette; }, nullptr,
          Str::MkSilhouetteHint},
-        {Str::MkRaster, Str::MkRasterHint, "G", "", Ort::Allgemein, false, [](int n) -> bool& { return mt().ansichten[n].sch.raster; }, nullptr,
-         Str::MkRasterHint},
-        {Str::MbAnBoden, Str::MkBodenHint, "", "", Ort::Allgemein, false, [](int) -> bool& { return mt().an.boden; }, nullptr, Str::MkBodenHint},
+        {Str::MkRaster, Str::MrRasterHint, "G", "", Ort::Allgemein, false, [](int n) -> bool& { return mt().ansichten[n].sch.raster; }, nullptr,
+         Str::MrRasterHint, 1},
+        {Str::MrGrauBoden, Str::MkBodenHint, "", "", Ort::Allgemein, false, [](int) -> bool& { return mt().an.boden; }, nullptr, Str::MkBodenHint},
         {Str::MbAnUrsprung, Str::MkUrsprungHint, "", "", Ort::Allgemein, false, [](int) -> bool& { return mt().an.ursprung; }, nullptr,
          Str::MkUrsprungHint},
         {Str::MbAnHuelle, Str::MkHuelleHint, "", "", Ort::Allgemein, false, [](int) -> bool& { return mt().an.huelle; }, nullptr, Str::MkHuelleHint},
@@ -90,6 +113,17 @@ const std::vector<Schalter>& schalter() {
          Str::MbAnEckNummernHint},
         {Str::MkDreieckNummern, Str::MbAnEckNummernHint, "", "", Ort::Knochen, false, [](int) -> bool& { return mt().an.dreieckNummern; },
          nullptr, Str::MbAnEckNummernHint},
+        // MBRASTER: Blender Overlays > Guides - Grid, Floor, Axes X Y Z (je Ansicht)
+        {Str::MkRaster, Str::MrRasterHintBl, "", "", Ort::Allgemein, false, [](int n) -> bool& { return mt().ansichten[n].sch.raster; }, nullptr,
+         Str::MrRasterHintBl, 2, true, [](int n) { return !freieAnsicht(n); }},
+        {Str::MrBoden, Str::MrBodenHint, "", "", Ort::Allgemein, false, [](int n) -> bool& { return mt().ansichten[n].sch.rasterBoden; }, nullptr,
+         Str::MrBodenHint, 2, true, [](int n) { return freieAnsicht(n); }},
+        {Str::MrAchseX, Str::MrAchsenHint, "", "", Ort::Allgemein, false, [](int n) -> bool& { return mt().ansichten[n].sch.achsen[0]; }, nullptr,
+         Str::MrAchsenHint, 2, true, [](int n) { return achseSichtbar(n, 0); }},
+        {Str::MrAchseY, Str::MrAchsenHint, "", "", Ort::Allgemein, false, [](int n) -> bool& { return mt().ansichten[n].sch.achsen[1]; }, nullptr,
+         Str::MrAchsenHint, 2, true, [](int n) { return achseSichtbar(n, 1); }},
+        {Str::MrAchseZ, Str::MrAchsenHint, "", "", Ort::Allgemein, false, [](int n) -> bool& { return mt().ansichten[n].sch.achsen[2]; }, nullptr,
+         Str::MrAchsenHint, 2, true, [](int n) { return achseSichtbar(n, 2); }},
     };
     return kListe;
 }
@@ -122,17 +156,90 @@ void schalterZeile(const Schalter& s, int n) {
 
 void schalterDerArt(Ort ort, int n) {
     for (const Schalter& s : schalter()) {
-        if (s.ort == ort) { schalterZeile(s, n); }
+        if (s.ort == ort && imModus(s)) { schalterZeile(s, n); }
     }
 }
 
-void bodenHoehe() {
+// MBRASTER: die Bodenhoehe (Raster und grauer Boden) und "Tiefster Punkt"
+void bodenZeile() {
     ModellTab& t = mt();
-    if (!t.an.boden) { return; }
-    ImGui::Indent();
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6.0F);
     if (ImGui::DragFloat(tr(Str::MbAnBodenZ), &t.an.bodenZ, 0.5F, -512.0F, 512.0F, "%.1f")) { g_app->modelDirty = true; }
+    ImGui::SetItemTooltip("%s", tr(Str::MrBodenZHint));
+    ImGui::SameLine();
+    if (ImGui::SmallButton(tr(Str::MrTiefster))) {
+        modellBodenAufTiefstenPunkt();
+        geaendert();
+    }
+    ImGui::SetItemTooltip("%s", tr(Str::MrTiefsterHint));
+}
+
+void bodenHoehe() {
+    if (!mt().an.boden) { return; }
+    ImGui::Indent();
+    bodenZeile();
     ImGui::Unindent();
+}
+
+// MBRASTER: Abstand und Hauptlinien (3ds Max: Grid Spacing, Major Lines every Nth Grid Line, Perspective View Grid Extent;
+// Blender: Scale, Subdivisions) - gelten fuer alle Ansichten und stehen in den Einstellungen
+void rasterZahlen() {
+    Settings& st = g_app->settings;
+    const bool bl = modellBlender();
+    const float b = ImGui::GetFontSize() * 6.0F;
+    ImGui::SetNextItemWidth(b);
+    if (ImGui::DragFloat(tr(bl ? Str::MrMassstab : Str::MrAbstand), &st.modellRasterAbstand, 0.05F, 0.125F, 1024.0F, "%.3g", ImGuiSliderFlags_AlwaysClamp)) {
+        geaendert();
+    }
+    ImGui::SetItemTooltip("%s", tr(bl ? Str::MrMassstabHint : Str::MrAbstandHint));
+    ImGui::SetNextItemWidth(b);
+    if (ImGui::DragInt(tr(bl ? Str::MrUnterteil : Str::MrHaupt), &st.modellRasterHaupt, 0.05F, 2, 100, "%d", ImGuiSliderFlags_AlwaysClamp)) { geaendert(); }
+    ImGui::SetItemTooltip("%s", tr(bl ? Str::MrUnterteilHint : Str::MrHauptHint));
+    if (bl) { return; }
+    ImGui::SetNextItemWidth(b);
+    if (ImGui::DragInt(tr(Str::MrAusdehnung), &st.modellRasterAusdehnung, 0.1F, 1, 1000, "%d", ImGuiSliderFlags_AlwaysClamp)) { geaendert(); }
+    ImGui::SetItemTooltip("%s", tr(Str::MrAusdehnungHint));
+}
+
+// MBRASTER: 3ds Max - das Untermenue unter "Raster (G)" (in Max: Grid and Snap Settings > Home Grid)
+void rasterEinstellungenMax() {
+    const bool offen = ImGui::BeginMenu(tr(Str::MrRasterEinst));
+    ImGui::SetItemTooltip("%s", tr(Str::MrRasterEinstHint));
+    if (!offen) { return; }
+    ++mt().kopfMenueZaehler;
+    rasterZahlen();
+    bodenZeile();
+    ImGui::EndMenu();
+}
+
+// MBRASTER: Blender Overlays > Guides - Grid, Floor, die Achsen X Y Z in einer Zeile, Scale, Subdivisions (dazu die Bodenhoehe)
+void hilfslinienBlender(int n) {
+    ImGui::SeparatorText(tr(Str::MrHilfslinien));
+    for (const Schalter& s : schalter()) {
+        if (s.hilfslinie && s.text != Str::MrAchseX && s.text != Str::MrAchseY && s.text != Str::MrAchseZ) { schalterZeile(s, n); }
+    }
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(tr(Str::MrAchsen));
+    ImGui::SetItemTooltip("%s", tr(Str::MrAchsenHint));
+    // die Farben der Achsen wie Blenders Thema (TH_AXIS_X/Y/Z)
+    static const ImU32 kFarbe[3] = {IM_COL32(255, 51, 82, 255), IM_COL32(139, 220, 0, 255), IM_COL32(40, 144, 255, 255)};
+    static const char* const kName[3] = {"X", "Y", "Z"};
+    bool* achsen = mt().ansichten[n].sch.achsen;
+    for (int k = 0; k < 3; ++k) {
+        ImGui::SameLine();
+        ImGui::PushID(k);
+        ImGui::PushStyleColor(ImGuiCol_Text, kFarbe[k]);
+        if (ImGui::Selectable(kName[k], achsen[k], ImGuiSelectableFlags_NoAutoClosePopups, ImVec2{ImGui::GetFontSize() * 1.4F, 0.0F})) {
+            achsen[k] = !achsen[k];
+            mt().aktiv = n;
+            geaendert();
+        }
+        ImGui::PopStyleColor();
+        ImGui::PopID();
+        ImGui::SetItemTooltip("%s", tr(Str::MrAchsenHint));
+    }
+    rasterZahlen();
+    bodenZeile();
 }
 
 void hintergrundZeile() {
@@ -215,9 +322,10 @@ void menueAllgemein(int n) {
     ImGui::SetItemTooltip("%s", tr(Str::MkEinpassenHint));
     ImGui::Separator();
     for (const Schalter& s : schalter()) {
-        if (s.ort != Ort::Allgemein) { continue; }
+        if (s.ort != Ort::Allgemein || !imModus(s)) { continue; }
         schalterZeile(s, n);
-        if (s.text == Str::MbAnBoden) { bodenHoehe(); }
+        if (s.text == Str::MkRaster) { rasterEinstellungenMax(); }   // MBRASTER
+        if (s.text == Str::MrGrauBoden) { bodenHoehe(); }
     }
     hintergrundZeile();
     ImGui::Separator();
@@ -360,10 +468,12 @@ void menueAnsichtBlender(int n) {
 }
 
 void menueOverlays(int n) {
+    hilfslinienBlender(n);   // MBRASTER
+    ImGui::Separator();
     for (const Schalter& s : schalter()) {
-        if (s.blShading) { continue; }
+        if (s.blShading || s.hilfslinie || !imModus(s)) { continue; }
         schalterZeile(s, n);
-        if (s.text == Str::MbAnBoden) { bodenHoehe(); }
+        if (s.text == Str::MrGrauBoden) { bodenHoehe(); }
     }
     hintergrundZeile();
     ImGui::Separator();
@@ -402,7 +512,7 @@ void menueShadingBlender(int n) {
     }
     ImGui::SetItemTooltip("%s", tr(Str::MkZweiseitigHint));
     for (const Schalter& s : schalter()) {
-        if (s.blShading && s.text != Str::MkZweiseitig && s.text != Str::MkWeiss) { schalterZeile(s, n); }
+        if (s.blShading && imModus(s) && s.text != Str::MkZweiseitig && s.text != Str::MkWeiss) { schalterZeile(s, n); }
     }
 }
 
@@ -623,6 +733,7 @@ bool modellKopfAktionenSuche(const std::string& such) {
         ImGui::PopID();
     };
     for (const Schalter& s : schalter()) {
+        if (!imModus(s)) { continue; }   // MBRASTER: nur die Schalter des Bedienmodus (Blender: Grid, Floor, Axes)
         std::string text = tr(s.text);
         const char* k = tasteVon(s);
         if (k[0] != '\0') { text += std::string(" (") + k + ")"; }
@@ -693,6 +804,11 @@ bool& modellKopfSchalterWert(int i, int ansicht) { return schalter()[static_cast
 bool modellKopfSchalterGeht(int i) {
     const Schalter& s = schalter()[static_cast<std::size_t>(i)];
     return !s.geht || s.geht();
+}
+// MBRASTER: gehoert der Schalter zum Bedienmodus und zeigt er in dieser Ansicht etwas?
+bool modellKopfSchalterHier(int i, int ansicht) {
+    const Schalter& s = schalter()[static_cast<std::size_t>(i)];
+    return imModus(s) && (!s.wirkt || s.wirkt(std::clamp(ansicht, 0, 3)));
 }
 bool modellKopfSchalterBrauchtAuswahl(int i) {   // zeigen sich an der gewaehlten Flaeche (ohne: der Hinweis)
     const Str t = schalter()[static_cast<std::size_t>(i)].text;

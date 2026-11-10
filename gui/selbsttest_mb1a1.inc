@@ -469,6 +469,11 @@ std::vector<Schritt> funktionenSchritte() {
     add(pause(0.3));
     // --- Anzeige-Schalter --------------------------------------------------------------
     auto grund = std::make_shared<AnsichtBild>();
+    add(tu("MB1 Anzeige: Grundbild (ohne Raster - seit MBRASTER ab Werk an; der Test schaltet es unten an und aus)", [=] {
+        modellSch().raster = false;
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.2));
     add(tu("MB1 Anzeige: Grundbild", [=] { (void)ansichtLesen(*grund); }));
     const std::vector<std::pair<std::string, std::function<bool&()>>> gpuSchalter = {
         {"Drahtgitter (F3)", [] () -> bool& { return modellSch().drahtgitter; }},
@@ -844,8 +849,9 @@ std::vector<Schritt> tastenSchritte() {
         {ImGuiKey_Home, "Pos1", "Gehe zu Start-Frame", [] { return g_app->animFrame == g_app->animList[static_cast<std::size_t>(g_app->animIndex)].firstFrame; }},
         {ImGuiKey_Slash, "/", "Abspielen (Doku)", [] { return g_app->animPlaying; }},
         {ImGuiKey_Slash, "/", "Anhalten (Doku)", [] { return !g_app->animPlaying; }},
-        {ImGuiKey_G, "G", "Raster ein/aus", [] { return modellSch().raster; }},
+        // MBRASTER: das Raster ist ab Werk an (wie 3ds Max und Blender) - das erste G schaltet es aus, das zweite wieder an
         {ImGuiKey_G, "G", "Raster ein/aus", [] { return !modellSch().raster; }},
+        {ImGuiKey_G, "G", "Raster ein/aus", [] { return modellSch().raster; }},
         {ImGuiKey_J, "J", "Auswahlklammer zeigen ein/aus", [] { return !g_app->mtab.an.klammer; }},
         {ImGuiKey_J, "J", "Auswahlklammer zeigen ein/aus", [] { return g_app->mtab.an.klammer; }},
         {ImGuiKey_7, "7", "Ansichtsfenster-Statistiken anzeigen ein/aus", [] { return modellSch().statistik; }},

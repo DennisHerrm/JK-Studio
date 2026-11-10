@@ -98,8 +98,6 @@ ZEILEN = [
      "Encuadra las superficies seleccionadas en esta vista, sin selección toda la figura; la dirección se mantiene.",
      "Přizpůsobí vybrané povrchy tomuto pohledu, bez výběru celou postavu; směr zůstane."),
     ("MkRaster", "Grid", "Raster", "网格", "グリッド", "Rejilla", "Mřížka"),
-    ("MkRasterHint", "A grid on the floor height, in this view.", "Ein Raster in Bodenhöhe, in dieser Ansicht.", "在地面高度显示网格 (此视图)。",
-     "床の高さにグリッド (このビュー)。", "Una rejilla a la altura del suelo, en esta vista.", "Mřížka ve výšce podlahy, v tomto pohledu."),
     ("MkBodenHint", "A grey floor like ModView (height -24 by default).", "Ein grauer Boden wie in ModView (Höhe ab Werk -24).", "如 ModView 的灰色地面 (默认高度 -24)。",
      "ModView と同じ灰色の床 (既定の高さ -24)。", "Un suelo gris como en ModView (altura -24 por defecto).", "Šedá podlaha jako v ModView (výchozí výška -24)."),
     ("MkUrsprungHint", "Red, green and blue axes X, Y, Z at the origin of the model.", "Rote, grüne und blaue Achsen X, Y, Z im Ursprung des Modells.",

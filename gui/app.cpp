@@ -3060,6 +3060,14 @@ void prefsZurueck() {
     schwierigkeitWaehlen(v.schwierigkeit);
     // rc601 integ: das Regelwerk (regelwerkPruefen baut neu).
     st.regelwerk = v.regelwerk;
+    // MBRASTER: das Bodenraster des Model-Tabs
+    if (st.modellRasterAbstand != v.modellRasterAbstand || st.modellRasterHaupt != v.modellRasterHaupt ||
+        st.modellRasterAusdehnung != v.modellRasterAusdehnung) {
+        g_app->modelDirty = true;
+    }
+    st.modellRasterAbstand = v.modellRasterAbstand;
+    st.modellRasterHaupt = v.modellRasterHaupt;
+    st.modellRasterAusdehnung = v.modellRasterAusdehnung;
 }
 
 void drawPrefs() {
@@ -3208,6 +3216,20 @@ void drawPrefs() {
     erklaerung(Str::DoEinstMissionsordnerHint);
     ImGui::Checkbox(tr(Str::DoEinstVorlage), &st.skriptVorlage);
     erklaerung(Str::DoEinstVorlageHint);
+    // MBRASTER: das Bodenraster des Model-Tabs (3ds Max: Grid and Snap Settings > Home Grid; Blender: Overlays > Scale,
+    // Subdivisions) - dieselben Werte wie im Menue [+] bzw. Overlays der Ansicht
+    ImGui::SeparatorText(tr(Str::MrEinstGruppe));
+    ImGui::SetNextItemWidth(w * 0.3F);
+    if (ImGui::DragFloat(tr(Str::MrAbstand), &st.modellRasterAbstand, 0.05F, 0.125F, 1024.0F, "%.3g", ImGuiSliderFlags_AlwaysClamp)) {
+        g_app->modelDirty = true;
+    }
+    erklaerung(Str::MrAbstandHint);
+    ImGui::SetNextItemWidth(w * 0.3F);
+    if (ImGui::DragInt(tr(Str::MrHaupt), &st.modellRasterHaupt, 0.05F, 2, 100, "%d", ImGuiSliderFlags_AlwaysClamp)) { g_app->modelDirty = true; }
+    erklaerung(Str::MrHauptHint);
+    ImGui::SetNextItemWidth(w * 0.3F);
+    if (ImGui::DragInt(tr(Str::MrAusdehnung), &st.modellRasterAusdehnung, 0.1F, 1, 1000, "%d", ImGuiSliderFlags_AlwaysClamp)) { g_app->modelDirty = true; }
+    erklaerung(Str::MrAusdehnungHint);
 
     // --- rc601 ton: die Mischpegel der Vorschau ---------------------------
     //

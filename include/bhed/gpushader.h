@@ -130,6 +130,10 @@ inline constexpr float kSpielLightmapFaktor = 1.0F;
 [[nodiscard]] std::string nebelPixelShaderHlsl();
 // Der Verlauf hinter dem Modellfenster (zu vollbildVertexShaderHlsl).
 [[nodiscard]] std::string modellHintergrundPixelShaderHlsl();
+// MBRASTER: das Bodenraster des Model-Tabs (Konstanten in JeRaster, b8): ein Viereck aus 8 x 8 Teilen ohne Eckpuffer
+// (SV_VertexID, 384 Ecken), die Linien im Pixel-Shader wie Blender overlay_grid_frag.glsl.
+[[nodiscard]] std::string modellRasterVertexShaderHlsl();
+[[nodiscard]] std::string modellRasterPixelShaderHlsl();
 [[nodiscard]] std::string glowBlurPixelShaderHlsl();
 [[nodiscard]] std::string glowCompositePixelShaderHlsl();
 // Movie Duels, r_gammaShaders 1 (Vorgabe, im Protokoll "GAMMA: shader"): am Ende jedes Bilds

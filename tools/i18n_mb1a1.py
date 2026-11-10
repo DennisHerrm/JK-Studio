@@ -129,7 +129,6 @@ ZEILEN = [
     ("MbAnTags", "Tag surfaces", "Tag-Flächen", "标记面", "タグサーフェス", "Superficies tag", "Povrchy tagů"),
     ("MbAnUrsprung", "Origin (RGB axes)", "Ursprung (RGB-Achsen)", "原点 (RGB 轴)", "原点 (RGB 軸)", "Origen (ejes RGB)", "Počátek (osy RGB)"),
     ("MbAnHuelle", "Bounding box", "Hüllkasten", "包围盒", "バウンディングボックス", "Caja envolvente", "Obalový kvádr"),
-    ("MbAnBoden", "Floor", "Boden", "地面", "床", "Suelo", "Podlaha"),
     ("MbAnBodenZ", "Floor height", "Bodenhöhe", "地面高度", "床の高さ", "Altura del suelo", "Výška podlahy"),
     ("MbAnRaster", "Grid (G)", "Raster (G)", "网格 (G)", "グリッド (G)", "Rejilla (G)", "Mřížka (G)"),
     ("MbAnStatistik", "Statistics (7)", "Statistik (7)", "统计 (7)", "統計 (7)", "Estadísticas (7)", "Statistika (7)"),

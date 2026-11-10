@@ -18,7 +18,9 @@
 // die Unterseite wie die Ansicht [Unten], der Ring folgt der Maus auch von unten gesehen, Norden einstellbar, Tooltips.
 // Das Gizmo wie Blender (Navigate Gizmo: Achsenkugeln X/Y/Z mit Gegenkugeln, Klick = Achsenansicht, erneuter Klick =
 // Gegenseite, Ziehen = Kreisen, darunter Zoom, Verschieben, Perspektive/Orthographisch) ist eigene Zeichnung, keine
-// Grafik von Autodesk oder Blender.
+// Grafik von Autodesk oder Blender; die Achsenkugeln zeichnet seit MBRASTER modellGizmoKugelnZeichnen in
+// gui/app_modelltab_ansicht.cpp nach Blender gizmo_axis_draw (GPL-2.0-or-later, dort vermerkt).
+// MBRASTER: die Kompassbuchstaben liegen obenauf (mit dunklem Rand) statt hinter dem Wuerfel - Abweichung von der Vorlage.
 // Achsen: eine Figur schaut in ihrer .glm nach -Y (REST M9; der Selbsttest kopfrot misst es am Skelett) - Vorne ist die
 // Flaeche -Y, Links -X, Oben +Z wie die Ansichten (ansichtAchsen). Norden liegt wie in 3ds Max hinter der Flaeche Vorne
 // (Welt +Y): wer der Figur ins Gesicht schaut, schaut nach Norden; S steht unter Vorne.
@@ -479,23 +481,20 @@ void viewCube(int n, ModellAnsicht& a, Lage& l) {
     }
     // Buchstaben des Kompasses: Klick schaut von dort
     const char* const buchstaben[4] = {tr(Str::MkKompassN), tr(Str::MkKompassO), tr(Str::MkKompassS), tr(Str::MkKompassW)};
-    std::array<bool, 4> buchstabeNah{};
     int hoverBuchstabe = -1;
     for (int i = 0; kompass && i < 4; ++i) {
         const auto k = static_cast<std::size_t>(i);
         const V3 p = ringOrt(kPi * 0.5F * static_cast<float>(i), kRingR + 0.16F);
         l.buchstabe[k] = projiziere(l, p);
-        buchstabeNah[k] = dot(p, auge) > 0.0F;
         const ImVec2 ts = ImGui::CalcTextSize(buchstaben[i]);
-        if (ueber && !aufHome && (buchstabeNah[k] || !ueberWuerfel) && std::fabs(maus.x - l.buchstabe[k].x) <= ts.x * 0.5F + 3.0F &&
-            std::fabs(maus.y - l.buchstabe[k].y) <= ts.y * 0.5F + 2.0F) {
+        // MBRASTER (Abnahme MBKOPF): die Buchstaben liegen oben (siehe unten) und sind darum auch vor dem Wuerfel zu treffen
+        if (ueber && !aufHome && std::fabs(maus.x - l.buchstabe[k].x) <= ts.x * 0.5F + 3.0F && std::fabs(maus.y - l.buchstabe[k].y) <= ts.y * 0.5F + 2.0F) {
             hoverBuchstabe = i;
         }
     }
     // der Teil des Wuerfels unter der Maus, wenn nichts vor ihm liegt
     Zone hoverZone;
-    if (l.zug == Lage::Zug::Keiner && !(ringHover && ringDistNah < griff) &&
-        !(hoverBuchstabe >= 0 && buchstabeNah[static_cast<std::size_t>(hoverBuchstabe)])) {
+    if (l.zug == Lage::Zug::Keiner && !(ringHover && ringDistNah < griff) && hoverBuchstabe < 0) {
         hoverZone = wuerfelZone;
     }
     // --- zeichnen: Ring und Buchstaben in zwei Durchgaengen - was hinter dem Wuerfel liegt vor ihm, damit er es verdeckt ---
@@ -508,12 +507,23 @@ void viewCube(int n, ModellAnsicht& a, Lage& l) {
             if (ringNah[static_cast<std::size_t>(i)] != nah) { continue; }
             dl->AddLine(ring[static_cast<std::size_t>(i)], ring[static_cast<std::size_t>((i + 1) % kRingN)], farbe, (ringHover ? 5.0F : 4.0F) * m);
         }
+    };
+    // MBRASTER (Abnahme MBKOPF, Bild h_mbk_cube: "der ViewCube verdeckt das N"): die Buchstaben liegen nach dem Wuerfel obenauf,
+    // mit dunklem Rand, damit alle vier zu lesen sind - auch der hinter dem Wuerfel (die Vorlage zeichnet ihn davor, dort
+    // verschwindet er von vorne gesehen ebenso). Der Ring bleibt in zwei Durchgaengen.
+    const auto buchstabenZeichnen = [&] {
+        if (!kompass) { return; }
+        const ImU32 rand = mitAlpha(IM_COL32(24, 26, 32, 255), alpha);
         for (int i = 0; i < 4; ++i) {
             const auto k = static_cast<std::size_t>(i);
-            if (buchstabeNah[k] != nah) { continue; }
             const ImVec2 ts = ImGui::CalcTextSize(buchstaben[i]);
-            dl->AddText(ImVec2{l.buchstabe[k].x - ts.x * 0.5F, l.buchstabe[k].y - ts.y * 0.5F},
-                        mitAlpha(i == hoverBuchstabe ? kBlau : IM_COL32(225, 228, 235, 255), alpha), buchstaben[i]);
+            const ImVec2 o{std::round(l.buchstabe[k].x - ts.x * 0.5F), std::round(l.buchstabe[k].y - ts.y * 0.5F)};
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dx = -1; dx <= 1; ++dx) {
+                    if (dx != 0 || dy != 0) { dl->AddText(ImVec2{o.x + static_cast<float>(dx), o.y + static_cast<float>(dy)}, rand, buchstaben[i]); }
+                }
+            }
+            dl->AddText(o, mitAlpha(i == hoverBuchstabe ? kBlau : IM_COL32(225, 228, 235, 255), alpha), buchstaben[i]);
         }
     };
     kompassZeichnen(false);
@@ -530,6 +540,7 @@ void viewCube(int n, ModellAnsicht& a, Lage& l) {
         beschriftung(dl, l, f.n, f.hoch, tr(f.name), mitAlpha(IM_COL32(40, 44, 52, 255), alpha));
     }
     kompassZeichnen(true);
+    buchstabenZeichnen();
     for (int i = 0; vonVorn && i < 4; ++i) {
         const Pfeil& p = pfeile[static_cast<std::size_t>(i)];
         dl->AddTriangleFilled(p.a, p.b, p.c, mitAlpha(i == hoverPfeil ? kBlau : IM_COL32(205, 210, 218, 235), alpha));
@@ -763,26 +774,18 @@ void gizmo(int n, ModellAnsicht& a, Lage& l, ImVec2 o, float groesse) {
         t.aktiv = n;
         modellPerspektiveUmschalten();
     }
-    // --- zeichnen ---
+    // --- zeichnen: die Kugeln wie Blender (gizmo_axis_draw; GPL-Teil in app_modelltab_ansicht.cpp), dann die Knoepfe ---
     if (unter >= 0) { dl->AddCircleFilled(l.mitte, radius, IM_COL32(255, 255, 255, 28), 40); }
-    static const ImU32 kFarbe[3] = {IM_COL32(230, 66, 82, 255), IM_COL32(128, 200, 40, 255), IM_COL32(60, 138, 240, 255)};
-    static const char* const kName[3] = {"X", "Y", "Z"};
-    for (const Teil& x : teile) {
-        const int i = x.i;
-        const ImVec2 p = l.kugel[static_cast<std::size_t>(i)];
-        const ImU32 f = kFarbe[i / 2];
-        const bool positiv = (i % 2) == 0;
-        if (positiv) {
-            dl->AddLine(l.mitte, p, f, 2.0F);
-            dl->AddCircleFilled(p, l.kugelR, f, 20);
-            const ImVec2 g = ImGui::CalcTextSize(kName[i / 2]);
-            dl->AddText(ImVec2{p.x - g.x * 0.5F, p.y - g.y * 0.5F}, IM_COL32(20, 20, 24, 255), kName[i / 2]);
-        } else {
-            dl->AddCircleFilled(p, l.kugelR * 0.85F, (f & 0x00FFFFFFU) | (110U << IM_COL32_A_SHIFT), 20);
-            dl->AddCircle(p, l.kugelR * 0.85F, f, 20, 1.5F);
-        }
-        if (unter == i) { dl->AddCircle(p, l.kugelR + 1.5F, IM_COL32(255, 255, 255, 255), 20, 2.0F); }
+    std::array<ModellGizmoKugel, 6> kugeln{};
+    for (std::size_t k = 0; k < kugeln.size(); ++k) {
+        kugeln[k] = {teile[k].i, teile[k].tiefe, l.kugel[static_cast<std::size_t>(teile[k].i)]};
     }
+    int ausgerichtet = -1;   // die Achse, entlang der man genau schaut (Blender: len_squared_v2(matrix_offset[axis]) < 1e-6)
+    for (int k = 0; k < 3; ++k) {
+        const float d = dot(achse(k, 1.0F), l.v);
+        if (1.0F - d * d < 1e-6F) { ausgerichtet = k; }
+    }
+    modellGizmoKugelnZeichnen(dl, kugeln.data(), l.mitte, l.kugelR, groesse, unter, ausgerichtet);
     for (int i = 0; i < 3; ++i) {
         const ImVec2 p = l.knopf[static_cast<std::size_t>(i)];
         dl->AddCircleFilled(p, l.knopfR, unter == 6 + i ? IM_COL32(90, 90, 96, 230) : IM_COL32(40, 40, 46, 190), 20);

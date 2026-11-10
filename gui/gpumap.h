@@ -261,6 +261,34 @@ struct ModellGeist {
     std::vector<BoneMatrix> knochen;
     float farbe[4]{};
 };
+// MBRASTER: das Bodenraster (3ds Max Home Grid, Blender Overlays Grid/Floor/Axes) als eigener Durchgang - eine Ebene durch
+// `ursprung` mit den Richtungen `u` und `v`, gezeichnet als Viereck um `mitte` (halbe Kante `halb`), die Linien im Shader per
+// Ableitung gleich duenn (Blender overlay_grid_frag.glsl, get_grid / get_axes). `hinten` (feste Orthoansicht, Blender GRID_BACK):
+// nach Hintergrund und grauem Boden, vor der Figur und ohne Tiefentest - die Figur liegt immer davor; sonst nach der Figur mit
+// Tiefentest (sie verdeckt es) und einer kleinen Tiefenverschiebung zur Kamera, damit es auf dem grauen Boden nicht flimmert.
+struct ModellRaster {
+    bool hinten = false;
+    bool blender = false;       // Stufen mit Ueberblendung, Ausblenden zum Horizont; sonst 3ds Max: feste Neben- und Hauptlinie
+    bool gitter = true;         // die Linien (sonst nur Achsen)
+    bool perspektive = true;
+    bool ebeneXY = false;       // Blender PLANE_XY: in der freien Orthoansicht nach dem Blickwinkel ausblenden
+    float ursprung[3]{};
+    float u[3]{};
+    float v[3]{};
+    float mitte[3]{};
+    float halb = 1.0F;
+    float ausdehnung = 0.0F;    // 3ds Max Perspektive: das Raster endet bei +-ausdehnung (0: ohne Grenze)
+    float stufen[8]{};          // Blender: die Stufen; 3ds Max: [0] Nebenlinie, [1] Hauptlinie
+    float kamera[3]{};          // Ort der Kamera (Perspektive)
+    float rechts[3]{};          // Rechts der Kamera in Weltrichtung (Blender grid_res)
+    float rueck[3]{};           // Rueckwaerts der Kamera (Blender viewinv[2])
+    float normale[3]{};
+    float fern = 4096.0F;       // Blender grid_buf.distance: ab hier blendet der Boden aus
+    float neben[4]{};           // Farbe der Nebenlinien (Blender grid)
+    float haupt[4]{};           // Farbe der Hauptlinien (Blender grid_emphasis)
+    float achseU[4]{};          // Farbe der Achse entlang u (Alpha 0: aus)
+    float achseV[4]{};          // Farbe der Achse entlang v
+};
 struct ModellAnsichtArt {
     bool drahtgitter = false;
     bool zweiseitig = false;
@@ -269,6 +297,7 @@ struct ModellAnsichtArt {
     // Stufe 3: Silhouette (Alpha > 0: die Figur und ihre Anbauten deckend in dieser Farbe), Ghosts nach der Figur
     float silhouette[4]{};
     std::vector<ModellGeist> geister;
+    std::vector<ModellRaster> raster;   // MBRASTER
 };
 // Eine weitere Figur im Modellfenster (angebautes Modell, Boden): Stellung
 // `welt` 4x4 zeilenweise wie zeichneFigur.

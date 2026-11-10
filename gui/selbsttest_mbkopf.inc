@@ -141,6 +141,9 @@ bool alleSchalterWirken(const std::string& wo, bool mitAuswahl) {
     for (int i = 0; i < modellKopfSchalterZahl(); ++i) {
         const std::string name = modellKopfSchalterText(i);
         if (modellKopfSchalterBrauchtAuswahl(i) && !mitAuswahl) { continue; }   // die Auswahlklammer: nur an einer Auswahl (wie 3ds Max)
+        // MBRASTER: Schalter des anderen Bedienmodus und solche, die in dieser Ansicht nichts zeigen (Blender: Grid nur in den
+        // Achsenansichten, Floor nur in den freien), gehoeren nicht zu dieser Ansicht
+        if (!modellKopfSchalterHier(i, t().aktiv)) { continue; }
         if (name == tr(Str::MkFlossen)) {
             g_app->modellKnochen = false;
             const bool ohneKnochenGrau = !modellKopfSchalterGeht(i);
@@ -241,9 +244,11 @@ void kopfSchritte(std::vector<Schritt>& s) {
     add(pause(0.2));
     add(pruefe("MBKOPF 2: [+] oeffnet sein Menue", [=] { return t().kopfMenueZaehler > *zaehler; }));
     add(menueUnterFeld("[+]", 3, 0, false));
+    auto rasterVorher = std::make_shared<bool>(false);
+    add(tu("MBKOPF 2: Raster der Ansicht merken (seit MBRASTER ab Werk an)", [=] { *rasterVorher = ansicht(3).sch.raster; }));
     add(klick(tr(Str::MkRaster)));
     add(pause(0.2));
-    add(pruefe("MBKOPF 2: [+] > Raster schaltet das Raster der Ansicht", [] { return ansicht(3).sch.raster; }));
+    add(pruefe("MBKOPF 2: [+] > Raster schaltet das Raster der Ansicht", [=] { return ansicht(3).sch.raster != *rasterVorher; }));
     add(klickAn("MBKOPF 2: [+] mit Rechtsklick", feldOrt(3, 0), 1));
     add(pause(0.2));
     add(klick(tr(Str::MkKnochenPruefen)));

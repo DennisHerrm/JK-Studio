@@ -988,6 +988,165 @@ float4 main(VSOut ein) : SV_TARGET {
 )";
 }
 
+// --- MBRASTER: das Bodenraster des Model-Tabs ----------------------------
+//
+// Wie 3ds Max (Home Grid: Nebenlinien, dunklere Hauptlinie jede n-te, die Weltachsen) bzw. Blender (Overlays Grid/Floor/Axes).
+// Der Pixel-Shader folgt Blender 5.0 overlay_grid_frag.glsl (Copyright Blender Authors, GPL-2.0-or-later): Dreieckswelle je
+// Stufe durch die Aenderung je Bildpunkt (fwidth) geteilt - die Linien sind auch schraeg gesehen gleich duenn -, kantengeglaettet
+// mit LINE_STEP (DISC_RADIUS = M_1_SQRTPI * 1,05, overlay_shader_shared.hh), die Stufe aus grid_res (4 Bildpunkte), drei Stufen
+// A/B/C ueberblendet, Ausblenden nach Blickwinkel und Entfernung. Die Tiefe prueft die Grafikkarte (gpumap_win32.cpp).
+// Das Viereck aus 8 x 8 Teilen: "We draw multiple triangles to avoid float precision issues due to perspective interpolation"
+// (Blender overlay_grid_vert.glsl).
+std::string modellRasterVertexShaderHlsl() {
+    std::string s = R"(cbuffer JeRaster : register(b8) {
+    row_major float4x4 gRasterVP;
+    float4 gU;          // xyz Richtung u der Ebene, w halbe Kante des Vierecks
+    float4 gV;          // xyz Richtung v, w 1: Blender, 0: 3ds Max
+    float4 gMitte;      // xyz Mitte des Vierecks, w 1: Linien des Rasters (sonst nur Achsen)
+    float4 gUrsprung;   // xyz Ursprung des Rasters, w 3ds Max: halbe Ausdehnung in der Perspektive (0: ohne Grenze)
+    float4 gKamera;     // xyz Ort der Kamera, w 1: perspektivisch
+    float4 gRechts;     // xyz Rechts der Kamera (Welt), w Blender distance (ab hier blendet der Boden aus)
+    float4 gNormale;    // xyz Normale der Ebene, w line_size in Bildpunkten (Blender: (pixelsize - 1) / 2 = 0)
+    float4 gRueck;      // xyz Rueckwaerts der Kamera (Blender viewinv[2]), w 1: XY-Ebene in der freien Orthoansicht
+    float4 gStufe0;     // Blender: Stufen 0..3; 3ds Max: x Nebenlinie, y Hauptlinie
+    float4 gStufe1;     // Blender: Stufen 4..7
+    float4 gNeben;      // Farbe der Nebenlinien (Blender theme grid)
+    float4 gHaupt;      // Farbe der Hauptlinien (Blender theme grid_emphasis)
+    float4 gAchseU;     // Farbe der Achse entlang u (a = 0: aus)
+    float4 gAchseV;     // Farbe der Achse entlang v
+};
+struct VSOut {
+    float4 pos  : SV_POSITION;
+    float3 welt : TEXCOORD0;
+};
+)";
+    s += R"(
+VSOut main(uint id : SV_VertexID) {
+    static const float2 ecke[6] = {float2(0, 0), float2(1, 0), float2(1, 1), float2(0, 0), float2(1, 1), float2(0, 1)};
+    const uint q = id / 6u;
+    const float2 g = (float2(q % 8u, q / 8u) + ecke[id % 6u]) * 0.25 - 1.0;
+    const float3 p = gMitte.xyz + (gU.xyz * g.x + gV.xyz * g.y) * gU.w;
+    VSOut aus;
+    aus.welt = p;
+    aus.pos = mul(gRasterVP, float4(p, 1.0));
+    return aus;
+}
+)";
+    return s;
+}
+
+std::string modellRasterPixelShaderHlsl() {
+    std::string s = R"(cbuffer JeRaster : register(b8) {
+    row_major float4x4 gRasterVP;
+    float4 gU;          // xyz Richtung u der Ebene, w halbe Kante des Vierecks
+    float4 gV;          // xyz Richtung v, w 1: Blender, 0: 3ds Max
+    float4 gMitte;      // xyz Mitte des Vierecks, w 1: Linien des Rasters (sonst nur Achsen)
+    float4 gUrsprung;   // xyz Ursprung des Rasters, w 3ds Max: halbe Ausdehnung in der Perspektive (0: ohne Grenze)
+    float4 gKamera;     // xyz Ort der Kamera, w 1: perspektivisch
+    float4 gRechts;     // xyz Rechts der Kamera (Welt), w Blender distance (ab hier blendet der Boden aus)
+    float4 gNormale;    // xyz Normale der Ebene, w line_size in Bildpunkten (Blender: (pixelsize - 1) / 2 = 0)
+    float4 gRueck;      // xyz Rueckwaerts der Kamera (Blender viewinv[2]), w 1: XY-Ebene in der freien Orthoansicht
+    float4 gStufe0;     // Blender: Stufen 0..3; 3ds Max: x Nebenlinie, y Hauptlinie
+    float4 gStufe1;     // Blender: Stufen 4..7
+    float4 gNeben;      // Farbe der Nebenlinien (Blender theme grid)
+    float4 gHaupt;      // Farbe der Hauptlinien (Blender theme grid_emphasis)
+    float4 gAchseU;     // Farbe der Achse entlang u (a = 0: aus)
+    float4 gAchseV;     // Farbe der Achse entlang v
+};
+struct VSOut {
+    float4 pos  : SV_POSITION;
+    float3 welt : TEXCOORD0;
+};
+)";
+    s += R"(
+#define LINIE_START (0.5 - 0.5641896 * 1.05)
+#define LINIE_ENDE (0.5 + 0.5641896 * 1.05)
+float linie(float d) { return smoothstep(LINIE_START, LINIE_ENDE, d); }
+// Blender get_grid: Dreieckswelle [0, halbe Stufe], durch die Aenderung je Bildpunkt geteilt
+float gitter(float2 co, float2 fw, float2 st) {
+    const float2 h = st * 0.5;
+    const float2 x = co + h;
+    float2 d = abs(x - st * floor(x / st) - h);
+    d /= fw;
+    return 1.0 - linie(min(d.x, d.y) - gNormale.w);
+}
+// Blender get_axes: die Achse etwas kraeftiger (line_size + 0,1)
+float achse(float d, float fw) { return 1.0 - linie(abs(d) / fw - (0.1 + gNormale.w)); }
+float linearstep(float a, float b, float v) { return saturate((v - a) / abs(b - a)); }
+float4 main(VSOut ein) : SV_TARGET {
+    const float3 P = ein.welt;
+    const float3 dx = ddx(P);
+    const float3 dy = ddy(P);
+    const float3 rel = P - gUrsprung.xyz;
+    const float2 co = float2(dot(rel, gU.xyz), dot(rel, gV.xyz));
+    const float2 fw = max(float2(abs(dot(dx, gU.xyz)) + abs(dot(dy, gU.xyz)), abs(dot(dx, gV.xyz)) + abs(dot(dy, gV.xyz))), 1e-6);
+    const bool blender = gV.w > 0.5;
+    // 3ds Max, Perspektive: das Home Grid endet bei der Ausdehnung - die Linie am Rand noch ganz
+    if (!blender && gUrsprung.w > 0.0 && (abs(co.x) > gUrsprung.w + 0.6 * fw.x || abs(co.y) > gUrsprung.w + 0.6 * fw.y)) { discard; }
+    float aus = 1.0;
+    if (blender) {
+        if (gKamera.w > 0.5) {
+            float3 V = gKamera.xyz - P;
+            const float dist = length(V);
+            V /= dist;
+            float w = 1.0 - abs(dot(V, gNormale.xyz));
+            w *= w;
+            aus = 1.0 - w * w;
+            aus *= 1.0 - smoothstep(0.0, gRechts.w, dist - gRechts.w);
+        } else if (gRueck.w > 0.5) {
+            float w = 1.0 - abs(gRueck.z);
+            w *= w;
+            aus = 1.0 - w * w;
+        }
+    }
+    float4 farbe = float4(gNeben.rgb, 0.0);
+    if (gMitte.w > 0.5) {
+        if (blender) {
+            // grid_res: Einheiten auf 4 Bildpunkten; die feinste Stufe, die groesser ist
+            const float res = dot(dx, gRechts.xyz) * 4.0;
+            const float st[8] = {gStufe0.x, gStufe0.y, gStufe0.z, gStufe0.w, gStufe1.x, gStufe1.y, gStufe1.z, gStufe1.w};
+            int k = 7;
+            [unroll] for (int i = 6; i >= 0; --i) { k = (res < st[i]) ? i : k; }
+            const float s0 = k > 0 ? st[max(k - 1, 0)] : 0.0;
+            const float sA = st[k];
+            const float sB = st[min(k + 1, 7)];
+            const float sC = st[min(k + 2, 7)];
+            float b = 1.0 - linearstep(s0, sA, res);
+            b = b * b * b;
+            const float gA = gitter(co, fw, float2(sA, sA));
+            const float gB = gitter(co, fw, float2(sB, sB));
+            const float gC = gitter(co, fw, float2(sC, sC));
+            farbe = gNeben;
+            farbe.a *= gA * b;
+            farbe = lerp(farbe, lerp(gNeben, gHaupt, b), gB);
+            farbe = lerp(farbe, gHaupt, gC);
+        } else {
+            const float gA = gitter(co, fw, gStufe0.xx);
+            const float gB = gitter(co, fw, gStufe0.yy);
+            farbe = gNeben;
+            farbe.a *= gA;
+            farbe = lerp(farbe, gHaupt, gB);
+        }
+    }
+    // die Achse entlang u liegt bei co.y = 0, die entlang v bei co.x = 0
+    if (gAchseU.a > 0.0) {
+        const float a = achse(co.y, fw.y);
+        farbe.a = max(farbe.a, a);
+        farbe.rgb = a < 1e-8 ? farbe.rgb : gAchseU.rgb;
+    }
+    if (gAchseV.a > 0.0) {
+        const float a = achse(co.x, fw.x);
+        farbe.a = max(farbe.a, a);
+        farbe.rgb = a < 1e-8 ? farbe.rgb : gAchseV.rgb;
+    }
+    farbe.a *= aus;
+    if (farbe.a <= 0.0) { discard; }
+    return farbe;
+}
+)";
+    return s;
+}
+
 std::string glowBlurPixelShaderHlsl() {
     // Woertlich wie glowBlur (src/glow.cpp:109): ein Vier-Punkt-Kern in den
     // Ecken, Gewicht intensity*0.25 je Punkt.

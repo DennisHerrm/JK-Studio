@@ -269,6 +269,13 @@ struct Settings {
     // 0 Grad: Norden liegt hinter der Flaeche Vorne (Welt +Y) wie in 3ds Max, im Uhrzeigersinn von oben
     bool modellKompass = true;
     int modellKompassNord = 0;
+    // MBRASTER: das Bodenraster des Model-Tabs - Abstand in JKA-Einheiten (3ds Max Grid Spacing, Blender Scale; 8 wie das Raster des
+    // Karten-Editors), jede wievielte Linie eine Hauptlinie ist (3ds Max Major Lines every Nth, Blender Subdivisions; 8: alle 64
+    // Einheiten, die Hoehe eines Spielers von -24 bis +40) und die halbe Groesse in der Perspektive in Linien (3ds Max Perspective
+    // View Grid Extent, Vorgabe 7)
+    float modellRasterAbstand = 8.0F;
+    int modellRasterHaupt = 8;
+    int modellRasterAusdehnung = 7;
     bool modellAnzeigeUmzugGesehen = false;
     // rc609 J: das Fenster "Shader und Flaechen" im Mission-Tab und im Karten-Editor
     bool lumpEditOffen = false;

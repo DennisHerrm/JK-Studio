@@ -2446,6 +2446,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_mb1a1.inc: Modell-Block
 namespace mbkopf {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_mbkopf.inc: MBKOPF, BHED_HB_NUR=mbkopf
 }  // namespace mbkopf
+namespace mbraster {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_mbraster.inc: MBRASTER, BHED_HB_NUR=mbraster
+}  // namespace mbraster
 namespace mb2 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_mb1a2.inc: Modell-Block 1a-2, BHED_HB_NUR=mb1a2
 }  // namespace mb2
@@ -2500,6 +2503,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "mbkopf") == 0) {
         return mbkopf::handbuchSchritte();   // MBKOPF: Kopfzeile der Ansicht, ViewCube und Gizmo (Seite "Model-Tab: Ansehen und Pruefen")
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "mbraster") == 0) {
+        return mbraster::handbuchSchritte();   // MBRASTER: Boden-Raster (Seite "Model-Tab: Ansehen und Pruefen")
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "mb1a1") == 0) {
         return mb1::handbuchSchritte();   // Modell-Block 1a-1: die Bilder der Seite "Model-Tab: Ansehen und Pruefen"

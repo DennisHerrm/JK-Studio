@@ -79,6 +79,7 @@ namespace {
 
 void gibUmrissFrei();  // Umriss der Auswahl, weiter unten
 void gibGeistFrei();   // Stufe 3: Ghosts im Model-Tab, weiter unten
+void gibRasterFrei();  // MBRASTER: Bodenraster im Model-Tab, weiter unten
 bool umrissAnlegen();
 
 // Ein uebersetztes Shaderpaar, nach Merkmalsbits abgelegt.
@@ -6847,6 +6848,141 @@ void gibGeistFrei() {
     g_geistVersucht = false;
     g_geistModus = 0;
 }
+
+// MBRASTER: das Bodenraster (ModellRaster) - Shader, Konstanten und Zustaende, einmal angelegt.
+ID3D11VertexShader* g_rasterVs = nullptr;
+ID3D11PixelShader* g_rasterPs = nullptr;
+ID3D11Buffer* g_cbRaster = nullptr;
+ID3D11BlendState* g_rasterMischen = nullptr;          // mit Alpha, nur RGB (das Ziel behaelt Alpha 1)
+ID3D11DepthStencilState* g_dsRasterTiefe = nullptr;   // nach der Figur: LESS_EQUAL, schreibt nicht
+ID3D11DepthStencilState* g_dsRasterHinten = nullptr;  // feste Orthoansicht: ohne Tiefentest, die Figur kommt danach
+ID3D11RasterizerState* g_rsRaster = nullptr;
+bool g_rasterVersucht = false;
+
+// JeRaster (b8) in modellRasterVertexShaderHlsl/modellRasterPixelShaderHlsl
+struct RasterKonstanten {
+    float vp[16];
+    float u[4];
+    float v[4];
+    float mitte[4];
+    float ursprung[4];
+    float kamera[4];
+    float rechts[4];
+    float normale[4];
+    float rueck[4];
+    float stufen[8];
+    float neben[4];
+    float haupt[4];
+    float achseU[4];
+    float achseV[4];
+};
+static_assert(sizeof(RasterKonstanten) % 16 == 0, "Konstantenpuffer in 16-Byte-Schritten");
+
+bool rasterAnlegen(ID3D11Device* d, std::string* fehler) {
+    if (g_rasterVersucht) {
+        return g_rasterVs != nullptr && g_rasterPs != nullptr && g_cbRaster != nullptr && g_rasterMischen != nullptr && g_dsRasterTiefe != nullptr &&
+               g_dsRasterHinten != nullptr && g_rsRaster != nullptr;
+    }
+    g_rasterVersucht = true;
+    ID3DBlob* vs = uebersetze(modellRasterVertexShaderHlsl(), "vs_4_0", "modellraster", fehler);
+    ID3DBlob* ps = uebersetze(modellRasterPixelShaderHlsl(), "ps_4_0", "modellraster", fehler);
+    if (vs != nullptr) {
+        d->CreateVertexShader(vs->GetBufferPointer(), vs->GetBufferSize(), nullptr, &g_rasterVs);
+        vs->Release();
+    }
+    if (ps != nullptr) {
+        d->CreatePixelShader(ps->GetBufferPointer(), ps->GetBufferSize(), nullptr, &g_rasterPs);
+        ps->Release();
+    }
+    D3D11_BUFFER_DESC bd{};
+    bd.ByteWidth = sizeof(RasterKonstanten);
+    bd.Usage = D3D11_USAGE_DYNAMIC;
+    bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    d->CreateBuffer(&bd, nullptr, &g_cbRaster);
+    D3D11_BLEND_DESC bl{};
+    bl.RenderTarget[0].BlendEnable = TRUE;
+    bl.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    bl.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    bl.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    bl.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+    bl.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+    bl.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    bl.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_RED | D3D11_COLOR_WRITE_ENABLE_GREEN | D3D11_COLOR_WRITE_ENABLE_BLUE;
+    d->CreateBlendState(&bl, &g_rasterMischen);
+    D3D11_DEPTH_STENCIL_DESC dd{};
+    dd.DepthEnable = TRUE;
+    dd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+    dd.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+    d->CreateDepthStencilState(&dd, &g_dsRasterTiefe);
+    dd.DepthEnable = FALSE;
+    d->CreateDepthStencilState(&dd, &g_dsRasterHinten);
+    // Auf dem grauen Boden (dieselbe Ebene) liegt das Raster um wenige Schritte der Tiefe naeher (D24: 16 / 2^24) und um die
+    // Neigung eines Bildpunkts - so gewinnt es dort ohne Flimmern, und die Figur verdeckt es weiter (bei 100 Einheiten
+    // Abstand 0,01 Einheiten).
+    D3D11_RASTERIZER_DESC rd{};
+    rd.FillMode = D3D11_FILL_SOLID;
+    rd.CullMode = D3D11_CULL_NONE;
+    rd.DepthBias = -16;
+    rd.SlopeScaledDepthBias = -1.0F;
+    rd.DepthClipEnable = TRUE;
+    d->CreateRasterizerState(&rd, &g_rsRaster);
+    return g_rasterVs != nullptr && g_rasterPs != nullptr && g_cbRaster != nullptr && g_rasterMischen != nullptr && g_dsRasterTiefe != nullptr &&
+           g_dsRasterHinten != nullptr && g_rsRaster != nullptr;
+}
+
+int zeichneRaster(ID3D11DeviceContext* c, const ModellRaster& r, const float* viewProj) {
+    RasterKonstanten k{};
+    std::memcpy(k.vp, viewProj, sizeof k.vp);
+    const auto vier = [](float* ziel, const float* q, float w) {
+        ziel[0] = q[0];
+        ziel[1] = q[1];
+        ziel[2] = q[2];
+        ziel[3] = w;
+    };
+    vier(k.u, r.u, r.halb);
+    vier(k.v, r.v, r.blender ? 1.0F : 0.0F);
+    vier(k.mitte, r.mitte, r.gitter ? 1.0F : 0.0F);
+    vier(k.ursprung, r.ursprung, r.ausdehnung);
+    vier(k.kamera, r.kamera, r.perspektive ? 1.0F : 0.0F);
+    vier(k.rechts, r.rechts, r.fern);
+    vier(k.normale, r.normale, 0.0F);
+    vier(k.rueck, r.rueck, r.ebeneXY ? 1.0F : 0.0F);
+    std::memcpy(k.stufen, r.stufen, sizeof k.stufen);
+    std::memcpy(k.neben, r.neben, sizeof k.neben);
+    std::memcpy(k.haupt, r.haupt, sizeof k.haupt);
+    std::memcpy(k.achseU, r.achseU, sizeof k.achseU);
+    std::memcpy(k.achseV, r.achseV, sizeof k.achseV);
+    D3D11_MAPPED_SUBRESOURCE m{};
+    if (FAILED(c->Map(g_cbRaster, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) { return 0; }
+    std::memcpy(m.pData, &k, sizeof k);
+    c->Unmap(g_cbRaster, 0);
+    c->IASetInputLayout(nullptr);
+    c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    c->VSSetShader(g_rasterVs, nullptr, 0);
+    c->GSSetShader(nullptr, nullptr, 0);
+    c->PSSetShader(g_rasterPs, nullptr, 0);
+    c->VSSetConstantBuffers(8, 1, &g_cbRaster);
+    c->PSSetConstantBuffers(8, 1, &g_cbRaster);
+    const float faktor[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+    c->OMSetBlendState(g_rasterMischen, faktor, 0xFFFFFFFFU);
+    c->OMSetDepthStencilState(r.hinten ? g_dsRasterHinten : g_dsRasterTiefe, 0);
+    c->RSSetState(g_rsRaster);
+    c->Draw(8U * 8U * 6U, 0);
+    return 1;
+}
+
+void gibRasterFrei() {
+    for (IUnknown** p : {reinterpret_cast<IUnknown**>(&g_rasterVs), reinterpret_cast<IUnknown**>(&g_rasterPs), reinterpret_cast<IUnknown**>(&g_cbRaster),
+                         reinterpret_cast<IUnknown**>(&g_rasterMischen), reinterpret_cast<IUnknown**>(&g_dsRasterTiefe),
+                         reinterpret_cast<IUnknown**>(&g_dsRasterHinten), reinterpret_cast<IUnknown**>(&g_rsRaster)}) {
+        if (*p != nullptr) {
+            (*p)->Release();
+            *p = nullptr;
+        }
+    }
+    g_rasterVersucht = false;
+}
 }  // namespace
 
 int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, const std::vector<BoneMatrix>& knochen,
@@ -6932,6 +7068,11 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, c
     for (const ModellZusatz& z : zusatz) {
         if (!z.figur && z.modell != nullptr) { n += zeichneFigurIn(*z.modell, z.texturen, z.knochen, z.welt, viewProj, fehler, nullptr, false, true); }
     }
+    // MBRASTER: in einer festen Orthoansicht liegt das Raster ueber Hintergrund und grauem Boden; Ghosts und Figur kommen darueber
+    const bool rasterGeht = !art.raster.empty() && rasterAnlegen(d, fehler);
+    for (const ModellRaster& r : art.raster) {
+        if (rasterGeht && r.hinten) { n += zeichneRaster(c, r, viewProj); }
+    }
     if (!art.geister.empty() && geistAnlegen(d)) {
         c->ClearDepthStencilView(g_modellDsv, D3D11_CLEAR_STENCIL, 1.0F, 0);
         g_modellRaster = art.zweiseitig ? kRasterBeidseitig : 0U;
@@ -6957,6 +7098,10 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, c
     if (art.kantenUeber && !art.drahtgitter) {
         g_modellRaster = kRasterDraht | kRasterVorzug | (art.zweiseitig ? kRasterBeidseitig : 0U);
         n += zeichneFigurIn(model, nullptr, knochen, einheit, viewProj, fehler, nullptr, kappen, true);
+    }
+    // MBRASTER: Perspektive und freie Orthoansicht - nach der Figur mit Tiefentest, sie verdeckt den Boden (Blender: Floor)
+    for (const ModellRaster& r : art.raster) {
+        if (rasterGeht && !r.hinten) { n += zeichneRaster(c, r, viewProj); }
     }
     g_modellRaster = 0;
     beendeModellMessung(messung);
@@ -7372,6 +7517,7 @@ void shutdown() {
     if (g_cbRing != nullptr) { g_cbRing->Release(); g_cbRing = nullptr; }
     gibUmrissFrei();
     gibGeistFrei();
+    gibRasterFrei();
     if (g_ctx1 != nullptr) { g_ctx1->Release(); g_ctx1 = nullptr; }
     g_ringGeht = -1;
     g_ringStand = kRingGroesse;

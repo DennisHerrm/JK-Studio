@@ -2324,6 +2324,8 @@ from i18n_lcb2 import zeilen_vier as _lcb2  # noqa: E402  (LCB2: Licht-Cache nac
 S += _lcb2()
 from i18n_mbkopf import zeilen_vier as _mbkopf  # noqa: E402  (MBKOPF: Kopfzeile der Ansicht, Anzeige-Schalter dort, ViewCube/Gizmo)
 S += _mbkopf()
+from i18n_mbraster import zeilen_vier as _mbraster  # noqa: E402  (MBRASTER: Boden-Raster im Model-Tab wie 3ds Max / Blender)
+S += _mbraster()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

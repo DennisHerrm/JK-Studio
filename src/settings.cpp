@@ -172,6 +172,9 @@ std::string writeSettings(const Settings& s) {
     put(o, "modelViewCubeAll", s.modellNavigationAlle);
     put(o, "modelCompass", s.modellKompass);
     put(o, "modelCompassNorth", std::to_string(s.modellKompassNord));
+    put(o, "modelGridSpacing", std::to_string(s.modellRasterAbstand));   // MBRASTER
+    put(o, "modelGridMajor", std::to_string(s.modellRasterHaupt));
+    put(o, "modelGridExtent", std::to_string(s.modellRasterAusdehnung));
     put(o, "modelDisplayMovedSeen", s.modellAnzeigeUmzugGesehen);
     put(o, "lumpEditOffen", s.lumpEditOffen);
     put(o, "lumpEditKarteOffen", s.lumpEditKarteOffen);
@@ -343,6 +346,9 @@ bool readSettings(const std::string& text, Settings& out) {
         else if (key == "modelViewCubeAll") { out.modellNavigationAlle = toBool(value); }
         else if (key == "modelCompass") { out.modellKompass = toBool(value); }
         else if (key == "modelCompassNorth") { out.modellKompassNord = ((std::atoi(value.c_str()) % 360) + 360) % 360; }
+        else if (key == "modelGridSpacing") { out.modellRasterAbstand = std::clamp(static_cast<float>(std::atof(value.c_str())), 0.125F, 1024.0F); }   // MBRASTER
+        else if (key == "modelGridMajor") { out.modellRasterHaupt = std::clamp(std::atoi(value.c_str()), 2, 100); }
+        else if (key == "modelGridExtent") { out.modellRasterAusdehnung = std::clamp(std::atoi(value.c_str()), 1, 1000); }
         else if (key == "modelDisplayMovedSeen") { out.modellAnzeigeUmzugGesehen = toBool(value); }
         else if (key == "lumpEditOffen") { out.lumpEditOffen = toBool(value); }
         else if (key == "lumpEditKarteOffen") { out.lumpEditKarteOffen = toBool(value); }

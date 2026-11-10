@@ -5835,6 +5835,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_dock4.inc"   // dock4: Map Editor und Menu Editor im DockSpace
 #include "selbsttest_tabfenster.inc"   // rc609 T1: ganze Tabs in eigenen Fenstern
 #include "selbsttest_kartenruhe.inc"   // rc610 R1: der Karten-Editor zeichnet nur bei Bedarf
+#include "selbsttest_mbraster.inc"   // MBRASTER: Boden-Raster im Model-Tab (modellblock, BHED_MODELL_NUR=raster; Gizmo/Kompass am Ende von kopf)
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -6814,6 +6815,7 @@ void selbsttest() {
                     for (Schritt& x : pfix::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // pfix
                     for (Schritt& x : mr::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // MRESTE
                     for (Schritt& x : mbkopf::schritte(nur)) { a.schritte.push_back(std::move(x)); } // MBKOPF
+                    for (Schritt& x : mbraster::schritte(nur)) { a.schritte.push_back(std::move(x)); } // MBRASTER
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

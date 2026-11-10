@@ -15,9 +15,9 @@
 //   W/E/R auf den gewaehlten Flaechen (aendert das Dokument, Strg+Z).
 //
 //   mb1a2 ported parts: ModView (r_surface.cpp, model.cpp; Raven Software, GNU General Public License version 2) and
-//   Blender (weight_to_rgb, bone_octahedral_verts; Copyright (C) Blender Authors, GNU General Public License version 2
-//   or later). This file is part of BehavEd-Remake and licensed under the GNU General Public License version 2 or later
-//   (LICENSE).
+//   Blender (weight_to_rgb, bone_octahedral_verts, MBRASTER: gizmo_axis_draw and the grid of overlay_grid.hh; Copyright (C)
+//   Blender Authors, GNU General Public License version 2 or later). This file is part of BehavEd-Remake and licensed
+//   under the GNU General Public License version 2 or later (LICENSE).
 #include "app_internal.h"
 #include "textumbruch.h"
 #include "gpumap.h"
@@ -279,7 +279,7 @@ bool anbauWelt(const ModellAnbau& a, float welt[16]) {
     return true;
 }
 
-// Ein Rechteck als zwei Dreiecke, beidseitig (Boden, Rasterlinien).
+// Ein Rechteck als zwei Dreiecke, beidseitig (der graue Boden).
 void viereck(GlmSurface& s, float x0, float y0, float x1, float y1, float z) {
     const auto ecke = [&](float x, float y) {
         GlmVertex v;
@@ -298,33 +298,209 @@ void viereck(GlmSurface& s, float x0, float y0, float x1, float y1, float z) {
     for (const std::uint32_t i : {0U, 1U, 2U, 0U, 2U, 3U, 0U, 2U, 1U, 0U, 3U, 2U}) { s.indexes.push_back(b + i); }
 }
 
-// Der Boden (ModView: grau, Hoehe einstellbar) und das Raster (G) als Figuren
-// ohne Bild - die helle Ersatzfarbe des Modellfensters.
-const GlmModel& bodenModell(float z, bool raster, float groesse) {
+// Der graue Boden (ModView: grau, Hoehe einstellbar) als Figur ohne Bild - die helle Ersatzfarbe des Modellfensters. Das
+// Raster (G) zeichnet seit MBRASTER ein eigener Durchgang (rasterFuer, gpu::ModellRaster).
+const GlmModel& bodenModell(float z, float groesse) {
     static GlmModel m;
     static std::string schluessel;
     char k[64];
-    std::snprintf(k, sizeof k, "%.2f|%d|%.1f", static_cast<double>(z), raster ? 1 : 0, static_cast<double>(groesse));
+    std::snprintf(k, sizeof k, "%.2f|%.1f", static_cast<double>(z), static_cast<double>(groesse));
     if (schluessel == k) { return m; }
     GlmModel neu;
     neu.name = "boden";
     GlmSurface s;
     s.name = "boden";
-    if (raster) {
-        const float schritt = std::max(std::round(groesse / 8.0F), 1.0F);
-        const float breite = schritt * 0.03F;
-        for (int i = -8; i <= 8; ++i) {
-            const float a = static_cast<float>(i) * schritt;
-            viereck(s, a - breite, -groesse, a + breite, groesse, z + 0.05F);
-            viereck(s, -groesse, a - breite, groesse, a + breite, z + 0.05F);
-        }
-    } else {
-        viereck(s, -groesse, -groesse, groesse, groesse, z);
-    }
+    viereck(s, -groesse, -groesse, groesse, groesse, z);
     neu.surfaces.push_back(std::move(s));
     m = std::move(neu);
     schluessel = k;
     return m;
+}
+
+// --- MBRASTER: das Bodenraster -----------------------------------------------------------------------------------
+//
+// shank 10.11.: "ich habe gesehen es gibt im model Tab keinen boden wie in 3ds max oder blender. Kann man den einfuegen einen
+// grid". Wie 3ds Max (Home Grid; Grid and Snap Settings > Home Grid) bzw. Blender (Overlays > Guides; overlay_grid.hh init_3d
+// und sync_view, Blender 5.0). Die Linien zeichnet gpu::zeichneModellAnsicht (ModellRaster), hier stehen Ebene, Lage, Stufen
+// und Farben. Die Ebene liegt in Bodenhoehe (an.bodenZ, ab Werk -24 wie ModView und DEFAULT_MINS_2): 3ds Max und Blender legen
+// ihr Raster auf Z = 0, eine JKA-Figur hat ihren Ursprung aber in der Huefte.
+
+float helligkeit3(const float c[3]) { return c[0] * 0.30F + c[1] * 0.59F + c[2] * 0.11F; }
+
+void achsVektor(float* v, int achse) {
+    v[0] = v[1] = v[2] = 0.0F;
+    v[achse] = 1.0F;
+}
+
+// 3ds Max (Customize User Interface > Colors; Themen ame-dark.clrx / ame-light.clrx von 3ds Max 2027): GridIntensity #696969
+// (dunkel) bzw. #9e9e9e (hell) fuer die Linien, "Grid" #000000 fuer die Weltachsen. Die Hauptlinie ist dunkler als die
+// Nebenlinie (Hilfe "Home Grid": "heavier or major lines"), Max nennt keinen Wert: 3/4 der Helligkeit - so bleibt sie auf dem
+// hellsten Grau des Verlaufs (56) sichtbar (79).
+void maxFarben(const float hg[3], gpu::ModellRaster& r) {
+    const float neben = (helligkeit3(hg) >= 0.5F ? 158.0F : 105.0F) / 255.0F;
+    const float haupt = neben * 0.75F;
+    for (int k = 0; k < 3; ++k) {
+        r.neben[k] = neben;
+        r.haupt[k] = haupt;
+        r.achseU[k] = 0.0F;
+        r.achseV[k] = 0.0F;
+    }
+    r.neben[3] = r.haupt[3] = r.achseU[3] = r.achseV[3] = 1.0F;
+}
+
+// Blender 5.0 overlay_instance.cc mit dem Thema userdef_default_theme.c: grid = TH_GRID (#545454, Alpha 0x80) um +10 heller;
+// grid_emphasis = TH_GRID_MAJOR (#545454) um +20 heller, wenn der Hintergrund dunkler ist als das Raster, sonst um -10;
+// die Achsen = TH_GRID zu 0,85 mit TH_AXIS_X/Y/Z (#ff3352, #8bdc00, #2890ff) gemischt und um (grid_axis_brightness 0,46 * 2 - 1)
+// * 255 = -20 verschoben (UI_GetThemeColorBlendShade4fv: floor je Kanal).
+void blenderFarben(const float hg[3], gpu::ModellRaster& r, float achse[3][4]) {
+    const float g = (0x54 + 10) / 255.0F;
+    const bool hgDunkler = g * 3.0F + 0.12F > hg[0] + hg[1] + hg[2];
+    const float e = static_cast<float>(0x54 + (hgDunkler ? 20 : -10)) / 255.0F;
+    for (int k = 0; k < 3; ++k) {
+        r.neben[k] = g;
+        r.haupt[k] = e;
+    }
+    r.neben[3] = static_cast<float>(0x80) / 255.0F;
+    r.haupt[3] = 1.0F;
+    static const int kAchse[3][3] = {{0xFF, 0x33, 0x52}, {0x8B, 0xDC, 0x00}, {0x28, 0x90, 0xFF}};
+    for (int a = 0; a < 3; ++a) {
+        for (int k = 0; k < 3; ++k) {
+            const int c = -20 + static_cast<int>(std::floor(0.15F * 0x54 + 0.85F * static_cast<float>(kAchse[a][k])));
+            achse[a][k] = static_cast<float>(std::clamp(c, 0, 255)) / 255.0F;
+        }
+        achse[a][3] = 1.0F;
+    }
+}
+
+// Die Linien des Bodenrasters dieser Ansicht (Hoehe des Ziels in Bildpunkten fuer die Stufe in den Orthoansichten).
+std::vector<gpu::ModellRaster> rasterFuer(const ModellAnsicht& a, int w, int h) {
+    std::vector<gpu::ModellRaster> liste;
+    const ModellSchattierung& sch = a.sch;
+    const bool bl = modellBlender();
+    const Settings& st = g_app->settings;
+    const float abstand = std::clamp(st.modellRasterAbstand, 0.125F, 1024.0F);
+    const float teilung = static_cast<float>(std::clamp(st.modellRasterHaupt, 2, 100));
+    const float boden = mt().an.bodenZ;
+    const bool persp = a.art == AnsichtArt::Perspektive;
+    // Blender: in der Perspektive und der freien Ansicht (RV3D_VIEW_USER) der Boden auf der Ebene XY, sonst die Ebene der Ansicht
+    const bool frei = persp || a.art == AnsichtArt::Orthographisch;
+    int normale = 2;
+    if (a.art == AnsichtArt::Vorne || a.art == AnsichtArt::Hinten) {
+        normale = 1;
+    } else if (a.art == AnsichtArt::Links || a.art == AnsichtArt::Rechts) {
+        normale = 0;
+    }
+    const int achseU = normale == 0 ? 1 : 0;   // XY: X und Y, XZ: X und Z, YZ: Y und Z
+    const int achseV = normale == 2 ? 1 : 2;
+    float hg[3];
+    modellHintergrundFarbe(hg);
+    float rechts[3];
+    float hoch[3];
+    float blick[3];
+    ansichtAchsen(a.art, rechts, hoch, blick);
+    gpu::ModellRaster r;
+    r.blender = bl;
+    r.perspektive = persp;
+    r.hinten = !frei;
+    r.ebeneXY = bl && frei && !persp;
+    // 3ds Max: G schaltet das ganze Home Grid; Blender: Grid in den Achsenansichten, Floor sonst, die Achsen einzeln
+    r.gitter = bl ? (frei ? sch.rasterBoden : sch.raster) : sch.raster;
+    r.ursprung[2] = boden;
+    achsVektor(r.u, achseU);
+    achsVektor(r.v, achseV);
+    achsVektor(r.normale, normale);
+    float achse[3][4]{};
+    if (bl) {
+        blenderFarben(hg, r, achse);
+        std::memcpy(r.achseU, achse[achseU], sizeof r.achseU);
+        std::memcpy(r.achseV, achse[achseV], sizeof r.achseV);
+        if (!sch.achsen[achseU]) { r.achseU[3] = 0.0F; }
+        if (!sch.achsen[achseV]) { r.achseV[3] = 0.0F; }
+    } else {
+        maxFarben(hg, r);
+        if (!sch.raster) { r.achseU[3] = r.achseV[3] = 0.0F; }
+    }
+    for (int k = 0; k < 3; ++k) {
+        r.kamera[k] = g_app->modelCam.pos[k];
+        r.rechts[k] = rechts[k];
+        r.rueck[k] = -blick[k];
+    }
+    const float pxJeEinheit = static_cast<float>(h) / std::max(2.0F * a.halbHoehe, 1e-3F);
+    if (bl) {
+        // view3d_grid_steps_ex ohne Einheitensystem: scale * subdiv^i, in den Achsenansichten "3 more subdivisions"
+        float s = abstand;
+        if (!frei) { s /= teilung * teilung * teilung; }
+        for (float& x : r.stufen) {
+            x = s;
+            s *= teilung;
+        }
+    } else {
+        // 3ds Max: in den Orthoansichten waechst der Abstand mit dem Zoom ("the grid expands indefinitely to keep major
+        // divisions"), feiner als der Rasterabstand wird er nicht ("Inhibit Grid Subdivision Below Grid Spacing", ab Werk an);
+        // gewechselt wird, wenn die Nebenlinien naeher als 4 Bildpunkte stuenden (Blender: "the grid begins to appear when it
+        // comprises 4 pixels" - Max nennt keine Schwelle). In der Perspektive bleibt es fest ("Inhibit Perspective View Grid
+        // Resize", ab Werk an).
+        float neben = abstand;
+        while (!persp && neben * pxJeEinheit < 4.0F && neben < 1.0e6F) { neben *= teilung; }
+        r.stufen[0] = neben;
+        r.stufen[1] = neben * teilung;
+    }
+    const float breitHoch = std::max(static_cast<float>(w) / std::max(static_cast<float>(h), 1.0F), 1.0F);
+    if (persp && bl) {
+        // Blender: um den Ort der Kamera auf der Ebene, so gross wie die Sichtweite (clip_end; hier 8192 wie baueSicht), ab der
+        // halben Sichtweite ausgeblendet (grid_buf.distance = clip_end / 2)
+        r.mitte[0] = r.kamera[0];
+        r.mitte[1] = r.kamera[1];
+        r.mitte[2] = boden;
+        r.halb = 8192.0F;
+        r.fern = 4096.0F;
+    } else if (persp) {
+        // 3ds Max: fest um den Ursprung, "Perspective View Grid Extent" Linien weit (ab Werk 7: halbe Groesse 7 * Abstand)
+        r.ausdehnung = abstand * static_cast<float>(std::clamp(st.modellRasterAusdehnung, 1, 1000));
+        r.mitte[2] = boden;
+        r.halb = r.ausdehnung + abstand;
+    } else if (frei) {
+        // freie Orthoansicht: die Bodenebene um den Punkt, der in der Bildmitte liegt
+        const float tz = std::fabs(blick[2]) > 1e-3F ? (boden - a.mitte[2]) / blick[2] : 0.0F;
+        for (int k = 0; k < 3; ++k) { r.mitte[k] = a.mitte[k] + blick[k] * tz; }
+        r.mitte[2] = boden;
+        r.halb = std::min(a.halbHoehe * breitHoch / std::max(std::fabs(blick[2]), 0.05F) * 1.5F, 65536.0F);
+    } else {
+        // feste Orthoansicht: in der Bildebene durch den Ursprung des Rasters, bildfuellend
+        for (int k = 0; k < 3; ++k) { r.mitte[k] = a.mitte[k]; }
+        r.mitte[normale] = r.ursprung[normale];
+        r.halb = a.halbHoehe * breitHoch * 1.5F;
+    }
+    if (r.gitter || r.achseU[3] > 0.0F || r.achseV[3] > 0.0F) { liste.push_back(r); }
+    // Blender: die Z-Achse in der Perspektive und der freien Ansicht senkrecht durch den Ursprung, auf der Ebene XZ oder YZ, die
+    // der Kamera am meisten zugewandt ist (overlay_grid.hh sync_view)
+    if (bl && frei && sch.achsen[2]) {
+        gpu::ModellRaster z = r;
+        z.gitter = false;
+        z.ebeneXY = false;
+        const int n = std::fabs(blick[0]) < std::fabs(blick[1]) ? 1 : 0;
+        achsVektor(z.normale, n);
+        achsVektor(z.u, n == 1 ? 0 : 1);
+        achsVektor(z.v, 2);
+        z.achseU[3] = 0.0F;
+        std::memcpy(z.achseV, achse[2], sizeof z.achseV);
+        for (int k = 0; k < 3; ++k) { z.mitte[k] = persp ? r.kamera[k] : a.mitte[k]; }
+        z.mitte[n] = 0.0F;
+        z.halb = persp ? 8192.0F : r.halb;
+        liste.push_back(z);
+    }
+    return liste;
+}
+
+// Was das Raster einer Ansicht bestimmt (fuer den Stand, nach dem sie neu gezeichnet wird).
+std::string rasterStand(const ModellAnsicht& a) {
+    const ModellSchattierung& s = a.sch;
+    const Settings& st = g_app->settings;
+    char k[160];
+    std::snprintf(k, sizeof k, "|r%d%d%d%d%d%d|%.3f|%d|%d|%.2f|%d|%d", s.raster ? 1 : 0, s.rasterBoden ? 1 : 0, s.achsen[0] ? 1 : 0, s.achsen[1] ? 1 : 0,
+                  s.achsen[2] ? 1 : 0, modellBlender() ? 1 : 0, static_cast<double>(st.modellRasterAbstand), st.modellRasterHaupt, st.modellRasterAusdehnung,
+                  static_cast<double>(mt().an.bodenZ), st.modellHintergrund, mt().silhouette ? 1 : 0);
+    return k;
 }
 
 // --- Ueberlagerung ---------------------------------------------------------------------------
@@ -1925,24 +2101,22 @@ std::vector<gpu::ModellZusatz> zusaetze(const ModellSchattierung& sch) {
         x.texturen = g_app->showModelTextures && !sch.weiss && a.texturen.found != 0 ? &a.texturen : nullptr;
         z.push_back(std::move(x));
     }
-    if (t.an.boden || sch.raster) {
+    if (t.an.boden) {
         float groesse = 0.0F;
         for (int k = 0; k < 2; ++k) { groesse = std::max(groesse, std::fabs(g_app->model.mins[k]) + std::fabs(g_app->model.maxs[k])); }
         groesse = std::max(groesse, 32.0F);
-        const float einheit[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
-        for (const bool raster : {false, true}) {
-            if (raster ? !sch.raster : !t.an.boden) { continue; }
-            gpu::ModellZusatz x;
-            x.modell = &bodenModell(t.an.bodenZ, raster, groesse);
-            x.figur = false;   // Stufe 3: keine Silhouette
-            std::memcpy(x.welt, einheit, sizeof x.welt);
-            z.push_back(std::move(x));
-        }
+        const float welt[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+        gpu::ModellZusatz x;
+        x.modell = &bodenModell(t.an.bodenZ, groesse);
+        x.figur = false;   // Stufe 3: keine Silhouette
+        std::memcpy(x.welt, welt, sizeof x.welt);
+        z.push_back(std::move(x));
     }
     return z;
 }
 
-gpu::ModellAnsichtArt zeichenArt(const ModellSchattierung& sch) {
+gpu::ModellAnsichtArt zeichenArt(const ModellAnsicht& a, int w, int h) {
+    const ModellSchattierung& sch = a.sch;
     gpu::ModellAnsichtArt art;
     art.hintergrund = g_app->settings.modellHintergrund;   // mb1a2
     art.drahtgitter = sch.drahtgitter;   // MBKOPF: je Ansicht
@@ -1955,6 +2129,7 @@ gpu::ModellAnsichtArt zeichenArt(const ModellSchattierung& sch) {
         art.hintergrund = 0xE8E8E8;
     }
     art.geister = modellGeister();
+    art.raster = rasterFuer(a, w, h);   // MBRASTER
     return art;
 }
 
@@ -2115,19 +2290,20 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
                   static_cast<double>(g_app->modelCam.fovY),
                   static_cast<double>(a.mitte[0]), static_cast<double>(a.mitte[1]), static_cast<double>(a.mitte[2]),
                   static_cast<double>(a.halbHoehe), static_cast<double>(g_app->modelOrbit.distance));
-    if (neu || g_sichtStand[static_cast<std::size_t>(n)] != stand) {
+    const std::string standGanz = std::string(stand) + rasterStand(a);   // MBRASTER
+    if (neu || g_sichtStand[static_cast<std::size_t>(n)] != standGanz) {
         gpu::modellZielWaehlen(n);
         if (gpu::bereiteModellZiel(w, h)) {
             const auto ab = std::chrono::steady_clock::now();
             std::string fehler;
             const bool gw = gewichtsAnsicht();
             const int aufrufe = gpu::zeichneModellAnsicht(gw ? gewichtsModell() : t.anzeige, gw ? &g_gewTex : texturen(a.sch), g_knochen, a.viewProj,
-                                                          true, &fehler, zeichenArt(a.sch), zusaetze(a.sch));
+                                                          true, &fehler, zeichenArt(a, w, h), zusaetze(a.sch));
             if (aufrufe == 0 && !fehler.empty()) { diag::detail("Modellfenster: " + fehler); }
             g_app->modellAufrufe = aufrufe;
             ++g_app->modellNeuGezeichnet;
             g_app->modellCpuMsSumme += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ab).count();
-            g_sichtStand[static_cast<std::size_t>(n)] = stand;
+            g_sichtStand[static_cast<std::size_t>(n)] = standGanz;
         }
     }
     gpu::modellZielWaehlen(n);
@@ -2374,6 +2550,89 @@ const char* modellAnsichtText(AnsichtArt a) { return tr(ansichtName(a)); }
 ModellSchattierung& modellSch() {
     ModellTab& t = mt();
     return t.ansichten[std::clamp(t.aktiv, 0, 3)].sch;
+}
+
+// MBRASTER: der Hintergrund der Ansicht - einfarbig (mb1a2), die Silhouette (E8E8E8, zeichenArt) oder der Verlauf 34..56
+// (modellHintergrundPixelShaderHlsl) als sein Mittel 45.
+void modellHintergrundFarbe(float rgb[3]) {
+    const int h = mt().silhouette ? 0xE8E8E8 : g_app->settings.modellHintergrund;
+    if (h < 0) {
+        rgb[0] = rgb[1] = rgb[2] = 45.0F / 255.0F;
+        return;
+    }
+    rgb[0] = static_cast<float>((h >> 16) & 0xFF) / 255.0F;
+    rgb[1] = static_cast<float>((h >> 8) & 0xFF) / 255.0F;
+    rgb[2] = static_cast<float>(h & 0xFF) / 255.0F;
+}
+
+// MBRASTER (Abnahme MBKOPF): die Achsenkugeln des Navigations-Gizmos wie Blender view3d_gizmo_navigate_type.cc gizmo_axis_draw
+// (Copyright Blender Authors, GPL-2.0-or-later) - von hinten nach vorn (`kugeln` nach der Tiefe sortiert): die vordere Kugel
+// liegt oben. Die Farbe zur Hintergrundfarbe hin ausgeblendet ((Tiefe + 1) * 0,25 + 0,5), die Kugel 0,92 bis 1,08 gross; die
+// Gegenkugel innen zu 25 % in der Achsfarbe, ab der Mitte deckend (Alpha min(Tiefe + 1, 1)) - bis MBRASTER war sie immer halb
+// durchsichtig, und die Kugel Y schien durch die vordere -Y. Genau entlang einer Achse fehlt die hintere Kugel, die vordere hat
+// einen hellen Rand und ihre Beschriftung. Beschriftung schwarz, unter der Maus weiss. Achsfarben wie Blenders Thema
+// (TH_AXIS_X/Y/Z), Linie gizmo_size / 40, Ring gizmo_size / 60.
+void modellGizmoKugelnZeichnen(ImDrawList* dl, const ModellGizmoKugel* kugeln, ImVec2 mitte, float kugelR, float groesse, int unter, int ausgerichtet) {
+    static const float kAchse[3][3] = {{1.0F, 0x33 / 255.0F, 0x52 / 255.0F}, {0x8B / 255.0F, 0xDC / 255.0F, 0.0F}, {0x28 / 255.0F, 0x90 / 255.0F, 1.0F}};
+    static const float kWeiss[3] = {1.0F, 1.0F, 1.0F};
+    static const char* const kName[3] = {"X", "Y", "Z"};
+    static const char* const kNameNeg[3] = {"-X", "-Y", "-Z"};
+    float hg[3];
+    modellHintergrundFarbe(hg);
+    const auto mische = [](const float* a, const float* b, float f, float deck) {
+        return ImGui::ColorConvertFloat4ToU32(ImVec4{a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, deck});
+    };
+    const float linie = std::max(groesse / 40.0F, 1.0F);
+    const float ring = std::max(groesse / 60.0F, 1.0F);
+    for (int n = 0; n < 6; ++n) {
+        const ModellGizmoKugel& x = kugeln[n];
+        const int k = x.i / 2;
+        const bool positiv = (x.i % 2) == 0;
+        const bool hinten = x.tiefe <= 0.01F * (positiv ? -1.0F : 1.0F);   // AXIS_DEPTH_BIAS
+        const bool vorneAus = ausgerichtet == k && !hinten;
+        const bool hintenAus = ausgerichtet == k && hinten;
+        const ImU32 blass = mische(hg, kAchse[k], (x.tiefe + 1.0F) * 0.25F + 0.5F, 1.0F);
+        if (positiv || ausgerichtet >= 0) {
+            // die Linie von der Mitte (halb zwischen Grund und Achse) zur Kugel (ausgeblendet)
+            const ImVec2 halb{(mitte.x + x.ort.x) * 0.5F, (mitte.y + x.ort.y) * 0.5F};
+            dl->AddLine(mitte, halb, mische(hg, kAchse[k], 0.75F, 1.0F), linie);
+            dl->AddLine(halb, x.ort, blass, linie);
+        }
+        if (!hintenAus) {
+            ImU32 innen = blass;
+            ImU32 rand = blass;
+            if (!positiv) {
+                const float deck = std::min(x.tiefe + 1.0F, 1.0F);
+                if (vorneAus) {
+                    rand = mische(kWeiss, kAchse[k], 0.5F, deck);
+                } else {
+                    innen = mische(hg, kAchse[k], 0.25F, deck);
+                }
+            }
+            const float rad = kugelR * ((x.tiefe + 1.0F) * 0.08F + 0.92F);
+            dl->AddCircleFilled(x.ort, rad, innen, 24);
+            dl->AddCircle(x.ort, rad, rand, 24, ring);
+        }
+        if ((positiv || unter == x.i || k == ausgerichtet) && !hintenAus) {
+            const char* name = positiv ? kName[k] : kNameNeg[k];
+            const ImVec2 g = ImGui::CalcTextSize(name);
+            const ImU32 farbe = unter == x.i ? IM_COL32(255, 255, 255, 255) : IM_COL32(0, 0, 0, unter >= 0 ? 255 : 230);
+            dl->AddText(ImVec2{std::round(x.ort.x - g.x * (positiv ? 0.5F : 0.55F)), std::round(x.ort.y - g.y * 0.5F)}, farbe, name);
+        }
+    }
+}
+
+// MBRASTER: der Boden (Raster und grauer Boden) unter dem tiefsten Punkt der gezeichneten Figur in der Pose, auf 1/8 abgerundet.
+void modellBodenAufTiefstenPunkt() {
+    float z = 1e9F;
+    const auto& h = haut();
+    for (std::size_t i = 0; i < h.size(); ++i) {
+        if (!gezeichnet(i)) { continue; }
+        for (const auto& p : h[i]) { z = std::min(z, p[2]); }
+    }
+    if (z > 1e8F) { return; }
+    mt().an.bodenZ = std::floor(z * 8.0F) / 8.0F;
+    g_app->modelDirty = true;
 }
 
 // Blender: Preferences > Viewport > Smooth Rotation, Vorgabe 200 ms (userdef_default.c: .smooth_viewtx = 200). Der
@@ -2659,7 +2918,7 @@ bool modellFotoMitUeberlagerung(int breite, std::vector<unsigned char>& rgba, in
     const bool gw = gewichtsAnsicht();
     if (!gpu::bereiteModellZiel(w, h) ||
         gpu::zeichneModellAnsicht(gw ? gewichtsModell() : t.anzeige, gw ? &g_gewTex : texturen(a.sch), g_knochen, a.viewProj, true, &fehler,
-                                  zeichenArt(a.sch), zusaetze(a.sch)) <= 0) {
+                                  zeichenArt(a, w, h), zusaetze(a.sch)) <= 0) {
         return false;
     }
     ImDrawList liste(ImGui::GetDrawListSharedData());

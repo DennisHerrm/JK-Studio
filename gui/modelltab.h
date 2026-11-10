@@ -91,7 +91,12 @@ struct ModellSchattierung {
     bool kanten = false;        // F4: Flaechen mit Kanten / Blender: Overlay Wireframe
     bool zweiseitig = false;    // Blender: Backface Culling aus
     bool weiss = false;         // weisse Texturen / Blender: Solid
-    bool raster = false;        // G
+    // MBRASTER: ab Werk an wie 3ds Max (Home Grid, G) und Blender (Overlays: Grid, Floor, Axes X und Y; Z aus). 3ds Max: G schaltet
+    // das ganze Home Grid samt Weltachsen; Blender: `raster` das Raster der Achsenansichten (Grid), `rasterBoden` den Boden der
+    // Perspektive und der freien Orthoansicht (Floor), `achsen` die farbigen Weltachsen.
+    bool raster = true;         // G / Blender: Grid
+    bool rasterBoden = true;    // Blender: Floor
+    bool achsen[3] = {true, true, false};   // Blender: Axes X Y Z
     bool statistik = false;     // 7
 };
 
@@ -998,6 +1003,18 @@ bool modellBmp(const std::string& pfad, int breite, int hoehe, const std::vector
 // --- MBKOPF: Kopfzeile der Ansicht (gui/app_modelltab_kopf.cpp), ViewCube und Navigations-Gizmo
 // (gui/wof/app_modelltab_viewcube.cpp) -------------------------------------------------------------------------------
 [[nodiscard]] ModellSchattierung& modellSch();   // die Schattierung der aktiven Ansicht
+// MBRASTER: der Boden unter den tiefsten Punkt der Figur in der Pose; die Hintergrundfarbe der Ansicht (0..1, der Verlauf als
+// Mittelwert) fuer die Farben des Rasters und der Gizmo-Kugeln
+void modellBodenAufTiefstenPunkt();
+// MBRASTER (Abnahme MBKOPF): die Achsenkugeln des Navigations-Gizmos wie Blender gizmo_axis_draw, von hinten nach vorn sortiert
+// (i: 0..5 = +X -X +Y -Y +Z -Z, tiefe: zur Kamera positiv); `ausgerichtet`: die Achse, entlang der man genau schaut, sonst -1
+struct ModellGizmoKugel {
+    int i = 0;
+    float tiefe = 0.0F;
+    ImVec2 ort{};
+};
+void modellGizmoKugelnZeichnen(ImDrawList* dl, const ModellGizmoKugel* kugeln, ImVec2 mitte, float kugelR, float groesse, int unter, int ausgerichtet);
+void modellHintergrundFarbe(float rgb[3]);
 void drawModellKopfzeile(int n, ModellAnsicht& a);
 void modellAnzeigeKontext();                       // Rechtsklick-Menue: die Menues der Kopfzeile der aktiven Ansicht
 bool modellKopfAktionenSuche(const std::string& such);   // "Alle Aktionen suchen": jeder Anzeige-Schalter
@@ -1027,6 +1044,7 @@ void modellAllesEinpassenIn(int n);            // Blender Pos1 (view3d.view_all)
 [[nodiscard]] const char* modellKopfSchalterHinweis(int i);
 [[nodiscard]] bool& modellKopfSchalterWert(int i, int ansicht);
 [[nodiscard]] bool modellKopfSchalterGeht(int i);
+[[nodiscard]] bool modellKopfSchalterHier(int i, int ansicht);   // MBRASTER: im Bedienmodus und in dieser Ansicht sichtbar
 [[nodiscard]] bool modellKopfSchalterBrauchtAuswahl(int i);
 [[nodiscard]] bool modellKopfFeldOrt(int ansicht, int feld, ImVec2& out);   // 0 [+], 1 [Ansicht], 2 [Schattierung], 3 Overlays, 4 Shading-Menue
 [[nodiscard]] bool modellWuerfelOrt(int ansicht, int x, int y, int z, ImVec2& out);   // Flaeche/Kante/Ecke (-1/0/1 je Achse); 9,9,9 = Home

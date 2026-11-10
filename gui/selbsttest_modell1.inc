@@ -341,6 +341,42 @@ std::vector<Schritt> modellLeistungSchritte() {
         }));
         return s;
     }
+    // MBRASTER, BHED_MODELL1_NUR=raster: der Sturmtruppler laeuft (jedes Bild neu gezeichnet), das Raster aus, an wie 3ds Max, an
+    // wie Blender (Boden mit Ausblenden und Achsen) - zweimal abwechselnd, damit eine Drift beide Seiten trifft.
+    if (nur != nullptr && std::strcmp(nur, "raster") == 0) {
+        add(tu("Modell1: stormtrooper laden, eine Ansicht", [] {
+            std::string fehler;
+            if (!oeffneModellAusArchiv("models/players/stormtrooper/model.glm", &fehler)) { meldeFehler("Modell1: " + fehler); }
+            g_app->leftMode = 2;
+            g_app->mtab.bereich = ModellBereich::Ansehen;
+            g_app->mtab.vierAnsichten = false;
+            m1Grundlage();
+        }));
+        add(pause(1.0));
+        const auto raster = [](bool an, int bedienung) {
+            modellBedienungSetzen(bedienung);
+            for (ModellAnsicht& a : g_app->mtab.ansichten) {
+                a.sch.raster = an;
+                a.sch.rasterBoden = an;
+                a.sch.achsen[0] = an;
+                a.sch.achsen[1] = an;
+            }
+            g_app->modelDirty = true;
+            m1Abspielen();
+        };
+        for (int runde = 1; runde <= 2; ++runde) {
+            const std::string r = " (Runde " + std::to_string(runde) + ")";
+            add(m1Messblock("stormtrooper", "Raster aus" + r, [=] { raster(false, 0); }));
+            add(m1Messblock("stormtrooper", "Raster an wie 3ds Max" + r, [=] { raster(true, 0); }));
+            add(m1Messblock("stormtrooper", "Raster an wie Blender" + r, [=] { raster(true, 1); }));
+        }
+        add(tu("Modell1: zurueck", [] {
+            modellBedienungSetzen(0);
+            g_app->leftMode = 1;
+            g_app->doc.markSaved();
+        }));
+        return s;
+    }
     // Stufe 3, BHED_MODELL1_NUR=rig: die Figur mit den meisten Ecken (clonetrooper_p2) laeuft, ohne und mit Rig, 10 Ghosts
     // (5 davor, 5 danach) und 3 Bewegungspfaden (rhand, rtalus, ltalus; je 20 Bilder davor und danach).
     if (nur != nullptr && std::strcmp(nur, "rig") == 0) {
