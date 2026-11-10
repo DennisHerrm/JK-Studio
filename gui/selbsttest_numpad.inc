@@ -334,6 +334,26 @@ std::vector<Schritt> schritte() {
     add(tu("Numpad: Dialog zu", [] { ke::editor().tastenDialogOffen = false; }));
     add(pause(0.2));
 
+    // --- Punkt 3: die Anzeige im Menue (Grid mit den Num-Tasten, die Ansichten ohne) und die Ansichten ohne Ziffernblock
+    add(pruefe("Numpad Vorgabe: Grid zeigt beide Tasten (Grid1 \"1 / Num+1\", Grid256 \"9 / Num+9\", Show Grid \"0 / Num+0\"), "
+               "View > Orthographic ohne Num-Tasten, Next \"Ctrl+Tab\"", [] {
+        const auto& b = ke::editor().belegung;
+        diag::detail("Knopftest: Numpad - SetGrid1 \"" + b.text("SetGrid1") + "\", SetGrid256 \"" + b.text("SetGrid256") + "\", ToggleGrid \"" +
+                     b.text("ToggleGrid") + "\", ViewFront \"" + b.text("ViewFront") + "\", NextView \"" + b.text("NextView") + "\"");
+        return b.ziffernblockRaster() && b.text("SetGrid1") == "1 / Num+1" && b.text("SetGrid256") == "9 / Num+9" &&
+               b.text("ToggleGrid") == "0 / Num+0" && b.text("ViewFront").empty() && b.text("ViewSide").empty() && b.text("ViewTop").empty() &&
+               b.text("NextView") == "Ctrl+Tab";
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Tab, "Strg+Tab"));
+    add(pruefe("Numpad Vorgabe: Strg+Tab wechselt die Ansicht weiter (XZ -> YZ)", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::YZ; }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::KeLOrthographic), "##Menu_", 0, false));
+    add(pause(0.3));
+    add(foto("numpad_menue_ansicht"));
+    add(klick(ke::trK(Str::KeLXYTop), "##Menu_", 0, false));
+    add(pause(0.3));
+    add(pruefe("Numpad Vorgabe: View > Orthographic > XY (Top) - wieder XY", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::XY; }));
     add(tu("Numpad: Zustand wie vorher, echte Tastatur", [vorher] {
         ke::Editor& e = ke::editor();
         e.raster.setzePotenz(vorher->potenz);

@@ -283,7 +283,7 @@ bool leistenKnopf(const char* befehl, const char* bild, Str tip, int lx, int ly,
     leistenSymbol(dl, bild, ImVec2{std::floor(a.x + (b.x - a.x - g) * 0.5F), std::floor(a.y + (b.y - a.y - g) * 0.5F)}, g, da);
     if (hover) {
         std::string t = tr(tip);
-        const std::string taste = befehl[0] == 0 ? std::string() : befehle::tasteAlsText(e().belegung.taste(befehl));
+        const std::string taste = befehl[0] == 0 ? std::string() : e().belegung.text(befehl);
         if (!taste.empty()) { t += " (" + taste + ")"; }
         ImGui::SetTooltip("%s", t.c_str());
     }

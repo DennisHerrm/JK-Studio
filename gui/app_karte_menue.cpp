@@ -141,7 +141,7 @@ void eintraegeZeichnen(const std::vector<MenueEintrag>& liste, std::size_t& i) {
         case MenueArt::Haken: {
             const std::string befehl = m.befehl;
             const bool da = nachgebaut(befehl);
-            const std::string taste = befehle::tasteAlsText(ed.belegung.taste(befehl));
+            const std::string taste = ed.belegung.text(befehl);   // rc612 NUMPAD: auch die Zweittaste ("1 / Num+1")
             const std::string id = std::string(trK(m.str)) + "###" + befehl + std::to_string(i);
             QtPunkt p;
             p.id = id.c_str();
@@ -287,7 +287,7 @@ void listeZeichnen(const std::string& name) {
                     const std::string text = karte::ohneMnemonik(liste[k].titel) + "##pl" + liste[k].befehl;
                     const std::string befehl = liste[k].befehl;
                     const bool da = nachgebaut(befehl);
-                    const std::string taste = befehle::tasteAlsText(e().belegung.taste(befehl));
+                    const std::string taste = e().belegung.text(befehl);
                     QtPunkt p;
                     p.id = text.c_str();
                     p.nrc = liste[k].titel;
@@ -995,7 +995,7 @@ void knopf(const Knopf& k, int x, int y) {
             zeilen.push_back((tab ? "    " : "") + text);
             ++z;
         }
-        std::string tip = befehle::knopfTooltip(zeilen, befehle::tasteAlsText(ed.belegung.taste(befehl)));
+        std::string tip = befehle::knopfTooltip(zeilen, ed.belegung.text(befehl));
         if (!da && !befehl.empty()) { tip += "\n" + stufeText(befehl); }
         ImGui::SetTooltip("%s", tip.c_str());
     }
