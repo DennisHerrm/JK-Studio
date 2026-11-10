@@ -38,7 +38,7 @@
 <p>编译地图时,编译进度窗口和状态栏会显示显卡名称。编译完成后,控制台显示<strong>偏差报告</strong>:每第 64 张光照贴图由 CPU 再计算一次,并逐个光照像素比较。最近一次报告也显示在 <span class="ui">GPU 烘焙</span> 的工具提示中。该项打开时,实时光照的快速烘焙(<a href="karte_tempo.html">地图编辑器:速度与实时光照</a>)也会使用显卡。</p>
 <figure class="bild"><a href="../bilder/zh/h_karte_gpubacken_bericht.webp" class="zoom"><img src="../bilder/zh/h_karte_gpubacken_bericht.webp" alt="编译后:控制台中的偏差报告。" loading="lazy"></a><figcaption>编译后:控制台中的偏差报告。</figcaption></figure>
 <h2 id="was">在显卡上运行的部分<a class="anker" href="#was">#</a></h2>
-<ul><li><strong>光照贴图</strong>:每个光照像素上每盏灯的贡献及其阴影射线、样式检查、<code>-samples</code> 的自适应超采样(也包括多级)、<code>-filter</code> 的滤波,以及按顺序累加各盏灯。</li><li><strong>反弹</strong>(<code>-bounce</code>):每一轮,包括辐射度生成的面光源。</li><li><strong>光照网格</strong>(模型和玩家的光照):每个网格点与所有灯光。</li><li>仍在处理器上:加载、灯光列表、顶点光照、生成反弹灯光、接缝、存储和写入 .bsp——以及显卡无法精确完成的一切(见下文)。</li></ul>
+<ul><li><strong>光照贴图</strong>:每个光照像素上每盏灯的贡献及其阴影射线、样式检查、<code>-samples</code> 的自适应超采样(也包括多级)、<code>-filter</code> 的滤波,以及按顺序累加各盏灯。</li><li><strong>反弹</strong>(<code>-bounce</code>):每一轮,包括辐射度生成的面光源。</li><li>开启 <strong><span class="ui">部分编译:重用光照</span></strong> 时,某一轮中来自光照缓存的光照贴图根本不会送到显卡——第一轮和每一轮反弹都是如此。</li><li><strong>光照网格</strong>(模型和玩家的光照):每个网格点与所有灯光。</li><li>仍在处理器上:加载、灯光列表、顶点光照、生成反弹灯光、接缝、存储和写入 .bsp——以及显卡无法精确完成的一切(见下文)。</li></ul>
 <h2 id="gleich">为什么结果相同<a class="anker" href="#gleich">#</a></h2>
 <p>显卡通常与处理器的计算方式略有不同——因此其他 GPU 光照烘焙器得到的光照会略有差异。bhed_q3map2 以与处理器上的 q3map2 <strong>相同的计算、相同的顺序</strong>进行:</p>
 <ul><li>每次运算都与处理器上完全相同地舍入(不合并乘加);除法用整数运算精确舍入;</li><li>q3map2 以双精度归一化向量和开平方;显卡用额外精确的浮点运算得出相同的舍入结果,在少数临界情况下使用双精度;</li><li>阴影射线沿 q3map2 自己的追踪树及其容差进行,超采样遵循与处理器相同的采样块顺序;</li><li>不会按线程碰巧完成的顺序求和——每个光照像素都按列表顺序累加其灯光。</li></ul>

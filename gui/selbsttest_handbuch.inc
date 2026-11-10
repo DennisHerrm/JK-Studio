@@ -2066,11 +2066,13 @@ std::vector<Schritt> karte8HandbuchSchritte() {
         ke::bauMenueSicherstellen();
         ke::Editor& e = ke::editor();
         e.bau = ke::Editor::BauEinstellungen{};
+        e.bau.lichtWieder = true;   // lcb1: das Fenster zeigt den Licht-Cache
         e.bspRueck = ke::Editor::BspRueckEinstellungen{};
         ke::einstellungenSpeichern();
         std::error_code ec;
         std::filesystem::remove(std::filesystem::path(stufe8::bauZeitenDatei()), ec);
-        stufe3::raumKarteOeffnen("raum8", false);
+        const std::string pfad = stufe3::raumKarteOeffnen("raum8", false);
+        for (const char* x : {".bhedvis", ".bhedlight"}) { std::filesystem::remove(std::filesystem::path(pfad.substr(0, pfad.rfind('.')) + x), ec); }
         ke::konsoleLeeren();
         eintraegeWeg();
         e.bauProjekt.eintraege.push_back(karte::BauEintrag{"Handbuch",
@@ -2079,10 +2081,15 @@ std::vector<Schritt> karte8HandbuchSchritte() {
     }));
     add(stufe3::bauMenuepunkt("Handbuch"));
     add(stufe8::warteSek("Handbuch Stufe 8: erster Bau fertig", [] { return !ke::bauLaeuft(); }, 300));
+    add(tu("Handbuch Stufe 8: im zweiten Bau nur -gamma 1.1 dazu (lcb1: jeder Durchgang nimmt alle Lightmaps aus dem Licht-Cache)", [] {
+        for (karte::BauEintrag& b : ke::editor().bauProjekt.eintraege) {
+            if (b.name == "Handbuch" && b.befehle.size() == 3) { b.befehle[2] = "[q3map2] -light -super 4 -samples 4 -filter -bounce 16 -gamma 1.1 \"[MapFile]\""; }
+        }
+    }));
     add(stufe3::bauMenuepunkt("Handbuch"));
-    add(stufe8::warteSek("Handbuch Stufe 8: zweiter Bau im Licht, Bounce 3, Restzeit aus dem ersten", [] {
+    add(stufe8::warteSek("Handbuch Stufe 8: zweiter Bau im Licht, Bounce 3, Restzeit aus dem ersten, Licht-Cache-Zeile", [] {
         const ke::BauFortschrittStand st = ke::bauFortschrittStand();
-        return st.laeuft && st.schritt == 2 && st.bounce >= 3 && st.schaetzung.ausVerlauf;
+        return st.laeuft && st.schritt == 2 && st.bounce >= 3 && st.schaetzung.ausVerlauf && st.lichtCache.pass >= 4 && st.lichtCache.aus >= 0;
     }, 120));
     add(hb::fotoTeil("h_karte8_fortschritt", [] { return fensterRahmen("###kartebaufortschritt"); }));
     add(stufe8::warteSek("Handbuch Stufe 8: zweiter Bau fertig", [] { return !ke::bauLaeuft(); }, 300));
