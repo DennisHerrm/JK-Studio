@@ -10,6 +10,11 @@ a) VIS wiederverwenden (-bhedvisreuse): je Karte
       der eines vollen Baus der geaenderten Karte in einem frischen Ordner sein
    3. Aenderung an der Struktur -> Bau mit -bhedvisreuse: neu gerechnet ("computed"),
       ebenfalls gleich dem vollen Bau
+e) lcb1: -light -bhedlightcache mit -bounce (1, 2, 8, die Final-Eintraege des Karten-Editors,
+   -super/-bouncegrid, -external, GPU-Backen und Wechsel CPU -> GPU) auf zweiraum.map: Licht
+   verschoben, nichts, nur Nachbearbeitung, Entity, Brush, Shader geaendert - jede .bsp und jede
+   externe Lightmap Byte fuer Byte (cmp) gleich dem vollen Bau ohne Cache, Treffer je Durchgang.
+   BHED_TEILBAU_NUR=bounce: nur dieser Teil.
 Die Karten aus tests/karte/q3map2 brauchen kein Spiel (-game quake3 nicht, sondern ja
 ohne Spielordner: die Shader fehlen, die Geometrie ist trotzdem dieselbe).
 """
@@ -83,7 +88,8 @@ def start(text):
     return tuple(float(v) for v in m.groups()) if m else (0.0, 0.0, 64.0)
 
 
-for quelle in KARTEN:
+NUR = os.environ.get('BHED_TEILBAU_NUR', '')
+for quelle in ([] if NUR == 'bounce' else KARTEN):
     name = os.path.splitext(os.path.basename(quelle))[0]
     text = open(quelle, encoding='latin-1', newline='').read()
     sx, sy, sz = start(text)
@@ -191,5 +197,119 @@ for quelle in KARTEN:
     pruefe(m is not None and m.group(1) == m.group(2) and m.group(5) == 'from the cache',
            '%s, nur -light noch einmal (-gamma 0.8 -saturation 1.4): %s' % (name, m.group(0) if m else '(keine Zeile)'))
     pruefe(not anders, '%s, nur -light noch einmal: .bsp gleich zweimal vollem -light (andere Lumps: %s)' % (name, anders))
+
+# e) lcb1: der Licht-Cache mit -bounce
+ZWEI = os.path.join(DATEN, 'zweiraum.map')
+GPU = os.environ.get('BHED_TEILBAU_GPU', '1') != '0'   # GPU-Backen (ohne GPU rechnet bhed_q3map2 auf dem Prozessor, gleiche Bytes)
+
+
+def lichtbau(ordner, name, text, schalter, cache):
+    k = os.path.join(ordner, name + '.map')
+    open(k, 'w', encoding='latin-1', newline='').write(text)
+    lauf('-meta', k)
+    lauf('-vis', '-threads', '1', k)
+    return lauf('-light', *schalter, *(['-bhedlightcache'] if cache else []), k)
+
+
+def dateien(ordner, name):
+    """Die .bsp und jede externe Lightmap (<ordner>/<name>/lm_*.tga) mit Inhalt. Nur die Uhrzeit, die q3map2
+    (wie NRCs) beim Schreiben in den Kopf der .bsp setzt ("I LOVE MY Q3MAP2 ... on Tue Nov 10 06:46:14 2026"),
+    ist ausgenommen - zwei volle Baeue in verschiedenen Sekunden unterscheiden sich sonst darin."""
+    bsp = open(os.path.join(ordner, name + '.bsp'), 'rb').read()
+    d = {name + '.bsp': re.sub(rb'(I LOVE MY Q3MAP2 [^\n]*? on )[^\n]*\n', rb'\1(Uhrzeit)\n', bsp, count=1)}
+    lm = os.path.join(ordner, name)
+    if os.path.isdir(lm):
+        for f in sorted(os.listdir(lm)):
+            d[name + '/' + f] = open(os.path.join(lm, f), 'rb').read()
+    return d
+
+
+def paesse(ausgabe):
+    return [tuple(int(x) for x in m) for m in re.findall(r'light cache pass (\d+) of (\d+): (\d+) of (\d+) lightmaps from the cache', ausgabe)]
+
+
+def licht_a(text):
+    return text.replace('"origin" "-768 0 192"', '"origin" "-720 0 192"', 1)
+
+
+def start_weg(text):
+    return text.replace('"origin" "-768 0 24"', '"origin" "-704 64 24"', 1)
+
+
+def shader_a(text):   # die erste Wand (Raum A, Westseite) bekommt einen anderen Shader
+    i = text.index('test/wand')
+    return text[:i] + 'test/wand2' + text[i + len('test/wand'):]
+
+
+if NUR in ('', 'bounce') and os.path.exists(ZWEI):
+    name = 'zweiraum'
+    text = open(ZWEI, encoding='latin-1', newline='').read()
+    final_fast = ['-fast', '-patchshadows', '-samples', '2', '-filter', '-bounce', '8']
+    extreme = ['-fastbounce', '-patchshadows', '-samples', '4', '-randomsamples', '-bounce', '8']
+    gpu = ['-bhedgpubake', '-bhedgpubakecheck', '0']
+    nach = ['-gamma', '1.3', '-exposure', '200', '-saturation', '0.7', '-compensate', '1.5']
+    # (Name, Schalter des ersten Baus, Schalter der beiden Vergleichsbauten, Aenderung, Erwartung)
+    #   Erwartung: 'treffer' = der erste Durchgang und der erste Bounce nehmen Lightmaps aus dem Cache,
+    #              'alle' = jeder Durchgang alles aus dem Cache, 'erster' = der erste Durchgang alles,
+    #              sonst der Grund, warum der Cache nicht greift
+    faelle = [
+        ('-bounce 1, Licht verschoben', LICHT + ['-bounce', '1'], None, licht_a, 'treffer'),
+        ('-bounce 2, Licht verschoben', LICHT + ['-bounce', '2'], None, licht_a, 'treffer'),
+        ('-bounce 8, Licht verschoben', LICHT + ['-bounce', '8'], None, licht_a, 'treffer'),
+        ('[Final] Fast, Licht verschoben', final_fast, None, licht_a, 'treffer'),
+        ('[Final] Extreme Quality, Licht verschoben', extreme, None, licht_a, 'treffer'),
+        ('-super 2 -bouncegrid -bounce 2, Licht verschoben', LICHT + ['-super', '2', '-bouncegrid', '-bounce', '2'], None, licht_a, 'treffer'),
+        ('-external -bounce 2, Licht verschoben', LICHT + ['-external', '-bounce', '2'], None, licht_a, 'treffer'),
+        ('-bounce 2, nichts geaendert', LICHT + ['-bounce', '2'], None, lambda t: t, 'alle'),
+        ('-bounce 2, nur Nachbearbeitung', LICHT + ['-bounce', '2'], LICHT + ['-bounce', '2'] + nach, lambda t: t, 'erster'),
+        ('-bounce 2, Entity (info_player_start)', LICHT + ['-bounce', '2'], None, start_weg, 'alle'),
+        ('-bounce 2, Brush (Detail in Raum B)', LICHT + ['-bounce', '2'], None, lambda t: zusatz_pinsel(t, True, 960, -192, 40), 'geometry'),
+        ('-bounce 2, Shader (Wand in Raum A)', LICHT + ['-bounce', '2'], None, shader_a, 'geometry'),
+    ]
+    if GPU:
+        faelle += [
+            ('[Final] Fast mit GPU-Backen, Licht verschoben', final_fast + gpu, None, licht_a, 'treffer'),
+            ('[Final] Extreme Quality mit GPU-Backen, Licht verschoben', extreme + gpu, None, licht_a, 'treffer'),
+            ('[Final] Fast, Cache vom Prozessor, Teilbau mit GPU-Backen, Licht verschoben', final_fast, final_fast + gpu, licht_a, 'treffer'),
+        ]
+    erste = {}   # Schalter -> Ordner mit dem ersten Bau (Cache)
+    for was, schalter, vergleich, aendern, erwartung in faelle:
+        vergleich = vergleich or schalter
+        schluessel = ' '.join(schalter)
+        if schluessel not in erste:
+            o = os.path.join(ARBEIT, 'e%d_erst' % len(erste))
+            shutil.rmtree(o, ignore_errors=True)
+            os.makedirs(o)
+            lichtbau(o, name, text, schalter, True)
+            erste[schluessel] = o
+        a = os.path.join(ARBEIT, 'e_teil')
+        b = os.path.join(ARBEIT, 'e_voll')
+        for o in (a, b):
+            shutil.rmtree(o, ignore_errors=True)
+        shutil.copytree(erste[schluessel], a)
+        os.makedirs(b)
+        cache = os.path.exists(os.path.join(a, name + '.bhedlight'))
+        neu = aendern(text)
+        ausgabe = lichtbau(a, name, neu, vergleich, True)
+        lichtbau(b, name, neu, vergleich, False)
+        da, db = dateien(a, name), dateien(b, name)
+        anders = sorted(k for k in set(da) | set(db) if da.get(k) != db.get(k))
+        if name + '.bsp' in anders:   # welche Lumps
+            la, lb = lumps(os.path.join(a, name + '.bsp')), lumps(os.path.join(b, name + '.bsp'))
+            anders.append('Lumps %s' % [i for i in range(18) if la[i] != lb[i]])
+        p = paesse(ausgabe)
+        text_p = ', '.join('%d/%d' % (x[2], x[3]) for x in p) or '(keine Zeile)'
+        if erwartung == 'treffer':
+            ok = len(p) >= 2 and p[0][2] > 0 and p[1][2] > 0 and all(x[2] < x[3] for x in p[:1])
+        elif erwartung == 'alle':
+            ok = len(p) >= 1 and all(x[2] == x[3] for x in p) and 'light cache found' in ausgabe
+        elif erwartung == 'erster':
+            ok = len(p) >= 1 and p[0][2] == p[0][3]
+        else:
+            ok = ('light cache not usable: ' in ausgabe and erwartung in ausgabe.split('light cache not usable: ', 1)[1].split('\n', 1)[0]
+                  and all(x[2] == 0 for x in p))
+        pruefe(cache and ok, 'zweiraum, %s: aus dem Cache je Durchgang %s' % (was, text_p))
+        pruefe(not anders and len(da) >= 1, 'zweiraum, %s: %d Dateien gleich dem vollen Bau (andere: %s)' % (was, len(da), anders))
+
 print('q3map2_teilbau: %d Fehlschlaege' % fehler)
 sys.exit(1 if fehler else 0)
