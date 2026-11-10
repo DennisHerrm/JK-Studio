@@ -162,7 +162,17 @@ Lauf mit dem rc611-exe bekamen dieselbe .bsp/.srf nach `-meta` und `-vis -bhedvi
 
 ## Schlussrunde
 
-(SCHLUSS)
+| Schritt | Ergebnis |
+|---|---|
+| sauberer Neubau (`--clean-first`) | 0 Fehler, 0 Warnungen |
+| ctest (-j 16) | 245/246; rot `karte_grenzen`: die Pruefstelle `light.cpp:2047` (Lichtgitter-Grenze) war durch die neue Funktion verschoben -> 2053 in `grenzen.cpp`, `grenzen.json` neu; danach gruen (mit handbuch-ctests 3/3), Bau danach 0 Warnungen |
+| q3map2_teilbau (ganz, Teile a-e) | 0 Fehlschlaege |
+| karte_bau | 100/0 |
+| karteneditor voll (alle Gruppen) | 3396 OK, 0 FEHLER |
+| karteneditor stufe8/teilbau allein | 21 OK, 0 FEHLER |
+| Modus 1 | 2635 OK, 0 FEHLER |
+| Handbuch karte8, 6 Sprachen | 0 FEHLER, `h_karte8_fortschritt` angesehen (de, ja) |
+| Lints (alle 32 + Handbuch-Sprachen) | Ausgabe gleich rc611 (41bde01b8), keine neue Beanstandung |
 
 ## Offen
 
