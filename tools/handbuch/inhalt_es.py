@@ -7552,6 +7552,8 @@ TEXTE.update(_REST9)
 # Modell-Block 1a-1: Model-Tab, Ansehen/Pruefen
 from inhalt_mb1a1 import ES as _MB1  # noqa: E402
 TEXTE.update(_MB1)
+from inhalt_mbkopf import ES as _MBKOPF  # noqa: E402  (MBKOPF)
+TEXTE.update(_MBKOPF)
 
 # Modell-Block 1a-2: Weights, Bedienung, Ins Skript
 from inhalt_mb1a2 import ES as _MB2  # noqa: E402

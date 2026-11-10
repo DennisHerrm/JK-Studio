@@ -5,6 +5,8 @@ Jeder Text einmal in allen sechs Sprachen (en, de, zh, ja, es, cs) wie in inhalt
 T(...), Spanisch und Tschechisch nach inhalt_es.py / inhalt_cs.py (ES, CS).
 """
 
+import inhalt_mbkopf  # noqa: E402  (MBKOPF: Kopfzeile der Ansicht, ViewCube und Gizmo)
+
 X = {
     "titel": ("Model tab: view and check", "Model-Tab: Ansehen und Prüfen", "模型选项卡:查看与检查", "モデルタブ: 表示とチェック",
               "Pestaña Model: ver y comprobar", "Karta Model: prohlížení a kontrola"),
@@ -116,37 +118,25 @@ X = {
         "**{{MbRModell}}**: file, skeleton, numbers, **{{MbAndereGla}}** (GLA override from the archives), **{{MbTexNeu}}** "
         "(<kbd>Alt</kbd>+<kbd>R</kbd>) and **{{MbFoto}}** (the active view, at least 1920 pixels wide). **{{MbRLod}}**: LOD 1-10 or "
         "**{{MbLodAuto}}** - as in the game the distance picks the level (single player: radius 40, r_lodscale 10; multiplayer: radius 64, r_lodscale 5); picmip and "
-        "the skins. **{{MbRAnzeige}}**: wireframe, edged faces, bones as 3ds Max bone objects (with fins), vertex weights (with a bone "
-        "selected: its weight from blue to red), normals, tags, origin, bounding box, floor and grid, white textures, crack finder (open edges "
-        "of the selected surfaces), two-sided, statistics, field of view.",
+        "the skins. The display options are in the header of the view (see below).",
         "**{{MbRModell}}**: Datei, Skelett, Zahlen, **{{MbAndereGla}}** (GLA-Override aus den Archiven), **{{MbTexNeu}}** "
         "(<kbd>Alt</kbd>+<kbd>R</kbd>) und **{{MbFoto}}** (die aktive Ansicht, mindestens 1920 Punkte breit). **{{MbRLod}}**: LOD 1-10 oder "
         "**{{MbLodAuto}}** - wie im Spiel wählt der Abstand die Stufe (Einzelspieler: Radius 40, r_lodscale 10; Mehrspieler: Radius 64, r_lodscale 5); Picmip "
-        "und die Skins. **{{MbRAnzeige}}**: Drahtgitter, Flächen mit Kanten, Knochen als Bone-Objekte wie in 3ds Max (mit Flossen), Gewichte an "
-        "den Ecken (mit gewähltem Knochen: sein Gewicht von blau bis rot), Normalen, Tags, Ursprung, Hüllkasten, Boden und Raster, weiße "
-        "Texturen, Risse finden (offene Kanten der gewählten Flächen), zweiseitig, Statistik, Blickwinkel.",
+        "und die Skins. Die Anzeige-Optionen stehen in der Kopfzeile der Ansicht (siehe unten).",
         "**{{MbRModell}}**:文件、骨架、数字、**{{MbAndereGla}}**(从存档覆盖 GLA)、**{{MbTexNeu}}** (<kbd>Alt</kbd>+<kbd>R</kbd>) 和 "
         "**{{MbFoto}}**(当前视图,至少 1920 像素宽)。**{{MbRLod}}**:LOD 1-10 或 **{{MbLodAuto}}**——与游戏相同,由距离选择级别"
-        "(单人模式:半径 40,r_lodscale 10;多人模式:半径 64,r_lodscale 5);picmip 和皮肤。**{{MbRAnzeige}}**:线框、带边面、像 3ds Max 骨骼对象一样的骨骼(可带鳍)、顶点权重(选中骨骼时:"
-        "其权重从蓝到红)、法线、标记、原点、包围盒、地面和网格、白色纹理、裂缝查找(所选面的开放边)、双面、统计、视野。",
+        "(单人模式:半径 40,r_lodscale 10;多人模式:半径 64,r_lodscale 5);picmip 和皮肤。显示选项位于视图标题栏 (见下文)。",
         "**{{MbRModell}}**: ファイル、スケルトン、数値、**{{MbAndereGla}}** (アーカイブからの GLA オーバーライド)、**{{MbTexNeu}}** "
         "(<kbd>Alt</kbd>+<kbd>R</kbd>)、**{{MbFoto}}** (アクティブなビュー、幅 1920 ピクセル以上)。**{{MbRLod}}**: LOD 1-10 か "
         "**{{MbLodAuto}}**。ゲームと同じく距離でレベルが決まります (シングルプレイ: 半径 40、r_lodscale 10、マルチプレイ: 半径 64、r_lodscale 5)。picmip と"
-        "スキン。**{{MbRAnzeige}}**: ワイヤーフレーム、エッジ面、3ds Max のボーンオブジェクトのようなボーン (フィン付き)、頂点ウェイト (ボーン選択時は"
-        "そのウェイトを青から赤で)、法線、タグ、原点、バウンディングボックス、床とグリッド、白いテクスチャ、クラック検出 (選択サーフェスの開いた"
-        "エッジ)、両面、統計、視野角。",
+        "スキン。表示オプションはビューのヘッダーにあります (下記参照)。",
         "**{{MbRModell}}**: archivo, esqueleto, cifras, **{{MbAndereGla}}** (GLA override desde los archivos), **{{MbTexNeu}}** "
         "(<kbd>Alt</kbd>+<kbd>R</kbd>) y **{{MbFoto}}** (la vista activa, al menos 1920 píxeles de ancho). **{{MbRLod}}**: LOD 1-10 o "
         "**{{MbLodAuto}}**: como en el juego, la distancia elige el nivel (un jugador: radio 40, r_lodscale 10; multijugador: radio 64, r_lodscale 5); "
-        "picmip y las skins. **{{MbRAnzeige}}**: alambre, caras con aristas, huesos como objetos hueso de 3ds Max (con aletas), pesos de "
-        "vértices (con un hueso seleccionado: su peso de azul a rojo), normales, tags, origen, caja envolvente, suelo y rejilla, texturas "
-        "blancas, buscar grietas (aristas abiertas de las superficies seleccionadas), doble cara, estadísticas, campo de visión.",
+        "picmip y las skins. Las opciones de visualización están en la cabecera de la vista (ver más abajo).",
         "**{{MbRModell}}**: soubor, kostra, čísla, **{{MbAndereGla}}** (přepsání GLA z archivů), **{{MbTexNeu}}** (<kbd>Alt</kbd>+<kbd>R</kbd>) "
         "a **{{MbFoto}}** (aktivní pohled, alespoň 1920 bodů široký). **{{MbRLod}}**: LOD 1-10 nebo **{{MbLodAuto}}** - jako ve hře volí "
-        "úroveň vzdálenost (jeden hráč: poloměr 40, r_lodscale 10; více hráčů: poloměr 64, r_lodscale 5); picmip a skiny. **{{MbRAnzeige}}**: drátový model, plochy "
-        "s hranami, kosti jako objekty kostí z 3ds Max (s ploutvemi), váhy vrcholů (s vybranou kostí: její váha od modré po červenou), normály, "
-        "tagy, počátek, obalový kvádr, podlaha a mřížka, bílé textury, hledání trhlin (otevřené hrany vybraných povrchů), oboustranné, "
-        "statistika, zorné pole."),
+        "úroveň vzdálenost (jeden hráč: poloměr 40, r_lodscale 10; více hráčů: poloměr 64, r_lodscale 5); picmip a skiny. Možnosti zobrazení jsou v záhlaví pohledu (viz níže)."),
     "sequenzen": (
         "Click an animation in **{{ModelAnimations}}** to play it as **{{MbPrimaer}}** (whole body). Right-click another one and choose "
         "**{{MbSekundaer}}** to play it on the upper body from `lower_lumbar` up, like `SET_ANIM_UPPER` in the game (another start bone: "
@@ -283,6 +273,7 @@ def seite():
             ("h2", "befehlsfeld", _t("h_befehl")),
             ("p", _t("befehl")),
             ("p", _t("sequenzen")),
+        ] + inhalt_mbkopf.bloecke() + [
             ("h2", "pruefen", _t("h_pruefen")),
             ("p", _t("pruefen")),
             ("h2", "max", _t("h_max")),

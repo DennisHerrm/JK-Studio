@@ -222,6 +222,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _rest8()})
             from i18n_rest9 import zeilen_vier as _rest9   # REST9: die Update-Leiste oben
             texte.update({e[0]: e[1:] for e in _rest9()})
+            from i18n_mbkopf import zeilen_vier as _mbkopf   # MBKOPF: Kopfzeile der Ansicht, ViewCube und Gizmo
+            texte.update({e[0]: e[1:] for e in _mbkopf()})
             from i18n_rest10 import zeilen_vier as _rest10   # REST10: Update-Leiste wie G2C ergaenzt
             texte.update({e[0]: e[1:] for e in _rest10()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
