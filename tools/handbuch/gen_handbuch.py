@@ -230,6 +230,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _mbraster()})
             from i18n_mbnav import zeilen_vier as _mbnav   # MBNAV: Navigation wie 3ds Max / Blender
             texte.update({e[0]: e[1:] for e in _mbnav()})
+            from i18n_numpad import zeilen_vier as _numpad   # NUMPAD: der Ziffernblock setzt das Raster im Karten-Editor
+            texte.update({e[0]: e[1:] for e in _numpad()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

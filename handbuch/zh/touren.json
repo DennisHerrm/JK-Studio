@@ -402,7 +402,7 @@
       ]
      },
      {
-      "text": "**加高。** <kbd>Num 1</kbd> 把二维视图切换到前视图(XZ)。在上边缘稍上方按住并向上拖:顶面沿网格移动。这里拖到 192——房间现在高 256。<kbd>Num 7</kbd> 回到俯视图。",
+      "text": "**加高。** <kbd>Ctrl</kbd>+<kbd>Tab</kbd> 把二维视图切换到前视图(XZ)。在上边缘稍上方按住并向上拖:顶面沿网格移动。这里拖到 192——房间现在高 256。**{{KeLView}} > {{KeLOrthographic}} > {{KeLXYTop}}** 回到俯视图。",
       "bild": "h_tut_karte_hoehe",
       "unter": "前视图:画刷现在高 256。",
       "ziel": "fenster:##feldXY",

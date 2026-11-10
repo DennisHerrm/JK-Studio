@@ -323,10 +323,11 @@ std::vector<Schritt> tutorial() {
         return pinselZahl() == 1 && kastenIst(b, karte::Vektor3f(-256, -256, -64), karte::Vektor3f(256, 256, 64)) && e.karte.auswahl.anzahl() == 1;
     }));
     add(hb::fotoTeil("h_tut_karte_brush", editorRahmen));
-    // 4. Hoehe: Vorderansicht (Num 1), die Oberkante nach oben ziehen
-    add(tasteKombi(ImGuiKey_Keypad1, "Num 1 (ViewFront)"));
+    // 4. Hoehe: Vorderansicht (Strg+Tab, NextView - rc612 NUMPAD: der Ziffernblock setzt in der Vorgabe das Raster), die
+    // Oberkante nach oben ziehen
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Tab, "Strg+Tab (NextView)"));
     add(pause(0.2));
-    add(pruefe("Tutorial 4: Num 1 - die 2D-Ansicht zeigt XZ", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::XZ; }));
+    add(pruefe("Tutorial 4: Strg+Tab - die 2D-Ansicht zeigt XZ", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::XZ; }));
     add(tu("Tutorial 4: Mitte auf den Raum", [] {
         ke::Editor& e = ke::editor();
         e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 64));
@@ -450,9 +451,13 @@ std::vector<Schritt> tutorial() {
     add(pause(0.2));
     add(hb::fotoTeil("h_tut_karte_gespeichert", editorRahmen));
     // 11. Zurueck in die Draufsicht, die Kamera in den Raum, alles waehlen, AutoCaulk (F4)
-    add(tasteKombi(ImGuiKey_Keypad7, "Num 7 (ViewTop)"));
-    add(pause(0.2));
-    add(pruefe("Tutorial 11: Num 7 - wieder XY", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::XY; }));
+    add(klick(ke::trK(Str::KeLView), "###main"));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::KeLOrthographic), "##Menu_", 0, false));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::KeLXYTop), "##Menu_", 0, false));
+    add(pause(0.3));
+    add(pruefe("Tutorial 11: View > Orthographic > XY (Top) - wieder XY", [] { return ke::editor().xy[0].ansicht.typ == karte::Sicht::XY; }));
     add(tu("Tutorial 11: Kamera in den Raum fliegen", [] {
         ke::Editor& e = ke::editor();
         e.xy[0].ansicht.setzeUrsprung(karte::Vektor3f(0, 0, 0));

@@ -402,7 +402,7 @@
       ]
      },
      {
-      "text": "**Make it taller.** <kbd>Num 1</kbd> switches the 2D view to the front view (XZ). Grab just above the top edge and drag up: the top face follows on the grid. Here to 192 - the room is now 256 high. <kbd>Num 7</kbd> goes back to the top view.",
+      "text": "**Make it taller.** <kbd>Ctrl</kbd>+<kbd>Tab</kbd> switches the 2D view to the front view (XZ). Grab just above the top edge and drag up: the top face follows on the grid. Here to 192 - the room is now 256 high. **{{KeLView}} > {{KeLOrthographic}} > {{KeLXYTop}}** goes back to the top view.",
       "bild": "h_tut_karte_hoehe",
       "unter": "The front view: the brush is now 256 high.",
       "ziel": "fenster:##feldXY",

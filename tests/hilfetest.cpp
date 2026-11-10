@@ -356,6 +356,24 @@ void trefferProben(const std::string& ordner) {
             }
         }
         expect((std::string(sp) + ": jedes haeufige Ziel steht im Index").c_str(), fehlend == 0);
+        // rc612 NUMPAD: nach dem Schalter "Numpad sets the grid" gefragt (im Karten-Editor), nennt der Helfer die Seite
+        // Preferences > Grid, auf der er steht, oder den Abschnitt des Handbuchs, der ihn erklaert
+        {
+            const std::string s2 = sp;
+            const char* frage = s2 == "de"   ? "Ziffernblock setzt das Raster"
+                                : s2 == "zh" ? "\xe6\x95\xb0\xe5\xad\x97\xe5\xb0\x8f\xe9\x94\xae\xe7\x9b\x98\xe8\xae\xbe\xe7\xbd\xae\xe7\xbd\x91\xe6\xa0\xbc"
+                                : s2 == "ja" ? "\xe3\x83\x86\xe3\x83\xb3\xe3\x82\xad\xe3\x83\xbc\xe3\x81\xa7\xe3\x82\xb0\xe3\x83\xaa\xe3\x83\x83\xe3\x83\x89\xe3\x82\x92\xe8\xa8\xad\xe5\xae\x9a"
+                                             : "numpad sets the grid";
+            bool da = false;
+            std::string liste;
+            for (const bhed::hilfe::Treffer& x : ix.frage(frage, 3, 3)) {
+                const std::string& id = ix.eintraege()[x.eintrag].id;
+                da = da || id.rfind("ort:gezeichnet:karte.einstseite.", 0) == 0 || id.rfind("seite:karteneditor.html#tasten", 0) == 0;
+                liste += " " + id;
+            }
+            if (!da) { std::printf("    NUMPAD daneben (%s):%s\n", sp, liste.c_str()); }
+            expect((s2 + ": \"Numpad sets the grid\" - Preferences > Grid oder Handbuch, Tastenkuerzel").c_str(), da);
+        }
         int n = 0;
         int g = 0;
         for (const Frage& q : kFragen) {

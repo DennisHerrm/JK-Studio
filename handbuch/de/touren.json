@@ -402,7 +402,7 @@
       ]
      },
      {
-      "text": "**Höher machen.** <kbd>Num 1</kbd> schaltet die 2D-Ansicht auf die Vorderansicht (XZ). Greife knapp über der Oberkante und ziehe nach oben: die obere Fläche folgt dem Raster. Hier bis 192 - der Raum ist jetzt 256 hoch. <kbd>Num 7</kbd> geht zurück zur Draufsicht.",
+      "text": "**Höher machen.** <kbd>Strg</kbd>+<kbd>Tab</kbd> schaltet die 2D-Ansicht auf die Vorderansicht (XZ). Greife knapp über der Oberkante und ziehe nach oben: die obere Fläche folgt dem Raster. Hier bis 192 - der Raum ist jetzt 256 hoch. **{{KeLView}} > {{KeLOrthographic}} > {{KeLXYTop}}** geht zurück zur Draufsicht.",
       "bild": "h_tut_karte_hoehe",
       "unter": "Die Vorderansicht: der Brush ist jetzt 256 hoch.",
       "ziel": "fenster:##feldXY",

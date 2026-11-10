@@ -402,7 +402,7 @@
       ]
      },
      {
-      "text": "**Hazlo más alto.** <kbd>Num 1</kbd> cambia la vista 2D a la vista frontal (XZ). Agarra justo encima del borde superior y arrastra hacia arriba: la cara superior lo sigue en la rejilla. Aquí hasta 192: la sala mide ahora 256 de alto. <kbd>Num 7</kbd> vuelve a la vista superior.",
+      "text": "**Hazlo más alto.** <kbd>Ctrl</kbd>+<kbd>Tab</kbd> cambia la vista 2D a la vista frontal (XZ). Agarra justo encima del borde superior y arrastra hacia arriba: la cara superior lo sigue en la rejilla. Aquí hasta 192: la sala mide ahora 256 de alto. **{{KeLView}} > {{KeLOrthographic}} > {{KeLXYTop}}** vuelve a la vista superior.",
       "bild": "h_tut_karte_hoehe",
       "unter": "La vista frontal: el brush mide ahora 256 de alto.",
       "ziel": "fenster:##feldXY",

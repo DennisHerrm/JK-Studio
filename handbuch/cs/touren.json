@@ -402,7 +402,7 @@
       ]
      },
      {
-      "text": "**Zvyšte ho.** <kbd>Num 1</kbd> přepne 2D pohled na pohled zepředu (XZ). Uchopte těsně nad horní hranou a táhněte nahoru: horní stěna následuje po mřížce. Zde na 192 - místnost je teď 256 vysoká. <kbd>Num 7</kbd> se vrátí na pohled shora.",
+      "text": "**Zvyšte ho.** <kbd>Ctrl</kbd>+<kbd>Tab</kbd> přepne 2D pohled na pohled zepředu (XZ). Uchopte těsně nad horní hranou a táhněte nahoru: horní stěna následuje po mřížce. Zde na 192 - místnost je teď 256 vysoká. **{{KeLView}} > {{KeLOrthographic}} > {{KeLXYTop}}** se vrátí na pohled shora.",
       "bild": "h_tut_karte_hoehe",
       "unter": "Pohled zepředu: brush je teď 256 vysoký.",
       "ziel": "fenster:##feldXY",
