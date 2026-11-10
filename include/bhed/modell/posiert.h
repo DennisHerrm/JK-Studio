@@ -29,8 +29,8 @@ namespace bhed::modell {
 // (Welt * BasePoseInv) die Einheit und jede gemischte Matrix auch: das Gezeigte IST die Bindepose. Geprueft wird ohne
 // Schwelle: jede Weltmatrix gleicht Wert fuer Wert der, die dieselbe Kette (gla.cpp: Welt = Welt(Eltern) * BasePoseInv
 // (Eltern) * lokal * BasePose) mit der Einheit als lokaler Matrix jedes Knochens liefert. Ein leeres Skelett: true.
-// Gemessen (Y:\werkzeuge\mbv\gla_bild0.py): Bild 0 der _humanoid.gla ist NICHT die Bindepose (kein Knochen: die Figur
-// steht 24 bis 27 tiefer, die Oberarme sind 48,1 Grad gedreht, die Beine 3,3 Grad).
+// Gemessen (docs/intern/NOTIZEN_mbvers_1011.md): Bild 0 der _humanoid.gla ist NICHT die Bindepose - kein Knochen steht in
+// der Grundstellung: die Figur steht 24 bis 27,1 tiefer, die Arme sind 48,3 Grad gedreht, die Beine 3,3 Grad.
 [[nodiscard]] bool bindepose(const std::vector<GlaBone>& bones, const std::vector<BoneMatrix>& welt);
 
 // Der gezeigte Ort einer Ecke wie haut() der Ansicht: Summe w_i (M_i v) ueber die Knochen mit Gewicht > 0 und einer

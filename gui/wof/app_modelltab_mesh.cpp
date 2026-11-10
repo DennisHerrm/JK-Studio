@@ -152,9 +152,25 @@ w::PAuswahl umnummern(const w::PAuswahl& a, const std::vector<int>& pn, const st
     return o;
 }
 
-// Abschluss jedes Werkzeugs: Normalen der beruehrten Vielecke (WL FinishTool), verdichten, ins Dokument
-w::PAuswahl abschliessen(w::PolyNetz& n, const w::Plan& p, modell::Inhalt& x) {
+// mbvers: die Pose, in der ein Werkzeug arbeitet - die gezeigte (wie der Gizmo: was man sieht, aendert sich so, wie man es
+// angibt; Richtungen, Ebenen, Abstaende und Schwellen gelten im Gezeigten). Leer ohne Skelett und in der exakten Bindepose
+// (dann rechnet alles wie bisher) - und fuer Symmetrize: es spiegelt die Daten an der Symmetrieebene des Modells, die es
+// nur in der Bindepose gibt (eine Pose ist nicht symmetrisch; auch Blender > Mesh > Symmetrize arbeitet auf den Orten des
+// Netzes, nicht auf dem verformten Kaefig).
+const std::vector<BoneMatrix>& werkzeugPose(MeshWerkzeug wz) {
+    static const std::vector<BoneMatrix> keine;
+    return wz == MeshWerkzeug::Symmetrize ? keine : modellBearbeitungsPose();
+}
+
+// Abschluss jedes Werkzeugs: Normalen der beruehrten Vielecke (WL FinishTool), verdichten, ins Dokument. mbvers: ein Netz in
+// der Pose (`pose` aktiv, mit den Knochen `knochen`) geht vor dem Verdichten in die Bindepose zurueck (posiert.h).
+w::PAuswahl abschliessen(w::PolyNetz& n, const w::Plan& p, modell::Inhalt& x, const w::NetzPose& pose, const std::vector<BoneMatrix>& knochen) {
+    const std::vector<char> neueNormalen = pose.aktiv ? w::normalenPunkte(n) : std::vector<char>{};
     w::normalenNeu(n, 60.0F);
+    if (pose.aktiv) {
+        const int nichtUmkehrbar = w::ausPose(n, pose, knochen, neueNormalen);
+        if (nichtUmkehrbar > 0) { melden(format(Str::MbvEntartet, nichtUmkehrbar)); }
+    }
     std::vector<int> pn, fn;
     n.verdichten(&pn, &fn);
     w::polyZurueck(n, x);
@@ -187,8 +203,10 @@ bool befehl(Str name, const std::function<w::Plan(w::PolyNetz&)>& f) {
     w::PAuswahl neu;
     const std::uint64_t schritt = t.dok.aendern(tr(name), [&](modell::Inhalt& x) {
         w::PolyNetz n = w::polyAus(x, t.lodJetzt);
+        const std::vector<BoneMatrix>& knochen = werkzeugPose(MeshWerkzeug::Keins);
+        const w::NetzPose pose = w::inPose(n, knochen);   // mbvers: in der gezeigten Pose (ohne: nichts)
         p = f(n);
-        if (!p.abgelehnt()) { neu = abschliessen(n, p, x); }
+        if (!p.abgelehnt()) { neu = abschliessen(n, p, x, pose, knochen); }
     });
     if (p.abgelehnt()) {
         (void)t.dok.abbrechen(schritt);
@@ -249,6 +267,13 @@ Str werkzeugName(MeshWerkzeug wz) {
 bool hatBetrag(MeshWerkzeug wz) {
     return wz == MeshWerkzeug::Extrude || wz == MeshWerkzeug::Inset || wz == MeshWerkzeug::Bevel || wz == MeshWerkzeug::Chamfer ||
            wz == MeshWerkzeug::Connect || wz == MeshWerkzeug::LoopCut;
+}
+
+// mbvers: das Netz, wie das Werkzeug `wz` es sieht - in einer Pose das gezeigte (seine Vorgaben gelten dort)
+w::PolyNetz netzFuer(const w::PolyNetz& n, MeshWerkzeug wz) {
+    w::PolyNetz g = n;
+    (void)w::inPose(g, werkzeugPose(wz));
+    return g;
 }
 
 // Slice: die Ebene durch die Mitte des Kastens der Auswahl (nichts gewaehlt: des ganzen Netzes) - wie Max die Slice Plane
@@ -502,11 +527,11 @@ bool modellMeshWerkzeugStarten(MeshWerkzeug wz) {
     z.basisAuswahl = z.auswahl;
     if (wz == MeshWerkzeug::Merge && z.art != 0 && z.punktFolge.size() < 2U) { z.punktFolge = z.auswahl.punkte; }
     if (hatBetrag(wz)) {
-        z.betrag = wz == MeshWerkzeug::Connect || wz == MeshWerkzeug::LoopCut ? 0.0F : betragVorgabe(z.netz, z.auswahl);
+        z.betrag = wz == MeshWerkzeug::Connect || wz == MeshWerkzeug::LoopCut ? 0.0F : betragVorgabe(netzFuer(z.netz, wz), z.auswahl);
         if (wz == MeshWerkzeug::Bevel) { z.betrag = -z.betrag; }
     }
-    if (wz == MeshWerkzeug::Weld && z.schwelle <= 0.0F) { z.schwelle = w::weldSchwelleVorgabe(z.netz); }
-    if (wz == MeshWerkzeug::Slice) { z.schnittOrt = schnittVorgabe(z.netz, z.auswahl, z.achse); }
+    if (wz == MeshWerkzeug::Weld && z.schwelle <= 0.0F) { z.schwelle = w::weldSchwelleVorgabe(netzFuer(z.netz, wz)); }
+    if (wz == MeshWerkzeug::Slice) { z.schnittOrt = schnittVorgabe(netzFuer(z.netz, wz), z.auswahl, z.achse); }
     if (wz == MeshWerkzeug::Hinge) {   // eine gewaehlte Kante auf dem Rand der Auswahl ist das Scharnier, sonst die erste
         z.hingeNr = 0;
         const auto kanten = w::hingeKanten(z.netz, z.auswahl.flaechen);
@@ -528,6 +553,9 @@ void modellMeshVorschau() {
     modell::Inhalt x = z.basis;
     if (z.neuPlanen) {
         z.planNetz = z.basisNetz;
+        // mbvers: in der Pose dieses Bilds planen - sie gilt fuer den ganzen Plan, auch wenn die Animation weiterlaeuft
+        z.planKnochen = werkzeugPose(z.werkzeug);
+        z.planPose = w::inPose(z.planNetz, z.planKnochen);
         z.plan = planen(z.planNetz, z.basisAuswahl, x);
         z.neuPlanen = false;
         z.basisMitTeil = x;
@@ -540,7 +568,7 @@ void modellMeshVorschau() {
             z.betrag = std::clamp(z.betrag, z.plan.betragMin, z.plan.betragMax);
             w::betragAnwenden(n, z.plan, z.betrag);
         }
-        neu = abschliessen(n, z.plan, x);
+        neu = abschliessen(n, z.plan, x, z.planPose, z.planKnochen);
     }
     t.dok.vorschau([&](modell::Inhalt& in) { in = x; });
     modellMeshNetzAktualisieren();
@@ -1406,7 +1434,7 @@ void drawModellMeshPopups() {
             case MeshWerkzeug::Slice: {
                 const int vorher = z.achse;
                 wahl(Str::MdAchse, &z.achse, {Str::MdAchseX, Str::MdAchseY, Str::MdAchseZ});
-                if (z.achse != vorher) { z.schnittOrt = schnittVorgabe(z.basisNetz, z.basisAuswahl, z.achse); }
+                if (z.achse != vorher) { z.schnittOrt = schnittVorgabe(netzFuer(z.basisNetz, z.werkzeug), z.basisAuswahl, z.achse); }
                 zahl(Str::MdSchnittOrt, &z.schnittOrt, schritt, false);
                 break;
             }

@@ -18,7 +18,10 @@
 #include "bhed/modell/posiert.h"
 #include "bhed/modell/wof/poly.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <string>

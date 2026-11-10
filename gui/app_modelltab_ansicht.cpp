@@ -167,7 +167,10 @@ void posieren() {
     g_knochen.clear();
     g_bindepose = true;
     ++g_poseStand;
-    if (a.bones.empty() || a.numFrames <= 0) { return; }
+    // mbvers: ein Modell ohne Skelett (.md3, neues Requisit) bekommt keine Pose. Das Skelett der Figur davor bleibt geladen
+    // (g_app->anim), gilt ihm aber nicht: seine Ecken haengen nur der Form halber an Knochen 0 (ausMd3, grundkoerper), und
+    // mit dessen Matrix stuende es um den Weg von model_root versetzt in der Ansicht - nicht dort, wo die Datei es fuehrt.
+    if (a.bones.empty() || a.numFrames <= 0 || t.dok.inhalt().herkunft == modell::Herkunft::Md3) { return; }
     const int bilder = a.bildZahl();
     const int fA = std::clamp(g_app->animFrame, 0, bilder - 1);
     int fB = fA;
@@ -199,10 +202,12 @@ void posieren() {
 }
 
 // mbvers: die Pose, in der bearbeitet wird (Knochenmatrizen wie gezeigt) - leer ohne Skelett und in der exakten Bindepose:
-// dort ist das Gezeigte die Bindepose selbst, und das Bearbeiten rechnet wie bisher (bitgleich)
+// dort ist das Gezeigte die Bindepose selbst, und das Bearbeiten rechnet wie bisher (bitgleich). Das Modell ohne Skelett
+// wird hier noch einmal gefragt: im Bild, in dem ein Requisit die Figur abloest (Create auf leerem Dokument legt es selbst
+// an), stehen in g_knochen noch die Knochen der Figur.
 const std::vector<BoneMatrix>& bearbeitungsPose() {
     static const std::vector<BoneMatrix> keine;
-    return g_bindepose ? keine : g_knochen;
+    return g_bindepose || mt().dok.inhalt().herkunft == modell::Herkunft::Md3 ? keine : g_knochen;
 }
 
 void verforme(const GlmVertex& v, float out[3]) { modell::gezeigterOrt(g_knochen, v, out); }
@@ -1008,16 +1013,18 @@ void gizmoZeichnen(const ModellAnsicht& a, const float m[3]) {
 }
 
 // mb1a2: was eine Umformung trifft - im Objektmodus die gewaehlten Teile (alle LOD-Stufen), sonst die gewaehlten Ecken
-// der gezeichneten Stufe. `fn` bekommt jede Ecke (aus `vorher` frisch kopiert).
-void fuerAuswahl(modell::Inhalt& x, const modell::Inhalt& vorher, const std::function<void(modell::Ecke&)>& fn) {
+// der gezeichneten Stufe. `fn` bekommt jede Ecke (aus `vorher` frisch kopiert) mit Teil, Stufe und Nummer (mbvers: in einer
+// Pose rechnet die Umformung mit den Gewichten der Ecke, wie die Ansicht sie zeigt).
+using EckFn = std::function<void(modell::Ecke&, std::size_t, std::size_t, std::size_t)>;
+void fuerAuswahl(modell::Inhalt& x, const modell::Inhalt& vorher, const EckFn& fn) {
     const ModellTab& t = mt();
     if (t.auswahlArt == AuswahlArt::Objekt) {
         for (const int i : t.auswahl) {
             if (i < 0 || static_cast<std::size_t>(i) >= vorher.teile.size()) { continue; }
             modell::Teil& ziel = x.teile[static_cast<std::size_t>(i)];
             ziel = vorher.teile[static_cast<std::size_t>(i)];
-            for (modell::Netz& n : ziel.stufen) {
-                for (modell::Ecke& e : n.ecken) { fn(e); }
+            for (std::size_t s = 0; s < ziel.stufen.size(); ++s) {
+                for (std::size_t k = 0; k < ziel.stufen[s].ecken.size(); ++k) { fn(ziel.stufen[s].ecken[k], static_cast<std::size_t>(i), s, k); }
             }
         }
         return;
@@ -1031,7 +1038,7 @@ void fuerAuswahl(modell::Inhalt& x, const modell::Inhalt& vorher, const std::fun
         modell::Netz& nz = x.teile[static_cast<std::size_t>(o.teil)].stufen[st];
         if (o.ecke < 0 || static_cast<std::size_t>(o.ecke) >= nv.ecken.size() || nz.ecken.size() != nv.ecken.size()) { continue; }
         modell::Ecke e = nv.ecken[static_cast<std::size_t>(o.ecke)];
-        fn(e);
+        fn(e, static_cast<std::size_t>(o.teil), st, static_cast<std::size_t>(o.ecke));
         nz.ecken[static_cast<std::size_t>(o.ecke)] = e;
     }
 }
@@ -1040,73 +1047,96 @@ void fuerAuswahl(modell::Inhalt& x, const modell::Inhalt& vorher, const std::fun
 // werden nur Ecken an Dreiecken, die ihre Richtung geaendert haben (gegen die Drehung `rot` der Umformung - starr bewegte
 // behalten die Normale der Datei): Summe der Dreiecksnormalen (nach Flaeche gewichtet) ueber die Dreiecke der Ecke, also mit
 // den harten Kanten (getrennte Ecken) der Datei.
-void normalenNachUmformen(modell::Inhalt& x, const modell::Inhalt& vorher, const float rot[3][3]) {
-    const auto kreuz = [](const float* a, const float* b, const float* c, float* n) {
-        const float u[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
-        const float v[3] = {c[0] - a[0], c[1] - a[1], c[2] - a[2]};
-        n[0] = u[1] * v[2] - u[2] * v[1];
-        n[1] = u[2] * v[0] - u[0] * v[2];
-        n[2] = u[0] * v[1] - u[1] * v[0];
+// mbvers: der Kern rechnet in dem Raum, in dem umgeformt wurde. `ortVorher(i)`, `ortJetzt(i)` und `normaleVorher(i)` liefern
+// je drei Werte vom Typ T - die Bindepose selbst (float, normalenNachUmformen: dieselbe Rechnung wie bisher) oder das Gezeigte
+// einer Pose (double, umformenPosiert); `setze(i, n)` bekommt die neue Normale der Ecke in diesem Raum.
+template <typename T, typename OrtVorher, typename OrtJetzt, typename NormaleVorher, typename Setze>
+void normalenFolgen(const modell::Netz& n, const float rot[3][3], const OrtVorher& ortVorher, const OrtJetzt& ortJetzt, const NormaleVorher& normaleVorher,
+                    const Setze& setze) {
+    const auto kreuz = [](const T* a, const T* b, const T* c, T* o) {
+        const T u[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+        const T v[3] = {c[0] - a[0], c[1] - a[1], c[2] - a[2]};
+        o[0] = u[1] * v[2] - u[2] * v[1];
+        o[1] = u[2] * v[0] - u[0] * v[2];
+        o[2] = u[0] * v[1] - u[1] * v[0];
     };
+    const T winzig = static_cast<T>(1e-12F);
+    const std::size_t zahl = n.ecken.size();
+    const std::vector<std::uint32_t> idx = n.indizes();
+    std::vector<std::array<T, 3>> summe(zahl, {T(0), T(0), T(0)});
+    std::vector<char> neu(zahl, 0);
+    for (std::size_t d = 0; d + 2 < idx.size(); d += 3) {
+        const std::uint32_t e[3] = {idx[d], idx[d + 1], idx[d + 2]};
+        if (e[0] >= zahl || e[1] >= zahl || e[2] >= zahl) { continue; }
+        T jetzt[3];
+        T alt[3];
+        kreuz(ortJetzt(e[0]), ortJetzt(e[1]), ortJetzt(e[2]), jetzt);
+        kreuz(ortVorher(e[0]), ortVorher(e[1]), ortVorher(e[2]), alt);
+        T altGedreht[3];
+        for (int k = 0; k < 3; ++k) { altGedreht[k] = rot[k][0] * alt[0] + rot[k][1] * alt[1] + rot[k][2] * alt[2]; }
+        const T lj = std::sqrt(jetzt[0] * jetzt[0] + jetzt[1] * jetzt[1] + jetzt[2] * jetzt[2]);
+        const T la = std::sqrt(altGedreht[0] * altGedreht[0] + altGedreht[1] * altGedreht[1] + altGedreht[2] * altGedreht[2]);
+        const bool gedreht = lj > winzig && la > winzig &&
+                             (jetzt[0] * altGedreht[0] + jetzt[1] * altGedreht[1] + jetzt[2] * altGedreht[2]) / (lj * la) < static_cast<T>(1.0F - 1e-6F);
+        for (const std::uint32_t k : e) {
+            for (int c = 0; c < 3; ++c) { summe[k][static_cast<std::size_t>(c)] += jetzt[c]; }
+            if (gedreht || (lj > winzig) != (la > winzig)) { neu[k] = 1; }
+        }
+    }
+    // Ecken am selben Punkt mit derselben alten Normale (UV-Naht, nicht harte Kante) teilen ihre Dreiecke
+    std::vector<std::array<T, 3>> gruppe = summe;
+    if (n.punktVon.size() == zahl) {
+        std::map<int, std::vector<std::size_t>> amPunkt;
+        for (std::size_t i = 0; i < zahl; ++i) { amPunkt[n.punktVon[i]].push_back(i); }
+        for (const auto& [p, ecken] : amPunkt) {
+            for (const std::size_t i : ecken) {
+                if (neu[i] == 0) { continue; }
+                std::array<T, 3> g = {T(0), T(0), T(0)};
+                for (const std::size_t j : ecken) {
+                    const T* a = normaleVorher(i);
+                    const T* b = normaleVorher(j);
+                    if (a[0] * b[0] + a[1] * b[1] + a[2] * b[2] < static_cast<T>(0.9999F)) { continue; }
+                    for (std::size_t c = 0; c < 3; ++c) { g[c] += summe[j][c]; }
+                }
+                gruppe[i] = g;
+            }
+        }
+    }
+    for (std::size_t i = 0; i < zahl; ++i) {
+        if (neu[i] == 0) { continue; }
+        const std::array<T, 3>& s = gruppe[i];
+        const T l = std::sqrt(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]);
+        if (l < winzig) { continue; }
+        // der Umlauf der Datei (Uhrzeigersinn von aussen): die Seite der alten Normale
+        const T* alt = normaleVorher(i);
+        T g[3];
+        for (int k = 0; k < 3; ++k) { g[k] = rot[k][0] * alt[0] + rot[k][1] * alt[1] + rot[k][2] * alt[2]; }
+        const T vz = s[0] * g[0] + s[1] * g[1] + s[2] * g[2] < T(0) ? T(-1) : T(1);
+        T nn[3];
+        for (int k = 0; k < 3; ++k) { nn[k] = vz * s[static_cast<std::size_t>(k)] / l; }
+        setze(i, nn);
+    }
+}
+
+// Hat die Umformung in diesem Netz eine Ecke bewegt?
+bool netzBewegt(const modell::Netz& n, const modell::Netz& v) {
+    if (n.ecken.size() != v.ecken.size() || n.ecken.empty()) { return false; }
+    for (std::size_t i = 0; i < n.ecken.size(); ++i) {
+        if (std::memcmp(n.ecken[i].ort, v.ecken[i].ort, sizeof n.ecken[i].ort) != 0) { return true; }
+    }
+    return false;
+}
+
+// pfix M6 in der Bindepose (ohne Skelett und in der exakten Bindepose)
+void normalenNachUmformen(modell::Inhalt& x, const modell::Inhalt& vorher, const float rot[3][3]) {
     for (std::size_t ti = 0; ti < x.teile.size() && ti < vorher.teile.size(); ++ti) {
         for (std::size_t st = 0; st < x.teile[ti].stufen.size() && st < vorher.teile[ti].stufen.size(); ++st) {
             modell::Netz& n = x.teile[ti].stufen[st];
             const modell::Netz& v = vorher.teile[ti].stufen[st];
-            if (n.ecken.size() != v.ecken.size() || n.ecken.empty()) { continue; }
-            bool bewegt = false;
-            for (std::size_t i = 0; !bewegt && i < n.ecken.size(); ++i) { bewegt = std::memcmp(n.ecken[i].ort, v.ecken[i].ort, sizeof n.ecken[i].ort) != 0; }
-            if (!bewegt) { continue; }
-            const std::vector<std::uint32_t> idx = n.indizes();
-            std::vector<std::array<float, 3>> summe(n.ecken.size(), {0.0F, 0.0F, 0.0F});
-            std::vector<char> neu(n.ecken.size(), 0);
-            for (std::size_t d = 0; d + 2 < idx.size(); d += 3) {
-                const std::uint32_t e[3] = {idx[d], idx[d + 1], idx[d + 2]};
-                if (e[0] >= n.ecken.size() || e[1] >= n.ecken.size() || e[2] >= n.ecken.size()) { continue; }
-                float jetzt[3];
-                float alt[3];
-                kreuz(n.ecken[e[0]].ort, n.ecken[e[1]].ort, n.ecken[e[2]].ort, jetzt);
-                kreuz(v.ecken[e[0]].ort, v.ecken[e[1]].ort, v.ecken[e[2]].ort, alt);
-                float altGedreht[3];
-                for (int k = 0; k < 3; ++k) { altGedreht[k] = rot[k][0] * alt[0] + rot[k][1] * alt[1] + rot[k][2] * alt[2]; }
-                const float lj = std::sqrt(jetzt[0] * jetzt[0] + jetzt[1] * jetzt[1] + jetzt[2] * jetzt[2]);
-                const float la = std::sqrt(altGedreht[0] * altGedreht[0] + altGedreht[1] * altGedreht[1] + altGedreht[2] * altGedreht[2]);
-                const bool gedreht = lj > 1e-12F && la > 1e-12F &&
-                                     (jetzt[0] * altGedreht[0] + jetzt[1] * altGedreht[1] + jetzt[2] * altGedreht[2]) / (lj * la) < 1.0F - 1e-6F;
-                for (const std::uint32_t k : e) {
-                    for (int c = 0; c < 3; ++c) { summe[k][static_cast<std::size_t>(c)] += jetzt[c]; }
-                    if (gedreht || (lj > 1e-12F) != (la > 1e-12F)) { neu[k] = 1; }
-                }
-            }
-            // Ecken am selben Punkt mit derselben alten Normale (UV-Naht, nicht harte Kante) teilen ihre Dreiecke
-            std::vector<std::array<float, 3>> gruppe = summe;
-            if (n.punktVon.size() == n.ecken.size()) {
-                std::map<int, std::vector<std::size_t>> amPunkt;
-                for (std::size_t i = 0; i < n.ecken.size(); ++i) { amPunkt[n.punktVon[i]].push_back(i); }
-                for (const auto& [p, ecken] : amPunkt) {
-                    for (const std::size_t i : ecken) {
-                        if (neu[i] == 0) { continue; }
-                        std::array<float, 3> g = {0.0F, 0.0F, 0.0F};
-                        for (const std::size_t j : ecken) {
-                            const float* a = v.ecken[i].normale;
-                            const float* b = v.ecken[j].normale;
-                            if (a[0] * b[0] + a[1] * b[1] + a[2] * b[2] < 0.9999F) { continue; }
-                            for (std::size_t c = 0; c < 3; ++c) { g[c] += summe[j][c]; }
-                        }
-                        gruppe[i] = g;
-                    }
-                }
-            }
-            for (std::size_t i = 0; i < n.ecken.size(); ++i) {
-                if (neu[i] == 0) { continue; }
-                const std::array<float, 3>& s = gruppe[i];
-                const float l = std::sqrt(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]);
-                if (l < 1e-12F) { continue; }
-                // der Umlauf der Datei (Uhrzeigersinn von aussen): die Seite der alten Normale
-                float g[3];
-                for (int k = 0; k < 3; ++k) { g[k] = rot[k][0] * v.ecken[i].normale[0] + rot[k][1] * v.ecken[i].normale[1] + rot[k][2] * v.ecken[i].normale[2]; }
-                const float vz = s[0] * g[0] + s[1] * g[1] + s[2] * g[2] < 0.0F ? -1.0F : 1.0F;
-                for (int k = 0; k < 3; ++k) { n.ecken[i].normale[k] = vz * s[static_cast<std::size_t>(k)] / l; }
-            }
+            if (!netzBewegt(n, v)) { continue; }
+            normalenFolgen<float>(
+                n, rot, [&](std::size_t i) { return v.ecken[i].ort; }, [&](std::size_t i) { return n.ecken[i].ort; }, [&](std::size_t i) { return v.ecken[i].normale; },
+                [&](std::size_t i, const float* nn) { std::memcpy(n.ecken[i].normale, nn, sizeof(float) * 3U); });
             ++x.netzStand;
         }
     }
@@ -1127,11 +1157,142 @@ void drehMatrix(const float achse[3], float grad, float r[3][3]) {
     std::memcpy(r, m, sizeof m);
 }
 
+// mbvers: die gezeigte Mitte der Auswahl des Inhalts `vorher` in einer Pose - wie auswahlMitte (Mitte des Kastens der
+// gezeichneten Stufe, dieselbe Rechnung wie haut()), aber fuer den Stand vor der Umformung: der Drehpunkt bleibt die Mitte
+// dessen, was gezogen wird, auch wenn die Animation laeuft und die Pose von Bild zu Bild eine andere ist.
+bool mitteGezeigt(const modell::Inhalt& vorher, const std::vector<BoneMatrix>& pose, float m[3]) {
+    const ModellTab& t = mt();
+    const auto st = static_cast<std::size_t>(t.lodJetzt);
+    float mn[3] = {0.0F, 0.0F, 0.0F};
+    float mx[3] = {0.0F, 0.0F, 0.0F};
+    bool da = false;
+    const auto dazu = [&](const modell::Netz& n, std::size_t e) {
+        float p[3];
+        modell::gezeigterOrt(pose, modell::anzeigeVertex(n, e), p);
+        for (int k = 0; k < 3; ++k) {
+            mn[k] = da ? std::min(mn[k], p[k]) : p[k];
+            mx[k] = da ? std::max(mx[k], p[k]) : p[k];
+        }
+        da = true;
+    };
+    if (t.auswahlArt == AuswahlArt::Objekt) {
+        for (const int i : t.auswahl) {
+            if (i < 0 || static_cast<std::size_t>(i) >= vorher.teile.size() || st >= vorher.teile[static_cast<std::size_t>(i)].stufen.size()) { continue; }
+            const modell::Netz& n = vorher.teile[static_cast<std::size_t>(i)].stufen[st];
+            for (std::size_t e = 0; e < n.ecken.size(); ++e) { dazu(n, e); }
+        }
+    } else {
+        for (const modell::EckOrt& o : t.eckenWahl) {
+            if (o.teil < 0 || static_cast<std::size_t>(o.teil) >= vorher.teile.size() || st >= vorher.teile[static_cast<std::size_t>(o.teil)].stufen.size()) {
+                continue;
+            }
+            const modell::Netz& n = vorher.teile[static_cast<std::size_t>(o.teil)].stufen[st];
+            if (o.ecke >= 0 && static_cast<std::size_t>(o.ecke) < n.ecken.size()) { dazu(n, static_cast<std::size_t>(o.ecke)); }
+        }
+    }
+    if (!da) { return false; }
+    for (int k = 0; k < 3; ++k) { m[k] = (mn[k] + mx[k]) * 0.5F; }
+    return true;
+}
+
+// mbvers: ein Netz im Gezeigten - je Ecke ihre Mischung, ihr gezeigter Ort vor und nach der Umformung und ihre gezeigte
+// Normale davor. In double: starr Bewegtes bleibt bis auf 1e-16 starr, pfix M6 rechnet nur an wirklich verzerrten Dreiecken
+// neu (die auf float gerundeten Orte der Ansicht verzerrten jedes kleine Dreieck).
+struct NetzGezeigt {
+    std::vector<modell::Mischung> mischung;
+    std::vector<std::array<double, 3>> vorher;
+    std::vector<std::array<double, 3>> jetzt;
+    std::vector<std::array<double, 3>> normale;
+};
+
+NetzGezeigt netzGezeigt(const modell::Netz& n, const std::vector<BoneMatrix>& pose) {
+    NetzGezeigt g;
+    const std::size_t zahl = n.ecken.size();
+    g.mischung.reserve(zahl);
+    g.vorher.resize(zahl);
+    g.normale.resize(zahl);
+    for (std::size_t i = 0; i < zahl; ++i) {
+        g.mischung.push_back(modell::mischung(pose, modell::anzeigeVertex(n, i)));
+        modell::ortGezeigt(g.mischung[i], n.ecken[i].ort, g.vorher[i].data());
+        modell::normaleGezeigt(g.mischung[i], n.ecken[i].normale, g.normale[i].data());
+    }
+    g.jetzt = g.vorher;
+    return g;
+}
+
+// mbvers: eine Umformung im Gezeigten - die lineare Abbildung `lin` um die gezeigte Mitte, dazu der Weg `weg` - je Ecke
+// ueber die Umkehrung ihrer Knochenmischung zurueck in die Bindepose (bhed/modell/posiert.h): was man sieht, bewegt sich
+// so, wie man zieht. `rot` ist der Drehanteil (ihm folgen die Normalen, wenn `dreht`; pfix M6 misst gegen ihn). Eine Ecke,
+// die sich im Gezeigten nicht bewegt, bleibt bitgleich stehen. Ecken, deren Mischung in dieser Pose nicht umkehrbar ist,
+// nennt die Meldung.
+void umformenPosiert(modell::Inhalt& x, const modell::Inhalt& vorher, const std::vector<BoneMatrix>& pose, const float lin[3][3], const float weg[3],
+                     const float rot[3][3], bool dreht) {
+    float m[3];
+    if (!mitteGezeigt(vorher, pose, m)) { return; }
+    double ab[3][3];   // lin - Einheit: Verschieben allein rechnet Ort + Weg, ohne die Mitte
+    for (int r = 0; r < 3; ++r) {
+        for (int c = 0; c < 3; ++c) { ab[r][c] = static_cast<double>(lin[r][c]) - (r == c ? 1.0 : 0.0); }
+    }
+    std::map<std::pair<std::size_t, std::size_t>, NetzGezeigt> netze;
+    int nichtUmkehrbar = 0;
+    fuerAuswahl(x, vorher, [&](modell::Ecke& e, std::size_t ti, std::size_t st, std::size_t i) {
+        auto it = netze.find({ti, st});
+        if (it == netze.end()) { it = netze.emplace(std::make_pair(ti, st), netzGezeigt(vorher.teile[ti].stufen[st], pose)).first; }
+        NetzGezeigt& g = it->second;
+        const modell::Mischung& mi = g.mischung[i];
+        const std::array<double, 3>& p = g.vorher[i];
+        const double d[3] = {p[0] - static_cast<double>(m[0]), p[1] - static_cast<double>(m[1]), p[2] - static_cast<double>(m[2])};
+        double q[3];
+        for (std::size_t k = 0; k < 3U; ++k) { q[k] = p[k] + ab[k][0] * d[0] + ab[k][1] * d[1] + ab[k][2] * d[2] + static_cast<double>(weg[k]); }
+        if (q[0] != p[0] || q[1] != p[1] || q[2] != p[2]) {
+            const modell::Rueckweg zurueck = modell::ortZurueck(mi, q, e.ort);
+            if (zurueck == modell::Rueckweg::Exakt) {
+                g.jetzt[i] = {q[0], q[1], q[2]};
+            } else {
+                ++nichtUmkehrbar;
+                modell::ortGezeigt(mi, e.ort, g.jetzt[i].data());   // wo die Ecke nun wirklich gezeigt wird
+            }
+        }
+        if (dreht) {
+            const std::array<double, 3>& ng = g.normale[i];
+            double gedreht[3];
+            for (int k = 0; k < 3; ++k) {
+                gedreht[k] = static_cast<double>(rot[k][0]) * ng[0] + static_cast<double>(rot[k][1]) * ng[1] + static_cast<double>(rot[k][2]) * ng[2];
+            }
+            if (gedreht[0] != ng[0] || gedreht[1] != ng[1] || gedreht[2] != ng[2]) { modell::normaleZurueck(mi, gedreht, e.normale); }
+        }
+    });
+    // pfix M6 im Gezeigten: die neue Normale dreht der erste Knochen der Ecke zurueck (nInv), auf Laenge 1
+    for (auto& [wo, g] : netze) {
+        modell::Netz& n = x.teile[wo.first].stufen[wo.second];
+        if (!netzBewegt(n, vorher.teile[wo.first].stufen[wo.second])) { continue; }
+        const NetzGezeigt& gz = g;
+        normalenFolgen<double>(
+            n, rot, [&](std::size_t i) { return gz.vorher[i].data(); }, [&](std::size_t i) { return gz.jetzt[i].data(); }, [&](std::size_t i) { return gz.normale[i].data(); },
+            [&](std::size_t i, const double* nn) {
+                float z[3];
+                modell::normaleZurueck(gz.mischung[i], nn, z);
+                const float l = std::sqrt(z[0] * z[0] + z[1] * z[1] + z[2] * z[2]);
+                if (!(l > 0.0F)) { return; }
+                for (int k = 0; k < 3; ++k) { n.ecken[i].normale[k] = z[k] / l; }
+            });
+        ++x.netzStand;
+    }
+    if (nichtUmkehrbar > 0) {
+        char z[320];
+        std::snprintf(z, sizeof z, tr(Str::MbvEntartet), nichtUmkehrbar);
+        mt().meldung = z;
+    }
+}
+
 // Umformen um die Mitte m: art 1 verschieben (wert = Weg), 2 drehen (wert = Grad um X, Y, Z nacheinander), 3 skalieren
-// (wert = Faktoren je Achse). Normalen drehen mit.
+// (wert = Faktoren je Achse). Normalen drehen mit. mbvers: Weg, Achsen und Mitte gelten im Gezeigten - in einer Pose rechnet
+// umformenPosiert je Ecke zurueck (um die gezeigte Mitte der Auswahl in dieser Pose); ohne Skelett und in der exakten
+// Bindepose (bearbeitungsPose leer) ist das Gezeigte die Bindepose, und es bleibt beim bisherigen Rechenweg.
 void umformen(modell::Inhalt& x, const modell::Inhalt& vorher, int art, const float m[3], const float wert[3]) {
     float rot[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
-    mt().umformKnochen = bearbeitungsPose();
+    const std::vector<BoneMatrix>& pose = bearbeitungsPose();
+    mt().umformKnochen = pose;
     if (art == 2) {
         for (int k = 0; k < 3; ++k) {
             if (wert[k] == 0.0F) { continue; }
@@ -1146,7 +1307,20 @@ void umformen(modell::Inhalt& x, const modell::Inhalt& vorher, int art, const fl
             std::memcpy(rot, neu, sizeof rot);
         }
     }
-    fuerAuswahl(x, vorher, [&](modell::Ecke& e) {
+    if (!pose.empty()) {
+        const float eins[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+        const float null[3] = {0.0F, 0.0F, 0.0F};
+        if (art == 1) {
+            umformenPosiert(x, vorher, pose, eins, wert, eins, false);
+        } else if (art == 2) {
+            umformenPosiert(x, vorher, pose, rot, null, rot, true);
+        } else if (art == 3) {
+            const float faktoren[3][3] = {{wert[0], 0, 0}, {0, wert[1], 0}, {0, 0, wert[2]}};
+            umformenPosiert(x, vorher, pose, faktoren, null, eins, false);
+        }
+        return;
+    }
+    fuerAuswahl(x, vorher, [&](modell::Ecke& e, std::size_t, std::size_t, std::size_t) {
         const float d[3] = {e.ort[0] - m[0], e.ort[1] - m[1], e.ort[2] - m[2]};
         if (art == 1) {
             for (int k = 0; k < 3; ++k) { e.ort[k] += wert[k]; }
@@ -1874,9 +2048,15 @@ float modalZahl(bool& da) {
 }
 
 void fuerAuswahlDrehen(const modell::Inhalt& vorher, const float rot[3][3], const float m[3]) {
-    mt().umformKnochen = bearbeitungsPose();
+    const std::vector<BoneMatrix>& pose = bearbeitungsPose();
+    mt().umformKnochen = pose;
     mt().dok.vorschau([&](modell::Inhalt& x) {
-        fuerAuswahl(x, vorher, [&](modell::Ecke& e) {
+        if (!pose.empty()) {   // mbvers: in einer Pose um die gezeigte Mitte, je Ecke zurueck in die Bindepose
+            const float null[3] = {0.0F, 0.0F, 0.0F};
+            umformenPosiert(x, vorher, pose, rot, null, rot, true);
+            return;
+        }
+        fuerAuswahl(x, vorher, [&](modell::Ecke& e, std::size_t, std::size_t, std::size_t) {
             const float d[3] = {e.ort[0] - m[0], e.ort[1] - m[1], e.ort[2] - m[2]};
             float nn[3];
             for (int k = 0; k < 3; ++k) {

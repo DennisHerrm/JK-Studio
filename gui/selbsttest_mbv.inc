@@ -6,7 +6,7 @@
 //   GEZEIGTEN (posierten) Ansicht genau um den gezogenen Weg in die gezogene Richtung, alle Flaechen gleich; Drehen und
 //   Skalieren um die gezeigte Mitte; die gezeigten Normalen drehen mit.
 //     ohne Animation  kyle, wie geladen (Bild 0 der _humanoid.gla): das ist NICHT die Bindepose (die Figur steht 24 bis 27
-//                     tiefer, die Oberarme sind 48 Grad gedreht) - Kopf und rechter Arm mit G/R/S und Zahl
+//                     tiefer, die Arme sind 48 Grad gedreht, die Beine 3 Grad) - Kopf und rechter Arm mit G/R/S und Zahl
 //     Figur        kyle, BOTH_A2_TR_BL auf dem Bild mit den am staerksten gedrehten Knochen (cranium, Oberarme) angehalten
 //     Auswahl      ganze Figur, nur der Kopf, Kopf und Koerper (Objektmodus, alle LOD-Stufen); Ecken des Kopfs (Unterobjekt)
 //     je Ansicht   Oben, Vorne, Links, Perspektive: Gizmo an jedem sichtbaren Achsgriff, frei in der Bildebene (Mitte),
@@ -18,31 +18,27 @@
 //     Bindepose    dasselbe Skelett mit der Einheit als lokaler Matrix (exakt die Bindepose): der bisherige Rechenweg -
 //                  G X 12 verschiebt jede Ecke der Datei um genau 12, die Normalen bleiben bitgleich
 //     Modellieren  Extrude an der am staerksten gemischten Flaeche, Slice und QuickSlice in der gezeigten Ebene
+//     Requisit     ein neues Requisit nach der Figur: ihr Skelett gilt ihm nicht (keine Pose, gezeigt an seinen Koordinaten)
 // Eingebunden in selbsttest.cpp (nach selbsttest_mr.inc).
 namespace mbv {
 
 namespace w = modell::wof;
 
 // --- Toleranzen: die Rechengenauigkeit, nichts dazu --------------------------------------------------------------------
-// Gezeigte Orte: verglichen werden zwei mit gezeigterOrt (float) gerechnete Orte. Je Knochen rundet es bei drei Produkten
-// und drei Summen je Achse, beim Gewichten und beim Summieren - mit vier Knochen hoechstens 32 Rundungen von je einem
-// halben float-Schritt (ulp) der groessten Koordinate, zwei Orte also 32 Schritte; dazu das Runden der Ecke der Bindepose
-// auf float (ein halber Schritt) und das Soll der Pruefung (Mitte + Drehung * Abstand in float: 7 Rundungen). Die
-// Schranke gilt je Fall mit dem Schritt seiner groessten Koordinate (bei kyle unter 128: 7,6e-6, also 3,1e-4).
-constexpr float kRundungen = 40.0F;
-// Gezeigte Normalen (Laenge 1, ein Schritt 6e-8 unter 1): hin (n * normale) und zurueck (nInv * Drehung * n * normale)
-// rechnen in double und runden je einmal auf float, das Soll der Pruefung dreht in float (5 Rundungen je Achse), und die
-// Datei traegt die Normalen selbst nur auf float genau: 16 Schritte.
-constexpr float kTolNormale = 16.0F * 5.9604645e-8F;
-// Bildpunkte: der Weg der Mitte auf dem Schirm gegen den Mausweg. Die Projektion rechnet in float bei Schirmorten bis
-// 4096 (ein Schritt 2,4e-4 px) mit 16 Produkten und 12 Summen je Ort und der Division durch w; verglichen werden zwei
-// Orte. VORLAEUFIG bis zur Messung (Messwerte in der Schlusszeile "MBV Messwerte").
-constexpr float kTolPx = 0.05F;
-
-float schritt(float x) {
-    const float a = std::fabs(x);
-    return std::nextafter(a, HUGE_VALF) - a;
-}
+// Gezeigte Orte: mb2::kRundungen float-Schritte der groessten Koordinate des Falls (hergeleitet in selbsttest_mb1a2.inc).
+using mb2::kRundungen;
+using mb2::schritt;
+// Gezeigte Normalen (Laenge 1, ein float-Schritt 6e-8): die gezeigte Normale davor rundet einmal (double -> float), die
+// danach zweimal (die Ecke der Datei, dann gezeigt), das Soll der Pruefung dreht in float mit drei Produkten und zwei
+// Summen je Achse - zusammen unter 5 Schritten. Erlaubt 8 (4,8e-7).
+constexpr float kTolNormale = 8.0F * 5.9604645e-8F;
+// Bildpunkte: der Weg der Mitte auf dem Schirm gegen den Mausweg. Ein Schirmort entsteht in float aus vier Produkten und
+// drei Summen je Zeile der Projektion, der Division durch w und dem Umrechnen auf das Fenster: je Koordinate hoechstens 12
+// Rundungen von je einem halben float-Schritt des groessten Schirmorts, also 6 Schritte. Rechtwinklig gehen drei Orte ein
+// (alte Mitte, neue Mitte, Achsrichtung): 18 Schritte (bei 2048 px 2,2e-3 px). In der Perspektive kommt der Massstab
+// dazu (Bildpunkte je Einheit an alter Mitte, neuer Mitte und Griffspitze, jeder aus zwei Schirmorten): je Ort zwei mal 6
+// Schritte auf seine Laenge, zwei Massstaebe im Verhaeltnis - der Mausweg mal 4 * 6 Schritte durch den kleinsten Massstab.
+constexpr float kPxRundungen = 6.0F;
 
 // Die groessten Abweichungen ueber alle Faelle (Schlusszeile)
 struct Mess {
@@ -50,6 +46,7 @@ struct Mess {
     float normale = 0.0F;   // absolut
     float px = 0.0F;        // rechtwinklige Ansichten
     float pxPersp = 0.0F;   // Perspektive
+    float pxAnteil = 0.0F;  // die groesste Abweichung als Anteil ihrer Schranke
     int faelle = 0;
 };
 
@@ -194,16 +191,13 @@ float pxJeEinheit(const ModellAnsicht& a, const float c[3], const float oben[3])
     return std::hypot(s1.x - s0.x, s1.y - s0.y);
 }
 
-// Die Weltachsen, die in einer Ansicht als Griff zu sehen sind (mehr als 5 px lang bei 10 Einheiten)
-std::vector<int> sichtbareAchsen(const ModellAnsicht& a, const float c[3]) {
+// Die Weltachsen, deren Griff in der aktiven Ansicht zu greifen ist: sein Greifpunkt liegt weiter als eine Schrifthoehe von
+// der Mitte (naeher greift die Mitte selbst: gizmoGriff, 0,54 Schrifthoehen). Eine Achse, die aus dem Bild zeigt, faellt weg.
+std::vector<int> greifbareAchsen(ImVec2 mitte) {
     std::vector<int> v;
-    ImVec2 s0;
-    if (!modellAufSchirm(a, c, s0)) { return v; }
     for (int k = 0; k < 3; ++k) {
-        float e[3] = {c[0], c[1], c[2]};
-        e[k] += 10.0F;
-        ImVec2 s1;
-        if (modellAufSchirm(a, e, s1) && std::hypot(s1.x - s0.x, s1.y - s0.y) > 5.0F) { v.push_back(k); }
+        ImVec2 g;
+        if (modellGizmoGriffOrt(k + 1, g) && std::hypot(g.x - mitte.x, g.y - mitte.y) > ImGui::GetFontSize()) { v.push_back(k); }
     }
     return v;
 }
@@ -288,6 +282,7 @@ bool pruefeFall(Stand& st, const Erwartung& e0) {
             const bool persp = a.art == AnsichtArt::Perspektive;
             const float c1[3] = {c[0] + weg[0], c[1] + weg[1], c[2] + weg[2]};
             float px = 1e9F;
+            float kleinsterMassstab = 1e30F;
             ImVec2 s0;
             ImVec2 s1;
             const bool da = modellAufSchirm(a, c, s0) && modellAufSchirm(a, c1, s1);
@@ -312,6 +307,7 @@ bool pruefeFall(Stand& st, const Erwartung& e0) {
                         float spitze[3] = {c1[0], c1[1], c1[2]};
                         spitze[e.achse] += L;
                         d *= pxJeEinheit(a, c, oben) / std::max(pxJeEinheit(a, spitze, oben), 1e-6F);   // w(Spitze) / w(Mitte)
+                        kleinsterMassstab = std::min({pxJeEinheit(a, c, oben), pxJeEinheit(a, c1, oben), pxJeEinheit(a, spitze, oben)});
                     }
                     px = std::hypot(s1.x - s0.x - ux * d, s1.y - s0.y - uy * d);
                 }
@@ -320,6 +316,7 @@ bool pruefeFall(Stand& st, const Erwartung& e0) {
             } else if (da) {
                 // frei in der Perspektive (mit F8: ohne die dritte Achse): der Weltweg, in Bildpunkten am neuen Ort
                 const float jePx = 1.0F / std::max(pxJeEinheit(a, c1, oben), 1e-6F);
+                kleinsterMassstab = pxJeEinheit(a, c1, oben);
                 float ab = 0.0F;
                 for (int q = 0; q < 3; ++q) {
                     const float soll = q == e.ebene ? 0.0F : (st.maus.x * rechts[q] - st.maus.y * oben[q]) * jePx;
@@ -327,9 +324,14 @@ bool pruefeFall(Stand& st, const Erwartung& e0) {
                 }
                 px = ab / jePx;
             }
+            const float schirmSchritt = kPxRundungen * schritt(std::max({1.0F, std::fabs(s0.x), std::fabs(s0.y), std::fabs(s1.x), std::fabs(s1.y)}));
+            float tolPx = 3.0F * schirmSchritt;
+            if (persp) { tolPx += std::hypot(st.maus.x, st.maus.y) * 4.0F * schirmSchritt / std::max(kleinsterMassstab, 1e-6F); }
             (persp ? st.mess.pxPersp : st.mess.px) = std::max(persp ? st.mess.pxPersp : st.mess.px, px);
-            ok = ok && px <= kTolPx;
-            std::snprintf(z, sizeof z, ", Maus %.0f %.0f, Bild %.4f px", static_cast<double>(st.maus.x), static_cast<double>(st.maus.y), static_cast<double>(px));
+            st.mess.pxAnteil = std::max(st.mess.pxAnteil, px / tolPx);
+            ok = ok && px <= tolPx;
+            std::snprintf(z, sizeof z, ", Maus %.0f %.0f, Bild %.4f px (erlaubt %.4f)", static_cast<double>(st.maus.x), static_cast<double>(st.maus.y), static_cast<double>(px),
+                          static_cast<double>(tolPx));
             zusatz += z;
         }
     } else {
@@ -357,7 +359,9 @@ bool pruefeFall(Stand& st, const Erwartung& e0) {
     }
     ok = ok && fehler <= tol;
     // die gezeigten Normalen: gedreht wie die Umformung (Verschieben und gleichmaessiges Skalieren: unveraendert). Im
-    // Unterobjekt-Modus rechnet pfix M6 die Normalen an den verzerrten Dreiecken neu - dort nur Laenge 1.
+    // Unterobjekt-Modus rechnet pfix M6 die Normalen an den verzerrten Dreiecken neu - dort: die der Datei bitgleich oder
+    // neu gerechnet mit Laenge 1 in der Datei (gezeigt hat sie die Laenge, die der Knochen ihr gibt: seine Matrix aus
+    // 16-Bit-Quaternionen ist nur auf 6e-6 laengentreu).
     float nFehler = 0.0F;
     for (const EckeNr* o : nr) {
         float n0[3];
@@ -365,7 +369,9 @@ bool pruefeFall(Stand& st, const Erwartung& e0) {
         normaleGezeigt(st.vorher, *o, k, n0);
         normaleGezeigt(jetzt, *o, k, n1);
         if (st.unterobjekt) {
-            nFehler = std::max(nFehler, std::fabs(std::sqrt(n1[0] * n1[0] + n1[1] * n1[1] + n1[2] * n1[2]) - std::sqrt(n0[0] * n0[0] + n0[1] * n0[1] + n0[2] * n0[2])));
+            const float* alt = netzVon(st.vorher, o->teil, o->stufe)->ecken[static_cast<std::size_t>(o->ecke)].normale;
+            const float* neu = netzVon(jetzt, o->teil, o->stufe)->ecken[static_cast<std::size_t>(o->ecke)].normale;
+            if (std::memcmp(alt, neu, sizeof(float) * 3U) != 0) { nFehler = std::max(nFehler, std::fabs(std::sqrt(neu[0] * neu[0] + neu[1] * neu[1] + neu[2] * neu[2]) - 1.0F)); }
             continue;
         }
         for (int q = 0; q < 3; ++q) { nFehler = std::max(nFehler, std::fabs(n1[q] - (rot[q][0] * n0[0] + rot[q][1] * n0[1] + rot[q][2] * n0[2]))); }
@@ -445,8 +451,9 @@ std::string ansichtText(int i) {
 }
 
 // Mit der linken Taste von einer zur Laufzeit gerechneten Stelle um einen zur Laufzeit gerechneten ganzzahligen Weg
-// ziehen (ImGui rundet Mausorte auf ganze Bildpunkte: so ist der Mausweg genau der gewollte), vier Bilder still halten
-// (der Griff rechnet mit der Mitte des Bilds davor), loslassen.
+// ziehen (ImGui rundet Mausorte auf ganze Bildpunkte: so ist der Mausweg genau der gewollte), 16 Bilder still halten (der
+// Griff rechnet in der Perspektive mit dem Massstab an der Mitte des Bilds davor - bei 20 Einheiten Weg in die Tiefe naehert
+// sich der Weg je Bild nur um etwa drei Viertel), loslassen.
 Schritt ziehe(const std::string& was, const std::shared_ptr<Stand>& st, std::function<bool(ImVec2&, ImVec2&)> plan) {
     return {"Ziehe " + was, [=](int b) {
                 ImGuiIO& io = ImGui::GetIO();
@@ -472,11 +479,11 @@ Schritt ziehe(const std::string& was, const std::shared_ptr<Stand>& st, std::fun
                     setzeMaus(ImVec2{st->start.x + st->maus.x * f, st->start.y + st->maus.y * f});
                     return false;
                 }
-                if (b == 19) {
+                if (b == 31) {
                     io.AddMouseButtonEvent(0, false);
                     return false;
                 }
-                return b >= 24;
+                return b >= 36;
             }};
 }
 
@@ -500,7 +507,7 @@ void gizmoFall(std::vector<Schritt>& s, const std::shared_ptr<Stand>& st, int au
         float c[3];
         ImVec2 sc;
         if (!modellAuswahlMitte(c) || !modellAufSchirm(a, c, sc)) { return false; }
-        const std::vector<int> sichtbar = sichtbareAchsen(a, c);
+        const std::vector<int> sichtbar = greifbareAchsen(sc);
         st->achse = -1;
         um = ImVec2{dx, dy};
         if (griff <= 2) {   // der Achsgriff: 50 px entlang seiner Richtung auf dem Schirm, dazu 12 px quer (die fallen weg)
@@ -508,7 +515,6 @@ void gizmoFall(std::vector<Schritt>& s, const std::shared_ptr<Stand>& st, int au
             st->achse = sichtbar[static_cast<std::size_t>(griff)];
             if (!modellGizmoGriffOrt(st->achse + 1, von)) { return false; }
             const float l = std::hypot(von.x - sc.x, von.y - sc.y);
-            if (l < 1.0F) { return false; }
             const float ux = (von.x - sc.x) / l;
             const float uy = (von.y - sc.y) / l;
             um = ImVec2{50.0F * ux - 12.0F * uy, 50.0F * uy + 12.0F * ux};
@@ -591,27 +597,32 @@ int staerkstesBild(const AnimEntry& a) {
     return best;
 }
 
-// Wie weit die Pose von der Bindepose weg ist: der groesste Drehwinkel (Grad) und der groesste Weg der Skin-Matrizen
+// Wie weit die Pose von der Bindepose weg ist: der groesste Drehwinkel (Grad) und der groesste Weg der Skin-Matrizen. Der
+// Winkel aus dem schiefen Teil (Sinus) und der Spur (Kosinus): nahe 0 genau - acos der Spur allein macht aus der
+// float-Rundung der Matrizen 0,02 bis 0,05 Grad.
 std::string poseText(const std::vector<BoneMatrix>& pose) {
     double winkel = 0.0;
     double wegMax = 0.0;
     for (const BoneMatrix& s : pose) {
-        const double spur = static_cast<double>(s.m[0][0] + s.m[1][1] + s.m[2][2]);
-        winkel = std::max(winkel, std::acos(std::clamp((spur - 1.0) * 0.5, -1.0, 1.0)) * 180.0 / 3.14159265358979);
+        const double spur = static_cast<double>(s.m[0][0]) + static_cast<double>(s.m[1][1]) + static_cast<double>(s.m[2][2]);
+        const double ax[3] = {static_cast<double>(s.m[2][1]) - static_cast<double>(s.m[1][2]), static_cast<double>(s.m[0][2]) - static_cast<double>(s.m[2][0]),
+                              static_cast<double>(s.m[1][0]) - static_cast<double>(s.m[0][1])};
+        winkel = std::max(winkel, std::atan2(0.5 * std::sqrt(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]), (spur - 1.0) * 0.5) * 180.0 / 3.14159265358979);
         wegMax = std::max({wegMax, std::fabs(static_cast<double>(s.m[0][3])), std::fabs(static_cast<double>(s.m[1][3])), std::fabs(static_cast<double>(s.m[2][3]))});
     }
     char b[120];
-    std::snprintf(b, sizeof b, "%zu Knochen, groesste Drehung %.3f Grad, groesster Weg %.4f", pose.size(), winkel, wegMax);
+    std::snprintf(b, sizeof b, "%zu Knochen, groesste Drehung %.6f Grad, groesster Weg %.6f", pose.size(), winkel, wegMax);
     return b;
 }
 
 void figurLaden(std::vector<Schritt>& s) {
     for (Schritt& x : mb1::laden("models/players/kyle/model.glm")) { s.push_back(std::move(x)); }
-    s.push_back(tu("MBV: vier Ansichten, keine Animation", [] {
+    s.push_back(tu("MBV: vier Ansichten, keine Animation, die Perspektive schraeg von vorn (alle drei Achsgriffe greifbar)", [] {
         ModellTab& m = t();
         m.vierAnsichten = true;
         m.bereich = ModellBereich::Ansehen;
         g_app->animPlaying = false;
+        g_app->modelOrbit.turn(g_app->modelCam, 35.0F, 20.0F);
         diag::detail("Knopftest: MBV - kyle, " + std::to_string(m.dok.inhalt().teile.size()) + " Teile, head " + std::to_string(teilMit("head")) + ", torso " +
                      std::to_string(teilMit("torso")) + ", r_arm " + std::to_string(teilMit("r_arm")) + ", " + std::to_string(m.dok.inhalt().stufenZahl) + " Stufen");
     }));
@@ -770,9 +781,9 @@ std::vector<Schritt> umformSchritte() {
     s.push_back(pruefe("MBV Messwerte: die groessten Abweichungen aller Faelle", [st] {
         char b[320];
         std::snprintf(b, sizeof b,
-                      "Knopftest: MBV Messwerte - %d Faelle, Orte %.1f float-Schritte (erlaubt %.0f), Normalen %.2e (erlaubt %.2e), Bild rechtwinklig %.4f px, Perspektive %.4f px (erlaubt %.2f)",
+                      "Knopftest: MBV Messwerte - %d Faelle, Orte %.1f float-Schritte (erlaubt %.0f), Normalen %.2e (erlaubt %.2e), Bild rechtwinklig %.4f px, Perspektive %.4f px, hoechstens %.0f %% der Schranke des Falls",
                       st->mess.faelle, static_cast<double>(st->mess.orte), static_cast<double>(kRundungen), static_cast<double>(st->mess.normale),
-                      static_cast<double>(kTolNormale), static_cast<double>(st->mess.px), static_cast<double>(st->mess.pxPersp), static_cast<double>(kTolPx));
+                      static_cast<double>(kTolNormale), static_cast<double>(st->mess.px), static_cast<double>(st->mess.pxPersp), static_cast<double>(st->mess.pxAnteil * 100.0F));
         diag::detail(b);
         return st->mess.faelle > 0;
     }));
@@ -1062,6 +1073,37 @@ std::vector<Schritt> modellierSchritte() {
     s.push_back(tu("MBV Modellieren: QuickSlice zurueck, Bereich Ansehen", [] {
         t().dok.rueckgaengig();
         t().bereich = ModellBereich::Ansehen;
+    }));
+    // --- ein Modell ohne Skelett nach der Figur: ihr Skelett bleibt geladen (g_app->anim), gilt ihm aber nicht ---
+    s.push_back(tu("MBV Requisit: nach der Figur (in der Pose) ein neues Requisit mit einem Kasten", [] {
+        std::snprintf(mz().requisitName, sizeof mz().requisitName, "%s", "mbv_kasten");
+        (void)modellNeuesRequisit();
+        (void)modellMeshWerkzeugStarten(MeshWerkzeug::Create);
+        modellMeshUebernehmen(false);
+    }));
+    s.push_back(pause(0.4));
+    s.push_back(pruefe("MBV Requisit: keine Pose - die Ansicht zeigt den Kasten an seinen Koordinaten, die Werkzeuge rechnen ohne das Skelett der Figur davor", [] {
+        const modell::Inhalt& in = t().dok.inhalt();
+        const auto& h = modellHaut();
+        if (in.teile.empty() || in.teile[0].stufen.empty() || h.empty() || in.teile[0].stufen[0].ecken.empty() || h[0].size() != in.teile[0].stufen[0].ecken.size()) { return false; }
+        const std::vector<modell::Ecke>& ecken = in.teile[0].stufen[0].ecken;
+        float neben = 0.0F;
+        float mn[3] = {1e30F, 1e30F, 1e30F};
+        float mx[3] = {-1e30F, -1e30F, -1e30F};
+        for (std::size_t i = 0; i < ecken.size(); ++i) {
+            for (std::size_t k = 0; k < 3U; ++k) {
+                neben = std::max(neben, std::fabs(h[0][i][k] - ecken[i].ort[k]));
+                mn[k] = std::min(mn[k], ecken[i].ort[k]);
+                mx[k] = std::max(mx[k], ecken[i].ort[k]);
+            }
+        }
+        char b[260];
+        std::snprintf(b, sizeof b, "Knopftest: MBV Requisit - %zu Ecken, Kasten der Datei %.3f %.3f %.3f bis %.3f %.3f %.3f, gezeigt neben den Koordinaten um %.6f, Skelett im Programm %zu Knochen, Pose zum Bearbeiten %s",
+                      ecken.size(), static_cast<double>(mn[0]), static_cast<double>(mn[1]), static_cast<double>(mn[2]), static_cast<double>(mx[0]), static_cast<double>(mx[1]),
+                      static_cast<double>(mx[2]), static_cast<double>(neben), g_app->anim.bones.size(), modellBearbeitungsPose().empty() ? "keine" : "ja");
+        diag::detail(b);
+        // der Kasten steht auf dem Boden um die Mitte (Create: Vorgabe), gezeigt genau dort
+        return neben == 0.0F && modellBearbeitungsPose().empty() && !g_app->anim.bones.empty() && mn[2] == 0.0F && mn[0] == -mx[0] && mn[1] == -mx[1];
     }));
     return s;
 }

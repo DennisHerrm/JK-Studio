@@ -27,6 +27,27 @@ modell::Netz* netz(int teil) {
     return const_cast<modell::Netz*>(&in.teile[static_cast<std::size_t>(teil)].stufen[static_cast<std::size_t>(g_app->mtab.lodJetzt)]);
 }
 
+// mbvers: Umformen gilt im Gezeigten (bhed/modell/posiert.h). Verglichen werden zwei mit gezeigterOrt (float) gerechnete
+// Orte: je Knochen rundet es bei drei Produkten und drei Summen je Achse, beim Gewichten und beim Summieren - mit vier
+// Knochen hoechstens 32 Rundungen von je einem halben float-Schritt (ulp) der groessten Koordinate, zwei Orte also 32
+// Schritte; dazu das Runden der Ecke der Bindepose auf float (ein halber Schritt) und das Soll der Pruefung (Mitte +
+// Drehung * Abstand in float: 7 Rundungen). Die Schranke gilt je Fall mit dem Schritt seiner groessten Koordinate (bei
+// einer Figur unter 128: 7,6e-6, also 3,1e-4). Gemessen im Selbsttest mbv: bis 7,8 Schritte.
+constexpr float kRundungen = 40.0F;
+float schritt(float x) {
+    const float a = std::fabs(x);
+    return std::nextafter(a, HUGE_VALF) - a;
+}
+
+// Der gezeigte Ort einer Ecke in einer Pose (leer: ohne Skelett oder exakt die Bindepose - der Ort der Datei)
+void gezeigtEcke(const modell::Ecke& e, const std::vector<BoneMatrix>& pose, float out[3]) {
+    GlmVertex v;
+    std::memcpy(v.xyz, e.ort, sizeof v.xyz);
+    std::memcpy(v.bones, e.knochen, sizeof v.bones);
+    std::memcpy(v.weights, e.gewicht, sizeof v.weights);
+    modell::gezeigterOrt(pose, v, out);
+}
+
 float gewicht(const std::string& flaeche, int ecke, int knochen) {
     const modell::Netz* n = netz(teil(flaeche));
     return n != nullptr ? modell::gewichtVon(*n, ecke, knochen) : -1.0F;
@@ -768,19 +789,50 @@ std::vector<Schritt> blenderSchritte() {
         }
         return modellBlenderTasteZahl() >= 30;
     }));
-    // G/R/S modal mit Achse und Zahl
-    auto vorher = std::make_shared<std::vector<float>>();
-    const auto ortVon = [](std::vector<float>& v) {
-        v.clear();
-        const modell::Netz* n = netz(teil("torso"));
-        for (const modell::Ecke& e : n->ecken) {
-            for (int k = 0; k < 3; ++k) { v.push_back(e.ort[k]); }
+    // G/R/S modal mit Achse und Zahl. mbvers: Zahl, Achse und Mitte gelten im Gezeigten (die Figur steht in BOTH_WALK1) -
+    // geprueft werden die gezeigten Orte in der Pose der Umformung; Abbrechen und Rueckgaengig bitgleich an der Datei.
+    auto vorher = std::make_shared<std::vector<modell::Ecke>>();
+    const auto eckenVon = [] { return netz(teil("torso"))->ecken; };
+    const auto orteGleich = [](const std::vector<modell::Ecke>& a, const std::vector<modell::Ecke>& b) {
+        if (a.size() != b.size()) { return false; }
+        for (std::size_t i = 0; i < a.size(); ++i) {
+            if (std::memcmp(a[i].ort, b[i].ort, sizeof a[i].ort) != 0) { return false; }
         }
+        return true;
     };
-    add(tu("MB2 Blender G: Perspektive, torso gewaehlt, Orte merken", [vorher, ortVon] {
+    // Die groesste Abweichung der gezeigten Ecken von `soll(vorher, Mitte der Auswahl)`, in float-Schritten der groessten
+    // Koordinate; die Mitte ist die des Kastens der gezeigten Ecken davor (auswahlMitte)
+    const auto abweichung = [](const std::vector<modell::Ecke>& davor, const std::vector<modell::Ecke>& danach,
+                               const std::function<void(const float*, const float*, float*)>& soll) {
+        const std::vector<BoneMatrix>& pose = g_app->mtab.umformKnochen;
+        if (davor.size() != danach.size() || davor.empty()) { return 1e9F; }
+        std::vector<std::array<float, 3>> p0(davor.size());
+        std::vector<std::array<float, 3>> p1(davor.size());
+        float mn[3] = {1e30F, 1e30F, 1e30F};
+        float mx[3] = {-1e30F, -1e30F, -1e30F};
+        float groesste = 1.0F;
+        for (std::size_t i = 0; i < davor.size(); ++i) {
+            gezeigtEcke(davor[i], pose, p0[i].data());
+            gezeigtEcke(danach[i], pose, p1[i].data());
+            for (std::size_t k = 0; k < 3U; ++k) {
+                mn[k] = std::min(mn[k], p0[i][k]);
+                mx[k] = std::max(mx[k], p0[i][k]);
+                groesste = std::max({groesste, std::fabs(p0[i][k]), std::fabs(p1[i][k])});
+            }
+        }
+        const float c[3] = {(mn[0] + mx[0]) * 0.5F, (mn[1] + mx[1]) * 0.5F, (mn[2] + mx[2]) * 0.5F};
+        float fehler = 0.0F;
+        for (std::size_t i = 0; i < davor.size(); ++i) {
+            float s3[3];
+            soll(p0[i].data(), c, s3);
+            for (std::size_t k = 0; k < 3U; ++k) { fehler = std::max(fehler, std::fabs(p1[i][k] - s3[k])); }
+        }
+        return fehler / schritt(groesste);
+    };
+    add(tu("MB2 Blender G: Perspektive, torso gewaehlt, Ecken merken", [vorher, eckenVon] {
         modellAnsichtSetzen(AnsichtArt::Perspektive);
         g_app->mtab.auswahl = {teil("torso")};
-        ortVon(*vorher);
+        *vorher = eckenVon();
     }));
     add(tasteKombi(ImGuiKey_G, "G"));
     add(tasteKombi(ImGuiKey_X, "X"));
@@ -789,15 +841,14 @@ std::vector<Schritt> blenderSchritte() {
     add(pause(0.2));
     add(tasteKombi(ImGuiKey_Enter, "Enter"));
     add(pause(0.2));
-    add(pruefe("MB2 Blender G X 10 Enter: torso genau 10 in X verschoben, Y und Z gleich, ein Schritt", [vorher, ortVon] {
-        std::vector<float> jetzt;
-        ortVon(jetzt);
-        if (jetzt.size() != vorher->size() || jetzt.empty()) { return false; }
-        for (std::size_t i = 0; i < jetzt.size(); ++i) {
-            const float soll = (*vorher)[i] + (i % 3 == 0 ? 10.0F : 0.0F);
-            if (std::fabs(jetzt[i] - soll) > 1e-4F) { return false; }
-        }
-        return g_app->mtab.modal.art == 0 && g_app->mtab.dok.rueckgaengigName() == tr(Str::MbUndoBewegen);
+    add(pruefe("MB2 Blender G X 10 Enter: torso genau 10 in X verschoben, Y und Z gleich (wie gezeigt), ein Schritt", [vorher, eckenVon, abweichung] {
+        const float f = abweichung(*vorher, eckenVon(), [](const float* p, const float*, float* o) {
+            o[0] = p[0] + 10.0F;
+            o[1] = p[1];
+            o[2] = p[2];
+        });
+        diag::detail("Knopftest: MB2 Blender G X 10 - groesste Abweichung " + std::to_string(f) + " float-Schritte (erlaubt " + std::to_string(kRundungen) + ")");
+        return f <= kRundungen && g_app->mtab.modal.art == 0 && g_app->mtab.dok.rueckgaengigName() == tr(Str::MbUndoBewegen);
     }));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
     add(tasteKombi(ImGuiKey_S, "S"));
@@ -805,19 +856,12 @@ std::vector<Schritt> blenderSchritte() {
     add(pause(0.2));
     add(tasteKombi(ImGuiKey_Enter, "Enter"));
     add(pause(0.2));
-    add(pruefe("MB2 Blender S 2 Enter: torso um die Mitte verdoppelt (Abstaende zur Mitte mal 2)", [vorher, ortVon] {
-        std::vector<float> jetzt;
-        ortVon(jetzt);
-        float mn[3] = {1e9F, 1e9F, 1e9F};
-        float mx[3] = {-1e9F, -1e9F, -1e9F};
-        for (std::size_t i = 0; i < vorher->size(); ++i) {
-            mn[i % 3] = std::min(mn[i % 3], (*vorher)[i]);
-            mx[i % 3] = std::max(mx[i % 3], (*vorher)[i]);
-        }
-        // Mitte der Auswahl in der Pose (Bild 3 von BOTH_WALK1) - hier nur die Verhaeltnisse der Abstaende pruefen
-        const float d0 = (*vorher)[3] - (*vorher)[0];
-        const float d1 = jetzt[3] - jetzt[0];
-        return jetzt.size() == vorher->size() && std::fabs(d1 - 2.0F * d0) < 1e-3F;
+    add(pruefe("MB2 Blender S 2 Enter: torso um die gezeigte Mitte verdoppelt (Abstaende zur Mitte mal 2)", [vorher, eckenVon, abweichung] {
+        const float f = abweichung(*vorher, eckenVon(), [](const float* p, const float* c, float* o) {
+            for (int k = 0; k < 3; ++k) { o[k] = c[k] + (p[k] - c[k]) * 2.0F; }
+        });
+        diag::detail("Knopftest: MB2 Blender S 2 - groesste Abweichung " + std::to_string(f) + " float-Schritte (erlaubt " + std::to_string(kRundungen) + ")");
+        return f <= kRundungen;
     }));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
     add(tasteKombi(ImGuiKey_R, "R"));
@@ -827,10 +871,8 @@ std::vector<Schritt> blenderSchritte() {
     add(pause(0.2));
     add(tasteKombi(ImGuiKey_Escape, "Esc"));
     add(pause(0.2));
-    add(pruefe("MB2 Blender R Z 90 Esc: abgebrochen - alles wie vorher, kein Schritt, nichts zum Wiederholen", [vorher, ortVon] {
-        std::vector<float> jetzt;
-        ortVon(jetzt);
-        return jetzt == *vorher && g_app->mtab.modal.art == 0 && !g_app->mtab.dok.kannRueckgaengig();
+    add(pruefe("MB2 Blender R Z 90 Esc: abgebrochen - alles wie vorher, kein Schritt, nichts zum Wiederholen", [vorher, eckenVon, orteGleich] {
+        return orteGleich(eckenVon(), *vorher) && g_app->mtab.modal.art == 0 && !g_app->mtab.dok.kannRueckgaengig();
     }));
     add(tasteKombi(ImGuiKey_R, "R"));
     add(tasteKombi(ImGuiKey_Z, "Z"));
@@ -839,23 +881,20 @@ std::vector<Schritt> blenderSchritte() {
     add(pause(0.2));
     add(tasteKombi(ImGuiKey_Enter, "Enter"));
     add(pause(0.2));
-    add(pruefe("MB2 Blender R Z 90 Enter: eine Ecke um die Z-Achse gedreht (Hoehe gleich, Abstand gleich)", [vorher, ortVon] {
-        std::vector<float> jetzt;
-        ortVon(jetzt);
-        if (jetzt.size() != vorher->size() || jetzt.size() < 6U) { return false; }
-        const float dz = std::fabs(jetzt[2] - (*vorher)[2]);
-        const float a0 = std::hypot((*vorher)[3] - (*vorher)[0], (*vorher)[4] - (*vorher)[1]);
-        const float a1 = std::hypot(jetzt[3] - jetzt[0], jetzt[4] - jetzt[1]);
-        return dz < 1e-3F && std::fabs(a0 - a1) < 1e-3F && jetzt != *vorher;
+    add(pruefe("MB2 Blender R Z 90 Enter: torso um die Z-Achse durch die gezeigte Mitte um 90 Grad gedreht", [vorher, eckenVon, abweichung, orteGleich] {
+        const std::vector<modell::Ecke> jetzt = eckenVon();
+        const float f = abweichung(*vorher, jetzt, [](const float* p, const float* c, float* o) {   // (x, y) -> (-y, x) um die Mitte
+            o[0] = c[0] - (p[1] - c[1]);
+            o[1] = c[1] + (p[0] - c[0]);
+            o[2] = p[2];
+        });
+        diag::detail("Knopftest: MB2 Blender R Z 90 - groesste Abweichung " + std::to_string(f) + " float-Schritte (erlaubt " + std::to_string(kRundungen) + ")");
+        return f <= kRundungen && !orteGleich(jetzt, *vorher);
     }));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, "Strg+Umschalt+Z"));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
-    add(pruefe("MB2 Blender Strg+Z: wieder wie die Datei", [vorher, ortVon] {
-        std::vector<float> jetzt;
-        ortVon(jetzt);
-        return jetzt == *vorher;
-    }));
+    add(pruefe("MB2 Blender Strg+Z: wieder wie die Datei", [vorher, eckenVon, orteGleich] { return orteGleich(eckenVon(), *vorher); }));
     add(tu("MB2 Blender: zurueck (wie 3ds Max)", [] {
         modellBedienungSetzen(0);
         g_app->modellKnochen = false;
