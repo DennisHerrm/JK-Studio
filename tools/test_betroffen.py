@@ -37,6 +37,7 @@ SELBSTTEST = (
     (("ap1", "ap2", "ap12"), "modell"),
     ("numpad", "karteneditor"),
     ("uiform", "programm"),
+    ("gdpfad", "programm"),   # GDPFAD: das Programm ohne den eingerichteten Spielordner (Lauf spielordnerfehlt)
 )
 
 # Muster (fnmatch auf den Pfad mit /) -> Bereiche; die erste passende Regel gilt. () = kein Selbsttest noetig.

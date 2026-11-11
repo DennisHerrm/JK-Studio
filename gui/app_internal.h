@@ -1548,6 +1548,11 @@ struct App {
     // hat - auch die ohne .pk3, die in gamePaths fehlen.
     std::vector<std::string> eingeleseneSpielordner;
     bool spielordnerEingelesen = false;
+    // GDPFAD: die geltenden Spielordner, die es beim letzten Einlesen nicht gab (umbenannt, verschoben, Laufwerk nicht
+    // angeschlossen) - die Fenster Game folders und "Files in .pk3" nennen sie. spielordnerGemeldet: schon in der
+    // Statuszeile genannt (je Ordner einmal, solange er eingetragen ist und fehlt).
+    std::vector<std::string> spielordnerFehlend;
+    std::vector<std::string> spielordnerGemeldet;
     // Die Karten, die im Hintergrund gelesen werden (missionsSuche), in
     // derselben Reihenfolge wie deren Auftraege, und die Skriptdateien des
     // Spiels zum Aufloesen danach.

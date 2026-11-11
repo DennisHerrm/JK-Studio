@@ -1571,6 +1571,40 @@ void setStatus(const char* fmt, int a, int b) {
     addStatus(buf);
 }
 
+namespace {
+
+// GDPFAD: geltende Spielordner, die es nicht (mehr) gibt - umbenannt, verschoben, Laufwerk nicht angeschlossen. Bis rc611
+// stand das nur im Protokoll ("keine .pk3 in ..."), und das Fenster "Files in .pk3" sagte "No game folder added yet".
+// Jetzt merkt sich das Programm die Ordner (Fenster Game folders und Files in .pk3) und nennt jeden EINMAL in der
+// Statuszeile mit dem Weg zur Berichtigung - nicht bei jedem Einlesen: jede Stelle, die noch keine Spielordner hat, liest
+// neu ein. Wieder gemeldet wird ein Ordner erst, wenn es ihn zwischendurch gab oder er zwischendurch nicht eingetragen war.
+void spielordnerFehlendMerken() {
+    std::vector<std::string>& gemeldet = g_app->spielordnerGemeldet;
+    g_app->spielordnerFehlend.clear();
+    for (const std::string& dir : aktiveSpielordner()) {
+        std::error_code ec;
+        const auto schon = std::find(gemeldet.begin(), gemeldet.end(), dir);
+        if (std::filesystem::is_directory(::bhed::utf8Pfad(dir), ec)) {
+            if (schon != gemeldet.end()) { gemeldet.erase(schon); }
+            continue;
+        }
+        g_app->spielordnerFehlend.push_back(dir);
+        if (schon != gemeldet.end()) { continue; }
+        gemeldet.push_back(dir);
+        char zeile[700];
+        std::snprintf(zeile, sizeof(zeile), tr(Str::GdOrdnerFehlt), dir.c_str());
+        addStatus(zeile);
+        g_app->mtab.meldung = zeile;   // der Model-Tab zeigt unten die letzte Meldung des Modells statt der Statuszeile
+    }
+    const Settings& st = g_app->settings;
+    std::erase_if(gemeldet, [&st](const std::string& dir) {
+        const auto in = [&dir](const std::vector<std::string>& liste) { return std::find(liste.begin(), liste.end(), dir) != liste.end(); };
+        return !in(st.gamePaths) && !in(st.gamePathsJk2) && !in(g_app->sitzungsSpielordner);
+    });
+}
+
+}  // namespace
+
 void rescanGamePaths() {
     diag::Step step("Spielordner durchsuchen");
     // rc604: zuerst das Regelwerk - es bestimmt, welche Spielordner gelten
@@ -1626,6 +1660,7 @@ void rescanGamePaths() {
     // (setzeSitzungsSpielordner vergleicht damit).
     g_app->eingeleseneSpielordner = aktiveSpielordner();
     g_app->spielordnerEingelesen = true;
+    spielordnerFehlendMerken();
     for (const std::string& dir : spielordnerMitBase(aktiveSpielordner())) {
         GamePath gp;
         if (scanGamePath(dir, gp)) {

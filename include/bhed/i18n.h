@@ -6041,6 +6041,8 @@ enum class Str {
     KeBpFertigVorPause,
     KeBpVisNichtGesichert,
     KeBpVerworfen,
+    GdOrdnerFehlt,
+    GdOrdnerWeg,
     Count,
 };
 

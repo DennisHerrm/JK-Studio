@@ -5976,6 +5976,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_mbnav.inc"      // MBNAV: Navigation wie 3ds Max / Blender (modellblock, BHED_MODELL_NUR=nav; Handbuch BHED_HB_NUR=mbnav)
 #include "selbsttest_uiform.inc"      // UIFORM: Formular-Baustein (Into script), Mindestgroessen aller Fenster
 #include "selbsttest_vis2c.inc"   // vis2c: Bauen anhalten und fortsetzen (karteneditor, BHED_KARTE_NUR=vis2c1/2/3)
+#include "selbsttest_gdpfad.inc"  // GDPFAD: das Programm, wenn ein eingerichteter Spielordner fehlt (spielordnerfehlt)
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -6368,6 +6369,7 @@ void selbsttest() {
     static const bool nurTabfensterNeustart = std::strcmp(modus, "tabfensterneustart") == 0;
     static const bool nurTabfensterLeistung = std::strcmp(modus, "tabfensterleistung") == 0;
     static const bool nurUiform = std::strcmp(modus, "uiform") == 0;   // UIFORM
+    static const bool nurSpielordnerFehlt = std::strcmp(modus, "spielordnerfehlt") == 0;   // GDPFAD
     // Missionsbau im Map-Tab: jeder Knopf, Kombinationen, Zufall (11.10.).
     static const bool nurMissionsbau = std::strcmp(modus, "missionsbau") == 0;
     // rc601 ton: der Vorschauton wie im Spiel (Hoerer, PVS, Schleifen, Pegel).
@@ -6641,6 +6643,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurUiform) {
                 a.schritte = uif::schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurSpielordnerFehlt) {
+                a.schritte = gdpfad::schritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurJk2) {

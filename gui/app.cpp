@@ -3550,9 +3550,12 @@ void drawGamePaths() {
                 ImGui::SameLine();
                 if (gp == nullptr || gp->archives.empty()) {
                     // Ein Ordner ohne Archive ist fast immer ein Tippfehler im
-                    // Pfad. Das soll auffallen.
+                    // Pfad. Das soll auffallen. GDPFAD: gibt es den Ordner nicht (mehr) -
+                    // umbenannt, verschoben, Laufwerk fehlt -, steht genau das da.
+                    const bool weg = std::find(g_app->spielordnerFehlend.begin(), g_app->spielordnerFehlend.end(), liste[i]) !=
+                                     g_app->spielordnerFehlend.end();
                     ImGui::TextColored(ImVec4{0.90F, 0.75F, 0.35F, 1.0F}, "%s",
-                                       tr(Str::PrefsEmptyPath));
+                                       tr(weg ? Str::GdOrdnerWeg : Str::PrefsEmptyPath));
                 } else {
                     ImGui::TextDisabled(trN(Str::PrefsArchives, gp->archives.size(), gp->fileCount),
                                         static_cast<int>(gp->archives.size()),
@@ -3916,7 +3919,14 @@ void drawPk3Browser() {
     }
     ImGui::Text(trN(Str::Pk3Found, archives, g_app->pk3Files.size()), archives, static_cast<int>(g_app->pk3Files.size()));
     if (g_app->gamePaths.empty()) {
-        ImGui::TextDisabled("%s", tr(Str::Pk3None));
+        // GDPFAD: "noch kein Spielordner" stimmt nicht, wenn einer eingetragen ist, den es nicht mehr gibt - dann steht
+        // der Ordner da und wo man ihn berichtigt (dieselbe Zeile wie in der Statuszeile), umbrochen statt abgeschnitten.
+        if (g_app->spielordnerFehlend.empty()) { ImGui::TextDisabled("%s", tr(Str::Pk3None)); }
+        ImGui::PushTextWrapPos(0.0F);
+        for (const std::string& o : g_app->spielordnerFehlend) {
+            cjkTextColored(ImVec4{0.90F, 0.75F, 0.35F, 1.0F}, tr(Str::GdOrdnerFehlt), o.c_str());
+        }
+        ImGui::PopTextWrapPos();
     }
 
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14.0F);

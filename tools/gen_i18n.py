@@ -2342,6 +2342,8 @@ from i18n_ap1 import zeilen_vier as _ap1  # noqa: E402  (AP1: Zeitleiste des Mod
 S += _ap1()
 from i18n_vis2 import zeilen_vier as _vis2  # noqa: E402  (VIS2c: Bauen anhalten und fortsetzen)
 S += _vis2()
+from i18n_gdpfad import zeilen_vier as _gdpfad  # noqa: E402  (GDPFAD: ein eingerichteter Spielordner, den es nicht mehr gibt)
+S += _gdpfad()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

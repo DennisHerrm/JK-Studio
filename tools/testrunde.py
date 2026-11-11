@@ -171,7 +171,7 @@ for m in ("kamera", "gluehen", "npcklasse"):
     lauf(m, m, bereich="vorschau", doppel=("karte", "Schrittliste laeuft im Modus karte mit"))
 
 BEREICH = {
-    "programm": "ablage original eigenstaendig einzel icons pruefung reiter vergleich f78 fundef",
+    "programm": "ablage original eigenstaendig einzel icons pruefung reiter vergleich f78 fundef spielordnerfehlt",
     "vorschau": """figurleistung figurlicht gegenstaende geschuetze gras holo jk2 karte lava mission
         missionsliste modellimfesten laserfalle ort pruefung3 rest605 roff spulen teil10 teil10b teil11 teil13 teil13b teil13c teil13d teil6 teil9
         tuerlauf wegpunkte zeitleiste1 deckung kampfpunkte modellsetzen wegmalen wegpunkte2 enttext dateiort""",

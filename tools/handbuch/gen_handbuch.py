@@ -240,6 +240,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _ap1()})
             from i18n_vis2 import zeilen_vier as _vis2   # VIS2c: Bauen anhalten und fortsetzen
             texte.update({e[0]: e[1:] for e in _vis2()})
+            from i18n_gdpfad import zeilen_vier as _gdpfad   # GDPFAD: ein eingerichteter Spielordner, den es nicht mehr gibt
+            texte.update({e[0]: e[1:] for e in _gdpfad()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)
