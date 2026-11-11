@@ -67,7 +67,8 @@ UMGEBUNG = {
 }
 
 # --- Die Laeufe ---------------------------------------------------------------------------------------------
-# name, modus, sek (Zeitgrenze), var (BHED_*=wert; <LAUF> = Laufordner, <FOTOS> = sein Ordner fotos), dazu
+# name, modus, sek (Zeitgrenze), var (BHED_*=wert; <LAUF> = Laufordner, <FOTOS> = sein Ordner fotos, <EIGEN> = ein Name,
+# den nur dieser Lauf dieser Runde traegt), dazu
 #   sprache   language= der Einstellungen (Vorgabe en)
 #   cfg       andere Einstellungsdatei
 #   sprachlauf True: wiederholt einen englischen Lauf in einer anderen Sprache - laeuft seit dem 11.11. nur mit
@@ -178,9 +179,13 @@ BEREICH = {
     "update": "updateleiste",
     "handbuch": "handbuch",
 }
+# einzel (ein zweiter Start reicht an den laufenden weiter) prueft nur mit BHED_EINZEL=<Name>: ohne den Namen nimmt sich der
+# Selbsttest von der Einzelinstanz aus, der zweite Start laeuft dann als eigenes Programm weiter und alle sechs Pruefungen sind
+# rot (so in der Runde rc611 und am 11.11.). Der Name ist je Lauf eigen, damit zwei Runden nebeneinander sich nicht treffen.
+EIGENE_VAR = {"einzel": ["BHED_EINZEL=<EIGEN>"]}
 for bereich_, namen_ in BEREICH.items():
     for m in namen_.split():
-        lauf(m, m, bereich=bereich_)
+        lauf(m, m, var=EIGENE_VAR.get(m, ()), bereich=bereich_)
 lauf("menueloeschen", "menueloeschen", bereich="menue", pausen="bild")
 lauf("missionsbau", "missionsbau", bereich="vorschau", pausen="bild")
 lauf("dock1neustart", "dock1neustart", 1500, behalten="dock1", bereich="dock")
@@ -294,7 +299,8 @@ class Lauf:
             env["BHED_TEST_PAUSEN"] = a["pausen"]
         for v in a["var"] + o.var:
             k, w = v.split("=", 1)
-            env[k] = w.replace("<FOTOS>", os.path.join(d, "fotos")).replace("<LAUF>", d)
+            env[k] = (w.replace("<FOTOS>", os.path.join(d, "fotos")).replace("<LAUF>", d)
+                      .replace("<EIGEN>", "%s%s_%d" % (re.sub(r"\W", "", o.praefix), self.name, os.getpid())))
         self.beginn = time.time()
         self.fortschritt = (self.beginn, -1, -1.0)   # wann zuletzt Protokoll oder Rechenzeit weiter war
         self.spitze = 0
