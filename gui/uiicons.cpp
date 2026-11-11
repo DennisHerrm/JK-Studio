@@ -155,6 +155,17 @@ ImVec4 uiIconFarbe(UiIcon icon) {
         case UiIcon::FeldMaterial: c = ImVec4{0.95F, 0.45F, 0.50F, 1.0F}; break;      // rot
         case UiIcon::Neuladen: c = ImVec4{0.42F, 0.85F, 0.45F, 1.0F}; break;
         case UiIcon::Tauschen: c = ImVec4{0.98F, 0.75F, 0.30F, 1.0F}; break;
+        // AP9: Painting
+        case UiIcon::MalPinsel: c = ImVec4{0.98F, 0.75F, 0.30F, 1.0F}; break;         // bernstein wie die Pinselfarbe des Entwurfs
+        case UiIcon::MalFuellen: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;        // blau
+        case UiIcon::MalKlonen: c = ImVec4{0.72F, 0.60F, 1.00F, 1.0F}; break;         // violett
+        case UiIcon::MalWischen: c = ImVec4{0.36F, 0.82F, 0.95F, 1.0F}; break;        // cyan
+        case UiIcon::MalMaske: c = ImVec4{1.00F, 0.50F, 0.48F, 1.0F}; break;          // rot wie die gezeigte Maske
+        case UiIcon::MalWeich: c = ImVec4{0.70F, 0.78F, 0.88F, 1.0F}; break;          // graublau
+        case UiIcon::MalRadierer: c = ImVec4{0.95F, 0.58F, 0.78F, 1.0F}; break;       // rosa
+        case UiIcon::MalPipette: c = ImVec4{0.42F, 0.85F, 0.45F, 1.0F}; break;        // gruen
+        case UiIcon::MalMaskeLeer: c = ImVec4{1.00F, 0.50F, 0.48F, 1.0F}; break;
+        case UiIcon::MalMaskeUmkehr: c = ImVec4{1.00F, 0.50F, 0.48F, 1.0F}; break;
 
         default: break;
     }
@@ -678,6 +689,61 @@ void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe)
             z.spitze(13.0F, 5.5F, 1.0F, 0.0F);
             z.linie(13.0F, 10.5F, 3.0F, 10.5F);
             z.spitze(3.0F, 10.5F, -1.0F, 0.0F);
+            break;
+        // --- AP9: Painting -----------------------------------------------------------------------------
+        case UiIcon::MalPinsel:   // Pinsel: Stiel von oben rechts, gefuellte Spitze unten links
+            z.linie(13.5F, 2.5F, 7.6F, 8.4F);
+            z.flaeche({ImVec2{6.2F, 7.4F}, ImVec2{8.6F, 9.8F}, ImVec2{2.4F, 13.6F}});
+            break;
+        case UiIcon::MalFuellen:   // Fuellen: gekippter Eimer mit Farbspiegel, daneben ein Tropfen
+            z.zug({ImVec2{7.0F, 2.5F}, ImVec2{12.0F, 7.5F}, ImVec2{7.0F, 12.5F}, ImVec2{2.0F, 7.5F}}, true);
+            z.linie(2.0F, 7.5F, 12.0F, 7.5F);
+            z.punkt(13.3F, 12.0F, 1.5F);
+            break;
+        case UiIcon::MalKlonen:   // Klonen: Stempel - Griff, Hals, Platte
+            z.kreis(8.0F, 4.6F, 2.6F);
+            z.linie(8.0F, 7.2F, 8.0F, 10.5F);
+            z.rahmen(2.5F, 10.5F, 13.5F, 13.5F, 0.8F);
+            break;
+        case UiIcon::MalWischen:   // Verwischen: ein Punkt, der nach rechts verzogen wird
+            z.punkt(4.2F, 8.0F, 2.6F);
+            z.linie(7.5F, 5.6F, 13.5F, 4.6F);
+            z.linie(8.0F, 8.0F, 14.5F, 8.0F);
+            z.linie(7.5F, 10.4F, 13.5F, 11.4F);
+            break;
+        case UiIcon::MalMaske:   // Maske: Feld, zur Haelfte geschuetzt
+            z.flaeche({ImVec2{2.5F, 2.5F}, ImVec2{13.5F, 2.5F}, ImVec2{2.5F, 13.5F}});
+            z.rahmen(2.5F, 2.5F, 13.5F, 13.5F, 0.8F);
+            break;
+        case UiIcon::MalWeich:   // Weichzeichnen: Tropfen
+            z.zug({ImVec2{8.0F, 1.8F}, ImVec2{11.8F, 8.2F}, ImVec2{11.4F, 11.4F}, ImVec2{8.0F, 14.0F}, ImVec2{4.6F, 11.4F}, ImVec2{4.2F, 8.2F}}, true);
+            break;
+        case UiIcon::MalRadierer:   // Radierer: schraeger Block mit Manschette auf einer Linie
+            z.zug({ImVec2{6.0F, 2.5F}, ImVec2{13.5F, 10.0F}, ImVec2{10.0F, 13.5F}, ImVec2{2.5F, 6.0F}}, true);
+            z.linie(10.5F, 7.0F, 7.0F, 10.5F);
+            z.linie(10.0F, 13.5F, 14.5F, 13.5F);
+            break;
+        case UiIcon::MalPipette:   // Farbe aufnehmen: Pipette - Ball oben rechts, Rohr nach unten links
+            z.punkt(12.3F, 3.7F, 2.2F);
+            z.linie(8.8F, 4.2F, 11.8F, 7.2F);
+            z.linie(10.0F, 6.0F, 4.0F, 12.0F);
+            z.linie(4.0F, 12.0F, 2.3F, 13.7F);
+            break;
+        case UiIcon::MalHoch:   // Ebene hoch: Pfeil nach oben
+            z.linie(8.0F, 13.5F, 8.0F, 2.8F);
+            z.spitze(8.0F, 2.8F, 0.0F, -1.0F, 3.4F);
+            break;
+        case UiIcon::MalRunter:   // Ebene runter: Pfeil nach unten
+            z.linie(8.0F, 2.5F, 8.0F, 13.2F);
+            z.spitze(8.0F, 13.2F, 0.0F, 1.0F, 3.4F);
+            break;
+        case UiIcon::MalMaskeLeer:   // Maske leeren: leeres Feld mit Schraegstrich
+            z.rahmen(2.5F, 2.5F, 13.5F, 13.5F, 0.8F);
+            z.linie(5.2F, 10.8F, 10.8F, 5.2F);
+            break;
+        case UiIcon::MalMaskeUmkehr:   // Maske umkehren: die andere Haelfte geschuetzt
+            z.flaeche({ImVec2{13.5F, 2.5F}, ImVec2{13.5F, 13.5F}, ImVec2{2.5F, 13.5F}});
+            z.rahmen(2.5F, 2.5F, 13.5F, 13.5F, 0.8F);
             break;
     }
 }

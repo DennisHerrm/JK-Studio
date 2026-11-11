@@ -3115,6 +3115,9 @@ enum class UiIcon : int {
     // AP3: rechtes Feld - Reiter des Eigenschaften-Editors wie Blender (Werkzeug, Objekt, Modifier-Stapel, Netzdaten, Constraints,
     // Material) und Knoepfe der Gruppen (neu laden, tauschen)
     FeldWerkzeug, FeldObjekt, FeldModifier, FeldDaten, FeldConstraints, FeldMaterial, Neuladen, Tauschen,
+    // AP9: Bereich Painting - die Werkzeuge (Pinsel, Fuellen, Klonen, Verwischen, Maske, Weichzeichnen, Radierer), Farbe aufnehmen,
+    // Ebene hoch/runter, Maske leeren/umkehren
+    MalPinsel, MalFuellen, MalKlonen, MalWischen, MalMaske, MalWeich, MalRadierer, MalPipette, MalHoch, MalRunter, MalMaskeLeer, MalMaskeUmkehr,
 };
 void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe);
 // Quadratischer Icon-Knopf; der Text ist Kennung und Tooltip-Titel.

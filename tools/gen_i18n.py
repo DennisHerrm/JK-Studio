@@ -2346,6 +2346,8 @@ from i18n_gdpfad import zeilen_vier as _gdpfad  # noqa: E402  (GDPFAD: ein einge
 S += _gdpfad()
 from i18n_ap3 import zeilen_vier as _ap3  # noqa: E402  (AP3: rechtes Feld des Model-Tabs - Befehlsfeld / Eigenschaften mit Reitern)
 S += _ap3()
+from i18n_ap9 import zeilen_vier as _ap9  # noqa: E402  (AP9: rechtes Feld des Bereichs Painting nach dem Entwurf)
+S += _ap9()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

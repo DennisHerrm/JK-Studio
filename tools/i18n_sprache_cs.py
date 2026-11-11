@@ -3116,6 +3116,8 @@ from i18n_gdpfad import texte as _gdpfad  # noqa: E402
 TEXTE.update(_gdpfad("cs"))
 from i18n_ap3 import texte as _ap3  # noqa: E402
 TEXTE.update(_ap3("cs"))
+from i18n_ap9 import texte as _ap9  # noqa: E402
+TEXTE.update(_ap9("cs"))
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.
 TEXTE.update({_e[0]: _e[1] for _e in _nrc()})

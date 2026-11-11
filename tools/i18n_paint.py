@@ -69,18 +69,13 @@ ZEILEN = [
      "一次点按的绘制强度 (0..1)。Blender: Shift+F 后左右移动鼠标。", "1 回のダブで塗る強さ (0..1)。Blender: Shift+F を押してマウスを横に動かす。",
      "Con qué fuerza pinta un toque (0..1). Blender: Mayús+F y mover el ratón a los lados.",
      "Jak silně maluje jeden dotek (0..1). Blender: Shift+F a pohyb myši do stran."),
-    ("PtRadiusFmt", "Radius %.0f px", "Radius %.0f px", "半径 %.0f px", "半径 %.0f px", "Radio %.0f px", "Poloměr %.0f px"),
-    ("PtStaerkeFmt", "Strength %.2f", "Stärke %.2f", "强度 %.2f", "強さ %.2f", "Fuerza %.2f", "Síla %.2f"),
-    ("PtHaerteFmt", "Hardness %.2f", "Härte %.2f", "硬度 %.2f", "硬さ %.2f", "Dureza %.2f", "Tvrdost %.2f"),
     ("PtHaerteHint", "Falloff: 1 is a hard edge, 0 fades smoothly from the centre to the edge.", "Abfall: 1 ist eine harte Kante, 0 läuft von der Mitte bis zum Rand weich aus.",
      "衰减: 1 为硬边, 0 从中心到边缘平滑过渡。", "減衰: 1 は硬いエッジ、0 は中心から縁まで滑らかに薄くなります。",
      "Caída: 1 es un borde duro, 0 se difumina suavemente del centro al borde.", "Útlum: 1 je ostrá hrana, 0 plynule slábne od středu k okraji."),
-    ("PtAbstandFmt", "Spacing %.0f %%", "Abstand %.0f %%", "间距 %.0f %%", "間隔 %.0f %%", "Espaciado %.0f %%", "Rozestup %.0f %%"),
     ("PtAbstandHint", "Distance between two dabs of a stroke, in percent of the radius (Blender spacing).",
      "Abstand zwischen zwei Tupfern eines Strichs in Prozent des Radius (Blender Spacing).", "笔画中两次点按之间的距离, 以半径的百分比表示 (Blender Spacing)。",
      "ストローク内の 2 つのダブの間隔、半径に対するパーセント (Blender Spacing)。", "Distancia entre dos toques de un trazo, en porcentaje del radio (Spacing de Blender).",
      "Vzdálenost mezi dvěma doteky tahu v procentech poloměru (Spacing v Blenderu)."),
-    ("PtToleranzFmt", "Tolerance %.2f", "Toleranz %.2f", "容差 %.2f", "許容値 %.2f", "Tolerancia %.2f", "Tolerance %.2f"),
     ("PtToleranzHint", "Fill: how far a colour may differ from the clicked one (0 = only exactly the same).",
      "Füllen: wie weit eine Farbe von der angeklickten abweichen darf (0 = nur genau dieselbe).", "填充: 颜色与单击处颜色可相差多少 (0 = 仅完全相同)。",
      "塗りつぶし: クリックした色からどれだけ違ってよいか (0 = 完全に同じ色のみ)。", "Rellenar: cuánto puede diferir un color del pulsado (0 = solo el mismo exacto).",
@@ -249,7 +244,6 @@ ZEILEN = [
     ("PtGebaut", "Images written: %d, to %s (size and format of the original).", "Bilder geschrieben: %d, nach %s (Größe und Format des Originals).",
      "已写入图像: %d, 位置 %s (原图的大小和格式)。", "書き出した画像: %d、出力先 %s (オリジナルのサイズと形式)。",
      "Imágenes escritas: %d, en %s (tamaño y formato del original).", "Zapsané obrázky: %d, do %s (velikost a formát originálu)."),
-    ("PtBemaltZahl", "Painted images: %d", "Bemalte Bilder: %d", "已绘制图像: %d", "塗った画像: %d", "Imágenes pintadas: %d", "Namalované obrázky: %d"),
 ]
 
 

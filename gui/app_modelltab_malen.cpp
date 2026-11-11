@@ -5,6 +5,8 @@
 // Vorbilder der Bedienung: 3ds Max Viewport Canvas (Malen in der Ansicht, Ebenen, Pinselgroesse/-staerke, Spiegeln) und
 // Blenders Arbeitsbereich Texture Paint (Werkzeuge Draw, Soften, Smear, Clone, Fill, Mask; F Radius, Umschalt+F Staerke,
 // S Farbe aufnehmen, X Farben tauschen laut Blender-Handbuch "Texture Paint", 1 Malmaske laut blender_keys.txt).
+// AP9 (rc612): das rechte Feld in der Form des freigegebenen Entwurfs - Gruppen Ziel, Werkzeuge, Pinsel, Ebenen, Fuer das
+// Spiel ueber den Baustein gui/ui_rollout.h; die Tasten [ und ] fuer die Pinselgroesse.
 #include "app_internal.h"
 #include "backend.h"
 #include "gpumap.h"
@@ -1293,6 +1295,14 @@ void farbeAufnehmen() {
     z.aufnehmen = true;
 }
 
+// AP9: ein Schritt der Pinselgroesse. Der Faktor ist der von Blenders brush.scale_size auf [ und ] (0,9 und 1 / 0,9 - ein
+// Schritt hin und einer zurueck ergeben wieder denselben Radius); die Grenzen sind die des Ziehens mit F.
+void pinselSchritt(bool groesser) {
+    constexpr float kSchritt = 0.9F;
+    ModellMalen& z = mz();
+    z.radiusPx = std::clamp(groesser ? z.radiusPx / kSchritt : z.radiusPx * kSchritt, 1.0F, 500.0F);
+}
+
 const std::vector<MalAktion>& aktionen() {
     using W = mm::Werkzeug;
     static const std::vector<MalAktion> kListe = {
@@ -1307,6 +1317,10 @@ const std::vector<MalAktion>& aktionen() {
         {Str::PtRadiusZiehen, Str::PtRadiusZiehenHint, "", "F", 0, ImGuiKey_F, [] { mz().modalArt = 1; mz().modalStart = ImGui::GetIO().MousePos.x; mz().modalWert = mz().radiusPx; }, {}, 1},
         {Str::PtStaerkeZiehen, Str::PtStaerkeZiehenHint, "", "Shift+F", 0, ImGuiMod_Shift | ImGuiKey_F,
          [] { mz().modalArt = 2; mz().modalStart = ImGui::GetIO().MousePos.x; mz().modalWert = mz().pinsel.staerke; }, {}, 1},
+        // AP9: die Groesse in Schritten - im Entwurf wie 3ds Max "[ ] Groesse" (dort zoomen [ und ] sonst die Ansicht: im Bereich
+        // Painting gehoeren sie dem Pinsel); Blender-Handbuch "Brush Settings": "The size can be decreased/increased using [ and ]"
+        {Str::PtPinselKleiner, Str::PtPinselKleinerHint, "[", "[", ImGuiKey_LeftBracket, ImGuiKey_LeftBracket, [] { pinselSchritt(false); }, {}, 1},
+        {Str::PtPinselGroesser, Str::PtPinselGroesserHint, "]", "]", ImGuiKey_RightBracket, ImGuiKey_RightBracket, [] { pinselSchritt(true); }, {}, 1},
         {Str::PtFarbeAufnehmen, Str::PtFarbeAufnehmenHint, "", "S", 0, ImGuiKey_S, [] { farbeAufnehmen(); }, [] { return mz().aufnehmen; }, 1},
         {Str::PtFarbenTauschen, Str::PtFarbenTauschenHint, "", "X", 0, ImGuiKey_X, [] { std::swap(mz().pinsel.farbe, mz().farbe2); }, {}, 1},
         {Str::PtSpiegeln, Str::PtSpiegelnHint, "", "", 0, 0, [] { mz().spiegeln = !mz().spiegeln; }, [] { return mz().spiegeln; }, 1},
@@ -1453,7 +1467,9 @@ bool modellMalenTasten() {
     const bool blender = blenderModus();
     for (const MalAktion& a : aktionen()) {
         const ImGuiKeyChord c = blender ? a.blenderChord : a.maxChord;
-        if (c != 0 && ImGui::IsKeyChordPressed(c)) {
+        // die Schritte der Pinselgroesse wiederholen sich, solange die Taste gehalten wird
+        const bool wiederholt = a.text == Str::PtPinselKleiner || a.text == Str::PtPinselGroesser;
+        if (c != 0 && ImGui::IsKeyChordPressed(c, wiederholt ? ImGuiInputFlags_Repeat : ImGuiInputFlags_None)) {
             ausloesen(a);
             return true;
         }
@@ -1485,8 +1501,6 @@ bool modellMalenAufnehmen(const ModellAnsicht& a, ImVec2 maus) {
     return true;
 }
 
-// --- Rollouts im Befehlsfeld -------------------------------------------------------------------------------------------
-
 // P19 (Pruefung seit rc610): neu geladene Texturen der Vorschau (Haut, Neu laden, Detach/Grundkoerper im Bereich
 // Modellieren): die bemalten Bilder wieder in ihre Stufen - in jedem Bereich, jedes Bild (vorher nur im Bereich Painting,
 // bis dahin zeigte die Ansicht das Original). Nur fuer die Leinwaende des geladenen Modells.
@@ -1500,78 +1514,191 @@ void modellMalenVorschauAbgleich() {
     }
 }
 
-void drawModellMalenBereich() {
+// --- Gruppen im rechten Feld (AP9, MBENTWURF Teil B) ------------------------------------------------------------------------
+//
+// Form und Reihenfolge nach dem freigegebenen Entwurf (plaene/modellblock_stufe0/entwurf_modelltab.html, Bereich Painting;
+// Abgleich T0a-T10): Ziel (Shader, Bild) - Werkzeuge (Raster, das gewaehlte als Hauptknopf) - Pinsel (Kurzinfo mit den Tasten
+// des Bedienmodus, Farbe und Regler) - Ebenen (Liste mit Auge und Schloss, Raster) - Tipp. Was das Programm mehr kann als der
+// Entwurf, bleibt an der Stelle, an die es gehoert: Stufe des Shaders und Umbacken beim Ziel, Weichzeichnen und Radieren bei
+// den Werkzeugen, zweite Farbe und Farbe aufnehmen in der Zeile Farbe, Haerte, Spiegeln, Stiftdruck, Rueckseiten und Ausbluten
+// unter "Erweitert" (ab Werk zugeklappt), Mischart und Deckkraft der gewaehlten Ebene unter der Liste, "Fuer das Spiel" als
+// letzte Gruppe (wie 3ds Max auch im Reiter Dienstprogramme). Der Baustein steht in gui/ui_rollout.h.
+
+namespace {
+
+std::string mitKennung(Str text, const char* kennung) { return std::string(tr(text)) + "###" + kennung; }
+
+const MalAktion* aktionVon(Str text) {
+    const auto& liste = aktionen();
+    const auto it = std::find_if(liste.begin(), liste.end(), [&](const MalAktion& a) { return a.text == text; });
+    return it != liste.end() ? &*it : nullptr;
+}
+
+// Eine Aktion als Knopf des Bausteins: Symbol, Text, die Taste des Bedienmodus als Tastenfeld, ihr Hinweis als Tooltip.
+// haupt: in der Betonungsfarbe (das gewaehlte Werkzeug, "Fuer das Spiel bauen").
+void aktionsKnopf(Str text, UiIcon icon, bool haupt = false) {
+    const MalAktion* a = aktionVon(text);
+    if (a == nullptr) { return; }
+    const char* k = tasteVon(*a);
+    if (ui::werkzeugKnopf(tr(text), {.icon = icon, .taste = k[0] != '\0' ? k : nullptr, .hinweis = tr(a->hinweis), .haupt = haupt, .an = a->an && a->an()})) { ausloesen(*a); }
+}
+
+// Dieselbe Aktion als quadratischer Symbolknopf (in der Zeile Farbe).
+void symbolKnopf(Str text, UiIcon icon) {
+    const MalAktion* a = aktionVon(text);
+    if (a == nullptr) { return; }
+    if (iconKnopf(tr(text), icon, tooltip(*a).c_str(), a->an && a->an())) { ausloesen(*a); }
+}
+
+// Ein Pfad, der nicht in die Breite passt: vorne um ganze Ordner gekuerzt (".../kyle/torso", "...\\ap9_mod"); der ganze steht im Tooltip.
+std::string pfadGekuerzt(const std::string& pfad, float breite) {
+    if (ImGui::CalcTextSize(pfad.c_str()).x <= breite) { return pfad; }
+    std::string kurz = pfad;
+    std::size_t ab = pfad.find_first_of("/\\");
+    while (ab != std::string::npos) {
+        kurz = "..." + pfad.substr(ab);
+        if (ImGui::CalcTextSize(kurz.c_str()).x <= breite) { return kurz; }
+        ab = pfad.find_first_of("/\\", ab + 1U);
+    }
+    // auch der kuerzeste passt nicht (sehr schmales Feld): hinten kuerzen und mit "..." kennzeichnen statt abzuschneiden
+    while (!kurz.empty() && ImGui::CalcTextSize((kurz + "...").c_str()).x > breite) {
+        // ein ganzes UTF-8-Zeichen: erst die Folgebytes, dann das Startbyte
+        while (!kurz.empty() && (static_cast<unsigned char>(kurz.back()) & 0xC0U) == 0x80U) { kurz.pop_back(); }
+        if (!kurz.empty()) { kurz.pop_back(); }
+    }
+    return kurz + "...";
+}
+
+// Der Platz fuer den Text eines Ausklappers in der Formularzeile (Feldbreite ohne Pfeil und Rand).
+float ausklapperText() { return ui::feldBreite() - ImGui::GetFrameHeight() - ImGui::GetStyle().FramePadding.x * 2.0F; }
+
+// Ziel: worauf gemalt wird - der Shader (die Flaechen, die sein Bild zeigen), die Stufe des Shaders, das Bild.
+void rolloutZiel(const std::vector<Gruppe>& gr, MalBild* m) {
     ModellMalen& z = mz();
-    const mm::Stoppuhr bereichUhr(mm::messung().bereichMs);
-    bilderPruefen();
-    const float fs = ImGui::GetFontSize();
-    const std::vector<Gruppe> g = gruppen();
-    MalBild* m = jetzt(true);
-    if (ImGui::CollapsingHeader(tr(blenderModus() ? Str::PtRolloutBlender : Str::PtRolloutMax), ImGuiTreeNodeFlags_DefaultOpen)) {
-        // Werkzeuge
-        const Str kWz[mm::kWerkzeuge] = {Str::PtWzPinsel, Str::PtWzKlonen, Str::PtWzWischen, Str::PtWzWeich, Str::PtWzFuellen, Str::PtWzMaske, Str::PtWzRadierer};
-        const float rechts = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
-        for (int i = 0; i < mm::kWerkzeuge; ++i) {
-            const float b = ImGui::CalcTextSize(tr(kWz[i])).x + ImGui::GetStyle().FramePadding.x * 2.0F;
-            if (i > 0) {
-                ImGui::SameLine(0.0F, 2.0F);
-                if (ImGui::GetCursorScreenPos().x + b > rechts) { ImGui::NewLine(); }
+    const std::string datei = m != nullptr ? fileName(m->l.datei) : std::string();
+    // wie Blender steht das Ziel (dort die Texture Slots) auch im Reiter Material
+    if (!ui::rolloutBeginn(tr(Str::PtGrZiel), {.kurzinfo = datei.empty() ? nullptr : datei.c_str(), .reiter = modellReiter(MbReiter::Aendern, MbReiterBl::Material), .hinweis = tr(Str::PtZielHint)})) {
+        return;
+    }
+    if (!gr.empty()) {
+        const int gw = std::clamp(z.gruppe, 0, static_cast<int>(gr.size()) - 1);
+        const std::string& shader = gr[uz(gw)].shader;
+        ui::zeile(tr(Str::PtZielShader), tr(Str::PtGruppeHint));
+        if (ImGui::BeginCombo("##ptgruppe", pfadGekuerzt(shader, ausklapperText()).c_str())) {
+            for (std::size_t i = 0; i < gr.size(); ++i) {
+                if (ImGui::Selectable(gr[i].shader.c_str(), static_cast<int>(i) == gw)) {
+                    z.gruppe = static_cast<int>(i);
+                    z.stufe = 0;
+                }
             }
-            knopf(kWz[i]);
+            ImGui::EndCombo();
         }
-        // Pinsel
-        ImGui::SetNextItemWidth(-fs * 0.5F);
-        ImGui::SliderFloat("##ptradius", &z.radiusPx, 1.0F, 300.0F, tr(Str::PtRadiusFmt), ImGuiSliderFlags_Logarithmic);
-        ImGui::SetItemTooltip("%s", tooltipVon(Str::PtRadiusZiehen).c_str());
-        ImGui::SetNextItemWidth(-fs * 0.5F);
-        ImGui::SliderFloat("##ptstaerke", &z.pinsel.staerke, 0.0F, 1.0F, tr(Str::PtStaerkeFmt));
-        ImGui::SetItemTooltip("%s", tooltipVon(Str::PtStaerkeZiehen).c_str());
-        ImGui::SetNextItemWidth(-fs * 0.5F);
-        ImGui::SliderFloat("##pthaerte", &z.pinsel.haerte, 0.0F, 1.0F, tr(Str::PtHaerteFmt));
-        ImGui::SetItemTooltip("%s", tr(Str::PtHaerteHint));
-        ImGui::SetNextItemWidth(-fs * 0.5F);
-        float abst = z.pinsel.abstand * 100.0F;
-        if (ImGui::SliderFloat("##ptabstand", &abst, 1.0F, 200.0F, tr(Str::PtAbstandFmt))) { z.pinsel.abstand = abst / 100.0F; }
-        ImGui::SetItemTooltip("%s", tr(Str::PtAbstandHint));
-        if (z.werkzeug == static_cast<int>(mm::Werkzeug::Fuellen)) {
-            ImGui::SetNextItemWidth(-fs * 0.5F);
-            ImGui::SliderFloat("##pttol", &z.pinsel.fuellToleranz, 0.0F, 1.0F, tr(Str::PtToleranzFmt));
-            ImGui::SetItemTooltip("%s", tr(Str::PtToleranzHint));
+        ImGui::SetItemTooltip("%s\n%s", shader.c_str(), tr(Str::PtGruppeHint));
+        const std::vector<BildStufe>& st = bildStufen(shader);
+        if (st.size() > 1U) {
+            const int s = std::clamp(z.stufe, 0, static_cast<int>(st.size()) - 1);
+            ui::zeile(tr(Str::PtZielStufe), tr(Str::PtStufeHint));
+            const std::string& stufeName = st[uz(s)].name;
+            const std::size_t trenner = stufeName.find_last_of("/\\");
+            const float kuerzest = ImGui::CalcTextSize(trenner == std::string::npos ? stufeName.c_str() : ("..." + stufeName.substr(trenner)).c_str()).x;
+            std::string vorschau = format(Str::PtStufe, s + 1, "");
+            if (ImGui::CalcTextSize(vorschau.c_str()).x + kuerzest > ausklapperText()) {
+                vorschau = std::to_string(s + 1) + ": ";   // schmales Feld: die Beschriftung der Zeile nennt die Stufe schon
+            }
+            vorschau += pfadGekuerzt(stufeName, std::max(ausklapperText() - ImGui::CalcTextSize(vorschau.c_str()).x, 0.0F));
+            if (ImGui::BeginCombo("##ptstufe", vorschau.c_str())) {
+                for (std::size_t i = 0; i < st.size(); ++i) {
+                    if (ImGui::Selectable(format(Str::PtStufe, static_cast<int>(i) + 1, st[i].name.c_str()).c_str(), static_cast<int>(i) == s)) { z.stufe = static_cast<int>(i); }
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::SetItemTooltip("%s\n%s", st[uz(s)].name.c_str(), tr(Str::PtStufeHint));
         }
-        if (z.werkzeug == static_cast<int>(mm::Werkzeug::Maske)) {
-            ImGui::Checkbox(tr(Str::PtMaskeFrei), &z.pinsel.maskeLoeschen);
-            ImGui::SetItemTooltip("%s", tr(Str::PtMaskeFreiHint));
-        }
-        // Farbe
-        ImGui::ColorEdit4("##ptfarbe", z.pinsel.farbe.data(), ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_NoInputs);
-        ImGui::SetItemTooltip("%s", tr(Str::PtFarbeHint));
-        ImGui::SameLine();
-        ImGui::ColorEdit4("##ptfarbe2", z.farbe2.data(), ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_NoInputs);
-        ImGui::SetItemTooltip("%s", tr(Str::PtFarbe2Hint));
-        ImGui::SameLine();
-        knopf(Str::PtFarbenTauschen);
-        ImGui::SameLine();
-        knopf(Str::PtFarbeAufnehmen);
-        // Spiegeln, Druck, Rueckseiten
-        bool sp = z.spiegeln;
-        if (ImGui::Checkbox(tr(Str::PtSpiegeln), &sp)) { z.spiegeln = sp; }
-        ImGui::SetItemTooltip("%s", tooltipVon(Str::PtSpiegeln).c_str());
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(fs * 3.5F);
-        ImGui::Combo("##ptachse", &z.spiegelAchse, "X\0Y\0Z\0");
-        ImGui::SetItemTooltip("%s", tr(Str::PtAchseHint));
-        ImGui::Checkbox(tr(Str::PtDruckGroesse), &z.druckGroesse);
-        ImGui::SetItemTooltip("%s", tr(Str::PtDruckGroesseHint));
-        ImGui::SameLine();
-        ImGui::Checkbox(tr(Str::PtDruckStaerke), &z.druckStaerke);
-        ImGui::SetItemTooltip("%s", tr(Str::PtDruckStaerkeHint));
-        ImGui::PushTextWrapPos(0.0F);   // umbrechen statt am Rand abschneiden (alle Sprachen)
-        cjkTextDisabled("%s", z.stiftDa ? format(Str::PtStiftDa, static_cast<double>(z.stiftDruck)).c_str() : tr(Str::PtStiftFehlt));
-        ImGui::PopTextWrapPos();
-        ImGui::Checkbox(tr(Str::PtRueckseiten), &z.pinsel.rueckseiten);
-        ImGui::SetItemTooltip("%s", tr(Str::PtRueckseitenHint));
-        ImGui::SetNextItemWidth(fs * 5.0F);
-        if (ImGui::InputInt(tr(Str::PtAusbluten), &z.ausbluten)) {
+    }
+    if (m != nullptr) {
+        const int bits = m->l.tgaBits > 0 ? m->l.tgaBits : (m->l.alpha ? 32 : 24);
+        const char* art = image::formatName(static_cast<image::Format>(m->l.format));
+        ui::wertTabelle({{tr(Str::PtGrBild), format(Str::PtZielBildWert, datei.c_str(), m->l.b, m->l.h), ui::Ton::Normal, format(Str::PtBildInfo, m->l.datei.c_str(), m->l.b, m->l.h, art, bits)},
+                         {tr(Str::PtZielFormat), format(Str::PtZielFormatWert, art, bits), ui::Ton::Normal, {}}});
+    } else {
+        ui::absatz(tr(Str::PtKeinBild), ui::Ton::Warnung);
+    }
+    ui::rasterBeginn(2);
+    aktionsKnopf(Str::PtEditorZeigen, UiIcon::Bildschirm);
+    aktionsKnopf(Str::PtUmbacken, UiIcon::Neuladen);
+    ui::rasterEnde();
+    ui::rolloutEnde();
+}
+
+// Werkzeuge: zuerst die fuenf des Entwurfs (Pinsel, Fuellen, Klonen, Wischen, Maske), dann Weichzeichnen und Radieren; das
+// gewaehlte ist der Hauptknopf. Die Kurzinfo nennt das Vorbild des Bedienmodus (Viewport Canvas / Texture Paint).
+void rolloutWerkzeuge() {
+    if (!ui::rolloutBeginn(tr(Str::PtGrWerkzeuge), {.kurzinfo = tr(blenderModus() ? Str::PtRolloutBlender : Str::PtRolloutMax), .hinweis = tr(Str::PtWerkzeugeHint)})) { return; }
+    struct Eintrag {
+        Str text;
+        UiIcon icon;
+        mm::Werkzeug werkzeug;
+    };
+    static const Eintrag kFolge[mm::kWerkzeuge] = {
+        {Str::PtWzPinsel, UiIcon::MalPinsel, mm::Werkzeug::Pinsel},       {Str::PtWzFuellen, UiIcon::MalFuellen, mm::Werkzeug::Fuellen},
+        {Str::PtWzKlonen, UiIcon::MalKlonen, mm::Werkzeug::Klonen},       {Str::PtWzWischen, UiIcon::MalWischen, mm::Werkzeug::Verwischen},
+        {Str::PtWzMaske, UiIcon::MalMaske, mm::Werkzeug::Maske},          {Str::PtWzWeich, UiIcon::MalWeich, mm::Werkzeug::Weichzeichnen},
+        {Str::PtWzRadierer, UiIcon::MalRadierer, mm::Werkzeug::Radierer},
+    };
+    ui::rasterBeginn(2);
+    for (const Eintrag& e : kFolge) { aktionsKnopf(e.text, e.icon, istWerkzeug(e.werkzeug)); }
+    ui::rasterEnde();
+    ui::rolloutEnde();
+}
+
+// Pinsel: Farbe, Radius, Staerke, Abstand wie im Entwurf; die Einstellung des gewaehlten Werkzeugs (Fuellen: Toleranz, Maske:
+// Freigeben); alles Weitere unter "Erweitert".
+void rolloutPinsel() {
+    ModellMalen& z = mz();
+    const float fs = ImGui::GetFontSize();
+    if (!ui::rolloutBeginn(tr(Str::PtGrPinsel), {.kurzinfo = tr(blenderModus() ? Str::PtInfoBlender : Str::PtInfoMax), .hinweis = tr(Str::PtPinselHint)})) { return; }
+    // Farbe: Pinselfarbe, zweite Farbe, tauschen, aufnehmen - passt das nicht nebeneinander, stehen die Knoepfe darunter
+    ui::zeile(tr(Str::PtFarbe), tr(Str::PtFarbeHint));
+    const float feld = ImGui::GetFrameHeight();
+    const float luecke = std::floor(fs * 0.3F);
+    const bool eineZeile = ui::feldBreite() >= feld * 4.0F + luecke * 2.0F + 2.0F;
+    ImGui::ColorEdit4("##ptfarbe", z.pinsel.farbe.data(), ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_NoInputs);
+    ImGui::SetItemTooltip("%s", tr(Str::PtFarbeHint));
+    ImGui::SameLine(0.0F, luecke);
+    ImGui::ColorEdit4("##ptfarbe2", z.farbe2.data(), ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_NoInputs);
+    ImGui::SetItemTooltip("%s", tr(Str::PtFarbe2Hint));
+    if (eineZeile) {
+        ImGui::SameLine(0.0F, luecke);
+    } else {
+        ui::zeileOhne();
+    }
+    symbolKnopf(Str::PtFarbenTauschen, UiIcon::Tauschen);
+    ImGui::SameLine(0.0F, 2.0F);
+    symbolKnopf(Str::PtFarbeAufnehmen, UiIcon::MalPipette);
+    const std::string radiusHinweis = tooltipVon(Str::PtRadiusZiehen) + "\n" + tr(Str::PtRadiusTasten);
+    ui::regler(mitKennung(Str::PtRadius, "ptradius").c_str(), &z.radiusPx, 1.0F, 300.0F, "%.0f px", radiusHinweis.c_str(), ImGuiSliderFlags_Logarithmic);
+    ui::regler(mitKennung(Str::PtStaerke, "ptstaerke").c_str(), &z.pinsel.staerke, 0.0F, 1.0F, "%.2f", tooltipVon(Str::PtStaerkeZiehen).c_str());
+    float abst = z.pinsel.abstand * 100.0F;
+    if (ui::regler(mitKennung(Str::PtAbstand, "ptabstand").c_str(), &abst, 1.0F, 200.0F, "%.0f %%", tr(Str::PtAbstandHint))) { z.pinsel.abstand = abst / 100.0F; }
+    if (istWerkzeug(mm::Werkzeug::Fuellen)) { ui::regler(mitKennung(Str::PtToleranz, "pttol").c_str(), &z.pinsel.fuellToleranz, 0.0F, 1.0F, "%.2f", tr(Str::PtToleranzHint)); }
+    if (istWerkzeug(mm::Werkzeug::Maske)) { ui::schalter(tr(Str::PtMaskeFrei), &z.pinsel.maskeLoeschen, tr(Str::PtMaskeFreiHint)); }
+    if (ui::mehrBeginn(mitKennung(Str::PtErweitert, "ptmehr").c_str())) {
+        ui::regler(mitKennung(Str::PtHaerte, "pthaerte").c_str(), &z.pinsel.haerte, 0.0F, 1.0F, "%.2f", tr(Str::PtHaerteHint));
+        // Spiegeln mit seiner Achse
+        ui::schalter(tr(Str::PtSpiegeln), &z.spiegeln, tooltipVon(Str::PtSpiegeln).c_str());
+        static const char* const kAchsen[3] = {"X", "Y", "Z"};
+        ui::zeile(tr(Str::PtAchse), tr(Str::PtAchseHint));
+        ui::segment("##ptachse", kAchsen, 3, &z.spiegelAchse, 3, -1, nullptr, std::min(ui::feldBreite(), fs * 7.0F));
+        // Stiftdruck
+        ui::rasterBeginn(2);
+        ui::schalter(tr(Str::PtDruckGroesse), &z.druckGroesse, tr(Str::PtDruckGroesseHint));
+        ui::schalter(tr(Str::PtDruckStaerke), &z.druckStaerke, tr(Str::PtDruckStaerkeHint));
+        ui::rasterEnde();
+        ui::absatz(z.stiftDa ? format(Str::PtStiftDa, static_cast<double>(z.stiftDruck)).c_str() : tr(Str::PtStiftFehlt));
+        ui::schalter(tr(Str::PtRueckseiten), &z.pinsel.rueckseiten, tr(Str::PtRueckseitenHint));
+        ui::zeile(tr(Str::PtAusbluten), tr(Str::PtAusblutenHint));
+        ImGui::SetNextItemWidth(std::min(ui::feldBreite(), fs * 7.0F));
+        if (ImGui::InputInt("##ptausbluten", &z.ausbluten)) {
             z.ausbluten = std::clamp(z.ausbluten, 0, 64);
             for (auto& b : g_bilder) {
                 b->l.ausbluten = z.ausbluten;
@@ -1581,135 +1708,201 @@ void drawModellMalenBereich() {
             }
         }
         ImGui::SetItemTooltip("%s", tr(Str::PtAusblutenHint));
+        ui::mehrEnde();
     }
-    if (ImGui::CollapsingHeader(tr(Str::PtGrBild), ImGuiTreeNodeFlags_DefaultOpen)) {
-        // Bild: Gruppe (Textur) und Stufe des Shaders
-        if (!g.empty()) {
-            const int gw = std::clamp(z.gruppe, 0, static_cast<int>(g.size()) - 1);
-            ImGui::SetNextItemWidth(-fs * 0.5F);
-            if (ImGui::BeginCombo("##ptgruppe", g[uz(gw)].shader.c_str())) {
-                for (std::size_t i = 0; i < g.size(); ++i) {
-                    if (ImGui::Selectable(g[i].shader.c_str(), static_cast<int>(i) == gw)) {
-                        z.gruppe = static_cast<int>(i);
-                        z.stufe = 0;
-                    }
-                }
-                ImGui::EndCombo();
-            }
-            ImGui::SetItemTooltip("%s", tr(Str::PtGruppeHint));
-            const std::vector<BildStufe>& st = bildStufen(g[uz(gw)].shader);
-            if (st.size() > 1U) {
-                ImGui::SetNextItemWidth(-fs * 0.5F);
-                const int s = std::clamp(z.stufe, 0, static_cast<int>(st.size()) - 1);
-                if (ImGui::BeginCombo("##ptstufe", format(Str::PtStufe, s + 1, st[uz(s)].name.c_str()).c_str())) {
-                    for (std::size_t i = 0; i < st.size(); ++i) {
-                        if (ImGui::Selectable(format(Str::PtStufe, static_cast<int>(i) + 1, st[i].name.c_str()).c_str(), static_cast<int>(i) == s)) { z.stufe = static_cast<int>(i); }
-                    }
-                    ImGui::EndCombo();
-                }
-                ImGui::SetItemTooltip("%s", tr(Str::PtStufeHint));
-            }
-        }
-        if (m != nullptr) {
-            ImGui::PushTextWrapPos(0.0F);
-            cjkTextDisabled("%s", format(Str::PtBildInfo, m->l.datei.c_str(), m->l.b, m->l.h, image::formatName(static_cast<image::Format>(m->l.format)),
-                                             m->l.tgaBits > 0 ? m->l.tgaBits : (m->l.alpha ? 32 : 24))
-                                          .c_str());
-            ImGui::PopTextWrapPos();
-        } else {
-            ImGui::TextDisabled("%s", tr(Str::PtKeinBild));
-        }
-        knopf(Str::PtUmbacken);
-        ImGui::SameLine();
-        knopf(Str::PtEditorZeigen);
+    ui::rolloutEnde();
+}
+
+Str mischName(mm::Mischart art) {
+    static const Str kNamen[mm::kMischarten] = {Str::PtMischNormal, Str::PtMischMult, Str::PtMischAdd, Str::PtMischScreen, Str::PtMischOverlay};
+    return kNamen[std::clamp(static_cast<int>(art), 0, mm::kMischarten - 1)];
+}
+
+// Eine Zeile der Ebenenliste: der Name ueber die Breite (mit der Mischart in Klammern, wenn sie nicht Normal ist), die
+// gewaehlte Ebene in der Betonungsfarbe; rechts das Auge (sichtbar) bzw. am Original das Schloss - es bleibt unberuehrt.
+void ebenenZeile(MalBild& m, int i) {
+    ImGuiContext& g = *GImGui;
+    const float fs = ImGui::GetFontSize();
+    const bool aktiv = m.l.aktiv == i;
+    const bool sichtbar = m.l.ebenen[uz(i)].sichtbar;
+    // P13: die Grundebene (Name leer) in der Sprache der Oberflaeche - wie im Entwurf mit ihrer Datei ("Original torso.tga")
+    std::string text = m.l.ebenen[uz(i)].name.empty() ? std::string(tr(Str::PtEbeneOriginal)) + " " + fileName(m.l.datei) : m.l.ebenen[uz(i)].name;
+    if (i > 0 && m.l.ebenen[uz(i)].misch != mm::Mischart::Normal) { text += std::string(" (") + tr(mischName(m.l.ebenen[uz(i)].misch)) + ")"; }
+    const float breite = std::max(std::floor(ImGui::GetContentRegionAvail().x), fs * 4.0F);
+    const float hoehe = std::floor(fs * 1.7F);
+    const float knopf = std::floor(fs * 1.3F);
+    const float randX = std::floor(fs * 0.45F);
+    const float textB = std::max(breite - randX * 2.0F - knopf, fs);
+    const ImVec2 textG = ImGui::CalcTextSize(text.c_str());
+    ImGui::PushID(i);
+    ImGui::SetNextItemAllowOverlap();   // das Auge liegt auf der Zeile und bekommt seinen Klick
+    if (ImGui::InvisibleButton("##ebene", ImVec2{breite, hoehe})) { m.l.aktiv = i; }
+    const bool ueber = ImGui::IsItemHovered();
+    const ImRect bb{ImGui::GetItemRectMin(), ImGui::GetItemRectMax()};
+    IMGUI_TEST_ENGINE_ITEM_INFO(ImGui::GetItemID(), text.c_str(), g.LastItemData.StatusFlags | (aktiv ? ImGuiItemStatusFlags_Checked : 0));
+    const char* hinweis = tr(i == 0 ? Str::PtEbeneGrundHint : Str::PtEbeneWahlHint);
+    if (textG.x > textB) {
+        ImGui::SetItemTooltip("%s\n%s", text.c_str(), hinweis);   // der Name ist gekuerzt: ganz im Tooltip
+    } else {
+        ImGui::SetItemTooltip("%s", hinweis);
     }
-    if (m != nullptr && ImGui::CollapsingHeader(tr(Str::PtGrEbenen), ImGuiTreeNodeFlags_DefaultOpen)) {
-        // oben die oberste Ebene, wie Max und Blender
-        for (int i = static_cast<int>(m->l.ebenen.size()) - 1; i >= 0; --i) {
-            mm::Ebene& e = m->l.ebenen[uz(i)];
-            ImGui::PushID(i);
-            bool sicht = e.sichtbar;
-            if (i > 0 && ImGui::Checkbox("##sicht", &sicht)) {
-                stapelBefehl(Str::PtEbeneSicht, [i, sicht](std::vector<mm::Ebene>& st, int&) { st[uz(i)].sichtbar = sicht; });
-            }
-            if (i > 0) {
-                ImGui::SetItemTooltip("%s", tr(Str::PtEbeneSichtHint));
-                ImGui::SameLine();
-            }
-            // P13: die Grundebene (Name leer) in der Sprache der Oberflaeche
-            if (ImGui::Selectable(e.name.empty() ? tr(Str::PtEbeneOriginal) : e.name.c_str(), m->l.aktiv == i, 0, ImVec2{fs * 6.0F, 0.0F})) { m->l.aktiv = i; }
-            ImGui::SetItemTooltip("%s", tr(i == 0 ? Str::PtEbeneGrundHint : Str::PtEbeneWahlHint));
-            if (i > 0) {
-                ImGui::SameLine();
-                // so breit wie der laengste Name der Mischarten in dieser Sprache (cs "Normální" war abgeschnitten)
-                float mb = 0.0F;
-                for (const Str n : {Str::PtMischNormal, Str::PtMischMult, Str::PtMischAdd, Str::PtMischScreen, Str::PtMischOverlay}) { mb = std::max(mb, ImGui::CalcTextSize(tr(n)).x); }
-                ImGui::SetNextItemWidth(mb + ImGui::GetFrameHeight() + ImGui::GetStyle().FramePadding.x * 2.0F);
-                int mi = static_cast<int>(e.misch);
-                const std::string arten = std::string(tr(Str::PtMischNormal)) + '\0' + tr(Str::PtMischMult) + '\0' + tr(Str::PtMischAdd) + '\0' + tr(Str::PtMischScreen) + '\0' +
-                                          tr(Str::PtMischOverlay) + '\0' + '\0';
-                if (ImGui::Combo("##misch", &mi, arten.c_str())) {
-                    stapelBefehl(Str::PtEbeneMisch, [i, mi](std::vector<mm::Ebene>& st, int&) { st[uz(i)].misch = static_cast<mm::Mischart>(mi); });
-                }
-                ImGui::SetItemTooltip("%s", tr(Str::PtEbeneMischHint));
-                ImGui::SameLine();
-                // die Deckkraft daneben nur, wenn "100 %" und der Griff ganz hineinpassen - sonst in eine eigene Zeile
-                if (ImGui::GetContentRegionAvail().x - fs * 0.5F < ImGui::CalcTextSize("100 %").x + ImGui::GetStyle().FramePadding.x * 2.0F + fs * 2.0F) {
-                    ImGui::NewLine();
-                }
-                ImGui::SetNextItemWidth(-fs * 0.5F);
-                float d = e.deckkraft * 100.0F;
-                const float deckAlt = e.deckkraft;   // P3: der Regler setzt den Wert schon im Klickbild - den alten vorher merken
-                if (ImGui::SliderFloat("##deck", &d, 0.0F, 100.0F, "%.0f %%")) {
-                    e.deckkraft = d / 100.0F;   // live; der Rueckgaengig-Schritt beim Loslassen
-                    mm::zusammensetzen(m->l);
-                    mm::schmutzigDazu(m->l, mm::Rechteck{0, 0, m->l.b - 1, m->l.h - 1});
-                    anzeigeNachfuehren(*m);
-                }
-                if (ImGui::IsItemActivated()) { z.deckVorher = deckAlt; }
-                if (ImGui::IsItemDeactivatedAfterEdit()) {
-                    const float neu = e.deckkraft;
-                    e.deckkraft = z.deckVorher;
-                    stapelBefehl(Str::PtEbeneDeck, [i, neu](std::vector<mm::Ebene>& st, int&) { st[uz(i)].deckkraft = neu; });
-                }
-                ImGui::SetItemTooltip("%s", tr(Str::PtEbeneDeckHint));
-            }
-            ImGui::PopID();
-        }
-        // die Knoepfe fliessen in Zeilen (wie die Werkzeuge oben) - keiner ragt ueber den Rand, auch nicht in langen Sprachen
-        const Str kEbenenKnoepfe[] = {Str::PtEbeneNeu, Str::PtEbeneLoeschen, Str::PtEbeneHoch, Str::PtEbeneRunter, Str::PtEbeneVereinen, Str::PtMaskeLeeren, Str::PtMaskeUmkehren};
-        for (std::size_t i = 0; i < std::size(kEbenenKnoepfe); ++i) {
-            if (i > 0) {
-                ImGui::SameLine(0.0F, 2.0F);
-                if (ImGui::GetContentRegionAvail().x < ImGui::CalcTextSize(tr(kEbenenKnoepfe[i])).x + ImGui::GetStyle().FramePadding.x * 2.0F) { ImGui::NewLine(); }
-            }
-            knopf(kEbenenKnoepfe[i]);
-        }
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const float rund = ui::rolloutStil() == ui::RolloutStil::Blender ? std::floor(fs * 0.3F) : 2.0F;
+    // die gewaehlte Ebene wie der Hauptknopf des Bausteins: Betonungsfarbe, hellere Kante, Schrift nach der Helligkeit
+    const ImVec4 betont = ui::betonungsFarbe();
+    const auto zuWeiss = [](const ImVec4& c, float t) { return ImVec4{c.x + (1.0F - c.x) * t, c.y + (1.0F - c.y) * t, c.z + (1.0F - c.z) * t, 1.0F}; };
+    ImVec4 grund = ImGui::GetStyleColorVec4(ueber ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg);
+    ImVec4 kante = ImGui::GetStyleColorVec4(ImGuiCol_Border);
+    ImVec4 schrift = ImGui::GetStyleColorVec4(sichtbar ? ImGuiCol_Text : ImGuiCol_TextDisabled);
+    if (aktiv) {
+        grund = ueber ? zuWeiss(betont, 0.15F) : betont;
+        kante = zuWeiss(betont, 0.25F);
+        const bool hell = betont.x * 0.3F + betont.y * 0.59F + betont.z * 0.11F > 0.6F;
+        schrift = hell ? ImVec4{0.0F, 0.0F, 0.0F, 1.0F} : ImVec4{1.0F, 1.0F, 1.0F, 1.0F};
+        if (!sichtbar) { schrift.w = 0.6F; }
     }
-    if (ImGui::CollapsingHeader(tr(Str::PtGrAusgabe), ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::SetNextItemWidth(-fs * 2.5F);
-        ImGui::InputTextWithHint("##ptordner", ausgabeOrdner().c_str(), z.ordner, sizeof z.ordner);
-        ImGui::SetItemTooltip("%s", tr(Str::PtOrdnerHint));
-        ImGui::SameLine(0.0F, 2.0F);
-        if (ImGui::Button("...##ptordnerwahl")) {
-            const std::string o = platform::pickFolder(tr(Str::PtOrdner), ausgabeOrdner());
-            if (!o.empty()) { std::snprintf(z.ordner, sizeof z.ordner, "%s", o.c_str()); }
+    dl->AddRectFilled(bb.Min, bb.Max, ImGui::GetColorU32(grund), rund);
+    dl->AddRect(bb.Min, bb.Max, ImGui::GetColorU32(kante), rund);
+    const ImVec2 textOrt{bb.Min.x + randX, std::floor(bb.Min.y + (hoehe - fs) * 0.5F)};
+    ImGui::PushStyleColor(ImGuiCol_Text, schrift);
+    ImGui::RenderTextEllipsis(dl, textOrt, ImVec2{textOrt.x + textB, bb.Max.y}, textOrt.x + textB, text.c_str(), nullptr, &textG);
+    ImGui::PopStyleColor();
+    const ImVec2 danach = ImGui::GetCursorScreenPos();
+    const ImVec2 knopfOrt{bb.Max.x - std::floor(randX * 0.5F) - knopf, std::floor(bb.Min.y + (hoehe - knopf) * 0.5F)};
+    const float symbol = std::floor(knopf * 0.72F);
+    const ImVec2 symbolOrt{std::floor(knopfOrt.x + (knopf - symbol) * 0.5F), std::floor(knopfOrt.y + (knopf - symbol) * 0.5F)};
+    if (i > 0) {
+        ImGui::SetCursorScreenPos(knopfOrt);
+        const bool umschalten = ImGui::InvisibleButton(tr(Str::PtEbeneSicht), ImVec2{knopf, knopf});
+        IMGUI_TEST_ENGINE_ITEM_INFO(ImGui::GetItemID(), tr(Str::PtEbeneSicht), g.LastItemData.StatusFlags | (sichtbar ? ImGuiItemStatusFlags_Checked : 0));
+        if (ImGui::IsItemHovered()) { dl->AddRectFilled(knopfOrt, ImVec2{knopfOrt.x + knopf, knopfOrt.y + knopf}, ImGui::GetColorU32(ImGuiCol_ButtonHovered), rund); }
+        ImGui::SetItemTooltip("%s", tr(Str::PtEbeneSichtHint));
+        uiIcon(dl, sichtbar ? UiIcon::Sichtbar : UiIcon::Versteckt, symbolOrt, symbol, ImGui::GetColorU32(schrift));
+        ImGui::SetCursorScreenPos(danach);
+        if (umschalten) {
+            stapelBefehl(Str::PtEbeneSicht, [i, sichtbar](std::vector<mm::Ebene>& st, int&) { st[uz(i)].sichtbar = !sichtbar; });
         }
-        ImGui::SetItemTooltip("%s", tr(Str::PtOrdnerHint));
-        knopf(Str::PtBauen, -fs * 0.5F);
-        int bemalt = 0;
-        // P6: der Vergleich mit dem Original nur, wenn sich das Bild geaendert hat (vorher jedes Bild alle Leinwaende ganz)
-        for (const auto& b : g_bilder) {
-            if (b->bemaltFuer != b->l.stand) {
-                const mm::Stoppuhr uhr(mm::messung().vergleichMs);
-                b->bemaltFuer = b->l.stand;
-                b->bemaltAnders = b->l.bild != b->l.grund;
-            }
-            bemalt += b->bemaltAnders ? 1 : 0;
+    } else {
+        const ImGuiID schloss = ImGui::GetID("##ptschloss");
+        if (ImGui::ItemAdd(ImRect{knopfOrt, ImVec2{knopfOrt.x + knopf, knopfOrt.y + knopf}}, schloss, nullptr, ImGuiItemFlags_NoNav)) {
+            uiIcon(dl, UiIcon::Schloss, symbolOrt, symbol, ImGui::GetColorU32(uiIconFarbe(UiIcon::Schloss)));
         }
-        ImGui::TextDisabled("%s", format(Str::PtBemaltZahl, bemalt).c_str());
+        IMGUI_TEST_ENGINE_ITEM_INFO(schloss, "##ptschloss", 0);
     }
-    if (!z.meldung.empty()) {
+    ImGui::PopID();
+}
+
+// Ebenen: die Liste von oben (wie 3ds Max und Blender), Mischart und Deckkraft der gewaehlten Ebene, die Befehle im Raster.
+void rolloutEbenen(MalBild& m) {
+    ModellMalen& z = mz();
+    const float fs = ImGui::GetFontSize();
+    char zahl[16];
+    std::snprintf(zahl, sizeof zahl, "%d", static_cast<int>(m.l.ebenen.size()));
+    if (!ui::rolloutBeginn(tr(Str::PtGrEbenen), {.kurzinfo = zahl, .hinweis = tr(Str::PtEbenenHint)})) { return; }
+    const ImGuiStyle& stil = ImGui::GetStyle();
+    const float eng = std::floor(fs * 0.18F);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{stil.ItemSpacing.x, eng});
+    for (int i = static_cast<int>(m.l.ebenen.size()) - 1; i >= 0; --i) { ebenenZeile(m, i); }
+    ImGui::PopStyleVar();
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + stil.ItemSpacing.y - eng);
+    // Mischart und Deckkraft der gewaehlten Ebene; das Original hat keine (gesperrt)
+    const int a = std::clamp(m.l.aktiv, 0, static_cast<int>(m.l.ebenen.size()) - 1);
+    ImGui::BeginDisabled(a == 0);
+    ui::zeile(tr(Str::PtEbeneMisch), tr(Str::PtEbeneMischHint));
+    int mi = static_cast<int>(m.l.ebenen[uz(a)].misch);
+    const std::string arten = std::string(tr(Str::PtMischNormal)) + '\0' + tr(Str::PtMischMult) + '\0' + tr(Str::PtMischAdd) + '\0' + tr(Str::PtMischScreen) + '\0' + tr(Str::PtMischOverlay) + '\0' + '\0';
+    if (ImGui::Combo("##ptmisch", &mi, arten.c_str())) {
+        stapelBefehl(Str::PtEbeneMisch, [a, mi](std::vector<mm::Ebene>& st, int&) { st[uz(a)].misch = static_cast<mm::Mischart>(mi); });
+    }
+    ImGui::SetItemTooltip("%s", tr(Str::PtEbeneMischHint));
+    float d = m.l.ebenen[uz(a)].deckkraft * 100.0F;
+    const float deckAlt = m.l.ebenen[uz(a)].deckkraft;   // P3: der Regler setzt den Wert schon im Klickbild - den alten vorher merken
+    if (ui::regler(mitKennung(Str::PtDeckkraft, "ptdeck").c_str(), &d, 0.0F, 100.0F, "%.0f %%", tr(Str::PtEbeneDeckHint))) {
+        m.l.ebenen[uz(a)].deckkraft = d / 100.0F;   // live; der Rueckgaengig-Schritt beim Loslassen
+        mm::zusammensetzen(m.l);
+        mm::schmutzigDazu(m.l, mm::Rechteck{0, 0, m.l.b - 1, m.l.h - 1});
+        anzeigeNachfuehren(m);
+    }
+    if (ImGui::IsItemActivated()) { z.deckVorher = deckAlt; }
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+        const float neu = m.l.ebenen[uz(a)].deckkraft;
+        m.l.ebenen[uz(a)].deckkraft = z.deckVorher;
+        stapelBefehl(Str::PtEbeneDeck, [a, neu](std::vector<mm::Ebene>& st, int&) { st[uz(a)].deckkraft = neu; });
+    }
+    ImGui::EndDisabled();
+    // Neue Ebene und Zusammenfuegen wie im Entwurf zuerst
+    ui::rasterBeginn(2);
+    aktionsKnopf(Str::PtEbeneNeu, UiIcon::Plus);
+    aktionsKnopf(Str::PtEbeneVereinen, UiIcon::Boden);
+    aktionsKnopf(Str::PtEbeneHoch, UiIcon::MalHoch);
+    aktionsKnopf(Str::PtEbeneRunter, UiIcon::MalRunter);
+    aktionsKnopf(Str::PtEbeneLoeschen, UiIcon::Loeschen);
+    aktionsKnopf(Str::PtMaskeAn, UiIcon::MalMaske);
+    aktionsKnopf(Str::PtMaskeLeeren, UiIcon::MalMaskeLeer);
+    aktionsKnopf(Str::PtMaskeUmkehren, UiIcon::MalMaskeUmkehr);
+    ui::rasterEnde();
+    ui::rolloutEnde();
+}
+
+// Fuer das Spiel: der Ausgabeordner, der Hauptknopf, die Zahl der bemalten Bilder (auch als Kurzinfo der Gruppe).
+void rolloutAusgabe() {
+    ModellMalen& z = mz();
+    const float fs = ImGui::GetFontSize();
+    int bemalt = 0;
+    // P6: der Vergleich mit dem Original nur, wenn sich das Bild geaendert hat (vorher jedes Bild alle Leinwaende ganz)
+    for (const auto& b : g_bilder) {
+        if (b->bemaltFuer != b->l.stand) {
+            const mm::Stoppuhr uhr(mm::messung().vergleichMs);
+            b->bemaltFuer = b->l.stand;
+            b->bemaltAnders = b->l.bild != b->l.grund;
+        }
+        bemalt += b->bemaltAnders ? 1 : 0;
+    }
+    char info[96];
+    std::snprintf(info, sizeof info, trN(Str::PtInfoBemalt, bemalt), bemalt);
+    // wie 3ds Max auch im Reiter Dienstprogramme, wie Blender im Reiter Werkzeug (dem des Bereichs)
+    if (!ui::rolloutBeginn(tr(Str::PtGrAusgabe), {.kurzinfo = info, .ton = bemalt > 0 ? ui::Ton::Normal : ui::Ton::Leise, .reiter = modellReiter(MbReiter::Dienste, MbReiterBl::Werkzeug), .hinweis = tr(Str::PtAusgabeHint)})) {
+        return;
+    }
+    const std::string ordner = ausgabeOrdner();
+    ui::zeile(tr(Str::PtOrdner), tr(Str::PtOrdnerHint));
+    const float wahl = ImGui::CalcTextSize("...").x + ImGui::GetStyle().FramePadding.x * 2.0F;
+    const float feldB = std::max(ui::feldBreite() - wahl - 2.0F, fs * 2.0F);
+    ImGui::SetNextItemWidth(feldB);
+    // der Platzhalter zeigt das Ende des Pfads (den Ordner, in den geschrieben wird), der ganze steht im Tooltip
+    ImGui::InputTextWithHint("##ptordner", pfadGekuerzt(ordner, feldB - ImGui::GetStyle().FramePadding.x * 2.0F).c_str(), z.ordner, sizeof z.ordner);
+    ImGui::SetItemTooltip("%s\n%s", ordner.c_str(), tr(Str::PtOrdnerHint));
+    ImGui::SameLine(0.0F, 2.0F);
+    if (ImGui::Button("...##ptordnerwahl")) {
+        const std::string o = platform::pickFolder(tr(Str::PtOrdner), ordner);
+        if (!o.empty()) { std::snprintf(z.ordner, sizeof z.ordner, "%s", o.c_str()); }
+    }
+    ImGui::SetItemTooltip("%s", tr(Str::PtOrdnerWaehlen));
+    aktionsKnopf(Str::PtBauen, UiIcon::Speichern, true);
+    ui::wertTabelle({{tr(Str::PtBemalt), std::to_string(bemalt), bemalt > 0 ? ui::Ton::Normal : ui::Ton::Leise, {}}});
+    ui::rolloutEnde();
+}
+
+}  // namespace
+
+void drawModellMalenBereich() {
+    const ModellMalen& z = mz();
+    const mm::Stoppuhr bereichUhr(mm::messung().bereichMs);
+    bilderPruefen();
+    const std::vector<Gruppe> gr = gruppen();
+    MalBild* m = jetzt(true);
+    rolloutZiel(gr, m);
+    rolloutWerkzeuge();
+    rolloutPinsel();
+    if (m != nullptr) {
+        rolloutEbenen(*m);
+        // der Tipp des Entwurfs steht als eigener Kasten unter den Ebenen (nur im Reiter, den der Bereich vorgibt)
+        if (ui::feldReiterStandard()) { ui::tipp(tr(Str::PtEbenenTipp)); }
+    }
+    rolloutAusgabe();
+    // die letzte Meldung des Malens, solange die Meldungszeile des Felds (ModellTab::meldung) schon eine andere zeigt -
+    // nur im Reiter, den der Bereich vorgibt
+    if (!z.meldung.empty() && z.meldung != mt().meldung && ui::feldReiterStandard()) {
         ImGui::PushTextWrapPos(0.0F);
         cjkTextDisabled("%s", z.meldung.c_str());
         ImGui::PopTextWrapPos();
