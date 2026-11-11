@@ -2094,9 +2094,15 @@ std::vector<Schritt> bauen() {
         ke::editor().bau.zielOrdner.clear();
         ke::einstellungenSpeichern();
     }));
-    // Bedienbar waehrend des Bauens, und Abbrechen
-    add(tu("Eintrag \"Test langsam\" (-light -super 8 -samples 16 -bounce 100), Konsole leeren", [] {
-        ke::editor().bauProjekt.eintraege.push_back(karte::BauEintrag{"Test langsam", {"[q3map2] -light -super 8 -samples 16 -bounce 100 \"[MapFile]\""}});
+    // Bedienbar waehrend des Bauens, und Abbrechen. Der Bau muss noch laufen, wenn der Test Abbrechen klickt: q3map2 rechnet hier
+    // mit einem Faden (-threads 1). Der Selbsttest laeuft in den Testlaeufen mit Leerlauf-Prioritaet, q3map2 startet der Editor
+    // mit normaler (karte_bau_win32.cpp) - mit allen Kernen kam der Editor neben dem Licht nicht mehr zum Zug, bis es fertig war:
+    // im Lauf uif_ke (10.11., vier Selbsttests zugleich) steht "build finished: Test langsam, 1 step, 62.3 s" vor "Klick Cancel
+    // build"; allein laufend kommt der Klick nach 0,7 bis 1,0 s, bevor das Licht alle Kerne belegt. Mit einem Faden bleiben dem
+    // Editor die uebrigen Kerne.
+    add(tu("Eintrag \"Test langsam\" (-threads 1 -light -super 8 -samples 16 -bounce 100), Konsole leeren", [] {
+        ke::editor().bauProjekt.eintraege.push_back(
+            karte::BauEintrag{"Test langsam", {"[q3map2] -threads 1 -light -super 8 -samples 16 -bounce 100 \"[MapFile]\""}});
         ke::konsoleLeeren();
     }));
     add(bauMenuepunkt("Test langsam"));

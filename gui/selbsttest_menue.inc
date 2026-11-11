@@ -952,12 +952,39 @@ std::vector<Schritt> schritteM5bProjekt() {
     add(pause(0.4));
     add(pruefe("M5b Projekt: Frage nach der Sicherung erscheint", [] { return finde(tr(Str::MePrjWiederherstellen), "", 0, false, "") != nullptr; }));
     add(foto("menue_projekt_sicherung"));
+    // Die gefundene Sicherung muss weg sein. Das wiederhergestellte Menue ist ungespeichert: der Sicherungstakt (alle 30 s)
+    // schreibt es wieder in denselben Ordner. Faellt der Takt zwischen Klick und Pruefung, liegt dort schon die naechste
+    // Sicherung - an ihrer spaeteren Schreibzeit erkannt (vorher schlug die Pruefung dann fehl: Zeitrennen).
+    const auto sicherungZeit = std::make_shared<fs::file_time_type>();
+    add(tu("M5b Projekt: Schreibzeit der gefundenen Sicherung merken", [ordner, sicherungZeit] {
+        std::error_code ec;
+        *sicherungZeit = fs::last_write_time(*ordner / ".jksautosave" / "autosave.txt", ec);
+    }));
     add(klick(tr(Str::MePrjWiederherstellen)));
     add(pause(0.3));
-    add(pruefe("M5b Projekt: Wiederherstellen bringt den geaenderten Text (ungespeichert), Sicherung weg", [st, ordner, geaendert] {
+    add(pruefe("M5b Projekt: Wiederherstellen bringt den geaenderten Text (ungespeichert), Sicherung weg", [st, ordner, geaendert, sicherungZeit] {
         std::error_code ec;
-        return st().dokumente == 1 && st().text == *geaendert && !fs::exists(*ordner / ".jksautosave", ec);
+        const bool da = fs::exists(*ordner / ".jksautosave", ec);
+        const fs::file_time_type zeit = da ? fs::last_write_time(*ordner / ".jksautosave" / "autosave.txt", ec) : fs::file_time_type{};
+        const bool neu = da && !ec && zeit > *sicherungZeit;
+        const bool ok = st().dokumente == 1 && st().text == *geaendert && (!da || neu);
+        if (da || !ok) {
+            diag::detail(std::string("Knopftest: M5b Wiederherstellen: ") + std::to_string(st().dokumente) + " Dokument(e), Text " +
+                         (st().text == *geaendert ? "wie gesichert" : "ANDERS") + ", Sicherungsordner " +
+                         (!da ? "weg" : neu ? "vom Sicherungstakt neu geschrieben" : "noch der ALTE"));
+        }
+        return ok;
     }));
+    add(tu("M5b Projekt: Sicherung sofort (was der Takt alle 30 Sekunden tut)", [] { me::sichereJetzt(); }));
+    add(pruefe("M5b Projekt: das wiederhergestellte, ungespeicherte Menue wird wieder gesichert (neue Sicherung mit dem geaenderten Text)",
+               [ordner, geaendert, sicherungZeit] {
+                   std::error_code ec;
+                   std::ifstream f(*ordner / ".jksautosave" / "1.menu", std::ios::binary);
+                   std::ostringstream t;
+                   t << f.rdbuf();
+                   const fs::file_time_type zeit = fs::last_write_time(*ordner / ".jksautosave" / "autosave.txt", ec);
+                   return !ec && zeit > *sicherungZeit && t.str() == *geaendert;
+               }));
     add(tu("M5b Projekt: Rueckgaengig", [] { (void)me::rueckgaengig(); }));
     add(pruefe("M5b Projekt: Rueckgaengig fuehrt zur gespeicherten Fassung", [st] { return st().text == kLayoutProbe; }));
     add(tu("M5b Projekt: Wiederholen, Projekt speichern, als pk3 ausgeben", [] {
