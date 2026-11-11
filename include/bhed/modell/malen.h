@@ -74,7 +74,22 @@ struct Leinwand {
     std::vector<Dreieck> dreiecke;           // die Dreiecke, die dieses Bild zeichnen
     std::vector<Dreieck> dreieckeBeimLaden;  // fuer "Auf neue UV umbacken"
     std::vector<std::array<float, 4>> kugeln; // P15: je Dreieck Mitte und Umkreis (dreieckeSetzen), fuer das schnelle Verwerfen
-    Rechteck schmutzig;                      // Ergebnis neu zusammensetzen/hochladen
+    // MBMAL: Suchgitter ueber die Kugeln der Dreiecke (dreieckeSetzen) - ein Tupfer in 3D prueft nur die Dreiecke der Zellen
+    // in seiner Reichweite statt alle (in der Luft: keines). Passt es nicht zu den Dreiecken, prueft der Tupfer alle.
+    struct Gitter {
+        float ursprung[3]{};
+        float zelle = 0.0F;
+        int n[3]{};
+        std::size_t dreieckZahl = 0;             // fuer so viele Dreiecke gebaut
+        std::vector<std::uint32_t> anfang;       // je Zelle der erste Eintrag (n[0] * n[1] * n[2] + 1 Werte)
+        std::vector<std::uint32_t> eintraege;    // die Dreiecke der Zellen hintereinander
+        std::vector<std::uint32_t> gross;        // Dreiecke ueber sehr viele Zellen: bei jedem Tupfer geprueft
+    } gitter;
+    Rechteck schmutzig;                      // Ergebnis neu hochladen: die Huelle aller Aenderungen seit dem letzten Hochladen
+    // MBMAL: dasselbe genau - je Kachel (kKachel) das geaenderte Rechteck und die Kacheln mit einem. Ein Tupfer ueber eine
+    // UV-Naht aendert zwei kleine Flaechen; ihre Huelle reichte bis zum ganzen Bild. Nur ueber schmutzigDazu/schmutzigLeeren.
+    std::vector<Rechteck> schmutzKachel;
+    std::vector<std::int32_t> schmutzListe;
     int stand = 0;                           // zaehlt jede Aenderung
     int gespeichert = 0;                     // stand beim Laden/letzten Bauen
     int ausbluten = 4;
@@ -82,6 +97,12 @@ struct Leinwand {
     std::vector<float> tupfWert;
     std::vector<std::int32_t> tupfMarke;
     std::int32_t tupfNr = 0;
+    // MBMAL: Zwischenspeicher eines Tupfers - Dreiecke aus dem Gitter (einmal je Tupfer), die Kacheln mit Treffern und die
+    // Kacheln, in die er schreibt (Marke = tupfNr, Platz in der Liste des Tupfers)
+    std::vector<std::int32_t> gitterMarke;
+    std::vector<std::uint32_t> gitterFund;
+    std::vector<std::int32_t> kachelMarke[2];
+    std::vector<std::int32_t> kachelPlatz[2];
 
     [[nodiscard]] bool bemalt() const noexcept { return stand != 0; }
     [[nodiscard]] std::size_t texel(int x, int y) const noexcept {
@@ -98,6 +119,12 @@ void leinwandLeer(Leinwand& l, int b, int h, std::array<std::uint8_t, 4> farbe);
 void dreieckeSetzen(Leinwand& l, const std::vector<Dreieck>& d, bool alsLadestand);
 // Ebenen-Stapel -> Ergebnis im Rechteck (leer: alles)
 void zusammensetzen(Leinwand& l, Rechteck r = {});
+// MBMAL: eine Aenderung des Ergebnisses im Rechteck melden (Huelle und Kacheln; auf das Bild begrenzt)
+void schmutzigDazu(Leinwand& l, const Rechteck& r);
+// die gemeldeten Flaechen als Rechtecke, die sich nicht ueberdecken - benachbarte Kacheln mit gleichen Kanten sind
+// zusammengefasst (ein Tupfer in einer Insel: ein Rechteck). Leer, wenn nichts gemeldet ist.
+[[nodiscard]] std::vector<Rechteck> schmutzRechtecke(const Leinwand& l);
+void schmutzigLeeren(Leinwand& l);
 
 // --- Rueckgaengig in Kacheln -------------------------------------------------------------------------------------
 inline constexpr int kKachel = 64;

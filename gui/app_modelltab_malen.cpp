@@ -293,7 +293,7 @@ struct MalBild {
     int lod = -1;                         // P1: Detailstufe der Dreiecke
     int bemaltFuer = -1;                  // P6: l.stand des letzten Vergleichs mit dem Original
     bool bemaltAnders = false;
-    mm::Rechteck texSchmutzig;            // fuer die 2D-Ansicht noch hochzuladen
+    std::vector<mm::Rechteck> texSchmutzig;   // fuer die 2D-Ansicht noch hochzuladen (MBMAL: die geaenderten Flaechen statt ihrer Huelle)
     std::vector<StufenBindung> bindungen; // die Stufen der Vorschau mit diesem Bild
     std::uint64_t bindungenFuer = 0;      // P31: gesucht fuer diese Texturen (ModelTextures::ladeNummer, 0: neu suchen)
     int maskeFuer = -1;                   // P8: l.stand der gemerkten Maskenflaechen (-1: neu bestimmen)
@@ -476,13 +476,19 @@ MalBild* jetzt(bool laden) {
 // Ein Bild der Vorschau aus der Leinwand nachfuehren: gleich gross nur das Rechteck r (Bildpunkte und Grafikkarte, gpu::
 // figurBildBereich: Stufe 0 und die Pyramide darueber - bis REST Punkt 1 je Tupfer das ganze Bild samt Pyramide und
 // Pruefsumme neu), verkleinert (r_picmip/Bildgrenze) das ganze Bild mit derselben Rechnung wie beim Laden.
-void bildNachfuehren(TextureSet::Tex& x, const MalBild& m, const mm::Rechteck& r) {
+// MBMAL: `teile` sind die geaenderten Flaechen (mm::schmutzRechtecke) - erst die Bildpunkte aller Flaechen, dann je Flaeche
+// die Grafikkarte (jede Stufe der Pyramide entsteht aus den fertigen Bildpunkten darunter).
+void bildNachfuehren(TextureSet::Tex& x, const MalBild& m, const std::vector<mm::Rechteck>& teile) {
     if (x.width == m.l.b && x.height == m.l.h && x.rgba.size() == m.l.bild.size()) {
-        for (int y = r.y0; y <= r.y1 && r.x0 <= r.x1; ++y) {
-            const std::size_t i = m.l.texel(r.x0, y) * 4U;
-            std::memcpy(&x.rgba[i], &m.l.bild[i], uz(r.x1 - r.x0 + 1) * 4U);
+        for (const mm::Rechteck& r : teile) {
+            for (int y = r.y0; y <= r.y1 && r.x0 <= r.x1; ++y) {
+                const std::size_t i = m.l.texel(r.x0, y) * 4U;
+                std::memcpy(&x.rgba[i], &m.l.bild[i], uz(r.x1 - r.x0 + 1) * 4U);
+            }
         }
-        if (x.mips.empty() && gpu::figurBildBereich(&x, r.x0, r.y0, r.x1, r.y1)) { return; }
+        bool hochgeladen = x.mips.empty();
+        for (std::size_t i = 0; i < teile.size() && hochgeladen; ++i) { hochgeladen = gpu::figurBildBereich(&x, teile[i].x0, teile[i].y0, teile[i].x1, teile[i].y1); }
+        if (hochgeladen) { return; }
     } else if (x.width > 0 && x.height > 0) {
         image::Image im;
         im.width = m.l.b;
@@ -525,7 +531,7 @@ void bindungenSuchen(MalBild& m) {
 
 // Die Stufen der Vorschau dieser Leinwand nachfuehren; eine Stufe ohne eigene Kopie (das erste Mal, neu geladene
 // Texturen) bekommt sie und das ganze Bild. true, wenn eine Stufe da ist.
-bool stufenNachfuehren(MalBild& m, mm::Rechteck r) {
+bool stufenNachfuehren(MalBild& m, const std::vector<mm::Rechteck>& teile) {
     auto& st = g_app->modelTextures.stufen;
     if (m.bindungenFuer != g_app->modelTextures.ladeNummer) { bindungenSuchen(m); }   // P31: nach der Ladenummer, nicht der Adresse
     bool da = false;
@@ -533,14 +539,14 @@ bool stufenNachfuehren(MalBild& m, mm::Rechteck r) {
         if (uz(b.teil) >= st.size() || b.stufe >= st[uz(b.teil)].size()) { continue; }
         ModelTextures::FigurStufe& fs = st[uz(b.teil)][b.stufe];
         if (fs.pixel.size() != 1U || fs.pixel[0] == nullptr) { continue; }
-        mm::Rechteck rb = r;
         if (fs.pixel[0].get() != b.eigen.get()) {
             b.eigen = std::make_shared<TextureSet::Tex>(*fs.pixel[0]);
             b.eigen->mips.clear();   // die Grafikkarte rechnet dieselbe Pyramide (ladeMitStufen/figurBildBereich wie buildMips)
             fs.pixel[0] = b.eigen;
-            rb = mm::Rechteck{0, 0, m.l.b - 1, m.l.h - 1};
+            bildNachfuehren(*b.eigen, m, {mm::Rechteck{0, 0, m.l.b - 1, m.l.h - 1}});
+        } else {
+            bildNachfuehren(*b.eigen, m, teile);
         }
-        bildNachfuehren(*b.eigen, m, rb);
         da = true;
     }
     return da;
@@ -552,24 +558,36 @@ void anzeigeNachfuehren(MalBild& m) {
     if (m.l.schmutzig.leer()) { return; }
     const mm::Stoppuhr uhr(mm::messung().hochladenMs);
     const auto ab = std::chrono::steady_clock::now();
-    m.texSchmutzig.dazu(m.l.schmutzig);
-    const mm::Rechteck r{std::max(m.l.schmutzig.x0, 0), std::max(m.l.schmutzig.y0, 0), std::min(m.l.schmutzig.x1, m.l.b - 1), std::min(m.l.schmutzig.y1, m.l.h - 1)};
-    if (mm::messung().an) { mm::messung().hochTexel += static_cast<long long>(r.x1 - r.x0 + 1) * static_cast<long long>(r.y1 - r.y0 + 1); }
-    bool ansicht = stufenNachfuehren(m, r);
+    // MBMAL: die geaenderten Flaechen statt ihrer Huelle (ein Tupfer ueber eine UV-Naht: zwei kleine Flaechen statt des Rechtecks
+    // um beide Inseln - bis zum ganzen Bild samt Pyramide, je Tupfer und je Textur der Vorschau)
+    const std::vector<mm::Rechteck> teile = mm::schmutzRechtecke(m.l);
+    // die 2D-Ansicht laedt sie beim naechsten Zeichnen; wird sie lange nicht gezeichnet, bleibt eine Huelle statt der Liste
+    constexpr std::size_t kTeileHoechstens = 512;
+    if (m.texSchmutzig.size() + teile.size() > kTeileHoechstens) {
+        mm::Rechteck huelle = m.l.schmutzig;
+        for (const mm::Rechteck& t : m.texSchmutzig) { huelle.dazu(t); }
+        m.texSchmutzig.assign(1U, huelle);
+    } else {
+        m.texSchmutzig.insert(m.texSchmutzig.end(), teile.begin(), teile.end());
+    }
+    if (mm::messung().an) {
+        for (const mm::Rechteck& r : teile) { mm::messung().hochTexel += static_cast<long long>(r.x1 - r.x0 + 1) * static_cast<long long>(r.y1 - r.y0 + 1); }
+    }
+    bool ansicht = stufenNachfuehren(m, teile);
     // das Bild der Flaeche (bySurface: Flaechen ohne Shader-Stufen) - je Flaeche, deren erstes Bild diese Datei ist
     auto& by = g_app->modelTextures.bySurface;
     for (const int t : m.anzeigeTeile) {
         if (t < 0 || uz(t) >= by.size()) { continue; }
         const std::vector<BildStufe>& st = bildStufen(shaderVon(t));
         if (st.empty() || st[0].schluessel != m.schluessel) { continue; }
-        bildNachfuehren(by[uz(t)], m, r);
+        bildNachfuehren(by[uz(t)], m, teile);
         ansicht = true;
     }
     if (ansicht) {
         g_app->modelDirty = true;
         ++mz().ansichtStand;   // die 3D-Ansichten zeichnen im selben Bild neu (Stand in eineAnsicht)
     }
-    m.l.schmutzig = mm::Rechteck{};
+    mm::schmutzigLeeren(m.l);
     mz().hochladenMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ab).count();
     ++mz().hochgeladen;
 }
@@ -738,8 +756,6 @@ bool modellMalenAnsicht(const ModellAnsicht& a, ImVec2 maus, bool neu) {
             z.gruppe = gw;
             z.stufe = 0;
         }
-    } else if (!z.strichLaeuft) {
-        return false;
     }
     MalBild* m = jetzt(true);
     if (m == nullptr) {
@@ -1373,7 +1389,7 @@ void modellMalenVorschauAbgleich() {
     if (g_bilderLadung != mt().dok.ladeStand()) { return; }
     for (auto& b : g_bilder) {
         if (b->l.bemalt() && b->bindungenFuer != g_app->modelTextures.ladeNummer) {   // P31
-            b->l.schmutzig = mm::Rechteck{0, 0, b->l.b - 1, b->l.h - 1};
+            mm::schmutzigDazu(b->l, mm::Rechteck{0, 0, b->l.b - 1, b->l.h - 1});
             anzeigeNachfuehren(*b);
         }
     }
@@ -1542,7 +1558,7 @@ void drawModellMalenBereich() {
                 if (ImGui::SliderFloat("##deck", &d, 0.0F, 100.0F, "%.0f %%")) {
                     e.deckkraft = d / 100.0F;   // live; der Rueckgaengig-Schritt beim Loslassen
                     mm::zusammensetzen(m->l);
-                    m->l.schmutzig = mm::Rechteck{0, 0, m->l.b - 1, m->l.h - 1};
+                    mm::schmutzigDazu(m->l, mm::Rechteck{0, 0, m->l.b - 1, m->l.h - 1});
                     anzeigeNachfuehren(*m);
                 }
                 if (ImGui::IsItemActivated()) { z.deckVorher = deckAlt; }
@@ -1712,15 +1728,15 @@ void drawModellMalEditor(ImVec2 groesse) {
         pl.stand = render::texturStand();
         pl.fuer = m;
         pl.generation = g_bilderGeneration;
-        m->texSchmutzig = mm::Rechteck{};
+        m->texSchmutzig.clear();
     } else if (pl.fuer != m || pl.generation != g_bilderGeneration) {
         render::updateTexture(pl.id, m->l.bild.data(), m->l.b, m->l.h);
         pl.fuer = m;
         pl.generation = g_bilderGeneration;
-        m->texSchmutzig = mm::Rechteck{};
-    } else if (!m->texSchmutzig.leer()) {
-        render::updateTextureBereich(pl.id, m->l.bild.data(), m->l.b, m->l.h, m->texSchmutzig.x0, m->texSchmutzig.y0, m->texSchmutzig.x1 + 1, m->texSchmutzig.y1 + 1);
-        m->texSchmutzig = mm::Rechteck{};
+        m->texSchmutzig.clear();
+    } else if (!m->texSchmutzig.empty()) {
+        for (const mm::Rechteck& r : m->texSchmutzig) { render::updateTextureBereich(pl.id, m->l.bild.data(), m->l.b, m->l.h, r.x0, r.y0, r.x1 + 1, r.y1 + 1); }
+        m->texSchmutzig.clear();
     }
     dl->AddImage(reinterpret_cast<ImTextureID>(pl.id), k0, k1);
     const auto nachSchirm2 = [&](float u, float v) { return ImVec2{k0.x + u * bw, k0.y + v * bh}; };
