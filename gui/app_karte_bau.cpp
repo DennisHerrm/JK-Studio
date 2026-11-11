@@ -2702,7 +2702,8 @@ void bauFortsetzenZeichnen() {
     const std::string titel = std::string(trK(Str::KeBpTitel)) + "###kartebaufortsetzen";
     bool offen = true;
     int wahl = 0;   // 1 aktuelle Karte, 2 Karte wie angehalten, 3 verwerfen
-    if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+    // UIFORM: jedes Fenster beginnt ueber den Baustein; dieses setzt seine Groesse in jedem Bild selbst und bleibt, wie es ist
+    if (ui::fensterBegin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
         if (!s.da) {
             cjkTextWrapped("%s", trK(Str::KeBpKeiner));
         } else {
