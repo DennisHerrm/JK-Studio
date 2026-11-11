@@ -5843,6 +5843,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_kartenruhe.inc"   // rc610 R1: der Karten-Editor zeichnet nur bei Bedarf
 #include "selbsttest_mbraster.inc"   // MBRASTER: Boden-Raster im Model-Tab (modellblock, BHED_MODELL_NUR=raster; Gizmo/Kompass am Ende von kopf)
 #include "selbsttest_mbnav.inc"      // MBNAV: Navigation wie 3ds Max / Blender (modellblock, BHED_MODELL_NUR=nav; Handbuch BHED_HB_NUR=mbnav)
+#include "selbsttest_uiform.inc"      // UIFORM: Formular-Baustein (Into script), Mindestgroessen aller Fenster
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -6232,6 +6233,7 @@ void selbsttest() {
     static const bool nurTabfenster = std::strcmp(modus, "tabfenster") == 0;   // rc609 T1
     static const bool nurTabfensterNeustart = std::strcmp(modus, "tabfensterneustart") == 0;
     static const bool nurTabfensterLeistung = std::strcmp(modus, "tabfensterleistung") == 0;
+    static const bool nurUiform = std::strcmp(modus, "uiform") == 0;   // UIFORM
     // Missionsbau im Map-Tab: jeder Knopf, Kombinationen, Zufall (11.10.).
     static const bool nurMissionsbau = std::strcmp(modus, "missionsbau") == 0;
     // rc601 ton: der Vorschauton wie im Spiel (Hoerer, PVS, Schleifen, Pegel).
@@ -6501,6 +6503,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurTabfensterLeistung) {
                 a.schritte = tabfensterLeistungSchritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurUiform) {
+                a.schritte = uif::schritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurJk2) {

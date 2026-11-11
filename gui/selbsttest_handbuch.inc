@@ -854,8 +854,18 @@ Schritt fotoTeil(const std::string& name, std::function<ImRect()> ausschnitt, Ma
     return {"Foto " + name, [=](int b) {
                 const char* ordner = std::getenv("BHED_FOTOS");
                 if (ordner == nullptr) { return true; }
-                // rc608 Teil 3b: BHED_FOTO_NUR=a_: nur diese Bilder (3840 x 2160 sind 25 MB je Bild)
-                if (const char* nur = std::getenv("BHED_FOTO_NUR"); nur != nullptr && name.rfind(nur, 0) != 0) { return true; }
+                // rc608 Teil 3b: BHED_FOTO_NUR=a_: nur diese Bilder (3840 x 2160 sind 25 MB je Bild). UIFORM: mehrere Anfaenge mit
+                // Komma (BHED_FOTO_NUR=h_mission_,t4_1,t4_4) - Bilder aus verschiedenen Stellen eines Laufs.
+                if (const char* nur = std::getenv("BHED_FOTO_NUR"); nur != nullptr && *nur != '\0') {
+                    bool gewollt = false;
+                    for (const char* a = nur; *a != '\0' && !gewollt;) {
+                        const char* e = std::strchr(a, ',');
+                        const std::size_t n = e != nullptr ? static_cast<std::size_t>(e - a) : std::strlen(a);
+                        gewollt = n > 0 && name.compare(0, n, a, n) == 0;
+                        a += n + (e != nullptr ? 1 : 0);
+                    }
+                    if (!gewollt) { return true; }
+                }
                 Marken mk = marken;
                 if (!mk) {
                     auto& liste = markenListe();

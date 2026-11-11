@@ -6792,6 +6792,14 @@ std::vector<Schritt> endeSchritte(bool voll) {
                       g_ok, g_fehler);
         diag::detail(z);
     });
+    // UIFORM: die Mindestgroessen heben kein Fenster an, dessen Groesse die Anordnung (ein Dock-Knoten) bestimmt - auch nicht in
+    // dem Bild, in dem ein Bereich seine Anordnung neu baut (Felder ein- und ausklappen).
+    s.push_back(pruefe("Mindestgroessen: kein Fenster im Dock-Knoten angehoben", [] {
+        std::string liste;
+        const int n = ui::knotenAnhebungen(&liste);
+        if (n > 0) { diag::detail("Knopftest: UIF hebt im Dock-Knoten " + std::to_string(n) + " mal:" + liste); }
+        return n == 0;
+    }));
     if (voll) {
         s.push_back(tu("Beenden anfordern", [] { g_app->wantQuit = true; }));
         s.push_back(pruefe("Beenden: Speichernfrage erscheint",
