@@ -299,6 +299,25 @@ void modellMalenEnde();
 void modellMalenUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
 bool modellMalenRueckgaengig();
 [[nodiscard]] bool modellMalenUngespeichert();   // Pruefung seit rc610 P1: ein bemaltes Bild ist nicht gebaut
+// MBMAL (Selbsttest): der Verlauf aller Leinwaende - Bytes der Schritte, Schritte, gesicherte Kacheln
+struct MalVerlaufStand {
+    long long bytes = 0;
+    int schritte = 0;
+    int kacheln = 0;
+};
+[[nodiscard]] MalVerlaufStand modellMalenVerlaufStand();
+// MBMAL Punkt 5 (Selbsttest ptsprung): die seit `vorher` (Ergebnis der Leinwand) geaenderten Texel der gewaehlten Leinwand
+// am Schirm der Ansicht - je Texel die Stelle in der Pose (jedes Dreieck, das ihn in UV bedeckt; das naechste zum Pfad zaehlt)
+// und ihr Abstand zur Linie `pfad` (Mauspositionen am Schirm)
+struct MalPfadPruefung {
+    int geaendert = 0;        // geaenderte Texel in einem Dreieck
+    int ausserhalb = 0;       // davon weiter als die Grenze vom Pfad
+    int ohneDreieck = 0;      // geaenderte Texel ausserhalb aller Dreiecke (Ausbluten)
+    float weitestePx = 0.0F;  // der weiteste geaenderte Texel
+    std::string flaechenAusserhalb;   // die Flaechen der Texel weiter als die Grenze (Namen, je Flaeche die Zahl)
+};
+[[nodiscard]] MalPfadPruefung modellMalenPfadPruefen(const ModellAnsicht& a, const std::vector<std::uint8_t>& vorher, const std::vector<ImVec2>& pfad,
+                                                     float grenzePx);
 bool modellMalenWiederholen();
 int modellMalenBauen();                      // Bilder geschrieben, -1 Fehler
 void modellStiftDruck(float druck);
@@ -399,10 +418,12 @@ struct ModellMalen {
     bool klonQuelleDa = false;
     float klonVersatz[2]{};
     bool klonErster = false;
-    modell::texmalen::Strich strich;
+    modell::texmalen::Strich strich;  // 2D-Bild: Stellen in UV; 3D-Ansicht (MBMAL Punkt 5): Mauspositionen am Schirm
     bool strichLaeuft = false;
     bool strich2d = false;
     float letzteUv[2]{};
+    bool uvDavor = false;             // MBMAL Punkt 5: der vorige Tupfer des Strichs in 3D traf das Bild (letzteUv gilt)
+    float letzterOrt[3]{};            // MBMAL (Messung): der vorige Tupfer in 3D in der Ruhelage
     int modalArt = 0;                 // 1 Radius (F), 2 Staerke (Umschalt+F)
     float modalStart = 0.0F;
     float modalWert = 0.0F;

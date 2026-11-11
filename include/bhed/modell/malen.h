@@ -19,6 +19,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -133,6 +134,8 @@ struct Verlauf {
     int gesichertEbenen = 0;
     std::size_t grenzeBytes = 512U * 1024U * 1024U;   // aelteste Schritte fallen danach weg
 };
+// Bytes der Bildpunkte eines Schritts (Kacheln, Masken, Stapel)
+[[nodiscard]] std::size_t schrittBytes(const UndoSchritt& s);
 void schrittBeginnen(Verlauf& v, const Leinwand& l, const std::string& name);
 // vor einer Aenderung im Rechteck der Ebene (-1 Maske) aufrufen
 void sichern(Verlauf& v, const Leinwand& l, int ebene, const Rechteck& r);
@@ -182,6 +185,9 @@ void spiegelPunkt(const float p[3], int achse, float out[3]) noexcept;
 
 // Treffer im Dreieck -> UV und Ort in der Ruhelage (Schwerpunktkoordinaten l0, l1, l2)
 void punktIm(const Dreieck& d, float l0, float l1, float l2, float uv[2], float ort[3]) noexcept;
+// Die Texel eines UV-Dreiecks mit ihren Schwerpunktkoordinaten - dieselbe Regel wie beim Malen (Mitte im Dreieck; x, y im
+// Bild gewickelt wie GL_REPEAT)
+void texelJeDreieck(const Dreieck& d, int b, int h, const std::function<void(int x, int y, float l0, float l1, float l2)>& f);
 
 // --- Umbacken alt -> neu (Modell-Block 1b, bisher nur im Test) -----------------------------------------------------
 // Je Texel jedes neuen Dreiecks die Stelle des alten (bilinear, GL_REPEAT wie die Engine), danach `ausbluten` Schritte

@@ -12,6 +12,7 @@
 
 #include "bhed/image.h"
 #include "bhed/modell/malen.h"
+#include "bhed/modell/malen_mess.h"
 #include "bhed/shaderscript.h"
 #include "bhed/sicherschreiben.h"
 #include "bhed/utf8pfad.h"
@@ -549,9 +550,11 @@ bool stufenNachfuehren(MalBild& m, mm::Rechteck r) {
 // Shader-Stufen) und die 2D-Ansicht
 void anzeigeNachfuehren(MalBild& m) {
     if (m.l.schmutzig.leer()) { return; }
+    const mm::Stoppuhr uhr(mm::messung().hochladenMs);
     const auto ab = std::chrono::steady_clock::now();
     m.texSchmutzig.dazu(m.l.schmutzig);
     const mm::Rechteck r{std::max(m.l.schmutzig.x0, 0), std::max(m.l.schmutzig.y0, 0), std::min(m.l.schmutzig.x1, m.l.b - 1), std::min(m.l.schmutzig.y1, m.l.h - 1)};
+    if (mm::messung().an) { mm::messung().hochTexel += static_cast<long long>(r.x1 - r.x0 + 1) * static_cast<long long>(r.y1 - r.y0 + 1); }
     bool ansicht = stufenNachfuehren(m, r);
     // das Bild der Flaeche (bySurface: Flaechen ohne Shader-Stufen) - je Flaeche, deren erstes Bild diese Datei ist
     auto& by = g_app->modelTextures.bySurface;
@@ -595,6 +598,7 @@ bool treffer(const ModellAnsicht& a, ImVec2 maus, Treffer& tr) {
     const ModellTab& t = mt();
     const auto& h = modellHaut();
     tr = Treffer{};
+    if (mm::messung().an) { ++mm::messung().strahlen; }
     for (std::size_t i = 0; i < h.size() && i < t.anzeige.surfaces.size(); ++i) {
         if (!modellTeilGezeichnet(static_cast<int>(i))) { continue; }
         const GlmSurface& s = t.anzeige.surfaces[i];
@@ -717,6 +721,9 @@ bool modellMalenAktiv() { return mt().bereich == ModellBereich::Painting && !g_a
 
 bool modellMalenAnsicht(const ModellAnsicht& a, ImVec2 maus, bool neu) {
     ModellMalen& z = mz();
+    mm::Messung& ms = mm::messung();
+    const mm::Stoppuhr ansichtUhr(ms.ansichtMs);
+    mm::Stoppuhr trefferUhr(ms.trefferMs);
     Treffer trf;
     if (!treffer(a, maus, trf)) { return false; }
     const std::vector<Gruppe> g = gruppen();
@@ -777,6 +784,25 @@ bool modellMalenAnsicht(const ModellAnsicht& a, ImVec2 maus, bool neu) {
     std::array<float, 3> nGesp = m->normalen[uz(di)];
     nGesp[uz(z.spiegelAchse)] = -nGesp[uz(z.spiegelAchse)];
     const std::vector<std::uint8_t> zwGesp = z.spiegeln ? zugewandt(*m, nGesp) : std::vector<std::uint8_t>{};
+    trefferUhr.halt();
+    if (ms.an) {
+        ++ms.ereignisse;
+        if (z.strich.laeuft) {
+            const double weg = std::hypot(ort[0] - z.strich.letzter[0], ort[1] - z.strich.letzter[1], ort[2] - z.strich.letzter[2]);
+            ms.wegRuhe += weg;
+            ms.ereignisseWeit += weg > 10.0 * static_cast<double>(radius) ? 1 : 0;
+            if (weg > ms.wegRuheMax) {
+                ms.wegRuheMax = weg;
+                ms.sprungFlaechen[0] = ms.letzteFlaeche;
+                ms.sprungFlaechen[1] = trf.teil;
+                for (int k = 0; k < 3; ++k) {
+                    ms.sprungVon[k] = static_cast<double>(z.strich.letzter[k]);
+                    ms.sprungNach[k] = static_cast<double>(ort[k]);
+                }
+            }
+        }
+        ms.letzteFlaeche = trf.teil;
+    }
     int n = 0;
     float voriges[2] = {z.letzteUv[0], z.letzteUv[1]};
     for (const std::array<float, 3>& st : z.strich.weiter(ort, std::max(radius * std::max(p.abstand, 0.01F), 1e-4F))) {
@@ -839,6 +865,85 @@ const mm::Leinwand* modellMalenLeinwand() {
 // P1: ein bemaltes Bild, das noch nicht fuer das Spiel gebaut ist (Stand seit dem Laden oder dem letzten Bauen geaendert)
 bool modellMalenUngespeichert() {
     return std::any_of(g_bilder.begin(), g_bilder.end(), [](const std::unique_ptr<MalBild>& b) { return b->l.stand != b->l.gespeichert; });
+}
+
+MalVerlaufStand modellMalenVerlaufStand() {
+    MalVerlaufStand st;
+    for (const auto& b : g_bilder) {
+        for (const std::vector<mm::UndoSchritt>* liste : {&b->v.zurueck, &b->v.vor}) {
+            for (const mm::UndoSchritt& x : *liste) {
+                st.bytes += static_cast<long long>(mm::schrittBytes(x));
+                st.kacheln += static_cast<int>(x.kacheln.size());
+                ++st.schritte;
+            }
+        }
+    }
+    return st;
+}
+
+MalPfadPruefung modellMalenPfadPruefen(const ModellAnsicht& a, const std::vector<std::uint8_t>& vorher, const std::vector<ImVec2>& pfad, float grenzePx) {
+    MalPfadPruefung r;
+    const MalBild* m = jetzt(true);
+    if (m == nullptr || pfad.empty() || vorher.size() != m->l.bild.size()) { return r; }
+    const mm::Leinwand& l = m->l;
+    const ModellTab& t = mt();
+    const auto& h = modellHaut();
+    const auto abstand = [&pfad](ImVec2 p) {
+        float best = std::hypot(p.x - pfad[0].x, p.y - pfad[0].y);
+        for (std::size_t k = 1; k < pfad.size(); ++k) {
+            const ImVec2 a0 = pfad[k - 1];
+            const ImVec2 d{pfad[k].x - a0.x, pfad[k].y - a0.y};
+            const float ll = d.x * d.x + d.y * d.y;
+            const float s = ll > 0.0F ? std::clamp(((p.x - a0.x) * d.x + (p.y - a0.y) * d.y) / ll, 0.0F, 1.0F) : 0.0F;
+            best = std::min(best, std::hypot(p.x - (a0.x + d.x * s), p.y - (a0.y + d.y * s)));
+        }
+        return best;
+    };
+    const auto anders = [&](std::size_t i) { return std::memcmp(&l.bild[i * 4U], &vorher[i * 4U], 4U) != 0; };
+    std::vector<float> naechst(uz(l.b) * uz(l.h), -1.0F);   // je Texel der kleinste Abstand zum Pfad (-1: in keinem Dreieck)
+    std::vector<std::int32_t> flaeche(naechst.size(), -1);   // die Flaeche des naechsten
+    for (std::size_t i = 0; i < l.dreiecke.size() && i < m->herkunft.size(); ++i) {
+        const int teil = m->herkunft[i][0];
+        const std::size_t k = uz(m->herkunft[i][1]) * 3U;
+        if (teil < 0 || uz(teil) >= h.size() || uz(teil) >= t.anzeige.surfaces.size() || k + 2 >= t.anzeige.surfaces[uz(teil)].indexes.size()) { continue; }
+        const auto& idx = t.anzeige.surfaces[uz(teil)].indexes;
+        const std::array<float, 3>& q0 = h[uz(teil)][idx[k]];
+        const std::array<float, 3>& q1 = h[uz(teil)][idx[k + 1]];
+        const std::array<float, 3>& q2 = h[uz(teil)][idx[k + 2]];
+        mm::texelJeDreieck(l.dreiecke[i], l.b, l.h, [&](int x, int y, float l0, float l1, float l2) {
+            const std::size_t ti = l.texel(x, y);
+            if (!anders(ti)) { return; }
+            float p[3];
+            for (std::size_t c = 0; c < 3; ++c) { p[c] = q0[c] * l0 + q1[c] * l1 + q2[c] * l2; }
+            ImVec2 s;
+            float w = 0.0F;
+            if (!nachSchirm(a, p, s, w)) { return; }
+            const float d = abstand(s);
+            if (naechst[ti] < 0.0F || d < naechst[ti]) {
+                naechst[ti] = d;
+                flaeche[ti] = teil;
+            }
+        });
+    }
+    std::map<int, int> je;
+    for (std::size_t ti = 0; ti < naechst.size(); ++ti) {
+        if (!anders(ti)) { continue; }
+        if (naechst[ti] < 0.0F) {
+            ++r.ohneDreieck;
+            continue;
+        }
+        ++r.geaendert;
+        r.weitestePx = std::max(r.weitestePx, naechst[ti]);
+        if (naechst[ti] > grenzePx) {
+            ++r.ausserhalb;
+            ++je[flaeche[ti]];
+        }
+    }
+    const modell::Inhalt& in = t.dok.inhalt();
+    for (const auto& [f, n] : je) {
+        r.flaechenAusserhalb += (r.flaechenAusserhalb.empty() ? "" : ", ") + (f >= 0 && uz(f) < in.teile.size() ? in.teile[uz(f)].name : std::to_string(f)) + " " + std::to_string(n);
+    }
+    return r;
 }
 
 // P4: Strg+Z/Strg+Y gelten dem juengsten Schritt ueber alle Leinwaende (fortlaufende Nummer der Schritte), nicht nur dem
@@ -1276,6 +1381,7 @@ void modellMalenVorschauAbgleich() {
 
 void drawModellMalenBereich() {
     ModellMalen& z = mz();
+    const mm::Stoppuhr bereichUhr(mm::messung().bereichMs);
     bilderPruefen();
     const float fs = ImGui::GetFontSize();
     const std::vector<Gruppe> g = gruppen();
@@ -1474,6 +1580,7 @@ void drawModellMalenBereich() {
         // P6: der Vergleich mit dem Original nur, wenn sich das Bild geaendert hat (vorher jedes Bild alle Leinwaende ganz)
         for (const auto& b : g_bilder) {
             if (b->bemaltFuer != b->l.stand) {
+                const mm::Stoppuhr uhr(mm::messung().vergleichMs);
                 b->bemaltFuer = b->l.stand;
                 b->bemaltAnders = b->l.bild != b->l.grund;
             }
@@ -1503,6 +1610,8 @@ float modellMalEditorBreite(float frei) {
 // und Ende wie einer der Zeile darueber verlaengert dessen Rechteck. Dieselbe Flaeche wie ein Rechteck je Lauf und Zeile;
 // bestimmt nur bei neuem Stand (vorher jedes Bild alle Texel gelesen, je Lauf und Zeile ein Rechteck).
 void maskeFlaechenNeu(MalBild& m) {
+    const mm::Stoppuhr uhr(mm::messung().maskeMs);
+    if (mm::messung().an) { ++mm::messung().maskeGelesen; }
     m.maskeFlaechen.clear();
     std::vector<std::size_t> offen;   // Rechtecke bis zur vorigen Zeile, nach x0 geordnet
     std::vector<std::size_t> weiter;
@@ -1535,6 +1644,7 @@ void maskeFlaechenNeu(MalBild& m) {
 void drawModellMalEditor(ImVec2 groesse) {
     ModellTab& t = mt();
     ModellMalen& z = mz();
+    const mm::Stoppuhr editorUhr(mm::messung().editorMs);
     z.hover = false;
     MalBild* m = jetzt(true);
     const float fs = ImGui::GetFontSize();

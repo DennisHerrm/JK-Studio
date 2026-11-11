@@ -662,9 +662,170 @@ void weichTempoTest() {
     pruefe(ms < 2.5, t);
 }
 
+// MBMAL (shank 10.11.: beim langen Malen auf dem Modell fallen die Bilder je Sekunde): Tupfer in 3D ueber viele UV-Inseln - ein
+// welliges Netz aus 16 x 16 Vierecken, jedes Viereck eine eigene Insel an einem gewuerfelten Platz im 1024er Bild (jede Kante
+// ist eine Naht), dazu entartete, gewickelte und weit entfernte Dreiecke. Striche mit Pinsel, Maske (halb deckend), Radierer und
+// Weichzeichnen auf zwei Ebenen, mit abgewandten Dreiecken, in der Luft und ueber den Rand. Die Pruefsummen der Ebenen, der
+// Maske und des Ergebnisses sind die des Stands vor MBMAL (Rotlauf): das schnellere Suchen, Sichern, Ausbluten und
+// Zusammensetzen aendert kein Byte. Rueckgaengig bringt den Anfang zurueck, Wiederholen dasselbe Bild.
+std::uint64_t fnv(const std::vector<std::uint8_t>& b, std::uint64_t summe = 1469598103934665603ULL) {
+    for (const std::uint8_t x : b) { summe = (summe ^ x) * 1099511628211ULL; }
+    return summe;
+}
+
+void nahtTest() {
+    constexpr int kN = 1024;
+    constexpr int kZ = 16;   // Vierecke je Seite, je 4 Einheiten und eine Zelle von 64 Texeln
+    std::uint32_t z = 20261110U;
+    const auto zufall = [&z]() {
+        z = z * 1664525U + 1013904223U;
+        return static_cast<float>(z >> 8U) / 16777216.0F;   // 0..1
+    };
+    std::vector<int> platz(uz(kZ * kZ));
+    for (int i = 0; i < kZ * kZ; ++i) { platz[uz(i)] = i; }
+    for (int i = kZ * kZ - 1; i > 0; --i) { std::swap(platz[uz(i)], platz[uz(static_cast<int>(zufall() * static_cast<float>(i + 1)) % (i + 1))]); }
+    const auto hoehe = [](float x, float y) { return 4.0F * std::sin(x / 9.0F) * std::cos(y / 7.0F); };
+    std::vector<m::Dreieck> netz;
+    for (int qy = 0; qy < kZ; ++qy) {
+        for (int qx = 0; qx < kZ; ++qx) {
+            const int zelle = platz[uz(qy * kZ + qx)];
+            const float u0 = (static_cast<float>(zelle % kZ) * 64.0F + 4.0F) / static_cast<float>(kN);
+            const float v0 = (static_cast<float>(zelle / kZ) * 64.0F + 4.0F) / static_cast<float>(kN);
+            const float du = 56.0F / static_cast<float>(kN);
+            const float uv[4][2] = {{u0, v0}, {u0 + du, v0}, {u0 + du, v0 + du}, {u0, v0 + du}};
+            float o[4][3];
+            const float ecke[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+            for (int e = 0; e < 4; ++e) {
+                o[e][0] = (static_cast<float>(qx) + ecke[e][0]) * 4.0F;
+                o[e][1] = (static_cast<float>(qy) + ecke[e][1]) * 4.0F;
+                o[e][2] = hoehe(o[e][0], o[e][1]);
+            }
+            const int folge[2][3] = {{0, 1, 2}, {0, 2, 3}};
+            for (const auto& f : folge) {
+                m::Dreieck d;
+                for (int e = 0; e < 3; ++e) {
+                    for (int k = 0; k < 2; ++k) { d.uv[e][k] = uv[f[e]][k]; }
+                    for (int k = 0; k < 3; ++k) { d.ort[e][k] = o[f[e]][k]; }
+                }
+                netz.push_back(d);
+            }
+        }
+    }
+    {
+        m::Dreieck d = netz[10];   // ohne Flaeche in UV
+        for (auto& e : d.uv) { e[0] = d.uv[0][0]; }
+        netz.push_back(d);
+        d = netz[40];   // ohne Flaeche im Raum
+        for (auto& e : d.ort) {
+            for (int k = 0; k < 3; ++k) { e[k] = netz[40].ort[0][k]; }
+        }
+        netz.push_back(d);
+        d = netz[77];   // gewickelt: dieselbe Insel eine Bildbreite weiter, im Raum ein Stueck hoeher
+        for (auto& e : d.uv) { e[0] += 1.0F; }
+        for (auto& e : d.ort) { e[2] += 1.0F; }
+        netz.push_back(d);
+        d = netz[0];   // gross in UV und weit weg im Raum
+        const float gross[3][2] = {{0.05F, 0.05F}, {0.95F, 0.1F}, {0.5F, 0.9F}};
+        for (int e = 0; e < 3; ++e) {
+            d.uv[e][0] = gross[e][0];
+            d.uv[e][1] = gross[e][1];
+            d.ort[e][2] += 200.0F;
+        }
+        netz.push_back(d);
+    }
+    m::Leinwand l;
+    m::leinwandLeer(l, kN, kN, {0, 0, 0, 255});
+    for (std::uint8_t& b : l.ebenen[0].rgba) {
+        z = z * 1664525U + 1013904223U;
+        b = static_cast<std::uint8_t>(z >> 24U);
+    }
+    l.grund = l.ebenen[0].rgba;
+    m::Ebene oben;
+    oben.name = "oben";
+    oben.rgba.assign(l.ebenen[0].rgba.size(), 0);
+    oben.deckkraft = 0.7F;
+    oben.misch = m::Mischart::Ineinander;
+    l.ebenen.push_back(oben);
+    m::zusammensetzen(l);
+    m::dreieckeSetzen(l, netz, true);
+    const std::vector<m::Ebene> ebenenAnfang = l.ebenen;
+    const std::vector<std::uint8_t> maskeAnfang = l.maske;
+    const std::vector<std::uint8_t> bildAnfang = l.bild;
+    m::Verlauf v;
+    constexpr int kStriche = 12;
+    constexpr int kTupfer = 40;
+    const m::Werkzeug werkzeuge[kStriche] = {m::Werkzeug::Maske,   m::Werkzeug::Pinsel,   m::Werkzeug::Pinsel,        m::Werkzeug::Maske,
+                                             m::Werkzeug::Pinsel,  m::Werkzeug::Radierer, m::Werkzeug::Weichzeichnen, m::Werkzeug::Pinsel,
+                                             m::Werkzeug::Pinsel,  m::Werkzeug::Radierer, m::Werkzeug::Pinsel,        m::Werkzeug::Pinsel};
+    std::vector<std::uint8_t> zugewandt(netz.size());
+    int texel = 0;
+    const auto ab = std::chrono::steady_clock::now();
+    for (int s = 0; s < kStriche; ++s) {
+        m::Pinsel p;
+        p.werkzeug = werkzeuge[s];
+        p.radius = 1.5F + 9.0F * zufall();
+        p.haerte = zufall();
+        p.staerke = p.werkzeug == m::Werkzeug::Maske ? 0.6F : 0.4F + 0.6F * zufall();
+        p.maskeLoeschen = s == 3;
+        p.rueckseiten = s == 8;
+        p.druckGroesse = s % 4 == 1;
+        p.farbe = {zufall(), zufall(), zufall(), 0.5F + 0.5F * zufall()};
+        l.aktiv = s % 3 == 2 ? 1 : 0;
+        for (std::size_t i = 0; i < zugewandt.size(); ++i) { zugewandt[i] = zufall() < 0.8F ? 1 : 0; }
+        // der Strich: eine Gerade quer ueber das Netz, hinaus ueber den Rand und (Strich 5) durch die Luft darueber
+        const float a[3] = {-6.0F + 76.0F * zufall(), -6.0F + 76.0F * zufall(), s == 5 ? 30.0F : 0.0F};
+        const float b[3] = {-6.0F + 76.0F * zufall(), -6.0F + 76.0F * zufall(), 0.0F};
+        m::schrittBeginnen(v, l, "strich");
+        for (int i = 0; i < kTupfer; ++i) {
+            const float t = static_cast<float>(i) / static_cast<float>(kTupfer - 1);
+            float c[3];
+            for (int k = 0; k < 3; ++k) { c[k] = a[k] + (b[k] - a[k]) * t; }
+            if (s != 5) { c[2] = hoehe(c[0], c[1]) + (zufall() - 0.5F); }
+            const float richtung[2] = {0.002F, -0.001F};
+            texel += m::tupfer3d(l, v, p, c, 0.3F + 0.7F * zufall(), s % 2 == 0 ? &zugewandt : nullptr, richtung);
+        }
+        m::schrittEnde(v, l);
+    }
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ab).count() / static_cast<double>(kStriche * kTupfer);
+    std::size_t kacheln = 0;
+    std::size_t unveraendert = 0;   // gesicherte Kacheln, in denen der Strich nichts geaendert hat
+    std::size_t bytes = 0;
+    for (const m::UndoSchritt& s : v.zurueck) {
+        kacheln += s.kacheln.size();
+        for (const m::Kachel& k : s.kacheln) { unveraendert += k.vorher == k.nachher ? 1U : 0U; }
+        bytes += m::schrittBytes(s);
+    }
+    const std::uint64_t summe = fnv(l.bild, fnv(l.maske, fnv(l.ebenen[1].rgba, fnv(l.ebenen[0].rgba))));
+    constexpr std::uint64_t kSumme = 0xe952f4b1ee707493ULL;   // Pruefsumme des Stands vor MBMAL (Rotlauf: 6,1 ms je Tupfer, 3037 Kacheln, 82,9 MB)
+    constexpr int kTexel = 12427638;                          // geaenderte Texel im Rotlauf
+    char t[300];
+    std::snprintf(t, sizeof t, "Naehte: %d Tupfer ueber 256 Inseln, %d Texel (vorher %d), Pruefsumme %016llx (vorher %016llx)", kStriche * kTupfer, texel, kTexel,
+                  static_cast<unsigned long long>(summe), static_cast<unsigned long long>(kSumme));
+    pruefe(summe == kSumme && texel == kTexel, t);
+    // vorher sicherte jeder Strich das Rechteck um alle getroffenen Inseln (3037 Kacheln, 82,9 MB, 6,1 ms je Tupfer) - die
+    // meisten davon unveraendert. Jetzt nur die Kacheln mit Treffern oder ausgebluteten Texeln: hoechstens ein Viertel der
+    // gesicherten bleibt unveraendert (der Rand eines Tupfers reicht in eine Kachel, ohne dort ein Byte zu aendern).
+    std::snprintf(t, sizeof t, "Naehte: %.3f ms je Tupfer (vorher 6,1), %zu Schritte, %zu Kacheln (vorher 3037), davon %zu unveraendert, %.1f MB im Verlauf (vorher 82,9)",
+                  ms, v.zurueck.size(), kacheln, unveraendert, static_cast<double>(bytes) / 1048576.0);
+    pruefe(kacheln < 3037U && unveraendert * 4U <= kacheln, t);
+    const std::vector<m::Ebene> ebenenEnde = l.ebenen;
+    const std::vector<std::uint8_t> maskeEnde = l.maske;
+    int zurueck = 0;
+    while (m::rueckgaengig(v, l)) { ++zurueck; }
+    bool anfang = l.maske == maskeAnfang && l.bild == bildAnfang;
+    for (std::size_t i = 0; i < l.ebenen.size(); ++i) { anfang = anfang && l.ebenen[i].rgba == ebenenAnfang[i].rgba; }
+    int vor = 0;
+    while (m::wiederholen(v, l)) { ++vor; }
+    bool ende = l.maske == maskeEnde && fnv(l.bild, fnv(l.maske, fnv(l.ebenen[1].rgba, fnv(l.ebenen[0].rgba)))) == summe;
+    for (std::size_t i = 0; i < l.ebenen.size(); ++i) { ende = ende && l.ebenen[i].rgba == ebenenEnde[i].rgba; }
+    std::snprintf(t, sizeof t, "Naehte: %d Schritte zurueck = Anfang Byte fuer Byte (%d), %d vor = dasselbe Bild (%d)", zurueck, anfang ? 1 : 0, vor, ende ? 1 : 0);
+    pruefe(zurueck > 0 && zurueck == vor && anfang && ende, t);
+}
+
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     weichTempoTest();
+    nahtTest();
     strichTest();
     blutenTest();
     spiegelTest();

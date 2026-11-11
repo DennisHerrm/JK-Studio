@@ -3,6 +3,7 @@
 #include "bhed/modell/malen.h"
 
 #include "bhed/image.h"
+#include "bhed/modell/malen_mess.h"
 
 #include <algorithm>
 #include <cmath>
@@ -11,6 +12,12 @@
 #include <utility>
 
 namespace bhed::modell::texmalen {
+
+Messung& messung() noexcept {
+    static Messung m;
+    return m;
+}
+
 namespace {
 
 std::size_t uz(int i) { return static_cast<std::size_t>(i); }
@@ -155,14 +162,6 @@ void kachelSetzen(const Leinwand& l, std::vector<std::uint8_t>& ziel, int bpp, i
     }
 }
 
-std::size_t schrittBytes(const UndoSchritt& s) {
-    std::size_t n = s.maskeVorher.size() + s.maskeNachher.size();
-    for (const Kachel& k : s.kacheln) { n += k.vorher.size() + k.nachher.size(); }
-    for (const Ebene& e : s.stapelVorher) { n += e.rgba.size(); }
-    for (const Ebene& e : s.stapelNachher) { n += e.rgba.size(); }
-    return n;
-}
-
 void geaendert(Leinwand& l, const Rechteck& r) {
     l.schmutzig.dazu(r);
     ++l.stand;
@@ -216,7 +215,15 @@ int auftragen(Leinwand& l, Verlauf& v, const Pinsel& p, const std::vector<Treffe
     const bool maske = p.werkzeug == Werkzeug::Maske;
     const int ebene = maske ? -1 : std::clamp(l.aktiv, 0, static_cast<int>(l.ebenen.size()) - 1);
     const Rechteck geschrieben = erweitert(l, r);
-    sichern(v, l, ebene, geschrieben);
+    Messung& ms = messung();
+    if (ms.an) {
+        ms.treffer += static_cast<long long>(tr.size());
+        ms.rechteckTexel += static_cast<long long>(geschrieben.x1 - geschrieben.x0 + 1) * static_cast<long long>(geschrieben.y1 - geschrieben.y0 + 1);
+    }
+    {
+        const Stoppuhr uhr(ms.sichernMs);
+        sichern(v, l, ebene, geschrieben);
+    }
     std::vector<std::uint8_t>& px = ebenenBytes(l, ebene);
     // P7 (Pruefung seit rc610): Weichzeichnen und Verwischen lesen ihre Nachbarn im Stand vor dem Tupfer. Bis hier kopierten
     // sie dafuer je Tupfer die ganze Ebene (2048er Bild: 16 MB, 7 ms je Tupfer); jetzt entstehen die neuen Werte zuerst in
@@ -227,6 +234,7 @@ int auftragen(Leinwand& l, Verlauf& v, const Pinsel& p, const std::vector<Treffe
     std::vector<std::size_t> neuZiel;   // je Eintrag in `neu` der Ort in px
     const float farbe[3] = {p.farbe[0], p.farbe[1], p.farbe[2]};
     int n = 0;
+    Stoppuhr werkzeugUhr(ms.werkzeugMs);
     for (const Treffer& t : tr) {
         const std::size_t i = uz(t.i);
         const float frei = maske ? 1.0F : 1.0F - wertVon(l.maske[i]);
@@ -290,8 +298,13 @@ int auftragen(Leinwand& l, Verlauf& v, const Pinsel& p, const std::vector<Treffe
         ++n;
     }
     for (std::size_t k = 0; k < neuZiel.size(); ++k) { std::memcpy(&px[neuZiel[k]], &neu[k * 4U], 4U); }
-    blutenIn(l, px, maske ? 1 : 4, r, !maske);
+    werkzeugUhr.halt();
+    {
+        const Stoppuhr uhr(ms.blutenMs);
+        blutenIn(l, px, maske ? 1 : 4, r, !maske);
+    }
     geaendert(l, geschrieben);
+    const Stoppuhr uhr(ms.zusammenMs);
     zusammensetzen(l, geschrieben);
     return n;
 }
@@ -318,6 +331,14 @@ void tupfMerken(Leinwand& l, std::vector<Treffer>& tr, std::size_t i, float f) {
 }
 
 }  // namespace
+
+std::size_t schrittBytes(const UndoSchritt& s) {
+    std::size_t n = s.maskeVorher.size() + s.maskeNachher.size();
+    for (const Kachel& k : s.kacheln) { n += k.vorher.size() + k.nachher.size(); }
+    for (const Ebene& e : s.stapelVorher) { n += e.rgba.size(); }
+    for (const Ebene& e : s.stapelNachher) { n += e.rgba.size(); }
+    return n;
+}
 
 float abfall(float abstand, float radius, float haerte) noexcept {
     if (radius <= 0.0F || abstand >= radius) { return 0.0F; }
@@ -466,6 +487,7 @@ void sichern(Verlauf& v, const Leinwand& l, int ebene, const Rechteck& r) {
             k.ky = ky;
             kachelKopieren(l, ebene < 0 ? l.maske : l.ebenen[uz(ebene)].rgba, ebene < 0 ? 1 : 4, kx, ky, k.vorher);
             v.offen.kacheln.push_back(std::move(k));
+            if (messung().an) { ++messung().kachelnGesichert; }
         }
     }
 }
@@ -491,6 +513,7 @@ void schrittEnde(Verlauf& v, Leinwand& l) {
     if (!v.laeuft) { return; }
     v.laeuft = false;
     if (v.offen.kacheln.empty()) { return; }
+    const Stoppuhr uhr(messung().strichEndeMs);
     for (Kachel& k : v.offen.kacheln) {
         kachelKopieren(l, k.ebene < 0 ? l.maske : l.ebenen[uz(k.ebene)].rgba, k.ebene < 0 ? 1 : 4, k.kx, k.ky, k.nachher);
     }
@@ -612,21 +635,37 @@ int tupfer3d(Leinwand& l, Verlauf& v, const Pinsel& p, const float mitte[3], flo
     const float staerke = p.staerke * druckFaktor(p.druckStaerke, druck);
     tupfAnfang(l);
     std::vector<Treffer> tr;
+    Messung& ms = messung();
+    Stoppuhr suchUhr(ms.suchenMs);
+    long long geprueft = 0;
+    long long nah = 0;
+    long long texel = 0;
     for (std::size_t di = 0; di < l.dreiecke.size(); ++di) {
         if (!p.rueckseiten && zugewandt != nullptr && di < zugewandt->size() && (*zugewandt)[di] == 0) { continue; }
         const Dreieck& d = l.dreiecke[di];
         // schnell verwerfen: Kugel um das Dreieck (P15: aus dreieckeSetzen; ohne sie wie vorher je Tupfer gerechnet)
         const std::array<float, 4> kg = di < l.kugeln.size() && l.kugeln.size() == l.dreiecke.size() ? l.kugeln[di] : kugelVon(d);
+        ++geprueft;
         if (std::hypot(kg[0] - mitte[0], kg[1] - mitte[1], kg[2] - mitte[2]) > radius + kg[3]) { continue; }
+        ++nah;
         texelImDreieck(d, l.b, l.h, [&](int x, int y, float l0, float l1, float l2) {
             float uv[2];
             float o[3];
             punktIm(d, l0, l1, l2, uv, o);
+            ++texel;
             const float f = abfall(std::hypot(o[0] - mitte[0], o[1] - mitte[1], o[2] - mitte[2]), radius, p.haerte) * staerke;
             if (f > 0.0F) { tupfMerken(l, tr, l.texel(x, y), f); }
         });
     }
     for (Treffer& t : tr) { t.f = l.tupfWert[uz(t.i)]; }
+    suchUhr.halt();
+    if (ms.an) {
+        ++ms.tupfer;
+        ms.tupferLeer += tr.empty() ? 1 : 0;
+        ms.dreieckeGeprueft += geprueft;
+        ms.dreieckeNah += nah;
+        ms.texelGeprueft += texel;
+    }
     return auftragen(l, v, p, tr, richtung);
 }
 
@@ -645,6 +684,7 @@ int tupfer2d(Leinwand& l, Verlauf& v, const Pinsel& p, float u, float vv, float 
         }
     }
     for (Treffer& t : tr) { t.f = l.tupfWert[uz(t.i)]; }
+    if (messung().an) { ++messung().tupfer; }
     return auftragen(l, v, p, tr, richtung);
 }
 
@@ -683,6 +723,10 @@ int fuellen(Leinwand& l, Verlauf& v, const Pinsel& p, int x, int y) {
     q.werkzeug = Werkzeug::Fuellen;
     tupfAnfang(l);
     return auftragen(l, v, q, tr, nullptr);
+}
+
+void texelJeDreieck(const Dreieck& d, int b, int h, const std::function<void(int x, int y, float l0, float l1, float l2)>& f) {
+    texelImDreieck(d, b, h, f);
 }
 
 std::vector<std::array<float, 3>> Strich::weiter(const float p[3], float schritt) {
