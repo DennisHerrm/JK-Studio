@@ -1,6 +1,7 @@
 // bhed_lichtcache.cpp - BehavEd stage 8a: -light -bhedlightcache (see bhed_lichtcache.h).
 // lcb1: every pass on its own (also -bounce), the file holds one section per pass.
-// lcb2: lightmaps are found by their content, also after changes to geometry, shaders and brush entities.
+// lcb2: lightmaps are found by their content, also after changes to geometry, shaders and brush entities;
+//       each pass is stored packed (byte planes, zlib) - lossless.
 //
 //   Copyright (C) 2026 BehavEd-Remake contributors. GPL v2 (LICENSE).
 #include "q3map2.h"
@@ -13,7 +14,9 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <unordered_map>
+#include <zlib.h>
 
 namespace {
 
@@ -131,6 +134,11 @@ struct SigHasher {
 	std::size_t operator()( const Sig& s ) const { return std::size_t( s.a ^ ( s.b * 0x9E3779B97F4A7C15ULL ) ); }
 };
 std::unordered_map<Sig, std::size_t, SigHasher> g_altLm;   // fingerprint -> offset of its data (lcb2: by content)
+struct LmZeit {
+	float kosten = -1.f;   // seconds of one thread (-1: unknown)
+	float wand = -1.f;     // seconds from its start to its end, however many threads lit it
+};
+std::unordered_map<Sig, LmZeit, SigHasher> g_altZeit;      // lcb2: content id (LmFest::sig) -> what the cached run took for it
 std::vector<Alt> g_altFlaeche;
 
 // this run
@@ -143,6 +151,9 @@ bool g_gitterAusCache = false;
 std::vector<Sig> g_lmSig;
 std::vector<Sig> g_flaecheSig;
 std::string g_lmDaten;                 // lightmap part of the pass, made before StitchSurfaceLightmaps
+std::vector<LmZeit> g_lmZeit;          // lcb2: what the processor took per raw lightmap in this pass (-1: not lit by it)
+std::vector<unsigned long long> g_lmArbeit;   // luxels x lights
+std::vector<char> g_lmTreffer;         // taken from the cache
 bool g_lmDatenDa = false;
 std::unordered_map<const light_t*, Sig> g_lichtHash;          // with the cluster
 std::unordered_map<const light_t*, Sig> g_lichtHashOC;        // without (lcb2)
@@ -159,8 +170,6 @@ std::vector<LmFest> g_fest;
 std::mutex g_sperre;
 std::atomic<int> g_lmAus{ 0 };
 std::atomic<int> g_flaecheAus{ 0 };
-std::atomic<unsigned long long> g_arbeitAlle{ 0 };
-std::atomic<unsigned long long> g_arbeitNeu{ 0 };
 // all passes
 int g_summeLmAus = 0, g_summeLmAlle = 0, g_summeFlAus = 0, g_summeFlAlle = 0;
 int g_gitterPaesse = 0, g_gitterPaesseAus = 0;
@@ -319,6 +328,7 @@ void inhaltAnlegen(){
 	}
 	BhedSpurHashesAnlegen( flaecheVonNummer, shaderVonZeiger );
 	g_fest.assign( numRawLightmaps, LmFest{} );
+	BhedZeit( "Licht-Cache: Inhalt, Spurbaum" );
 }
 
 constexpr double kRand = 1.0;   // > the float rounding of a sample point and of the BSP plane distance
@@ -572,7 +582,124 @@ bool passZerlegen(){
 			return false;
 		pos += g;
 	}
+	std::uint32_t nz = 0;   // lcb2: the times
+	if ( !lesen( pos, nz ) )
+		return false;
+	for ( std::uint32_t i = 0; i < nz; ++i ) {
+		Sig fs;
+		LmZeit z;
+		if ( !lesen( pos, fs ) || !lesen( pos, z.kosten ) || !lesen( pos, z.wand ) )
+			return false;
+		if ( fs.da() && z.kosten >= 0 && z.wand >= 0 )
+			g_altZeit.emplace( fs, z );
+	}
 	return pos == g_alt.size();
+}
+
+/* lcb2: a pass is stored packed, lossless: the bytes of each 4 byte word (floats, ints) are sorted into four planes
+   (the sign and exponent bytes repeat, the low mantissa bytes do not), then deflated in blocks of 4 MB on all
+   threads - each block on its own, so the bytes do not depend on the threads. Blob: u64 payload length, u32
+   blocks, u32 packed length per block, the blocks.
+   Measured on duel_mos_espa ([Final] Fast, 9 passes, 65 000 raw lightmaps): 786 MB unpacked, 152 MB packed.
+   Storing a pass as its XOR with the pass before was tried and made it bigger (199 MB): a bounce does not
+   reach the same luxels as the one before, and where one of the two is zero the XOR is the other one. */
+constexpr std::size_t kBlock = std::size_t( 4 ) << 20;
+
+template<typename F> void aufAllen( std::size_t n, const F& f ){
+	const std::size_t t = std::min<std::size_t>( n, std::max( 1, numthreads ) );
+	std::atomic<std::size_t> naechster{ 0 };
+	const auto arbeit = [&]{
+		for ( std::size_t k; ( k = naechster++ ) < n; )
+			f( k );
+	};
+	std::vector<std::thread> faeden;
+	for ( std::size_t i = 1; i < t; ++i )
+		faeden.emplace_back( arbeit );
+	arbeit();
+	for ( std::thread& th : faeden )
+		th.join();
+}
+
+// the four byte planes of a block (a tail of 1-3 bytes stays where it is) and back
+void ebenen( const unsigned char* von, unsigned char* nach, std::size_t l, bool hin ){
+	const std::size_t w = l / 4;
+	for ( std::size_t i = 0; i < w; ++i )
+		for ( std::size_t e = 0; e < 4; ++e ) {
+			if ( hin )
+				nach[e * w + i] = von[i * 4 + e];
+			else
+				nach[i * 4 + e] = von[e * w + i];
+		}
+	for ( std::size_t i = w * 4; i < l; ++i )
+		nach[i] = von[i];
+}
+
+bool packen( const std::string& roh, std::string& blob ){
+	const std::size_t n = roh.size();
+	const std::size_t bloecke = ( n + kBlock - 1 ) / kBlock;
+	std::vector<std::string> teile( bloecke );
+	std::atomic<bool> ok{ true };
+	aufAllen( bloecke, [&]( std::size_t k ){
+		const std::size_t a = k * kBlock, l = std::min( kBlock, n - a );
+		std::string e( l, '\0' );
+		ebenen( reinterpret_cast<const unsigned char*>( roh.data() ) + a, reinterpret_cast<unsigned char*>( e.data() ), l, true );
+		uLongf cl = compressBound( uLong( l ) );
+		teile[k].resize( cl );
+		if ( compress2( reinterpret_cast<Bytef*>( teile[k].data() ), &cl, reinterpret_cast<const Bytef*>( e.data() ), uLong( l ), 1 ) != Z_OK )
+			ok = false;
+		teile[k].resize( cl );
+	} );
+	if ( !ok )
+		return false;
+	blob.clear();
+	anhaengen( blob, std::uint64_t( n ) );
+	anhaengen( blob, std::uint32_t( bloecke ) );
+	for ( const std::string& t : teile )
+		anhaengen( blob, std::uint32_t( t.size() ) );
+	for ( const std::string& t : teile )
+		blob += t;
+	return true;
+}
+
+bool entpacken( const std::string& blob, std::string& roh ){
+	std::size_t pos = 0;
+	const auto nimm = [&]( auto& v ){
+		if ( pos + sizeof( v ) > blob.size() )
+			return false;
+		memcpy( &v, blob.data() + pos, sizeof( v ) );
+		pos += sizeof( v );
+		return true;
+	};
+	std::uint64_t n = 0;
+	std::uint32_t bloecke = 0;
+	if ( !nimm( n ) || !nimm( bloecke ) || bloecke != ( n + kBlock - 1 ) / kBlock )
+		return false;
+	if ( n / 1100 > blob.size() )   // deflate packs at most 1032 : 1 - a damaged length must not allocate
+		return false;
+	std::vector<std::size_t> start( std::size_t( bloecke ) + 1 );
+	start[0] = pos + std::size_t( bloecke ) * 4;
+	for ( std::uint32_t k = 0; k < bloecke; ++k ) {
+		std::uint32_t cl = 0;
+		if ( !nimm( cl ) )
+			return false;
+		start[k + 1] = start[k] + cl;
+	}
+	if ( start[bloecke] != blob.size() )
+		return false;
+	roh.assign( std::size_t( n ), '\0' );
+	std::atomic<bool> ok{ true };
+	aufAllen( bloecke, [&]( std::size_t k ){
+		const std::size_t a = k * kBlock, l = std::min<std::size_t>( kBlock, std::size_t( n ) - a );
+		std::string e( l, '\0' );
+		uLongf dl = uLong( l );
+		if ( uncompress( reinterpret_cast<Bytef*>( e.data() ), &dl, reinterpret_cast<const Bytef*>( blob.data() + start[k] ), uLong( start[k + 1] - start[k] ) ) != Z_OK ||
+		     dl != l ) {
+			ok = false;
+			return;
+		}
+		ebenen( reinterpret_cast<const unsigned char*>( e.data() ), reinterpret_cast<unsigned char*>( roh.data() ) + a, l, false );
+	} );
+	return ok;
 }
 
 void altVergessen(){
@@ -580,12 +707,13 @@ void altVergessen(){
 	g_alt.shrink_to_fit();
 	g_altDa = false;
 	g_altLm.clear();
+	g_altZeit.clear();
 	g_altFlaeche.clear();
 	g_altGitterSig = Sig{};
 	g_altGitterAnzahl = 0;
 }
 
-constexpr char kKopf[8] = { 'B', 'H', 'L', 'I', 'C', 'H', 'T', '4' };   // 3: one section per pass (lcb1), 4: by content (lcb2)
+constexpr char kKopf[8] = { 'B', 'H', 'L', 'I', 'C', 'H', 'T', '5' };   // 3: one section per pass (lcb1), 4: by content, 5: packed (lcb2)
 
 }  // namespace
 
@@ -741,12 +869,21 @@ void BhedLichtCacheGeometrie(){
 			/* lcb2: geometry, shaders or brush entities changed - the lightmaps are found by their content */
 			g_cacheGilt = true;
 			g_geoGleich = geo == g_geo;
+			/* a section that the file does not hold to its end is not kept: the cache of a light step that was stopped
+			   (the map editor makes it from <map>.bhedlight.neu, see BhedLichtCacheDurchgangEnde) ends in the pass
+			   that was being written */
+			const long long anfang = _ftelli64( g_altDatei );
+			_fseeki64( g_altDatei, 0, SEEK_END );
+			const long long ende = _ftelli64( g_altDatei );
+			_fseeki64( g_altDatei, anfang, SEEK_SET );
 			while ( true ) {
 				std::int32_t b = 0;
 				std::uint64_t laenge = 0;
 				if ( fread( &b, sizeof( b ), 1, g_altDatei ) != 1 || fread( &laenge, sizeof( laenge ), 1, g_altDatei ) != 1 )
 					break;
 				const long long pos = _ftelli64( g_altDatei );
+				if ( pos < 0 || pos > ende || laenge > static_cast<std::uint64_t>( ende - pos ) )
+					break;
 				g_altPaesse[b] = PassOrt{ pos, laenge };
 				if ( _fseeki64( g_altDatei, static_cast<long long>( laenge ), SEEK_CUR ) != 0 )
 					break;
@@ -786,11 +923,12 @@ void BhedLichtCacheDurchgang( int b ){
 	if ( g_cacheGilt && g_altDatei != nullptr ) {
 		const auto it = g_altPaesse.find( b );
 		if ( it != g_altPaesse.end() ) {
-			g_alt.resize( static_cast<std::size_t>( it->second.laenge ) );
-			g_altDa = _fseeki64( g_altDatei, it->second.pos, SEEK_SET ) == 0 && fread( g_alt.data(), 1, g_alt.size(), g_altDatei ) == g_alt.size() &&
-			          passZerlegen();
+			std::string blob( static_cast<std::size_t>( it->second.laenge ), '\0' );
+			g_altDa = _fseeki64( g_altDatei, it->second.pos, SEEK_SET ) == 0 && fread( blob.data(), 1, blob.size(), g_altDatei ) == blob.size() &&
+			          entpacken( blob, g_alt ) && passZerlegen();
 			if ( !g_altDa )
 				altVergessen();
+			BhedZeit( "Licht-Cache: lesen, entpacken" );
 		}
 	}
 	g_gitterDa = false;
@@ -864,9 +1002,10 @@ void BhedLichtCacheLichter(){
 	if ( g_pass == 0 || g_fest.size() != std::size_t( numRawLightmaps ) )
 		inhaltAnlegen();   // lcb2
 	g_lmSig.assign( numRawLightmaps, Sig{} );
+	g_lmZeit.assign( numRawLightmaps, LmZeit{} );
+	g_lmArbeit.assign( numRawLightmaps, 0 );
+	g_lmTreffer.assign( numRawLightmaps, 0 );
 	g_flaecheSig.assign( bspDrawSurfaces.size(), Sig{} );
-	g_arbeitAlle = 0;
-	g_arbeitNeu = 0;
 }
 
 bool BhedLmVorab( int lmNum, const trace_t& trace, unsigned int seed ){
@@ -877,13 +1016,13 @@ bool BhedLmVorab( int lmNum, const trace_t& trace, unsigned int seed ){
 	if ( !f.da )
 		festRechnen( lmNum );   // lcb2: before the first pass lights it
 	const unsigned long long arbeit = static_cast<unsigned long long>( lm->sw ) * lm->sh * static_cast<unsigned long long>( std::max( 1, trace.numLights ) );
-	g_arbeitAlle += arbeit;
+	g_lmArbeit[lmNum] = arbeit;
 	/* lcb2: the fingerprint of the pass - pass number, the generator (only random subsamples draw from it), the
 	   fixed part, the culled light list (every light with every field, in list order, its cluster as it relates
 	   to the lightmap's), the PVS from the lightmap's clusters to the lights', where the rays can run with the
 	   trace tree there (BhedSpurRaumSig) and the own state at the beginning of the pass */
 	Hash h;
-	h.text( "lm4" );
+	h.text( "lm5" );   // 5: the trace tree signature with the sweeps narrowed on the way down
 	h.wert( g_pass );
 	if ( lightRandomSamples )
 		h.wert( seed );
@@ -896,8 +1035,13 @@ bool BhedLmVorab( int lmNum, const trace_t& trace, unsigned int seed ){
 	h.wert( trace.numLights );
 	const bool proben = f.box[0] <= f.box[3];
 	BhedStrahlRaum raum;
-	raum.komp.push_back( BhedStrahlRaum::Komp{ { 1e30, 1e30, 1e30 }, { -1e30, -1e30, -1e30 }, { 0, 0, 0 } } );
-	BhedStrahlRaum::Komp& A = raum.komp[0];
+	/* A: the box from the lightmap's samples to its point and area lights - kept here and put in front of the suns
+	   below. As a reference to raum.komp[0] it dangled as soon as a sun was appended (the vector moved): the box
+	   was lost or stopped at the lights (a lightmap could come from the cache although something between it and a
+	   point light had changed), and the writes went to freed memory (duel_jakku, 71 suns: the partial build
+	   crashed in three of five runs). */
+	BhedStrahlRaum::Komp A{ { 1e30, 1e30, 1e30 }, { -1e30, -1e30, -1e30 }, { 0, 0, 0 } };
+	raum.komp.push_back( A );   // its place
 	bool punkt = false;
 	std::vector<int> lichtCl;   // the light clusters that are none of the lightmap's, in order of appearance
 	std::unordered_map<int, int> ids;
@@ -951,12 +1095,12 @@ bool BhedLmVorab( int lmNum, const trace_t& trace, unsigned int seed ){
 		A.lo[0] = 1;
 		A.hi[0] = 0;
 	}
+	raum.komp[0] = A;
 	for ( const int ca : f.roh )
 		for ( const int cb : lichtCl )
 			h.wert( ClusterVisible( ca, cb ) );
 	const Sig spur = BhedSpurRaumSig( raum );
-	if ( !spur.da() ) {   // no trace tree hashes (or too many suns): traced, not kept
-		g_arbeitNeu += arbeit;
+	if ( !spur.da() ) {   // no trace tree hashes: traced, not kept
 		return false;
 	}
 	h.wert( spur );
@@ -965,7 +1109,6 @@ bool BhedLmVorab( int lmNum, const trace_t& trace, unsigned int seed ){
 	g_lmSig[lmNum] = sig;
 	const auto alt = g_altDa ? g_altLm.find( sig ) : g_altLm.end();
 	if ( alt == g_altLm.end() ) {
-		g_arbeitNeu += arbeit;
 		return false;
 	}
 	std::size_t pos = alt->second;
@@ -978,7 +1121,6 @@ bool BhedLmVorab( int lmNum, const trace_t& trace, unsigned int seed ){
 	lesen( pos, sh );
 	lesen( pos, maske );
 	if ( int( sw ) != lm->sw || int( sh ) != lm->sh ) {
-		g_arbeitNeu += arbeit;
 		return false;
 	}
 	const std::size_t n = std::size_t( sw ) * sh;
@@ -1019,16 +1161,52 @@ bool BhedLmVorab( int lmNum, const trace_t& trace, unsigned int seed ){
 		}
 		pos += n * sizeof( int );
 	}
+	g_lmTreffer[lmNum] = 1;
 	++g_lmAus;
 	return true;
+}
+
+void BhedLmZeit( int lmNum, double kosten, double wand ){
+	if ( g_an && lmNum >= 0 && lmNum < int( g_lmZeit.size() ) )
+		g_lmZeit[lmNum] = LmZeit{ float( kosten ), float( wand ) };
 }
 
 void BhedLmVorabFertig(){
 	if ( !g_an )
 		return;
-	const unsigned long long alle = g_arbeitAlle.load();
-	const double anteil = alle > 0 ? 100.0 * double( g_arbeitNeu.load() ) / double( alle ) : 0.0;
-	Sys_Printf( "BehavEd: light cache pass %d of %d: %d of %d lightmaps from the cache (%.1f %% of the work to trace)\n", g_pass + 1, g_paesse,
+	/* lcb2: the share of the time, from what the cached run measured per lightmap (luxels x lights underrated the
+	   big floor lightmaps: 16 % of the work, 60 % of the time on duel_mos_espa). A pass takes as long as its
+	   thread seconds spread over the threads - or as long as its longest lightmap, when that is longer (one
+	   lightmap was 31 of the 32 s of a bounce there). Both for the lightmaps left to light and for all of them;
+	   a lightmap without a time (new content) counts with its luxels x lights at the rate of those that have one. */
+	const int n = int( std::min( { g_lmArbeit.size(), g_lmTreffer.size(), g_fest.size() } ) );
+	std::vector<const LmZeit*> alt( n, nullptr );
+	double zeitAlt = 0, arbeitAlt = 0;
+	for ( int i = 0; i < n; ++i )
+		if ( g_fest[i].da ) {
+			const auto it = g_altZeit.find( g_fest[i].sig );
+			if ( it != g_altZeit.end() ) {
+				alt[i] = &it->second;
+				zeitAlt += it->second.kosten;
+				arbeitAlt += double( g_lmArbeit[i] );
+			}
+		}
+	const double rate = arbeitAlt > 0 && zeitAlt > 0 ? zeitAlt / arbeitAlt : 0.0;
+	double alle = 0, neu = 0, laengsteAlle = 0, laengsteNeu = 0;
+	for ( int i = 0; i < n; ++i ) {
+		const double k = alt[i] != nullptr ? alt[i]->kosten : ( rate > 0 ? double( g_lmArbeit[i] ) * rate : double( g_lmArbeit[i] ) );
+		const double w = alt[i] != nullptr ? alt[i]->wand : 0.0;
+		alle += k;
+		laengsteAlle = std::max( laengsteAlle, w );
+		if ( !g_lmTreffer[i] ) {
+			neu += k;
+			laengsteNeu = std::max( laengsteNeu, w );
+		}
+	}
+	const double threads = std::max( 1, numthreads );
+	const double dauerAlle = rate > 0 ? std::max( alle / threads, laengsteAlle ) : alle, dauerNeu = rate > 0 ? std::max( neu / threads, laengsteNeu ) : neu;
+	const double anteil = dauerAlle > 0 ? 100.0 * dauerNeu / dauerAlle : 0.0;
+	Sys_Printf( "BehavEd: light cache pass %d of %d: %d of %d lightmaps from the cache (%.1f %% of the time to trace)\n", g_pass + 1, g_paesse,
 	            g_lmAus.load(), numRawLightmaps, anteil );
 }
 
@@ -1069,6 +1247,7 @@ void BhedLmDatenMerken(){
 	g_lmDatenDa = true;
 	g_summeLmAus += g_lmAus.load();
 	g_summeLmAlle += numRawLightmaps;
+	BhedZeit( "Licht-Cache: Daten merken" );
 }
 
 /* a vertex lit surface reads its vertex styles and adds the pass to its vertex luxels (IlluminateVertexes:
@@ -1157,25 +1336,46 @@ void BhedLichtCacheDurchgangEnde(){
 				d.append( reinterpret_cast<const char*>( &getRadVertexLuxel( l, ds.firstVert + i ) ), sizeof( Vector3 ) );
 			}
 	}
+	/* lcb2: the time of every lightmap: measured, else the cached run's for the same content (taken from the cache,
+	   or lit on the GPU), else unknown (-1) */
+	const bool zeiten = g_lmZeit.size() == std::size_t( numRawLightmaps ) && g_fest.size() == std::size_t( numRawLightmaps );
+	anhaengen( d, std::uint32_t( zeiten ? numRawLightmaps : 0 ) );
+	for ( int i = 0; zeiten && i < numRawLightmaps; ++i ) {
+		const Sig fs = g_fest[i].da ? g_fest[i].sig : Sig{};
+		LmZeit z = g_lmZeit[i];
+		if ( z.kosten < 0 && fs.da() ) {
+			const auto it = g_altZeit.find( fs );
+			if ( it != g_altZeit.end() )
+				z = it->second;
+		}
+		anhaengen( d, fs );
+		anhaengen( d, z.kosten );
+		anhaengen( d, z.wand );
+	}
 	g_summeFlAus += g_flaecheAus.load();
 	g_summeFlAlle += flaechen;
 	if ( g_neu != nullptr ) {
 		const std::int32_t b = g_pass;
-		const std::uint64_t laenge = d.size();
-		const bool ok = fwrite( &b, sizeof( b ), 1, g_neu ) == 1 && fwrite( &laenge, sizeof( laenge ), 1, g_neu ) == 1 &&
-		                fwrite( d.data(), 1, d.size(), g_neu ) == d.size();
+		std::string blob;
+		const bool gepackt = packen( d, blob );   // lcb2
+		const std::uint64_t laenge = blob.size();
+		const bool ok = gepackt && fwrite( &b, sizeof( b ), 1, g_neu ) == 1 && fwrite( &laenge, sizeof( laenge ), 1, g_neu ) == 1 &&
+		                fwrite( blob.data(), 1, blob.size(), g_neu ) == blob.size();
 		if ( !ok ) {   // a full disk: no new cache (the old one stays)
 			fclose( g_neu );
 			g_neu = nullptr;
 			remove( g_neuPfad.c_str() );
 			Sys_Warning( "BehavEd: light cache could not be written (%s)\n", g_neuPfad.c_str() );
 		}
-		g_geschriebenMB += ( 12.0 + d.size() ) / ( 1024.0 * 1024.0 );
+		g_geschriebenMB += ( 12.0 + blob.size() ) / ( 1024.0 * 1024.0 );
 	}
+	if ( g_neu != nullptr )
+		fflush( g_neu );   // the pass is on disk before its line below is printed: a light step that is stopped there keeps it (<map>.bhedlight.neu)
 	Sys_Printf( "BehavEd: light cache pass %d of %d: %d of %d vertex lit surfaces from the cache, grid %s\n", g_pass + 1, g_paesse, g_flaecheAus.load(),
 	            flaechen, g_gitterAusCache ? "from the cache" : ( g_gitterDa ? "traced" : "none" ) );
 	altVergessen();
 	g_pass = -1;
+	BhedZeit( "Licht-Cache: packen, schreiben" );
 }
 
 void BhedLichtCacheSchreiben(){

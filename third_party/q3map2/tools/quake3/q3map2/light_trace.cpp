@@ -1968,6 +1968,22 @@ float SetupTrace( trace_t *trace ){
    BhedSpurRaumSig hashes exactly that (or the full hash of a whole subtree, which says more); equal signatures
    mean every ray of R gives the same result in both trees, bit for bit (same float operations, same order).
 
+   R is a list of components: the box A (rays between any two of its points) and per sun the box of the samples
+   swept along the sun's vector, the points s + t * v with s in the box and t in 0..1. On the way down each
+   component keeps the part t0..t1 of its sweep that can reach the node: whatever TraceLine_r hands to the front
+   child lies at front >= -TRACE_ON_EPSILON, to the back child at back < TRACE_ON_EPSILON (the whole ray or the
+   part up to the cut point, which lies on the plane), and with n * (s + t * v) - dist linear in t that bounds t
+   for each child. Without it every plane was tested against the whole sweep, 524288 units long - on an open map
+   the sweeps of the sky's suns covered every node, so one moved brush changed every signature (duel_jakku: 6 %
+   of the lightmaps of the first pass from the cache). Which planes get hashed depends on the walk, the argument
+   does not: a hashed plane cuts as TraceLine_r cuts, a plane that is not hashed has every ray that reaches it on
+   one side, and the stream of a node (leaf hash, or plane and the two streams of its children) decides what
+   TraceLine_r does with a ray there - in whatever tree the stream came from.
+   kBhedSpurRand covers what the points of a real ray are off s + t * v: the rounding of front/back and of the cut
+   points. A cut point is rounded at the size of its coordinates (below 2^16: 0.004) and the next part starts
+   there, so the error adds up over the cuts of one ray like a random walk - far below 2 after any number of cuts
+   a map has.
+
    ------------------------------------------------------------------------------- */
 
 namespace
@@ -2048,28 +2064,40 @@ void BhedSpurHashesAnlegen( BhedSig ( *flaeche )( int surfaceNum ), BhedSig ( *s
 	g_bhedSpurDa = true;
 }
 
-/* the range of front/back (TraceLine_r) over component k */
-static void BhedSpurBereich( const traceNode_t& node, const BhedStrahlRaum::Komp& k, double& mn, double& mx ){
+namespace
+{
+/* a component at a node: the part t0..t1 of its sweep (box + t * v) whose points can get to the node */
+struct BhedSpurTeil
+{
+	int k;
+	double t0, t1;
+};
+}
+
+/* front/back (TraceLine_r) of the points s + t * v of component k at the node's plane: the range of the part of s
+   over the box (sMin..sMax) and what one t adds (nv) */
+static void BhedSpurEbene( const traceNode_t& node, const BhedStrahlRaum::Komp& k, double& sMin, double& sMax, double& nv ){
 	if ( node.type <= ePlaneZ ) {
 		const int a = node.type;
-		mn = k.lo[ a ] - node.plane.dist() + std::min( 0.0, k.v[ a ] );
-		mx = k.hi[ a ] - node.plane.dist() + std::max( 0.0, k.v[ a ] );
+		sMin = k.lo[ a ] - node.plane.dist();
+		sMax = k.hi[ a ] - node.plane.dist();
+		nv = k.v[ a ];
 		return;
 	}
-	mn = mx = -double( node.plane.dist() );
-	double sv = 0;
+	sMin = sMax = -double( node.plane.dist() );
+	nv = 0;
 	for ( int a = 0; a < 3; ++a )
 	{
 		const double n = node.plane.normal()[ a ];
-		mn += n * ( n >= 0 ? k.lo[ a ] : k.hi[ a ] );
-		mx += n * ( n >= 0 ? k.hi[ a ] : k.lo[ a ] );
-		sv += n * k.v[ a ];
+		sMin += n * ( n >= 0 ? k.lo[ a ] : k.hi[ a ] );
+		sMax += n * ( n >= 0 ? k.hi[ a ] : k.lo[ a ] );
+		nv += n * k.v[ a ];
 	}
-	mn += std::min( 0.0, sv );
-	mx += std::max( 0.0, sv );
 }
 
-static void BhedSpurWeg( BhedHash& h, int n, std::uint64_t maske, const BhedStrahlRaum& raum ){
+/* p[ ab .. bis ): the components that can reach node n, in order (A first) */
+static void BhedSpurWeg( BhedHash& h, int n, size_t ab, size_t bis, const BhedStrahlRaum& raum, std::vector<BhedSpurTeil>& p ){
+	const double rand = TRACE_ON_EPSILON + kBhedSpurRand;
 	while ( true )
 	{
 		const traceNode_t& node = traceNodes[ n ];
@@ -2078,7 +2106,7 @@ static void BhedSpurWeg( BhedHash& h, int n, std::uint64_t maske, const BhedStra
 			h.wert( g_bhedSpurVoll[ n ] );
 			return;
 		}
-		if ( maske & 1 ) {   /* the node's box inside A: its whole subtree */
+		if ( p[ ab ].k == 0 ) {   /* the node's box inside A: its whole subtree */
 			const BhedStrahlRaum::Komp& A = raum.komp[ 0 ];
 			const std::array<double, 6>& b = g_bhedSpurBox[ n ];
 			if ( b[ 0 ] >= A.lo[ 0 ] && b[ 1 ] >= A.lo[ 1 ] && b[ 2 ] >= A.lo[ 2 ] && b[ 3 ] <= A.hi[ 0 ] && b[ 4 ] <= A.hi[ 1 ] && b[ 5 ] <= A.hi[ 2 ] ) {
@@ -2087,62 +2115,104 @@ static void BhedSpurWeg( BhedHash& h, int n, std::uint64_t maske, const BhedStra
 				return;
 			}
 		}
-		std::uint64_t vorn = 0, hinten = 0;
-		for ( std::uint64_t m = maske; m != 0; m &= m - 1 )
+		/* the sides the rays can be on */
+		bool vorn = false, hinten = false;
+		for ( size_t i = ab; i < bis && !( vorn && hinten ); ++i )
 		{
-			const int k = std::countr_zero( m );
-			double mn, mx;
-			BhedSpurBereich( node, raum.komp[ k ], mn, mx );
-			if ( mn - kBhedSpurRand >= -TRACE_ON_EPSILON ) {
-				vorn |= 1ULL << k;
+			double sMin, sMax, nv;
+			BhedSpurEbene( node, raum.komp[ p[ i ].k ], sMin, sMax, nv );
+			if ( sMin + std::min( p[ i ].t0 * nv, p[ i ].t1 * nv ) - kBhedSpurRand >= -TRACE_ON_EPSILON ) {
+				vorn = true;
 			}
-			else if ( mx + kBhedSpurRand < TRACE_ON_EPSILON ) {
-				hinten |= 1ULL << k;
+			else if ( sMax + std::max( p[ i ].t0 * nv, p[ i ].t1 * nv ) + kBhedSpurRand < TRACE_ON_EPSILON ) {
+				hinten = true;
 			}
 			else
 			{
-				vorn |= 1ULL << k;
-				hinten |= 1ULL << k;
+				vorn = hinten = true;
 			}
 		}
-		if ( vorn == 0 || hinten == 0 ) {   /* the plane cuts no ray: passed on unchanged (an empty node ends a testAll trace) */
+		if ( !vorn || !hinten ) {   /* the plane cuts no ray: passed on unchanged (an empty node ends a testAll trace) */
 			if ( node.numItems == 0 ) {
 				h.wert( 'E' );
 			}
-			n = node.children[ vorn != 0 ? 0 : 1 ];
+			n = node.children[ vorn ? 0 : 1 ];
 			continue;
+		}
+		/* the plane can cut a ray. What goes on to the front child lies at front >= -TRACE_ON_EPSILON, to the back child
+		   at back < TRACE_ON_EPSILON (a whole ray, or its part up to the cut point on the plane) - with the rounding
+		   s + t * nv >= -rand and <= rand: that bounds t for each child. The front list goes behind the end of p, the
+		   back list replaces this one in place. */
+		const size_t va = p.size();
+		size_t nh = ab;
+		for ( size_t i = ab; i < bis; ++i )
+		{
+			const BhedSpurTeil e = p[ i ];
+			double sMin, sMax, nv;
+			BhedSpurEbene( node, raum.komp[ e.k ], sMin, sMax, nv );
+			const bool nurVorn = sMin + std::min( e.t0 * nv, e.t1 * nv ) - kBhedSpurRand >= -TRACE_ON_EPSILON;
+			const bool nurHinten = !nurVorn && sMax + std::max( e.t0 * nv, e.t1 * nv ) + kBhedSpurRand < TRACE_ON_EPSILON;
+			if ( !nurHinten ) {
+				BhedSpurTeil f = e;
+				if ( nv > 0 ) {
+					f.t0 = std::max( f.t0, ( -rand - sMax ) / nv );
+				}
+				else if ( nv < 0 ) {
+					f.t1 = std::min( f.t1, ( -rand - sMax ) / nv );
+				}
+				p.push_back( f );
+			}
+			if ( !nurVorn ) {
+				BhedSpurTeil b = e;
+				if ( nv > 0 ) {
+					b.t1 = std::min( b.t1, ( rand - sMin ) / nv );
+				}
+				else if ( nv < 0 ) {
+					b.t0 = std::max( b.t0, ( rand - sMin ) / nv );
+				}
+				p[ nh++ ] = b;
+			}
 		}
 		h.wert( 'X' );
 		h.wert( node.type );
 		h.wert( node.plane );
 		h.wert( node.numItems == 0 );
-		h.wert( vorn );
-		h.wert( hinten );
-		BhedSpurWeg( h, node.children[ 0 ], vorn, raum );
+		h.wert( p.size() - va );
+		h.wert( nh - ab );
+		BhedSpurWeg( h, node.children[ 0 ], va, p.size(), raum, p );
+		p.resize( va );
 		n = node.children[ 1 ];
-		maske = hinten;
+		bis = nh;
 	}
 }
 
 BhedSig BhedSpurRaumSig( const BhedStrahlRaum& raum ){
-	if ( !g_bhedSpurDa || raum.komp.empty() || raum.komp.size() > 64 ) {
+	if ( !g_bhedSpurDa || raum.komp.empty() ) {
 		return BhedSig{};
 	}
-	std::uint64_t maske = 0;
-	for ( size_t k = 0; k < raum.komp.size(); ++k )
-	{
-		const BhedStrahlRaum::Komp& c = raum.komp[ k ];
-		if ( c.lo[ 0 ] <= c.hi[ 0 ] && c.lo[ 1 ] <= c.hi[ 1 ] && c.lo[ 2 ] <= c.hi[ 2 ] ) {
-			maske |= 1ULL << k;
+	thread_local std::vector<BhedSpurTeil> p;
+	const auto alle = [&raum]{
+		p.clear();
+		for ( size_t k = 0; k < raum.komp.size(); ++k )
+		{
+			const BhedStrahlRaum::Komp& c = raum.komp[ k ];
+			if ( c.lo[ 0 ] <= c.hi[ 0 ] && c.lo[ 1 ] <= c.hi[ 1 ] && c.lo[ 2 ] <= c.hi[ 2 ] ) {
+				p.push_back( BhedSpurTeil{ int( k ), 0.0, 1.0 } );
+			}
 		}
-	}
+	};
 	BhedHash h;
-	h.wert( maske );
-	if ( maske != 0 ) {
-		BhedSpurWeg( h, headNodeNum, maske, raum );
+	alle();
+	h.wert( raum.komp.size() );
+	for ( const BhedSpurTeil& t : p ) {
+		h.wert( t.k );
+	}
+	if ( !p.empty() ) {
+		BhedSpurWeg( h, headNodeNum, 0, p.size(), raum, p );
 		if ( raum.himmel ) {
 			h.wert( 'H' );
-			BhedSpurWeg( h, skyboxNodeNum, maske, raum );
+			alle();
+			BhedSpurWeg( h, skyboxNodeNum, 0, p.size(), raum, p );
 		}
 	}
 	return h.ende();

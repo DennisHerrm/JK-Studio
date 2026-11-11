@@ -95,13 +95,15 @@ static void RadClipWindingEpsilon( const radWinding_t& in, const Vector3& normal
 	/* clear front and back */
 	front.numVerts = back.numVerts = 0;
 
-	/* handle all on one side cases */
+	/* handle all on one side cases (BehavEd lcb2: the vertices it has - a radWinding_t is 64 KB, see RadSubdivideDiffuseLight) */
 	if ( counts[ 0 ] == 0 ) {
-		back = in;
+		back.numVerts = in.numVerts;
+		std::copy_n( in.verts, in.numVerts, back.verts );
 		return;
 	}
 	if ( counts[ 1 ] == 0 ) {
-		front = in;
+		front.numVerts = in.numVerts;
+		std::copy_n( in.verts, in.numVerts, front.verts );
 		return;
 	}
 
@@ -378,6 +380,17 @@ static void RadSample( int lightmapNum, const bspDrawSurface_t& ds, const rawLig
 static thread_local int t_bhedSurface = -1;
 static thread_local int t_bhedSequence = 0;
 
+/* BehavEd lcb2 (speed, same result): RadSubdivideDiffuseLight took two radWinding_t from the heap for every cut
+   (make_unique: 2 x 64 KB, zeroed) and gave them back - with all threads at it, that was most of the time of
+   RadCreateDiffuseLights (duel_mos_espa: 2.5 s per bounce). Each thread keeps one pair per depth of the
+   recursion instead; only the vertices a winding has are ever read, so what is left in the rest does not matter. */
+struct BhedRadPaar
+{
+	radWinding_t front, back;
+};
+static thread_local std::vector<std::unique_ptr<BhedRadPaar>> t_bhedRadStapel;
+static thread_local size_t t_bhedRadTiefe = 0;
+
 static void RadSubdivideDiffuseLight( int lightmapNum, const bspDrawSurface_t& ds, const rawLightmap_t *lm, const shaderInfo_t& si,
                                       float scale, float subdivide, const radWinding_t& rw ){
 	int style = 0;
@@ -399,18 +412,23 @@ static void RadSubdivideDiffuseLight( int lightmapNum, const bspDrawSurface_t& d
 	for ( int i = 0; i < 3; ++i )
 	{
 		if ( minmax.maxs[ i ] - minmax.mins[ i ] > subdivide ) {
-			auto front = std::make_unique<radWinding_t>(); // prevent stack overflow
-			auto back = std::make_unique<radWinding_t>();
+			/* prevent stack overflow (BehavEd lcb2: the pair of this depth, see BhedRadPaar) */
+			if ( t_bhedRadTiefe == t_bhedRadStapel.size() ) {
+				t_bhedRadStapel.push_back( std::make_unique_for_overwrite<BhedRadPaar>() );
+			}
+			BhedRadPaar& paar = *t_bhedRadStapel[ t_bhedRadTiefe ];
+			++t_bhedRadTiefe;
 
 			/* make axial plane */
 			const float dist = ( minmax.maxs[ i ] + minmax.mins[ i ] ) * 0.5f;
 
 			/* clip the winding */
-			RadClipWindingEpsilon( rw, g_vector3_axes[i], dist, RADIOSITY_CLIP_EPSILON, *front, *back );
+			RadClipWindingEpsilon( rw, g_vector3_axes[i], dist, RADIOSITY_CLIP_EPSILON, paar.front, paar.back );
 
 			/* recurse */
-			RadSubdivideDiffuseLight( lightmapNum, ds, lm, si, scale, subdivide, *front );
-			RadSubdivideDiffuseLight( lightmapNum, ds, lm, si, scale, subdivide, *back );
+			RadSubdivideDiffuseLight( lightmapNum, ds, lm, si, scale, subdivide, paar.front );
+			RadSubdivideDiffuseLight( lightmapNum, ds, lm, si, scale, subdivide, paar.back );
+			--t_bhedRadTiefe;
 			return;
 		}
 	}
@@ -822,6 +840,7 @@ void RadCreateDiffuseLights(){
 	/* hit every surface (threaded) */
 	const size_t bhedBefore = lights.size();
 	RunThreadsOnIndividual( bspDrawSurfaces.size(), true, RadLight );
+	BhedZeit( "  Rad: RadLight" ); /* BehavEd lcb2: the parts of RadCreateDiffuseLights */
 
 	/* BehavEd stage 6 (determinism, GL#173): every thread puts its lights at the FRONT
 	   of the list (emplace_front under ThreadLock), so their order depended on which thread

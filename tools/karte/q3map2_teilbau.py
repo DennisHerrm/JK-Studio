@@ -18,6 +18,10 @@ e) lcb1: -light -bhedlightcache mit -bounce (1, 2, 8, die Final-Eintraege des Ka
 f) lcb2: -light -bhedlightcache nach Geometrie-Aenderungen in Raum B (Struktur-Brush verschoben, dazu,
    geloescht, Detail-Brush, Patch, misc_model, Shader-Tausch, Brush-Entity; bounce 0/1/8, CPU/GPU): Raum A
    kommt aus dem Cache, jede Datei Byte fuer Byte gleich dem vollen Bau. BHED_TEILBAU_NUR=geometrie.
+g) lcb2: dasselbe auf einer offenen Karte unter dem Himmel (eine Sonne, Himmelslicht mit 65 Sonnen): eine Kiste in einer
+   Ecke verschoben (Struktur, Detail, mit Licht dazu) - der groesste Teil des Hofs kommt aus dem Cache; eine hohe Saeule
+   dazu bzw. geloescht, deren Schatten weit faellt. BHED_TEILBAU_NUR=offen.
+BHED_TEILBAU_NUR=karten: nur a) bis d). ctest startet die vier Teile als q3map2_teilbau, _bounce, _geometrie und _offen.
 Die Karten aus tests/karte/q3map2 brauchen kein Spiel (-game quake3 nicht, sondern ja
 ohne Spielordner: die Shader fehlen, die Geometrie ist trotzdem dieselbe).
 """
@@ -92,7 +96,7 @@ def start(text):
 
 
 NUR = os.environ.get('BHED_TEILBAU_NUR', '')
-for quelle in ([] if NUR in ('bounce', 'geometrie') else KARTEN):
+for quelle in ([] if NUR in ('bounce', 'geometrie', 'offen') else KARTEN):
     name = os.path.splitext(os.path.basename(quelle))[0]
     text = open(quelle, encoding='latin-1', newline='').read()
     sx, sy, sz = start(text)
@@ -313,6 +317,39 @@ if NUR in ('', 'bounce') and os.path.exists(ZWEI):
                   and all(x[2] == 0 for x in p))
         pruefe(cache and ok, 'zweiraum, %s: aus dem Cache je Durchgang %s' % (was, text_p))
         pruefe(not anders and len(da) >= 1, 'zweiraum, %s: %d Dateien gleich dem vollen Bau (andere: %s)' % (was, len(da), anders))
+    # lcb2: der Cache eines angehaltenen Licht-Schritts - die Datei endet mitten im letzten Durchgang (der Karten-Editor macht
+    # sie aus <karte>.bhedlight.neu): die ganzen Durchgaenge kommen aus dem Cache, der abgeschnittene wird neu gerechnet
+    schalter = LICHT + ['-bounce', '2']
+    a = os.path.join(ARBEIT, 'e_teil')
+    b = os.path.join(ARBEIT, 'e_voll')
+    for o in (a, b):
+        shutil.rmtree(o, ignore_errors=True)
+    shutil.copytree(erste[' '.join(schalter)], a)
+    os.makedirs(b)
+    cachedatei = os.path.join(a, name + '.bhedlight')
+    ganz = os.path.getsize(cachedatei)
+    with open(cachedatei, 'r+b') as f:
+        f.truncate(ganz - 100)
+    ausgabe = lichtbau(a, name, text, schalter, True)
+    lichtbau(b, name, text, schalter, False)
+    da, db = dateien(a, name), dateien(b, name)
+    anders = sorted(k for k in set(da) | set(db) if da.get(k) != db.get(k))
+    p = paesse(ausgabe)
+    text_p = ', '.join('%d/%d' % (x[2], x[3]) for x in p) or '(keine Zeile)'
+    pruefe('2 of 3 passes kept' in ausgabe and len(p) == 3 and p[0][2] == p[0][3] and p[1][2] == p[1][3] and p[2][2] == 0,
+           'zweiraum, -bounce 2, Cache mitten im dritten Durchgang abgeschnitten: 2 von 3 Durchgaengen behalten, aus dem Cache je Durchgang %s' % text_p)
+    # der neue Cache: Kopf (8 + 3 x 16 Bytes), dann je Durchgang Nummer (i32), Laenge (u64) und so viele Bytes
+    import struct
+    roh = open(cachedatei, 'rb').read()
+    pos, ganze = 56, []
+    while pos + 12 <= len(roh):
+        nr, laenge = struct.unpack_from('<iQ', roh, pos)
+        pos += 12 + laenge
+        if pos <= len(roh):
+            ganze.append(nr)
+    pruefe(not anders and len(da) >= 1 and ganze == [0, 1, 2] and pos == len(roh),
+           'zweiraum, -bounce 2, Cache abgeschnitten: %d Dateien gleich dem vollen Bau (andere: %s), der neue Cache hat die Durchgaenge %s ganz' %
+           (len(da), anders, ganze))
 
 # f) lcb2: der Licht-Cache nach Geometrie-, Shader- und Brush-Entity-Aenderungen (Raum B), Raum A bleibt
 def quader(x0, y0, z0, x1, y1, z1, tex, detail=False):
@@ -351,6 +388,16 @@ def brushent(x, y):
     return '{\n"classname" "func_static"\n' + quader(x, y, 0, x + 48, y + 48, 96, 'test/wand') + '}\n'
 
 
+def sonne():
+    """Eine Sonne senkrecht von oben als Entity (light mit Ziel und _sun). In den geschlossenen Raeumen beleuchtet sie nichts,
+    steht aber in der Lichtliste jeder Lightmap: der Raum ihrer Strahlen ist dann die Lightmap, nach oben gezogen, UND der Raum
+    zu den Punktlichtern. lcb2: der zweite ging verloren, sobald eine Sonne in der Liste stand (Verweis in einen Vektor, der
+    beim Anhaengen der Sonne umzog) - ein verschobener Brush, der nur den Schatten eines Punktlichts aendert, wurde nicht
+    bemerkt, und die Lightmap kam falsch aus dem Cache."""
+    return ('{\n"classname" "info_null"\n"targetname" "sonne_ziel"\n"origin" "0 0 0"\n}\n'
+            '{\n"classname" "light"\n"origin" "0 0 1024"\n"target" "sonne_ziel"\n"_sun" "1"\n"light" "50"\n}\n')
+
+
 SAEULE = quader(640, -160, 0, 704, -96, 256, 'test/wand')   # Struktur-Saeule in Raum B (Boden bis Decke)
 
 
@@ -363,7 +410,7 @@ if NUR in ('', 'geometrie') and os.path.exists(ZWEI):
     os.makedirs(os.path.join(ARBEIT, 'base', 'models', 'test'), exist_ok=True)
     shutil.copyfile(os.path.join(DATEN, 'marken.ase'), os.path.join(ARBEIT, 'base', 'models', 'test', 'marken.ase'))
     # Grundkarte: zweiraum mit Saeule, Patch, Modell und Brush-Entity in Raum B
-    grund = in_welt(open(ZWEI, encoding='latin-1', newline='').read(), SAEULE + patch(800, -224, 0)) + modell(900, 160, 0) + brushent(560, 128)
+    grund = in_welt(open(ZWEI, encoding='latin-1', newline='').read(), SAEULE + patch(800, -224, 0)) + modell(900, 160, 0) + brushent(560, 128) + sonne()
     final_fast = ['-fast', '-patchshadows', '-samples', '2', '-filter', '-bounce', '8']
     gpu = ['-bhedgpubake', '-bhedgpubakecheck', '0']
     aenderungen = [
@@ -371,6 +418,9 @@ if NUR in ('', 'geometrie') and os.path.exists(ZWEI):
         ('Struktur-Brush dazu', lambda t: in_welt(t, quader(880, 0, 0, 944, 64, 256, 'test/wand'))),
         ('Struktur-Brush geloescht', lambda t: t.replace(SAEULE, '', 1)),
         ('Detail-Brush dazu', lambda t: in_welt(t, quader(880, 0, 0, 912, 32, 32, 'test/boden', True))),
+        # lcb2: eine schwebende Platte zwischen dem Licht von Raum B (768 0 192) und der Ostwand - ihr Schatten faellt auf Wand
+        # und Decke, sie liegt aber nicht ueber diesen Lightmaps (nur der Raum zum Punktlicht bemerkt sie, s. sonne())
+        ('Detail-Platte vor der Wand dazu', lambda t: in_welt(t, quader(880, -32, 128, 888, 32, 224, 'test/boden', True))),
         ('Patch verschoben', lambda t: t.replace(patch(800, -224, 0), patch(816, -224, 0), 1)),
         ('misc_model gedreht', lambda t: t.replace(modell(900, 160, 0), modell(900, 160, 0, 90), 1)),
         ('Shader-Tausch', shader_b),
@@ -379,8 +429,8 @@ if NUR in ('', 'geometrie') and os.path.exists(ZWEI):
     # (Schalter, welche Aenderungen): bounce 0 und 1 alle, [Final] Fast (bounce 8) und GPU eine Auswahl
     reihen = [(LICHT, aenderungen),
               (LICHT + ['-bounce', '1'], aenderungen),
-              (final_fast, [aenderungen[0], aenderungen[3], aenderungen[6]]),
-              (final_fast + gpu if GPU else None, [aenderungen[1], aenderungen[4], aenderungen[7]])]
+              (final_fast, [aenderungen[0], aenderungen[3], aenderungen[4], aenderungen[7]]),
+              (final_fast + gpu if GPU else None, [aenderungen[1], aenderungen[4], aenderungen[5], aenderungen[8]])]
     for r, (schalter, liste) in enumerate(reihen):
         if schalter is None:
             continue
@@ -410,6 +460,95 @@ if NUR in ('', 'geometrie') and os.path.exists(ZWEI):
             ok = neu != grund and len(p) >= 1 and 0 < p[0][2] < p[0][3]
             pruefe(cache and ok, 'zweiraum %s, %s: aus dem Cache je Durchgang %s' % (' '.join(schalter), was, text_p))
             pruefe(not anders and len(da) >= 1, 'zweiraum %s, %s: %d Dateien gleich dem vollen Bau (andere: %s)' % (' '.join(schalter), was, len(da), anders))
+
+# g) lcb2: der Licht-Cache auf einer offenen Karte unter dem Himmel - eine Sonne und das Himmelslicht (65 Sonnen ueber die Halbkugel)
+HIMMEL = ('textures/test/himmel\n{\n\tsurfaceparm sky\n\tsurfaceparm noimpact\n\tsurfaceparm nolightmap\n'
+          '\tq3map_sun 1 0.95 0.85 180 60 35\n\tq3map_skylight 60 5\n}\n')
+
+
+def hof():
+    """Ein Hof, 4096 x 4096, Mauern 192 hoch, darueber und oben Himmel; Saeulen und Kisten ueber den Hof verteilt, ein
+    Punktlicht. Die Sonne steht 35 Grad hoch (lange Schatten: was sich aendert, wirft seinen Schatten weit weg)."""
+    w = quader(-2048, -2048, -16, 2048, 2048, 0, 'test/boden')
+    for x0, y0, x1, y1 in ((-2064, -2048, -2048, 2048), (2048, -2048, 2064, 2048), (-2048, -2064, 2048, -2048), (-2048, 2048, 2048, 2064)):
+        w += quader(x0, y0, 0, x1, y1, 192, 'test/wand') + quader(x0, y0, 192, x1, y1, 1024, 'test/himmel')
+    w += quader(-2048, -2048, 1024, 2048, 2048, 1040, 'test/himmel')
+    for x, y, h in ((-1536, -1536, 256), (-1024, 512, 320), (0, 0, 384), (640, -896, 256), (1280, 1280, 320), (-512, 1408, 192)):
+        w += quader(x, y, 0, x + 64, y + 64, h, 'test/wand')
+    for x, y in ((-1792, 1152), (256, 1024), (896, 320), (-320, -1344)):
+        w += quader(x, y, 0, x + 96, y + 96, 96, 'test/boden', True)
+    return ('{\n"classname" "worldspawn"\n"message" "BehavEd q3map2 test: courtyard under the sky (lcb2)"\n' + w + '}\n'
+            '{\n"classname" "info_player_start"\n"origin" "-1792 -1792 24"\n}\n'
+            '{\n"classname" "light"\n"origin" "-1024 1024 128"\n"light" "300"\n}\n')
+
+
+HOF_KISTE = quader(1536, -1664, 0, 1600, -1600, 128, 'test/wand')          # Struktur-Kiste in der Suedost-Ecke
+HOF_DETAIL = quader(1664, 1536, 0, 1728, 1600, 96, 'test/boden', True)     # Detail-Kiste in der Nordost-Ecke
+HOF_MITTE = quader(0, 0, 0, 64, 64, 384, 'test/wand')                      # die Saeule in der Mitte
+
+if NUR in ('', 'offen'):
+    name = 'hof'
+    os.makedirs(os.path.join(ARBEIT, 'base', 'shaders'), exist_ok=True)
+    open(os.path.join(ARBEIT, 'base', 'shaders', 'test_himmel.shader'), 'w', encoding='ascii', newline='\n').write(HIMMEL)
+    grund = in_welt(hof(), HOF_KISTE + HOF_DETAIL)
+    final_fast = ['-fast', '-patchshadows', '-samples', '2', '-filter', '-bounce', '8']
+    gpu = ['-bhedgpubake', '-bhedgpubakecheck', '0']
+    kiste_weg = quader(1568, -1664, 0, 1632, -1600, 128, 'test/wand')
+    # (Name, Aenderung, was der erste Durchgang aus dem Cache nehmen muss: 'meist' = mehr als die Haelfte der Lightmaps,
+    #  'einige' = mindestens eine, None = nichts verlangt). Gemessen beim Anlegen, erster Durchgang, von 65 Raw-Lightmaps (in
+    #  Klammern mit dem Strahlraum davor, der jede Sonne ueber ihre ganze Strecke gegen jede Ebene pruefte und einer Lightmap
+    #  unter mehr als 63 Sonnen keinen Abdruck gab): Licht 47 (37), Detail-Kiste 40 (19), Struktur-Kiste 21 (18), Kiste und
+    #  Licht 21 (18), hohe Saeule 8 von 70 (8), Saeule geloescht 0 von 60 (0).
+    aenderungen = [
+        # nur das Punktlicht verschoben: der Boden und die Mauern weit weg sehen es nicht (sie stehen unter 66 Sonnen)
+        ('Licht verschoben', lambda t: t.replace('"origin" "-1024 1024 128"', '"origin" "-960 1024 128"', 1), 'meist'),
+        # eine Detail-Kiste in der Ecke um 32 verschoben: der Strahlbaum aendert sich nur in ihrem Blatt
+        ('Detail-Kiste in der Ecke verschoben', lambda t: t.replace(HOF_DETAIL, quader(1664, 1568, 0, 1728, 1632, 96, 'test/boden', True), 1), 'meist'),
+        # eine Struktur-Kiste verschoben: ihre Seiten sind Ebenen des BSP - jeder Strahl, der eine davon irgendwo kreuzt, wird
+        # an anderer Stelle geschnitten, und die Flaechen ihres Blocks werden neu zerlegt (der Boden ist eine andere Lightmap)
+        ('Struktur-Kiste in der Ecke verschoben', lambda t: t.replace(HOF_KISTE, kiste_weg, 1), 'einige'),
+        # die typische Aenderung eines Mappers: die Kiste verschoben und ein Licht daneben
+        ('Kiste verschoben und Licht dazu',
+         lambda t: t.replace(HOF_KISTE, kiste_weg, 1) + '{\n"classname" "light"\n"origin" "1472 -1472 96"\n"light" "200"\n}\n', 'einige'),
+        # eine hohe Saeule dazu: ihr Schatten (Sonne und Himmelslicht) faellt quer ueber den Hof auf Lightmaps weit weg von ihr
+        ('hohe Saeule dazu', lambda t: in_welt(t, quader(-896, -1024, 0, -832, -960, 896, 'test/wand')), 'einige'),
+        # eine Saeule weg: die Flaechen werden anders zu Lightmaps zusammengelegt (60 statt 65) - nur die Bytes zaehlen
+        ('Saeule in der Mitte geloescht', lambda t: t.replace(HOF_MITTE, '', 1), None),
+    ]
+    reihen = [(LICHT, aenderungen),
+              (LICHT + ['-bounce', '1'], [aenderungen[1], aenderungen[4]]),
+              (final_fast, [aenderungen[0], aenderungen[3], aenderungen[5]]),
+              (final_fast + gpu if GPU else None, [aenderungen[1], aenderungen[3], aenderungen[4]])]
+    for r, (schalter, liste) in enumerate(reihen):
+        if schalter is None:
+            continue
+        erst = os.path.join(ARBEIT, 'g%d_erst' % r)
+        shutil.rmtree(erst, ignore_errors=True)
+        os.makedirs(erst)
+        lichtbau(erst, name, grund, schalter, True)
+        for was, aendern, soll in liste:
+            a = os.path.join(ARBEIT, 'g_teil')
+            b = os.path.join(ARBEIT, 'g_voll')
+            for o in (a, b):
+                shutil.rmtree(o, ignore_errors=True)
+            shutil.copytree(erst, a)
+            os.makedirs(b)
+            cache = os.path.exists(os.path.join(a, name + '.bhedlight'))
+            neu = aendern(grund)
+            ausgabe = lichtbau(a, name, neu, schalter, True)
+            lichtbau(b, name, neu, schalter, False)
+            da, db = dateien(a, name), dateien(b, name)
+            anders = sorted(k for k in set(da) | set(db) if da.get(k) != db.get(k))
+            if name + '.bsp' in anders:
+                la, lb = lumps(os.path.join(a, name + '.bsp')), lumps(os.path.join(b, name + '.bsp'))
+                anders.append('Lumps %s' % [i for i in range(18) if la[i] != lb[i]])
+            p = paesse(ausgabe)
+            text_p = ', '.join('%d/%d' % (x[2], x[3]) for x in p) or '(keine Zeile)'
+            # der erste Durchgang nimmt nie alle Lightmaps aus dem Cache und so viele, wie die Aenderung verlangt
+            ok = (neu != grund and len(p) >= 1 and p[0][2] < p[0][3] and
+                  (soll is None or (p[0][2] > 0 and (soll != 'meist' or 2 * p[0][2] > p[0][3]))))
+            pruefe(cache and ok, 'hof %s, %s: aus dem Cache je Durchgang %s' % (' '.join(schalter), was, text_p))
+            pruefe(not anders and len(da) >= 1, 'hof %s, %s: %d Dateien gleich dem vollen Bau (andere: %s)' % (' '.join(schalter), was, len(da), anders))
 
 print('q3map2_teilbau: %d Fehlschlaege' % fehler)
 sys.exit(1 if fehler else 0)

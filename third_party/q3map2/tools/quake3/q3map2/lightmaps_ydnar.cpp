@@ -38,6 +38,10 @@
 #include <cstdint>
 #include <cstring>
 #include <map>
+#include <string>
+#include <tuple>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 
@@ -947,6 +951,29 @@ void SetupSurfaceLightmaps(){
 	/* allocate a list of surface indexes to be sorted */
 	int *sortSurfaces = safe_calloc( numBSPDrawSurfaces * sizeof( int ) );
 
+	/* BehavEd lcb2 (speed, same result): "find all the bsp clusters the surface falls into" below walked every
+	   leaf for every surface (surfaces x leafs bounds tests). The leafs that list a surface, in leaf order and
+	   once per entry of their list, are collected here once; the walk below visits exactly those - the same
+	   leafs in the same order pass the bounds test and add their cluster. */
+	std::vector<int> bhedBlattAb( numBSPDrawSurfaces + 1, 0 );   /* surface -> first entry in bhedBlaetter */
+	std::vector<int> bhedBlaetter;                                /* leaf numbers, ascending per surface */
+	{
+		for ( const bspLeaf_t& leaf : bspLeafs )
+			for ( const int s : Span( &bspLeafSurfaces[ leaf.firstBSPLeafSurface ], leaf.numBSPLeafSurfaces ) )
+				if ( s >= 0 && s < numBSPDrawSurfaces ) {
+					++bhedBlattAb[ s + 1 ];
+				}
+		for ( i = 0; i < numBSPDrawSurfaces; ++i )
+			bhedBlattAb[ i + 1 ] += bhedBlattAb[ i ];
+		bhedBlaetter.resize( bhedBlattAb[ numBSPDrawSurfaces ] );
+		std::vector<int> bhedFrei( bhedBlattAb.begin(), bhedBlattAb.end() - 1 );
+		for ( size_t l = 0; l < bspLeafs.size(); ++l )
+			for ( const int s : Span( &bspLeafSurfaces[ bspLeafs[ l ].firstBSPLeafSurface ], bspLeafs[ l ].numBSPLeafSurfaces ) )
+				if ( s >= 0 && s < numBSPDrawSurfaces ) {
+					bhedBlaetter[ bhedFrei[ s ]++ ] = int( l );
+				}
+	}
+
 	/* walk each model in the bsp */
 	for ( const bspModel_t& model : bspModels )
 	{
@@ -999,26 +1026,23 @@ void SetupSurfaceLightmaps(){
 				info.minmax.extend( dv.xyz );
 			}
 
-			/* find all the bsp clusters the surface falls into */
-			for ( const bspLeaf_t& leaf : bspLeafs )
+			/* find all the bsp clusters the surface falls into (BehavEd lcb2: only the leafs that list it, see above) */
+			for ( int b = bhedBlattAb[ num ]; b < bhedBlattAb[ num + 1 ]; ++b )
 			{
+				const bspLeaf_t& leaf = bspLeafs[ bhedBlaetter[ b ] ];
+
 				/* test bbox */
 				if( !leaf.minmax.test( info.minmax ) ) {
 					continue;
 				}
 
-				/* test leaf surfaces */
-				for ( const int s : Span( &bspLeafSurfaces[ leaf.firstBSPLeafSurface ], leaf.numBSPLeafSurfaces ) )
-				{
-					if ( s == num ) {
-						if ( numSurfaceClusters >= maxSurfaceClusters ) {
-							Error( "maxSurfaceClusters exceeded" );
-						}
-						surfaceClusters[ numSurfaceClusters ] = leaf.cluster;
-						numSurfaceClusters++;
-						info.numSurfaceClusters++;
-					}
+				/* this entry of the leaf's surface list is the surface */
+				if ( numSurfaceClusters >= maxSurfaceClusters ) {
+					Error( "maxSurfaceClusters exceeded" );
 				}
+				surfaceClusters[ numSurfaceClusters ] = leaf.cluster;
+				numSurfaceClusters++;
+				info.numSurfaceClusters++;
 			}
 
 			/* determine if surface is planar */
@@ -1044,6 +1068,7 @@ void SetupSurfaceLightmaps(){
 		}
 	}
 
+	BhedZeit( "  Setup: Flaechen, Cluster" ); /* BehavEd lcb2: the parts of SetupSurfaceLightmaps */
 	/* sort the surfaces info list */
 	std::ranges::sort( Span( sortSurfaces, numBSPDrawSurfaces ), CompareSurfaceInfo() );
 
@@ -1086,6 +1111,101 @@ void SetupSurfaceLightmaps(){
 			                    info.si->lmCustomHeight, info.si->lmBrightness, info.si->lmFilterRadius, info.si->splotchFix ) ].push_back( i );
 		}
 	}
+
+	/* BehavEd lcb2 (speed, same result): on a map where nearly every surface has the same attributes the merge
+	   still offered every later surface to every raw lightmap (duel_mos_espa: 65 000 raw lightmaps, 17 s).
+	   AddSurfaceToRawLightmap rejects a surface whose bounds do not touch the raw lightmap's before it changes
+	   anything (after the axis and the attributes, which change nothing either), and the bounds of a raw
+	   lightmap only change in such a call. So the walk may skip every surface whose bounds do not touch the
+	   bounds the raw lightmap has at that moment: bhedNaechster gives the next position after p with a surface
+	   of the same attributes that has no raw lightmap yet and touches the bounds - the same calls in the same
+	   order with the same state. The surfaces lie in a grid over the map (cells of their bounds, positions
+	   ascending); the cell of a coordinate never decreases with the coordinate, so two bounds that touch share
+	   a cell. Surfaces over many cells are in a list of their own; bounds over many cells walk the candidates
+	   as before. */
+	std::vector<const std::vector<int>*> bhedGruppe( numBSPDrawSurfaces, nullptr );   /* position -> its list in bhedMerge */
+	for ( const auto& [ key, liste ] : bhedMerge )
+		for ( const int pos : liste )
+			bhedGruppe[ pos ] = &liste;
+	int bhedZellen[ 3 ] = { 1, 1, 1 };
+	float bhedZelle = 1;
+	{
+		/* about four surfaces per cell, at most 128 cells along an axis */
+		double volumen = 1;
+		for ( k = 0; k < 3; ++k )
+			volumen *= std::max( 1.0, double( g_mapMinmax.maxs[ k ] ) - double( g_mapMinmax.mins[ k ] ) );
+		const double seite = std::cbrt( volumen / std::max( 1.0, numSurfsLightmapped / 4.0 ) );
+		if ( seite > 0 && seite < double( std::numeric_limits<float>::max() ) ) {
+			bhedZelle = float( seite );
+			for ( k = 0; k < 3; ++k )
+				bhedZellen[ k ] = std::clamp( int( std::min( 128.0, ( double( g_mapMinmax.maxs[ k ] ) - double( g_mapMinmax.mins[ k ] ) ) / seite ) ) + 1, 1, 128 );
+		}
+	}
+	const auto bhedZelleVon = [&]( int achse, float c ){
+		const float t = ( c - g_mapMinmax.mins[ achse ] ) / bhedZelle;
+		if ( !( t > 0 ) ) {   /* also not a number */
+			return 0;
+		}
+		return t >= float( bhedZellen[ achse ] ) ? bhedZellen[ achse ] - 1 : int( t );
+	};
+	constexpr int bhedVieleZellen = 64;   /* a surface over more cells: in bhedGrosse; bounds over more: the walk as before */
+	std::vector<std::vector<int>> bhedGitter( size_t( bhedZellen[ 0 ] ) * bhedZellen[ 1 ] * bhedZellen[ 2 ] );
+	std::vector<int> bhedGrosse;
+	const auto bhedBereich = [&]( const MinMax& b, int von[ 3 ], int bis[ 3 ] ){   /* cells of bounds; the number of cells, 0: none */
+		int anzahl = 1;
+		for ( int a = 0; a < 3; ++a )
+		{
+			if ( !( b.mins[ a ] <= b.maxs[ a ] ) ) {
+				return 0;
+			}
+			von[ a ] = bhedZelleVon( a, b.mins[ a ] );
+			bis[ a ] = bhedZelleVon( a, b.maxs[ a ] );
+			anzahl *= bis[ a ] - von[ a ] + 1;
+		}
+		return anzahl;
+	};
+	for ( i = 0; i < numBSPDrawSurfaces; ++i )
+	{
+		if ( bhedGruppe[ i ] == nullptr ) {
+			continue;
+		}
+		int von[ 3 ], bis[ 3 ];
+		const int anzahl = bhedBereich( surfaceInfos[ sortSurfaces[ i ] ].minmax, von, bis );
+		if ( anzahl == 0 || anzahl > bhedVieleZellen ) {   /* 0: no proper bounds - tested like the big ones, every time */
+			bhedGrosse.push_back( i );
+		}
+		else {
+			for ( int z = von[ 2 ]; z <= bis[ 2 ]; ++z )
+				for ( int y = von[ 1 ]; y <= bis[ 1 ]; ++y )
+					for ( int x = von[ 0 ]; x <= bis[ 0 ]; ++x )
+						bhedGitter[ ( size_t( z ) * bhedZellen[ 1 ] + y ) * bhedZellen[ 0 ] + x ].push_back( i );
+		}
+	}
+	const auto bhedNaechster = [&]( int p, const std::vector<int> *gruppe, const MinMax& grenzen ){
+		int beste = -1;
+		const auto suche = [&]( const std::vector<int>& liste, bool alleDerGruppe ){
+			for ( auto it = std::upper_bound( liste.begin(), liste.end(), p ); it != liste.end() && ( beste < 0 || *it < beste ); ++it )
+			{
+				const surfaceInfo_t& info2 = surfaceInfos[ sortSurfaces[ *it ] ];
+				if ( ( alleDerGruppe || bhedGruppe[ *it ] == gruppe ) && info2.hasLightmap && info2.lm == nullptr && info2.minmax.test( grenzen ) ) {
+					beste = *it;
+					break;
+				}
+			}
+		};
+		int von[ 3 ], bis[ 3 ];
+		const int anzahl = bhedBereich( grenzen, von, bis );
+		if ( anzahl == 0 || anzahl > bhedVieleZellen ) {
+			suche( *gruppe, true );
+			return beste;
+		}
+		for ( int z = von[ 2 ]; z <= bis[ 2 ]; ++z )
+			for ( int y = von[ 1 ]; y <= bis[ 1 ]; ++y )
+				for ( int x = von[ 0 ]; x <= bis[ 0 ]; ++x )
+					suche( bhedGitter[ ( size_t( z ) * bhedZellen[ 1 ] + y ) * bhedZellen[ 0 ] + x ], false );
+		suche( bhedGrosse, false );
+		return beste;
+	};
 
 	/* walk the list of sorted surfaces */
 	for ( i = 0; i < numBSPDrawSurfaces; ++i )
@@ -1148,19 +1268,19 @@ void SetupSurfaceLightmaps(){
 		                                                  lm.customHeight, lm.brightness, lm.filterRadius, lm.splotchFix ) );
 		const std::vector<int> bhedLeer;
 		const std::vector<int>& bhedKandidaten = bhedGleiche != bhedMerge.end() ? bhedGleiche->second : bhedLeer;
-		const auto bhedAb = std::upper_bound( bhedKandidaten.begin(), bhedKandidaten.end(), i );
 		for ( bool added = true; added; )
 		{
-			/* walk the list of surfaces again (BehavEd vis3: only those with the same attributes) */
+			/* walk the list of surfaces again (BehavEd vis3: only those with the same attributes; lcb2: of those
+			   only the ones without a raw lightmap that touch its bounds, see bhedNaechster) */
 			added = false;
-			for ( auto bhedJ = bhedAb; bhedJ != bhedKandidaten.end() && !lm.finished; ++bhedJ )
+			for ( int bhedP = i; !lm.finished; )
 			{
-				/* get info and attempt early out */
-				const int num2 = sortSurfaces[ *bhedJ ];
-				surfaceInfo_t& info2 = surfaceInfos[ num2 ];
-				if ( !info2.hasLightmap || info2.lm != nullptr ) {
-					continue;
+				bhedP = bhedNaechster( bhedP, &bhedKandidaten, lm.minmax );
+				if ( bhedP < 0 ) {
+					break;
 				}
+				const int num2 = sortSurfaces[ bhedP ];
+				surfaceInfo_t& info2 = surfaceInfos[ num2 ];
 
 				/* add the surface to the raw lightmap */
 				if ( AddSurfaceToRawLightmap( num2, lm ) ) {
@@ -1179,6 +1299,7 @@ void SetupSurfaceLightmaps(){
 		/* finish the lightmap and allocate the various buffers */
 		FinishRawLightmap( lm );
 	}
+	BhedZeit( "  Setup: Raw-Lightmaps" );
 
 	if ( debugSampleSize < -1 ){
 		Sys_FPrintf( SYS_WRN | SYS_VRBflag, "+%d similar occurrences;\t-debugsamplesize to show ones\n", -debugSampleSize - 1 );
@@ -1833,6 +1954,34 @@ static void SetupOutLightmap( rawLightmap_t *lm, outLightmap_t *olm ){
  */
 
 #define LIGHTMAP_RESERVE_COUNT 1
+/* BehavEd lcb2 (speed, same result): outLightmaps[ i ].freeLuxels, side by side. FindOutLightmaps walks every output
+   lightmap for every raw lightmap and skips the ones without room; an outLightmap_t is 2 KB (its shader list),
+   so every skipped one was a cache miss (duel_mos_espa: 65 000 raw lightmaps x 1 300 output lightmaps, 1.4 s
+   per StoreSurfaceLightmaps, nine of them with -bounce 8). Written wherever freeLuxels is. */
+static std::vector<int> bhedFreiLuxel;
+/* BehavEd lcb2 (speed, same result): the placement walked every origin of every output lightmap with room for the
+   used luxels and tested the stamp there - on a nearly full one 16 000 origins for nothing (duel_mos_espa: 1.4 s per
+   StoreSurfaceLightmaps). A stamp needs, in the row of its longest run of used luxels, a run of free luxels at least
+   that long. So for every output lightmap the longest free run of each row is kept (bhedZeileLauf, bhedSeiteLauf:
+   the longest of all rows), brought up to date for the rows a stamp marks: an output lightmap or an origin row
+   where that run is shorter cannot take the stamp and is skipped - the first origin that fits is the same. */
+static std::vector<std::vector<int>> bhedZeileLauf;
+static std::vector<int> bhedSeiteLauf;
+/* BehavEd lcb2 (speed, same result): where the search for a stamp of this shape ended. While StoreSurfaceLightmaps
+   places the raw lightmaps the output lightmaps only fill up (luxels and rows are marked, never freed), so whatever
+   refused a stamp - an output lightmap without room, a row without a free run that long, an origin where the stamp
+   met a used luxel - refuses every later stamp of the same shape as well. The search for a shape therefore goes on at
+   the output lightmap and the origin where the last one for that shape found its place (that origin is tested
+   again) instead of at the first origin of the first output lightmap: the same origins in the same order without
+   the ones known to fail, so the first one that fits is the same. A new output lightmap is searched from its first
+   origin (a styled stamp is put there without a search). The shape: the custom size, w, h, solid, the count of
+   used luxels and which luxels are used; fastAllocate is the same for all stamps of one StoreSurfaceLightmaps.
+   duel_jakku: 22 300 stamps of 745 shapes, 520 million origins tested per StoreSurfaceLightmaps before. */
+struct BhedPlatzStand
+{
+	int seite = 0, y = 0, x = 0;
+};
+static std::unordered_map<std::string, BhedPlatzStand> bhedPlatz;
 static void FindOutLightmaps( rawLightmap_t *lm, bool fastAllocate ){
 	int i, j, k, lightmapNum, xMax, yMax, x = -1, y = -1, sx, sy, ox, oy;
 	outLightmap_t       *olm;
@@ -1874,8 +2023,8 @@ static void FindOutLightmaps( rawLightmap_t *lm, bool fastAllocate ){
 					/* get the output lightmap */
 					olm = &outLightmaps[ i ];
 
-					/* simple early out test */
-					if ( olm->freeLuxels < lm->used ) {
+					/* simple early out test (BehavEd lcb2: from the copy) */
+					if ( bhedFreiLuxel[ i ] < lm->used ) {
 						continue;
 					}
 
@@ -1931,6 +2080,41 @@ static void FindOutLightmaps( rawLightmap_t *lm, bool fastAllocate ){
 			x = 0;
 			y = 0;
 
+			/* BehavEd lcb2: the longest run of used luxels of the stamp and its row (a solid one stamps one luxel) */
+			int bhedStempelZeile = 0, bhedStempelLauf = 1;
+			if ( !lm->solid[ lightmapNum ] ) {
+				bhedStempelLauf = 0;
+				for ( sy = 0; sy < lm->h; ++sy )
+				{
+					int lauf = 0;
+					for ( sx = 0; sx < lm->w; ++sx )
+					{
+						lauf = lm->getBspLuxel( lightmapNum, sx, sy )[ 0 ] < 0 ? 0 : lauf + 1;
+						if ( lauf > bhedStempelLauf ) {
+							bhedStempelLauf = lauf;
+							bhedStempelZeile = sy;
+						}
+					}
+				}
+			}
+
+			/* BehavEd lcb2: where the search for this shape goes on (bhedPlatz) */
+			std::string bhedForm;
+			{
+				const int kopf[ 6 ] = { lm->customWidth, lm->customHeight, lm->w, lm->h, lm->solid[ lightmapNum ] ? 1 : 0, lm->used };
+				bhedForm.assign( reinterpret_cast<const char*>( kopf ), sizeof( kopf ) );
+				if ( !lm->solid[ lightmapNum ] ) {
+					for ( sy = 0; sy < lm->h; ++sy )
+					{
+						for ( sx = 0; sx < lm->w; ++sx )
+						{
+							bhedForm.push_back( lm->getBspLuxel( lightmapNum, sx, sy )[ 0 ] < 0 ? '0' : '1' );
+						}
+					}
+				}
+			}
+			BhedPlatzStand& bhedStand = bhedPlatz[ bhedForm ];
+
 			/* walk the list of lightmap pages */
 			if ( lightmapSearchBlockSize <= 0 || numOutLightmaps < LIGHTMAP_RESERVE_COUNT ) {
 				i = 0;
@@ -1938,13 +2122,20 @@ static void FindOutLightmaps( rawLightmap_t *lm, bool fastAllocate ){
 			else{
 				i = ( ( numOutLightmaps - LIGHTMAP_RESERVE_COUNT ) / lightmapSearchBlockSize ) * lightmapSearchBlockSize;
 			}
+			if ( bhedStand.seite > i ) {
+				i = bhedStand.seite;   /* the ones before refused this shape */
+			}
 			for ( ; i < numOutLightmaps; ++i )
 			{
+				/* BehavEd lcb2: in the output lightmap the last search ended in, from its origin on */
+				const int bhedY = i == bhedStand.seite ? bhedStand.y : 0;
+				const int bhedX = i == bhedStand.seite ? bhedStand.x : 0;
+
 				/* get the output lightmap */
 				olm = &outLightmaps[ i ];
 
-				/* simple early out test */
-				if ( olm->freeLuxels < lm->used ) {
+				/* simple early out test (BehavEd lcb2: from the copy) */
+				if ( bhedFreiLuxel[ i ] < lm->used ) {
 					continue;
 				}
 
@@ -1958,6 +2149,11 @@ static void FindOutLightmaps( rawLightmap_t *lm, bool fastAllocate ){
 				/* don't store non-custom raw lightmaps on custom bsp lightmaps */
 				if ( olm->customWidth != lm->customWidth ||
 				     olm->customHeight != lm->customHeight ) {
+					continue;
+				}
+
+				/* BehavEd lcb2: no row with a free run long enough */
+				if ( bhedSeiteLauf[ i ] < bhedStempelLauf ) {
 					continue;
 				}
 
@@ -1983,9 +2179,13 @@ static void FindOutLightmaps( rawLightmap_t *lm, bool fastAllocate ){
 				}
 
 				/* walk the origin around the lightmap */
-				for ( y = 0; y < yMax; y += yIncrement )
+				for ( y = bhedY; y < yMax; y += yIncrement )
 				{
-					for ( x = 0; x < xMax; x += xIncrement )
+					/* BehavEd lcb2: the row the longest run of the stamp would lie in has no free run that long */
+					if ( bhedZeileLauf[ i ][ y + bhedStempelZeile ] < bhedStempelLauf ) {
+						continue;
+					}
+					for ( x = y == bhedY ? bhedX : 0; x < xMax; x += xIncrement )
 					{
 						/* find a fine tract of lauhnd */
 						ok = TestOutLightmapStamp( lm, lightmapNum, olm, x, y );
@@ -2001,12 +2201,16 @@ static void FindOutLightmaps( rawLightmap_t *lm, bool fastAllocate ){
 				}
 
 				if ( ok ) {
+					bhedStand = BhedPlatzStand{ i, y, x };
 					break;
 				}
 
 				/* reset x and y */
 				x = 0;
 				y = 0;
+			}
+			if ( !ok ) {
+				bhedStand = BhedPlatzStand{ numOutLightmaps, 0, 0 };   /* every output lightmap refused it: the new one, from its first origin */
 			}
 		}
 
@@ -2023,8 +2227,16 @@ static void FindOutLightmaps( rawLightmap_t *lm, bool fastAllocate ){
 			outLightmaps = olm;
 
 			/* initialize both out lightmaps */
+			bhedFreiLuxel.resize( numOutLightmaps );
+			bhedZeileLauf.resize( numOutLightmaps );
+			bhedSeiteLauf.resize( numOutLightmaps );
 			for ( k = numOutLightmaps - LIGHTMAP_RESERVE_COUNT; k < numOutLightmaps; ++k )
+			{
 				SetupOutLightmap( lm, &outLightmaps[ k ] );
+				bhedFreiLuxel[ k ] = outLightmaps[ k ].freeLuxels;
+				bhedZeileLauf[ k ].assign( outLightmaps[ k ].customHeight, outLightmaps[ k ].customWidth );   /* all free */
+				bhedSeiteLauf[ k ] = outLightmaps[ k ].customWidth;
+			}
 
 			/* set out lightmap */
 			i = numOutLightmaps - LIGHTMAP_RESERVE_COUNT;
@@ -2132,6 +2344,23 @@ static void FindOutLightmaps( rawLightmap_t *lm, bool fastAllocate ){
 					olm->bspDirBytes[ oy * olm->customWidth + ox ] = direction + Vector3( 127.5f );
 				}
 			}
+		}
+		bhedFreiLuxel[ lm->outLightmapNums[ lightmapNum ] ] = olm->freeLuxels;
+		{
+			/* the longest free run of the rows the stamp marked, and of the output lightmap */
+			std::vector<int>& zeilen = bhedZeileLauf[ lm->outLightmapNums[ lightmapNum ] ];
+			for ( y = 0; y < yMax; ++y )
+			{
+				oy = y + lm->lightmapY[ lightmapNum ];
+				int lauf = 0, laengster = 0;
+				for ( ox = 0; ox < olm->customWidth; ++ox )
+				{
+					lauf = bit_is_enabled( olm->lightBits, ( oy * olm->customWidth ) + ox ) ? 0 : lauf + 1;
+					laengster = std::max( laengster, lauf );
+				}
+				zeilen[ oy ] = laengster;
+			}
+			bhedSeiteLauf[ lm->outLightmapNums[ lightmapNum ] ] = *std::max_element( zeilen.begin(), zeilen.end() );
 		}
 	}
 }
@@ -2795,6 +3024,37 @@ void StoreSurfaceLightmaps( bool fastAllocate, bool storeForReal ){
 			rawLightmaps[ i ].numStyledTwins = 0;
 		}
 
+		/* BehavEd lcb2: the walk below compared every lightmap with every later one (n^2 / 2 calls of CompareBSPLuxels,
+		   15 s on a map with 65 000 raw lightmaps). CompareBSPLuxels returns false without touching anything when
+		   customWidth, customHeight, brightness or solid differ, for nonsolid lightmaps when w or h differ, and with
+		   _minlight when one of the two is style 0 and the other not. So the candidates are grouped by exactly these
+		   keys; inside a group they are visited in the original order (j, then lightmapNum2), and every pair that
+		   could compare true is compared at the same point as before - the twins and merges are the same. */
+		struct ZwillingSchluessel {
+			bool solid, stil0;
+			int cw, ch, w, h;
+			float brightness;
+			bool operator<( const ZwillingSchluessel& o ) const {
+				return std::tie( solid, stil0, cw, ch, w, h, brightness ) < std::tie( o.solid, o.stil0, o.cw, o.ch, o.w, o.h, o.brightness );
+			}
+		};
+		std::map<ZwillingSchluessel, std::vector<std::pair<int, int>>> zwillingsGruppen;   // (raw lightmap, lightmapNum) in order
+		std::vector<std::array<std::pair<std::vector<std::pair<int, int>>*, std::size_t>, MAX_LIGHTMAPS>> zwillingsOrt( numRawLightmaps );
+		for ( i = 0; i < numRawLightmaps; ++i )
+			for ( lightmapNum = 0; lightmapNum < MAX_LIGHTMAPS; ++lightmapNum )
+			{
+				lm = &rawLightmaps[ i ];
+				if ( lm->bspLuxels[ lightmapNum ] == nullptr ) {
+					continue;
+				}
+				const bool solid = lm->solid[ lightmapNum ];
+				const ZwillingSchluessel k{ solid, minLight != g_vector3_identity && lightmapNum == 0, lm->customWidth, lm->customHeight,
+				                            solid ? 0 : lm->w, solid ? 0 : lm->h, lm->brightness };
+				auto& gruppe = zwillingsGruppen[ k ];
+				zwillingsOrt[ i ][ lightmapNum ] = { &gruppe, gruppe.size() };
+				gruppe.emplace_back( i, lightmapNum );
+			}
+
 		/* walk the list of raw lightmaps */
 		for ( i = 0; i < numRawLightmaps; ++i )
 		{
@@ -2810,18 +3070,22 @@ void StoreSurfaceLightmaps( bool fastAllocate, bool storeForReal ){
 					continue;
 				}
 
-				/* find all lightmaps that are virtually identical to this one */
-				for ( j = i + 1; j < numRawLightmaps; ++j )
+				/* find all lightmaps that are virtually identical to this one (lcb2: the later ones of its group) */
+				const auto& [ gruppe, ort ] = zwillingsOrt[ i ][ lightmapNum ];
+				for ( std::size_t g = ort + 1; g < gruppe->size(); ++g )
 				{
+					j = ( *gruppe )[ g ].first;
+					lightmapNum2 = ( *gruppe )[ g ].second;
+					if ( j == i ) {   /* only later raw lightmaps, as before */
+						continue;
+					}
+
 					/* get lightmap */
 					lm2 = &rawLightmaps[ j ];
 
-					/* walk lightmaps */
-					for ( lightmapNum2 = 0; lightmapNum2 < MAX_LIGHTMAPS; ++lightmapNum2 )
 					{
 						/* early outs */
-						if ( lm2->bspLuxels[ lightmapNum2 ] == nullptr ||
-						     lm2->twins[ lightmapNum2 ] != nullptr ) {
+						if ( lm2->twins[ lightmapNum2 ] != nullptr ) {
 							continue;
 						}
 
@@ -2870,6 +3134,7 @@ void StoreSurfaceLightmaps( bool fastAllocate, bool storeForReal ){
 		std::ranges::sort( Span( sortLightmaps, numRawLightmaps ), CompareRawLightmap() );
 
 		Sys_Printf( "%d.", int( timer.elapsed_sec() ) );
+		BhedZeit( "  Store: sorting" );
 	}
 
 	/* -----------------------------------------------------------------
@@ -2895,6 +3160,10 @@ void StoreSurfaceLightmaps( bool fastAllocate, bool storeForReal ){
 
 		numLightmapShaders = 0;
 		numOutLightmaps = 0;
+		bhedPlatz.clear();
+		bhedFreiLuxel.clear();
+		bhedZeileLauf.clear();
+		bhedSeiteLauf.clear();
 		numBSPLightmaps = 0;
 		numExtLightmaps = 0;
 
@@ -2929,6 +3198,7 @@ void StoreSurfaceLightmaps( bool fastAllocate, bool storeForReal ){
 		}
 
 		Sys_Printf( "%d.", int( timer.elapsed_sec() ) );
+		BhedZeit( "  Store: allocating" );
 	}
 
 	/* -----------------------------------------------------------------
@@ -3028,6 +3298,7 @@ void StoreSurfaceLightmaps( bool fastAllocate, bool storeForReal ){
 		}
 
 		Sys_Printf( "%d.", int( timer.elapsed_sec() ) );
+		BhedZeit( "  Store: storing" );
 	}
 
 	/* -----------------------------------------------------------------

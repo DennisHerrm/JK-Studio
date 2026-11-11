@@ -136,6 +136,9 @@ void BhedLichtCacheLichter();
 [[nodiscard]] bool BhedLmVorab( int lmNum, const trace_t& trace, unsigned int seed );
 // after all BhedLmVorab of the pass: the line for the build window
 void BhedLmVorabFertig();
+// lcb2: IlluminateRawLightmap_ lit lightmap lmNum on the processor - kosten: the seconds of one thread it took,
+// wand: the seconds from its start to its end (with the pool less than kosten); kept for the next estimate
+void BhedLmZeit( int lmNum, double kosten, double wand );
 // after BhedIlluminateRawLightmaps, before StitchSurfaceLightmaps: copy the raw lightmaps for the new cache
 void BhedLmDatenMerken();
 // IlluminateVertexes (vertex lit surfaces) after CreateTraceLightsForSurface: true = restored

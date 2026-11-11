@@ -2746,6 +2746,11 @@ static double g_bbZeit[ 8 ] = {};
 static double BhedJetzt(){
 	return std::chrono::duration<double>( std::chrono::steady_clock::now().time_since_epoch() ).count();
 }
+/* BehavEd lcb2: how many times faster the thread with the pool is taken to light a lightmap than one thread: half
+   the threads - it shares the processor with as many threads that light lightmaps on their own. */
+static double BhedPoolFaktor(){
+	return std::max( 1.0, numthreads / 2.0 );
+}
 
 /* the GPU result into the lightmap - instead of the light loop (the luxels were ambient/zero before) */
 static void BhedBakeEinsetzen( rawLightmap_t *lm, const BhedBakeFertig& f ){
@@ -2964,6 +2969,7 @@ static void BhedLichtCacheVorab(){
 		FreeTraceLights( &trace );
 	} );
 	BhedLmVorabFertig();
+	BhedZeit( "Licht-Cache: Vorab" ); /* lcb2: light lists, fingerprints (with the trace tree signature) and the hits restored */
 }
 
 void BhedIlluminateRawLightmaps(){
@@ -2982,7 +2988,8 @@ void BhedIlluminateRawLightmaps(){
 	     !( debugSurfaces || debugAxis || debugCluster || debugOrigin || dirtDebug || normalmap ) ) {
 		double total = 0;
 		for ( int i = 0; i < numRawLightmaps; ++i )
-			total += double( rawLightmaps[ i ].sw ) * rawLightmaps[ i ].sh;
+			if ( !g_bhedCacheFertig[ i ] ) /* BehavEd lcb2: of the lightmaps this pass lights - with the light cache the few left are the pass */
+				total += double( rawLightmaps[ i ].sw ) * rawLightmaps[ i ].sh;
 		/* big: more luxels than the share of one thread - such a lightmap would keep one
 		   thread busy while the others run out of work */
 		const double grenze = total / numthreads;
@@ -3807,7 +3814,7 @@ static void BhedIlluminateGpu(){
 	std::multiset<std::pair<size_t, int>> nebenZufall;   /* vis2: lightmaps with random subsamples - the threads take the
 	                                                        biggest, the GPU the smallest when it has nothing else */
 	size_t zufallArbeit = 0;               /* their work */
-	bool fahrerFrei = true;                /* that thread has nothing to do */
+	double fahrerArbeit = 0;               /* lcb2: the work that thread has before it (waiting and the one it lights) */
 	size_t vorne = 0, hinten = gpuListe.size();   /* gpuListe[ vorne, hinten ): nobody has taken them yet */
 	bool gpuEnde = false, arbeiterEnde = false;
 	const bool nurGpu = getenv( "BHED_GPUBAKE_NUR_GPU" ) != nullptr;   /* the ctest: the processor takes no GPU lightmap */
@@ -3867,6 +3874,7 @@ static void BhedIlluminateGpu(){
 			int r = -1;
 			bool gross2 = false;
 			bool fertig = false;
+			bool uebernommen = false;
 			{
 				std::unique_lock<std::mutex> l( nebenMutex );
 				nebenCv.wait( l, [&]{ return !nebenFertig.empty() || !nebenWarte.empty() || !nebenZufall.empty() || ( uebernehmen && vorne < hinten ) || gpuEnde; } );
@@ -3889,12 +3897,25 @@ static void BhedIlluminateGpu(){
 				else if ( uebernehmen && vorne < hinten ) {
 					r = gpuListe[ --hinten ];
 					++nebenUebernommen;
+					uebernommen = true;
 				}
 				else{
 					return;
 				}
-				if ( !fertig && numthreads > 1 && fahrerFrei && double( rawLightmaps[ r ].sw ) * rawLightmaps[ r ].sh > grenzeGross ) {
-					fahrerFrei = false;
+				/* BehavEd lcb2 (speed, same bytes - who lights a lightmap never matters): before, a lightmap went to
+				   the thread with the pool only when it had more luxels than the share of one thread of ALL raw
+				   lightmaps and that thread was free. The lightmaps that take the longest are not the ones with the
+				   most luxels but with the most pairs of light and luxel: on duel_mos_espa ([Final] Fast) one floor
+				   lightmap the GPU cannot take (alpha shadows) took 58 of the 81 s of the first bounce on one thread,
+				   and in a partial build with the light cache it WAS the pass (31 of 32 s, 876 lightmaps to light).
+				   Now a lightmap of the processor's own goes to the pool when it is finished sooner there: after
+				   the work w the pool thread has before it, it is done after ( w + own ) / factor, on this thread
+				   after its own work - so it waits for the pool when w < ( factor - 1 ) * own. A lightmap taken
+				   over from the GPU's list (the smallest left) as before. */
+				if ( !fertig && numthreads > 1 &&
+				     ( uebernommen ? fahrerArbeit == 0 && double( rawLightmaps[ r ].sw ) * rawLightmaps[ r ].sh > grenzeGross
+				                   : fahrerArbeit < ( BhedPoolFaktor() - 1.0 ) * double( arbeit( r ) ) ) ) {
+					fahrerArbeit += double( std::max<size_t>( 1, arbeit( r ) ) );
 					nebenGross.push_back( r );
 					gross2 = true;
 				}
@@ -3931,7 +3952,7 @@ static void BhedIlluminateGpu(){
 			BhedCpuLightmap( r, fahrerPool );
 			{
 				std::lock_guard<std::mutex> l( nebenMutex );
-				fahrerFrei = true;
+				fahrerArbeit = nebenGross.empty() ? 0.0 : std::max( 0.0, fahrerArbeit - double( std::max<size_t>( 1, arbeit( r ) ) ) );
 			}
 		}
 	};
@@ -4446,7 +4467,17 @@ static int BhedGpuAufnehmen( rawLightmap_t *lm, const trace_t& vorlage, int i0, 
 	return i;
 }
 
+static void IlluminateRawLightmapRoh_( int rawLightmapNum, bhed_par::Pool *pool, unsigned int seed );
+/* BehavEd lcb2: the time of every lightmap the processor lights - the light cache keeps it for the estimate of the next run */
 static void IlluminateRawLightmap_( int rawLightmapNum, bhed_par::Pool *pool, unsigned int seed ){
+	const auto t0 = std::chrono::steady_clock::now();
+	IlluminateRawLightmapRoh_( rawLightmapNum, pool, seed );
+	/* with the pool: also the seconds of one thread it would have been (the estimate adds up thread seconds) */
+	const double wand = std::chrono::duration<double>( std::chrono::steady_clock::now() - t0 ).count();
+	BhedLmZeit( rawLightmapNum, wand * ( pool != nullptr ? BhedPoolFaktor() : 1.0 ), wand );
+}
+
+static void IlluminateRawLightmapRoh_( int rawLightmapNum, bhed_par::Pool *pool, unsigned int seed ){
 	int t, x, y, sx, sy, size, luxelFilterRadius, lightmapNum;
 	int                 mapped, lighted, totalLighted;
 	rawLightmap_t       *lm;

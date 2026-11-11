@@ -46,7 +46,7 @@ int EmitShader( const char *shader, const int *contentFlags, const int *surfaceF
 		shader = "noshader";
 	}
 
-	/* try to find an existing shader */
+	const char *bhedGefragt = nullptr; /* try to find an existing shader (BehavEd lcb2: the name ShaderInfoForShader was asked for) */
 	for ( size_t i = 0; i < bspShaders.size(); ++i )
 	{
 		/* ydnar: handle custom surface/content flags */
@@ -56,8 +56,8 @@ int EmitShader( const char *shader, const int *contentFlags, const int *surfaceF
 		if ( contentFlags != nullptr && bspShaders[ i ].contentFlags != *contentFlags ) {
 			continue;
 		}
-		if ( !doingBSP ){
-			const shaderInfo_t& si = ShaderInfoForShader( shader );
+		if ( !doingBSP && bhedGefragt != shader ){ /* lcb2 (speed): once per name instead of once per bsp shader - the same answer every time */
+			const shaderInfo_t& si = ShaderInfoForShader( bhedGefragt = shader );
 			if ( !strEmptyOrNull( si.remapShader ) ) {
 				shader = si.remapShader;
 			}

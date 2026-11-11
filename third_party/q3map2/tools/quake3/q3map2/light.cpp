@@ -1516,6 +1516,71 @@ static bool BhedBoxMayBeOpen( int nodenum, const Vector3& mins, const Vector3& m
 	return bspLeafs[ -nodenum - 1 ].cluster > CLUSTER_OPAQUE;
 }
 
+/* BehavEd lcb2 (speed, same result): the serial loop of BhedPrepareGridOrigins draws from rand() of the main
+   thread - for a grid point whose whole nudge box is solid 3 numbers for each of the 200 steps that cannot
+   succeed. A map in a big void has a million such points: 600 million calls of rand(), 13 s on duel_jakku, in
+   every build (also when the grid comes from the light cache - the numbers have to be drawn). rand() of the C
+   runtime is the generator of BhedWorkRandom (qthreads.h): x -> 214013 x + 2531011, value ( x >> 16 ) & 0x7fff,
+   one state per thread, srand( s ) sets x = s. So the loop draws from a copy of the state, skips the numbers
+   of a hopeless point with BhedRandomSkip and hands the state back with srand().
+   BhedRandIstLcg: the generator and srand() are checked against the formula on a thread of its own (its state is
+   its own - the main thread's is not touched). */
+static bool BhedRandIstLcg(){
+	static const bool ok = []{
+		bool gut = RAND_MAX == 0x7fff;
+		std::thread( [&gut]{
+			for ( const unsigned int saat : { 0u, 1u, 0x12345678u, 0x80000000u, 0xFFFFFFFFu } )
+			{
+				srand( saat );
+				unsigned int x = saat;
+				for ( int i = 0; i < 4096 && gut; ++i )
+				{
+					x = x * 214013u + 2531011u;
+					gut = rand() == int( ( x >> 16 ) & 0x7fff );
+				}
+			}
+		} ).join();
+		return gut;
+	}();
+	return ok;
+}
+
+/* the state of rand() of this thread: five numbers are drawn, the state after the first has them in its bits
+   16-30 and 2^16 possible low halves - the one that gives the other four is it (bit 31 never reaches a value:
+   it only moves to bit 31 of the next state). The state before the five is one step back (214013 is odd, so it
+   has an inverse modulo 2^32); srand() sets it, as if nothing had been drawn. false: not found - the caller
+   must use the five numbers first. */
+static bool BhedRandZustand( unsigned int& zustand, int gezogen[ 5 ] ){
+	for ( int i = 0; i < 5; ++i )
+		gezogen[ i ] = rand();
+	int treffer = 0;
+	unsigned int erster = 0;
+	for ( unsigned int tief = 0; tief < 0x10000u; ++tief )
+	{
+		unsigned int x = ( static_cast<unsigned int>( gezogen[ 0 ] ) << 16 ) | tief;
+		const unsigned int start = x;
+		bool passt = true;
+		for ( int i = 1; i < 5 && passt; ++i )
+		{
+			x = x * 214013u + 2531011u;
+			passt = int( ( x >> 16 ) & 0x7fff ) == gezogen[ i ];
+		}
+		if ( passt ) {
+			++treffer;
+			erster = start;
+		}
+	}
+	if ( treffer != 1 ) {
+		return false;
+	}
+	unsigned int inv = 214013u;   /* a * a = 1 modulo 8; every step doubles the correct bits: 3, 6, 12, 24, 48 */
+	for ( int i = 0; i < 4; ++i )
+		inv *= 2u - 214013u * inv;
+	zustand = ( erster - 2531011u ) * inv;
+	srand( zustand );
+	return true;
+}
+
 static void BhedPrepareGridOrigins(){
 	const size_t n = rawGridPoints.size();
 	g_bhedGridOrigin.assign( n, Vector3( 0 ) );
@@ -1547,6 +1612,30 @@ static void BhedPrepareGridOrigins(){
 			}
 		}
 	} );
+	BhedZeit( "Gitter-Vorlauf: Cluster" );
+	/* BehavEd lcb2: the generator of the loop, see BhedRandIstLcg. Only when a hopeless point is there (it draws
+	   3 numbers per step, so the five numbers BhedRandZustand may leave drawn are used up in any case). */
+	int schritte = 0;   /* the steps of the nudge loop, counted with its own arithmetic */
+	for ( double step = 0; ( step += 0.005 ) <= 1; )
+		++schritte;
+	int gezogen[ 5 ] = {};
+	int nGezogen = 0;   /* numbers drawn from rand() that the loop has to use first */
+	unsigned int zustand = 0;
+	bool modell = false;
+	if ( !g_bhedWorkRandom && schritte >= 2 && std::find( zuMachen.begin(), zuMachen.end(), char( 2 ) ) != zuMachen.end() && BhedRandIstLcg() ) {
+		modell = BhedRandZustand( zustand, gezogen );
+		nGezogen = modell ? 0 : 5;
+	}
+	const auto zufall = [&]() -> float {
+		if ( modell ) {
+			zustand = zustand * 214013u + 2531011u;
+			return (float) int( ( zustand >> 16 ) & 0x7fff ) / RAND_MAX;
+		}
+		if ( nGezogen > 0 ) {
+			return (float) gezogen[ 5 - nGezogen-- ] / RAND_MAX;
+		}
+		return Random();
+	};
 	for ( size_t i = 0; i < n; ++i )
 	{
 		const int num = int( i );
@@ -1566,13 +1655,17 @@ static void BhedPrepareGridOrigins(){
 		/* find point cluster */
 		trace.cluster = basisCluster[ i ]; /* BehavEd stage 7: was ClusterForPointExt( trace.origin, GRID_EPSILON ), computed above */
 		if ( trace.cluster < CLUSTER_NORMAL && zuMachen[ i ] == 2 ) {
-			/* BehavEd stage 7: the nudge loop below cannot find a point - draw its numbers only */
+			/* BehavEd stage 7: the nudge loop below cannot find a point - draw its numbers only (lcb2: skip them) */
+			if ( modell ) {
+				zustand = BhedRandomSkip( zustand, 3ull * schritte );
+				continue;
+			}
 			double step = 0;
 			while ( ( step += 0.005 ) <= 1 )
 			{
-				Random();
-				Random();
-				Random();
+				zufall();
+				zufall();
+				zufall();
 			}
 			continue;
 		}
@@ -1583,9 +1676,9 @@ static void BhedPrepareGridOrigins(){
 			while ( ( step += 0.005 ) <= 1 )
 			{
 				trace.origin = baseOrigin;
-				trace.origin[ 0 ] += step * ( Random() - 0.5 ) * gridSize[0];
-				trace.origin[ 1 ] += step * ( Random() - 0.5 ) * gridSize[1];
-				trace.origin[ 2 ] += step * ( Random() - 0.5 ) * gridSize[2];
+				trace.origin[ 0 ] += step * ( zufall() - 0.5 ) * gridSize[0];
+				trace.origin[ 1 ] += step * ( zufall() - 0.5 ) * gridSize[1];
+				trace.origin[ 2 ] += step * ( zufall() - 0.5 ) * gridSize[2];
 
 				/* ydnar: changed to find cluster num */
 				trace.cluster = ClusterForPointExt( trace.origin, VERTEX_EPSILON );
@@ -1602,6 +1695,9 @@ static void BhedPrepareGridOrigins(){
 		g_bhedGridOrigin[ i ] = trace.origin;
 		g_bhedGridCluster[ i ] = trace.cluster;
 		g_bhedGridValid[ i ] = 1;
+	}
+	if ( modell ) {
+		srand( zustand );   /* lcb2: rand() goes on where the loop stopped */
 	}
 }
 
@@ -2438,9 +2534,9 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 
 	Sys_Printf( "--- IlluminateRawLightmap ---\n" );
 	BhedIlluminateRawLightmaps(); /* BehavEd stage 7: was RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmap ) */
+	BhedZeit( "IlluminateRawLightmap" );
 	BhedLmDatenMerken(); /* BehavEd stage 8a: the raw lightmaps before stitching */
 	Sys_Printf( "%9d luxels illuminated\n", numLuxelsIlluminated );
-	BhedZeit( "IlluminateRawLightmap" );
 
 	StitchSurfaceLightmaps();
 	BhedZeit( "StitchSurfaceLightmaps" );
@@ -2486,6 +2582,7 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 
 		/* delete any existing lights, freeing up memory for the next bounce */
 		lights.clear();
+		BhedZeit( "Bounce: Lichter freigeben" );
 		/* generate diffuse lights */
 		RadCreateDiffuseLights();
 		BhedZeit( "Bounce: RadCreateDiffuseLights" );
@@ -2532,10 +2629,10 @@ static void LightWorld( bool fastAllocate, bool bounceStore ){
 
 		Sys_Printf( "--- IlluminateRawLightmap ---\n" );
 		BhedIlluminateRawLightmaps(); /* BehavEd stage 7: was RunThreadsOnIndividual( numRawLightmaps, true, IlluminateRawLightmap ) */
+		BhedZeit( "Bounce: IlluminateRawLightmap" );
 		BhedLmDatenMerken(); /* BehavEd lcb1: the raw lightmaps of the bounce before stitching */
 		Sys_Printf( "%9d luxels illuminated\n", numLuxelsIlluminated );
 		Sys_Printf( "%9d vertexes illuminated\n", numVertsIlluminated );
-		BhedZeit( "Bounce: IlluminateRawLightmap" );
 
 		StitchSurfaceLightmaps();
 		BhedZeit( "Bounce: StitchSurfaceLightmaps" );
@@ -3404,12 +3501,14 @@ int LightMain( Args& args ){
 	BhedLichtCacheSchalter( bhedLichtCache, argsToInject, source ); /* BehavEd stage 8a */
 	LoadBSPFile( source );
 	BhedVorigesLichtEntfernen(); /* BehavEd vis2 */
+	BhedZeit( "light: BSP laden" ); /* BehavEd lcb2: the parts of loading and setup */
 
 	/* parse bsp entities */
 	ParseEntities();
 
 	/* inject command line parameters */
 	InjectCommandLine( "-light", argsToInject );
+	BhedZeit( "light: ParseEntities" );
 
 	/* load map file */
 	if ( !entities[ 0 ].boolForKey( "_keepLights" ) ) {
@@ -3420,17 +3519,22 @@ int LightMain( Args& args ){
 		LoadMapFile( CopiedString( mapFileName ).c_str(), true, false );
 	}
 
+	BhedZeit( "light: LoadMapFile" );
 	/* set the entity/model origins and init yDrawVerts */
 	SetEntityOrigins();
+	BhedZeit( "light: SetEntityOrigins" );
 	BhedLichtCacheGeometrie(); /* BehavEd stage 8a: key of the traced input, read <map>.bhedlight */
+	BhedZeit( "light: Licht-Cache Schluessel" );
 
 	/* ydnar: set up optimization */
 	SetupBrushes();
+	BhedZeit( "light: SetupBrushes" );
 	SetupDirt();
 	SetupFloodLight();
+	BhedZeit( "light: SetupDirt, SetupFloodLight" );
 	SetupSurfaceLightmaps();
 
-	BhedZeit( "light: BSP/Karte laden, Setup*" );
+	BhedZeit( "light: SetupSurfaceLightmaps" );
 	/* initialize the surface facet tracing */
 	SetupTraceNodes();
 	BhedZeit( "light: SetupTraceNodes" );
