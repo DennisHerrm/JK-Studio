@@ -17,6 +17,10 @@ Aufruf
       -meta, dann -vis mit -threads 1 und mehrfach mit 8, 32 und 100 Threads, dazu -vis -nopassage und
       -vis -passageOnly mit 1 und 8 Threads: alle Lumps gleich dem 1-Thread-Lauf, der
       Visibility-Lump gleich NRCs (ERWARTUNG).
+      Dazu der Geometrie-Merker des Flusses (vis2s, visflow.cpp BhedGeoMemo): -vis -v mit einem Thread in der
+      Vorgabegroesse, mit einem kleinen Merker (BHED_VIS_GEOMEMO=4: 16 Zustaende, die staendig ueberschrieben
+      werden) und ohne Merker (BHED_VIS_GEOMEMO=0) - alle Lumps gleich, Visibility-Lump gleich NRCs; die Zeile
+      "geometry memo" zeigt, dass Portale aus dem Merker kamen, Zustaende ueberschrieben und Ebenen nachgebaut wurden.
   q3map2_visgleich.py karte <ziel.map>
       schreibt nur die Testkarte (fuer den Vergleich mit NRCs q3map2.exe).
 
@@ -109,11 +113,43 @@ def vislump(bsp):
     return hashlib.sha256(lumps[16]).hexdigest()[:16], [hashlib.sha256(x).hexdigest()[:16] for x in lumps]
 
 
-def q3(exe, ordner, args):
+def q3(exe, ordner, args, umgebung=None):
     with open(os.path.join(ordner, 'ausgabe.txt'), 'ab') as f:
         p = subprocess.run([exe, '-game', 'ja', '-fs_basepath', os.path.join(ordner, 'spiel') + os.sep] + args,
-                           cwd=ordner, stdout=f, stderr=subprocess.STDOUT, creationflags=IDLE)
+                           cwd=ordner, stdout=f, stderr=subprocess.STDOUT, creationflags=IDLE,
+                           env=dict(os.environ, **umgebung) if umgebung else None)
     return p.returncode
+
+
+def merker(exe, arbeit):
+    """Geometrie-Merker: Vorgabe, klein, aus - gleiche Lumps; Zahl der Fehler"""
+    fehler = 0
+    eins = None
+    for name, bits in (('Vorgabe', None), ('klein', '4'), ('aus', '0')):
+        o = os.path.join(arbeit, 'm_' + name)
+        os.makedirs(os.path.join(o, 'spiel', 'base'))
+        for e in ('.bsp', '.prt'):
+            shutil.copyfile(os.path.join(arbeit, 'gitter' + e), os.path.join(o, 'gitter' + e))
+        if q3(exe, o, ['-vis', '-v', '-threads', '1', 'gitter.bsp'], {'BHED_VIS_GEOMEMO': bits} if bits else None) != 0:
+            print('q3map2_visgleich: FEHLER - Merker %s' % name)
+            return fehler + 1
+        vis, lumps = vislump(os.path.join(o, 'gitter.bsp'))
+        zeile = [z for z in open(os.path.join(o, 'ausgabe.txt'), encoding='latin1').read().splitlines() if 'geometry memo' in z]
+        zahlen = [int(w) for w in zeile[0].replace(':', ' ').split() if w.isdigit()] if zeile else []
+        # bekannt, gerechnet, ueberschrieben, nachgebaut
+        bekannt, gerechnet, ueberschrieben, nachgebaut = zahlen[-4:] if len(zahlen) >= 4 else (0, 0, 0, 0)
+        if eins is None:
+            eins = lumps
+            gut = vis == ERWARTUNG['-vis'] and bekannt > 0 and nachgebaut > 0
+        elif bits == '4':
+            gut = lumps == eins and bekannt > 0 and ueberschrieben > 0 and nachgebaut > 0
+        else:
+            gut = lumps == eins and not zeile
+        print('q3map2_visgleich: Merker %-9s: Visibility %s, %d bekannt, %d gerechnet, %d ueberschrieben, %d Ebenen nachgebaut%s'
+              % (name, vis, bekannt, gerechnet, ueberschrieben, nachgebaut, '' if gut else '  FEHLER'))
+        fehler += not gut
+        shutil.rmtree(o)
+    return fehler
 
 
 def ctest(exe, arbeit):
@@ -156,6 +192,7 @@ def ctest(exe, arbeit):
                 print('q3map2_visgleich: %-17s -threads %-2d: %s' % (schalter, n, 'gleich' if not anders else 'ANDERS in Lump %s' % anders))
                 fehler += bool(anders)
             shutil.rmtree(o)
+    fehler += merker(exe, arbeit)
     print('q3map2_visgleich: %s' % ('alles gleich' if fehler == 0 else '%d FEHLER' % fehler))
     return 1 if fehler else 0
 
