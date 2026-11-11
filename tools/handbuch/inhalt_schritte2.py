@@ -157,7 +157,7 @@ SCHRITTE = {
     "k-animation-abspielen": [
         S("**Load the figure's model.** Switch to **{{ViewModel}}** and press **{{NpcBrowser}}**: click a character - its model and skin load as in the game.",
           "m_npc", "The NPC browser."),
-        S("**Find an animation.** Type into **{{ModelAnimSearch}}**, for example `TALK`. **BOTH**, **TORSO**, **LEGS** filter by body part.",
+        S("**Find an animation.** Type into **{{MbSuche}}**, for example `TALK`. **BOTH**, **TORSO**, **LEGS** filter by body part.",
           "h_modell", "The model view with its animation list."),
         S("**Watch it.** Click an animation: it plays. **{{ModelLoop}}**, the speed and the frame buttons help to look closely.",
           "m_abspielen", "Loop in the playback bar."),

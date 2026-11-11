@@ -324,7 +324,7 @@ FIGUREN = [
         T("Figures · five steps"), "h_modell",
         [
             T("**Load the figure's model.** Switch to **{{ViewModel}}** and press **{{NpcBrowser}}**: click a character - its model and skin load as in the game."),
-            (T("**Find an animation.** Type into **{{ModelAnimSearch}}**, for example `TALK`. **BOTH**, **TORSO**, **LEGS** filter by body part."),
+            (T("**Find an animation.** Type into **{{MbSuche}}**, for example `TALK`. **BOTH**, **TORSO**, **LEGS** filter by body part."),
              "h_modell", T("The model view with its animation list.")),
             T("**Watch it.** Click an animation: it plays. **{{ModelLoop}}**, the speed and the frame buttons help to look closely."),
             T("**Into the script.** Select a line in your script first (inside the figure's `affect` block), then double-click the animation or press **{{ModelAnimToScript}}**: `set ( SET_ANIM_BOTH, \"…\" )` is inserted after that line."),

@@ -157,30 +157,30 @@ X = {
         "časová osa počítá od 1 a v popisku ukazuje snímek GLA. X (3ds Max) nebo F3 (Blender) hledá všechny akce; pravé tlačítko otevře nabídku pohledu."),
     "b_h_auge": ("Symbols and the eye", "Symbole und Auge", "符号和眼睛", "記号と目", "Símbolos y el ojo", "Symboly a oko"),
     "b_auge": (
-        "Every row of the scene explorer shows what it is: model, surface, surface with children, cap (off in the file), tag, bone, root "
-        "bone, attachment, and above the animations the sequence; the LOD stands in the head of the surfaces. A red circle marks a surface the "
-        "game does not draw (Ghoul2). The eye on the left hides a row in the view only - the file and the rules of the game stay as they "
+        "Every row of the scene explorer shows what it is: model, tag, bone, root "
+        "bone, attachment, rig handle, sequence; a surface shows its state in the game (dot = on, ring = off, struck ring = off with its children). The "
+        "eye of a row (like 3ds Max in front of the name, like Blender in the column on the right) hides it in the view only - the file and the rules of the game stay as they "
         "are: a click hides it with its children, Ctrl or Alt+click shows only this one, **{{MbAllesEinblenden}}** is in the right-click menu "
         "and in the action search. Hidden rows are greyed out; selecting, painting and the photo pass them by. Like Blender: H, Alt+H, Shift+H.",
-        "Jede Zeile des Szenen-Explorers zeigt, was sie ist: Modell, Fläche, Fläche mit Kindern, Kappe (in der Datei aus), Tag, Knochen, "
-        "Wurzelknochen, Anbau, und über den Animationen die Sequenz; die LOD steht im Kopf der Flächen. Ein roter Kreis zeigt eine Fläche, die das "
-        "Spiel nicht zeichnet (Ghoul2). Das Auge links blendet eine Zeile nur in der Ansicht aus - Datei und Spielregeln bleiben, wie sie sind: "
+        "Jede Zeile des Szenen-Explorers zeigt, was sie ist: Modell, Tag, Knochen, "
+        "Wurzelknochen, Anbau, Rig-Griff, Sequenz; eine Fläche zeigt ihren Status im Spiel (Punkt = an, Ring = aus, durchgestrichener Ring = aus samt Kindern). Das "
+        "Auge einer Zeile (wie 3ds Max vor dem Namen, wie Blender rechts in der Spalte) blendet sie nur in der Ansicht aus - Datei und Spielregeln bleiben, wie sie sind: "
         "ein Klick blendet sie mit ihren Kindern aus, Strg- oder Alt+Klick zeigt nur diese, **{{MbAllesEinblenden}}** steht im Rechtsklick-Menü "
         "und in der Aktionssuche. Ausgeblendete Zeilen sind grau; Auswählen, Malen und das Foto gehen an ihnen vorbei. Wie Blender: H, Alt+H, Umschalt+H.",
-        "场景资源管理器的每一行都显示其类型:模型、面、带子级的面、封盖 (文件中关闭)、标记、骨骼、根骨骼、附件,动画上方为序列;LOD 位于面的标题中。"
-        "红色圆圈标记游戏不绘制的面 (Ghoul2)。左侧的眼睛只在视图中隐藏该行——文件和游戏规则保持不变:单击连同子级一起隐藏,Ctrl 或 Alt+单击只显示这一个,"
+        "场景资源管理器的每一行都显示其类型:模型、标记、骨骼、根骨骼、附件、绑定控制柄、序列;LOD 位于面的标题中。"
+        "面前面的标记显示其在游戏中的状态 (圆点 = 开, 圆环 = 关, 带斜线的圆环 = 连同子级一起关)。行上的眼睛 (与 3ds Max 相同在名称前, 与 Blender 相同在右侧的列中) 只在视图中隐藏该行——文件和游戏规则保持不变:单击连同子级一起隐藏,Ctrl 或 Alt+单击只显示这一个,"
         "**{{MbAllesEinblenden}}** 在右键菜单和操作搜索中。隐藏的行显示为灰色;选择、绘制和照片会跳过它们。像 Blender 一样:H、Alt+H、Shift+H。",
-        "シーンエクスプローラーの各行は種類を示します: モデル、サーフェス、子を持つサーフェス、キャップ (ファイルでオフ)、タグ、ボーン、ルートボーン、"
-        "アタッチ、アニメーションの上にシーケンス。LOD はサーフェスの見出しにあります。赤い円はゲームが描画しないサーフェス (Ghoul2) を示します。"
-        "左の目はビューだけで行を非表示にします。ファイルとゲームの規則はそのままです: クリックで子と一緒に非表示、Ctrl か Alt+クリックでこれだけ表示、"
+        "シーンエクスプローラーの各行は種類を示します: モデル、タグ、ボーン、ルートボーン、"
+        "アタッチ、リグのハンドル、シーケンス。LOD はサーフェスの見出しにあります。サーフェスの前の印はゲーム内の状態を示します (点 = オン、輪 = オフ、斜線付きの輪 = 子ごとオフ)。"
+        "行の目 (3ds Max と同じく名前の前、Blender と同じく右の列) はビューだけで行を非表示にします。ファイルとゲームの規則はそのままです: クリックで子と一緒に非表示、Ctrl か Alt+クリックでこれだけ表示、"
         "**{{MbAllesEinblenden}}** は右クリックメニューと操作検索にあります。非表示の行は灰色で、選択・ペイント・写真はそれを飛ばします。Blender と同じ: H、Alt+H、Shift+H。",
-        "Cada fila del explorador de escena muestra lo que es: modelo, superficie, superficie con hijos, tapa (apagada en el archivo), tag, hueso, "
-        "hueso raíz, acoplado, y sobre las animaciones la secuencia; el LOD está en la cabecera de las superficies. Un círculo rojo marca una "
-        "superficie que el juego no dibuja (Ghoul2). El ojo de la izquierda oculta una fila solo en la vista; el archivo y las reglas del juego no "
+        "Cada fila del explorador de escena muestra lo que es: modelo, tag, hueso, "
+        "hueso raíz, acoplado, control del rig, secuencia; una superficie muestra su estado en el juego (punto = activada, anillo = desactivada, anillo tachado = desactivada con sus hijas). El "
+        "ojo de una fila (como 3ds Max delante del nombre, como Blender en la columna de la derecha) la oculta solo en la vista; el archivo y las reglas del juego no "
         "cambian: un clic la oculta con sus hijos, Ctrl o Alt+clic muestra solo esa, **{{MbAllesEinblenden}}** está en el menú del clic derecho y "
         "en la búsqueda de acciones. Las filas ocultas aparecen en gris; seleccionar, pintar y la foto las saltan. Como Blender: H, Alt+H, Mayús+H.",
-        "Každý řádek průzkumníku scény ukazuje, co je zač: model, povrch, povrch s potomky, krytka (v souboru vypnutá), tag, kost, kořenová kost, "
-        "přídavek a nad animacemi sekvence; LOD je v záhlaví povrchů. Červený kruh označuje povrch, který hra nekreslí (Ghoul2). Oko vlevo skryje "
+        "Každý řádek průzkumníku scény ukazuje, co je zač: model, tag, kost, kořenová kost, "
+        "přídavek, úchyt rigu, sekvence; povrch ukazuje svůj stav ve hře (tečka = zapnuto, kroužek = vypnuto, přeškrtnutý kroužek = vypnuto i s potomky). Oko řádku (jako 3ds Max před názvem, jako Blender ve sloupci vpravo) skryje "
         "řádek jen v pohledu - soubor a pravidla hry zůstanou: klik ho skryje i s potomky, Ctrl nebo Alt+klik ukáže jen tento, "
         "**{{MbAllesEinblenden}}** je v nabídce pravého tlačítka a ve hledání akcí. Skryté řádky jsou šedé; výběr, malování a fotka je přeskočí. "
         "Jako Blender: H, Alt+H, Shift+H."),

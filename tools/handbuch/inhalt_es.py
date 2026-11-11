@@ -541,8 +541,8 @@ TEXTE = {
         "Figuras · cinco pasos",
     "**Load the figure's model.** Switch to **{{ViewModel}}** and press **{{NpcBrowser}}**: click a character - its model and skin load as in the game.":
         "**Carga el modelo de la figura.** Cambia a **{{ViewModel}}** y pulsa **{{NpcBrowser}}**: pulsa un personaje y su modelo y su skin se cargan como en el juego.",
-    "**Find an animation.** Type into **{{ModelAnimSearch}}**, for example `TALK`. **BOTH**, **TORSO**, **LEGS** filter by body part.":
-        "**Busca una animación.** Escribe en **{{ModelAnimSearch}}**, por ejemplo `TALK`. **BOTH**, **TORSO**, **LEGS** filtran por parte del cuerpo.",
+    "**Find an animation.** Type into **{{MbSuche}}**, for example `TALK`. **BOTH**, **TORSO**, **LEGS** filter by body part.":
+        "**Busca una animación.** Escribe en **{{MbSuche}}**, por ejemplo `TALK`. **BOTH**, **TORSO**, **LEGS** filtran por parte del cuerpo.",
     "The model view with its animation list.":
         "La vista de modelos con su lista de animaciones.",
     "**Watch it.** Click an animation: it plays. **{{ModelLoop}}**, the speed and the frame buttons help to look closely.":
@@ -3702,8 +3702,8 @@ TEXTE = {
         "Modo Modelo: la lista de animaciones a la izquierda, el modelo en el centro, la barra de reproducción debajo.",
     "Switch to **{{ViewModel}}** in the mode bar. **{{NpcBrowser}}** lists every character of the game (from the `.npc` files) - click one to load its model and skin as the game shows it. **{{OpenGlm}}** and **{{OpenGlmPk3}}** open any model. Left mouse orbits, middle mouse pans, the wheel zooms; **{{ModelTurntable}}**, **{{ModelBones}}** and **{{ModelResetView}}** sit in the toolbar.":
         "Cambia a **{{ViewModel}}** en la barra de modos. **{{NpcBrowser}}** lista todos los personajes del juego (de los archivos `.npc`): pulsa uno para cargar su modelo y su skin como los muestra el juego. **{{OpenGlm}}** y **{{OpenGlmPk3}}** abren cualquier modelo. El botón izquierdo orbita, el central desplaza, la rueda amplía; **{{ModelTurntable}}**, **{{ModelBones}}** y **{{ModelResetView}}** están en la barra.",
-    "The **{{ModelAnimations}}** list on the left shows every animation of the skeleton with its length; filter by name or by BOTH / TORSO / LEGS / FACE. Click plays it; double-click (or **{{ModelAnimToScript}}**) puts `set ( SET_ANIM_BOTH, \"…\" )` after the selected line of the open script - `SET_ANIM_UPPER` for TORSO and `SET_ANIM_LOWER` for LEGS animations.":
-        "La lista **{{ModelAnimations}}** de la izquierda muestra cada animación del esqueleto con su duración; filtra por nombre o por BOTH / TORSO / LEGS / FACE. Clic la reproduce; doble clic (o **{{ModelAnimToScript}}**) pone `set ( SET_ANIM_BOTH, \"…\" )` tras la línea seleccionada del script abierto; `SET_ANIM_UPPER` para animaciones TORSO y `SET_ANIM_LOWER` para animaciones LEGS.",
+    "The node **{{MbXArtSequenzen}}** in the scene explorer on the left shows every animation of the skeleton with its length; filter by name or by BOTH / TORSO / LEGS / FACE. Click plays it; double-click (or **{{ModelAnimToScript}}**) puts `set ( SET_ANIM_BOTH, \"…\" )` after the selected line of the open script - `SET_ANIM_UPPER` for TORSO and `SET_ANIM_LOWER` for LEGS animations.":
+        "El nodo **{{MbXArtSequenzen}}** del explorador de escena, a la izquierda, muestra cada animación del esqueleto con su duración; filtra por nombre o por BOTH / TORSO / LEGS / FACE. Clic la reproduce; doble clic (o **{{ModelAnimToScript}}**) pone `set ( SET_ANIM_BOTH, \"…\" )` tras la línea seleccionada del script abierto; `SET_ANIM_UPPER` para animaciones TORSO y `SET_ANIM_LOWER` para animaciones LEGS.",
     "Your own mission: take-off on Taspir":
         "Tu propia misión: despegue en Taspir",
     "A complete little mission for Jedi Academy, built from nothing: Kyle and Rosh walk across a landing pad, the camera follows them, the Raven's Claw lifts off and flies past the camera, the picture shakes and fades to black - and the game plays it.":
@@ -7550,6 +7550,8 @@ from inhalt_rest8 import ES as _REST8  # noqa: E402
 TEXTE.update(_REST8)
 from inhalt_rest9 import ES as _REST9  # noqa: E402
 TEXTE.update(_REST9)
+from inhalt_ap2 import ES as _AP2  # noqa: E402
+TEXTE.update(_AP2)
 
 # Modell-Block 1a-1: Model-Tab, Ansehen/Pruefen
 from inhalt_mb1a1 import ES as _MB1  # noqa: E402

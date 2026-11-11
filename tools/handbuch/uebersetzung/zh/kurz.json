@@ -178,7 +178,7 @@
  "Find an animation in the model view, watch it, and put it into the script with one click.": "在模型视图中找到动画、观看,并一键放入脚本。",
  "Figures · five steps": "角色 · 五个步骤",
  "**Load the figure's model.** Switch to **{{ViewModel}}** and press **{{NpcBrowser}}**: click a character - its model and skin load as in the game.": "**加载角色的模型。** 切换到 **{{ViewModel}}** 并按 **{{NpcBrowser}}**:单击一个角色——它的模型和皮肤会像在游戏中一样加载。",
- "**Find an animation.** Type into **{{ModelAnimSearch}}**, for example `TALK`. **BOTH**, **TORSO**, **LEGS** filter by body part.": "**查找动画。** 在 **{{ModelAnimSearch}}** 中输入,例如 `TALK`。**BOTH**、**TORSO**、**LEGS** 按身体部位筛选。",
+ "**Find an animation.** Type into **{{MbSuche}}**, for example `TALK`. **BOTH**, **TORSO**, **LEGS** filter by body part.": "**查找动画。** 在 **{{MbSuche}}** 中输入,例如 `TALK`。**BOTH**、**TORSO**、**LEGS** 按身体部位筛选。",
  "The model view with its animation list.": "模型视图及其动画列表。",
  "**Watch it.** Click an animation: it plays. **{{ModelLoop}}**, the speed and the frame buttons help to look closely.": "**观看。** 单击一个动画:它就会播放。**{{ModelLoop}}**、速度和帧按钮有助于仔细观察。",
  "**Into the script.** Select a line in your script first (inside the figure's `affect` block), then double-click the animation or press **{{ModelAnimToScript}}**: `set ( SET_ANIM_BOTH, \"…\" )` is inserted after that line.": "**放入脚本。** 先在脚本中选中一行(在角色的 `affect` 块内),然后双击动画或按 **{{ModelAnimToScript}}**:`set ( SET_ANIM_BOTH, \"…\" )` 会插入到该行之后。",

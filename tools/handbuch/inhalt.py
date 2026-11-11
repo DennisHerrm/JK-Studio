@@ -85,6 +85,9 @@ inhalt_rest9.einhaengen(inhalt_referenz.EINSTELLUNGEN)
 SEITEN = (inhalt_start.SEITEN[:1] + inhalt_hilfe1.SEITEN + inhalt_funktionen.SEITEN + inhalt_start.SEITEN[1:] + [inhalt_skript.FENSTER] + inhalt_dock.SEITEN + inhalt_skript.SEITEN + inhalt_karte.SEITEN + inhalt_karteneditor.SEITEN + inhalt_karteneditor2.SEITEN + inhalt_kartebauen.SEITEN + inhalt_karte4.SEITEN + inhalt_bspmerge.SEITEN + inhalt_karte5.SEITEN + inhalt_karte6.SEITEN + inhalt_karte7.SEITEN + inhalt_karte8.SEITEN + inhalt_karte8b.SEITEN + inhalt_karte8g.SEITEN + inhalt_karte9.SEITEN + inhalt_menue.SEITEN + inhalt_menue3.SEITEN + inhalt_menue5.SEITEN + inhalt_menue5b.SEITEN + inhalt_menue6.SEITEN + inhalt_menue7.SEITEN +
           inhalt_mission.SEITEN + [inhalt_mb1a1.seite()] + inhalt_mb1a2.seiten() + [inhalt_mb2.seite()] + [inhalt_mb3.seite()] + [inhalt_mb3b.seite()] + [inhalt_mb4.seite()] + [inhalt_ph.seite()] + [inhalt_rt.seite()] + [inhalt_animimp.seite()] + [inhalt_paint.seite()] + [inhalt_uv1b.seite()] + [inhalt_md1d.seite()] + [inhalt_mb7.seite()] + inhalt_tutorials.SEITEN + inhalt_karte8c.SEITEN + inhalt_hilfe2.SEITEN + [inhalt_tutgeo.seite()] + inhalt_kurz.SEITEN + inhalt_kurz2.SEITEN + inhalt_kurz3.SEITEN + inhalt_referenz.SEITEN + inhalt_knoepfe.SEITEN + inhalt_befehle.SEITEN + inhalt_befehlseiten.SEITEN)
 
+import inhalt_ap2  # AP0+AP2: Szenen-Explorer (wie 3ds Max) / Outliner (wie Blender) des Model-Tabs
+inhalt_ap2.einhaengen(next(_s for _s in SEITEN if _s["id"] == "modell-ansehen"))
+
 import inhalt_schritte
 inhalt_schritte.anwenden(SEITEN)
 

@@ -232,6 +232,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _mbnav()})
             from i18n_numpad import zeilen_vier as _numpad   # NUMPAD: der Ziffernblock setzt das Raster im Karten-Editor
             texte.update({e[0]: e[1:] for e in _numpad()})
+            from i18n_ap2 import zeilen_vier as _ap2   # AP0+AP2: Szenen-Explorer / Outliner des Model-Tabs
+            texte.update({e[0]: e[1:] for e in _ap2()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

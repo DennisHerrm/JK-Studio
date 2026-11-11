@@ -140,26 +140,26 @@ X = {
         "a **{{MbFoto}}** (aktivní pohled, alespoň 1920 bodů široký). **{{MbRLod}}**: LOD 1-10 nebo **{{MbLodAuto}}** - jako ve hře volí "
         "úroveň vzdálenost (jeden hráč: poloměr 40, r_lodscale 10; více hráčů: poloměr 64, r_lodscale 5); picmip a skiny. Možnosti zobrazení jsou v záhlaví pohledu (viz níže)."),
     "sequenzen": (
-        "Click an animation in **{{ModelAnimations}}** to play it as **{{MbPrimaer}}** (whole body). Right-click another one and choose "
+        "Click a sequence under **{{MbXArtSequenzen}}** in the scene explorer to play it as **{{MbPrimaer}}** (whole body). Right-click another one and choose "
         "**{{MbSekundaer}}** to play it on the upper body from `lower_lumbar` up, like `SET_ANIM_UPPER` in the game (another start bone: "
         "right-click a bone). **{{MbInterpolation}}** blends between two frames like the game. The timeline counts frames from 0 like 3ds Max "
         "and the `animation.cfg`.",
-        "Ein Klick auf eine Animation in **{{ModelAnimations}}** spielt sie als **{{MbPrimaer}}** (ganzer Körper). Rechtsklick auf eine andere "
+        "Ein Klick auf eine Sequenz unter **{{MbXArtSequenzen}}** im Szenen-Explorer spielt sie als **{{MbPrimaer}}** (ganzer Körper). Rechtsklick auf eine andere "
         "und **{{MbSekundaer}}** spielt sie auf dem Oberkörper ab `lower_lumbar`, wie `SET_ANIM_UPPER` im Spiel (ein anderer Start-Knochen: "
         "Rechtsklick auf einen Knochen). **{{MbInterpolation}}** mischt zwischen zwei Bildern wie das Spiel. Die Zeitleiste zählt die Bilder ab 0 "
         "wie 3ds Max und die `animation.cfg`.",
-        "单击 **{{ModelAnimations}}** 中的动画即可作为 **{{MbPrimaer}}**(全身)播放。右键单击另一个动画并选择 **{{MbSekundaer}}**,即可像游戏中的 "
+        "单击 **{{MbXArtSequenzen}}** 中的动画即可作为 **{{MbPrimaer}}**(全身)播放。右键单击另一个动画并选择 **{{MbSekundaer}}**,即可像游戏中的 "
         "`SET_ANIM_UPPER` 一样在 `lower_lumbar` 以上的上半身播放(其他起始骨骼:右键单击骨骼)。**{{MbInterpolation}}** 像游戏一样在两帧之间混合。"
         "时间轴像 3ds Max 和 `animation.cfg` 一样从 0 开始计帧。",
-        "**{{ModelAnimations}}** のアニメーションをクリックすると **{{MbPrimaer}}** (全身) として再生します。別のアニメーションを右クリックして "
+        "**{{MbXArtSequenzen}}** のアニメーションをクリックすると **{{MbPrimaer}}** (全身) として再生します。別のアニメーションを右クリックして "
         "**{{MbSekundaer}}** を選ぶと、ゲームの `SET_ANIM_UPPER` と同じく `lower_lumbar` から上の上半身で再生します (別の開始ボーン: ボーンを"
         "右クリック)。**{{MbInterpolation}}** はゲームと同じく 2 つのフレームの間を補間します。タイムラインは 3ds Max や `animation.cfg` と同じく"
         "フレームを 0 から数えます。",
-        "Un clic en una animación de **{{ModelAnimations}}** la reproduce como **{{MbPrimaer}}** (todo el cuerpo). Clic derecho en otra y "
+        "Un clic en una secuencia bajo **{{MbXArtSequenzen}}** en el explorador de escena la reproduce como **{{MbPrimaer}}** (todo el cuerpo). Clic derecho en otra y "
         "**{{MbSekundaer}}** la reproduce en el torso desde `lower_lumbar`, como `SET_ANIM_UPPER` en el juego (otro hueso de inicio: clic "
         "derecho en un hueso). **{{MbInterpolation}}** mezcla entre dos fotogramas como el juego. La línea de tiempo cuenta los fotogramas "
         "desde 0 como 3ds Max y el `animation.cfg`.",
-        "Klik na animaci v **{{ModelAnimations}}** ji přehraje jako **{{MbPrimaer}}** (celé tělo). Pravé tlačítko na jinou a **{{MbSekundaer}}** "
+        "Klik na sekvenci pod **{{MbXArtSequenzen}}** v průzkumníku scény ji přehraje jako **{{MbPrimaer}}** (celé tělo). Pravé tlačítko na jinou a **{{MbSekundaer}}** "
         "ji přehraje na horní části těla od `lower_lumbar`, jako `SET_ANIM_UPPER` ve hře (jiná počáteční kost: pravé tlačítko na kost). "
         "**{{MbInterpolation}}** prolíná mezi dvěma snímky jako hra. Časová osa počítá snímky od 0 jako 3ds Max a `animation.cfg`."),
     "h_pruefen": ("Check for the game", "Prüfen fürs Spiel", "针对游戏检查", "ゲーム向けチェック", "Comprobar para el juego", "Kontrola pro hru"),

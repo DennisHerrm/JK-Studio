@@ -178,7 +178,7 @@
  "Find an animation in the model view, watch it, and put it into the script with one click.": "モデル表示でアニメーションを探して確認し、ワンクリックでスクリプトに入れます。",
  "Figures · five steps": "キャラクター · 5 つの手順",
  "**Load the figure's model.** Switch to **{{ViewModel}}** and press **{{NpcBrowser}}**: click a character - its model and skin load as in the game.": "**キャラクターのモデルを読み込む。** **{{ViewModel}}** に切り替えて **{{NpcBrowser}}** を押し、キャラクターをクリックします。モデルとスキンがゲームと同じように読み込まれます。",
- "**Find an animation.** Type into **{{ModelAnimSearch}}**, for example `TALK`. **BOTH**, **TORSO**, **LEGS** filter by body part.": "**アニメーションを探す。** **{{ModelAnimSearch}}** に入力します。例えば `TALK`。**BOTH**・**TORSO**・**LEGS** で体の部位ごとに絞り込めます。",
+ "**Find an animation.** Type into **{{MbSuche}}**, for example `TALK`. **BOTH**, **TORSO**, **LEGS** filter by body part.": "**アニメーションを探す。** **{{MbSuche}}** に入力します。例えば `TALK`。**BOTH**・**TORSO**・**LEGS** で体の部位ごとに絞り込めます。",
  "The model view with its animation list.": "モデル表示とアニメーション一覧。",
  "**Watch it.** Click an animation: it plays. **{{ModelLoop}}**, the speed and the frame buttons help to look closely.": "**見る。** アニメーションをクリックすると再生されます。**{{ModelLoop}}**、速度、コマ送りボタンでじっくり見られます。",
  "**Into the script.** Select a line in your script first (inside the figure's `affect` block), then double-click the animation or press **{{ModelAnimToScript}}**: `set ( SET_ANIM_BOTH, \"…\" )` is inserted after that line.": "**スクリプトへ。** 先にスクリプトの行を選び(キャラクターの `affect` ブロックの中)、アニメーションをダブルクリックするか **{{ModelAnimToScript}}** を押します。`set ( SET_ANIM_BOTH, \"…\" )` がその行の後ろに挿入されます。",
