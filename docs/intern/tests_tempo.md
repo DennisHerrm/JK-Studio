@@ -120,11 +120,17 @@ Karten-Modi laden md_am_sith je Lauf (~25 s unter Last, 20 Laeufe). Das Zusammen
 | zeitleiste1 (en, es, cs) | je 1 FEHLER bei 200 s statt 99 s Laufzeit | Abspielzeit gegen Wanduhr unter Last |
 | spulen | 1 FEHLER bei 391 s statt 114 s | Bildzeit-Schwelle unter Last |
 | mp (= Modus 1) | 1 FEHLER, beim zweiten Mal gruen | unter Last, Stelle nicht festgehalten |
-| zeitleiste (allein, 11.11.) | "Ton: ... der Klang kommt, sobald sie gezeichnet wird (aufgeschoben, nicht verschluckt)" | rot in zwei Laeufen gleichzeitig neben einem vollen Bau, allein wiederholt gruen (neue exe und rc611); in Modus 1 gruen |
-| 1 mit Pausen nach Bildern (11.11.) | `Klick "Close"` im Tutorial-Fenster: "Klick kam nicht an", "beim Loslassen nicht mehr unter der Maus" | das Fenster wandert noch, wenn geklickt wird; 1 von 3 Laeufen - Modus 1 bleibt deshalb bei der Wanduhr |
+| zeitleiste (allein, 11.11.) | "Ton: ... der Klang kommt, sobald sie gezeichnet wird (aufgeschoben, nicht verschluckt)" | rot in zwei Laeufen gleichzeitig neben einem vollen Bau, allein wiederholt gruen (neue exe und rc611); in Modus 1 gruen. **Runde 2:** der Schritt setzt die Zeit in Stufen von 50 ms, das Abspielen zaehlt die Dauer des naechsten Bildes dazu - nach einem Bild ueber 300 ms liegt der Klang hinter dem Fenster der Pruefung; nachgestellt und behoben |
+| 1 mit Pausen nach Bildern (11.11.) | `Klick "Close"` im Tutorial-Fenster: "Klick kam nicht an", "beim Loslassen nicht mehr unter der Maus" | das Fenster wandert noch, wenn geklickt wird; 1 von 3 Laeufen. **Runde 2:** haengt nicht an der Pausenart (auch nach der Wanduhr nachgestellt) - das Fenster waechst 0,3 s nach dem Schrittwechsel um die Zeile "The button is hidden right now", solange der Knopf Compile! sein Ergebnis zeigt; behoben |
+| karteneditor (UIFORM, 11.11.) | "Maus 3D: Strg + Maus im Freelook ...", "Klick auf [MapFile]: ... Tooltip \"Copied to clipboard.\"" | **Runde 2:** das Programm misst beides an seiner Zeit (kurzer Rechtsklick unter 300 ms, Hinweis 666 ms), der Schritt braucht 13 bzw. 5 Bilder - unter Last zu lang. Nicht die Zwischenablage (der Selbsttest hat eine eigene je Prozess); nachgestellt und behoben |
+| karteneditor (UIFORM, 11.11.) | "Port 39000 belegt: gebaut mit 127.0.0.1:39001", "Port 39001 nicht belegt" | ein anderes JK Studio baut gerade auf denselben Ports. **Runde 2:** eigener Portbereich je Lauf (`BHED_BAU_PORT`) |
+| karteneditor, handbuch (LCB2, VIS2c, 11.11.) | "Rueckgewinnung fertig: nicht nach 180 s" | die Rueckgewinnung laedt die Modelle in einem Prozess mit niedriger Prioritaet - unter Last 172 s und mehr statt 21-24 s. **Runde 2:** der Schritt wartet auf ihr Ende |
+| karteneditor | "Stufe 7: grosse Karte - keine Ruckler: 99. Perzentil des Bildabstands unter 50 ms", "Grosse Karte: ... kein Bild ueber 250 ms", "zweiter Bau: ... Schaetzung gegen die echte Dauer" | Schwellen gegen die Wanduhr: Bildzeit bzw. Dauer zweier Bauten nacheinander; unter Last rot, in beiden Pausenarten (Runde 2, offen - Frage 3) |
+| karteneditor (Runde 2, 11.11. abends) | "Doppel-M2 in der Kamera: das Entitaetenmenue" mit zwei Folgezeilen | der zweite Rechtsklick zaehlt nur innerhalb von 250 ms Programmzeit als Doppelklick; unter der Last einer vollen Runde daneben rot im ganzen Lauf, gruen im Teil ke_grund. Offen: die Behebung (beide Klicks in Simulationszeit) liegt in `Y:\werkzeuge\tt\r2\patch_doppelm2.py`, ist aber noch nicht unter der Bremse rot und gruen gezeigt |
 | dock2mass, dock5, teil11, fix604b, gegenstaende/kartenfunde, mb_bild_jka, mb_bild2_jka | je 1 FEHLER, gruen beim Wiederholen | unter Last (Fenster/Foto noch nicht fertig) |
 
 Gemeinsame Ursache: Schritte warten eine feste Zeit oder Bildzahl statt auf das Ereignis. Unter Last reicht sie nicht.
+Nachstellen laesst sich das ohne Last mit `BHED_TEST_BREMSE=<ms>` (jedes Bild unregelmaessig bis zu so lang).
 
 ### Vorschlaege mit geschaetztem Gewinn (Reihenfolge = Umsetzung)
 
@@ -138,8 +144,11 @@ Gemeinsame Ursache: Schritte warten eine feste Zeit oder Bildzahl statt auf das 
 | 5 | Zeit je Schrittart im Protokoll ("Knopftest Zeiten: ...") | macht 1 messbar, findet die langen Schritte | Teil B |
 | 6 | ctest: `defgpu` in parallele Teile (WARP / Grafikkarte) | ctest-Wanduhr 170-422 s -> ~125-200 s | Teil B |
 | 7 | Sprachlaeufe es/cs/ja aus der vollen Runde (Entscheidung shank, kein Doppel) | 9456 s; die Kette der drei karteneditor-Laeufe entfaellt, Wanduhr 79 min -> 37 min (karteneditor en) | Teil B |
-| 8 | Rundlaeufe des Modell-Blocks und kartenpruefung auf mehrere Faeden oder Prozesse (Teilmengen der Modelle/Karten) | Wanduhr 24 min -> wenige min je Rundlauf | offen |
-| 9 | Pausen nach Bildern fuer Modus 1 (erst die Stelle `Klick "Close"` im Tutorial-Fenster auf eine Bedingung umstellen), karteneditor und weitere Gruppen (je Lauf nachweisen); Pausen ab 1 s als Messfenster bei der Wanduhr lassen (dann ginge auch karte) | Modus 1 -14 %, karteneditor geschaetzt -20 % | offen |
+| 8 | Rundlaeufe des Modell-Blocks und kartenpruefung auf mehrere Prozesse (`BHED_TEST_ANTEIL=i/n`: zusammenhaengende Abschnitte der Liste), mission1 in Teilen (BHED_M1_TEIL) | Wanduhr: kartenpruefung 25 min -> 4 Anteile nebeneinander; Rechenzeit gleich | Runde 2: kartenpruefung in vier Anteilen (Berichte gleich, 282 / 282); mission1 bleibt ganz (in Teilen nicht gleich), die Rundlaeufe laufen ungeteilt (Nachweis nicht gefahren), allekarten bleibt ganz (Frage 2) |
+| 9 | Pausen nach Bildern fuer Modus 1, karteneditor, karte, reiter - nach dem Beheben der Stellen, die an der Wanduhr hingen (Tutorial-Fenster, Messfenster in karte) | nebeneinander gemessen: karteneditor -25 % (2399 -> 1797 s), karte -21 %, Modus 1 -15 % (1121 -> 958 s) | Runde 2 |
+| 10 | karteneditor in sechs Teilen nebeneinander (`BHED_KARTE_GRUPPEN`), jeder Lauf mit eigenem Portbereich der Bau-Ueberwachung (`BHED_BAU_PORT`) | Wanduhr: die laengste Strecke der Runde (37 min) zerfaellt in Teile von 2-14 min; Rechenzeit + 5 x gemeinsamer Anfang | Runde 2 (Grenze: Frage 5) |
+| 11 | Wackler beheben statt wiederholen: auf das Ereignis warten, Simulationszeit fuer Bedienung, die das Programm an seiner Zeit misst | jeder rote Lauf kostet heute eine Wiederholung (karteneditor 30-40 min, Modus 1 15 min) | Runde 2: sieben Stellen nachgestellt und behoben; Schwellen gegen die Wanduhr offen (Frage 3) |
+| 12 | kartenpruefung in den Lauf allekarten legen (jede Karte einmal laden) | rund 1400 s Rechenzeit (9 %) | Vorschlag (Frage 4) |
 
 ## Teil B - Umsetzung und Nachweise
 
@@ -182,4 +191,30 @@ Was an Sprachpruefungen bleibt (laeuft weiter in jeder vollen Runde):
 
 1. **Handbuchbilder des Menue-Editors (bm, 6 x 570 s):** nur noch laufen lassen, wenn sich Menue-Editor oder Texte
    geaendert haben? Ihre Pruefzeilen stehen alle im vollen Lauf. (In `tools/testrunde.py` laufen sie schon nur auf
-   Zuruf: `bm_en` ... `bm_cs`.)
+   Zuruf: `bm_en` ... `bm_cs`.) **Entschieden (Hauptchat 11.11.): nur auf Zuruf.**
+2. **`allekarten` (1278 s) teilen?** Der Lauf laedt alle 282 Karten nacheinander und prueft danach an der ersten Karte,
+   ob Speicher liegen blieb; je Karte auch, ob Bilder der VORIGEN Karte im Grafikspeicher stehen. In vier Teilen
+   nebeneinander saehe die Speicherpruefung je Teil nur ein Viertel der Karten (ein Leck je Karte wuerde viermal
+   schwerer gefunden), und andere Kartenpaare folgten aufeinander. Deshalb ungeteilt - er ist jetzt die laengste Strecke
+   der Runde. Teilen nur, wenn shank die schwaechere Speicherpruefung annimmt (oder ein fuenfter, ungeteilter Lauf nur
+   fuer sie bleibt - dann ist nichts gewonnen).
+3. **Schwellen gegen die Wanduhr** werden unter Last rot, ohne dass am Programm etwas falsch ist: `spulen` "zurueck so
+   fluessig wie vor (Mittel und 95 %)", `zeitleiste1` "Filmdurchgang ohne laengere Bilder", karteneditor "Stufe 7: grosse
+   Karte - keine Ruckler: 99. Perzentil unter 50 ms", "Grosse Karte: ... kein Bild ueber 250 ms" und "zweiter Bau: ...
+   Schaetzung gegen die echte Dauer" (die Dauer zweier Bauten nacheinander). Sie messen Bildzeiten bzw. Bauzeiten - Simulationszeit hilft nicht, und ein anderes Mass
+   (Rechenzeit statt Wanduhr) saehe das Warten auf die Grafikkarte nicht mehr. Wege: (a) so lassen und bei Rot den einen
+   Lauf wiederholen (heute von Hand), (b) die Messung im Lauf einmal wiederholen, wenn sie rot ist (findet einen Fehler,
+   der nur manchmal auftritt, seltener), (c) diese Pruefungen nur im Ruhefenster werten (wie `leistung`). Nicht geaendert.
+4. **Vorschlag: `kartenpruefung` in den Lauf `allekarten` legen.** Beide laden jede der 282 Karten, zeichnen zwei Bilder
+   und werten aus - der eine schreibt den Bericht je Karte, der andere die Pruefzeile je Karte. In einem Lauf wuerde
+   jede Karte einmal geladen: rund 1400 s Rechenzeit weniger je Runde (9 %). Dazu muss der Berichtsschritt (220 Zeilen in
+   `gui/selbsttest_vorschau_a.inc`) eine eigene Funktion werden, und der Nachweis braucht drei lange Laeufe; die
+   Speicherpruefung von allekarten saehe die Zwischenspeicher des Berichts mit. Nicht umgesetzt - stattdessen laeuft
+   kartenpruefung in vier Anteilen nebeneinander (gleiche Rechenzeit, kuerzere Strecke).
+5. **karteneditor in Teilen: reichen die Teile, oder soll vor einem Release zusaetzlich der ganze Lauf laufen?** Die
+   sechs Teile liefern dieselben Pruefzeilen wie der ganze Lauf (nachgewiesen), aber jeder Teil beginnt mit frischem
+   Programm: was eine Gruppe der naechsten hinterlaesst, wirkt an den fuenf Teilgrenzen nicht mehr. Am Rot-Stand war das
+   zu sehen - der eingebaute Fehler wurde in beiden gefunden, im ganzen Lauf kamen 13 Folgefehler in spaeteren Gruppen
+   dazu, die der Teil nicht zeigt. Ein Fehler, der sich NUR so zeigt (eine Gruppe besteht, verdirbt aber den Zustand
+   fuer eine Gruppe im naechsten Teil), fiele in den Teilen nicht auf. Die Runde faehrt jetzt die Teile (Wunsch des
+   Hauptchats, Strecke 37 min -> 6-14 min); `python -I tools/testrunde.py --ungeteilt` faehrt den ganzen Lauf.
