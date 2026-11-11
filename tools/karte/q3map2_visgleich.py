@@ -19,8 +19,10 @@ Aufruf
       Visibility-Lump gleich NRCs (ERWARTUNG).
       Dazu der Geometrie-Merker des Flusses (vis2s, visflow.cpp BhedGeoMemo): -vis -v mit einem Thread in der
       Vorgabegroesse, mit einem kleinen Merker (BHED_VIS_GEOMEMO=4: 16 Zustaende, die staendig ueberschrieben
-      werden) und ohne Merker (BHED_VIS_GEOMEMO=0) - alle Lumps gleich, Visibility-Lump gleich NRCs; die Zeile
-      "geometry memo" zeigt, dass Portale aus dem Merker kamen, Zustaende ueberschrieben und Ebenen nachgebaut wurden.
+      werden), mit 40 Ids (BHED_VIS_GEOMEMO_IDS: der Merker wird zwischen den Fluessen geleert, und ein Fluss, dem
+      die Ids ausgehen, rechnet ohne neue Zustaende weiter) und ohne Merker (BHED_VIS_GEOMEMO=0) - alle Lumps
+      gleich, Visibility-Lump gleich NRCs; die Zeile "geometry memo" zeigt, dass Portale aus dem Merker kamen,
+      Windings und Ebenen nachgebaut wurden, der Merker geleert wurde und Zustaende ohne Id blieben.
   q3map2_visgleich.py karte <ziel.map>
       schreibt nur die Testkarte (fuer den Vergleich mit NRCs q3map2.exe).
 
@@ -122,31 +124,36 @@ def q3(exe, ordner, args, umgebung=None):
 
 
 def merker(exe, arbeit):
-    """Geometrie-Merker: Vorgabe, klein, aus - gleiche Lumps; Zahl der Fehler"""
+    """Geometrie-Merker: Vorgabe, klein, wenige Ids, aus - gleiche Lumps; Zahl der Fehler"""
     fehler = 0
     eins = None
-    for name, bits in (('Vorgabe', None), ('klein', '4'), ('aus', '0')):
+    for name, umgebung in (('Vorgabe', None), ('klein', {'BHED_VIS_GEOMEMO': '4'}),
+                           ('wenigeIds', {'BHED_VIS_GEOMEMO': '6', 'BHED_VIS_GEOMEMO_IDS': '40'}),
+                           ('aus', {'BHED_VIS_GEOMEMO': '0'})):
         o = os.path.join(arbeit, 'm_' + name)
         os.makedirs(os.path.join(o, 'spiel', 'base'))
         for e in ('.bsp', '.prt'):
             shutil.copyfile(os.path.join(arbeit, 'gitter' + e), os.path.join(o, 'gitter' + e))
-        if q3(exe, o, ['-vis', '-v', '-threads', '1', 'gitter.bsp'], {'BHED_VIS_GEOMEMO': bits} if bits else None) != 0:
+        if q3(exe, o, ['-vis', '-v', '-threads', '1', 'gitter.bsp'], umgebung) != 0:
             print('q3map2_visgleich: FEHLER - Merker %s' % name)
             return fehler + 1
         vis, lumps = vislump(os.path.join(o, 'gitter.bsp'))
         zeile = [z for z in open(os.path.join(o, 'ausgabe.txt'), encoding='latin1').read().splitlines() if 'geometry memo' in z]
         zahlen = [int(w) for w in zeile[0].replace(':', ' ').split() if w.isdigit()] if zeile else []
-        # bekannt, gerechnet, ueberschrieben, nachgebaut
-        bekannt, gerechnet, ueberschrieben, nachgebaut = zahlen[-4:] if len(zahlen) >= 4 else (0, 0, 0, 0)
+        # Portale bekannt, gerechnet, Windings nachgebaut, Ebenen nachgebaut, Merker geleert, Zustaende ohne Id
+        bekannt, gerechnet, windings, ebenen, geleert, ohne_id = zahlen[-6:] if len(zahlen) >= 6 else (0, 0, 0, 0, 0, 0)
         if eins is None:
             eins = lumps
-            gut = vis == ERWARTUNG['-vis'] and bekannt > 0 and nachgebaut > 0
-        elif bits == '4':
-            gut = lumps == eins and bekannt > 0 and ueberschrieben > 0 and nachgebaut > 0
+            gut = vis == ERWARTUNG['-vis'] and bekannt > 0 and ebenen > 0 and geleert == 0 and ohne_id == 0
+        elif name == 'klein':
+            gut = lumps == eins and bekannt > 0 and windings > 0 and ebenen > 0
+        elif name == 'wenigeIds':
+            gut = lumps == eins and bekannt > 0 and geleert > 0 and ohne_id > 0
         else:
             gut = lumps == eins and not zeile
-        print('q3map2_visgleich: Merker %-9s: Visibility %s, %d bekannt, %d gerechnet, %d ueberschrieben, %d Ebenen nachgebaut%s'
-              % (name, vis, bekannt, gerechnet, ueberschrieben, nachgebaut, '' if gut else '  FEHLER'))
+        print('q3map2_visgleich: Merker %-9s: Visibility %s, %d bekannt, %d gerechnet, %d Windings und %d Ebenen nachgebaut, '
+              '%d-mal geleert, %d Zustaende ohne Id%s'
+              % (name, vis, bekannt, gerechnet, windings, ebenen, geleert, ohne_id, '' if gut else '  FEHLER'))
         fehler += not gut
         shutil.rmtree(o)
     return fehler
