@@ -1224,7 +1224,7 @@ const std::vector<MaxTaste>& maxTasten() {
         {ImGuiKey_E, Str::MbAktDrehen, [] { mt().gizmo = 2; }},
         {ImGuiKey_R, Str::MbAktSkalieren, [] { mt().gizmo = 3; }},
         {ImGuiMod_Alt | ImGuiKey_W, Str::MbAktMax, [] { mt().vierAnsichten = !mt().vierAnsichten; }},
-        {ImGuiKey_Z, Str::MbAktZoom, [] { modellAnsichtEinpassenAktiv(); }},
+        {ImGuiKey_Z, Str::MbAktZoom, [] { modellNavGrenzen(0); }},   // MBNAV: Zoom Extents All Selected - alle Ansichten
         {ImGuiKey_F3, Str::MbAnDraht, [] { modellSch().drahtgitter = !modellSch().drahtgitter; }},   // MBKOPF: die aktive Ansicht
         {ImGuiKey_F4, Str::MbAnKanten, [] { modellSch().kanten = !modellSch().kanten; }},
         {ImGuiKey_F5, Str::MbAktX, [] { achseSetzen(0); }},
@@ -1265,6 +1265,26 @@ const std::vector<MaxTaste>& maxTasten() {
         {ImGuiMod_Ctrl | ImGuiKey_Z, Str::MbAktUndo, [] { (void)modellRueckgaengig(); }},
         {ImGuiMod_Ctrl | ImGuiKey_Y, Str::MbAktRedo, [] { (void)modellWiederholen(); }},
         {ImGuiMod_Alt | ImGuiKey_R, Str::MbAktTexNeu, [] { modellTexturenNeuLaden(); }},
+        // MBNAV: Navigation wie 3ds Max (Hotkey-Tabelle der Autodesk-Hilfe 2026, Main UI > Tools / Views; gui/app_modelltab_nav.cpp).
+        // Zoom Extents All (Strg+Umschalt+Z) steht nur im Menue: die Taste ist im Model-Tab Wiederholen (modellDateiTasten).
+        {ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_Z, Str::MnGrenzen, [] { modellNavGrenzen(1); }},
+        {ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiMod_Shift | ImGuiKey_Z, Str::MnZoom2xHeran, [] { modellNavZoom2x(true); }},
+        {ImGuiMod_Alt | ImGuiMod_Shift | ImGuiKey_Z, Str::MnZoom2xHinaus, [] { modellNavZoom2x(false); }},
+        {ImGuiKey_LeftBracket, Str::MnZoomHeran, [] { modellNavZoomSchritt(1.0F); }},
+        {ImGuiKey_RightBracket, Str::MnZoomHinaus, [] { modellNavZoomSchritt(-1.0F); }},
+        {ImGuiMod_Ctrl | ImGuiKey_Equal, Str::MnZoomHeran2, [] { modellNavZoomSchritt(1.0F); }},
+        {ImGuiMod_Ctrl | ImGuiKey_Minus, Str::MnZoomHinaus2, [] { modellNavZoomSchritt(-1.0F); }},
+        {ImGuiMod_Alt | ImGuiKey_Z, Str::MnModusZoom, [] { modellNavModusSetzen(1); }},
+        {ImGuiMod_Ctrl | ImGuiKey_P, Str::MnModusPan, [] { modellNavModusSetzen(2); }},
+        {ImGuiMod_Ctrl | ImGuiKey_R, Str::MnModusOrbit, [] { modellNavModusSetzen(3); }},
+        {ImGuiMod_Ctrl | ImGuiKey_W, Str::MnModusBereich, [] { modellNavModusSetzen(4); }},
+        {ImGuiKey_I, Str::MnZumZeiger, [] { modellNavZumZeiger(); }},
+        {ImGuiMod_Shift | ImGuiKey_Z, Str::MnRueck, [] { (void)modellNavRueck(false); }},
+        {ImGuiMod_Shift | ImGuiKey_Y, Str::MnWieder, [] { (void)modellNavRueck(true); }},
+        {ImGuiKey_V, Str::MnAnsichtenMenue, [] { modellNavAnsichtenMenue(); }},
+        {ImGuiMod_Alt | ImGuiKey_Home, Str::MnHomeTaste, [] { modellHomeFlug(mt().aktiv); }},
+        {ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_H, Str::MnHomeTaste2, [] { modellHomeFlug(mt().aktiv); }},
+        {ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_V, Str::MnCubeTaste, [] { g_app->settings.modellNavigation = !g_app->settings.modellNavigation; }},
     };
     return kListe;
 }
@@ -1354,14 +1374,14 @@ const std::vector<BlenderTaste>& blenderTasten() {
         {ImGuiMod_Alt | ImGuiKey_A, Str::MbBlNichts, [] { blenderAlle(false); }, "Object Mode | object.select_all | Alt+A PRESS action=DESELECT"},
         {ImGuiMod_Ctrl | ImGuiKey_I, Str::MbBlUmkehren, [] { blenderUmkehren(); }, "Object Mode | object.select_all | Strg+I PRESS action=INVERT"},
         {ImGuiKey_B, Str::MbBlRahmen, [] { mt().gizmo = 0; }, "3D View | view3d.select_box | B PRESS"},
-        {ImGuiKey_Keypad1, Str::MbAnsichtVorne, [] { modellAnsichtSetzen(AnsichtArt::Vorne); }, "Doku | view3d.view_axis | NUMPAD_1 type=FRONT"},
-        {ImGuiMod_Ctrl | ImGuiKey_Keypad1, Str::MbAnsichtHinten, [] { modellAnsichtSetzen(AnsichtArt::Hinten); },
+        {ImGuiKey_Keypad1, Str::MbAnsichtVorne, [] { modellNavBlAchse(AnsichtArt::Vorne); }, "Doku | view3d.view_axis | NUMPAD_1 type=FRONT"},
+        {ImGuiMod_Ctrl | ImGuiKey_Keypad1, Str::MbAnsichtHinten, [] { modellNavBlAchse(AnsichtArt::Hinten); },
          "Doku | view3d.view_axis | Strg+NUMPAD_1 type=BACK"},
-        {ImGuiKey_Keypad3, Str::MbAnsichtRechts, [] { modellAnsichtSetzen(AnsichtArt::Rechts); }, "Doku | view3d.view_axis | NUMPAD_3 type=RIGHT"},
-        {ImGuiMod_Ctrl | ImGuiKey_Keypad3, Str::MbAnsichtLinks, [] { modellAnsichtSetzen(AnsichtArt::Links); },
+        {ImGuiKey_Keypad3, Str::MbAnsichtRechts, [] { modellNavBlAchse(AnsichtArt::Rechts); }, "Doku | view3d.view_axis | NUMPAD_3 type=RIGHT"},
+        {ImGuiMod_Ctrl | ImGuiKey_Keypad3, Str::MbAnsichtLinks, [] { modellNavBlAchse(AnsichtArt::Links); },
          "Doku | view3d.view_axis | Strg+NUMPAD_3 type=LEFT"},
-        {ImGuiKey_Keypad7, Str::MbAnsichtOben, [] { modellAnsichtSetzen(AnsichtArt::Oben); }, "Doku | view3d.view_axis | NUMPAD_7 type=TOP"},
-        {ImGuiMod_Ctrl | ImGuiKey_Keypad7, Str::MbAnsichtUnten, [] { modellAnsichtSetzen(AnsichtArt::Unten); },
+        {ImGuiKey_Keypad7, Str::MbAnsichtOben, [] { modellNavBlAchse(AnsichtArt::Oben); }, "Doku | view3d.view_axis | NUMPAD_7 type=TOP"},
+        {ImGuiMod_Ctrl | ImGuiKey_Keypad7, Str::MbAnsichtUnten, [] { modellNavBlAchse(AnsichtArt::Unten); },
          "Doku | view3d.view_axis | Strg+NUMPAD_7 type=BOTTOM"},
         {ImGuiKey_Keypad5, Str::MbBlPersp, [] { modellPerspektiveUmschalten(); }, "Doku | view3d.view_persportho | NUMPAD_5"},
         {ImGuiKey_Keypad4, Str::MbBlKreisLinks, [] { modellKreisenSchritt(15.0F, 0.0F); }, "Doku | view3d.view_orbit | NUMPAD_4 ORBITLEFT"},
@@ -1376,11 +1396,21 @@ const std::vector<BlenderTaste>& blenderTasten() {
          "Doku | view3d.toggle_shading | Umschalt+Z type=WIREFRAME"},
         {ImGuiMod_Ctrl | ImGuiKey_GraveAccent, Str::MkBlGizmoTaste, [] { g_app->settings.modellNavigation = !g_app->settings.modellNavigation; },
          "3D View | wm.context_toggle | Strg+ACCENT_GRAVE PRESS data_path=space_data.show_gizmo"},
-        {ImGuiKey_KeypadDecimal, Str::MbBlGewaehlte, [] { modellAnsichtEinpassenAktiv(); }, "3D View | view3d.view_selected | NUMPAD_PERIOD PRESS"},
-        {ImGuiKey_Home, Str::MbBlAlles, [] { modellAllesEinpassenIn(mt().aktiv); },
-         "Doku | view3d.view_all | HOME"},
-        {ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_Q, Str::MbBlVier, [] { mt().vierAnsichten = !mt().vierAnsichten; },
-         "Doku | screen.region_quadview | Strg+Alt+Q"},
+        {ImGuiKey_KeypadDecimal, Str::MbBlGewaehlte, [] { (void)modellNavBlEinpassen(true, false); }, "3D View | view3d.view_selected | NUMPAD_PERIOD PRESS"},
+        {ImGuiKey_Home, Str::MbBlAlles, [] { (void)modellNavBlEinpassen(false, false); }, "3D View | view3d.view_all | HOME center=False"},
+        {ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_Q, Str::MbBlVier, [] { modellNavBlVier(); }, "Doku | screen.region_quadview | Strg+Alt+Q"},
+        // MBNAV: blender_default.py km_view3d (Blender 5.0)
+        {ImGuiMod_Shift | ImGuiKey_C, Str::MnBlAllesMitte, [] { (void)modellNavBlEinpassen(false, true); }, "3D View | view3d.view_all | Umschalt+C center=True"},
+        {ImGuiKey_KeypadAdd, Str::MnBlZoomHeran, [] { modellNavZoomSchritt(1.0F); }, "3D View | view3d.zoom | NUMPAD_PLUS delta=1"},
+        {ImGuiKey_KeypadSubtract, Str::MnBlZoomHinaus, [] { modellNavZoomSchritt(-1.0F); }, "3D View | view3d.zoom | NUMPAD_MINUS delta=-1"},
+        {ImGuiMod_Ctrl | ImGuiKey_Equal, Str::MnBlZoomHeran2, [] { modellNavZoomSchritt(1.0F); }, "3D View | view3d.zoom | Strg+EQUAL delta=1"},
+        {ImGuiMod_Ctrl | ImGuiKey_Minus, Str::MnBlZoomHinaus2, [] { modellNavZoomSchritt(-1.0F); }, "3D View | view3d.zoom | Strg+MINUS delta=-1"},
+        {ImGuiMod_Ctrl | ImGuiKey_Keypad4, Str::MnBlPanLinks, [] { modellNavBlSchieben(0); }, "3D View | view3d.view_pan | Strg+NUMPAD_4 PANLEFT"},
+        {ImGuiMod_Ctrl | ImGuiKey_Keypad6, Str::MnBlPanRechts, [] { modellNavBlSchieben(1); }, "3D View | view3d.view_pan | Strg+NUMPAD_6 PANRIGHT"},
+        {ImGuiMod_Ctrl | ImGuiKey_Keypad8, Str::MnBlPanOben, [] { modellNavBlSchieben(2); }, "3D View | view3d.view_pan | Strg+NUMPAD_8 PANUP"},
+        {ImGuiMod_Ctrl | ImGuiKey_Keypad2, Str::MnBlPanUnten, [] { modellNavBlSchieben(3); }, "3D View | view3d.view_pan | Strg+NUMPAD_2 PANDOWN"},
+        {ImGuiKey_GraveAccent, Str::MnBlKuchen, [] { modellNavKuchen(); }, "3D View | wm.call_menu_pie VIEW3D_MT_view_pie | ACCENT_GRAVE PRESS"},
+        {ImGuiMod_Shift | ImGuiKey_B, Str::MnBlBereich, [] { modellNavBlBereich(); }, "3D View | view3d.zoom_border | Umschalt+B PRESS"},
         {ImGuiKey_H, Str::MbAuswahlAusblenden, [] { modellAuswahlAusblenden(false); }, "Doku | object.hide_view_set | H"},
         {ImGuiMod_Shift | ImGuiKey_H, Str::MbAndereAusblenden, [] { modellAuswahlAusblenden(true); },
          "Doku | object.hide_view_set unselected=True | Umschalt+H"},
@@ -1540,6 +1570,7 @@ bool modellBlender() { return g_app->settings.modellBedienung == 1; }
 
 bool modellTasten() {
     if (!modellFokus()) { return false; }
+    if (modellNavTasten()) { return true; }   // MBNAV: Esc beendet einen Navigationsmodus
     if (modellModalTasten()) {   // mb1a2: waehrend G/R/S gehoeren die Tasten der Umformung
         mt().modalEndeBild = ImGui::GetFrameCount();
         return true;
@@ -1654,6 +1685,7 @@ void drawModellAktionen() {
     if (!rigAusgeloest && modellMeshAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // Modell-Block 1d
     if (!rigAusgeloest && modellMalenAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // Modell-Block 1c
     if (!rigAusgeloest && modellKopfAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }    // MBKOPF: die Anzeige-Schalter
+    if (!rigAusgeloest && modellNavAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }     // MBNAV: Navigation ohne eigene Taste
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
 }
@@ -1685,6 +1717,7 @@ void modellBedienungSetzen(int b) {
     if (g_app->settings.modellBedienung == b) { return; }
     g_app->settings.modellBedienung = b;
     modellModalEnde(false);
+    modellNavZuruecksetzen();   // MBNAV
     t.vierAnsichten = b == 0 && t.vierAnsichten;
     g_app->modelDirty = true;
 }

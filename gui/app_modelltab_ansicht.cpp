@@ -64,7 +64,12 @@ void ansichtAchsen(AnsichtArt a, float r[3], float h[3], float v[3]) {
             setze(r, 1, 0, 0), setze(h, 0, 1, 0), setze(v, 0, 0, -1);
             break;
         case AnsichtArt::Unten:
-            setze(r, -1, 0, 0), setze(h, 0, 1, 0), setze(v, 0, 0, 1);
+            // MBNAV: Blender (RV3D_VIEW_BOTTOM) zeigt von unten +X rechts und -Y oben, 3ds Max -X rechts und +Y oben
+            if (modellBlender()) {
+                setze(r, 1, 0, 0), setze(h, 0, -1, 0), setze(v, 0, 0, 1);
+            } else {
+                setze(r, -1, 0, 0), setze(h, 0, 1, 0), setze(v, 0, 0, 1);
+            }
             break;
         case AnsichtArt::Vorne:   // Blender Ziffernblock 1
             setze(r, 1, 0, 0), setze(h, 0, 0, 1), setze(v, 0, 1, 0);
@@ -2155,46 +2160,20 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     a.groesse[1] = static_cast<float>(h);
     a.sichtbar = true;
     modellAnsichtAnimieren(n);   // MBKOPF: weicher Wechsel von ViewCube/Gizmo
+    modellNavVorBild(n);         // MBNAV: weiche Wechsel der Navigation, Verlauf der Ansichtsaenderungen
     baueSicht(a, w, h, a.viewProj);
     ImGuiIO& io = ImGui::GetIO();
     // MBKOPF: Kopfzeile, ViewCube und Gizmo bedienen sich selbst - dort waehlt, kreist und oeffnet kein Klick die Ansicht
-    const bool ueber = ImGui::IsWindowHovered() && !modellKopfTreffer(a, io.MousePos);
-    // --- Maus wie 3ds Max ---------------------------------------------------
-    if (ueber && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Middle) ||
-                  ImGui::IsMouseClicked(ImGuiMouseButton_Right))) {
+    const bool ueberAnsicht = ImGui::IsWindowHovered() && !modellKopfTreffer(a, io.MousePos);
+    if (ueberAnsicht && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Middle) ||
+                         ImGui::IsMouseClicked(ImGuiMouseButton_Right))) {
         t.aktiv = n;
         t.klickDrinBild = ImGui::GetFrameCount();
     }
-    if (ueber && io.MouseWheel != 0.0F) {
-        if (a.art == AnsichtArt::Perspektive) {
-            g_app->modelOrbit.zoom(g_app->modelCam, io.MouseWheel);
-        } else {
-            a.halbHoehe = std::clamp(a.halbHoehe * std::pow(0.85F, io.MouseWheel), 0.5F, 8192.0F);
-        }
-        g_app->modelDirty = true;
-    }
-    if (ueber && ImGui::IsMouseDown(ImGuiMouseButton_Middle) && (io.MouseDelta.x != 0.0F || io.MouseDelta.y != 0.0F)) {
-        if (io.KeyAlt && io.KeyCtrl) {
-            // Strg+Alt+Mitte: Zoom ziehen
-            if (a.art == AnsichtArt::Perspektive) {
-                g_app->modelOrbit.zoom(g_app->modelCam, -io.MouseDelta.y * 0.05F);
-            } else {
-                a.halbHoehe = std::clamp(a.halbHoehe * std::pow(1.01F, io.MouseDelta.y), 0.5F, 8192.0F);
-            }
-        } else if (io.KeyAlt) {
-            if (a.art == AnsichtArt::Perspektive) { g_app->modelOrbit.turn(g_app->modelCam, -io.MouseDelta.x * 0.4F, -io.MouseDelta.y * 0.4F); }
-        } else if (a.art == AnsichtArt::Perspektive) {
-            g_app->modelOrbit.pan(g_app->modelCam, io.MouseDelta.x, io.MouseDelta.y);
-        } else {
-            float r[3];
-            float o[3];
-            float v[3];
-            ansichtAchsen(a.art, r, o, v);
-            const float proPx = 2.0F * a.halbHoehe / static_cast<float>(h);
-            for (int k = 0; k < 3; ++k) { a.mitte[k] += (-io.MouseDelta.x * r[k] + io.MouseDelta.y * o[k]) * proPx; }
-        }
-        g_app->modelDirty = true;
-    }
+    // MBNAV: Rad und Mitteltaste je Bedienmodus wie 3ds Max bzw. Blender (app_modelltab_nav.cpp). Laeuft ein
+    // Navigationsmodus (Alt+Z, Strg+P, Strg+R, Strg+W), gehoeren ihm auch die linke und die rechte Taste: die Ansicht
+    // waehlt, malt und oeffnet dann nichts.
+    const bool ueber = ueberAnsicht && !modellNavMaus(n, a, ueberAnsicht);
     float mitte[3];
     const bool hatMitte = t.gizmo != 0 && t.modal.art == 0 && auswahlMitte(mitte);
     // mb1a2: G/R/S wie Blender laufen ueber die Maus, bis Klick/Enter/Esc (modellModalTasten)
@@ -2328,6 +2307,7 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
         dl->AddRect(ImVec2{t.rahmenStart[0], t.rahmenStart[1]}, io.MousePos, IM_COL32(255, 255, 255, 200));
     }
     if (t.aktiv == n) { dl->AddRect(lo, ImVec2{lo.x + static_cast<float>(w), lo.y + static_cast<float>(h)}, IM_COL32(230, 180, 40, 255), 0.0F, 0, 2.0F); }
+    modellNavUeberlagerung(n, a, dl);   // MBNAV: Name des Navigationsmodus, Kreis des Orbit-Modus, Rahmen des Bereichs
     // MBKOPF: ViewCube bzw. Gizmo und die Kopfzeile wie die Viewport Label Menus von 3ds Max / die Kopfzeile von Blender
     drawModellNavigation(n, a);
     drawModellKopfzeile(n, a);
@@ -2338,6 +2318,7 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
 }  // namespace
 
 bool modellAufSchirm(const ModellAnsicht& a, const float p[3], ImVec2& out) { return aufSchirm(a, p, out); }
+bool modellGrenzen(bool nurAuswahl, float mn[3], float mx[3]) { return grenzen(nurAuswahl, mn, mx); }   // MBNAV
 // Modell-Block 1d: fuer das Modellieren (gui/wof/app_modelltab_mesh.cpp)
 bool modellDreieckUnter(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck) { return dreieckUnter(a, maus, teil, dreieck); }
 const std::vector<std::vector<std::array<float, 3>>>& modellHaut() { return haut(); }
@@ -2363,6 +2344,7 @@ void drawModellArbeitsflaeche() {
         // nicht von der Seite") - eingepasst, sobald die Ansicht ihre Groesse und die Pose kennt
         t.einpassenOffen = true;
         t.homeDa = false;   // ein gesetztes Home gehoert zur Figur
+        modellNavZuruecksetzen();   // MBNAV
         g_eingepasst = g_app->modelPath;
     }
     modellDrehteller();
@@ -2406,7 +2388,9 @@ void drawModellArbeitsflaeche() {
     {
         // mb1a2: die Tastenzeile so weit, wie Platz ist (ganze Abschnitte zwischen " · "), der Rest im Tooltip - nichts
         // abgeschnitten
-        const std::string ganz = tr(modellBlender() ? Str::MbTastenBlender : Str::MbTastenMax);
+        // MBNAV: zuerst die Navigation der Ansicht (Maus), dann die Tasten
+        const std::string ganz = std::string(tr(modellBlender() ? Str::MnZeileBlender : Str::MnZeileMax)) + " \xc2\xb7 " +
+                                 tr(modellBlender() ? Str::MbTastenBlender : Str::MbTastenMax);
         const float frei = ImGui::GetContentRegionAvail().x;
         std::string zeigen = ganz;
         if (ImGui::CalcTextSize(ganz.c_str()).x > frei) {
@@ -2456,7 +2440,7 @@ void drawModellArbeitsflaeche() {
         const ImVec2 g{std::floor((ansichtenG.x - 2.0F) * 0.5F), std::floor((ansichtenG.y - 2.0F) * 0.5F)};
         for (int i = 0; i < 4; ++i) {
             if (i % 2 == 1) { ImGui::SameLine(0.0F, 2.0F); }
-            eineAnsicht(i, g, neu);
+            eineAnsicht(modellNavVierPlatz(i), g, neu);   // MBNAV: die Anordnung von 3ds Max bzw. Blender (Quad View)
         }
     } else {
         eineAnsicht(t.aktiv, ansichtenG, neu);
@@ -2473,6 +2457,7 @@ void drawModellArbeitsflaeche() {
     drawModellModusMenue();
     drawModellUvPopups();   // Modell-Block 1b
     drawModellMeshPopups();   // Modell-Block 1d
+    drawModellNavPopups();    // MBNAV: Menue der Ansichten (V), Kuchenmenue View (`)
     if (t.kontextOeffnen) {
         ImGui::OpenPopup("##mtkontext");
         t.kontextOeffnen = false;
@@ -2506,42 +2491,15 @@ void modellAnsichtSetzen(AnsichtArt art) {
     g_app->modelDirty = true;
 }
 
-// Ziffernblock 5: Perspektive <-> die Achsenansicht, die der Blickrichtung am naechsten liegt.
-void modellPerspektiveUmschalten() {
-    ModellTab& t = mt();
-    if (t.ansichten[t.aktiv].art != AnsichtArt::Perspektive) {
-        modellAnsichtSetzen(AnsichtArt::Perspektive);
-        return;
-    }
-    float v[3];
-    g_app->modelCam.forward(v);
-    // MBKOPF: die Blickachsen aus ansichtAchsen selbst - die Tabelle hier hatte seit REST M9 (Vorne zeigt das Gesicht)
-    // Vorne und Hinten vertauscht: von vorne umgeschaltet zeigte die Ansicht den Ruecken
-    static const AnsichtArt kArten[6] = {AnsichtArt::Links, AnsichtArt::Rechts, AnsichtArt::Hinten, AnsichtArt::Vorne, AnsichtArt::Unten, AnsichtArt::Oben};
-    AnsichtArt best = AnsichtArt::Vorne;
-    float bd = -2.0F;
-    for (const AnsichtArt art : kArten) {
-        float r[3];
-        float h[3];
-        float achse[3];
-        ansichtAchsen(art, r, h, achse);
-        const float d = v[0] * achse[0] + v[1] * achse[1] + v[2] * achse[2];
-        if (d > bd) {
-            bd = d;
-            best = art;
-        }
-    }
-    modellAnsichtSetzen(best);
-}
+// Ziffernblock 5 und der Knopf des Gizmos: Blender view3d.view_persportho - Perspektive <-> orthographisch, die Richtung
+// bleibt (MBNAV; bis rc611 sprang die Perspektive auf die naechste Achsenansicht).
+void modellPerspektiveUmschalten() { modellNavBlPerspOrtho(); }
 
-// Ziffernblock 2/4/6/8: um 15 Grad kreisen (Blender: Preferences > Navigation > Rotation Amount, Vorgabe 15);
-// eine Achsenansicht wird dabei zur Perspektive (Auto Perspective).
-void modellKreisenSchritt(float gier, float nick) {
-    ModellTab& t = mt();
-    if (t.ansichten[t.aktiv].art != AnsichtArt::Perspektive) { modellAnsichtSetzen(AnsichtArt::Perspektive); }
-    g_app->modelOrbit.turn(g_app->modelCam, gier, nick);
-    g_app->modelDirty = true;
-}
+// Ziffernblock 4/6/8/2: Blender view3d.view_orbit - 15 Grad (Preferences > Navigation > Rotation Amount), weich, auch
+// ueber den Pol; nur eine Achsenansicht wird dabei zur Perspektive (Auto Perspective). `gier` > 0: Orbit Left (die
+// Kamera geht nach links), < 0: Orbit Right; `nick` > 0: Orbit Up (die Kamera steigt), < 0: Orbit Down. MBNAV: bis rc611
+// drehte Orbit Left die Kamera nach rechts.
+void modellKreisenSchritt(float gier, float nick) { modellNavBlKreisen(gier > 0.0F ? 0 : (gier < 0.0F ? 1 : (nick > 0.0F ? 2 : 3))); }
 
 // --- MBKOPF: Blickrichtung, weicher Wechsel, Startansicht --------------------------------------------------------
 
@@ -2741,6 +2699,16 @@ void modellBlickSetzen(int n, AnsichtArt art, const float winkel[3], bool weich)
     g_app->modelDirty = true;
 }
 
+// MBNAV (Blender ED_view3d_smooth_view_force_finish): ein laufender Wechsel endet sofort an seinem Ziel.
+void modellAnsichtFertig(int n) {
+    if (n < 0 || n > 3) { return; }
+    ModellAnsicht& a = mt().ansichten[n];
+    if (a.animStart < 0.0) { return; }
+    a.animStart = 0.0;
+    a.animDauer = 1e-6F;
+    modellAnsichtAnimieren(n);
+}
+
 void modellAnsichtAnimieren(int n) {
     ModellTab& t = mt();
     ModellAnsicht& a = t.ansichten[n];
@@ -2873,14 +2841,8 @@ void modellAllesEinpassenIn(int n) {
 
 // Blender Umschalt+Ziffernblock 4/6 (view3d.view_roll, 15 Grad wie das Kreisen): eine Achsenansicht rollt als
 // "User Orthographic", die Perspektive um ihre Blickachse.
-void modellRollenSchritt(float grad) {
-    ModellTab& t = mt();
-    ModellAnsicht& a = t.ansichten[t.aktiv];
-    float w[3];
-    modellAnsichtWinkel(a, w);
-    w[2] += grad;
-    modellBlickSetzen(t.aktiv, a.art == AnsichtArt::Perspektive ? AnsichtArt::Perspektive : AnsichtArt::Orthographisch, w, false);
-}
+// MBNAV: `grad` < 0 ist Roll Left - die Szene dreht im Bild gegen den Uhrzeigersinn (bis rc611 andersherum).
+void modellRollenSchritt(float grad) { modellNavBlRollen(grad < 0.0F); }
 
 // Blender Ziffernblock 9 (view3d.view_orbit angle=pi, ORBITRIGHT): auf die Gegenseite - eine Achsenansicht wird zu ihrer
 // Gegenansicht (Oben <-> Unten ...), sonst 180 Grad um die senkrechte Achse.

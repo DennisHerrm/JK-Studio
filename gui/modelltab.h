@@ -505,6 +505,9 @@ struct ModellTab {
     float orthoWinkel[3] = {0.0F, 90.0F, 0.0F};   // MBKOPF: AnsichtArt::Orthographisch - pitch, yaw, roll (Quake)
     bool einpassenOffen = false;   // MBKOPF: neue Figur - die Perspektive einpassen, sobald die Ansicht ihre Groesse kennt
     int kopfMenueZaehler = 0;      // MBKOPF: Selbsttest - Menues der Kopfzeile, die offen gezeichnet wurden
+    // MBNAV: Navigationsmodus wie die Knoepfe der Ansichtssteuerung von 3ds Max (linke Taste, bis Rechtsklick/Esc):
+    // 0 keiner, 1 Zoom (Alt+Z), 2 Schieben (Strg+P), 3 Orbit (Strg+R), 4 Bereich (Strg+W, Blender Umschalt+B)
+    int navModus = 0;
     // MBKOPF: ViewCube "Aktuelle Ansicht als Home setzen" - gilt bis zur naechsten Figur (in der Vorlage bis zum Programmende)
     bool homeDa = false;
     float homeWinkel[3]{};
@@ -1052,6 +1055,39 @@ void modellAllesEinpassenIn(int n);            // Blender Pos1 (view3d.view_all)
 [[nodiscard]] bool modellKompassOrt(int ansicht, int teil, ImVec2& out);   // 0..3 N O S W, 4 ein Punkt des Rings vor dem Wuerfel
 [[nodiscard]] bool modellWuerfelPfeilOrt(int ansicht, int teil, ImVec2& out);   // 0..3 Pfeil oben/unten/links/rechts, 4/5 Rollpfeil rechts/links
 [[nodiscard]] float modellWuerfelAlpha(int ansicht);   // Deckkraft des ViewCube im letzten Bild (0: nicht gezeichnet)
+
+// --- MBNAV: Navigation in den Ansichten wie 3ds Max bzw. Blender (gui/app_modelltab_nav.cpp) ---------------------------
+void modellNavVorBild(int n);                                   // je Bild: weiche Wechsel, Verlauf der Ansichtsaenderungen
+bool modellNavMaus(int n, ModellAnsicht& a, bool ueber);        // Rad, Mitteltaste, Modi; true: links/rechts gehoeren der Navigation
+void modellNavUeberlagerung(int n, const ModellAnsicht& a, ImDrawList* dl);
+void modellNavModusSetzen(int m);                               // 1 Zoom, 2 Schieben, 3 Orbit, 4 Bereich (ein/aus)
+void modellNavBlBereich();                                      // Blender Umschalt+B: ein Bereich
+bool modellNavTasten();                                         // Esc beendet einen Modus
+void modellNavZoomSchritt(float rasten);                        // [ ] / Ziffernblock + -
+void modellNavZoom2x(bool heran);
+void modellNavGrenzen(int art);                                 // 0 alle Ansichten + Auswahl (Z), 1 aktive + alles, 2 alle + alles
+void modellNavZumZeiger();                                      // I
+bool modellNavRueck(bool wieder);                               // Umschalt+Z / Umschalt+Y
+void modellNavAnsichtenMenue();                                 // V
+void modellNavKuchen();                                         // Blender `
+void modellNavKreisenPx(int n, ImVec2 d, bool beginn);          // ViewCube, Gizmo
+void modellNavSchiebenPx(int n, ImVec2 d);
+void modellNavBlZoomZug(int n, bool beginn, float dyGesamt);    // Zoom-Knopf des Gizmos
+void modellNavBlPerspOrtho();
+void modellNavBlKreisen(int richtung);                          // 0 links, 1 rechts, 2 hoch, 3 runter
+void modellNavBlRollen(bool links);
+void modellNavBlSchieben(int richtung);
+void modellNavBlAchse(AnsichtArt art);
+bool modellNavBlEinpassen(bool nurAuswahl, bool mitUrsprung);
+void modellNavBlVier();
+[[nodiscard]] int modellNavVierPlatz(int platz);                // welche Ansicht an welchem Platz der Vierer-Ansicht steht
+void modellNavMenue(int n);
+bool modellNavAktionenSuche(const std::string& such);
+void drawModellNavPopups();
+void modellNavZuruecksetzen();
+// gui/app_modelltab_ansicht.cpp
+bool modellGrenzen(bool nurAuswahl, float mn[3], float mx[3]);  // der Kasten der Auswahl bzw. der gezeichneten Flaechen in der Pose
+void modellAnsichtFertig(int n);                                // ein laufender weicher Wechsel endet sofort an seinem Ziel
 
 }  // namespace bhed::gui
 #endif

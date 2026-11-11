@@ -5836,6 +5836,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_tabfenster.inc"   // rc609 T1: ganze Tabs in eigenen Fenstern
 #include "selbsttest_kartenruhe.inc"   // rc610 R1: der Karten-Editor zeichnet nur bei Bedarf
 #include "selbsttest_mbraster.inc"   // MBRASTER: Boden-Raster im Model-Tab (modellblock, BHED_MODELL_NUR=raster; Gizmo/Kompass am Ende von kopf)
+#include "selbsttest_mbnav.inc"      // MBNAV: Navigation wie 3ds Max / Blender (modellblock, BHED_MODELL_NUR=nav; Handbuch BHED_HB_NUR=mbnav)
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -6816,6 +6817,7 @@ void selbsttest() {
                     for (Schritt& x : mr::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // MRESTE
                     for (Schritt& x : mbkopf::schritte(nur)) { a.schritte.push_back(std::move(x)); } // MBKOPF
                     for (Schritt& x : mbraster::schritte(nur)) { a.schritte.push_back(std::move(x)); } // MBRASTER
+                    for (Schritt& x : mbnav::schritte(nur)) { a.schritte.push_back(std::move(x)); }    // MBNAV
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

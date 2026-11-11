@@ -507,6 +507,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_modelltab.cpp
     gui/app_modelltab_ansicht.cpp
     gui/app_modelltab_kopf.cpp   # MBKOPF: Kopfzeile der Ansicht bedienbar, Anzeige-Schalter dort
+    gui/app_modelltab_nav.cpp    # MBNAV: Navigation in den Ansichten wie 3ds Max bzw. Blender
     gui/app_modelltab_mb2.cpp
     gui/app_modelltab_mb3.cpp
     gui/app_modelltab_rig.cpp

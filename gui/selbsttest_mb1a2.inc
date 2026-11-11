@@ -750,7 +750,7 @@ std::vector<Schritt> blenderSchritte() {
     for (const Zeile& z : zeilen) {
         add(tu(std::string("MB2 Blender: vor ") + z.taste, merke));
         add(tasteKombi(z.chord, z.taste));
-        add(pause(0.15));
+        add(pause(0.4));   // MBNAV: ueber den weichen Wechsel der Ansicht (200 ms wie Blender) hinaus
         // die Pruefzeile nennt die Quelle aus der Tabelle (blenderTasten)
         const ImGuiKeyChord chord = z.chord;
         const std::function<bool()> wirkung = z.wirkung;

@@ -367,7 +367,7 @@ void ansichtWaehlen(int n, AnsichtArt art) {
         modellAnsichtWinkel(t.ansichten[n], w);
         modellBlickSetzen(n, AnsichtArt::Orthographisch, w, false);
     } else if (modellBlender()) {
-        modellAnsichtSetzenIn(n, art);   // Blender view_axis: Richtung wechselt, Mitte und Groesse bleiben
+        modellBlickSetzen(n, art, nullptr, true);   // Blender view_axis: weich, Mitte und Groesse bleiben (MBNAV)
     } else {
         t.ansichten[n].animStart = -1.0;
         t.ansichten[n].art = art;
@@ -389,9 +389,16 @@ void menueAnsichtMax(int n) {
         geaendert();
     }
     ImGui::SetItemTooltip("%s", tr(Str::MkHomeHint));
-    if (ImGui::MenuItem(tr(Str::MkEinpassen), "Z")) {
+    if (ImGui::MenuItem(tr(Str::MkEinpassen))) {
         modellAnsichtEinpassenIn(n);
         geaendert();
+    }
+    ImGui::SetItemTooltip("%s", tr(Str::MkEinpassenHint));
+    // MBNAV: die Befehle der Ansichtssteuerung von 3ds Max (unten rechts) und die Einstellungen der Maus
+    if (ImGui::BeginMenu(tr(Str::MkBlNavigation))) {
+        ++mt().kopfMenueZaehler;
+        modellNavMenue(n);
+        ImGui::EndMenu();
     }
 }
 
@@ -433,8 +440,8 @@ void blenderZeilen(int n, const std::vector<BlZeile>& zeilen) {
 void menueAnsichtBlender(int n) {
     ModellTab& t = mt();
     // Frame All wie die Taste Pos1 (view3d.view_all): die Richtung bleibt; die Startansicht dreht dazu nach vorne
-    blenderZeilen(n, {{Str::MkBlGewaehlte, "Numpad .", [] { modellAnsichtEinpassenAktiv(); }},
-                      {Str::MkBlAlles, "Home", [n] { modellAllesEinpassenIn(n); }},
+    blenderZeilen(n, {{Str::MkBlGewaehlte, "Numpad .", [] { (void)modellNavBlEinpassen(true, false); }},
+                      {Str::MkBlAlles, "Home", [] { (void)modellNavBlEinpassen(false, false); }},
                       {Str::MkStartansicht, nullptr, [n] { modellHomeFlug(n); }}});
     ImGui::SetItemTooltip("%s", tr(Str::MkHomeHint));
     ImGui::Separator();
@@ -457,12 +464,14 @@ void menueAnsichtBlender(int n) {
                           {Str::MkBlGegenseite, "Numpad 9", [] { modellGegenseite(); }},
                           {Str::MkBlRollLinks, "Shift+Numpad 4", [] { modellRollenSchritt(-15.0F); }},
                           {Str::MkBlRollRechts, "Shift+Numpad 6", [] { modellRollenSchritt(15.0F); }}});
+        ImGui::Separator();
+        modellNavMenue(n);   // MBNAV
         ImGui::EndMenu();
     }
     ImGui::Separator();
     if (ImGui::MenuItem(tr(Str::MkBlVier), "Ctrl+Alt+Q", t.vierAnsichten)) {
         t.aktiv = n;
-        t.vierAnsichten = !t.vierAnsichten;
+        modellNavBlVier();   // MBNAV: Anordnung wie Blender
         geaendert();
     }
 }
@@ -703,6 +712,10 @@ void modellAnzeigeKontext() {
             menueShadingBlender(n);
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu(tr(Str::MkBlNavigation))) {   // MBNAV
+            modellNavMenue(n);
+            ImGui::EndMenu();
+        }
         return;
     }
     if (ImGui::BeginMenu(tr(Str::MkSchattierung))) {
@@ -711,6 +724,10 @@ void modellAnzeigeKontext() {
     }
     if (ImGui::BeginMenu(tr(Str::MbRAnzeige))) {
         menueAllgemein(n);
+        ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu(tr(Str::MkBlNavigation))) {   // MBNAV: die Befehle der Ansichtssteuerung auch im Rechtsklick-Menue
+        modellNavMenue(n);
         ImGui::EndMenu();
     }
 }

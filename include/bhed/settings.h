@@ -269,6 +269,15 @@ struct Settings {
     // 0 Grad: Norden liegt hinter der Flaeche Vorne (Welt +Y) wie in 3ds Max, im Uhrzeigersinn von oben
     bool modellKompass = true;
     int modellKompassNord = 0;
+    // MBNAV: Navigation der Ansichten. 3ds Max: worum Alt+Mitteltaste kreist (Orbit-Flyout: 0 Orbit = Ansichtsmitte,
+    // 1 Orbit Selected, 2 Orbit SubObject, 3 Orbit Point of Interest; ohne Auswahl immer die Ansichtsmitte) und "Zoom About
+    // Mouse Point" fuer Ortho und Perspektive (Customize > Mouse, beide ab Werk an). Blender: Preferences > Navigation
+    // "Orbit Around Selection" und "Zoom to Mouse Position" (userdef_default.c: beide aus).
+    int modellOrbitArt = 2;
+    bool modellZoomMausOrtho = true;
+    bool modellZoomMausPersp = true;
+    bool modellBlOrbitAuswahl = false;
+    bool modellBlZoomMaus = false;
     // MBRASTER: das Bodenraster des Model-Tabs - Abstand in JKA-Einheiten (3ds Max Grid Spacing, Blender Scale; 8 wie das Raster des
     // Karten-Editors), jede wievielte Linie eine Hauptlinie ist (3ds Max Major Lines every Nth, Blender Subdivisions; 8: alle 64
     // Einheiten, die Hoehe eines Spielers von -24 bis +40) und die halbe Groesse in der Perspektive in Linien (3ds Max Perspective

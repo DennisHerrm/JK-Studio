@@ -2326,6 +2326,8 @@ from i18n_mbkopf import zeilen_vier as _mbkopf  # noqa: E402  (MBKOPF: Kopfzeile
 S += _mbkopf()
 from i18n_mbraster import zeilen_vier as _mbraster  # noqa: E402  (MBRASTER: Boden-Raster im Model-Tab wie 3ds Max / Blender)
 S += _mbraster()
+from i18n_mbnav import zeilen_vier as _mbnav  # noqa: E402  (MBNAV: Navigation im Model-Tab wie 3ds Max / Blender)
+S += _mbnav()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

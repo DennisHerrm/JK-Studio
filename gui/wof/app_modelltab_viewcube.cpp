@@ -61,7 +61,6 @@ namespace {
 ModellTab& mt() { return g_app->mtab; }
 
 constexpr float kPi = 3.14159265F;
-constexpr float kDrehProPx = 0.4F;   // wie Alt+Mitteltaste (eineAnsicht: turn(-dx * 0.4, -dy * 0.4))
 
 struct V3 {
     float x = 0.0F;
@@ -91,6 +90,8 @@ struct Lage {
     int zielIndex = -1;
     V3 zielRichtung{};
     float ringWinkel = 0.0F;   // Winkel der Maus um die Ringmitte im letzten Bild
+    bool kreist = false;       // MBNAV: der Zug am Wuerfel bzw. Gizmo hat schon gedreht
+    ImVec2 geschoben{};        // MBNAV: Weg, um den der Verschieben-Knopf des Gizmos in diesem Zug schon geschoben hat
     float alpha = 0.0F;
     ImVec2 home{};
     bool kompass = false;
@@ -142,24 +143,11 @@ V3 achse(int k, float s) {
     return e;
 }
 
-// Ziehen: Kreisen wie Alt+Mitteltaste. Achsenansichten werden in 3ds Max "Orthographisch", in Blender (Auto Perspective,
-// Vorgabe an) perspektivisch.
-void kreisen(int n, ImVec2 d, bool blender) {
-    ModellTab& t = mt();
-    ModellAnsicht& a = t.ansichten[n];
-    a.animStart = -1.0;
-    if (a.art != AnsichtArt::Perspektive && a.art != AnsichtArt::Orthographisch) {
-        float w[3];
-        modellAnsichtWinkel(a, w);
-        modellBlickSetzen(n, blender ? AnsichtArt::Perspektive : AnsichtArt::Orthographisch, w, false);
-    }
-    if (a.art == AnsichtArt::Perspektive) {
-        g_app->modelOrbit.turn(g_app->modelCam, -d.x * kDrehProPx, -d.y * kDrehProPx);
-    } else {
-        t.orthoWinkel[1] += -d.x * kDrehProPx;
-        t.orthoWinkel[0] = std::clamp(t.orthoWinkel[0] - d.y * kDrehProPx, -90.0F, 90.0F);
-    }
-    g_app->modelDirty = true;
+// Ziehen: Kreisen wie Alt+Mitteltaste (3ds Max) bzw. die Mitteltaste von Blender - die Szene folgt der Maus; Achsenansichten
+// werden in 3ds Max "Orthographisch", in Blender (Auto Perspective) perspektivisch (MBNAV: gui/app_modelltab_nav.cpp).
+void kreisen(int n, ImVec2 d, bool beginn) {
+    mt().ansichten[n].animStart = -1.0;
+    modellNavKreisenPx(n, d, beginn);
 }
 
 // --- 3ds Max: ViewCube (Portierung von max_viewcube.h) --------------------------------------------------------------
@@ -581,6 +569,7 @@ void viewCube(int n, ModellAnsicht& a, Lage& l) {
     if (gedrueckt) {
         l.druck = maus;
         l.zugBewegt = false;
+        l.kreist = false;
         l.zug = (ringHover && hoverBuchstabe < 0) ? Lage::Zug::Ring
                                                  : (aufHome || hoverPfeil >= 0 || hoverRoll >= 0 || hoverBuchstabe >= 0 ? Lage::Zug::Keiner : Lage::Zug::Wuerfel);
         l.ringWinkel = std::atan2(maus.y - ringMitte.y, maus.x - ringMitte.x);
@@ -607,7 +596,10 @@ void viewCube(int n, ModellAnsicht& a, Lage& l) {
         if (l.zugBewegt) {
             a.animStart = -1.0;
             if (l.zug == Lage::Zug::Wuerfel) {
-                if (io.MouseDelta.x != 0.0F || io.MouseDelta.y != 0.0F) { kreisen(n, io.MouseDelta, false); }
+                if (io.MouseDelta.x != 0.0F || io.MouseDelta.y != 0.0F) {
+                    kreisen(n, io.MouseDelta, !l.kreist);
+                    l.kreist = true;
+                }
             } else {
                 // der Ring folgt der Maus: ihr Winkel um die Ringmitte, von unten gesehen andersherum
                 const float winkel = std::atan2(maus.y - ringMitte.y, maus.x - ringMitte.x);
@@ -740,35 +732,38 @@ void gizmo(int n, ModellAnsicht& a, Lage& l, ImVec2 o, float groesse) {
     if (ImGui::IsItemActivated()) {
         l.druck = io.MousePos;
         l.ziehArt = unter == 6 ? 1 : (unter == 7 ? 2 : 0);
+        l.kreist = false;
+        l.geschoben = ImVec2{0.0F, 0.0F};
+        if (l.ziehArt == 1) { modellNavBlZoomZug(n, true, 0.0F); }
         t.aktiv = n;
         t.klickDrinBild = ImGui::GetFrameCount();
     }
     if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0F) && (io.MouseDelta.x != 0.0F || io.MouseDelta.y != 0.0F)) {
         a.animStart = -1.0;
         if (l.ziehArt == 0) {
-            kreisen(n, io.MouseDelta, true);
-        } else if (l.ziehArt == 1) {   // Zoom ziehen wie Strg+Alt+Mitteltaste
-            if (a.art == AnsichtArt::Perspektive) {
-                g_app->modelOrbit.zoom(g_app->modelCam, -io.MouseDelta.y * 0.05F);
-            } else {
-                a.halbHoehe = std::clamp(a.halbHoehe * std::pow(1.01F, io.MouseDelta.y), 0.5F, 8192.0F);
-            }
-        } else if (a.art == AnsichtArt::Perspektive) {   // Verschieben wie die Mitteltaste
-            g_app->modelOrbit.pan(g_app->modelCam, io.MouseDelta.x, io.MouseDelta.y);
-        } else {
-            float r[3];
-            float h[3];
-            float v[3];
-            modellAnsichtAchsenVon(a.art, r, h, v);
-            const float proPx = 2.0F * a.halbHoehe / std::max(a.groesse[1], 1.0F);
-            for (int k = 0; k < 3; ++k) { a.mitte[k] += (-io.MouseDelta.x * r[k] + io.MouseDelta.y * h[k]) * proPx; }
+            kreisen(n, io.MouseDelta, !l.kreist);
+            l.kreist = true;
+        } else if (l.ziehArt == 1) {   // Zoom ziehen: view3d.zoom, als begaenne der Zug in der Bildmitte (use_cursor_init = false)
+            modellNavBlZoomZug(n, false, io.MousePos.y - l.druck.y);
+        } else {   // Verschieben ziehen: view3d.move, 1:1
+            // um den ganzen Weg seit dem Druecken: die Zugschwelle verschluckt so keine Bildpunkte
+            const ImVec2 gesamt{io.MousePos.x - l.druck.x, io.MousePos.y - l.druck.y};
+            modellNavSchiebenPx(n, ImVec2{gesamt.x - l.geschoben.x, gesamt.y - l.geschoben.y});
+            l.geschoben = gesamt;
         }
         g_app->modelDirty = true;
+    }
+    int ausgerichtet = -1;   // die Achse, entlang der man genau schaut (Blender: len_squared_v2(matrix_offset[axis]) < 1e-6)
+    for (int k = 0; k < 3; ++k) {
+        const float d = dot(achse(k, 1.0F), l.v);
+        if (1.0F - d * d < 1e-6F) { ausgerichtet = k; }
     }
     const bool klick = ImGui::IsItemDeactivated() && std::hypot(io.MousePos.x - l.druck.x, io.MousePos.y - l.druck.y) < 3.0F;
     if (klick && unter >= 0 && unter < 6) {
         AnsichtArt ziel = kugelArt(unter);
-        if (a.art == ziel) { ziel = gegenArt(ziel); }   // Blender: erneuter Klick auf die Kugel = die Gegenseite
+        // Blender gizmo_axis_test_select: schaut man genau entlang einer Achse, waehlt der Klick in die Mitte die Gegenseite
+        // ("there is no point to clicking on the current axis so show the reverse") - auch in der Perspektive (MBNAV)
+        if (a.art == ziel || ausgerichtet == unter / 2) { ziel = gegenArt(ziel); }
         modellBlickSetzen(n, ziel, nullptr, true);
     } else if (klick && unter == 8) {
         t.aktiv = n;
@@ -779,11 +774,6 @@ void gizmo(int n, ModellAnsicht& a, Lage& l, ImVec2 o, float groesse) {
     std::array<ModellGizmoKugel, 6> kugeln{};
     for (std::size_t k = 0; k < kugeln.size(); ++k) {
         kugeln[k] = {teile[k].i, teile[k].tiefe, l.kugel[static_cast<std::size_t>(teile[k].i)]};
-    }
-    int ausgerichtet = -1;   // die Achse, entlang der man genau schaut (Blender: len_squared_v2(matrix_offset[axis]) < 1e-6)
-    for (int k = 0; k < 3; ++k) {
-        const float d = dot(achse(k, 1.0F), l.v);
-        if (1.0F - d * d < 1e-6F) { ausgerichtet = k; }
     }
     modellGizmoKugelnZeichnen(dl, kugeln.data(), l.mitte, l.kugelR, groesse, unter, ausgerichtet);
     for (int i = 0; i < 3; ++i) {

@@ -843,21 +843,26 @@ void kopfSchritte(std::vector<Schritt>& s) {
     }));
     add(klickAn("MBKOPF B5: Knopf Perspektive/Orthographisch", gizmoOrt(8)));
     add(pause(0.3));
-    add(pruefe("MBKOPF B5: der Knopf schaltet auf die naechste Achsenansicht", [] {
-        return ansicht().art != AnsichtArt::Perspektive && ansicht().art != AnsichtArt::Orthographisch;
-    }));
+    // MBNAV: Blender view3d.view_persportho behaelt die Richtung (bis rc611 sprang der Knopf auf die naechste Achsenansicht)
+    add(pruefe("MBKOPF B5: der Knopf schaltet in derselben Richtung auf orthographisch", [] { return ansicht().art == AnsichtArt::Orthographisch; }));
     add(tu("MBKOPF B7: Startansicht", [] { modellStartansicht(t().aktiv); }));
     add(klickAn("MBKOPF B7: in die Ansicht (unten links, nichts)", [] {
         const ModellAnsicht& a = ansicht();
         return ImVec2{a.lo[0] + 20.0F, a.lo[1] + a.groesse[1] - 20.0F};
     }));
+    // MBNAV: Orbit Left dreht die Kamera nach links (Gier 90 -> 75; bis rc611 gespiegelt 105), Roll Left dreht die Szene im Bild
+    // gegen den Uhrzeigersinn (Roll +15; bis rc611 -15) - view3d_navigate_view_orbit.cc, view3d_navigate_view_roll.cc; weich (200 ms)
     add(tasteKombi(ImGuiKey_Keypad4, "Ziffernblock 4"));
-    add(pruefe("MBKOPF B7: Ziffernblock 4 - 15 Grad nach links (Gier 90 -> 105)", [] { return std::fabs(g_app->modelCam.angles[1] - 105.0F) < 0.01F; }));
+    add(pause(0.4));
+    add(pruefe("MBKOPF B7: Ziffernblock 4 - 15 Grad nach links (Gier 90 -> 75)", [] { return std::fabs(g_app->modelCam.angles[1] - 75.0F) < 0.01F; }));
     add(tasteKombi(ImGuiMod_Shift | ImGuiKey_Keypad4, "Umschalt+Ziffernblock 4"));
-    add(pruefe("MBKOPF B7: Umschalt+Ziffernblock 4 - um 15 Grad gerollt", [] { return std::fabs(g_app->modelCam.angles[2] + 15.0F) < 0.01F; }));
+    add(pause(0.4));
+    add(pruefe("MBKOPF B7: Umschalt+Ziffernblock 4 - um 15 Grad gerollt", [] { return std::fabs(g_app->modelCam.angles[2] - 15.0F) < 0.01F; }));
     add(tasteKombi(ImGuiKey_Keypad9, "Ziffernblock 9"));
-    add(pruefe("MBKOPF B7: Ziffernblock 9 - Gegenseite (Gier + 180)", [] { return std::fabs(g_app->modelCam.angles[1] - 285.0F) < 0.01F; }));
+    add(pause(0.4));
+    add(pruefe("MBKOPF B7: Ziffernblock 9 - Gegenseite (Gier + 180)", [] { return std::fabs(std::remainder(g_app->modelCam.angles[1] - 255.0F, 360.0F)) < 0.01F; }));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Keypad1, "Strg+Ziffernblock 1"));
+    add(pause(0.4));
     add(pruefeBlick("B7: Strg+Ziffernblock 1 - Hinten", AnsichtArt::Hinten, 0.0F, -1.0F, 0.0F));
     add(tasteKombi(ImGuiKey_Keypad9, "Ziffernblock 9"));
     add(pruefeBlick("B7: Ziffernblock 9 in Hinten - Vorne", AnsichtArt::Vorne, 0.0F, 1.0F, 0.0F));

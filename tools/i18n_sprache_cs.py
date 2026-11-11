@@ -3096,6 +3096,8 @@ from i18n_mbkopf import texte as _mbkopf  # noqa: E402
 TEXTE.update(_mbkopf("cs"))
 from i18n_mbraster import texte as _mbraster  # noqa: E402
 TEXTE.update(_mbraster("cs"))
+from i18n_mbnav import texte as _mbnav  # noqa: E402
+TEXTE.update(_mbnav("cs"))
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.
 TEXTE.update({_e[0]: _e[1] for _e in _nrc()})
