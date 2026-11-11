@@ -1740,8 +1740,31 @@ float drawModeBar(float height, float headerH) {
         if (active) {
             ImGui::PopStyleColor(2);
         }
-        if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("%s", tr(woanders ? Str::TfEigenesHint : m.hint));
+        // AP0: der Tooltip erst nach der ueblichen Verzoegerung bei ruhender Maus, umbrochen und an den Knopf geheftet (rechts
+        // neben der Leiste, ab kurz unter der Knopfmitte). Vorher erschien er beim Ueberfahren sofort rechts unter der Maus
+        // und lag 22 Zeichenhoehen breit ueber dem Kopf des Nachbarfelds - im Model-Tab sah er aus wie der Tooltip von
+        // "By hierarchy / By layers" (shank 10.11.: fremder Tooltip "Build scripts ..." ueber dem Szenen-Explorer).
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip)) {
+            const ImGuiWindow* leiste = ImGui::GetCurrentWindow();
+            const float fs = ImGui::GetFontSize();
+            const float oben = ImGui::GetItemRectMin().y;
+            const ImVec2 ort{leiste->Pos.x + leiste->Size.x + fs * 0.45F, oben + (ImGui::GetItemRectMax().y - oben) * 0.6F};
+            ImGui::SetNextWindowPos(ort);
+            if (ImGui::BeginTooltip()) {
+                ImGui::PushTextWrapPos(fs * 18.0F);
+                cjkTextUnformatted(tr(woanders ? Str::TfEigenesHint : m.hint));
+                ImGui::PopTextWrapPos();
+                ImGui::EndTooltip();
+                // eine kleine Spitze zum Knopf: der Tooltip gehoert sichtbar zur Leiste, nicht zum Feld, ueber dem er liegt
+                ImDrawList* vorn = ImGui::GetForegroundDrawList();
+                const float s = fs * 0.4F;
+                const ImVec2 a{ort.x + 1.0F, ort.y + s * 0.6F};
+                const ImVec2 b{ort.x + 1.0F, ort.y + s * 2.4F};
+                const ImVec2 spitze{ort.x - s, ort.y + s * 1.5F};
+                vorn->AddTriangleFilled(a, b, spitze, ImGui::GetColorU32(ImGuiCol_PopupBg));
+                vorn->AddLine(a, spitze, ImGui::GetColorU32(ImGuiCol_Border));
+                vorn->AddLine(b, spitze, ImGui::GetColorU32(ImGuiCol_Border));
+            }
         }
         tabfenster::leisteKnopf(m.mode);   // rc609 T1: Rechtsklick, Herausziehen
         ImGui::Spacing();
