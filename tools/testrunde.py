@@ -241,6 +241,9 @@ lauf("updateleiste2", "updateleiste2", 600, behalten="updateleiste", bereich="up
 for g in "kopfrot kopf raster nav mbv ap2 ap12 ap1 ap3".split():
     lauf("mb_" + g, "modellblock", 2400, MB + ["BHED_MODELL_NUR=" + g, "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 lauf("uiform", "uiform", 3600, bereich="programm")
+# AP9: das rechte Feld des Bereichs Painting nach dem Entwurf (Gruppen Ziel, Werkzeuge, Pinsel, Ebenen, Fuer das Spiel; Tasten [ ]).
+# Nicht im Pool: der Bildlauf ap9foto.
+lauf("mb_ap9", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap9", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 
 # Nicht im Pool: eigene Vorbereitung, Messungen (allein und mit BHED_D3D_DEBUG=0), Bildlaeufe fuer das Handbuch
 lauf("update", "update", 1500, allein="braucht den lokalen Update-Server (tools/karte/updater_uebergang.py, ctest updater_uebergang)", bereich="update")

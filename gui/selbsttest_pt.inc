@@ -317,7 +317,9 @@ std::vector<Schritt> modellSchritte() {
         }
     }
     add(zurueckAufOriginal());
-    add(pruefe("PT Befehlsfeld: Rollout Viewport Canvas mit allen Werkzeugknoepfen (mit Tooltip), Ebenen, Fuer das Spiel", [] {
+    // AP9: "Viewport Canvas" ist seit dem Umbau nach dem Entwurf kein Gruppentitel mehr - die Werkzeuge stehen in der Gruppe
+    // Werkzeuge, deren Kurzinfo das Vorbild nennt
+    add(pruefe("PT Befehlsfeld: Gruppe Werkzeuge (Kurzinfo Viewport Canvas) mit allen Werkzeugknoepfen, Fuer das Spiel bauen", [] {
         int n = 0;
         for (const Str w : {Str::PtWzPinsel, Str::PtWzKlonen, Str::PtWzWischen, Str::PtWzWeich, Str::PtWzFuellen, Str::PtWzMaske, Str::PtWzRadierer}) {
             for (const Element& e : g_elemente) {
@@ -328,11 +330,11 @@ std::vector<Schritt> modellSchritte() {
             }
         }
         bool roll = false;
-        bool bau = false;
-        for (const Element& e : g_elemente) {
-            roll = roll || e.label == tr(Str::PtRolloutMax);
-            bau = bau || e.label == tr(Str::PtBauen);
+        for (int i = 0; i < ui::rolloutProbeZahl(); ++i) {
+            roll = roll || (ui::rolloutProbe(i).titel == tr(Str::PtGrWerkzeuge) && ui::rolloutProbe(i).kurzinfo == tr(Str::PtRolloutMax));
         }
+        bool bau = false;
+        for (const Element& e : g_elemente) { bau = bau || e.label == tr(Str::PtBauen); }
         diag::detail("Knopftest: PT Befehlsfeld - " + std::to_string(n) + "/7 Werkzeuge, Rollout " + std::to_string(roll ? 1 : 0) + ", Bauen " + std::to_string(bau ? 1 : 0));
         return n == 7 && roll;
     }));
@@ -776,7 +778,21 @@ std::vector<Schritt> fixSchritte() {
     // P3: auf einer neuen Ebene die Mitte des Deckkraft-Reglers anklicken, Strg+Z stellt 100 % her
     add(ausloesen(Str::PtEbeneNeu));
     add(pause(0.3));
-    add(klickAn("PT fix P3: Klick auf die Mitte des Deckkraft-Reglers", stufe2::elementOrt("##deck")));
+    // AP9: der Regler steht unter der Ebenenliste (Deckkraft der gewaehlten Ebene) - erst ins Bild rollen
+    const std::string deckRegler = std::string(tr(Str::PtDeckkraft)) + "###ptdeck";
+    add(tu("PT fix P3: den Regler Deckkraft ins Bild rollen", [deckRegler] {
+        const Element* e = finde(deckRegler, "mtrollouts", 0, false);
+        for (ImGuiWindow* w : GImGui->Windows) {
+            if (e != nullptr && std::strstr(w->Name, "mtrollouts") != nullptr) {
+                ImGui::SetScrollY(w, std::clamp(w->Scroll.y + e->rect.GetCenter().y - w->InnerRect.GetCenter().y, 0.0F, w->ScrollMax.y));
+            }
+        }
+    }));
+    add(pause(0.3));
+    add(klickAn("PT fix P3: Klick auf die Mitte des Deckkraft-Reglers", [deckRegler] {
+        const Element* e = finde(deckRegler, "mtrollouts", 0, false);
+        return e != nullptr ? e->rect.GetCenter() : ImVec2{0.0F, 0.0F};
+    }));
     add(pause(0.3));
     add(pruefe("PT fix P3: der Klick setzt die Deckkraft (etwa 50 %)", [] {
         const float d = lw() != nullptr && lw()->aktiv >= 0 ? lw()->ebenen[static_cast<std::size_t>(lw()->aktiv)].deckkraft : -1.0F;
@@ -1571,8 +1587,10 @@ std::vector<Schritt> langSchritte() {
                           st->eimerZahl = {};
                           st->malSek = 0.0;
                           st->leerBlock = 0;
-                          if (const mm::Leinwand* lj = lw(); lj != nullptr && !lj->dreiecke.empty() && ms.tupfer > 0) {
-                              st->dreieckeAnteil = std::max(st->dreieckeAnteil, static_cast<double>(ms.dreieckeGeprueft) * jeTupfer / static_cast<double>(lj->dreiecke.size()));
+                          // gegen die Leinwand jedes Tupfers (die Striche treffen verschiedene Bilder; die am Ende gewaehlte Leinwand ist
+                          // nicht die, auf der der Block gemalt hat)
+                          if (ms.dreieckeLeinwand > 0) {
+                              st->dreieckeAnteil = std::max(st->dreieckeAnteil, static_cast<double>(ms.dreieckeGeprueft) / static_cast<double>(ms.dreieckeLeinwand));
                           }
                           if (ms.treffer > 0) { st->flaecheJeTreffer = std::max(st->flaecheJeTreffer, static_cast<double>(ms.rechteckTexel) / static_cast<double>(ms.treffer)); }
                           st->ereignisse3d += ms.ereignisse;
@@ -1666,7 +1684,9 @@ std::vector<Schritt> langSchritte() {
                          ", gebaut " + std::to_string(n) + ", Datei " + hexVon(fnvBytes(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size())) + " (" +
                          std::to_string(bytes.size()) + " Bytes), " + std::to_string(geaendert(l)) + " Texel anders, " + std::to_string(mz().tupfer) + " Tupfer, Verlauf " +
                          std::to_string(vl.schritte) + " Schritte, " + std::to_string(vl.kacheln) + " Kacheln, " + std::to_string(vl.bytes) + " Bytes");
-            pruefeWahr(n == 1 && !bytes.empty() && geaendert(l) > 1000, "PT lang fest: das bemalte Bild ist gebaut");
+            // AP9: n >= 1 - je nach Groesse der Ansicht treffen die festen Striche auch den Kopf (head.jpg), dann sind es zwei
+            // gebaute Bilder (auf dem Stand mit dem Rahmen des rechten Felds von AP3 schon vor AP9: "gebaut 2")
+            pruefeWahr(n >= 1 && !bytes.empty() && geaendert(l) > 1000, "PT lang fest: das bemalte Bild ist gebaut");
             mz().ordner[0] = '\0';
         }));
         add(pause(0.3));

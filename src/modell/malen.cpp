@@ -1003,6 +1003,7 @@ int tupfer3d(Leinwand& l, Verlauf& v, const Pinsel& p, const float mitte[3], flo
         ++ms.tupfer;
         ms.tupferLeer += tr.empty() ? 1 : 0;
         ms.dreieckeGeprueft += geprueft;
+        ms.dreieckeLeinwand += static_cast<long long>(l.dreiecke.size());
         ms.dreieckeNah += nah;
         ms.texelGeprueft += texel;
     }

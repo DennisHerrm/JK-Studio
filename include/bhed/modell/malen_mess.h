@@ -14,6 +14,7 @@ struct Messung {
     long long tupfer = 0;             // tupfer3d + tupfer2d
     long long tupferLeer = 0;         // davon ohne ein Texel (in der Luft)
     long long dreieckeGeprueft = 0;   // Dreiecke, deren Kugel gegen den Tupfer geprueft wurde
+    long long dreieckeLeinwand = 0;   // Dreiecke der bemalten Leinwand, je Tupfer aufsummiert (Nenner des Anteils)
     long long dreieckeNah = 0;        // davon in Reichweite (ihre Texel werden durchlaufen)
     long long texelGeprueft = 0;      // Texel dieser Dreiecke
     long long treffer = 0;            // Texel mit Abfall > 0

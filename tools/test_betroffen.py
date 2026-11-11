@@ -36,6 +36,7 @@ SELBSTTEST = (
      "vorschau"),
     # zusammengefuehrter Stand rc612: die Selbsttests der Zweige neben TESTTEMPO (mbkopf, mbraster, mbnav, mbv, mbefoto beginnen mit "mb")
     (("ap1", "ap2", "ap12", "ap3"), "modell"),
+    ("ap9", "modell"),
     ("numpad", "karteneditor"),
     ("uiform", "programm"),
     ("gdpfad", "programm"),   # GDPFAD: das Programm ohne den eingerichteten Spielordner (Lauf spielordnerfehlt)
