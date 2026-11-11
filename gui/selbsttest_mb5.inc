@@ -933,7 +933,11 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
     }
     add(klickAn("Rechtsklick in die Ansicht", [] {
         const ModellAnsicht& a = g_app->mtab.ansichten[g_app->mtab.aktiv];
-        return ImVec2{a.lo[0] + a.groesse[0] * 0.85F, a.lo[1] + a.groesse[1] * 0.2F};
+        // AP3: neben der Figur, aber nicht auf Kopfzeile oder ViewCube - seit das rechte Feld breiter ist, lag der feste Punkt
+        // 85 % / 20 % bei 2514 Punkten Fensterbreite auf dem ViewCube (dessen Rechtsklick oeffnet sein eigenes Menue)
+        ImVec2 p{a.lo[0] + a.groesse[0] * 0.85F, a.lo[1] + a.groesse[1] * 0.2F};
+        if (modellKopfTreffer(a, p)) { p.y = a.lo[1] + a.groesse[1] * 0.5F; }
+        return p;
     }, 1));
     add(pause(0.3));
     add(pruefe("MB5 Rechtsklick der Ansicht: Untermenue Animationswerkzeuge", [] { return imMenue(tr(Str::MbKvMenue)) != nullptr; }));

@@ -784,7 +784,8 @@ std::vector<Schritt> rasterSchritte() {
         return ImVec2{a.lo[0] + a.groesse[0] * 0.15F, a.lo[1] + a.groesse[1] * 0.5F};
     }, 1));
     add(pause(0.3));
-    add(klick(tr(Str::MbRAnzeige)));
+    // AP3: im Menue suchen - "Display" heisst seither auch ein Reiter des Befehlsfelds
+    add(rig3::klickMenue(tr(Str::MbRAnzeige), false));
     add(pause(0.3));
     add(klick(tr(Str::MkRaster)));
     add(pause(0.2));
