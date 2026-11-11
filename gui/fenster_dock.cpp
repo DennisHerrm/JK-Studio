@@ -64,7 +64,10 @@ Zustand& z() {
 
 const char* const kPraefix[kBereiche] = {"ereignisse.", "mission.", "modell.", "karte.", "menue."};
 
-std::string panelFensterName(const Panel& p) { return std::string(tr(p.titel)) + fenster::kFensterKennung + p.id; }
+// AP2: der Szenen-Explorer des Model-Tabs heisst im Modus wie Blender "Outliner".
+const char* panelTitel(const Panel& p) { return p.titel == Str::MbExplorer ? modellExplorerTitel() : tr(p.titel); }
+
+std::string panelFensterName(const Panel& p) { return std::string(panelTitel(p)) + fenster::kFensterKennung + p.id; }
 
 // dock4, Schalter an/aus/an: ImGui loest ein Fenster aus seinem Dock-Baum, sobald es
 // gezeichnet wird, waehrend sein DockSpace nicht gezeichnet wird - ohne DockSpace
@@ -216,7 +219,7 @@ const std::vector<Panel>& panels() {
         // rc609 J: ebenso das Fenster "Shader und Flaechen" (Mission-Tab und Karten-Editor)
         {"mission.lumps", 1, Str::LePanel},
         {"modell.ansicht", 2, Str::DockPanelModelView},
-        {"modell.animationen", 2, Str::ModelAnimations},
+        {"modell.animationen", 2, Str::MbExplorer},   // AP2: die ganze Spalte ist der Szenen-Explorer (Kennung bleibt)
         // mb1a2: kein Script Flow und keine Actions im Model-Tab; "Ins Skript" ohne Platz im Hauptfenster (ab Werk zu)
         {"modell.insskript", 2, Str::MbInsSkriptFenster},
         {"modell.leiste", 2, Str::DockPanelModelBar},
@@ -627,7 +630,7 @@ void menueInhalt(int bereich) {
     for (const Panel& p : panels()) {
         if (p.bereich != bereich) { continue; }
         const bool da = verfuegbarIst(p);
-        const std::string l = std::string(tr(p.titel)) + "##dockzeigen." + p.id;
+        const std::string l = std::string(panelTitel(p)) + "##dockzeigen." + p.id;
         if (ImGui::MenuItem(l.c_str(), nullptr, !versteckt(p.id), da)) { ausblenden(p.id, !versteckt(p.id)); }
     }
     ImGui::Separator();
@@ -635,7 +638,7 @@ void menueInhalt(int bereich) {
     for (const Panel& p : panels()) {
         if (p.bereich != bereich || zusatzOffen(p.id) != nullptr) { continue; }   // W2b: steht immer im eigenen Fenster
         const bool da = verfuegbarIst(p);
-        const std::string l = std::string(tr(p.titel)) + "##dockfenster." + p.id;
+        const std::string l = std::string(panelTitel(p)) + "##dockfenster." + p.id;
         if (ImGui::MenuItem(l.c_str(), nullptr, draussen(p.id), da)) {
             if (draussen(p.id)) {
                 andocken(p.id);

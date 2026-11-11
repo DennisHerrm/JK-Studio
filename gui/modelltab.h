@@ -819,7 +819,6 @@ void modellAnsichtSetzen(AnsichtArt a);
 void modellTeilAuge(int teil, bool solo);
 void modellKnochenAuge(int knochen, bool solo);
 void modellAllesEinblenden();
-[[nodiscard]] float modellAugeX();
 void modellAuswahlAusblenden(bool nichtGewaehlte);
 bool modellModalStarten(int art);
 void modellModalEnde(bool uebernehmen);
@@ -838,7 +837,6 @@ void modellRigAktualisieren();    // das Rig zur GLA/zum Modell (nach Laden, Zuo
 void drawModellRigBereich();      // Rollouts im Bereich Animation
 void drawModellRigUebersicht();   // Fenster "Rig-Uebersicht" (Figur-Schema)
 void modellAnimationMenue();      // Menueleiste "Animation" im Model-Tab
-void modellRigExplorer(const std::string& such);
 void modellRigKontextMenue();     // Untermenue "Rig" im Rechtsklick der Ansicht
 [[nodiscard]] int modellRigAktionZahl();
 [[nodiscard]] int modellRigAktionGruppe(int i);   // 0 Rig .. 5 IK/FK (Stufe 4)
@@ -1119,6 +1117,95 @@ void modellNavZuruecksetzen();
 // gui/app_modelltab_ansicht.cpp
 bool modellGrenzen(bool nurAuswahl, float mn[3], float mx[3]);  // der Kasten der Auswahl bzw. der gezeichneten Flaechen in der Pose
 void modellAnsichtFertig(int n);                                // ein laufender weicher Wechsel endet sofort an seinem Ziel
+// --- AP2 (MBENTWURF Teil B): Szenen-Explorer (wie 3ds Max) / Outliner (wie Blender) - gui/app_modelltab_explorer.cpp -----------
+// Ein Baum fuer alle Bereiche: Modell, Flaechen (Hierarchie), Tags mit Anbauten, Knochen, Rig-Griffe, Sequenzen; umschaltbar
+// "Nach Hierarchie / Nach Ebenen" (Blender: Hierarchie / Sammlungen). Auge = nur in der Ansicht ausblenden, Schneeflocke
+// (Blender: Pfeil "waehlbar") = einfrieren: sichtbar, aber in Baum und Ansicht nicht waehlbar.
+enum class ExplorerArt : int {
+    Modell = 0, KopfFlaechen, KopfTags, KopfKnochen, KopfRig, KopfSequenzen, Ebene, Flaeche, Tag, Knochen, Anbau, Griff, Sequenz, SeqFilter, Hinweis
+};
+// Die Arten des Filters (Reihenfolge der Symbolreihe).
+enum class ExplorerFilter : int { Flaechen = 0, Kappen, Tags, Knochen, Sequenzen, Anbauten, Griffe, Zahl };
+// Die Ebenen (Blender: Sammlungen); weitere Detailstufen folgen als Lod2 + n.
+enum class ExplorerEbene : int { Koerper = 0, Kappen, Tags, Knochen, Anbauten, Lod2, Lod3 };
+
+// Die Lage einer gezeichneten Zeile (nur fuer den Selbsttest gefuellt): linke Kanten der Teile, -1 = fehlt in dieser Zeile.
+struct ExplorerLage {
+    ExplorerArt art = ExplorerArt::Modell;
+    int index = -1;            // Teil, Knochen, Sequenz, Griff, Ebene oder Anbau
+    int tiefe = 0;
+    std::string name;          // wie in der Zeile (ohne Zusaetze)
+    float xPfeil = -1.0F;
+    float xAuge = -1.0F;
+    float xSymbol = -1.0F;
+    float xName = -1.0F;
+    float xNameEnde = -1.0F;   // rechter Rand des gezeichneten Namens
+    float xFrost = -1.0F;
+    float xZelleEnde = 0.0F;   // rechter Rand der Namensspalte
+    float y0 = 0.0F;
+    float y1 = 0.0F;
+    bool gekuerzt = false;     // der Name passte nicht (endet mit ...)
+    bool versteckt = false;
+    bool eingefroren = false;
+    bool gewaehlt = false;
+    bool offen = false;
+    bool kinder = false;
+    int marke = 0;             // Sequenz: 1 primaer, 2 sekundaer, +4 Warnung; Flaeche: 0 an, 1 aus, 2 aus ohne Kinder, +8 Wurzel
+};
+
+struct ModellExplorerZustand {
+    int art = 0;                    // 0 nach Hierarchie, 1 nach Ebenen
+    bool filterAus[static_cast<int>(ExplorerFilter::Zahl)]{};
+    bool knochenFlach = false;
+    int sortierung = 0;             // 0 Reihenfolge der Hierarchie, 1 Name aufsteigend, 2 Name absteigend, 3 Eingefrorene zuerst
+    bool torsoSekundaer = false;    // Klick auf TORSO_... spielt als Sekundaersequenz (ModView)
+    int seqGruppe = 0;              // 0 alle, 1 BOTH_, 2 TORSO_, 3 LEGS_, 4 FACE_
+    bool spalteWaehlbar = true;     // wie Blender: die Spalte "waehlbar" zeigen
+    std::vector<char> frostTeil;    // je Teil (Flaechen und Tags)
+    std::vector<char> frostKnochen;
+    bool frostAnbauten = false;
+    bool infoOffen = false;         // das Fenster "Info" ist offen
+    std::string infoText;
+    // --- Selbsttest (gefuellt, solange das Elementverzeichnis mitschreibt) ---
+    std::vector<ExplorerLage> lage; // die gezeichneten Zeilen dieses Bildes
+    int zeilen = 0;                 // alle Zeilen des Baums (auch die ausserhalb des Sichtbaren)
+    float einzug = 0.0F;            // Einzug je Ebene in Bildpunkten
+    bool koepfe = false;            // Spaltenkoepfe gezeichnet
+    bool filterReihe = false;       // die Symbolreihe des Filters (wie 3ds Max) ist gezeichnet
+    bool fussEbenen = false;        // der Satz zu Auge und Schneeflocke ist gezeichnet
+    bool fussHinweis = false;       // die Hinweiszeile ist gezeichnet
+    std::string tooltip;            // der Tooltip der Zeile unter der Maus in diesem Bild (Name und Info)
+};
+
+[[nodiscard]] ModellExplorerZustand& modellExplorer();
+[[nodiscard]] const char* modellExplorerTitel();            // "Scene Explorer" bzw. "Outliner" (uebersetzt)
+// Die Knoten ueber der Zeile aufklappen und sie ins Bild rollen (index: Teil, Knochen, Sequenz, Griff; bei Koepfen egal).
+void modellExplorerZeigen(ExplorerArt art, int index);
+void modellExplorerAufklappen(ExplorerArt art, int index, bool offen);   // Ebene: index = ExplorerEbene
+void modellExplorerKnochenAlleAuf(bool offen);
+void modellExplorerVorgabe();        // Art, Filter, Sortierung, Knoten und Einfrieren wie nach dem Laden (Kappen eingefroren)
+void modellExplorerSucheFokus();     // H: in das Suchfeld
+[[nodiscard]] bool modellTeilEingefroren(int teil);
+[[nodiscard]] bool modellKnochenEingefroren(int knochen);
+void modellTeilEinfrieren(int teil, bool an, bool samtKindern);
+void modellKnochenEinfrieren(int knochen, bool an, bool samtKindern);
+void modellEbeneEinfrieren(ExplorerEbene e, bool an);
+void modellEbeneAuge(ExplorerEbene e, bool zeigen);
+void modellAllesAuftauen();
+// Die Auswahl einer Flaeche in der Ansicht: false und eine Meldung, wenn sie eingefroren ist.
+[[nodiscard]] bool modellFlaecheWaehlbar(int teil, bool melden);
+bool modellExplorerAktionenSuche(const std::string& such);   // Zeilen in "Alle Aktionen suchen"
+[[nodiscard]] int modellExplorerAktionZahl();
+[[nodiscard]] const char* modellExplorerAktionText(int i);
+void modellExplorerAktionAusloesen(int i);
+// Die Griffe des Control Rigs als Zeilen des Baums (gui/app_modelltab_rig.cpp)
+enum class UiIcon : int;
+[[nodiscard]] int modellRigExplorerZahl();
+[[nodiscard]] std::string modellRigExplorerName(int griff);
+void modellRigExplorerSymbol(int griff, UiIcon& icon, ImU32& farbe);
+[[nodiscard]] std::string modellRigExplorerHinweis(int griff);
+void modellRigExplorerKopfMenue();
+void modellRigExplorerGriffMenue(int griff);
 
 }  // namespace bhed::gui
 #endif

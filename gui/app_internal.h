@@ -3063,8 +3063,10 @@ void vergissEntities(const std::string& kennung);
 // 15: der Inspektor steht darin, und rechts neben der Ansicht ist die
 // Seitenleiste weggefallen.
 inline constexpr float kEntitySpalte = 18.0F;
-// Modell-Block 1a-1: der Szenen-Explorer des Model-Tabs ist schmaler - daneben stehen Ansicht(en) und Befehlsfeld.
-inline constexpr float kModellSpalte = 15.0F;
+// Modell-Block 1a-1: der Szenen-Explorer des Model-Tabs - daneben stehen Ansicht(en) und Befehlsfeld. AP2: so breit wie im
+// freigegebenen Entwurf (270 px bei 13 px Schrift = 19,5 Zeichenhoehen nach dem Abgleich): die Namen der ersten Ebenen
+// passen mit Auge, Symbol und der Spalte "Frozen" ohne Kuerzen.
+inline constexpr float kModellSpalte = 19.5F;
 inline float ebenenSpalte(int leftMode) { return leftMode == 2 ? kModellSpalte : kEntitySpalte; }
 
 // --- Bedien-Icons (gui/uiicons.cpp) ----------------------------------------
@@ -3100,6 +3102,9 @@ enum class UiIcon : int {
     MbRig, MbGriff, MbPol,
     // REST10: Symbole der Update-Leiste (wie G2C ICON_INFO / ICON_ERROR; der Haken ist schon da)
     Info, Fehler,
+    // AP2: Szenen-Explorer / Outliner - Status einer Flaeche im Spiel (an, aus; aus ohne Kinder = MbG2Aus), Wurzelflaeche,
+    // einfrieren (Schneeflocke wie 3ds Max, Pfeil "waehlbar" wie Blender), Filter, Sequenz abspielen, Start der Sekundaersequenz
+    MbFlAn, MbFlAus, MbAnker, MbFrost, MbWaehlbar, MbFilter, MbSeqSpiel, MbStern,
 };
 void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe);
 // Quadratischer Icon-Knopf; der Text ist Kennung und Tooltip-Titel.
@@ -3254,7 +3259,6 @@ void drawKameraInspector(float hoehe);
 void drawEntityInspector(float hoehe);
 // --- Model-Tab (gui/app_modell.cpp, rc591) -----------------------------------
 void animWaehlen(int i, bool abspielen);
-void drawAnimListe(float hoehe);
 void modellAnsichtEinpassen();
 bool npcLaden(const std::string& typ);
 const std::vector<std::string>& npcTypenListe();

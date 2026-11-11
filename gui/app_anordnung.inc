@@ -1886,28 +1886,20 @@ void drawEbenenInhalt(const Layout& l) {
         drawEntityLayers(l.frameH);
         ImGui::EndGroup();
     } else if (g_app->leftMode == 2) {
-        // Modell-Block 1a-1: oben der Szenen-Explorer (Flaechen, Tags,
-        // Knochen), darunter die Sequenzen (die Animationsliste seit rc591).
+        // AP2: die ganze Spalte ist der Szenen-Explorer (wie Blender: Outliner) - EIN Baum mit Flaechen, Tags, Knochen und
+        // den Sequenzen (vorher 55 % Baum, darunter die eigene Animationsliste).
         ImGui::BeginGroup();
         const float top = ImGui::GetCursorPosY();
-        ImGui::TextUnformatted(tr(Str::MbExplorer));
+        ImGui::TextUnformatted(modellExplorerTitel());
         ImGui::SetCursorPosY(top + l.headerH);
         ImGui::Dummy(ImVec2{0.0F, 0.0F});   // Anker (siehe oben)
-        const float zeile = ImGui::GetTextLineHeightWithSpacing();
         // Die Hoehe, die wirklich da ist: im Andockraum steht frameH auf
         // -FLT_MIN ("bis an den Rand", panelInhalt) - dann der freie Platz.
         // rc611: Ohne Andockraum ist frameH negativ wie fuer BeginChild ("der Rest minus Band und Statuszeile") -
         // vorher nahm die Spalte den ganzen Rest und lag ueber dem Band (Zeitleiste) und der Statuszeile (dock2mass, dock5).
         const float frei = ImGui::GetContentRegionAvail().y;
         const float hoehe = l.frameH > 0.0F ? std::min(l.frameH, frei) : std::max(frei + l.frameH, 0.0F);
-        const float baumH = std::floor(hoehe * 0.55F);
-        drawModellExplorer(baumH);
-        ImGui::TextUnformatted(tr(Str::ModelAnimations));
-        if (!g_app->animList.empty()) {
-            ImGui::SameLine();
-            ImGui::TextDisabled("%d", static_cast<int>(g_app->animList.size()));
-        }
-        drawAnimListe(std::max(hoehe - baumH - zeile - ImGui::GetStyle().ItemSpacing.y, 40.0F));
+        drawModellExplorer(std::max(hoehe, 40.0F));
         ImGui::EndGroup();
     }
 }

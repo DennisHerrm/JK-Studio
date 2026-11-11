@@ -2332,6 +2332,8 @@ from i18n_mbvers import zeilen_vier as _mbvers  # noqa: E402  (mbvers: Bearbeite
 S += _mbvers()
 from i18n_numpad import zeilen_vier as _numpad  # noqa: E402  (NUMPAD: Ziffernblock setzt das Raster im Karten-Editor)
 S += _numpad()
+from i18n_ap2 import zeilen_vier as _ap2  # noqa: E402  (AP0+AP2: Szenen-Explorer / Outliner des Model-Tabs)
+S += _ap2()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

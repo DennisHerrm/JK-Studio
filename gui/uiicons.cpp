@@ -138,6 +138,15 @@ ImVec4 uiIconFarbe(UiIcon icon) {
         case UiIcon::MbPol: c = ImVec4{0.85F, 0.65F, 1.00F, 1.0F}; break;
         case UiIcon::Info: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;          // REST10: blau
         case UiIcon::Fehler: c = ImVec4{1.00F, 0.42F, 0.40F, 1.0F}; break;        // rot wie Loeschen
+        // AP2: Szenen-Explorer / Outliner
+        case UiIcon::MbFlAn: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;        // an: blau wie die Flaeche
+        case UiIcon::MbFlAus: c = ImVec4{0.62F, 0.66F, 0.75F, 1.0F}; break;       // aus: grau
+        case UiIcon::MbAnker: c = ImVec4{1.00F, 0.62F, 0.30F, 1.0F}; break;       // Wurzel: orange wie der Wurzelknochen
+        case UiIcon::MbFrost: c = ImVec4{0.61F, 0.76F, 1.00F, 1.0F}; break;       // eingefroren: eisblau (Entwurf #9cc3ff)
+        case UiIcon::MbWaehlbar: c = ImVec4{0.80F, 0.82F, 0.86F, 1.0F}; break;
+        case UiIcon::MbFilter: c = ImVec4{0.80F, 0.82F, 0.86F, 1.0F}; break;
+        case UiIcon::MbSeqSpiel: c = ImVec4{1.00F, 0.78F, 0.30F, 1.0F}; break;    // bernstein wie die Animation
+        case UiIcon::MbStern: c = ImVec4{1.00F, 0.78F, 0.30F, 1.0F}; break;
 
         default: break;
     }
@@ -581,6 +590,45 @@ void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe)
             z.linie(5.6F, 5.6F, 10.4F, 10.4F);
             z.linie(10.4F, 5.6F, 5.6F, 10.4F);
             break;
+        // --- AP2: Szenen-Explorer / Outliner ------------------------------------------------------
+        case UiIcon::MbFlAn:   // Flaeche an: gefuellter Punkt
+            z.punkt(8.0F, 8.0F, 4.0F);
+            break;
+        case UiIcon::MbFlAus:   // Flaeche aus: Ring
+            z.kreis(8.0F, 8.0F, 4.0F);
+            break;
+        case UiIcon::MbAnker:   // Wurzelflaeche: Anker
+            z.kreis(8.0F, 3.3F, 1.8F);
+            z.linie(8.0F, 5.1F, 8.0F, 14.0F);
+            z.linie(5.2F, 7.6F, 10.8F, 7.6F);
+            z.bogen(8.0F, 9.0F, 5.0F, 0.25F, kPi - 0.25F);
+            break;
+        case UiIcon::MbFrost:   // einfrieren: Schneeflocke (drei Achsen, oben und unten ein Haken)
+            z.linie(8.0F, 1.5F, 8.0F, 14.5F);
+            z.linie(2.4F, 4.75F, 13.6F, 11.25F);
+            z.linie(2.4F, 11.25F, 13.6F, 4.75F);
+            z.zug({ImVec2{6.2F, 2.4F}, ImVec2{8.0F, 4.2F}, ImVec2{9.8F, 2.4F}});
+            z.zug({ImVec2{6.2F, 13.6F}, ImVec2{8.0F, 11.8F}, ImVec2{9.8F, 13.6F}});
+            break;
+        case UiIcon::MbWaehlbar:   // waehlbar: Mauszeiger
+            z.zug({ImVec2{4.0F, 2.0F}, ImVec2{4.0F, 13.0F}, ImVec2{6.9F, 10.3F}, ImVec2{8.9F, 14.4F}, ImVec2{10.7F, 13.5F}, ImVec2{8.8F, 9.6F}, ImVec2{12.4F, 9.6F}}, true);
+            break;
+        case UiIcon::MbFilter:   // Filter: Trichter
+            z.zug({ImVec2{2.0F, 3.0F}, ImVec2{14.0F, 3.0F}, ImVec2{9.5F, 8.5F}, ImVec2{9.5F, 13.5F}, ImVec2{6.5F, 12.0F}, ImVec2{6.5F, 8.5F}}, true);
+            break;
+        case UiIcon::MbSeqSpiel:   // Sequenz: Dreieck "abspielen" als Umriss
+            z.zug({ImVec2{5.0F, 3.5F}, ImVec2{12.5F, 8.0F}, ImVec2{5.0F, 12.5F}}, true);
+            break;
+        case UiIcon::MbStern: {   // Start der Sekundaersequenz: Stern mit fuenf Zacken
+            std::vector<ImVec2> v;
+            for (int k = 0; k < 10; ++k) {
+                const float a = -kPi * 0.5F + kPi * 0.2F * static_cast<float>(k);
+                const float r = k % 2 == 0 ? 6.0F : 2.6F;
+                v.push_back(z.p(8.0F + std::cos(a) * r, 8.6F + std::sin(a) * r));
+            }
+            dl->AddPolyline(v.data(), static_cast<int>(v.size()), farbe, ImDrawFlags_Closed, z.w);
+            break;
+        }
     }
 }
 

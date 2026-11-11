@@ -1424,6 +1424,8 @@ int flaecheUnter(const ModellAnsicht& a, ImVec2 maus) {
             }
         }
     }
+    // AP2: eine eingefrorene Flaeche ist sichtbar, aber nicht waehlbar - der Klick meldet es und waehlt nichts
+    if (best >= 0 && !modellFlaecheWaehlbar(best, true)) { return -1; }
     return best;
 }
 
@@ -1450,7 +1452,7 @@ std::vector<int> flaechenImRahmen(const ModellAnsicht& a, ImVec2 p, ImVec2 q) {
     const ImVec2 mx{std::max(p.x, q.x), std::max(p.y, q.y)};
     std::vector<int> out;
     for (std::size_t i = 0; i < h.size() && i < t.anzeige.surfaces.size(); ++i) {
-        if (!gezeichnet(i)) { continue; }
+        if (!gezeichnet(i) || !modellFlaecheWaehlbar(static_cast<int>(i), false)) { continue; }   // AP2: Eingefrorenes nimmt der Rahmen nicht
         for (const auto& e : h[i]) {
             ImVec2 s;
             if (aufSchirm(a, e.data(), s) && s.x >= mn.x && s.x <= mx.x && s.y >= mn.y && s.y <= mx.y) {

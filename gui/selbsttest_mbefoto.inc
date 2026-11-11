@@ -34,6 +34,14 @@ ImGuiWindow* kindFenster(const char* teil) {
     return nullptr;
 }
 
+// AP2: die Stelle des Auges (wie 3ds Max an der Zeile: das der ersten Zeile mit Auge).
+float augeX() {
+    for (const ExplorerLage& l : modellExplorer().lage) {
+        if (l.xAuge >= 0.0F) { return l.xAuge; }
+    }
+    return 0.0F;
+}
+
 ImGuiWindow* fensterGenau(const std::string& name) {
     for (ImGuiWindow* w : GImGui->Windows) {
         if (name == w->Name) { return w; }
@@ -207,14 +215,14 @@ Schritt baumMelden(const std::string& was) {
             if (e.innen.find("mtbaum") == std::string::npos || e.label.empty() || e.label.rfind("##", 0) == 0) { continue; }
             ++zeilen;
             if (e.rect.Max.x > w->InnerRect.Max.x + 0.5F) { ++abgeschnitten; }
-            if (e.rect.Min.x - modellAugeX() > tiefste) {
-                tiefste = e.rect.Min.x - modellAugeX();
+            if (e.rect.Min.x - augeX() > tiefste) {
+                tiefste = e.rect.Min.x - augeX();
                 tiefsteName = e.label;
             }
             for (const char* n : {"hips", "torso", "head", "*r_hand", "pelvis", "lower_lumbar", "rhand", "rhang_tag_bone"}) {
                 if (e.label == n) {
                     char p[160];
-                    std::snprintf(p, sizeof p, "%s: Zeile ab %.0f (Auge + %.0f) bis %.0f; ", n, static_cast<double>(e.rect.Min.x), static_cast<double>(e.rect.Min.x - modellAugeX()),
+                    std::snprintf(p, sizeof p, "%s: Zeile ab %.0f (Auge + %.0f) bis %.0f; ", n, static_cast<double>(e.rect.Min.x), static_cast<double>(e.rect.Min.x - augeX()),
                                   static_cast<double>(e.rect.Max.x));
                     proben += p;
                 }
@@ -225,7 +233,7 @@ Schritt baumMelden(const std::string& was) {
                       "Knopftest: MBE Baum %s - Fenster innen %.0f..%.0f (Breite %.0f), Inhalt %.0f breit, Rollen waagerecht bis %.0f / senkrecht bis %.0f, Augenspalte x %.0f, "
                       "%d beschriftete Zeilen, davon %d ueber den rechten Rand, tiefster Zeilenanfang Auge + %.0f (%s), Einzug je Ebene %.0f, Zeilenhoehe %.0f",
                       was.c_str(), static_cast<double>(w->InnerRect.Min.x), static_cast<double>(w->InnerRect.Max.x), static_cast<double>(w->InnerRect.GetWidth()),
-                      static_cast<double>(w->ContentSize.x), static_cast<double>(w->ScrollMax.x), static_cast<double>(w->ScrollMax.y), static_cast<double>(modellAugeX()), zeilen,
+                      static_cast<double>(w->ContentSize.x), static_cast<double>(w->ScrollMax.x), static_cast<double>(w->ScrollMax.y), static_cast<double>(augeX()), zeilen,
                       abgeschnitten, static_cast<double>(tiefste), tiefsteName.c_str(), static_cast<double>(ImGui::GetStyle().IndentSpacing),
                       static_cast<double>(ImGui::GetTextLineHeightWithSpacing()));
         diag::detail(z);
@@ -281,34 +289,19 @@ ImVec2 ansichtEcke() {
     return ImVec2{a.lo[0] + 24.0F, a.lo[1] + a.groesse[1] - 24.0F};
 }
 
-// Die Zeile "Knochen (<gla>, <n>)" des Explorers, wie drawModellExplorer sie schreibt.
-std::string knochenKopf() {
-    char kopf[160];
-    std::snprintf(kopf, sizeof kopf, tr(Str::MbKnochen), fileName(g_app->anim.name).c_str(), static_cast<int>(g_app->anim.bones.size()));
-    return std::string("     ") + kopf;
-}
-
-// Das Element dieser Zeile (genau, sonst ueber den Text ohne die Leerzeichen fuer das Symbol).
+// Das Element der Zeile "Knochen (<gla>, <n>)" des Explorers (AP2: der Kopf steht in modellExplorer().lage).
 const Element* knochenKopfElement() {
-    const std::string k = knochenKopf();
-    if (const Element* e = inFenster(k, "mtbaum")) { return e; }
-    const std::string ohne = k.substr(5);
-    for (const Element& e : g_elemente) {
-        if (e.innen.find("mtbaum") != std::string::npos && e.label.find(ohne) != std::string::npos) { return &e; }
+    for (const ExplorerLage& l : modellExplorer().lage) {
+        if (l.art == ExplorerArt::KopfKnochen) { return inFenster(l.name, "mtbaum"); }
     }
     return nullptr;
 }
 
-// Den Knoten "Bones" des Baums auf- oder zuklappen (Zustandsspeicher des Fensters, wie gruppenAuf).
+// Den Knoten "Bones" des Baums auf- oder zuklappen (AP2: ueber die Schnittstelle des Explorers).
 Schritt knochenKnoten(bool auf) {
     return tu(std::string("MBE: Knoten Bones ") + (auf ? "auf" : "zu"), [=] {
-        const Element* e = knochenKopfElement();
-        ImGuiWindow* w = e != nullptr ? fensterGenau(e->innen) : nullptr;
-        if (w == nullptr) {
-            diag::detail("Knopftest: MBE - Zeile \"" + knochenKopf() + "\" nicht gefunden");
-            return;
-        }
-        w->StateStorage.SetInt(e->id, auf ? 1 : 0);
+        if (!auf) { modellExplorerKnochenAlleAuf(false); }
+        modellExplorerAufklappen(ExplorerArt::KopfKnochen, 0, auf);
     });
 }
 
@@ -320,29 +313,9 @@ Schritt popupsZu() {
     });
 }
 
-// Alle Knochen mit Kindern aufklappen (ein Durchgang: die naechste Ebene erscheint erst im Bild danach). Die Zeilen der Knochen
-// tragen ihren Namen als Beschriftung, aber nicht das Kennzeichen "aufklappbar" - deshalb ueber die Knochenliste.
+// Alle Knochen mit Kindern aufklappen (AP2: ueber die Schnittstelle des Explorers).
 Schritt knochenAlleAuf() {
-    return tu("MBE: Knochen mit Kindern aufklappen", [] {
-        const auto& knochen = g_app->anim.bones;
-        std::vector<bool> hatKind(knochen.size(), false);
-        for (const auto& k : knochen) {
-            if (k.parent >= 0 && static_cast<std::size_t>(k.parent) < hatKind.size()) { hatKind[static_cast<std::size_t>(k.parent)] = true; }
-        }
-        int n = 0;
-        for (const Element& e : g_elemente) {
-            if (e.innen.find("mtbaum") == std::string::npos) { continue; }
-            for (std::size_t b = 0; b < knochen.size(); ++b) {
-                if (!hatKind[b] || e.label != knochen[b].name) { continue; }
-                if (ImGuiWindow* w = fensterGenau(e.innen)) {
-                    w->StateStorage.SetInt(e.id, 1);
-                    ++n;
-                }
-                break;
-            }
-        }
-        diag::detail("Knopftest: MBE mtbaum - " + std::to_string(n) + " Knochen mit Kindern offen gesetzt");
-    });
+    return tu("MBE: Knochen mit Kindern aufklappen", [] { modellExplorerKnochenAlleAuf(true); });
 }
 
 // Eine Zeile des Baums ins Bild rollen (so viele Zeilen darueber bleiben sichtbar).
@@ -450,10 +423,10 @@ void modusBilder(std::vector<Schritt>& s, int bedienung) {
     add(abspielProbe(p + "pruefen"));
     befehlsfeld(s, p + "pruefen");
     // Szenen-Explorer: nach Ebenen
-    add(klick(tr(Str::MbNachEbenen)));
+    add(klick(tr(bedienung == 1 ? Str::MbXSammlungen : Str::MbNachEbenen)));   // AP2: wie Blender "Collections" / "Hierarchy"
     add(pause(0.4));
     add(foto(p + "pruefen_ebenen"));
-    add(klick(tr(Str::MbNachHierarchie)));
+    add(klick(tr(bedienung == 1 ? Str::MbXHierarchie : Str::MbNachHierarchie)));
     add(pause(0.3));
     // Rechtsklick-Menues: Flaeche, Tag, Sequenz, Modell, Ansicht
     add(baumRolleZu("torso", [] { return inFenster("torso", "mtbaum"); }, 4.0F));
@@ -546,7 +519,7 @@ void modusBilder(std::vector<Schritt>& s, int bedienung) {
     }));
     add(pause(0.5));
     add(klickAn("Rechtsklick Sequenz", [] {
-        const Element* e = g_app->animIndex >= 0 ? inFenster(g_app->animList[static_cast<std::size_t>(g_app->animIndex)].name, "animzeilen") : nullptr;
+        const Element* e = g_app->animIndex >= 0 ? inFenster(g_app->animList[static_cast<std::size_t>(g_app->animIndex)].name, "mtbaum") : nullptr;
         return e != nullptr ? e->rect.GetCenter() : ImVec2{};
     }, 1));
     add(pause(0.4));

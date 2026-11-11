@@ -196,6 +196,7 @@ LEISTEN = [
     ("gui/app_view3d_bedienung.inc", "vorschau", VORSCHAU, "ViewMap"),
     ("gui/app_kamera.cpp", "vorschau", VORSCHAU + " && zahl:vorschau.kameragewaehlt < gezeichnet:zeitleiste.kamera", "ViewMap>ZlOrt"),
     ("gui/app_wegpunkte.cpp", "vorschau", VORSCHAU + " && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", "ViewMap>WegTitel"),
+    ("gui/app_modelltab_explorer.cpp", "modell", MODELL, "ViewModel"),   # AP2: Namen kopieren, Ins Skript
     ("gui/app_modell.cpp", "modell", MODELL, "ViewModel"),
 ]
 

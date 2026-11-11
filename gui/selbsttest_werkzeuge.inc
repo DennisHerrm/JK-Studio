@@ -2729,6 +2729,9 @@ std::vector<Schritt> modellSchritte() {
             }
         }
     }));
+    // AP2: die Sequenzen sind ein Knoten des Szenen-Explorers
+    add(tu("Sequenzen im Explorer zeigen", [] { modellExplorerZeigen(ExplorerArt::KopfSequenzen, 0); }));
+    add(pause(0.3));
     add({"Animation anklicken", [=](int b) {
              static Schritt k;
              if (b == 0) { k = klick(*zweite, "", 0, false); }
@@ -2742,9 +2745,13 @@ std::vector<Schritt> modellSchritte() {
         const AnimEntry& e = g_app->animList[static_cast<std::size_t>(g_app->animIndex)];
         return e.name == *zweite && (g_app->animPlaying || g_app->animFrame > e.firstFrame);
     }));
+    add(klick("##seqgruppe", "", 0, false));   // AP2: Klappliste der Gruppe unter "Sequences"
+    add(pause(0.2));
     add(klick("TORSO", "", 0, false));
     add(pause(0.3));
     add(pruefe("Gruppe TORSO: keine BOTH_-Zeile mehr in der Liste", [=] { return finde(*zweite, "", 0, false) == nullptr; }));
+    add(klick("##seqgruppe", "", 0, false));
+    add(pause(0.2));
     add(klick(tr(Str::ModelAnimAll), "", 0, false));
     add(pause(0.3));
     // Transport: Schleife erzwingen, abspielen, anhalten

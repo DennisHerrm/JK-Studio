@@ -109,7 +109,7 @@ std::vector<Blatt> blaetter(int b) {
     }
     if (b == 2) {   // mb1a2: ohne Script Flow und Actions (nur zum Modellieren)
         return {{"modell.modus", Str::DockPanels},
-                {"modell.animationen", Str::ModelAnimations},
+                {"modell.animationen", Str::MbExplorer},   // AP2: Szenen-Explorer (wie Blender: Outliner)
                 {"modell.ansicht", Str::DockPanelModelView},
                 {"modell.leiste", Str::DockPanelModelBar}};
     }
@@ -121,7 +121,9 @@ std::vector<Blatt> blaetter(int b) {
 
 bool mitBand(int b) { return b == 1 || b == 2; }
 
-std::string fensterName(const Blatt& p) { return std::string(tr(p.titel)) + "###dock." + p.id; }   // wie fenster_dock
+std::string fensterName(const Blatt& p) {   // wie fenster_dock (panelFensterName)
+    return std::string(p.titel == Str::MbExplorer ? modellExplorerTitel() : tr(p.titel)) + "###dock." + p.id;
+}
 
 struct Raum {
     ImGuiID wurzel = 0;

@@ -1163,7 +1163,7 @@ using Masse = std::map<std::string, ImRect>;
 
 Masse messen() {
     static const char* const kNamen[] = {"/modebar_", "/events_", "/##flowarea_", "/buttons_", "/toolbar_", "/mapview_",
-                                         "/modelview_", "/animliste_", "/toolband_", "/entlayers_"};
+                                         "/modelview_", "/mtexplorer_", "/toolband_", "/entlayers_"};
     Masse m;
     const ImVec2 o = ImGui::GetMainViewport()->Pos;
     for (const ImGuiWindow* w : GImGui->Windows) {

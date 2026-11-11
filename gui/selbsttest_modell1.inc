@@ -565,9 +565,16 @@ std::vector<Schritt> modellLeistungSchritte() {
         if (nurRuhe) { continue; }
         if (erste) {
             // Die Listen im Bildvergleich: Gruppe TORSO und der NPC-Browser.
+            // AP2: die Gruppe steht in der Klappliste unter "Sequences" des Szenen-Explorers
+            add(tu("Modell1: Sequenzen im Explorer zeigen", [] { modellExplorerZeigen(ExplorerArt::KopfSequenzen, 0); }));
+            add(pause(0.3));
+            add(klick("##seqgruppe", "", 0, false));
+            add(pause(0.2));
             add(klick("TORSO", "", 0, false));
             add(pause(0.3));
             add(foto("modell1_torso"));
+            add(klick("##seqgruppe", "", 0, false));
+            add(pause(0.2));
             add(klick(tr(Str::ModelAnimAll), "", 0, false));
             add(tu("Modell1: NPC-Browser auf", [] { g_app->npcBrowserOffen = true; }));
             add(pause(0.5));

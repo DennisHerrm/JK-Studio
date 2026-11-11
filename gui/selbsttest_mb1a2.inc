@@ -474,11 +474,17 @@ std::vector<Schritt> mb2Schritte() {
             const Element* e = finde(name, "", 0, false);
             if (e == nullptr) { return ImVec2{-1.0F, -1.0F}; }
             char z[240];
+            // AP2: das Auge steht an der Zeile (wie 3ds Max links vor dem Symbol, wie Blender rechts in seiner Spalte)
+            float augeX = -1.0F;
+            for (const ExplorerLage& l : modellExplorer().lage) {
+                if (l.name == name && l.xAuge >= 0.0F) { augeX = l.xAuge; }
+            }
             std::snprintf(z, sizeof z, "Knopftest: MB2 Auge - Zeile '%s' in %s/%s y %.0f-%.0f, sichtbar %.0f-%.0f, Auge x %.0f", e->label.c_str(),
                           e->fenster.c_str(), e->innen.c_str(), static_cast<double>(e->rect.Min.y), static_cast<double>(e->rect.Max.y),
-                          static_cast<double>(e->clip.Min.y), static_cast<double>(e->clip.Max.y), static_cast<double>(modellAugeX()));
+                          static_cast<double>(e->clip.Min.y), static_cast<double>(e->clip.Max.y), static_cast<double>(augeX));
             diag::detail(z);
-            return ImVec2{modellAugeX() + ImGui::GetTextLineHeight() * 0.5F, e->rect.GetCenter().y};
+            if (augeX < 0.0F) { return ImVec2{-1.0F, -1.0F}; }
+            return ImVec2{augeX + ImGui::GetFontSize() * 0.5F, e->rect.GetCenter().y};
         };
     };
     add(klickAn("MB2 Auge: das Auge von hips", augeVon("hips")));

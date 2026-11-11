@@ -1095,96 +1095,45 @@ void modellRigUeberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     }
 }
 
-// --- Szenen-Explorer -----------------------------------------------------------------------------------------------
+// --- Szenen-Explorer: die Griffe als Zeilen des Baums (gezeichnet in gui/app_modelltab_explorer.cpp) ----------------
 
-void modellRigExplorer(const std::string& such) {
-    ModellTab& t = mt();
-    if (!modellRigDa()) { return; }
-    char kopf[160];
-    std::snprintf(kopf, sizeof kopf, tr(Str::MbRgExplorer), static_cast<int>(t.rig.griffe.size()));
-    const bool offen = ImGui::TreeNodeEx("##mtrig", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth, "     %s", kopf);
-    {
-        const ImVec2 lo = ImGui::GetItemRectMin();
-        const float h = ImGui::GetTextLineHeight();
-        uiIcon(ImGui::GetWindowDrawList(), UiIcon::MbRig, ImVec2{lo.x + ImGui::GetTreeNodeToLabelSpacing(), lo.y + (ImGui::GetItemRectSize().y - h) * 0.5F}, h,
-               ImGui::GetColorU32(uiIconFarbe(UiIcon::MbRig)));
+int modellRigExplorerZahl() { return modellRigDa() ? static_cast<int>(mt().rig.griffe.size()) : 0; }
+
+std::string modellRigExplorerName(int griff) { return griffName(griff); }
+
+void modellRigExplorerSymbol(int griff, UiIcon& icon, ImU32& farbe) {
+    const modell::Griff& g = mt().rig.griffe[static_cast<std::size_t>(griff)];
+    icon = g.ik ? UiIcon::MbPol : UiIcon::MbGriff;
+    farbe = seitenFarbe(g.seite);
+}
+
+// Der Tooltip der Zeile: der Knochen des Griffs und was der Griff tut.
+std::string modellRigExplorerHinweis(int griff) {
+    const modell::Griff& g = mt().rig.griffe[static_cast<std::size_t>(griff)];
+    return (g.knochen >= 0 ? g_app->anim.bones[static_cast<std::size_t>(g.knochen)].name : std::string("-")) + "\n" + tr(griffHinweis(g));
+}
+
+void modellRigExplorerKopfMenue() { aktionenAlsMenue(0); }
+
+void modellRigExplorerGriffMenue(int griff) {
+    modellRigGriffWaehlen(griff);
+    aktionenAlsMenue(1);
+    ImGui::Separator();
+    aktionenAlsMenue(2);
+    if (modellIkArtFuerGriff(griff) >= 0) {   // Stufe 4: IK/FK als Untermenue wie im Menue Animation
+        ImGui::Separator();
+        if (ImGui::BeginMenu(tr(Str::MbIkGruppe))) {
+            aktionenAlsMenue(5);
+            ImGui::EndMenu();
+        }
+        ImGui::SetItemTooltip("%s", tr(Str::MbIkRolloutHint));
     }
-    ImGui::SetItemTooltip("%s", tr(Str::MbRgExplorerHint));
-    if (ImGui::BeginPopupContextItem("##rigmenue")) {
-        aktionenAlsMenue(0);
-        ImGui::EndPopup();
+    ImGui::Separator();   // Stufe 6: Auto-Physik (Federkette ab diesem Knochen)
+    if (ImGui::BeginMenu(tr(Str::PhRollout))) {
+        aktionenAlsMenue(6);
+        ImGui::EndMenu();
     }
-    if (!offen) { return; }
-    t.griffVersteckt.resize(t.rig.griffe.size(), 0);
-    for (std::size_t i = 0; i < t.rig.griffe.size(); ++i) {
-        const modell::Griff& g = t.rig.griffe[i];
-        const std::string name = griffName(static_cast<int>(i));
-        std::string such2 = name;
-        for (char& c : such2) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
-        if (!such.empty() && such2.find(such) == std::string::npos) { continue; }
-        ImGui::PushID(static_cast<int>(9000 + i));
-        const bool versteckt = t.griffVersteckt[i] != 0;
-        {
-            // das Auge links wie bei den Flaechen (Spalte modellAugeX)
-            const ImVec2 zurueck = ImGui::GetCursorScreenPos();
-            const float h = ImGui::GetTextLineHeight();
-            ImGui::SetCursorScreenPos(ImVec2{modellAugeX(), zurueck.y});
-            if (ImGui::InvisibleButton("##auge", ImVec2{h, h})) {
-                t.griffVersteckt[i] = versteckt ? 0 : 1;
-                g_app->modelDirty = true;
-            }
-            if (ImGui::IsItemVisible()) {
-                uiIcon(ImGui::GetWindowDrawList(), versteckt ? UiIcon::Versteckt : UiIcon::Sichtbar, ImVec2{modellAugeX(), zurueck.y}, h,
-                       ImGui::GetColorU32(uiIconFarbe(versteckt ? UiIcon::Versteckt : UiIcon::Sichtbar)));
-            }
-            ImGui::SetItemTooltip("%s", tr(Str::MbAugeHint));
-            ++t.augenZaehler;
-            ImGui::SetCursorScreenPos(zurueck);
-        }
-        ImGuiTreeNodeFlags f = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-        if (t.griffWahl == static_cast<int>(i)) { f |= ImGuiTreeNodeFlags_Selected; }
-        if (versteckt) { ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled)); }
-        ImGui::TreeNodeEx("##griff", f, "     %s", name.c_str());
-        if (versteckt) { ImGui::PopStyleColor(); }
-        if (ImGui::IsItemVisible()) {
-            const ImVec2 lo = ImGui::GetItemRectMin();
-            const float h = ImGui::GetTextLineHeight();
-            const UiIcon icon = g.ik ? UiIcon::MbPol : UiIcon::MbGriff;
-            ImVec4 farbe = ImGui::ColorConvertU32ToFloat4(seitenFarbe(g.seite));
-            uiIcon(ImGui::GetWindowDrawList(), icon, ImVec2{lo.x + ImGui::GetTreeNodeToLabelSpacing(), lo.y + (ImGui::GetItemRectSize().y - h) * 0.5F}, h,
-                   ImGui::GetColorU32(farbe));
-            ++t.symbolZaehler;
-        }
-        if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), name.c_str()); }
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
-            ImGui::SetTooltip("%s\n%s", g.knochen >= 0 ? g_app->anim.bones[static_cast<std::size_t>(g.knochen)].name.c_str() : "-",
-                              tr(griffHinweis(g)));
-        }
-        if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) { modellRigGriffWaehlen(static_cast<int>(i)); }
-        if (ImGui::BeginPopupContextItem("##griffmenue")) {
-            modellRigGriffWaehlen(static_cast<int>(i));
-            aktionenAlsMenue(1);
-            ImGui::Separator();
-            aktionenAlsMenue(2);
-            if (modellIkArtFuerGriff(static_cast<int>(i)) >= 0) {   // Stufe 4: IK/FK als Untermenue wie im Menue Animation
-                ImGui::Separator();
-                if (ImGui::BeginMenu(tr(Str::MbIkGruppe))) {
-                    aktionenAlsMenue(5);
-                    ImGui::EndMenu();
-                }
-                ImGui::SetItemTooltip("%s", tr(Str::MbIkRolloutHint));
-            }
-            ImGui::Separator();   // Stufe 6: Auto-Physik (Federkette ab diesem Knochen)
-            if (ImGui::BeginMenu(tr(Str::PhRollout))) {
-                aktionenAlsMenue(6);
-                ImGui::EndMenu();
-            }
-            ImGui::SetItemTooltip("%s", tr(Str::PhRolloutHint));
-            ImGui::EndPopup();
-        }
-        ImGui::PopID();
-    }
-    ImGui::TreePop();
+    ImGui::SetItemTooltip("%s", tr(Str::PhRolloutHint));
 }
 
 // --- Befehlsfeld ----------------------------------------------------------------------------------------------------

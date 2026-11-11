@@ -5,9 +5,10 @@
 //
 //   oben     Icons: .glm oeffnen, aus .pk3, Skin, .gla, NPC-Browser,
 //            Drehteller, Knochen
-//   links    die Animationen als Liste mit Suche und Gruppen (BOTH_, TORSO_,
-//            LEGS_, FACE_ ...), Laenge und Schleife; Klick spielt ab, dazu
-//            "Kopieren" und "Ins Skript" (set ( "SET_ANIM_BOTH", ... ))
+//   links    der Szenen-Explorer (gui/app_modelltab_explorer.cpp, seit AP2 mit
+//            den Sequenzen als Knoten des Baums: Suche, Gruppe BOTH_/TORSO_/
+//            LEGS_/FACE_, Laenge und Schleife; Klick spielt ab, "Kopieren",
+//            "Ins Skript")
 //   unten    Transportleiste wie die Zeitleiste: Anfang, Bild zurueck,
 //            Abspielen, Bild vor, grosse Bildanzeige, Schleife, Tempo,
 //            Haut, Flaechen, Schieberegler
@@ -31,15 +32,6 @@ std::string klein(std::string s) {
     return s;
 }
 
-// Die Gruppe einer Animation am Namen - so sortiert sie auch die animation.cfg.
-const char* animGruppe(const std::string& name) {
-    static const char* const kGruppen[] = {"BOTH_", "TORSO_", "LEGS_", "FACE_"};
-    for (const char* g : kGruppen) {
-        if (name.rfind(g, 0) == 0) { return g; }
-    }
-    return "";
-}
-
 }  // namespace
 
 void animWaehlen(int i, bool abspielen) {
@@ -51,166 +43,6 @@ void animWaehlen(int i, bool abspielen) {
     g_app->animText = e.name;
     g_app->animPlaying = abspielen;
     g_app->modelDirty = true;
-}
-
-// --- Die Animationsliste (linke Spalte) -------------------------------------------
-void drawAnimListe(float hoehe) {
-    ImGui::BeginChild("animliste", ImVec2{-1.0F, hoehe}, ImGuiChildFlags_Borders,
-                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    if (g_app->animList.empty()) {
-        ImGui::PushTextWrapPos(0.0F);
-        cjkTextDisabled("%s", tr(g_app->model.empty() ? Str::ModelNoneH2 : Str::ModelNoAnim));
-        ImGui::PopTextWrapPos();
-        // H2: ohne Modell zeigt ein Knopf den Weg (Tour "Ein Figurenmodell ansehen" ab Schritt 2).
-        if (g_app->model.empty() && ImGui::SmallButton(tr(Str::EmptyShowHow))) { (void)tourStarten("k-modell", 1); }
-        ImGui::EndChild();
-        return;
-    }
-    static char suche[64] = "";
-    ImGui::SetNextItemWidth(-1.0F);
-    ImGui::InputTextWithHint("##animsuche", tr(Str::ModelAnimSearch), suche, sizeof(suche));
-    const std::string such = klein(suche);
-    // Gruppenfilter als Knoepfe
-    static int gruppe = 0;   // 0 alle, 1 BOTH, 2 TORSO, 3 LEGS, 4 FACE, 5 andere
-    {
-        static const char* const kNamen[] = {"*", "BOTH", "TORSO", "LEGS", "FACE"};
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{ImGui::GetFontSize() * 0.35F, 2.0F});
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{2.0F, 2.0F});
-        for (int k = 0; k < 5; ++k) {
-            if (k > 0) { ImGui::SameLine(); }
-            const bool an = gruppe == k;
-            if (an) { ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)); }
-            if (ImGui::SmallButton(k == 0 ? tr(Str::ModelAnimAll) : kNamen[k])) { gruppe = k; }
-            if (an) { ImGui::PopStyleColor(); }
-        }
-        ImGui::PopStyleVar(2);
-    }
-    const int sel = g_app->animIndex;
-    // Kopieren / ins Skript fuer die gewaehlte
-    {
-        const float sp = ImGui::GetStyle().ItemSpacing.x;
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{sp * 0.4F, ImGui::GetStyle().ItemSpacing.y});
-        const bool hat = sel >= 0 && static_cast<std::size_t>(sel) < g_app->animList.size();
-        if (iconKnopf(tr(Str::ActCopy), UiIcon::Duplizieren, tr(Str::HintCopy), false, hat)) {
-            const std::string& n = g_app->animList[static_cast<std::size_t>(sel)].name;
-            ImGui::SetClipboardText(n.c_str());
-            char kop[200];
-            std::snprintf(kop, sizeof(kop), tr(Str::ModelAnimCopied), n.c_str());
-            addStatus(kop);
-        }
-        ImGui::SameLine();
-        // mb1a2: "Ins Skript" oeffnet sein eigenes Fenster (Ziel, Figur, Befehl, Vorschau) - der Model-Tab hat keinen Skriptbaum
-        if (iconTextKnopf(tr(Str::ModelAnimToScript), UiIcon::Skript, tr(Str::MbInsSkriptHint), hat)) {
-            modellInsSkriptOeffnen(sel);
-        }
-        ImGui::PopStyleVar();
-    }
-    ImGui::Separator();
-    ImGui::BeginChild("animzeilen", ImVec2{-1.0F, -1.0F}, ImGuiChildFlags_None);
-    // modell1: nur die sichtbaren Zeilen bauen (ImGuiListClipper). Vorher lief
-    // jedes Bild ueber alle Animationen (_humanoid: 1837) - Gruppe, Suche,
-    // Laenge, Selectable und das Schleifen-Icon, das auch fuer verdeckte Zeilen
-    // ins Zeichenbuch ging. Welche Zeilen Gruppe und Suche durchlassen, steht in
-    // `zeilen`; neu bestimmt nur, wenn sich Liste, Gruppe oder Suche aendern
-    // (die Liste wird nur ersetzt, nie an Ort und Stelle geaendert).
-    static std::vector<int> zeilen;
-    static const AnimEntry* zeilenListe = nullptr;
-    static std::size_t zeilenAnzahl = 0;
-    static int zeilenGruppe = -1;
-    static std::string zeilenSuche;
-    if (zeilenListe != g_app->animList.data() || zeilenAnzahl != g_app->animList.size() || zeilenGruppe != gruppe ||
-        zeilenSuche != such) {
-        zeilenListe = g_app->animList.data();
-        zeilenAnzahl = g_app->animList.size();
-        zeilenGruppe = gruppe;
-        zeilenSuche = such;
-        zeilen.clear();
-        static const char* const kPraefix[] = {"", "BOTH_", "TORSO_", "LEGS_", "FACE_"};
-        for (std::size_t i = 0; i < g_app->animList.size(); ++i) {
-            const std::string& name = g_app->animList[i].name;
-            if (gruppe > 0 && std::strcmp(animGruppe(name), kPraefix[gruppe]) != 0) { continue; }
-            if (!such.empty() && klein(name).find(such) == std::string::npos) { continue; }
-            zeilen.push_back(static_cast<int>(i));
-        }
-    }
-    ImGuiListClipper clipper;
-    clipper.Begin(static_cast<int>(zeilen.size()));
-    if (g_app->animScrollen) {
-        // Die gewaehlte Zeile mitbauen, damit SetScrollHereY sie findet.
-        const auto it = std::find(zeilen.begin(), zeilen.end(), sel);
-        if (it != zeilen.end()) { clipper.IncludeItemByIndex(static_cast<int>(it - zeilen.begin())); }
-    }
-    while (clipper.Step()) {
-        for (int r = clipper.DisplayStart; r < clipper.DisplayEnd; ++r) {
-            const auto i = static_cast<std::size_t>(zeilen[static_cast<std::size_t>(r)]);
-            const AnimEntry& e = g_app->animList[i];
-            ImGui::PushID(static_cast<int>(i));
-            const bool gewaehlt = static_cast<int>(i) == sel;
-            // mb1a2: das Symbol "Sequenz" vor dem Namen wie im Szenen-Explorer - davor gesetzt, die Zeile behaelt ihren
-            // Namen als Beschriftung (mit Leerzeichen davor fand der Selbsttest `modell` sie nicht mehr: mb2e_modell)
-            {
-                const float ih0 = ImGui::GetTextLineHeight();
-                const ImVec2 p0 = ImGui::GetCursorScreenPos();
-                uiIcon(ImGui::GetWindowDrawList(), UiIcon::MbSequenz, p0, ih0, ImGui::GetColorU32(uiIconFarbe(UiIcon::MbSequenz)));
-                ImGui::SetCursorScreenPos(ImVec2{p0.x + ih0 * 1.3F, p0.y});
-            }
-            const bool geklickt = ImGui::Selectable(e.name.c_str(), gewaehlt, ImGuiSelectableFlags_AllowDoubleClick);
-            modellSequenzZiehen(static_cast<int>(i));   // Stufe 2: auf einen Platz der Karten-GLA ziehen
-            if (geklickt) {
-                animWaehlen(static_cast<int>(i), true);
-                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { modellInsSkriptOeffnen(static_cast<int>(i)); }
-            }
-            // Modell-Block 1a-1: Primaer (ganzer Koerper) und Sekundaer (ab dem
-            // Sekundaer-Start, Vorgabe lower_lumbar wie SET_ANIM_UPPER) - ModView.
-            if (ImGui::BeginPopupContextItem("##animmenue")) {
-                if (ImGui::MenuItem(tr(Str::MbAlsPrimaer))) { animWaehlen(static_cast<int>(i), true); }
-                char sek[160];
-                std::snprintf(sek, sizeof sek, tr(Str::MbAlsSekundaer), g_app->mtab.sekundaerKnochen.c_str());
-                if (ImGui::MenuItem(sek, nullptr, g_app->mtab.sekundaer == static_cast<int>(i))) {
-                    g_app->mtab.sekundaer = static_cast<int>(i);
-                    g_app->mtab.sekFrame = e.firstFrame;
-                    g_app->mtab.sekZeit = 0.0F;
-                    g_app->modelDirty = true;
-                }
-                if (ImGui::MenuItem(tr(Str::MbSekundaerAus), nullptr, false, g_app->mtab.sekundaer >= 0)) {
-                    g_app->mtab.sekundaer = -1;
-                    g_app->modelDirty = true;
-                }
-                ImGui::Separator();
-                if (ImGui::MenuItem(tr(Str::MbInsSkriptMenue), "Ctrl+Shift+I")) { modellInsSkriptOeffnen(static_cast<int>(i)); }
-                if (ImGui::MenuItem(tr(Str::MbKgAufFreien))) { (void)modellAufFreienPlatz(static_cast<int>(i)); }   // Stufe 2
-                ImGui::SetItemTooltip("%s", tr(Str::MbKgZiehen));
-                ImGui::EndPopup();
-            }
-            if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
-                ImGui::SetTooltip(trN(Str::ModelAnimRowHint, e.numFrames), e.numFrames,
-                                  static_cast<double>(e.numFrames) / static_cast<double>(std::max(e.fps, 1)), e.fps);
-            }
-            // Rechts: Laenge und - wenn sie sich wiederholt - das Schleifen-Icon
-            char laenge[32];
-            std::snprintf(laenge, sizeof(laenge), "%.1fs",
-                          static_cast<double>(e.numFrames) / static_cast<double>(std::max(e.fps, 1)));
-            const float ih = ImGui::GetTextLineHeight();
-            const float lw = ImGui::CalcTextSize(laenge).x + ih + 4.0F;
-            ImGui::SameLine(std::max(ImGui::GetContentRegionMax().x - lw, ImGui::GetFontSize() * 6.0F));
-            ImGui::TextDisabled("%s", laenge);
-            if (e.loopFrame >= 0) {
-                ImGui::SameLine(0.0F, 4.0F);
-                const ImVec2 q = ImGui::GetCursorScreenPos();
-                uiIcon(ImGui::GetWindowDrawList(), UiIcon::Schleife, ImVec2{std::floor(q.x), std::floor(q.y)}, ih,
-                       ImGui::GetColorU32(uiIconFarbe(UiIcon::Schleife)));
-                ImGui::Dummy(ImVec2{ih, ih});
-            }
-            if (gewaehlt && g_app->animScrollen) {
-                ImGui::SetScrollHereY(0.4F);
-                g_app->animScrollen = false;
-            }
-            ImGui::PopID();
-        }
-    }
-    if (zeilen.empty()) { ImGui::TextDisabled("%s", tr(Str::ModelAnimNone)); }
-    ImGui::EndChild();
-    ImGui::EndChild();
 }
 
 // --- Die Leiste ueber der Ansicht ----------------------------------------------------
