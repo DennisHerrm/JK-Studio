@@ -154,6 +154,13 @@ inline bool mergevisportals;
 inline bool nosort;
 inline bool saveprt;
 inline bool hint;             /* ydnar */
+/* BehavEd vis4: -bhedvisnrcplanes - the separating planes and the portal planes as NetRadiant-Custom
+   makes them (visflow.cpp BhedSeperates, vis.cpp PlaneFromWinding): the .bsp of NRC's q3map2, with
+   its gaps in the visibility where portal corners are nearly doubled */
+inline bool bhedNrcPlanes;
+/* BehavEd vis4: -bhedvisstrictplanes - a separating plane also has to hold the three points it is made from
+   on their side within ON_EPSILON (visflow.cpp BhedSeperates) */
+inline bool bhedStrictPlanes;
 
 inline float farPlaneDist;                /* rr2do2, rf, mre, ydnar all contributed to this one... */
 inline int farPlaneDistMode;

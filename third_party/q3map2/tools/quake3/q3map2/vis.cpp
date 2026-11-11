@@ -33,14 +33,64 @@
 #include "vis.h"
 #include "visflow.h"
 #include "bhed_vischeck.h" /* BehavEd vis3: -bhedvischeck */
+#include <limits>
 
 vportal_t          *sorted_portals[ MAX_MAP_PORTALS * 2 ];
 
 
+/* BehavEd vis4 (not in NetRadiant-Custom): the plane of a portal from all points of its winding, where
+   the plane of the first three points - NRC's, id's since q3map - is none or misses a point of the winding
+   by more than ON_EPSILON. That happens where two of the three are nearly the same point (a corner the BSP
+   stage wrote twice, some thousandths of a unit apart): the plane then turns about the line through the two
+   that are left (kejim_post: 59 of 24686 portals, the worst misses its own winding by 376 units and is
+   65 degrees off). And where the three lie exactly on one line PlaneFromPoints gives up and leaves a plane
+   with the normal 0 0 0 (kejim_post 3 portals, taspir1 3): nothing is in front of or behind it, so
+   BasePortalVis lets such a portal see nothing and lets nothing see it. BasePortalVis sorts portals in
+   front of and behind the plane and the flows clip by it, so a wrong one hides what can be seen or shows
+   what cannot. Where NRC's plane holds the winding within ON_EPSILON - the tolerance all of the vis works
+   with - it stays, digit for digit.
+   The normal is the sum of the cross products of the fan from point 0 (twice the area, turning as
+   PlaneFromPoints turns), the distance the mean over all points, in double precision. */
+static int bhedPlanesFromAll;
+
+static double BhedPlaneMisses( const visPlane_t& plane, const fixedWinding_t *w ){
+	double most = 0;
+	for ( const Vector3& point : Span( w->points, w->numpoints ) )
+		value_maximize( most, std::fabs( plane3_distance_to_point( plane, point ) ) );
+	return most;
+}
+
+static void BhedPlaneOfAllPoints( const fixedWinding_t *w, bool made, visPlane_t& plane ){
+	const double missed = made ? BhedPlaneMisses( plane, w ) : std::numeric_limits<double>::infinity();
+	if ( missed <= ON_EPSILON ) {
+		return;
+	}
+	const DoubleVector3 origin( w->points[0] );
+	DoubleVector3 normal( 0 );
+	for ( int i = 1; i + 1 < w->numpoints; ++i )
+		normal += vector3_cross( DoubleVector3( w->points[i + 1] ) - origin, DoubleVector3( w->points[i] ) - origin );
+	const double length = vector3_length( normal );
+	if ( length == 0 ) {
+		return;
+	}
+	normal /= length;
+	double dist = 0;
+	for ( const Vector3& point : Span( w->points, w->numpoints ) )
+		dist += vector3_dot( DoubleVector3( point ), normal );
+	const visPlane_t all( normal, dist / w->numpoints );
+	if ( BhedPlaneMisses( all, w ) < missed ) {
+		plane = all;
+		++bhedPlanesFromAll;
+	}
+}
+
 static visPlane_t PlaneFromWinding( const fixedWinding_t *w ){
 	// calc plane
 	visPlane_t plane;
-	PlaneFromPoints( plane, w->points );
+	const bool made = PlaneFromPoints( plane, w->points );
+	if ( !bhedNrcPlanes ) {
+		BhedPlaneOfAllPoints( w, made, plane );   /* BehavEd vis4 */
+	}
 	return plane;
 }
 
@@ -176,6 +226,17 @@ static void ClusterMerge( int leafnum ){
    CalcPortalVis
    ==================
  */
+/* BehavEd vis4: the planes BhedSeperates (visflow.cpp) has left out since the line before */
+static void BhedFalsePlanesLine( const char *where ){
+	static uint64_t before;
+	const uint64_t now = BhedFalsePlanes();
+	if ( now != before ) {
+		Sys_Printf( "BehavEd: %llu separating planes left out in the %s (the source portal on both sides of them%s)\n",
+		            (unsigned long long)( now - before ), where, bhedStrictPlanes ? ", or they miss their own points" : "" );
+	}
+	before = now;
+}
+
 static void CalcPortalVis(){
 #ifdef MREDEBUG
 	Sys_Printf( "%6d portals out of %d", 0, numportals * 2 );
@@ -183,6 +244,7 @@ static void CalcPortalVis(){
 	RunThreadsOnIndividual( numportals * 2, false, PortalFlow );
 #else
 	BhedRunFlow( PortalFlow );
+	BhedFalsePlanesLine( "flows" );
 #endif
 }
 
@@ -205,9 +267,11 @@ static void CalcPassageVis(){
 	Sys_Printf( "\n--- CreatePassages (%d) ---\n", numportals * 2 );
 	RunThreadsOnIndividual( numportals * 2, true, CreatePassages );
 	BhedPassageMemoryUsed();
+	BhedFalsePlanesLine( "passages" );
 
 	Sys_Printf( "\n--- PassageFlow (%d) ---\n", numportals * 2 );
 	BhedRunFlow( PassageFlow );
+	BhedFalsePlanesLine( "flows" );
 #endif
 }
 
@@ -230,9 +294,11 @@ static void CalcPassagePortalVis(){
 	Sys_Printf( "\n--- CreatePassages (%d) ---\n", numportals * 2 );
 	RunThreadsOnIndividual( numportals * 2, true, CreatePassages );
 	BhedPassageMemoryUsed();
+	BhedFalsePlanesLine( "passages" );
 
 	Sys_Printf( "\n--- PassagePortalFlow (%d) ---\n", numportals * 2 );
 	BhedRunFlow( PassagePortalFlow );
+	BhedFalsePlanesLine( "flows" );
 #endif
 }
 
@@ -836,6 +902,10 @@ static void LoadPortals( char *name ){
 		}
 	}
 
+	if ( bhedPlanesFromAll != 0 ) {
+		Sys_Printf( "BehavEd: %i portal planes from all points of the winding (the first three are on one line or nearly)\n", bhedPlanesFromAll );
+	}
+
 	faces = safe_calloc( numfaces * sizeof( vportal_t ) );
 	faceleafs = safe_calloc( portalclusters * sizeof( leaf_t ) );
 
@@ -952,6 +1022,11 @@ int VisMain( Args& args ){
 		bhedFixed = chains != nullptr ? std::clamp( atoi( chains ), 1, 4096 ) : c_bhedFixedChains;
 	}
 	bhedCheck = args.takeArg( "-bhedvischeck" );          /* BehavEd vis3: the same */
+	bhedNrcPlanes = args.takeArg( "-bhedvisnrcplanes" );  /* BehavEd vis4: the same */
+	bhedStrictPlanes = args.takeArg( "-bhedvisstrictplanes" );
+	if ( bhedNrcPlanes && bhedStrictPlanes ) {
+		Error( "-bhedvisnrcplanes and -bhedvisstrictplanes contradict each other, take one of them" );
+	}
 	if ( bhedExact && bhedFixed ) {
 		Error( "-bhedvisexact and -bhedvisfixed are two different rules, take one of them" );
 	}
@@ -960,6 +1035,12 @@ int VisMain( Args& args ){
 	}
 	if ( bhedFixed ) {
 		Sys_Printf( "BehavEd: fixed vis rule (the same result in every run and with any number of threads, %i chains)\n", bhedFixed );
+	}
+	if ( bhedNrcPlanes ) {
+		Sys_Printf( "BehavEd: separating planes and portal planes as NetRadiant-Custom makes them\n" );
+	}
+	if ( bhedStrictPlanes ) {
+		Sys_Printf( "BehavEd: separating planes have to hold the points they are made from\n" );
 	}
 	const auto argsToInject = args.getVector();
 	{
@@ -1054,7 +1135,7 @@ int VisMain( Args& args ){
 		const char *far = "";
 		entities[ 0 ].read_keyvalue( far, "_farplanedist", "fogclip", "distancecull" );
 		bhedKey = StringStream( "vis1 fast=", fastvis, " merge=", mergevis, " mergeportals=", mergevisportals, " nopassage=", noPassageVis,
-		                        " passageOnly=", passageVisOnly, " nosort=", nosort, " hint=", hint, " far=", far ).c_str();
+		                        " passageOnly=", passageVisOnly, " nosort=", nosort, " hint=", hint, " far=", far, " nrcplanes=", bhedNrcPlanes, " strictplanes=", bhedStrictPlanes ).c_str();
 		strcpy( bhedCache, ExpandArg( fileName ) );
 		bhed_set_map_extension( bhedCache, ".bhedvis" );
 	}
@@ -1086,7 +1167,7 @@ int VisMain( Args& args ){
 		BhedVisStateSetup( stateFile, stopFile,
 		                   StringStream( "vis2 fast=", fastvis, " merge=", mergevis, " mergeportals=", mergevisportals, " nopassage=", noPassageVis,
 		                                 " passageOnly=", passageVisOnly, " nosort=", nosort, " hint=", hint, " far=", far, " exact=", bhedExact,
-		                                 " fixed=", bhedFixed ).c_str(),
+		                                 " fixed=", bhedFixed, " nrcplanes=", bhedNrcPlanes, " strictplanes=", bhedStrictPlanes ).c_str(),
 		                   bhedPortalData, bhedStateEvery );
 	}
 

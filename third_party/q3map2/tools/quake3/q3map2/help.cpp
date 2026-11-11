@@ -158,6 +158,8 @@ static void HelpVis()
 		{ "-bhedvisexact", "BehavEd: with several threads exactly the visibility of `-threads 1` (waits where a portal needs an unfinished one - slower on open maps)" },
 		{ "-bhedvisfixed", "BehavEd: with several threads a fixed rule which finished portals a portal uses (a clock that counts the work instead of the time) - the same .bsp in every run and with any number of threads" },
 		{ "-bhedvischeck", "BehavEd: check the visibility after the flows (sight lines through the portals must be visible, nothing outside the flood)" },
+		{ "-bhedvisnrcplanes", "BehavEd: separating planes and portal planes as NetRadiant-Custom makes them - its .bsp, with gaps in the visibility where portal corners are nearly doubled" },
+		{ "-bhedvisstrictplanes", "BehavEd: a separating plane also has to hold the three points it is made from within the epsilon (stricter than any known gap needs)" },
 	};
 	HelpOptions( "VIS Stage", 0, 80, options );
 }

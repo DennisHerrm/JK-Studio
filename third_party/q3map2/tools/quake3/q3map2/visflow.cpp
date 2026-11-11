@@ -1636,6 +1636,68 @@ static fixedWinding_t  *VisChopWinding( fixedWinding_t *in, pstack_t *stack, con
 	return neww;
 }
 
+/* BehavEd vis4 (not in NetRadiant-Custom): has the plane that NRC's code is about to take as a separating
+   plane - made from the source edge i-l and the point j of pass, pass in front of it - the whole of source
+   behind it? NRC's code, id's since q3map, takes the side of source from its first point farther than
+   ON_EPSILON from the plane and never looks at the others. That is right for a plane through an edge of a
+   convex winding. But the three points may lie nearly on one line: two portals that share an edge have its
+   corners with other digits, so the point of pass is the end of the source edge a hundredth of a unit away.
+   Such a plane turns about the edge as the rounding has it, and the cross product in single precision loses
+   its digits - the plane misses the points it is made from by more than ON_EPSILON (kejim_post: 0.11 to 0.18
+   units, the sine of the angle at the points is 1e-5). A nearly doubled corner of source next to the edge then
+   is "in front" by that error and is taken for the side of the whole winding: the plane is accepted with
+   source and pass on the same side, and everything behind pass is cut away (kejim_post: the 131 portals on
+   sight lines the check of vis3 found missing, at three portals; in a chain of four leafs with such portals
+   the last leaf is missing in the visibility of the first - with NRC's q3map2.exe and any number of threads,
+   docs/intern/NOTIZEN_vis4_1111.md).
+   So the side of source is taken from all the points NRC's loop looks at, not from the first: none of them
+   may be farther than ON_EPSILON in front of the plane. A plane through an edge of a convex winding passes
+   this always (the first point says where the others are), so nothing changes where NRC is right; a plane
+   that fails is no separating plane and is left out, as NRC leaves out the others that fail.
+   -bhedvisstrictplanes asks more: the two points of the edge and the point of pass, which NRC's loops skip
+   because the plane is made from them, have to lie on their side within ON_EPSILON as well - a plane that
+   misses its own points by more is the work of rounding. No gap is known that needs it. */
+static std::atomic<uint64_t> g_bhedFalsePlanes{ 0 };
+
+/* the rare cases of BhedSeperates, out of the way of the flows: a plane that failed, or a switch is set */
+__declspec( noinline ) static bool BhedSeperatesRare( const visPlane_t& plane, const fixedWinding_t *source, const fixedWinding_t *pass, int i, int l, int j, bool behind ){
+	if ( bhedNrcPlanes ) {
+		return true;
+	}
+	if ( behind ) {     /* -bhedvisstrictplanes */
+		behind = plane3_distance_to_point( plane, pass->points[j] ) >= -ON_EPSILON
+		      && plane3_distance_to_point( plane, source->points[i] ) <= ON_EPSILON
+		      && plane3_distance_to_point( plane, source->points[l] ) <= ON_EPSILON;
+	}
+	if ( !behind ) {
+		g_bhedFalsePlanes.fetch_add( 1, std::memory_order_relaxed );
+	}
+	return behind;
+}
+
+static inline bool BhedSeperates( const visPlane_t& plane, const fixedWinding_t *source, const fixedWinding_t *pass, int i, int l, int j, int side ){
+	/* `side` is the point NRC's loop took the side from: it is behind the plane, the points before it are
+	   within ON_EPSILON of it - the ones after it are left. With four points that is at most one: the sum
+	   of the indices 0 to 3 less the edge and `side`. */
+	bool behind = true;
+	if ( source->numpoints == 4 ) {
+		const int k = 6 - i - l - side;
+		behind = k < side || plane3_distance_to_point( plane, source->points[k] ) <= ON_EPSILON;
+	}
+	else{
+		for ( int k = side + 1; behind && k < source->numpoints; ++k )
+			behind = k == i || k == l || plane3_distance_to_point( plane, source->points[k] ) <= ON_EPSILON;
+	}
+	if ( behind && !bhedStrictPlanes ) {
+		return true;
+	}
+	return BhedSeperatesRare( plane, source, pass, i, l, j, behind );
+}
+
+uint64_t BhedFalsePlanes(){
+	return g_bhedFalsePlanes.load();
+}
+
 /* BehavEd vis2s: the inner loop of ClipToSeperators - the separating plane through the source edge i
    and a vertex of pass, false if there is none. NRC's code, moved into a function of its own: the planes
    of a frame do not depend on the target, so they can be made again later (BhedSeperatorsHave). */
@@ -1683,6 +1745,7 @@ static bool BhedEdgeSeperator( const fixedWinding_t *source, const fixedWinding_
 		if ( k == source->numpoints ) {
 			continue;       // planar with source portal
 		}
+		const int side = k;     /* BehavEd vis4: for BhedSeperates */
 #else
 		fliptest = flipclip;
 #endif
@@ -1732,6 +1795,9 @@ static bool BhedEdgeSeperator( const fixedWinding_t *source, const fixedWinding_
 			continue;
 		}
 #endif
+		if ( !BhedSeperates( plane, source, pass, i, l, j, side ) ) {
+			continue;   /* BehavEd vis4: source on both sides, no separating plane */
+		}
 		//
 		// flip the normal if we want the back side
 		//
@@ -2991,6 +3057,7 @@ static int AddSeperators( const fixedWinding_t *source, const fixedWinding_t *pa
 			if ( k == source->numpoints ) {
 				continue;       // planar with source portal
 			}
+			const int side = k;     /* BehavEd vis4: for BhedSeperates */
 #else
 			fliptest = flipclip;
 #endif
@@ -3040,6 +3107,9 @@ static int AddSeperators( const fixedWinding_t *source, const fixedWinding_t *pa
 				continue;
 			}
 #endif
+			if ( !BhedSeperates( plane, source, pass, i, l, j, side ) ) {
+				continue;   /* BehavEd vis4: source on both sides, no separating plane */
+			}
 			//
 			// flip the normal if we want the back side
 			//
