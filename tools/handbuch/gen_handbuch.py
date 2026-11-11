@@ -236,6 +236,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _ap2()})
             from i18n_uiform import zeilen_vier as _uiform   # UIFORM: Formular-Baustein (Into script)
             texte.update({e[0]: e[1:] for e in _uiform()})
+            from i18n_ap1 import zeilen_vier as _ap1   # AP1: Zeitleiste des Model-Tabs nach dem Entwurf
+            texte.update({e[0]: e[1:] for e in _ap1()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

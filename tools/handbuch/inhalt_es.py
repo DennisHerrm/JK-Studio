@@ -7576,6 +7576,8 @@ from inhalt_mb3 import ES as _MB4  # noqa: E402
 TEXTE.update(_MB4)
 from inhalt_mb3b import ES as _MB5  # noqa: E402
 TEXTE.update(_MB5)
+from inhalt_ap1 import ES as _AP1  # noqa: E402  (AP1: Zeitleiste des Model-Tabs)
+TEXTE.update(_AP1)
 from inhalt_mb4 import ES as _MB6  # noqa: E402
 TEXTE.update(_MB6)
 from inhalt_mb7 import ES as _MB7  # noqa: E402

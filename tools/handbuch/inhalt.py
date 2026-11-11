@@ -87,6 +87,9 @@ SEITEN = (inhalt_start.SEITEN[:1] + inhalt_hilfe1.SEITEN + inhalt_funktionen.SEI
 
 import inhalt_ap2  # AP0+AP2: Szenen-Explorer (wie 3ds Max) / Outliner (wie Blender) des Model-Tabs
 inhalt_ap2.einhaengen(next(_s for _s in SEITEN if _s["id"] == "modell-ansehen"))
+# AP1: die Seite "Model-Tab: die Zeitleiste" hinter modell-bedienung
+import inhalt_ap1  # noqa: E402
+SEITEN.insert(next(i for i, x in enumerate(SEITEN) if x["id"] == "modell-bedienung") + 1, inhalt_ap1.seite())
 
 import inhalt_schritte
 inhalt_schritte.anwenden(SEITEN)

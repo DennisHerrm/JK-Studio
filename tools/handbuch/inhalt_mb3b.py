@@ -16,6 +16,13 @@ X = {
         "コントロールリグのキーを時間とカーブで編集し、ブレンドやイーズ、タイミングと値の変更、シーケンス全体のミラー、ポーズのライブラリ保存、ベイク済みフレームの少数キーへの削減、ビューでの骨盤パスのドラッグを行います。",
         "Edita las claves del rig de control en el tiempo y como curvas, mézclalas y suavízalas, cambia tiempos y valores, refleja secuencias enteras, guarda poses en una biblioteca, reduce los fotogramas horneados a pocas claves y arrastra la trayectoria de la pelvis en la vista.",
         "Upravujte klíče ovládacího rigu v čase i jako křivky, míchejte je a vyhlazujte, měňte časování a hodnoty, zrcadlete celé sekvence, ukládejte pózy do knihovny, redukujte upečené snímky na několik klíčů a táhněte dráhu pánve v pohledu."),
+    "hinweis_ap1": (
+        "Since rc612 the dope sheet and the curve editor are no longer a window of their own below the views: they are the tracks of the timeline ([[modell-zeitleiste]]). **{{MzSpuren}}** or the handle above the timeline opens them, the button next to it switches between the two, and their menus are in the **{{MzMenue}}**. In the controls **{{MbWieMax}}** keys are coloured bars, in **{{MbWieBlender}}** diamonds.",
+        "Seit rc612 sind Dopesheet und Kurveneditor kein eigenes Fenster unter den Ansichten mehr: sie sind die Spuren der Zeitleiste ([[modell-zeitleiste]]). **{{MzSpuren}}** oder der Griff über der Zeitleiste öffnet sie, der Knopf daneben wechselt zwischen beiden, ihre Menüs stehen im **{{MzMenue}}**. Im Bedienmodus **{{MbWieMax}}** sind Schlüssel farbige Striche, in **{{MbWieBlender}}** Rauten.",
+        "自 rc612 起, 摄影表和曲线编辑器不再是视图下方的独立窗口: 它们是时间轴的轨道 ([[modell-zeitleiste]])。**{{MzSpuren}}** 或时间轴上方的手柄可打开它们, 旁边的按钮在两者之间切换, 它们的菜单位于 **{{MzMenue}}**。操作方式为 **{{MbWieMax}}** 时关键帧是彩色竖条, 为 **{{MbWieBlender}}** 时是菱形。",
+        "rc612 から、ドープシートとカーブエディターはビュー下の独立ウィンドウではなく、タイムラインのトラックです ([[modell-zeitleiste]])。**{{MzSpuren}}** またはタイムライン上のハンドルで開き、隣のボタンで両者を切り替え、メニューは **{{MzMenue}}** にあります。操作モード **{{MbWieMax}}** ではキーは色付きの棒、**{{MbWieBlender}}** ではひし形です。",
+        "Desde rc612 la hoja de claves y el editor de curvas ya no son una ventana propia bajo las vistas: son las pistas de la línea de tiempo ([[modell-zeitleiste]]). **{{MzSpuren}}** o el tirador sobre la línea de tiempo las abre, el botón de al lado cambia entre ambas y sus menús están en el **{{MzMenue}}**. Con los controles **{{MbWieMax}}** las claves son barras de color, con **{{MbWieBlender}}** rombos.",
+        "Od rc612 už dopesheet a editor křivek nejsou samostatné okno pod pohledy: jsou to stopy časové osy ([[modell-zeitleiste]]). **{{MzSpuren}}** nebo úchyt nad časovou osou je otevře, tlačítko vedle přepíná mezi oběma a jejich nabídky jsou v **{{MzMenue}}**. S ovládáním **{{MbWieMax}}** jsou klíče barevné proužky, s **{{MbWieBlender}}** kosočtverce."),
     "h_editor": ("Dope sheet", "Dopesheet", "摄影表", "ドープシート", "Hoja de claves", "Dopesheet"),
     "editor": (
         "**{{MbKvDsOeffnen}}** (menu **{{MbBereichAnimation}}** > **{{MbKvMenue}}** > **{{MbKvGruppeEditor}}**, the right-click of the view, the search X/F3 "
@@ -305,6 +312,7 @@ def seite():
         "titel": _t("titel"),
         "kurz": _t("kurz"),
         "bloecke": [
+            ("note", _t("hinweis_ap1")),   # AP1: Dopesheet und Kurveneditor sind die Spuren der Zeitleiste
             ("img", "h_mb5_dopesheet", _t("bild_ds"), "breit"),
             ("h2", "dopesheet", _t("h_editor")),
             ("p", _t("editor")),
