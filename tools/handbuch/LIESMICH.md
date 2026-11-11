@@ -81,7 +81,7 @@ Seiten „Fertige Karten öffnen und ändern“ und „Plugins“ (`h_karte4_*`)
 Seite „Optimierer und Grenzen“ (`h_karte5_*`) `BHED_HB_NUR=karte5` (ebenfalls
 mp/duel1), die der Seite „Bau-Fortschritt und Teil-Kompilierungen“ und der
 Stufe-8a-Abschnitte von „Fertige Karten öffnen und ändern“ (`h_karte8_*`)
-`BHED_HB_NUR=karte8` (baut die Testkarten mit `bhed_q3map2.exe`). Die Bilder der Seite „Terrain, Spielen, Logik, Spiegel und mehr“ (`h_karte8b_*`) nimmt
+`BHED_HB_NUR=karte8` (baut die Testkarten mit `bhed_q3map2.exe`). Die Bilder des Abschnitts „Einen Bau anhalten und fortsetzen“ (`h_vis2c_*`) nimmt `BHED_HB_NUR=vis2c` auf (baut eine Gitterkarte, hält im VIS an, setzt fort). Die Bilder der Seite „Terrain, Spielen, Logik, Spiegel und mehr“ (`h_karte8b_*`) nimmt
 `BHED_HB_NUR=karte8b` auf (eine eigene Testkarte mit Hof, Säule, Auslöser, Tür und NPC_spawner). Die Bilder des Tutorials „Deine erste Karte“ (`h_tut_karte_*`) nimmt `BHED_HB_NUR=tutorial` auf: der Lauf führt jeden Schritt in der Oberfläche aus (neue Karte, Brush ziehen, Höhe, Textur, CSG Tool, Licht, info_player_start, AutoCaulk, Optimizer, [Final] Fast, F6, Pack map as .pk3) und prüft das Ergebnis (gui/selbsttest_karte8c.inc). Die Bilder der Seite „GPU-Backen“ (`h_karte_gpubacken_*`) nimmt `BHED_HB_NUR=gpubacken` auf: das Tutorial baut die Karte, dann schaltet der Lauf Build > GPU bake ein, baut noch einmal und prüft Bericht und Lumps (gui/selbsttest_karte8g.inc); die Messtabelle steht in `messung8g.py`. Die Tabellen der Grenzen auf dieser Seite kommen aus
 `grenzen.json`, die `kartegrenzen --json tools/handbuch/grenzen.json` aus
 der Tabelle im Code schreibt (der ctest `karte_grenzen` vergleicht). Chinesisch:

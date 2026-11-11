@@ -7602,3 +7602,5 @@ from inhalt_rest3 import ES as _REST3  # noqa: E402
 TEXTE.update(_REST3)
 from inhalt_rest4 import ES as _REST4  # noqa: E402
 TEXTE.update(_REST4)
+from inhalt_vis2c import ES as _VIS2C  # noqa: E402
+TEXTE.update(_VIS2C)

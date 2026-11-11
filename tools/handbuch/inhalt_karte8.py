@@ -7,6 +7,7 @@ Die Teile zum Oeffnen fertiger Karten (Editor-Daten, misc_model, Lichter) stehen
 Seite karte_oeffnen (inhalt_karte4.py).
 """
 from inhalt_basis import T
+from inhalt_vis2c import bloecke as _vis2c   # vis2c: Bauen anhalten und fortsetzen
 
 KARTE_TEILBAU = {
     "id": "karte_teilbau",
@@ -60,6 +61,7 @@ KARTE_TEILBAU = {
             "Der Fortschritt kommt aus der Ausgabe von q3map2 selbst; eine Phase mit vielen Lightmaps oder ein langer Bounce bewegt sich in Sprüngen. Die Restzeit ist nur so gut, wie der letzte Bau vergleichbar war - ein anderer Eintrag, andere Schalter oder ein beschäftigter Rechner ändern sie.",
             "进度来自 q3map2 自身的输出;光照贴图很多的阶段或很长的反弹会跳跃式前进。剩余时间的准确度取决于上一次编译的可比性——换了条目、换了开关或电脑繁忙都会改变它。",
             "進行状況は q3map2 自身の出力から得ています。ライトマップの多いフェーズや長いバウンスは飛び飛びに進みます。残り時間の精度は前回のビルドとどれだけ比べられるかで決まり、別のエントリー・別のスイッチ・コンピューターの負荷で変わります。")),
+        *_vis2c(),
         ("h2", "teilbau", T("Partial compiles", "Teil-Kompilierungen", "部分编译", "部分コンパイル")),
         ("img", "h_karte8_menue", T(
             "{{KeLBuild}}: {{KeEdMenue}}, {{KeTkVis}} and {{KeTkLicht}} switched on, below them {{KeVisExakt}}, {{KeZfMenue}} and {{KeFsMelden}} (not in NetRadiant-Custom).",
