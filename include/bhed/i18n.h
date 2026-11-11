@@ -5843,6 +5843,9 @@ enum class Str {
     MbXAktSeqKopieren,
     MbXAktSeqInsSkript,
     MbXAktFilter,
+    UfAbbrechen,
+    UfSchliessen,
+    UfGewaehlteHint,
     Count,
 };
 
