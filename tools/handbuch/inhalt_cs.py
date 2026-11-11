@@ -7553,6 +7553,8 @@ from inhalt_mbkopf import CS as _MBKOPF  # noqa: E402  (MBKOPF)
 TEXTE.update(_MBKOPF)
 from inhalt_mbraster import CS as _MBRASTER  # noqa: E402  (MBRASTER)
 TEXTE.update(_MBRASTER)
+from inhalt_mbnav import CS as _MBNAV  # noqa: E402  (MBNAV)
+TEXTE.update(_MBNAV)
 
 # Modell-Block 1a-2: Weights, Bedienung, Ins Skript
 from inhalt_mb1a2 import CS as _MB2  # noqa: E402

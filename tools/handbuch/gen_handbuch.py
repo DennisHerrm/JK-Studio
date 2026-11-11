@@ -228,6 +228,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _rest10()})
             from i18n_mbraster import zeilen_vier as _mbraster   # MBRASTER: Boden-Raster wie 3ds Max / Blender
             texte.update({e[0]: e[1:] for e in _mbraster()})
+            from i18n_mbnav import zeilen_vier as _mbnav   # MBNAV: Navigation wie 3ds Max / Blender
+            texte.update({e[0]: e[1:] for e in _mbnav()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

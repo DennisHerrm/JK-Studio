@@ -7,6 +7,7 @@ T(...), Spanisch und Tschechisch nach inhalt_es.py / inhalt_cs.py (ES, CS).
 
 import inhalt_mbkopf  # noqa: E402  (MBKOPF: Kopfzeile der Ansicht, ViewCube und Gizmo)
 import inhalt_mbraster  # noqa: E402  (MBRASTER: Boden-Raster wie 3ds Max / Blender)
+import inhalt_mbnav  # noqa: E402  (MBNAV: Navigation in den Ansichten wie 3ds Max / Blender)
 
 X = {
     "titel": ("Model tab: view and check", "Model-Tab: Ansehen und Prüfen", "模型选项卡:查看与检查", "モデルタブ: 表示とチェック",
@@ -274,7 +275,7 @@ def seite():
             ("h2", "befehlsfeld", _t("h_befehl")),
             ("p", _t("befehl")),
             ("p", _t("sequenzen")),
-        ] + inhalt_mbkopf.bloecke() + inhalt_mbraster.bloecke() + [
+        ] + inhalt_mbkopf.bloecke() + inhalt_mbraster.bloecke() + inhalt_mbnav.bloecke() + [
             ("h2", "pruefen", _t("h_pruefen")),
             ("p", _t("pruefen")),
             ("h2", "max", _t("h_max")),
