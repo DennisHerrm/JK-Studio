@@ -129,83 +129,78 @@ void drawModellInsSkriptFenster() {
     if (g_app->leftMode != 2 || !g_app->settings.insSkriptOffen) { return; }
     ModellTab& t = mt();
     const float fs = ImGui::GetFontSize();
-    // die Hoehe passt sich beim ersten Oeffnen dem Inhalt an (y = 0) - der Knopf Einfuegen bleibt sichtbar
+    // die Hoehe passt sich dem Inhalt an (y = 0, unten schwebend nachgefuehrt) - die Knopfreihe bleibt sichtbar
     ImGui::SetNextWindowSize(ImVec2{fs * 32.0F, 0.0F}, ImGuiCond_FirstUseEver);
     if (dock::fensterBeginnen("modell.insskript")) {
-        ImGui::PushTextWrapPos(0.0F);
-        // Animation
-        cjkTextDisabled("%s", tr(Str::MbInsSkriptAnim));
-        ImGui::SameLine();
-        const bool hatAnim = t.insAnim >= 0 && static_cast<std::size_t>(t.insAnim) < g_app->animList.size();
-        ImGui::SetNextItemWidth(-1.0F);
-        if (ImGui::BeginCombo("##insanim", hatAnim ? g_app->animList[static_cast<std::size_t>(t.insAnim)].name.c_str() : "-")) {
-            for (std::size_t i = 0; i < g_app->animList.size(); ++i) {
-                if (ImGui::Selectable(g_app->animList[i].name.c_str(), static_cast<int>(i) == t.insAnim)) {
-                    modellInsSkriptOeffnen(static_cast<int>(i));
+        // UIFORM (shank 10.11.: "das muss sauberer gestaltet werden das Fenster. Damit es gleichmaessiger aussieht"): der
+        // Formular-Baustein - eine Beschriftungsspalte, alle Felder an derselben Kante und gleich breit, Knopfreihe unten rechts.
+        {
+            ui::Formular f({tr(Str::MbInsSkriptAnim), tr(Str::MbInsSkriptBefehl), tr(Str::MbInsSkriptFigur), tr(Str::MbInsSkriptZiel)});
+            // Animation: Ausklapper, im Feld der Knopf "gewaehlte Animation nehmen"
+            f.zeile(tr(Str::MbInsSkriptAnim));
+            const bool hatAnim = t.insAnim >= 0 && static_cast<std::size_t>(t.insAnim) < g_app->animList.size();
+            ui::Formular::feldMitKnopf();
+            if (ImGui::BeginCombo("##insanim", hatAnim ? g_app->animList[static_cast<std::size_t>(t.insAnim)].name.c_str() : "-")) {
+                for (std::size_t i = 0; i < g_app->animList.size(); ++i) {
+                    if (ImGui::Selectable(g_app->animList[i].name.c_str(), static_cast<int>(i) == t.insAnim)) {
+                        modellInsSkriptOeffnen(static_cast<int>(i));
+                    }
                 }
+                ImGui::EndCombo();
             }
-            ImGui::EndCombo();
-        }
-        if (ImGui::Button(tr(Str::MbInsSkriptGewaehlte))) { modellInsSkriptOeffnen(g_app->animIndex); }
-        // Befehl
-        cjkTextDisabled("%s", tr(Str::MbInsSkriptBefehl));
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(-1.0F);
-        ImGui::Combo("##insbefehl", &t.insBefehl, kBefehle, kBefehlZahl);
-        if (t.insBefehl >= 3) {
-            ImGui::SetNextItemWidth(fs * 8.0F);
-            ImGui::InputInt(tr(Str::MbInsSkriptMs), &t.insHalteMs, 50, 1000);
-            t.insHalteMs = std::max(t.insHalteMs, -1);
-        }
-        // Figur (affect) - leer: ohne affect, in den gewaehlten Block
-        cjkTextDisabled("%s", tr(Str::MbInsSkriptFigur));
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(-fs * 2.0F);
-        ImGui::InputTextWithHint("##insfigur", tr(Str::MbInsSkriptFigurHint), t.insFigur, sizeof t.insFigur);
-        ImGui::SameLine();
-        if (ImGui::ArrowButton("##insfiguren", ImGuiDir_Down)) { ImGui::OpenPopup("##insfigurwahl"); }
-        if (ImGui::BeginPopup("##insfigurwahl")) {
+            if (f.feldKnopf("##insgewaehlte", UiIcon::Zielen, tr(Str::MbInsSkriptGewaehlte), tr(Str::UfGewaehlteHint), true)) {
+                modellInsSkriptOeffnen(g_app->animIndex);
+            }
+            // Befehl, bei den Haltezeiten darunter die Dauer
+            f.zeile(tr(Str::MbInsSkriptBefehl));
+            ImGui::Combo("##insbefehl", &t.insBefehl, kBefehle, kBefehlZahl);
+            if (t.insBefehl >= 3) {
+                f.zeileOhne();
+                const ImGuiStyle& st = ImGui::GetStyle();
+                ImGui::SetNextItemWidth(f.feldBreite() - ImGui::CalcTextSize(tr(Str::MbInsSkriptMs)).x - st.ItemInnerSpacing.x);
+                ImGui::InputInt(tr(Str::MbInsSkriptMs), &t.insHalteMs, 50, 1000);
+                t.insHalteMs = std::max(t.insHalteMs, -1);
+            }
+            // Figur (affect): EIN Feld mit Liste - leer: ohne affect, in den gewaehlten Block
+            f.zeile(tr(Str::MbInsSkriptFigur));
             std::set<std::string> namen = {"player"};
             for (const Actor& a : g_app->scene.actors) {
                 if (!a.name.empty()) { namen.insert(a.name); }
             }
-            for (const std::string& n : namen) {
-                if (ImGui::Selectable(n.c_str())) { std::snprintf(t.insFigur, sizeof t.insFigur, "%s", n.c_str()); }
+            (void)f.eingabeMitListe("##insfigur", t.insFigur, sizeof t.insFigur, "", std::vector<std::string>(namen.begin(), namen.end()));
+            f.hinweis(tr(Str::MbInsSkriptFigurHint));
+            // Zielskript: die offenen Reiter und ein neues
+            f.zeile(tr(Str::MbInsSkriptZiel));
+            const std::string zielName = t.insZiel == -1 ? std::string(tr(Str::MbInsSkriptNeu))
+                                                         : reiterName(t.insZiel < 0 ? g_app->activeTab : t.insZiel);
+            if (ImGui::BeginCombo("##insziel", zielName.c_str())) {
+                const std::size_t n = std::max<std::size_t>(g_app->tabs.size(), 1U);
+                for (std::size_t i = 0; i < n; ++i) {
+                    ImGui::PushID(static_cast<int>(i));
+                    const bool gew = (t.insZiel < 0 && t.insZiel != -1 && static_cast<int>(i) == g_app->activeTab) || t.insZiel == static_cast<int>(i);
+                    if (ImGui::Selectable(reiterName(static_cast<int>(i)).c_str(), gew)) { t.insZiel = static_cast<int>(i); }
+                    ImGui::PopID();
+                }
+                if (ImGui::Selectable(tr(Str::MbInsSkriptNeu), t.insZiel == -1)) { t.insZiel = -1; }
+                ImGui::EndCombo();
             }
-            ImGui::EndPopup();
-        }
-        // Zielskript: die offenen Reiter und ein neues
-        cjkTextDisabled("%s", tr(Str::MbInsSkriptZiel));
-        ImGui::SameLine();
-        const std::string zielName = t.insZiel == -1 ? std::string(tr(Str::MbInsSkriptNeu))
-                                                     : reiterName(t.insZiel < 0 ? g_app->activeTab : t.insZiel);
-        ImGui::SetNextItemWidth(-1.0F);
-        if (ImGui::BeginCombo("##insziel", zielName.c_str())) {
-            const std::size_t n = std::max<std::size_t>(g_app->tabs.size(), 1U);
-            for (std::size_t i = 0; i < n; ++i) {
-                ImGui::PushID(static_cast<int>(i));
-                const bool gew = (t.insZiel < 0 && t.insZiel != -1 && static_cast<int>(i) == g_app->activeTab) || t.insZiel == static_cast<int>(i);
-                if (ImGui::Selectable(reiterName(static_cast<int>(i)).c_str(), gew)) { t.insZiel = static_cast<int>(i); }
-                ImGui::PopID();
+            // Vorschau im Code-Kasten, Meldung, Knopfreihe
+            const std::string zeile = modellInsSkriptZeile();
+            f.codeVorschau("##insvorschau", tr(Str::MbInsSkriptVorschau), zeile);
+            const bool fehler = t.insMeldung == tr(Str::MbInsSkriptUngueltig);
+            if (fehler) {
+                f.fehler(t.insMeldung.c_str());
+            } else {
+                f.hinweis(t.insMeldung.c_str());
             }
-            if (ImGui::Selectable(tr(Str::MbInsSkriptNeu), t.insZiel == -1)) { t.insZiel = -1; }
-            ImGui::EndCombo();
+            // Nach dem Einfuegen heisst der zweite Knopf "Schliessen" (es ist nichts mehr abzubrechen).
+            const char* zweiter = t.insMeldung.empty() || fehler ? tr(Str::UfAbbrechen) : tr(Str::UfSchliessen);
+            switch (f.knoepfe(tr(Str::MbInsSkriptEinfuegen), zweiter, !zeile.empty(), tr(Str::MbInsSkriptEinfuegenHint))) {
+                case ui::Formular::Knopf::Haupt: (void)modellInsSkriptEinfuegen(); break;
+                case ui::Formular::Knopf::Abbrechen: g_app->settings.insSkriptOffen = false; break;
+                case ui::Formular::Knopf::Keiner: break;
+            }
         }
-        // Vorschau und Einfuegen
-        ImGui::Separator();
-        cjkTextDisabled("%s", tr(Str::MbInsSkriptVorschau));
-        const std::string zeile = modellInsSkriptZeile();
-        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_PlotLines));
-        cjkTextUnformatted(zeile.empty() ? "-" : zeile.c_str());
-        ImGui::PopStyleColor();
-        ImGui::BeginDisabled(zeile.empty());
-        if (ImGui::Button(tr(Str::MbInsSkriptEinfuegen))) { (void)modellInsSkriptEinfuegen(); }
-        ImGui::EndDisabled();
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_AllowWhenDisabled)) {
-            ImGui::SetTooltip("%s", tr(Str::MbInsSkriptEinfuegenHint));
-        }
-        if (!t.insMeldung.empty()) { cjkTextDisabled("%s", t.insMeldung.c_str()); }
-        ImGui::PopTextWrapPos();
         // Schwebend so hoch wie der Inhalt: die Startlage der Panels (startLage) ist niedriger, und Einfuegen lag unter dem
         // Rand (Handbuchfoto mb2_hb_mb1a2: nur halb zu sehen). Angedockt bestimmt der Knoten die Hoehe.
         if (!ImGui::IsWindowDocked()) {
