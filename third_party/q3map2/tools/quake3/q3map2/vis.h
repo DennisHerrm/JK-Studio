@@ -115,7 +115,13 @@ struct pstack_t
 	int sephave[ 2 ];
 	int sepedge[ 2 ];
 #endif
-	uint64_t geo;                       /* BehavEd vis2s: memo id of ( source, pass ), 0: none */
+	/* BehavEd vis2s: the windings in the geometry memo */
+	uint32_t geo;                       /* memo id of ( source, pass ), 0: none */
+	uint32_t geoslot;                   /* where the memo keeps their points */
+	bool geofresh;                      /* the id is new: the memo knows nothing about it yet */
+	bool lazy;                          /* source and pass are not here, only their id (BhedGeoWindings) */
+	uint8_t geobefore[2];               /* lazy: planes in the two separator caches before this portal */
+	pstack_t            *prev;          /* the frame above */
 };
 
 

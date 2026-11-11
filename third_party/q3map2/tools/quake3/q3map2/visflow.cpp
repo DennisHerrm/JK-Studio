@@ -34,6 +34,9 @@
 #include "timer.h"
 
 #include <immintrin.h>
+#if defined( _MSC_VER )
+#include <intrin.h>     /* _umul128 */
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -704,14 +707,24 @@ static void BhedStopFlows(){
 /* BehavEd vis2s: the geometry memo of the flows (BhedGeoMemo below) - its size and what it did */
 namespace
 {
-std::atomic<uint64_t> g_bhedGeoKnown{ 0 }, g_bhedGeoMade{ 0 }, g_bhedGeoLost{ 0 }, g_bhedGeoPlanes{ 0 };
+std::atomic<uint64_t> g_bhedGeoKnown{ 0 }, g_bhedGeoMade{ 0 }, g_bhedGeoAgain{ 0 }, g_bhedGeoPlanes{ 0 }, g_bhedGeoEmptied{ 0 }, g_bhedGeoRefused{ 0 };
 
 int BhedGeoBits(){
 	static const int bits = []{
 		const char *value = getenv( "BHED_VIS_GEOMEMO" );
-		return value != nullptr ? std::clamp( atoi( value ), 0, 20 ) : 12;
+		return value != nullptr ? std::clamp( atoi( value ), 0, 20 ) : 14;
 	}();
 	return bits;
+}
+
+/* the last id a memo gives out before it has to start again empty (BhedGeoMemo::begin);
+   BHED_VIS_GEOMEMO_IDS: a small number, for the ctest */
+uint32_t BhedGeoLastId(){
+	static const uint32_t last = []{
+		const char *value = getenv( "BHED_VIS_GEOMEMO_IDS" );
+		return value != nullptr ? uint32_t( std::clamp( atoi( value ), 2, INT_MAX ) ) : UINT32_MAX;
+	}();
+	return last;
 }
 }
 
@@ -813,9 +826,10 @@ void BhedRunFlow( void ( *flow )( int ) ){
 	}
 	Sys_Printf( " (%i)\n", int( timer.elapsed_sec() ) );
 	if ( BhedGeoBits() > 0 && g_bhedGeoKnown + g_bhedGeoMade != 0 ) {
-		Sys_FPrintf( SYS_VRB, "BehavEd: geometry memo (2^%i states a thread): %llu portals known, %llu computed, %llu states overwritten, %llu planes made again\n",
+		Sys_FPrintf( SYS_VRB, "BehavEd: geometry memo (2^%i states a thread): %llu portals known, %llu computed, %llu windings made again, %llu planes made again, emptied %llu times, %llu states without id\n",
 		             BhedGeoBits(), (unsigned long long)g_bhedGeoKnown.load(), (unsigned long long)g_bhedGeoMade.load(),
-		             (unsigned long long)g_bhedGeoLost.load(), (unsigned long long)g_bhedGeoPlanes.load() );
+		             (unsigned long long)g_bhedGeoAgain.load(), (unsigned long long)g_bhedGeoPlanes.load(),
+		             (unsigned long long)g_bhedGeoEmptied.load(), (unsigned long long)g_bhedGeoRefused.load() );
 	}
 }
 
@@ -1592,99 +1606,189 @@ void PassageFlow( int portalnum ){
    the number of planes each of the two separator caches holds at that moment - not of the bit
    vectors and not of anything found so far. The memo keeps this function:
      state:   ( flow, points of source, points of pass ) -> id, compared point by point
-     outcome: ( id, p, planes cached before ) -> planes cached after, clipped away or the id and the
+     outcome: ( id, p, planes cached before ) -> planes cached after, clipped away or the id of the
               windings behind p
-   A frame that finds its portal in the memo takes the windings from there and makes no plane and no
-   cut. The caches then hold fewer planes than NRC's code counts (pstack_t::sephave); a later portal of
-   the frame that is not in the memo makes the missing ones again (BhedSeperatorsHave) - the same
-   planes, they depend on the windings of the frame only. Same bits as without the memo, for any
-   size of the tables: a slot that is overwritten gets a new id, an id is never used twice.
-   BHED_VIS_GEOMEMO=<n> sets the size (2^n states and four times as many outcomes for each thread,
-   12 if not set: 1.4 MB), 0 switches the memo off - for measurements and for the ctest, which runs
+   A frame that finds its portal in the memo makes no plane and no cut, and it does not fetch the
+   windings behind p either: the frame below gets their id only (pstack_t::lazy) and goes on through
+   the outcomes of that id. Only when a portal down there is not in the memo the points are taken
+   from the state - or, if its slot has been overwritten meanwhile, made again from the windings of
+   the frame above (BhedGeoWindings). The caches then hold fewer planes than NRC's code counts
+   (pstack_t::sephave); a later portal of the frame that is not in the memo makes the missing ones
+   again (BhedSeperatorsHave) - the same planes, they depend on the windings of the frame only.
+   Same bits as without the memo, for any size of the tables: an id stands for one ( flow, source,
+   pass ) as long as the memo is not emptied, whatever is overwritten, and nothing is taken from a
+   slot without comparing the id or the points.
+   The outcomes lie in buckets of four (one cache line; a new one takes an empty place or that of the
+   oldest state), and the bucket is fetched while the frame still makes its bit vectors. A state that
+   was just put into the memo cannot have outcomes yet: its frame asks for none.
+   BHED_VIS_GEOMEMO=<n> sets the size (2^n states and eight times as many outcomes for each thread,
+   14 if not set: 5.5 MB), 0 switches the memo off - for measurements and for the ctest, which runs
    a small memo (16 states) to get at the overwritten slots.
-   md_ch_ben: 45 % of the portals come from the memo, 10 to 14 % less CPU time; t3_byss and
-   duel_mos_espa: 26 to 28 %, 2 to 3 % (measured beside other load, docs/intern/NOTIZEN_vis2s_1011.md). */
+   What it brings and why this size (md_ch_ben, ctf3, t3_byss, duel_mos_espa): docs/intern/NOTIZEN_vis2s_1011.md. */
+
+/* 64 x 64 -> 128 bits, the two halves folded (hash of the points) */
+static uint64_t BhedFoldMul( uint64_t a, uint64_t b ){
+#if defined( _MSC_VER )
+	uint64_t high;
+	const uint64_t low = _umul128( a, b, &high );
+	return low ^ high;
+#else
+	const unsigned __int128 product = static_cast<unsigned __int128>( a ) * b;
+	return uint64_t( product ) ^ uint64_t( product >> 64 );
+#endif
+}
+
 struct BhedGeoMemo
 {
 	static constexpr int c_points = 16;         /* points of source and pass together, more: not in the memo */
-	static constexpr uint32_t c_gone = ~uint32_t( 0 );
 	struct State
 	{
-		uint64_t id;                            /* 0: empty */
-		uint64_t hash;
+		uint32_t id;                            /* 0: empty */
+		uint32_t tag;                           /* upper half of the hash */
 		int32_t flow;
 		uint8_t numsource, numpass;
 		Vector3 points[c_points];               /* source, then pass */
 	};
-	struct Outcome
+	struct Outcome                              /* four make a bucket: one cache line */
 	{
-		uint64_t state;                         /* id of the frame's windings, 0: empty */
-		uint32_t pnum;
-		uint8_t before[2], after[2];            /* planes in the two separator caches */
-		uint32_t slot;                          /* state behind the portal, c_gone: clipped away */
-		uint32_t unused;
-		uint64_t id;
+		uint32_t state;                         /* id of the frame's windings, 0: empty */
+		uint32_t key;                           /* BhedGeoMemo::key */
+		uint32_t id;                            /* the windings behind the portal, 0: clipped away */
+		uint32_t where;                         /* their slot | planes in the two separator caches after: << 20, << 26 */
 	};
-	const bool on;
-	const size_t numstates, numoutcomes;
+	static constexpr int c_outcomes = 3;        /* 2^c_outcomes outcomes for each state */
+	const int bits;                             /* 2^bits states, 0: no memo */
+	const uint32_t lastId;
 	State *states;
-	Outcome *outcomes;
-	uint64_t ids = 0;
-	uint64_t known = 0, made = 0, lost = 0, planes = 0;    /* portals taken from the memo, computed, states overwritten, planes made again */
+	void *block;                                /* the memory of outcomes */
+	Outcome *outcomes;                          /* on a cache line boundary */
+	uint32_t ids = 0;
+	int flows = 0;                              /* flows that use the memo at this moment */
+	/* portals taken from the memo, computed, windings and planes made again, memo emptied, states that got no id */
+	uint64_t known = 0, made = 0, again = 0, planes = 0, emptied = 0, refused = 0;
 
-	BhedGeoMemo() : on( BhedGeoBits() > 0 ), numstates( size_t( 1 ) << std::max( BhedGeoBits(), 1 ) ), numoutcomes( numstates * 4 ),
-		states( static_cast<State*>( safe_calloc( numstates * sizeof( State ) ) ) ),
-		outcomes( static_cast<Outcome*>( safe_calloc( numoutcomes * sizeof( Outcome ) ) ) ){
+	BhedGeoMemo() : bits( BhedGeoBits() ), lastId( BhedGeoLastId() ),
+		states( bits > 0 ? static_cast<State*>( safe_calloc( ( size_t( 1 ) << bits ) * sizeof( State ) ) ) : nullptr ),
+		block( bits > 0 ? safe_calloc( outcomeBytes() + 64 ) : nullptr ),
+		outcomes( reinterpret_cast<Outcome*>( ( reinterpret_cast<uintptr_t>( block ) + 63 ) & ~uintptr_t( 63 ) ) ){
+		static_assert( sizeof( Outcome ) == 16 );
 	}
 	~BhedGeoMemo(){
 		free( states );
-		free( outcomes );
+		free( block );
+	}
+	size_t outcomeBytes() const {
+		return ( size_t( 1 ) << ( bits + c_outcomes ) ) * sizeof( Outcome );
 	}
 	BhedGeoMemo( const BhedGeoMemo& ) = delete;
 	BhedGeoMemo& operator=( const BhedGeoMemo& ) = delete;
 
-	Outcome& outcome( uint64_t state, int pnum, int before0, int before1 ){
-		const uint64_t h = state * 0x9E3779B97F4A7C15ull + uint64_t( pnum ) * 0xC2B2AE3D27D4EB4Full
-		                   + uint64_t( before0 * 32 + before1 ) * 0x165667B19E3779F9ull;
-		return outcomes[( h >> 40 ) & ( numoutcomes - 1 )];
+	/* A flow begins. The ids have 32 bits: when half of them are used up, the memo starts again empty -
+	   only between two flows, a running flow holds ids in its frames. A single flow that needs more
+	   than the other half goes on without new states (intern). */
+	void begin(){
+		if ( flows++ == 0 && ids >= lastId / 2 && bits > 0 ) {
+			memset( states, 0, ( size_t( 1 ) << bits ) * sizeof( State ) );
+			memset( outcomes, 0, outcomeBytes() );
+			ids = 0;
+			++emptied;
+		}
+	}
+	void end(){
+		--flows;
 	}
 
-	/* the id of ( flow, source, pass ) and its slot; 0: too many points */
-	uint64_t intern( int flow, const fixedWinding_t *source, const fixedWinding_t *pass, uint32_t& slot ){
-		const int numsource = source->numpoints, numpass = pass->numpoints;
-		if ( !on || numsource + numpass > c_points ) {
-			return 0;
-		}
-		uint64_t h = ( uint64_t( uint32_t( flow ) ) << 16 | uint64_t( numsource ) << 8 | uint64_t( numpass ) ) * 0x9E3779B97F4A7C15ull;
-		const auto mix = [&h]( const fixedWinding_t *w ){
+	/* a portal number has 18 bits; a frame with an id has at most c_points points and so at most
+	   c_points planes in a cache (one for each edge of source) - the caller checks the 6 bits */
+	static uint32_t key( int pnum, int before0, int before1 ){
+		static_assert( MAX_MAP_PORTALS * 2 <= 1 << 18 );
+		return uint32_t( pnum ) | uint32_t( before0 ) << 18 | uint32_t( before1 ) << 24;
+	}
+	/* the bucket of ( state, key ): four outcomes */
+	Outcome *bucket( uint32_t state, uint32_t key ){
+		return outcomes + ( ( ( uint64_t( state ) << 32 | key ) * 0x9E3779B97F4A7C15ull ) >> ( 66 - bits - c_outcomes ) << 2 );
+	}
+	static const Outcome *find( const Outcome *bucket, uint32_t state, uint32_t key ){
+		for ( int i = 0; i < 4; ++i )
+			if ( bucket[i].state == state && bucket[i].key == key ) {
+				return bucket + i;
+			}
+		return nullptr;
+	}
+	/* where a new outcome goes: an empty place, else the one of the oldest state */
+	static Outcome& place( Outcome *bucket ){
+		Outcome *oldest = bucket;
+		for ( int i = 1; i < 4; ++i )
+			if ( bucket[i].state < oldest->state ) {
+				oldest = bucket + i;
+			}
+		return *oldest;
+	}
+
+	uint64_t hash( int flow, const fixedWinding_t *source, const fixedWinding_t *pass ) const {
+		uint64_t h = uint64_t( uint32_t( flow ) ) << 16 | uint64_t( source->numpoints ) << 8 | uint64_t( pass->numpoints );
+		uint64_t n = 0;
+		for ( const fixedWinding_t *w : { source, pass } )
 			for ( int i = 0; i < w->numpoints; ++i )
 			{
+				/* a product for each point, none waits for another */
 				uint64_t a;
 				uint32_t b;
 				memcpy( &a, &w->points[i], 8 );
 				memcpy( &b, reinterpret_cast<const char*>( &w->points[i] ) + 8, 4 );
-				h = ( h ^ a ) * 0xFF51AFD7ED558CCDull;
-				h = ( h ^ ( h >> 32 ) ^ b ) * 0xC4CEB9FE1A85EC53ull;
+				n += 0x9E3779B97F4A7C15ull;
+				h += BhedFoldMul( a ^ n, b ^ 0xC2B2AE3D27D4EB4Full );
 			}
-		};
-		mix( source );
-		mix( pass );
-		h ^= h >> 29;
-		slot = uint32_t( h & ( numstates - 1 ) );
+		return BhedFoldMul( h, 0xFF51AFD7ED558CCDull );
+	}
+	static bool same( const State& s, int flow, const fixedWinding_t *source, const fixedWinding_t *pass ){
+		return s.flow == flow && s.numsource == source->numpoints && s.numpass == pass->numpoints
+		    && memcmp( s.points, source->points, source->numpoints * sizeof( Vector3 ) ) == 0
+		    && memcmp( s.points + source->numpoints, pass->points, pass->numpoints * sizeof( Vector3 ) ) == 0;
+	}
+	static void store( State& s, uint32_t id, uint32_t tag, int flow, const fixedWinding_t *source, const fixedWinding_t *pass ){
+		s.id = id;
+		s.tag = tag;
+		s.flow = flow;
+		s.numsource = uint8_t( source->numpoints );
+		s.numpass = uint8_t( pass->numpoints );
+		memcpy( s.points, source->points, source->numpoints * sizeof( Vector3 ) );
+		memcpy( s.points + source->numpoints, pass->points, pass->numpoints * sizeof( Vector3 ) );
+	}
+
+	/* the id of ( flow, source, pass ) and its slot, 0: none (too many points, or the ids ran out);
+	   fresh: the id is new, no outcome can have it yet */
+	uint32_t intern( int flow, const fixedWinding_t *source, const fixedWinding_t *pass, uint32_t& slot, bool& fresh ){
+		if ( bits == 0 || source->numpoints + pass->numpoints > c_points ) {
+			return 0;
+		}
+		const uint64_t h = hash( flow, source, pass );
+		slot = uint32_t( h ) & ( ( uint32_t( 1 ) << bits ) - 1 );
 		State& s = states[slot];
-		if ( s.id != 0 && s.hash == h && s.flow == flow && s.numsource == numsource && s.numpass == numpass
-		  && memcmp( s.points, source->points, numsource * sizeof( Vector3 ) ) == 0
-		  && memcmp( s.points + numsource, pass->points, numpass * sizeof( Vector3 ) ) == 0 ) {
+		if ( s.id != 0 && s.tag == uint32_t( h >> 32 ) && same( s, flow, source, pass ) ) {
 			return s.id;
 		}
-		s.id = ++ids;
-		s.hash = h;
-		s.flow = flow;
-		s.numsource = uint8_t( numsource );
-		s.numpass = uint8_t( numpass );
-		memcpy( s.points, source->points, numsource * sizeof( Vector3 ) );
-		memcpy( s.points + numsource, pass->points, numpass * sizeof( Vector3 ) );
-		return s.id;
+		if ( ids >= lastId ) {
+			++refused;
+			return 0;
+		}
+		fresh = true;
+		store( s, ++ids, uint32_t( h >> 32 ), flow, source, pass );
+		return ids;
+	}
+
+	/* the points of an id whose slot was overwritten were made again: back into the slot. False if
+	   they do not belong there - then they are not the points the id was given for. */
+	bool restore( uint32_t id, uint32_t slot, int flow, const fixedWinding_t *source, const fixedWinding_t *pass ){
+		const uint64_t h = hash( flow, source, pass );
+		if ( source->numpoints + pass->numpoints > c_points || ( uint32_t( h ) & ( ( uint32_t( 1 ) << bits ) - 1 ) ) != slot ) {
+			return false;
+		}
+		State& s = states[slot];
+		if ( s.id == 0 || s.tag != uint32_t( h >> 32 ) || !same( s, flow, source, pass ) ) {
+			store( s, id, uint32_t( h >> 32 ), flow, source, pass );
+		}
+		return true;
 	}
 };
 
@@ -1700,9 +1804,42 @@ static BhedGeoMemo *BhedGeoThreadMemo(){
 static void BhedGeoCount( BhedGeoMemo& memo ){
 	g_bhedGeoKnown += memo.known;
 	g_bhedGeoMade += memo.made;
-	g_bhedGeoLost += memo.lost;
+	g_bhedGeoAgain += memo.again;
 	g_bhedGeoPlanes += memo.planes;
-	memo.known = memo.made = memo.lost = memo.planes = 0;
+	g_bhedGeoEmptied += memo.emptied;
+	g_bhedGeoRefused += memo.refused;
+	memo.known = memo.made = memo.again = memo.planes = memo.emptied = memo.refused = 0;
+}
+
+static bool BhedPortalGeometry( threaddata_t *thread, pstack_t *prevstack, pstack_t& stack, vportal_t *p );
+
+/* The windings of a frame that got only their id from the memo (pstack_t::lazy) are needed after all:
+   from the state of the id, or - its slot has been overwritten - by the geometry of the frame's
+   portal once more, with the separator caches as they were when the memo answered. */
+static void BhedGeoWindings( threaddata_t *thread, pstack_t& stack ){
+	BhedGeoMemo& memo = *thread->geo;
+	stack.lazy = false;
+	const BhedGeoMemo::State& behind = memo.states[stack.geoslot];
+	if ( behind.id == stack.geo ) {
+		stack.windings[0].numpoints = behind.numsource;
+		memcpy( stack.windings[0].points, behind.points, behind.numsource * sizeof( Vector3 ) );
+		stack.windings[1].numpoints = behind.numpass;
+		memcpy( stack.windings[1].points, behind.points + behind.numsource, behind.numpass * sizeof( Vector3 ) );
+		stack.source = &stack.windings[0];
+		stack.pass = &stack.windings[1];
+		return;
+	}
+	const int after0 = stack.numseperators[0], after1 = stack.numseperators[1];
+	stack.numseperators[0] = stack.geobefore[0];
+	stack.numseperators[1] = stack.geobefore[1];
+	stack.freewindings[0] = 1;
+	stack.freewindings[1] = 1;
+	stack.freewindings[2] = 1;
+	if ( !BhedPortalGeometry( thread, stack.prev, stack, stack.portal ) || stack.numseperators[0] != after0 || stack.numseperators[1] != after1
+	  || !memo.restore( stack.geo, stack.geoslot, int( thread->base - portals ), stack.source, stack.pass ) ) {
+		Error( "BhedGeoWindings: the geometry memo does not match the geometry" );
+	}
+	++memo.again;
 }
 
 /* the separator cache `flip` of the frame really holds the planes NRC's code counts for it (see BhedGeoMemo) */
@@ -1727,6 +1864,10 @@ static void BhedSeperatorsHave( BhedGeoMemo& memo, const pstack_t *prevstack, ps
    windings behind p in stack.source and stack.pass, false: p cannot be seen */
 static bool BhedPortalGeometry( threaddata_t *thread, pstack_t *prevstack, pstack_t& stack, vportal_t *p ){
 	int n;
+
+	if ( prevstack->lazy ) {
+		BhedGeoWindings( thread, *prevstack );
+	}
 
 #if 1
 	{
@@ -1855,6 +1996,8 @@ static void RecursivePassagePortalFlow( vportal_t *portal, threaddata_t *thread,
 	stack.leaf = leaf;
 	stack.portal = nullptr;
 	stack.depth = prevstack->depth + 1;
+	stack.prev = prevstack;
+	stack.lazy = false;
 	BhedFrameBuffers( stack );
 
 #ifdef SEPERATORCACHE
@@ -1868,7 +2011,8 @@ static void RecursivePassagePortalFlow( vportal_t *portal, threaddata_t *thread,
 
 	const uint64_t *vis = reinterpret_cast<const uint64_t*>( thread->base->portalvis );
 	BhedGeoMemo& memo = *thread->geo;
-	const uint64_t geo = prevstack->geo;    /* the windings of this frame in the memo, 0: not there */
+	const uint32_t geo = prevstack->geo;    /* the windings of this frame in the memo, 0: not there */
+	const bool fresh = prevstack->geofresh; /* just put there: none of its portals can be known */
 	const int flow = int( thread->base - portals );
 
 	const passage_t *passage = portal->passages;
@@ -1887,6 +2031,16 @@ static void RecursivePassagePortalFlow( vportal_t *portal, threaddata_t *thread,
 
 		if ( !bit_is_enabled( reinterpret_cast<const byte*>( prevstack->mightsee ), pnum ) ) {
 			continue;   // can't possibly see it
+		}
+		/* BehavEd vis2s: where the geometry memo has this portal - into the cache while the bit vectors are made */
+		const int before0 = stack.numseperators[0], before1 = stack.numseperators[1];
+		const uint32_t key = BhedGeoMemo::key( pnum, before0, before1 );
+		BhedGeoMemo::Outcome *bucket = nullptr;
+		if ( geo != 0 && ( before0 | before1 ) < 64 ) {
+			bucket = memo.bucket( geo, key );
+			if ( !fresh ) {
+				_mm_prefetch( reinterpret_cast<const char*>( bucket ), _MM_HINT_T0 );
+			}
 		}
 		/* BehavEd vis1: only the words nonzero in the previous vector and cansee (the rest is zero) */
 		const uint64_t *portalvis = BhedVector( thread, p );
@@ -1919,51 +2073,41 @@ static void RecursivePassagePortalFlow( vportal_t *portal, threaddata_t *thread,
 		stack.freewindings[2] = 1;
 
 		/* BehavEd vis2s: the geometry, from the memo where it has been done before */
-		BhedGeoMemo::Outcome *outcome = nullptr;
-		const int before0 = stack.numseperators[0], before1 = stack.numseperators[1];
 		bool known = false;
-		if ( geo != 0 ) {
-			outcome = &memo.outcome( geo, pnum, before0, before1 );
-			if ( outcome->state == geo && outcome->pnum == uint32_t( pnum ) && outcome->before[0] == before0 && outcome->before[1] == before1 ) {
-				if ( outcome->slot == BhedGeoMemo::c_gone ) {
-					stack.numseperators[0] = outcome->after[0];
-					stack.numseperators[1] = outcome->after[1];
-					++memo.known;
+		if ( bucket != nullptr && !fresh ) {
+			if ( const BhedGeoMemo::Outcome *outcome = BhedGeoMemo::find( bucket, geo, key ) ) {
+				stack.numseperators[0] = int( outcome->where >> 20 & 63 );
+				stack.numseperators[1] = int( outcome->where >> 26 );
+				++memo.known;
+				if ( outcome->id == 0 ) {
 					continue;
 				}
-				const BhedGeoMemo::State& behind = memo.states[outcome->slot];
-				if ( behind.id != outcome->id ) {
-					++memo.lost;    /* the state was overwritten: once more */
-				}
-				else{
-					++memo.known;
-					stack.numseperators[0] = outcome->after[0];
-					stack.numseperators[1] = outcome->after[1];
-					stack.windings[0].numpoints = behind.numsource;
-					memcpy( stack.windings[0].points, behind.points, behind.numsource * sizeof( Vector3 ) );
-					stack.windings[1].numpoints = behind.numpass;
-					memcpy( stack.windings[1].points, behind.points + behind.numsource, behind.numpass * sizeof( Vector3 ) );
-					stack.source = &stack.windings[0];
-					stack.pass = &stack.windings[1];
-					stack.geo = behind.id;
-					known = true;
-				}
+				/* only the id of the windings behind p - the frame below may never need the points */
+				stack.geo = outcome->id;
+				stack.geoslot = outcome->where & 0xFFFFF;
+				stack.geofresh = false;
+				stack.geobefore[0] = uint8_t( before0 );
+				stack.geobefore[1] = uint8_t( before1 );
+				stack.lazy = true;
+				stack.source = nullptr;
+				stack.pass = nullptr;
+				known = true;
 			}
 		}
 		if ( !known ) {
+			stack.lazy = false;
 			const bool visible = BhedPortalGeometry( thread, prevstack, stack, p );
-			uint32_t slot = BhedGeoMemo::c_gone;
-			stack.geo = visible ? memo.intern( flow, stack.source, stack.pass, slot ) : 0;
+			uint32_t slot = 0;
+			bool isnew = false;
+			stack.geo = visible ? memo.intern( flow, stack.source, stack.pass, slot, isnew ) : 0;
+			stack.geofresh = isnew;
 			++memo.made;
-			if ( outcome != nullptr && ( !visible || stack.geo != 0 ) && stack.numseperators[0] < 256 && stack.numseperators[1] < 256 ) {
-				outcome->state = geo;
-				outcome->pnum = uint32_t( pnum );
-				outcome->before[0] = uint8_t( before0 );
-				outcome->before[1] = uint8_t( before1 );
-				outcome->after[0] = uint8_t( stack.numseperators[0] );
-				outcome->after[1] = uint8_t( stack.numseperators[1] );
-				outcome->slot = slot;
-				outcome->id = stack.geo;
+			if ( bucket != nullptr && ( !visible || stack.geo != 0 ) && ( stack.numseperators[0] | stack.numseperators[1] ) < 64 ) {
+				BhedGeoMemo::Outcome& outcome = BhedGeoMemo::place( bucket );
+				outcome.state = geo;
+				outcome.key = key;
+				outcome.id = stack.geo;
+				outcome.where = slot | uint32_t( stack.numseperators[0] ) << 20 | uint32_t( stack.numseperators[1] ) << 26;
 			}
 			if ( !visible ) {
 				continue;
@@ -2018,8 +2162,10 @@ void PassagePortalFlow( int portalnum ){
 	data.pstack_head.portalplane = p->plane;
 	BhedHeadFrame( data.pstack_head, p );
 	data.geo = BhedGeoThreadMemo();
+	data.geo->begin();
 
 	RecursivePassagePortalFlow( p, &data, &data.pstack_head );
+	data.geo->end();
 	BhedGeoCount( *data.geo );
 	BhedHeadDone( data.pstack_head );
 	if ( g_bhedVisStop.load( std::memory_order_seq_cst ) ) {
