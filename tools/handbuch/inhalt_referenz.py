@@ -17,6 +17,12 @@ EINSTELLUNGEN = {
             "**{{MenuEdit}} → {{PathsTitle}}** nennt die Ordner, deren `.pk3`-Archive das Programm liest, je mit **{{PrefsUp}}**, **{{PrefsDown}}**, **{{PrefsRemove}}** und **{{PrefsOpenFolder}}**. Der unterste gewinnt gegen alles darüber, wie `fs_game` in der Engine `base` überschreibt. Ein Ordner ohne Archive sagt das - dann stimmt der Pfad nicht.",
             "**{{MenuEdit}} → {{PathsTitle}}** 列出程序读取其 `.pk3` 的文件夹,每个都有 **{{PrefsUp}}**、**{{PrefsDown}}**、**{{PrefsRemove}}** 和 **{{PrefsOpenFolder}}**。最下面的优先于上面所有文件夹,正如引擎中 `fs_game` 覆盖 `base`。没有压缩包的文件夹会给出提示——说明路径不对。",
             "**{{MenuEdit}} → {{PathsTitle}}** には、プログラムが `.pk3` を読むフォルダーが **{{PrefsUp}}**・**{{PrefsDown}}**・**{{PrefsRemove}}**・**{{PrefsOpenFolder}}** 付きで並びます。エンジンで `fs_game` が `base` を上書きするのと同じく、一番下が上のすべてより優先されます。アーカイブのないフォルダーはそう表示されるので、パスが間違っていると分かります。")),
+        # GDPFAD (rc612): ein eingerichteter Ordner, den es nicht mehr gibt
+        ("p", T(
+            "A folder that no longer exists - renamed, moved, or on a drive that is not connected - is named once in the status line when the game folders are read, and this window marks it with **{{GdOrdnerWeg}}**.",
+            "Einen Ordner, den es nicht mehr gibt - umbenannt, verschoben oder auf einem Laufwerk, das nicht angeschlossen ist -, nennt die Statuszeile einmal, wenn die Spielordner gelesen werden, und dieses Fenster markiert ihn mit **{{GdOrdnerWeg}}**.",
+            "已不存在的文件夹(被重命名、被移动,或所在驱动器未连接)会在读取游戏文件夹时在状态栏中提示一次,并在此窗口中标记为 **{{GdOrdnerWeg}}**。",
+            "存在しなくなったフォルダー(名前の変更、移動、接続されていないドライブ)は、ゲームフォルダーの読み込み時にステータス行に 1 回表示され、このウィンドウでは **{{GdOrdnerWeg}}** と表示されます。")),
         ("img", "h_spielordner", T(
             "The game folders.",
             "Die Spielordner.",

@@ -3989,6 +3989,8 @@ TEXTE = {
         "Složky hry",
     "**{{MenuEdit}} → {{PathsTitle}}** lists the folders whose `.pk3` archives the program reads, with **{{PrefsUp}}**, **{{PrefsDown}}**, **{{PrefsRemove}}** and **{{PrefsOpenFolder}}** for each. The bottom one wins over everything above it, as `fs_game` overrides `base` in the engine. A folder without archives says so - then the path is wrong.":
         "**{{MenuEdit}} → {{PathsTitle}}** vypíše složky, jejichž archivy `.pk3` program čte, s **{{PrefsUp}}**, **{{PrefsDown}}**, **{{PrefsRemove}}** a **{{PrefsOpenFolder}}** u každé. Dolní vyhrává nade vším nad ní, jako `fs_game` v enginu přepisuje `base`. Složka bez archivů to oznámí - pak je cesta špatně.",
+    "A folder that no longer exists - renamed, moved, or on a drive that is not connected - is named once in the status line when the game folders are read, and this window marks it with **{{GdOrdnerWeg}}**.":
+        "Složku, která už neexistuje (přejmenovaná, přesunutá nebo na disku, který není připojen), uvede stavový řádek jednou při načítání složek hry a toto okno ji označí textem **{{GdOrdnerWeg}}**.",
     "The game folders.":
         "Složky hry.",
     "Jedi Outcast (JK2)":

@@ -3992,6 +3992,8 @@ TEXTE = {
         "Carpetas del juego",
     "**{{MenuEdit}} → {{PathsTitle}}** lists the folders whose `.pk3` archives the program reads, with **{{PrefsUp}}**, **{{PrefsDown}}**, **{{PrefsRemove}}** and **{{PrefsOpenFolder}}** for each. The bottom one wins over everything above it, as `fs_game` overrides `base` in the engine. A folder without archives says so - then the path is wrong.":
         "**{{MenuEdit}} → {{PathsTitle}}** lista las carpetas cuyos archivos `.pk3` lee el programa, con **{{PrefsUp}}**, **{{PrefsDown}}**, **{{PrefsRemove}}** y **{{PrefsOpenFolder}}** para cada una. La de abajo gana a todas las de encima, igual que `fs_game` sustituye a `base` en el motor. Una carpeta sin archivos .pk3 lo dice: entonces la ruta está mal.",
+    "A folder that no longer exists - renamed, moved, or on a drive that is not connected - is named once in the status line when the game folders are read, and this window marks it with **{{GdOrdnerWeg}}**.":
+        "Una carpeta que ya no existe (renombrada, movida o en una unidad que no está conectada) se nombra una vez en la línea de estado al leer las carpetas del juego, y esta ventana la marca con **{{GdOrdnerWeg}}**.",
     "The game folders.":
         "Las carpetas del juego.",
     "Jedi Outcast (JK2)":
