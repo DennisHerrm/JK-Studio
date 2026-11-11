@@ -54,7 +54,7 @@ struct BauPhasenMarke {
     std::string schluessel;   // Name ohne Klammern, mit Zaehler: "IlluminateRawLightmap#2"
     double start = 0.0;       // Sekunden seit Beginn des Schritts
     // lcb1: Anteil der Arbeit, den der Licht-Cache in dieser IlluminateRawLightmap-Phase neu rechnen liess
-    // (0..1, aus "light cache pass x of y: ... (p % of the work to trace)"); -1 unbekannt bzw. ohne Cache
+    // (0..1, aus "light cache pass x of y: ... (p % of the time to trace)"; lcb2: gemessene Zeit je Lightmap aus dem letzten Bau); -1 unbekannt bzw. ohne Cache
     double anteil = -1.0;
 };
 struct BauSchrittZeit {
@@ -70,7 +70,7 @@ struct BauLaufZeiten {
 //   "BehavEd: light cache found (geometry and switches unchanged, k of n passes kept)"
 //   "BehavEd: light cache found (geometry, shaders or brush entities changed: lightmaps are found by content, ...; k of n passes kept)" (lcb2)
 //   "BehavEd: light cache not usable: <grund> - everything is traced"
-//   "BehavEd: light cache pass x of y: a of b lightmaps from the cache (p % of the work to trace)"
+//   "BehavEd: light cache pass x of y: a of b lightmaps from the cache (p % of the time to trace)"
 //   "BehavEd: light cache: a of b lightmaps and ... taken from the cache, grid ...; m MB written" (alle Durchgaenge)
 struct BauLichtCache {
     enum class Zustand { Unbekannt, Gefunden, Aus };

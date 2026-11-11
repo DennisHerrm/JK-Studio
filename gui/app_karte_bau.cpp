@@ -2120,7 +2120,7 @@ void bauFortschrittZeichnen() {
             rest = trK(Str::KeFsRestUnbekannt);
         }
         std::snprintf(z, sizeof(z), trK(Str::KeFsVergangen), karte::bauZeitText(st.vergangen).c_str());
-        ImGui::TextUnformatted((std::string(z) + " - " + rest).c_str());
+        cjkTextWrapped("%s", (std::string(z) + " - " + rest).c_str());   // lcb2: bricht um (auf Spanisch laenger als das Fenster)
         ed.bauFortschrittText = rest;
         if (!g_lauf.visWarnung.empty() && st.stufe == "VIS") {   // Stufe 9d
             ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 127, 0, 255));   // wie Warnungen in der Konsole

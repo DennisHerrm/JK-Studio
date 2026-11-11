@@ -2087,11 +2087,15 @@ std::vector<Schritt> karte8HandbuchSchritte() {
         }
     }));
     add(stufe3::bauMenuepunkt("Handbuch"));
+    // lcb2: das Bild zeigt jetzt das ganze Fenster - die Maus weg von den Reitern links (sonst steht deren Tooltip im Bild)
+    add(tu("Maus auf die Statuszeile", [] { setzeMaus(ImVec2{12.0F, ImGui::GetIO().DisplaySize.y - 6.0F}); }));
     add(stufe8::warteSek("Handbuch Stufe 8: zweiter Bau im Licht, Bounce 3, Restzeit aus dem ersten, Licht-Cache-Zeile", [] {
         const ke::BauFortschrittStand st = ke::bauFortschrittStand();
         return st.laeuft && st.schritt == 2 && st.bounce >= 3 && st.schaetzung.ausVerlauf && st.lichtCache.pass >= 4 && st.lichtCache.aus >= 0;
     }, 120));
-    add(hb::fotoTeil("h_karte8_fortschritt", [] { return fensterRahmen("###kartebaufortschritt"); }));
+    // lcb2: das ganze Programmfenster (1920 breit), das Fenster Baufortschritt darin markiert
+    add(hb::fotoTeil("h_karte8_fortschritt", [] { return ImRect{0.0F, 0.0F, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y}; },
+                     [] { return std::vector<hb::Marke>{fensterRahmen("###kartebaufortschritt")}; }));
     add(stufe8::warteSek("Handbuch Stufe 8: zweiter Bau fertig", [] { return !ke::bauLaeuft(); }, 300));
     // 3. misc_model aus der Geometrie: die Testkarte ohne Editor-Daten bauen, als .bsp oeffnen
     add(tu("Handbuch Stufe 8: Testkarte mit misc_model ohne Editor-Daten bauen", [eintraegeWeg] {

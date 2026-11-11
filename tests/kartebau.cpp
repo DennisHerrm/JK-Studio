@@ -260,7 +260,7 @@ void fortschrittPruefen(const std::string& q3) {
         BauLichtCache c;
         const bool z1 = bauLichtCacheZeile("BehavEd: light cache found (geometry and switches unchanged, 9 of 9 passes kept)", c) &&
                         c.zustand == BauLichtCache::Zustand::Gefunden && c.behalten == 9 && c.paesse == 9;
-        const bool z2 = bauLichtCacheZeile("BehavEd: light cache pass 3 of 9: 812 of 840 lightmaps from the cache (2.5 % of the work to trace)", c) &&
+        const bool z2 = bauLichtCacheZeile("BehavEd: light cache pass 3 of 9: 812 of 840 lightmaps from the cache (2.5 % of the time to trace)", c) &&
                         c.pass == 3 && c.aus == 812 && c.alle == 840 && std::fabs(c.anteil - 0.025) < 1e-9;
         const bool z3 = bauLichtCacheZeile("BehavEd: light cache pass 3 of 9: 1 of 2 vertex lit surfaces from the cache, grid none", c) && c.aus == 812;
         const bool z4 = bauLichtCacheZeile("BehavEd: light cache: 7000 of 7560 lightmaps and 3 of 4 vertex lit surfaces taken from the cache, grid traced; 1.0 MB written", c) &&
@@ -289,7 +289,7 @@ void fortschrittPruefen(const std::string& q3) {
             b.text("--- IlluminateRawLightmap ---\n", 10.0);
             if (anteilProzent >= 0.0) {
                 char z[200];
-                std::snprintf(z, sizeof(z), "BehavEd: light cache pass 1 of 2: 90 of 100 lightmaps from the cache (%.1f %% of the work to trace)\n", anteilProzent);
+                std::snprintf(z, sizeof(z), "BehavEd: light cache pass 1 of 2: 90 of 100 lightmaps from the cache (%.1f %% of the time to trace)\n", anteilProzent);
                 b.text(z, 10.5);
             }
             b.text("0...1...2...3...4...5", 12.0);
