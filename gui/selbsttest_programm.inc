@@ -2554,7 +2554,7 @@ std::vector<Schritt> letzteMissionSchritte() {
 // "Load mission" den Ordner des Archivs DAUERHAFT in die Spielordner auf.
 //
 // Nachgestellt mit dem reinen JKA (BHED_JKA_BASIS, sonst der Steam-Ordner
-// "GameData original/base"): assets1.pk3 waehlen muss t1_*, t2_*, t3_*, kor1,
+// "GameData/base"): assets1.pk3 waehlen muss t1_*, t2_*, t3_*, kor1,
 // yavin1, taspir1 ... nennen, ohne die Spielordner der Einstellungen zu
 // aendern und ohne Movie-Duels-Missionen dazwischen. Danach eine pk3 aus
 // einem eingerichteten Spielordner (Movie Duels base): dann die Missionen von
@@ -2931,8 +2931,7 @@ std::vector<Schritt> missionsListeSchritte() {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto z = std::make_shared<missionsliste::Zustand>();
     add(tu("Missionsliste: Ausgangslage (reines JKA, eingerichtete Spielordner)", [=] {
-        const char* e = std::getenv("BHED_JKA_BASIS");
-        z->jka = e != nullptr ? e : "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Jedi Academy\\GameData original\\base";
+        z->jka = jkaBasis("BHED_JKA_BASIS");
         z->vorher = g_app->settings.gamePaths;
         for (const std::string& o : g_app->settings.gamePaths) {
             std::error_code ec;

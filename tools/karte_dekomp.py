@@ -8,7 +8,7 @@ dekompilieren, einmal als Brush Primitives und einmal als Quake3-Texdef.
 Beispiel (Pfade anpassen, die Spielordner werden nur gelesen):
 
   python -I tools/karte_dekomp.py q3map2.exe D:/dekomp \
-      "ja:ja:C:/.../Jedi Academy/GameData original" \
+      "ja:ja:C:/.../Jedi Academy/GameData" \
       "jk2:jk2:C:/.../Jedi Outcast/GameData" \
       "md:ja:C:/.../Jedi Academy/GameData Movie Duels:MD"
 

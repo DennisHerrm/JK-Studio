@@ -42,7 +42,7 @@ import sys
 import time
 
 STEAM = r'C:\Program Files (x86)\Steam\steamapps\common'
-JA = STEAM + '\\Jedi Academy\\GameData original\\'
+JA = STEAM + '\\Jedi Academy\\GameData\\'
 MD = STEAM + '\\Jedi Academy\\GameData Movie Duels\\'
 JK2 = STEAM + '\\Jedi Outcast\\GameData\\'
 LICHT_JA = ['-light', '-fast', '-patchshadows', '-samples', '2', '-filter', '-bounce', '8']

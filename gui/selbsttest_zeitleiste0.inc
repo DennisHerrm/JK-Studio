@@ -753,8 +753,7 @@ std::vector<Schritt> zeitleiste0Schritte() {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto st = std::make_shared<zl0::Stand>();
     add(tu("zeitleiste0: Ausgangslage (reines JKA, eingerichtete Spielordner)", [=] {
-        const char* e = std::getenv("BHED_JKA_BASIS");
-        st->jka = e != nullptr ? e : "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Jedi Academy\\GameData original\\base";
+        st->jka = jkaBasis("BHED_JKA_BASIS");
         for (const std::string& o : g_app->settings.gamePaths) {
             std::error_code ec;
             if (st->md.empty() && std::filesystem::is_regular_file(::bhed::utf8Pfad(o + "\\assets1.pk3"), ec)) { st->md = o + "\\assets1.pk3"; }

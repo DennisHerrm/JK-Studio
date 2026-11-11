@@ -51,7 +51,7 @@ namespace {
 constexpr int kMaxKampfPunkte = 512;
 
 // Gemessen an den Originalkarten (rc609 H2, Skript h2/cpmess.py, nur gelesen): alle maps/*.bsp der .pk3 des Spiels,
-// davon die mit point_combat. Jedi Academy (GameData original/base): 23 Karten, 2998 Kampfpunkte; Movie Duels (Ordner
+// davon die mit point_combat. Jedi Academy (GameData/base): 23 Karten, 2998 Kampfpunkte; Movie Duels (Ordner
 // MD): 75 Karten, 9097; Jedi Outcast (GameData/base): 23 Karten, 2964. Abstand = Median je Karte des Medians des
 // Abstands zum naechsten point_combat; je Wegpunkt = Median je Karte von point_combat / waypoint.
 struct Vorgabe {

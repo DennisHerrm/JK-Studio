@@ -697,6 +697,15 @@ Schritt tu(const std::string& text, std::function<void()> was) {
             }};
 }
 
+// GDPFAD: das Original-JKA dieses Rechners - der Ordner "base" mit assets0..3.pk3 - fuer die Gruppen, die es brauchen (rtjka
+// und die Rundlaeufe des Modell-Blocks mit BHED_MB_SPIEL=jka, kemd, mission1, missionsliste, zeitleiste0/1). Aus der
+// Umgebungsvariable der Gruppe, sonst der Steam-Ordner: er heisst seit dem 11.11. wieder "GameData" wie im Original (davor
+// "GameData original").
+std::string jkaBasis(const char* variable) {
+    const char* e = std::getenv(variable);
+    return e != nullptr ? e : "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Jedi Academy\\GameData\\base";
+}
+
 // --- Zwischenablage (Abschluss 2) --------------------------------------------
 //
 // Die Windows-Zwischenablage gehoert dem Nutzer: ein Selbsttest ueberschreibt sie nicht, und was

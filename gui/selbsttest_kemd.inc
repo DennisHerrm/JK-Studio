@@ -103,14 +103,20 @@ void bodenProben(std::vector<Schritt>& s, const std::string& name, const std::st
     s.push_back(tu("K2 " + name + ": Filter > Entities aus", [] { ke::filterBefehl("FilterEntities"); }));
 }
 
+// Der Ordner "base" einer JKA-Installation fuer den Teil mit OpenJK: BHED_KEMD_JA, sonst Steam (mit / wie die Pfade des Editors)
+std::string jaBasis() {
+    std::string o = jkaBasis("BHED_KEMD_JA");
+    std::replace(o.begin(), o.end(), '\\', '/');
+    return o;
+}
+
 std::vector<Schritt> shaderTeil(int regelwerk, const std::string& name) {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     const char* kk = std::getenv("BHED_KEMD_KARTE");
     const std::string karte = kk != nullptr ? kk : "";
     // OpenJK: die Ordner einer JKA-Installation (die Movie-Duels-Ordner nimmt der Editor fuer OpenJK nicht)
-    const char* ja = std::getenv("BHED_KEMD_JA");
-    const std::string jaOrdner = ja != nullptr ? ja : "C:/Program Files (x86)/Steam/steamapps/common/Jedi Academy/GameData original/base";
+    const std::string jaOrdner = jaBasis();
     auto ordnerVorher = std::make_shared<std::vector<std::string>>();
     add(tu("K2 " + name + ": Regelwerk, Spielordner neu, Vorschau laedt mp/duel1 (Soll)", [regelwerk, jaOrdner, ordnerVorher] {
         *ordnerVorher = g_app->settings.gamePaths;

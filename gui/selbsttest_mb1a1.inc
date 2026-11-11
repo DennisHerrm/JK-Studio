@@ -66,12 +66,11 @@ bool matrizenGleich(const BoneMatrix& a, const BoneMatrix& b, float tol) {
     return true;
 }
 
-// Das Spiel des Bildvergleichs: Original-JKA (GameData original), Jedi Outcast (Steam) oder die Einstellungen (MD).
+// Das Spiel des Bildvergleichs: Original-JKA (BHED_MB_JKA, sonst Steam "GameData"), Jedi Outcast (Steam) oder die Einstellungen (MD).
 void spielSetzen(const std::string& spiel) {
     Settings& st = g_app->settings;
     if (spiel == "jka") {
-        const char* e = std::getenv("BHED_MB_JKA");
-        st.gamePaths = {e != nullptr ? e : "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Jedi Academy\\GameData original\\base"};
+        st.gamePaths = {jkaBasis("BHED_MB_JKA")};
         st.regelwerk = kRegelwerkOpenJK;
     } else if (spiel == "jk2") {
         const char* e = std::getenv("BHED_JK2_BASIS");

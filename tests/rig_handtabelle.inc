@@ -1,6 +1,6 @@
 // rig_handtabelle.inc - erzeugt von scratchpad/mb4/handtab.py: Knochen (Name, Eltern, Grundstellung) aus der GLA des
 // Spiels, Rolle und Seite VON HAND je Name (Hand-Tabelle der Knochen-Erkennung, Modell-Block Stufe 3).
-// Seite: M Mitte, L links, R rechts, ? egal. Gelesen: JKA GameData original, JK2 GameData, Movie Duels Update 9.
+// Seite: M Mitte, L links, R rechts, ? egal. Gelesen: JKA GameData, JK2 GameData, Movie Duels Update 9.
 struct RigHandKnochen {
     const char* name;
     int eltern;

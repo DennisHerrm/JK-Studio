@@ -42,7 +42,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from q3map2_pfade import kasten, raum  # noqa: E402
 
-JA_PFAD = os.environ.get('BHED_JA_PFAD', r'C:\Program Files (x86)\Steam\steamapps\common\Jedi Academy\GameData original')
+JA_PFAD = os.environ.get('BHED_JA_PFAD', r'C:\Program Files (x86)\Steam\steamapps\common\Jedi Academy\GameData')
 NL = '\n'
 NUL = b'\x00'
 

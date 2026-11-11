@@ -14,8 +14,8 @@ darin frei schwebend
 
 Die BSPs dazu erzeugt q3map2 von NetRadiant-Custom 20260114 ohne -meta:
 
-  q3map2.exe -game ja -fs_basepath "<JA GameData original>/" vergleich_q3.map
-  q3map2.exe -game ja -fs_basepath "<JA GameData original>/" vergleich_bp.map
+  q3map2.exe -game ja -fs_basepath "<JA GameData>/" vergleich_q3.map
+  q3map2.exe -game ja -fs_basepath "<JA GameData>/" vergleich_bp.map
 
 (Ausgabe nie in den Spielordner; die .bsp liegen als vergleich_q3.bsp /
 vergleich_bp.bsp neben den Karten in tests/karte.)

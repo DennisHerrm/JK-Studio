@@ -11,7 +11,7 @@
 //   4. Schiff zwischen zwei Punkten gedreht (md_am_sith, Mustafar): ein neuer
 //      Schluessel, Ort und Drehung des Anfangs bleiben.
 // Daten: das reine JKA (BHED_JKA_BASIS, sonst der Steam-Ordner
-// "GameData original/base") und die eingerichteten Spielordner (Movie Duels).
+// "GameData/base") und die eingerichteten Spielordner (Movie Duels).
 // Die Pruefungen zu 2 lesen Fotos des fertigen Bildes (probeFoto) - mit
 // BHED_FOTOS in diesem Ordner, sonst in <Programmordner>\m1_fotos.
 namespace mission1 {
@@ -2147,8 +2147,7 @@ std::vector<Schritt> mission1Schritte() {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto z = std::make_shared<mission1::Zustand>();
     add(tu("Mission1: Ausgangslage (reines JKA, eingerichtete Spielordner)", [=] {
-        const char* e = std::getenv("BHED_JKA_BASIS");
-        z->jka = e != nullptr ? e : "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Jedi Academy\\GameData original\\base";
+        z->jka = jkaBasis("BHED_JKA_BASIS");
         for (const std::string& o : g_app->settings.gamePaths) {
             std::error_code ec;
             if (z->mdArchiv.empty() && std::filesystem::is_regular_file(::bhed::utf8Pfad(o + "\\assets1.pk3"), ec)) {
