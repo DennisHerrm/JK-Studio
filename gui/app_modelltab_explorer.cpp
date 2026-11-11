@@ -900,7 +900,7 @@ void anbauFenster() {
     std::snprintf(titel, sizeof titel, tr(Str::MbAnbauTitel), g_anbauZiel.c_str());
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSize(ImVec2{fs * 26.0F, fs * 26.0F}, ImGuiCond_Appearing);
-    if (!ImGui::BeginPopupModal((std::string(titel) + "###mtanbau").c_str(), nullptr)) { return; }
+    if (!ui::modalBegin((std::string(titel) + "###mtanbau").c_str(), nullptr)) { return; }
     static std::vector<std::string> modelle;
     if (modelle.empty()) {
         if (g_app->gamePaths.empty()) { rescanGamePaths(); }
@@ -916,7 +916,7 @@ void anbauFenster() {
     ImGui::InputTextWithHint("##anbausuche", tr(Str::MbSuche), suche, sizeof suche);
     ImGui::Checkbox(tr(Str::MbAnbauErsetzen), &ersetzen);
     const std::string such = klein(suche);
-    ImGui::BeginChild("##anbauliste", ImVec2{-1.0F, -ImGui::GetFrameHeightWithSpacing()}, ImGuiChildFlags_Borders);
+    ImGui::BeginChild("##anbauliste", ImVec2{-1.0F, -(ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y)}, ImGuiChildFlags_Borders);
     std::vector<const std::string*> treffer;
     for (const std::string& m : modelle) {
         if (passt(m, such)) { treffer.push_back(&m); }
@@ -933,7 +933,7 @@ void anbauFenster() {
         }
     }
     ImGui::EndChild();
-    if (ImGui::Button(tr(Str::EditorCancel))) { ImGui::CloseCurrentPopup(); }
+    if (ui::knopfReihe(nullptr, tr(Str::EditorCancel)) == ui::Knopf::Abbrechen) { ImGui::CloseCurrentPopup(); }   // UIFORM: unten rechts, Esc
     ImGui::EndPopup();
 }
 

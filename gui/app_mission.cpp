@@ -5019,7 +5019,7 @@ void drawNeueMission() {
         ordnerVonHand = false;
     }
     ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 34.0F, 0.0F}, ImGuiCond_Appearing);
-    if (!ImGui::BeginPopupModal("##neuemission", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) { return; }
+    if (!ui::modalBegin("##neuemission", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) { return; }
     ImGui::TextUnformatted(tr(Str::MissionNewTitle));
     ImGui::Separator();
     ImGui::TextDisabled("%s", tr(Str::MissionMap));
@@ -5074,17 +5074,17 @@ void drawNeueMission() {
         ImGui::PopTextWrapPos();
     }
     ImGui::Separator();
-    if (ImGui::Button(tr(Str::MissionCreate))) {
-        const std::string k = (karte == g_app->map.path) ? std::string() : karte;
+    // UIFORM: Knopfreihe unten rechts, Anlegen hervorgehoben (Enter), Abbrechen (Esc)
+    const ui::Knopf k = ui::knopfReihe(tr(Str::MissionCreate), tr(Str::MissionCancel));
+    if (k == ui::Knopf::Haupt) {
+        const std::string kk = (karte == g_app->map.path) ? std::string() : karte;
         if (karte.empty()) {
             fehler = tr(Str::MissionNoMap);
-        } else if (neueMissionAnlegen(k, name, ordner, &fehler)) {
+        } else if (neueMissionAnlegen(kk, name, ordner, &fehler)) {
             g_app->neueMissionOffen = false;
             ImGui::CloseCurrentPopup();
         }
-    }
-    ImGui::SameLine();
-    if (ImGui::Button(tr(Str::MissionCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+    } else if (k == ui::Knopf::Abbrechen) {
         g_app->neueMissionOffen = false;
         ImGui::CloseCurrentPopup();
     }
@@ -5103,8 +5103,9 @@ void drawMissionSpeichern() {
         fehler.clear();
     }
     ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 40.0F, 0.0F}, ImGuiCond_Appearing);
-    if (!ImGui::BeginPopupModal("##missionspeichern", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) { return; }
+    if (!ui::modalBegin("##missionspeichern", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) { return; }
     const float wrap = ImGui::GetFontSize() * 39.0F;
+    bool fehlerDa = false;
     ImGui::PushTextWrapPos(wrap);
     cjkTextUnformatted(tr(Str::MissionSaveTitle));
     ImGui::Separator();
@@ -5137,7 +5138,6 @@ void drawMissionSpeichern() {
             cjkTextDisabled("%s", groesse(d.inhalt.size()).c_str());
         }
         ImGui::EndChild();
-        bool fehlerDa = false;
         for (const MissionBefund& b : z.befunde) {
             fehlerDa = fehlerDa || b.fehler;
             cjkTextColored(b.fehler ? ImVec4{1.0F, 0.45F, 0.35F, 1.0F} : ImVec4{1.0F, 0.8F, 0.35F, 1.0F}, "%s",
@@ -5146,17 +5146,14 @@ void drawMissionSpeichern() {
         if (fehlerDa) { cjkTextWrapped("%s", tr(Str::MissionHasErrors)); }
         if (!fehler.empty()) { cjkTextColored(ImVec4{1.0F, 0.45F, 0.35F, 1.0F}, "%s", fehler.c_str()); }
         ImGui::Separator();
-        ImGui::BeginDisabled(fehlerDa || ziel[0] == '\0');
-        if (ImGui::Button(tr(Str::MissionSaveNow))) {
-            if (missionSpeichernNach(ziel, &fehler)) {
-                g_app->missionSpeichernOffen = false;
-                ImGui::CloseCurrentPopup();
-            }
-        }
-        ImGui::EndDisabled();
-        ImGui::SameLine();
     }
-    if (ImGui::Button(tr(Str::MissionCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+    // UIFORM: Knopfreihe unten rechts, Speichern hervorgehoben (Enter), Abbrechen (Esc)
+    const ui::Knopf k = ui::knopfReihe(g_app->missionAktiv ? tr(Str::MissionSaveNow) : nullptr, tr(Str::MissionCancel),
+                                       !fehlerDa && ziel[0] != '\0');
+    if (k == ui::Knopf::Haupt && missionSpeichernNach(ziel, &fehler)) {
+        g_app->missionSpeichernOffen = false;
+        ImGui::CloseCurrentPopup();
+    } else if (k == ui::Knopf::Abbrechen) {
         g_app->missionSpeichernOffen = false;
         ImGui::CloseCurrentPopup();
     }

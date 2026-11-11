@@ -409,7 +409,7 @@ namespace {
 void glaFenster() {
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSize(ImVec2{fs * 24.0F, fs * 22.0F}, ImGuiCond_Appearing);
-    if (!ImGui::BeginPopupModal((std::string(tr(Str::MbAndereGla)) + "###mtgla").c_str(), nullptr)) { return; }
+    if (!ui::modalBegin((std::string(tr(Str::MbAndereGla)) + "###mtgla").c_str(), nullptr)) { return; }
     static std::vector<std::string> glas;
     if (glas.empty()) {
         if (g_app->gamePaths.empty()) { rescanGamePaths(); }
