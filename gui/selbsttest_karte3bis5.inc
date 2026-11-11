@@ -1825,7 +1825,8 @@ std::vector<Schritt> baumenue() {
         std::size_t n = 0;
         for (std::size_t p = 0; (p = k.find("=== running build command ===", p)) != std::string::npos; ++p) { ++n; }
         return n >= 3 && k.find("bhed_q3map2.exe\" -v") != std::string::npos && k.find(" -meta \"" + karte + "\"") != std::string::npos &&
-               k.find(" -vis \"" + karte + "\"") != std::string::npos && k.find(" -light -fast -patchshadows -samples 2 -filter -bounce 8 -bhedgpubakeauto -bhedgpubakezeiten ") != std::string::npos &&
+               k.find(" -vis -bhedvisstate \"" + karte + "\"") != std::string::npos &&   // vis2c: jedes -vis mit Zwischenstand
+               k.find(" -light -fast -patchshadows -samples 2 -filter -bounce 8 -bhedgpubakeauto -bhedgpubakezeiten ") != std::string::npos &&
                k.find(" \"" + karte + "\"") != std::string::npos &&   // Stufe 8d: GPU bake Auto (Vorgabe) vor der Karte
                ke::editor().bauZuletzt == 15;
     }));

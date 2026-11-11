@@ -2340,6 +2340,8 @@ from i18n_ap12 import zeilen_vier as _ap12  # noqa: E402  (AP12: Auto-Skin)
 S += _ap12()
 from i18n_ap1 import zeilen_vier as _ap1  # noqa: E402  (AP1: Zeitleiste des Model-Tabs nach dem Entwurf)
 S += _ap1()
+from i18n_vis2 import zeilen_vier as _vis2  # noqa: E402  (VIS2c: Bauen anhalten und fortsetzen)
+S += _vis2()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

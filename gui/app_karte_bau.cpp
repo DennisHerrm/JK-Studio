@@ -41,6 +41,7 @@
 #include "bhed/karte/bau.h"
 #include "bhed/karte/baufortschritt.h"
 #include "bhed/karte/baumonitor.h"
+#include "bhed/karte/baupause.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/editordaten.h"
 #include "bhed/karte/kartendatei.h"
@@ -61,6 +62,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <mutex>
@@ -305,6 +307,23 @@ void bauMenueEintraegeZeichnen() {
     p.id = abbrechen.c_str();
     p.aktiv = bauLaeuft();
     if (qtPunkt(p)) { bauAbbrechen(); }
+    // vis2c (Abweichung, eigene Funktion): den Bau anhalten und spaeter fortsetzen
+    const std::string anhalten = std::string(trK(Str::KeBpAnhalten)) + "##bauanhalten";
+    QtPunkt ah;
+    ah.id = anhalten.c_str();
+    ah.aktiv = bauAnhaltbar();
+    ah.tooltip = trK(ah.aktiv ? Str::KeBpAnhaltenTip : Str::KeBpAnhaltenAus);
+    if (qtPunkt(ah)) { bauAnhalten(); }
+    const std::string fortsetzen = std::string(trK(Str::KeBpFortsetzen)) + "##baufortsetzen";
+    const BauPauseStand pauseStand = bauPauseStand();
+    QtPunkt fo;
+    fo.id = fortsetzen.c_str();
+    fo.aktiv = pauseStand.da && !bauLaeuft();
+    fo.tooltip = trK(pauseStand.da ? Str::KeBpFortsetzenTip : Str::KeBpKeiner);
+    if (pauseStand.da) {
+        for (const std::string& z : bauPauseZeilen(pauseStand)) { fo.tooltip += "\n" + z; }
+    }
+    if (qtPunkt(fo)) { bauFortsetzenOeffnen(); }
     // Stufe 4 Punkt 2 (Abweichung, eigener Eintrag): nur die Entities einer
     // geoeffneten .bsp aktualisieren - Geometrie und Licht bleiben
     const std::string nurEnt = std::string(trK(Str::KeBmNurEntities)) + "##baunurentities";
@@ -415,7 +434,7 @@ void bauMenueEintraegeZeichnen() {
     ve.id = visE.c_str();
     ve.art = QtArt::Pruefbar;
     ve.haken = ed.bau.visExakt;
-    ve.tooltip = trK(Str::KeVisExaktTip);
+    ve.tooltip = std::string(trK(Str::KeVisExaktTip)) + "\n\n" + trK(Str::KeBpVisExaktTip2);   // vis2c
     if (qtPunkt(ve)) {
         ed.bau.visExakt = !ed.bau.visExakt;
         einstellungenSpeichern();
@@ -1236,6 +1255,16 @@ namespace {
 
 enum class BauZustand { Leerlauf, Schrittbeginn, Beobachten, Stapel };
 
+// vis2c: was ein Bau zum Anhalten braucht
+struct BauPauseLauf {
+    bool anhaltbar = false;     // ein Bau aus dem Build-Menue oder ein fortgesetzter (nicht bauEigeneBefehle)
+    bool alteKarte = false;     // "Karte wie angehalten": gebaut wird auf den Kopien im Zwischenstand
+    bool fortgesetzt = false;   // die Zeiten dieses Laufs sind nicht die eines ganzen Baus
+    std::string stamm;          // die gebaute Datei ohne Endung
+    std::string mapDatei;       // was q3map2 baut (.map bzw. .reg)
+    karte::BauPause pause;      // alteKarte: der Zwischenstand, der mitgefuehrt wird
+};
+
 struct BauLauf {
     BauZustand zustand = BauZustand::Leerlauf;   // m_eState (Stapel: RunBatch)
     std::vector<std::string> befehle;              // m_commands
@@ -1274,6 +1303,13 @@ struct BauLauf {
     std::string prtPfad;
     std::string visWarnung;
     std::string patchWarnung;   // rc609 L: Licht-Schritt ohne -patchshadows bei einer Karte mit Patches
+    // vis2c: anhalten und fortsetzen (bhed/karte/baupause.h)
+    BauPauseLauf p;                           // vom Aufrufer vor bauAusfuehren gesetzt
+    bool pauseGewuenscht = false;             // die Stoppdatei liegt, der VIS-Schritt sichert und endet
+    std::vector<std::string> befehleStart;    // die Befehle, bevor ein belegter Port darin ersetzt wurde
+    std::string platzWarnung;                 // der VIS-Zwischenstand passt vielleicht nicht auf das Laufwerk
+    long long standBytes = -1;                // Groesse des VIS-Zwischenstands, hoechstens einmal je Sekunde gelesen
+    double standGelesen = -10.0;
 };
 BauLauf g_lauf;
 
@@ -1473,7 +1509,9 @@ void meldungsKasten(const std::string& text) {   // qt_MessageBox( ..., "Build m
     qtMeldung("Build monitoring", text, MeldungArt::Fehler, false, nullptr);
 }
 
-void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gestoppt, 2 abgebrochen
+void pauseStandVergessen();
+
+void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gestoppt, 2 abgebrochen, 3 angehalten (vis2c)
     BauLauf& l = g_lauf;
     if (!l.aktiv) { return; }
     l.aktiv = false;
@@ -1502,12 +1540,13 @@ void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gesto
         // Stufe 8a Punkt 1: die Zeit je Schritt gegen den letzten Bau, dann merken
         if (l.jetzt.schritte.size() == l.befehle.size() && !l.befehle.empty()) {
             std::string zeiten = std::string(trK(Str::KeFsZeitenKopf)) + "\n";
-            for (const std::string& z2 : karte::bauZeitenVergleich(l.jetzt, l.hatVerlauf ? &l.verlauf : nullptr, trK(Str::KeFsZeitJetzt),
+            // vis2c: die Zeiten eines fortgesetzten Baus sind nicht die eines ganzen - kein Vergleich, nicht gemerkt
+            for (const std::string& z2 : karte::bauZeitenVergleich(l.jetzt, l.hatVerlauf && !l.p.fortgesetzt ? &l.verlauf : nullptr, trK(Str::KeFsZeitJetzt),
                                                                     trK(Str::KeFsZeitVergleich))) {
                 zeiten += z2 + "\n";
             }
             konsoleSchreiben(KonsolenZeile::Art::Ausgabe, zeiten);
-            if (!l.kartenPfad.empty()) {
+            if (!l.kartenPfad.empty() && !l.p.fortgesetzt) {
                 karte::BauZeitenSpeicher sp = bauZeitenLesen();
                 sp.setzen(l.kartenPfad, l.eintrag, l.jetzt);
                 std::ofstream f(pfadAus(bauZeitenPfad()), std::ios::binary | std::ios::trunc);
@@ -1516,11 +1555,22 @@ void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gesto
             }
         }
         editorDatenSchreiben();
+        if (l.p.alteKarte) {   // vis2c: die Ergebnisse des Baus auf den Kopien neben die Karte, der Zwischenstand ist verbraucht
+            std::string warum;
+            if (karte::bauPauseAltFertig(l.p.pause, &warum)) {
+                ausgabe(trK(Str::KeBpAltFertig));
+            } else {
+                char w[1400];
+                std::snprintf(w, sizeof(w), trK(Str::KeBpAltFehler), warum.c_str());
+                fehler(w);
+            }
+            pauseStandVergessen();
+        }
         gpuBerichtAusgeben();   // Stufe 8g
         // Stufe 8d Punkt 1b: die Dauer jedes -light-Schritts als CPU- bzw. GPU-Zeit dieser Karte merken
         for (const auto& st : l.jetzt.schritte) {
             const std::string sch = karte::lichtSchalter(st.befehl);
-            if (sch.empty() || l.kartenPfad.empty()) { continue; }
+            if (sch.empty() || l.kartenPfad.empty() || l.p.fortgesetzt) { continue; }   // vis2c: eine Teilzeit waere eine falsche Messung
             gpuZeitMerken(l.kartenPfad, sch, gpuWegDesLaufs(l.gpu, l.gpuModus), st.dauer);
         }
         bauFertigMelden();
@@ -1539,10 +1589,17 @@ void zusammenfassung(int art, const std::string& grund) {   // 0 fertig, 1 gesto
         // ein Leck haelt den Bau an - gerade dann zeigt der Optimierer die
         // .lin und Detail-Pinsel an der Leck-Linie
         if (!danach.f && grund == "leak" && e().optimierer.nachBau) { optimiererStarten(true); }
+    } else if (art == 3) {   // vis2c: grund = die Groesse des Zwischenstands
+        char p[1400];
+        std::snprintf(p, sizeof(p), trK(Str::KeBpAngehalten), l.eintrag.c_str(), static_cast<int>(std::min(l.schritt + 1, l.befehle.size())),
+                      static_cast<int>(l.befehle.size()), l.schritt < l.befehle.size() ? karte::bauStufeName(l.befehle[l.schritt]).c_str() : "", zeit.c_str(),
+                      grund.c_str());
+        konsoleSchreiben(KonsolenZeile::Art::Ausgabe, std::string(p) + "\n");
     } else {
         std::snprintf(z, sizeof(z), trK(Str::KeBmAbgebrochen), l.eintrag.c_str(), static_cast<int>(l.schritt + 1),
                       static_cast<int>(l.befehle.size()), zeit.c_str());
         konsoleSchreiben(KonsolenZeile::Art::Warnung, std::string(z) + "\n");
+        if (l.p.alteKarte) { ausgabe(trK(Str::KeBpBleibt)); }   // vis2c: der Zwischenstand steht beim abgebrochenen Schritt
     }
     e().statusBefehl.clear();
 }
@@ -1636,9 +1693,11 @@ void stapelAusgabe(const std::string& stueck) {
 
 void visVorschauMelden();
 void patchHinweisMelden();
+void schrittVorbereiten();
 
 bool stapelBefehlStarten() {
     BauLauf& l = g_lauf;
+    schrittVorbereiten();   // vis2c
     visVorschauMelden();
     patchHinweisMelden();
     ausgabe("=== running build command ===");
@@ -1655,8 +1714,6 @@ bool stapelBefehlStarten() {
     l.beob = karte::BauSchrittBeobachter{};
     return true;
 }
-
-void schrittBeginnen();
 
 // Stufe 9d (VIS-Fund md_rev_TarisUpper2, eigene Funktion): vor einem vollen -vis die Portaldatei des
 // BSP-Schritts lesen - Portale, Cluster und Arbeitsspeicher in die Konsole. Ab der Portal-Schwelle des
@@ -1711,6 +1768,174 @@ void patchHinweisMelden() {
 void ueberwachungBeenden(const std::string& grund) {
     ueberwachungZuruecksetzen();
     zusammenfassung(1, grund);
+}
+
+// --- vis2c (eigene Funktion, nicht in NRC): anhalten und fortsetzen -------------------------------------
+//
+// Ein voller VIS-Schritt von bhed_q3map2 laeuft mit -bhedvisstate: eine Stoppdatei laesst ihn die fertigen Portale
+// sichern und mit Rueckgabe 3 enden. Jeder andere Schritt wird beendet und beginnt beim Fortsetzen neu - vom Licht
+// bleiben mit -bhedlightcache die fertigen Durchgaenge (aus <karte>.bhedlight.neu wird der Cache), und die .bsp ist
+// wieder die von vor dem Schritt. Der Zwischenstand liegt in <karte>.bhedpause (bhed/karte/baupause.h).
+
+bool schrittIst(karte::BauStufe stufe) {
+    const BauLauf& l = g_lauf;
+    return l.schritt < l.befehle.size() && karte::bauStufeAusBefehl(l.befehle[l.schritt]) == stufe;
+}
+
+std::string groesseText(long long bytes) {
+    char z[48];
+    const double mb = static_cast<double>(std::max(0LL, bytes)) / (1024.0 * 1024.0);
+    if (mb >= 1024.0) {
+        std::snprintf(z, sizeof(z), "%.2f GB", mb / 1024.0);
+    } else if (mb >= 1.0) {
+        std::snprintf(z, sizeof(z), "%.1f MB", mb);
+    } else {
+        std::snprintf(z, sizeof(z), "%.0f KB", mb * 1024.0);
+    }
+    return z;
+}
+
+// Vor einem Schritt: eine alte Stoppdatei hielte das VIS sofort an; die .bsp vor dem Licht sichern; passt der
+// VIS-Zwischenstand (bei sehr grossen Karten Gigabytes, beim Sichern kurz doppelt) auf das Laufwerk?
+void schrittVorbereiten() {
+    BauLauf& l = g_lauf;
+    l.platzWarnung.clear();
+    l.standBytes = -1;
+    l.standGelesen = -10.0;
+    if (!l.p.anhaltbar || l.p.stamm.empty()) { return; }
+    std::error_code ec;
+    fs::remove(pfadAus(karte::visStoppDatei(l.p.stamm)), ec);
+    if (schrittIst(karte::BauStufe::Licht)) { (void)karte::bauVorLichtSichern(l.p.stamm); }
+    std::string prt;
+    if (!karte::befehlVisAnhaltbar(l.befehle[l.schritt]) || !karte::bauVisVoll(l.befehle[l.schritt]) || !dateiLesen(l.p.stamm + ".prt", prt)) { return; }
+    const long long bedarf = 2 * karte::visStandHoechstBytes(prt);
+    const fs::space_info platz = fs::space(pfadAus(l.p.stamm).parent_path(), ec);
+    if (ec || bedarf <= 0 || static_cast<std::uintmax_t>(bedarf) <= platz.available) { return; }
+    char z[1024];
+    std::snprintf(z, sizeof(z), trK(Str::KeBpPlatz), groesseText(bedarf / 2).c_str(), groesseText(static_cast<long long>(platz.available)).c_str());
+    konsoleSchreiben(KonsolenZeile::Art::Warnung, std::string(z) + "\n");
+    l.platzWarnung = z;
+}
+
+// Ein Schritt wurde beendet (Abbrechen, Anhalten, Programmende): die Stoppdatei weg, der Licht-Cache der fertigen
+// Durchgaenge gerettet, die .bsp von vor dem Licht zurueck. Rueckgabe: fertige Durchgaenge im geretteten Cache.
+int schrittRestAufraeumen() {
+    BauLauf& l = g_lauf;
+    if (!l.p.anhaltbar || l.p.stamm.empty() || l.schritt >= l.befehle.size()) { return 0; }
+    (void)l.prozess.warten(3000);   // seine Dateien sind erst frei, wenn der Prozess zu Ende ist
+    std::error_code ec;
+    fs::remove(pfadAus(karte::visStoppDatei(l.p.stamm)), ec);
+    if (!schrittIst(karte::BauStufe::Licht)) { return 0; }
+    int paesse = 0;
+    if (l.befehle[l.schritt].find("-bhedlightcache") == std::string::npos) {
+        ausgabe(trK(Str::KeBpLichtNeu));   // ehrlich: ohne Cache geht der ganze Licht-Schritt verloren
+    } else if (karte::bauLichtCacheRettenDatei(l.p.stamm, l.beob.lichtCache())) {
+        const karte::BauLichtCache& lc = l.beob.lichtCache();
+        paesse = lc.geschrieben;
+        char z[512];
+        std::snprintf(z, sizeof(z), trK(Str::KeBpLichtGerettet), lc.geschrieben, lc.paesse);
+        ausgabe(z);
+    }
+    (void)karte::bauVorLichtZurueck(l.p.stamm);
+    return paesse;
+}
+
+// Der Zwischenstand wird geschrieben und der Bau endet als "angehalten"; weiter = der Schritt, bei dem es weitergeht
+void pauseAbschliessen(std::size_t weiter, int lichtPaesse) {
+    BauLauf& l = g_lauf;
+    ueberwachungZuruecksetzen();
+    l.pauseGewuenscht = false;
+    {   // eine Stoppdatei, die das VIS nicht mehr gesehen hat (-fast, Treffer von -bhedvisreuse)
+        std::error_code ec;
+        fs::remove(pfadAus(karte::visStoppDatei(l.p.stamm)), ec);
+    }
+    karte::BauPause p = l.p.pause;
+    if (!l.p.alteKarte) {
+        p = karte::BauPause{};
+        p.eintrag = l.eintrag;
+        p.karte = l.kartenPfad;
+        p.stamm = l.p.stamm;
+        p.mapDatei = l.p.mapDatei;
+        p.befehle = l.befehleStart;
+        p.kartenHash = karte::bauDateiHash(p.mapDatei);
+    }
+    p.schritt = weiter;
+    p.fertig = l.fertig;
+    p.fertig.resize(weiter, 0.0);
+    {
+        const std::time_t jetzt = std::time(nullptr);
+        std::tm teile{};
+        localtime_s(&teile, &jetzt);
+        char z[32];
+        std::strftime(z, sizeof(z), "%Y-%m-%d %H:%M", &teile);
+        p.zeit = z;
+    }
+    p.vergangen = (l.p.alteKarte ? l.p.pause.vergangen : 0.0) + sekundenSeit(l.start);
+    const karte::BauVisStand& v = l.beob.visStand();
+    const bool visStand = weiter == l.schritt && v.zustand == karte::BauVisStand::Zustand::Angehalten && v.fertig >= 0;
+    p.visFertig = visStand ? v.fertig : -1;
+    p.visAlle = visStand ? v.alle : 0;
+    p.lichtPaesse = lichtPaesse;
+    p.lichtPaesseVon = lichtPaesse > 0 ? l.beob.lichtCache().paesse : 0;
+    if (weiter == l.schritt && v.zustand == karte::BauVisStand::Zustand::Angehalten && v.fertig < 0) { warnung(trK(Str::KeBpVisNichtGesichert)); }
+    std::string warum;
+    const bool ok = l.p.alteKarte ? karte::bauPauseSchreiben(p, &warum) : karte::bauPauseSichern(p, &warum);
+    pauseStandVergessen();
+    if (!ok) {
+        char z[1400];
+        std::snprintf(z, sizeof(z), trK(Str::KeBpFehler), warum.c_str());
+        fehler(z);
+        zusammenfassung(2, std::string());
+        return;
+    }
+    zusammenfassung(3, groesseText(karte::bauPauseGroesse(p.stamm)));
+}
+
+// Ein Schritt ist zu Ende: Zeit merken, weiter zum naechsten (vis2c: die Sicherung der .bsp vor dem Licht weg; der
+// Zwischenstand eines Baus auf den Kopien geht mit)
+void schrittFertig() {
+    BauLauf& l = g_lauf;
+    if (l.p.anhaltbar && !l.p.stamm.empty() && schrittIst(karte::BauStufe::Licht)) { karte::bauVorLichtWeg(l.p.stamm); }
+    if (l.beob.visStand().zustand == karte::BauVisStand::Zustand::Fortgesetzt) { l.p.fortgesetzt = true; }
+    schrittZeitMerken();   // Stufe 8a Punkt 1
+    ++l.schritt;           // move to next step or finish
+    if (l.p.alteKarte && l.schritt < l.befehle.size()) {
+        l.p.pause.schritt = l.schritt;
+        l.p.pause.fertig = l.fertig;
+        l.p.pause.fertig.resize(l.schritt, 0.0);
+        l.p.pause.visFertig = -1;
+        l.p.pause.lichtPaesse = 0;
+        (void)karte::bauPauseSchreiben(l.p.pause);
+    }
+}
+
+void schrittBeginnen();
+
+// Am Ende eines Schritts: hat das VIS angehalten (Rueckgabe 3 bzw. seine Zeile), oder war es schon fertig, als die
+// Stoppdatei kam? true: der Bau ist angehalten (oder zu Ende), der Aufrufer macht nichts mehr.
+bool schrittEndeAnhalten(int rueckgabe) {
+    BauLauf& l = g_lauf;
+    const bool angehalten = l.schritt < l.befehle.size() && karte::befehlVisAnhaltbar(l.befehle[l.schritt]) &&
+                            (rueckgabe == 3 || l.beob.visStand().zustand == karte::BauVisStand::Zustand::Angehalten);
+    if (!angehalten && !l.pauseGewuenscht) { return false; }
+    if (!l.p.anhaltbar) {   // von aussen angehalten (Stoppdatei) in einem Auftrag ohne Zwischenstand: die Folge endet
+        ueberwachungBeenden("vis paused");
+        return true;
+    }
+    if (angehalten) {
+        pauseAbschliessen(l.schritt, 0);
+        return true;
+    }
+    // das VIS war fertig, bevor es die Stoppdatei sah: nach diesem Schritt anhalten
+    schrittFertig();
+    if (l.schritt >= l.befehle.size()) {
+        l.pauseGewuenscht = false;
+        ausgabe(trK(Str::KeBpFertigVorPause));
+        schrittBeginnen();   // finita
+        return true;
+    }
+    pauseAbschliessen(l.schritt, 0);
+    return true;
 }
 
 // CWatchBSP::DoEBeginStep
@@ -1770,6 +1995,7 @@ void schrittBeginnen() {
     ausgabe("Listening...");
     l.schrittStart = std::chrono::steady_clock::now();   // m_timeout_timer.start()
     l.beob = karte::BauSchrittBeobachter{};
+    schrittVorbereiten();   // vis2c
     visVorschauMelden();
     patchHinweisMelden();
     ausgabe("=== running build command ===");
@@ -1794,8 +2020,11 @@ void schrittBeginnen() {
 
 std::string bauPatchHinweis() { return g_lauf.patchWarnung; }
 
-// BuildMonitor_Run -> CWatchBSP::DoMonitoringLoop
-void bauAusfuehren(const std::vector<std::string>& befehle) {
+namespace {
+
+// BuildMonitor_Run -> CWatchBSP::DoMonitoringLoop. vis2c: ein fortgesetzter Bau beginnt bei `start`, `fertig` sind
+// die Dauern der Schritte davor.
+void bauAusfuehrenAb(const std::vector<std::string>& befehle, std::size_t start, const std::vector<double>& fertig) {
     BauLauf& l = g_lauf;
     Editor& ed = e();
     ++ed.bauGestartet;
@@ -1803,12 +2032,15 @@ void bauAusfuehren(const std::vector<std::string>& befehle) {
         warnung("WatchBSP got a monitoring request while not idling...");
         // Abweichung: der alte Prozess endet (nicht zwei q3map2 an einer Karte)
         l.prozess.beenden();
+        (void)schrittRestAufraeumen();   // vis2c
         ueberwachungZuruecksetzen();
         zusammenfassung(2, std::string());
     }
     if (befehle.empty()) { return; }
     l.befehle = befehle;
-    l.schritt = 0;
+    l.befehleStart = befehle;
+    l.pauseGewuenscht = false;
+    l.schritt = std::min(start, befehle.size());
     l.start = std::chrono::steady_clock::now();
     l.aktiv = !befehle.empty();
     l.leckGemeldet = false;
@@ -1816,6 +2048,11 @@ void bauAusfuehren(const std::vector<std::string>& befehle) {
     l.rueckgaben.clear();
     l.jetzt = karte::BauLaufZeiten{};
     l.fertig.clear();
+    for (std::size_t i = 0; i < l.schritt; ++i) {
+        const double d = i < fertig.size() ? fertig[i] : 0.0;
+        l.jetzt.schritte.push_back({befehle[i], d, {}});
+        l.fertig.push_back(d);
+    }
     l.beob = karte::BauSchrittBeobachter{};
     l.hatVerlauf = false;
     l.gpu = karte::GpuBackBericht{};
@@ -1857,6 +2094,10 @@ void bauAusfuehren(const std::vector<std::string>& befehle) {
     schrittBeginnen();
 }
 
+}  // namespace
+
+void bauAusfuehren(const std::vector<std::string>& befehle) { bauAusfuehrenAb(befehle, 0, {}); }
+
 // CWatchBSP::RoutineProcessing (jedes Bild) und der Stapel
 void bauSchritt() {
     BauLauf& l = g_lauf;
@@ -1878,18 +2119,26 @@ void bauSchritt() {
     }
     switch (l.zustand) {
     case BauZustand::Schrittbeginn:
-        // timeout: if we don't get an incoming connection fast enough, go back to idle
-        if (sekundenSeit(l.schrittStart) > 5.0) {
-            meldungsKasten("The connection timed out, assuming the build process failed\nMake sure you are using a networked version of Q3Map?\n"
-                           "Otherwise you need to disable BSP Monitoring in prefs.");
-            ueberwachungBeenden("timeout");
-            return;
-        }
+        // vis2c (Abweichung: NRC prueft zuerst die Zeit): erst nachsehen, ob q3map2 schon wartet. Nach einem langen Bild
+        // (grosse Karte gespeichert, das erste Bild nach dem Laden) hing seine Verbindung laengst am lauschenden Socket,
+        // und der Bau endete trotzdem mit "timeout".
         if (l.horcher.annehmen()) {
             ausgabe("Connected.");
             l.monitor.verbunden();   // memset( &m_message_info, 0 ), m_bNeedCtxtInit
             l.rahmen = karte::BauNetzRahmen{};
             l.zustand = BauZustand::Beobachten;
+            break;
+        }
+        // timeout: if we don't get an incoming connection fast enough, go back to idle
+        // vis2c (Abweichung: NRC kennt nur die Zeit): nur wenn der Prozess schon zu Ende ist. Lebt er noch, hat er nicht
+        // versagt, er ist noch nicht so weit - unter Last und mit niedriger Prioritaet brauchte bhed_q3map2 ueber 5 s bis
+        // zum Verbinden, der Bau endete mit "timeout", und q3map2 lief ohne Rueckkanal verwaist weiter. Ein q3map2 ohne
+        // Rueckkanal wird so bis zu seinem Ende abgewartet (Abbrechen geht), dann kommt dieselbe Meldung.
+        if (sekundenSeit(l.schrittStart) > 5.0 && !l.prozess.laeuft()) {
+            meldungsKasten("The connection timed out, assuming the build process failed\nMake sure you are using a networked version of Q3Map?\n"
+                           "Otherwise you need to disable BSP Monitoring in prefs.");
+            ueberwachungBeenden("timeout");
+            return;
         }
         break;
     case BauZustand::Beobachten: {
@@ -1923,9 +2172,10 @@ void bauSchritt() {
             ausgabe("Connection closed.");
             // q3map2 schliesst den Socket beim Beenden - einen Augenblick warten, bis es
             // ganz zu Ende ist, fuer die Rueckgabe (ein Absturz zeigt sich sonst nicht)
-            if (l.prozess.warten(1000)) { l.rueckgaben.emplace_back(l.schritt, l.prozess.rueckgabe()); }
-            schrittZeitMerken();   // Stufe 8a Punkt 1
-            ++l.schritt;   // move to next step or finish
+            const bool zuEnde = l.prozess.warten(1000);
+            if (zuEnde) { l.rueckgaben.emplace_back(l.schritt, l.prozess.rueckgabe()); }
+            if (schrittEndeAnhalten(zuEnde ? l.prozess.rueckgabe() : 0)) { return; }   // vis2c
+            schrittFertig();
             schrittBeginnen();
         }
         break;
@@ -1943,8 +2193,8 @@ void bauSchritt() {
         std::error_code ec;
         const std::string karte = bauKartenPfad();
         if (fs::exists(pfadAus(karte.substr(0, karte.rfind('.')) + ".lin"), ec)) { leckHinweis(); }
-        schrittZeitMerken();   // Stufe 8a Punkt 1
-        ++l.schritt;
+        if (schrittEndeAnhalten(l.prozess.rueckgabe())) { break; }   // vis2c
+        schrittFertig();
         if (l.schritt < l.befehle.size()) {
             if (!stapelBefehlStarten()) {
                 l.zustand = BauZustand::Leerlauf;
@@ -2024,7 +2274,34 @@ BauFortschrittStand bauFortschrittStand() {
     st.vergangen = sekundenSeit(l.start);
     st.lichtCacheAn = st.schritt < l.befehle.size() && l.befehle[st.schritt].find("-bhedlightcache") != std::string::npos;
     st.lichtCache = l.beob.lichtCache();
+    // vis2c
+    st.anhaltbar = l.p.anhaltbar && !l.pauseGewuenscht;
+    st.pauseGewuenscht = l.pauseGewuenscht;
+    st.visStandAn = st.schritt < l.befehle.size() && karte::befehlVisAnhaltbar(l.befehle[st.schritt]);
+    st.visStand = l.beob.visStand();
+    st.visStandBytes = l.standBytes;
     return st;
+}
+
+// vis2c (nicht in NRC): was der VIS-Schritt mit seinem Zwischenstand tut
+std::string bauVisStandText(const BauFortschrittStand& st, bool* warnung) {
+    if (warnung != nullptr) { *warnung = false; }
+    if (st.stufe != "VIS" || !st.visStandAn) { return {}; }
+    const karte::BauVisStand& v = st.visStand;
+    char z[768];
+    if (v.zustand == karte::BauVisStand::Zustand::Fortgesetzt) {
+        std::snprintf(z, sizeof(z), trK(Str::KeBpVisFortgesetzt), v.fertig, v.alle, static_cast<int>(std::lround(v.anteil * 100.0)));
+        return z;
+    }
+    if (v.zustand == karte::BauVisStand::Zustand::NichtGenutzt && v.grund != karte::BauVisStand::Grund::KeinStand) {
+        const Str g = v.grund == karte::BauVisStand::Grund::Schalter   ? Str::KeBpGrundSchalter
+                      : v.grund == karte::BauVisStand::Grund::Portale ? Str::KeBpGrundPortale
+                                                                      : Str::KeBpGrundDefekt;
+        std::snprintf(z, sizeof(z), trK(Str::KeBpVisNicht), trK(g));
+        if (warnung != nullptr) { *warnung = true; }
+        return z;
+    }
+    return {};
 }
 
 // lcb1 (nicht in NRC): was der Licht-Cache im Licht-Schritt tut - nie still alles neu rechnen
@@ -2127,6 +2404,36 @@ void bauFortschrittZeichnen() {
             cjkTextWrapped("%s", g_lauf.visWarnung.c_str());
             ImGui::PopStyleColor();
         }
+        if (st.stufe == "VIS" && st.visStandAn) {   // vis2c: der Zwischenstand des VIS
+            BauLauf& lauf = g_lauf;
+            if (ImGui::GetTime() - lauf.standGelesen >= 1.0 && !lauf.p.stamm.empty()) {   // die Platte hoechstens einmal je Sekunde fragen
+                lauf.standGelesen = ImGui::GetTime();
+                std::error_code ec;
+                const std::uintmax_t n = fs::file_size(pfadAus(karte::visStandDatei(lauf.p.stamm)), ec);
+                lauf.standBytes = ec ? -1 : static_cast<long long>(n);
+            }
+            bool nichtGenutzt = false;
+            if (const std::string vs = bauVisStandText(st, &nichtGenutzt); !vs.empty()) {
+                ImGui::PushStyleColor(ImGuiCol_Text, nichtGenutzt ? ImVec4(1.0F, 127.0F / 255.0F, 0.0F, 1.0F) : ImGui::GetStyleColorVec4(ImGuiCol_Text));
+                cjkTextWrapped("%s", vs.c_str());
+                ImGui::PopStyleColor();
+            }
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            if (st.visStandBytes >= 0) {
+                std::snprintf(z, sizeof(z), trK(Str::KeBpVisStand), groesseText(st.visStandBytes).c_str());
+                cjkTextWrapped("%s", z);
+            }
+            // was "fortgesetzt" fuer das Ergebnis heisst - nur wenn dieser Lauf aus einem Zwischenstand weitermacht
+            if (st.visStand.zustand == karte::BauVisStand::Zustand::Fortgesetzt) {
+                cjkTextWrapped("%s", trK(st.visStand.exakt ? Str::KeBpRegelExakt : Str::KeBpRegelNrc));
+            }
+            ImGui::PopStyleColor();
+            if (!lauf.platzWarnung.empty()) {
+                ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 127, 0, 255));
+                cjkTextWrapped("%s", lauf.platzWarnung.c_str());
+                ImGui::PopStyleColor();
+            }
+        }
         bool cacheWarnung = false;   // lcb1: der Licht-Cache
         if (const std::string lc = bauLichtCacheText(st, &cacheWarnung); !lc.empty()) {
             ImGui::PushStyleColor(ImGuiCol_Text, cacheWarnung ? ImVec4(1.0F, 127.0F / 255.0F, 0.0F, 1.0F)   // wie Warnungen in der Konsole
@@ -2140,7 +2447,44 @@ void bauFortschrittZeichnen() {
             cjkTextWrapped("%s", g_lauf.patchWarnung.c_str());
             ImGui::PopStyleColor();
         }
-        if (ImGui::Button((std::string(trK(Str::KeBmAbbrechen)) + "##fortschrittabbrechen").c_str())) { bauAbbrechen(); }
+        // vis2c: anhalten (Zwischenstand, spaeter fortsetzen) neben abbrechen; beides auch per Rechtsklick im Fenster
+        if (st.pauseGewuenscht) { cjkTextWrapped("%s", trK(Str::KeBpWartet)); }
+        ImGui::Spacing();
+        bool anhalten = false;
+        bool abbrechen = false;
+        ImGui::BeginDisabled(!st.anhaltbar);
+        anhalten = ImGui::Button((std::string(trK(Str::KeBpAnhalten)) + "##fortschrittanhalten").c_str());
+        ImGui::EndDisabled();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+            ImGui::BeginTooltip();
+            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28.0F);
+            cjkTextWrapped("%s", trK(st.anhaltbar ? Str::KeBpAnhaltenTip : st.pauseGewuenscht ? Str::KeBpWartet : Str::KeBpAnhaltenAus));
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        }
+        ImGui::SameLine();
+        abbrechen = ImGui::Button((std::string(trK(Str::KeBmAbbrechen)) + "##fortschrittabbrechen").c_str());
+        if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseReleased(ImGuiMouseButton_Right)) {
+            ImGui::OpenPopup("##kartebaufortschrittmenue");
+        }
+        if (qtPopupAnfang("##kartebaufortschrittmenue")) {
+            const std::string an = std::string(trK(Str::KeBpAnhalten)) + "##fortschrittmenueanhalten";
+            QtPunkt pa;
+            pa.id = an.c_str();
+            pa.aktiv = st.anhaltbar;
+            pa.tooltip = trK(st.anhaltbar ? Str::KeBpAnhaltenTip : Str::KeBpAnhaltenAus);
+            anhalten = qtPunkt(pa) || anhalten;
+            const std::string ab = std::string(trK(Str::KeBmAbbrechen)) + "##fortschrittmenueabbrechen";
+            QtPunkt pb;
+            pb.id = ab.c_str();
+            abbrechen = qtPunkt(pb) || abbrechen;
+            qtPopupEnde();
+        }
+        if (anhalten) {
+            bauAnhalten();
+        } else if (abbrechen) {
+            bauAbbrechen();
+        }
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
         cjkTextWrapped("%s", trK(Str::KeFsHinweis));
         ImGui::PopStyleColor();
@@ -2159,8 +2503,256 @@ void bauAbbrechen() {
     BauLauf& l = g_lauf;
     if (!bauLaeuft()) { return; }
     l.prozess.beenden();
+    (void)schrittRestAufraeumen();   // vis2c: der Licht-Cache der fertigen Durchgaenge bleibt, die .bsp ist die von vor dem Licht
+    l.pauseGewuenscht = false;
     ueberwachungZuruecksetzen();
     zusammenfassung(2, std::string());
+}
+
+// --- vis2c: Bauen anhalten und fortsetzen (eigene Funktion, nicht in NRC) --------------------------------------------
+
+namespace {
+
+// Wo die aktuelle Karte gebaut wird, ohne Endung - wie bauOrtBestimmen, ohne etwas anzulegen
+std::string bauStammVorschau() {
+    Editor& ed = e();
+    const std::string ordner = bauOrdnerVorschau();
+    std::string karte = mitSchraegstrich(ed.name);
+    if (!ordner.empty()) {
+        const std::u8string u = (pfadAus(ordner) / (pfadAus(ed.name).stem().u8string() + u8".map")).u8string();
+        karte = mitSchraegstrich(std::string(u.begin(), u.end()));
+    }
+    return karte.substr(0, karte.rfind('.') == std::string::npos ? karte.size() : karte.rfind('.'));
+}
+
+struct PauseMerker {
+    double gelesen = -10.0;   // ImGui-Zeit des letzten Lesens (stand.json hoechstens zweimal je Sekunde)
+    std::string stamm;
+    BauPauseStand stand;
+    // der Hash der Karte nur neu, wenn sich ihre Datei geaendert hat
+    fs::file_time_type kartenZeit{};
+    std::uintmax_t kartenGroesse = 0;
+    std::uint64_t kartenHash = 0;
+};
+PauseMerker g_pauseMerker;
+
+}  // namespace
+
+namespace {
+void pauseStandVergessen() { g_pauseMerker.gelesen = -10.0; }
+}  // namespace
+
+BauPauseStand bauPauseStand() {
+    PauseMerker& m = g_pauseMerker;
+    const std::string stamm = e().name == "unnamed.map" ? std::string() : bauStammVorschau();
+    const double jetzt = ImGui::GetTime();
+    if (stamm != m.stamm || jetzt - m.gelesen >= 0.5) {
+        m.gelesen = jetzt;
+        m.stamm = stamm;
+        m.stand = BauPauseStand{};
+        if (!stamm.empty() && karte::bauPauseLesen(stamm, m.stand.pause)) {
+            m.stand.da = true;
+            m.stand.bytes = karte::bauPauseGroesse(stamm);
+            std::error_code ec;
+            const fs::path karte = pfadAus(m.stand.pause.mapDatei);
+            const fs::file_time_type zeit = fs::last_write_time(karte, ec);
+            const std::uintmax_t groesse = ec ? 0 : fs::file_size(karte, ec);
+            if (ec) {
+                m.kartenHash = 0;
+            } else if (zeit != m.kartenZeit || groesse != m.kartenGroesse || m.kartenHash == 0) {
+                m.kartenZeit = zeit;
+                m.kartenGroesse = groesse;
+                m.kartenHash = karte::bauDateiHash(m.stand.pause.mapDatei);
+            }
+            m.stand.karteGeaendert = m.kartenHash != m.stand.pause.kartenHash;
+        }
+    }
+    BauPauseStand s = m.stand;
+    s.karteGeaendert = s.da && (s.karteGeaendert || geaendert());
+    return s;
+}
+
+std::vector<std::string> bauPauseZeilen(const BauPauseStand& s) {
+    std::vector<std::string> zeilen;
+    if (!s.da) { return zeilen; }
+    const karte::BauPause& p = s.pause;
+    char z[1400];
+    std::snprintf(z, sizeof(z), trK(Str::KeBpStand), p.eintrag.c_str(), static_cast<int>(p.schritt + 1), static_cast<int>(p.befehle.size()),
+                  karte::bauStufeName(p.befehle[p.schritt]).c_str(), p.zeit.c_str());
+    zeilen.emplace_back(z);
+    if (p.visFertig >= 0) {
+        std::snprintf(z, sizeof(z), trK(Str::KeBpVis), p.visFertig, p.visAlle);
+        zeilen.emplace_back(z);
+    }
+    if (p.lichtPaesse > 0) {
+        std::snprintf(z, sizeof(z), trK(Str::KeBpLicht), p.lichtPaesse, p.lichtPaesseVon);
+        zeilen.emplace_back(z);
+    }
+    std::snprintf(z, sizeof(z), trK(Str::KeBpGroesse), groesseText(s.bytes).c_str(), mitSchraegstrich(karte::bauPauseOrdner(p.stamm)).c_str());
+    zeilen.emplace_back(z);
+    return zeilen;
+}
+
+bool bauAnhaltbar() { return bauLaeuft() && g_lauf.aktiv && g_lauf.p.anhaltbar && !g_lauf.pauseGewuenscht; }
+
+void bauAnhalten() {
+    BauLauf& l = g_lauf;
+    if (!bauAnhaltbar()) { return; }
+    if (l.schritt < l.befehle.size() && karte::befehlVisAnhaltbar(l.befehle[l.schritt]) && l.prozess.laeuft()) {
+        // die Stoppdatei: bhed_q3map2 sichert die fertigen Portale und endet mit Rueckgabe 3 (bauSchritt: schrittEndeAnhalten)
+        std::ofstream f(pfadAus(karte::visStoppDatei(l.p.stamm)), std::ios::binary | std::ios::trunc);
+        if (f) {
+            l.pauseGewuenscht = true;
+            ausgabe(trK(Str::KeBpWartet));
+            return;
+        }
+    }
+    // jeder andere Schritt wird beendet und beginnt beim Fortsetzen neu
+    l.prozess.beenden();
+    const int paesse = schrittRestAufraeumen();
+    pauseAbschliessen(l.schritt, paesse);
+}
+
+void bauFortsetzenOeffnen() { e().bauFortsetzenOffen = true; }
+
+void bauPauseVerwerfen() {
+    if (bauLaeuft() && g_lauf.p.alteKarte) { return; }   // der laufende Bau rechnet gerade darin
+    const BauPauseStand s = bauPauseStand();
+    if (!s.da) { return; }
+    (void)karte::bauPauseVerwerfen(s.pause.stamm);
+    pauseStandVergessen();
+    ausgabe(trK(Str::KeBpVerworfen));
+}
+
+void bauFortsetzen(bool alteKarte) {
+    Editor& ed = e();
+    if (bauLaeuft()) {
+        fehler(trK(Str::KeBpLaeuft));
+        return;
+    }
+    pauseStandVergessen();
+    const BauPauseStand s = bauPauseStand();
+    if (!s.da) {
+        fehler(trK(Str::KeBpKeiner));
+        return;
+    }
+    const karte::BauPause& p = s.pause;
+    char z[1400];
+    if (!alteKarte) {
+        // der Eintrag des angehaltenen Baus fuer die Karte von jetzt - bhed_q3map2 prueft selbst, was noch passt
+        bauMenueSicherstellen();
+        const std::vector<karte::BauEintrag>& liste = ed.bauProjekt.eintraege;
+        std::size_t index = liste.size();
+        for (std::size_t i = 0; i < liste.size() && index == liste.size(); ++i) {
+            if (!karte::bauIstTrenner(liste[i]) && karte::ohneMnemonik(liste[i].name) == p.eintrag) { index = i; }
+        }
+        if (index == liste.size()) {
+            std::snprintf(z, sizeof(z), trK(Str::KeBpKeinEintrag), p.eintrag.c_str());
+            fehler(z);
+            return;
+        }
+        (void)karte::bauPauseAktuellVorbereiten(p);
+        pauseStandVergessen();
+        ausgabe(trK(Str::KeBpAktuellStart));
+        bauStarten(index);
+        g_lauf.p.fortgesetzt = bauLaeuft();
+        return;
+    }
+    // genau der angehaltene Bau: die uebrigen Befehle auf den Kopien im Zwischenstand
+    const std::string stamm = karte::bauPauseStamm(p.stamm);
+    const std::vector<std::string> befehle = karte::bauPauseBefehleAlt(p);
+    std::snprintf(z, sizeof(z), trK(Str::KeBpAltStart), static_cast<int>(p.schritt + 1), static_cast<int>(p.befehle.size()),
+                  mitSchraegstrich(karte::bauPauseOrdner(p.stamm)).c_str());
+    ausgabe(z);
+    BauLauf& l = g_lauf;
+    const std::u8string name = pfadAus(ed.name).stem().u8string();
+    l.eintrag = p.eintrag;
+    l.bspName = std::string(name.begin(), name.end());
+    l.kartenPfad = ed.name;
+    l.prtPfad = stamm + ".prt";
+    l.p = BauPauseLauf{};
+    l.p.anhaltbar = true;
+    l.p.alteKarte = true;
+    l.p.fortgesetzt = true;
+    l.p.stamm = stamm;
+    l.p.mapDatei = stamm + pfadAus(p.mapDatei).extension().string();
+    l.p.pause = p;
+    bauAusfuehrenAb(befehle, p.schritt, p.fertig);
+    l.gpuModus = karte::GpuBacken::Aus;   // wie der Befehl es sagt; gemerkt wird von einem fortgesetzten Bau keine Zeit
+    l.autoZeiten = {};
+    // Editor-Daten (Stufe 8a Punkt 2), wenn der angehaltene Bau sie schrieb: seine BSP-Stufe hat -keeplights
+    l.editorDatenQuelle.clear();
+    l.editorDatenBsp.clear();
+    for (const std::string& b : p.befehle) {
+        if (ed.bau.editorDaten && karte::bauStufeAusBefehl(b) == karte::BauStufe::Bsp && karte::befehlMitLichtern(b) == b) {
+            l.editorDatenQuelle = l.p.mapDatei;
+            l.editorDatenBsp = stamm + ".bsp";
+        }
+    }
+}
+
+// Das Fenster "Bauen fortsetzen": was gespeichert ist, ob die Karte sich geaendert hat, und die zwei Wege
+void bauFortsetzenZeichnen() {
+    if (!e().bauFortsetzenOffen) { return; }
+    const BauPauseStand s = bauPauseStand();
+    const float m = massstab();
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->GetCenter(), ImGuiCond_Appearing, ImVec2{0.5F, 0.5F});
+    ImGui::SetNextWindowSize(ImVec2{std::round(560.0F * m), 0.0F}, ImGuiCond_Always);
+    const std::string titel = std::string(trK(Str::KeBpTitel)) + "###kartebaufortsetzen";
+    bool offen = true;
+    int wahl = 0;   // 1 aktuelle Karte, 2 Karte wie angehalten, 3 verwerfen
+    if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+        if (!s.da) {
+            cjkTextWrapped("%s", trK(Str::KeBpKeiner));
+        } else {
+            for (const std::string& z : bauPauseZeilen(s)) { cjkTextWrapped("%s", z.c_str()); }
+            ImGui::PushStyleColor(ImGuiCol_Text, s.karteGeaendert ? ImVec4(1.0F, 127.0F / 255.0F, 0.0F, 1.0F) : ImGui::GetStyleColorVec4(ImGuiCol_Text));
+            cjkTextWrapped("%s", trK(s.karteGeaendert ? Str::KeBpGeaendert : Str::KeBpUnveraendert));
+            ImGui::PopStyleColor();
+            const std::string& schritt = s.pause.befehle[s.pause.schritt];
+            if (karte::bauStufeAusBefehl(schritt) == karte::BauStufe::Vis) {   // was "fortgesetzt" fuer das VIS heisst, ehrlich
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+                cjkTextWrapped("%s", trK(karte::befehlMitVisExakt(schritt) == schritt ? Str::KeBpRegelExakt : Str::KeBpRegelNrc));
+                ImGui::PopStyleColor();
+            }
+            ImGui::Spacing();
+            const struct {
+                int wahl;
+                Str text;
+                Str tip;
+                const char* id;
+            } knoepfe[] = {{1, Str::KeBpAktuell, Str::KeBpAktuellTip, "##fortsetzenaktuell"},
+                           {2, Str::KeBpAlt, Str::KeBpAltTip, "##fortsetzenalt"},
+                           {3, Str::KeBpVerwerfen, Str::KeBpVerwerfenTip, "##fortsetzenverwerfen"}};
+            // nebeneinander, wenn die drei Knoepfe in die Zeile passen (lange Uebersetzungen: untereinander)
+            const ImGuiStyle& stil = ImGui::GetStyle();
+            float summe = 0.0F;
+            for (const auto& k : knoepfe) { summe += ImGui::CalcTextSize(trK(k.text)).x + stil.FramePadding.x * 2.0F + stil.ItemSpacing.x; }
+            const bool zeile = summe - stil.ItemSpacing.x <= ImGui::GetContentRegionAvail().x;
+            ImGui::BeginDisabled(bauLaeuft());
+            for (const auto& k : knoepfe) {
+                if (zeile && k.wahl > 1) { ImGui::SameLine(); }
+                if (ImGui::Button((std::string(trK(k.text)) + k.id).c_str())) { wahl = k.wahl; }
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                    ImGui::BeginTooltip();
+                    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28.0F);
+                    cjkTextWrapped("%s", trK(bauLaeuft() ? Str::KeBpLaeuft : k.tip));
+                    ImGui::PopTextWrapPos();
+                    ImGui::EndTooltip();
+                }
+            }
+            ImGui::EndDisabled();
+        }
+    }
+    ImGui::End();
+    if (!offen) { e().bauFortsetzenOffen = false; }
+    if (wahl == 3) {
+        bauPauseVerwerfen();
+    } else if (wahl != 0) {
+        e().bauFortsetzenOffen = false;
+        bauFortsetzen(wahl == 2);
+    }
 }
 
 void bauBeimBeenden() {   // ~CWatchBSP; dazu: kein q3map2 ohne Editor
@@ -2169,6 +2761,7 @@ void bauBeimBeenden() {   // ~CWatchBSP; dazu: kein q3map2 ohne Editor
     sprungPruefungBeenden();   // Stufe 9 Punkt 4
     bspRueckBeenden();     // Stufe 8a: die Rueckgewinnung nach Open .bsp
     g_lauf.prozess.beenden();
+    (void)schrittRestAufraeumen();   // vis2c: auch beim Programmende bleibt der Licht-Cache der fertigen Durchgaenge
     g_lauf.prozess.loslassen();
     ueberwachungZuruecksetzen();
 }
@@ -2423,6 +3016,8 @@ void bauStarten(std::size_t index) {
     if (ed.bau.visExakt) {
         for (std::string& b : befehle) { b = karte::befehlMitVisExakt(b); }
     }
+    // vis2c (Abweichung): jedes -vis von bhed_q3map2 mit Zwischenstand - anhalten (Stoppdatei) und fortsetzen
+    for (std::string& b : befehle) { b = karte::befehlMitVisStand(b); }
     // rc609 L (Abweichung, eigene Bauoption): "Patch shadows" der Karte - jeder Licht-Schritt bekommt -patchshadows.
     // Aus bleibt der Eintrag, wie er ist (NRC: nur die [Final]-Eintraege haben -patchshadows)
     if (patchSchattenAn()) {
@@ -2451,8 +3046,19 @@ void bauStarten(std::size_t index) {
     g_lauf.bspName = std::string(stamm.begin(), stamm.end());
     g_lauf.kartenPfad = ed.name;
     {
-        const std::string bsp = bauVariablen().at("BspFile");
+        const karte::BauVariablen v = bauVariablen();
+        const std::string& bsp = v.at("BspFile");
         g_lauf.prtPfad = bsp.substr(0, bsp.size() - 4) + ".prt";
+        // vis2c: dieser Bau laesst sich anhalten
+        g_lauf.p = BauPauseLauf{};
+        g_lauf.p.anhaltbar = true;
+        g_lauf.p.stamm = bsp.substr(0, bsp.size() - 4);
+        g_lauf.p.mapDatei = v.at("MapFile");
+        if (const BauPauseStand ps = bauPauseStand(); ps.da) {   // ein angehaltener Bau dieser Karte liegt da: er bleibt
+            char z[1400];
+            std::snprintf(z, sizeof(z), trK(Str::KeBpVorhanden), ps.pause.zeit.c_str(), groesseText(ps.bytes).c_str());
+            ausgabe(z);
+        }
     }
     bauAusfuehren(befehle);
     g_lauf.gpuModus = ed.bau.gpuBacken;   // Stufe 8d
@@ -2475,6 +3081,7 @@ void bauEigeneBefehle(const std::string& eintrag, const std::vector<std::string>
     g_lauf.bspName.clear();
     g_lauf.kartenPfad = e().name;
     g_lauf.prtPfad.clear();
+    g_lauf.p = BauPauseLauf{};   // vis2c: eigene Auftraege lassen sich nicht anhalten
     bauAusfuehren(befehle);
     g_lauf.gpuModus = karte::GpuBacken::Aus;   // Stufe 8d: eigene Auftraege ohne GPU-Wahl
     g_lauf.editorDatenQuelle.clear();

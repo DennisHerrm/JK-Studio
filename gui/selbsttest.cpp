@@ -5934,6 +5934,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_mbraster.inc"   // MBRASTER: Boden-Raster im Model-Tab (modellblock, BHED_MODELL_NUR=raster; Gizmo/Kompass am Ende von kopf)
 #include "selbsttest_mbnav.inc"      // MBNAV: Navigation wie 3ds Max / Blender (modellblock, BHED_MODELL_NUR=nav; Handbuch BHED_HB_NUR=mbnav)
 #include "selbsttest_uiform.inc"      // UIFORM: Formular-Baustein (Into script), Mindestgroessen aller Fenster
+#include "selbsttest_vis2c.inc"   // vis2c: Bauen anhalten und fortsetzen (karteneditor, BHED_KARTE_NUR=vis2c1/2/3)
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {

@@ -369,6 +369,11 @@ namespace kartenruhe {
 std::vector<Schritt> schritte();   // selbsttest_kartenruhe.inc: rc610 R1, nur bei Bedarf zeichnen
 }  // namespace kartenruhe
 
+namespace vis2c {
+std::vector<Schritt> schritte(int lauf);   // selbsttest_vis2c.inc: Bauen anhalten und fortsetzen (BHED_KARTE_NUR=vis2c1 / vis2c2 / vis2c3)
+std::vector<Schritt> handbuchSchritte();   // dito: die Bilder h_vis2c_fortsetzen, h_vis2c_fortschritt (BHED_HB_NUR=vis2c)
+}  // namespace vis2c
+
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
@@ -377,6 +382,11 @@ std::vector<Schritt> karteneditorSchritte() {
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "tempo") == 0) {
         for (Schritt& x : tempo::schritte()) { add(std::move(x)); }
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
+    // =vis2c1/2/3: Bauen anhalten und fortsetzen ueber echte Neustarts (ein Laufordner)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strncmp(nur, "vis2c", 5) == 0 && nur[5] >= '1' && nur[5] <= '3') {
+        for (Schritt& x : vis2c::schritte(nur[5] - '0')) { add(std::move(x)); }
         return s;
     }
     // =split1/2/3: Split-Fenster frei belegen ueber echte Neustarts (Stufe 8b Punkt 2, ein Einstellungsordner)
@@ -2631,6 +2641,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8") == 0) {
         return karte8HandbuchSchritte();
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "vis2c") == 0) {
+        return vis2c::handbuchSchritte();   // vis2c: Bauen anhalten und fortsetzen
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8b") == 0) {
         return karte8bHandbuchSchritte();

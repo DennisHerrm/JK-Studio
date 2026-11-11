@@ -3522,6 +3522,7 @@ void karteDialogeZu() {
     e.ent.farbDialog.offen = false;
     e.ent.lichtOffen = false;
     e.bauDialogOffen = false;
+    e.bauFortsetzenOffen = false;   // vis2c
     e.portalLadenOffen = false;       // Stufe 3 Punkt 5: prtview
     e.portalKonfigOffen = false;
     ke::terrainSchliessen();          // Stufe 8b Punkt 1: Terrain Generator

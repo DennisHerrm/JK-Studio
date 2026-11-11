@@ -2008,6 +2008,7 @@ void zeichne(float hoehe) {
     bauDialogZeichnen();   // Stufe 3: "Build Menu" (DoBuildMenu)
     bauRueckmeldungenZeichnen();   // Stufe 3: "Q3Map debug window"
     bauFortschrittZeichnen();      // Stufe 8a: Baufortschritt mit Restzeit
+    bauFortsetzenZeichnen();       // vis2c: "Bauen fortsetzen"
     bspRueckSchritt();             // Stufe 8a: misc_model aus der .bsp zurueckgewinnen
     zusammenDialogZeichnen();      // Stufe 8a: Zur fertigen Karte hinzufuegen
     portalDialogeZeichnen();       // Stufe 3 Punkt 5: prtview ("Load .prt", "Portal Viewer Configuration")

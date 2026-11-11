@@ -33,6 +33,7 @@
 #include "bhed/karte/geometrieimport.h"
 #include "bhed/karte/bau.h"
 #include "bhed/karte/baufortschritt.h"
+#include "bhed/karte/baupause.h"
 #include "bhed/karte/bobtoolz.h"
 #include "bhed/karte/brushexport.h"
 #include "bhed/karte/kleineplugins.h"
@@ -1062,6 +1063,7 @@ struct Editor {
     bool bauGeaendert = false;             // g_build_changed
     long long bauZuletzt = -1;             // g_lastExecutedBuild (Index, -1 = keiner)
     bool bauDialogOffen = false;           // DoBuildMenu ("Build Menu")
+    bool bauFortsetzenOffen = false;   // vis2c: das Fenster "Bauen fortsetzen"
     std::string bauKarte;                  // die Datei, die gebaut wird, wenn nicht die Karte selbst (Punkt 4)
     std::string bauKarteFuer;              // ... fuer diese Karte (sonst gilt die Karte selbst)
     // Q3Map debug window (feedback.cpp g_DbgDlg) und die Leck-Linie (points.cpp CPointfile)
@@ -1928,11 +1930,34 @@ struct BauFortschrittStand {
     double vergangen = 0;
     bool lichtCacheAn = false;       // lcb1: der Licht-Schritt hat -bhedlightcache
     karte::BauLichtCache lichtCache;   // lcb1: was bhed_q3map2 ueber den Cache sagt
+    // vis2c: anhalten und fortsetzen
+    bool anhaltbar = false;          // "Bauen anhalten" geht (Bau aus dem Build-Menue oder fortgesetzt)
+    bool pauseGewuenscht = false;    // die Stoppdatei liegt: das VIS sichert und endet
+    bool visStandAn = false;         // der VIS-Schritt hat -bhedvisstate
+    karte::BauVisStand visStand;     // was bhed_q3map2 ueber seinen Zwischenstand sagt
+    long long visStandBytes = -1;    // der Zwischenstand auf der Platte (-1: keiner)
 };
 [[nodiscard]] BauFortschrittStand bauFortschrittStand();
 // lcb1: die Zeile des Licht-Caches im Fenster Baufortschritt ("" ausserhalb des Licht-Schritts); warnung = greift nicht
 [[nodiscard]] std::string bauLichtCacheText(const BauFortschrittStand& st, bool* warnung = nullptr);
 void bauFortschrittZeichnen();      // "Q3Map debug window" (CDbgDlg)
+// vis2c (eigene Funktion, nicht in NRC): den Bau anhalten und spaeter fortsetzen (bhed/karte/baupause.h)
+struct BauPauseStand {
+    bool da = false;             // von der aktuellen Karte ist ein angehaltener Bau gespeichert
+    karte::BauPause pause;
+    long long bytes = 0;         // Groesse des Zwischenstands
+    bool karteGeaendert = false; // die Karte ist nicht mehr die von damals (oder hat ungespeicherte Aenderungen)
+};
+[[nodiscard]] BauPauseStand bauPauseStand();
+[[nodiscard]] std::vector<std::string> bauPauseZeilen(const BauPauseStand& s);   // Eintrag/Schritt/Datum, VIS, Licht, Groesse
+[[nodiscard]] bool bauAnhaltbar();
+void bauAnhalten();
+void bauFortsetzenOeffnen();        // das Fenster "Bauen fortsetzen" (Editor::bauFortsetzenOffen)
+void bauFortsetzen(bool alteKarte); // "Karte wie angehalten" bzw. "aktuelle Karte"
+void bauPauseVerwerfen();
+void bauFortsetzenZeichnen();
+// die Zeile des VIS-Zwischenstands im Fenster Baufortschritt ("" ohne); warnung = nicht genutzt
+[[nodiscard]] std::string bauVisStandText(const BauFortschrittStand& st, bool* warnung = nullptr);
 void bauRueckmeldungWaehlen(int zeile);   // feedback_selection_changed
 // Abweichung (Auftrag): der Ordner, in dem gebaut wird ("" = neben der Karte;
 // nie im Spielordner - dann der Arbeitsordner), hinweis = warum.

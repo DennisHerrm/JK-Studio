@@ -659,7 +659,7 @@ std::vector<Schritt> visHinweis() {
     add(pause(1.0));
     add(pruefe("vis1: -vis mit -bhedvisexact, bhed_q3map2 meldet das deterministische VIS", [] {
         const std::string k = stufe3::konsoleText();
-        return k.find("-vis -saveprt -threads 1 -bhedvisexact \"") != std::string::npos &&
+        return k.find("-vis -saveprt -threads 1 -bhedvisexact -bhedvisstate \"") != std::string::npos &&
                k.find("BehavEd: deterministic vis (the result of -threads 1)") != std::string::npos;
     }));
     add(klick(ke::trK(Str::KeLBuild), "###main"));
