@@ -2929,6 +2929,11 @@ std::vector<Schritt> jk2Schritte() {
 std::vector<Schritt> missionsListeSchritte() {
     std::vector<Schritt> s;
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // GDPFAD: die Gruppe stellt den Fehler mit dem reinen JKA nach - ohne es laeuft sie nicht (eine Zeile "uebersprungen")
+    if (const std::string fehlt = spielBasisFehlt(jkaBasis("BHED_JKA_BASIS")); !fehlt.empty()) {
+        add(ohneSpieldaten("Missionsliste (Load mission mit dem reinen JKA)", fehlt));
+        return s;
+    }
     auto z = std::make_shared<missionsliste::Zustand>();
     add(tu("Missionsliste: Ausgangslage (reines JKA, eingerichtete Spielordner)", [=] {
         z->jka = jkaBasis("BHED_JKA_BASIS");

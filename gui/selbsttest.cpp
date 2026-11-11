@@ -314,10 +314,15 @@ struct Schritt {
     // seit rc601 ein Zip von ~110 MB) - fuer sie gilt die Grenze von 4000
     // Bildern je Schritt nicht.
     bool eigeneZeitgrenze = false;
+    // GDPFAD: einer der Schlussschritte des Laufs (endeSchritte: Zusammenfassung, Beenden) - bis hierher laesst
+    // restAuslassen die Schritte weg.
+    bool schluss = false;
 };
 
 // Schritte hinter dem laufenden einhaengen (Definition weiter unten).
 void schritteEinfuegen(std::vector<Schritt> neu);
+// Die uebrigen Schritte des Laufs bis zu den Schlussschritten weglassen (Definition weiter unten).
+void restAuslassen();
 // Warten, bis eine Bedingung gilt (Definition weiter unten).
 Schritt warteBis(const std::string& was, std::function<bool()> bedingung, int maxBilder);
 bool leseVektor(const std::string& text, float out[3]);
@@ -704,6 +709,20 @@ Schritt tu(const std::string& text, std::function<void()> was) {
 std::string jkaBasis(const char* variable) {
     const char* e = std::getenv(variable);
     return e != nullptr ? e : "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Jedi Academy\\GameData\\base";
+}
+
+// GDPFAD: hat der Ordner die Daten eines Spiels (assets0.pk3 - JKA und Jedi Outcast)? "" = ja, sonst der Grund fuer
+// meldeUebersprungen. Ohne sie laeuft der Teil nicht los: Ordner umbenannt, Spiel nicht installiert. Bis rc611 schrieben die
+// Gruppen dann FEHLER-Zeilen und warteten jede Zeitgrenze ab, rtjka stuerzte ab.
+std::string spielBasisFehlt(const std::string& ordner) {
+    std::error_code ec;
+    if (std::filesystem::is_regular_file(::bhed::utf8Pfad(ordner + "/assets0.pk3"), ec)) { return {}; }
+    return "kein assets0.pk3 in \"" + ordner + "\"";
+}
+
+// Ein Teil ohne die Daten seines Spiels: eine Zeile "uebersprungen (Daten fehlen)" statt seiner Schritte - kein FEHLER, kein OK
+Schritt ohneSpieldaten(const std::string& teil, const std::string& grund) {
+    return tu(teil + ": ohne die Spieldaten uebersprungen", [=] { meldeUebersprungen(teil, grund); });
 }
 
 // --- Zwischenablage (Abschluss 2) --------------------------------------------
@@ -1600,6 +1619,19 @@ void schritteEinfuegen(std::vector<Schritt> neu) {
                     std::make_move_iterator(neu.begin()),
                     std::make_move_iterator(neu.end()));
     g_einfuegeAn += n;
+}
+
+// GDPFAD: die Schritte hinter dem laufenden weglassen, bis zu den Schlussschritten des Laufs. Fuer einen Schritt, ohne dessen
+// Ergebnis alles Folgende ins Leere greift: die Figur der Gruppe liess sich nicht laden, die Daten ihres Spiels fehlen. Bis
+// rc611 liefen die Schritte weiter - rtjka las ohne Figur animList[-1] (Lesezugriff 0xFFFFFFFFFFFFFFF0) und beendete den Lauf
+// mit 0xC0000005 statt mit seiner Zusammenfassung. Ein Lauf ohne Schlussschritte behaelt alles (sonst fehlte ihm das Ende).
+void restAuslassen() {
+    if (g_liste == nullptr) { return; }
+    std::size_t bis = g_einfuegeAn;
+    while (bis < g_liste->size() && !(*g_liste)[bis].schluss) { ++bis; }
+    if (bis == g_liste->size() || bis == g_einfuegeAn) { return; }
+    diag::detail("Knopftest: " + std::to_string(bis - g_einfuegeAn) + " Schritte ausgelassen");
+    g_liste->erase(g_liste->begin() + static_cast<std::ptrdiff_t>(g_einfuegeAn), g_liste->begin() + static_cast<std::ptrdiff_t>(bis));
 }
 
 struct BefehlsPlan {

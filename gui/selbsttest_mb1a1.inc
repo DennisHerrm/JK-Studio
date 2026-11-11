@@ -66,16 +66,21 @@ bool matrizenGleich(const BoneMatrix& a, const BoneMatrix& b, float tol) {
     return true;
 }
 
-// Das Spiel des Bildvergleichs: Original-JKA (BHED_MB_JKA, sonst Steam "GameData"), Jedi Outcast (Steam) oder die Einstellungen (MD).
+// Das Spiel einer Gruppe: Original-JKA (BHED_MB_JKA, sonst Steam "GameData"), Jedi Outcast (BHED_JK2_BASIS, sonst Steam) oder
+// die Einstellungen (MD). GDPFAD: fehlen die Daten des gewaehlten Spiels (Ordner umbenannt, Spiel nicht installiert), ist die
+// Gruppe uebersprungen und ihre uebrigen Schritte bleiben weg - sie arbeiten alle mit diesen Daten.
 void spielSetzen(const std::string& spiel) {
     Settings& st = g_app->settings;
+    std::string basis;
     if (spiel == "jka") {
-        st.gamePaths = {jkaBasis("BHED_MB_JKA")};
+        basis = jkaBasis("BHED_MB_JKA");
+        st.gamePaths = {basis};
         st.regelwerk = kRegelwerkOpenJK;
     } else if (spiel == "jk2") {
         const char* e = std::getenv("BHED_JK2_BASIS");
+        basis = e != nullptr ? e : "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Jedi Outcast\\GameData\\base";
         st.gamePaths.clear();
-        st.gamePathsJk2 = {e != nullptr ? e : "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Jedi Outcast\\GameData\\base"};
+        st.gamePathsJk2 = {basis};
         st.regelwerk = kRegelwerkJediOutcast;
     }
     g_app->sitzungsSpielordner.clear();
@@ -83,6 +88,10 @@ void spielSetzen(const std::string& spiel) {
     rescanGamePaths();
     diag::detail("Knopftest: MB1 - Spiel " + spiel + ": " + regelwerkStatusZeile() + ", " + std::to_string(g_app->gamePaths.size()) +
                  " Spielordner, Ghoul2 JK2 " + std::to_string(ghoul2Jk2()));
+    if (const std::string fehlt = basis.empty() ? std::string() : spielBasisFehlt(basis); !fehlt.empty()) {
+        meldeUebersprungen("Modell-Block mit den Daten des Spiels " + spiel, fehlt);
+        restAuslassen();
+    }
 }
 
 // Alle Modelle eines Spiels: zwei Bilder je Modell (laden, dann vergleichen).
@@ -200,14 +209,19 @@ Schritt bildVergleich(const std::string& spiel) {
     return s;
 }
 
-// Ein Testmodell laden (der Sturmtruppler: vier LOD-Stufen in Movie Duels und JKA).
+// Ein Testmodell laden (der Sturmtruppler: vier LOD-Stufen in Movie Duels und JKA). Der Lader aller Gruppen des Modell-Blocks.
+// GDPFAD: laedt die Figur nicht, bleiben die uebrigen Schritte des Laufs weg - sie arbeiten mit der Figur (Sequenz, Knochen,
+// Flaechen) und griffen sonst ins Leere: rtjka las animList[-1] und stuerzte ab, statt mit dem FEHLER zu enden.
 std::vector<Schritt> laden(const std::string& pfad) {
     std::vector<Schritt> s;
     s.push_back(tu("MB1: Model-Tab, " + pfad, [=] {
         g_app->leftMode = 2;
         if (g_app->gamePaths.empty()) { rescanGamePaths(); }
         std::string fehler;
-        if (!oeffneModellAusArchiv(pfad, &fehler)) { meldeFehler("MB1: " + pfad + ": " + fehler); }
+        if (!oeffneModellAusArchiv(pfad, &fehler)) {
+            meldeFehler("MB1: " + pfad + ": " + fehler);
+            restAuslassen();
+        }
         g_app->mtab.vierAnsichten = false;
         g_app->mtab.aktiv = 3;
         g_app->animPlaying = false;

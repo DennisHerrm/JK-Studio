@@ -60,7 +60,9 @@ MD = os.path.join(STEAM, "Jedi Academy", "GameData Movie Duels")
 JKA = next((p for p in (os.path.join(STEAM, "Jedi Academy", "GameData", "base"), os.path.join(STEAM, "Jedi Academy", "GameData original", "base"))
             if os.path.isfile(os.path.join(p, "assets0.pk3"))), os.path.join(STEAM, "Jedi Academy", "GameData", "base"))
 
-# Fuer alle Laeufe gesetzt: wo die JKA-Daten liegen (die Vorgaben im Programm kennen noch den alten Ordnernamen)
+# Fuer alle Laeufe gesetzt: wo die JKA-Daten dieses Rechners liegen (TR_STEAM). Die Vorgaben der Selbsttests nennen seit
+# GDPFAD denselben Ordner "GameData"; fehlt er, melden die JKA-Gruppen "uebersprungen (Daten fehlen)" - die Zeile des Laufs
+# nennt die Zahl
 UMGEBUNG = {
     "BHED_JKA_BASIS": JKA, "BHED_MB_JKA": JKA, "BHED_KEMD_JA": JKA.replace("\\", "/"), "BHED_JA_PFAD": os.path.dirname(JKA),
     "BHED_WE_PK3": os.path.join(TESTDATEN, "zz_JediTempleGarden_MD.pk3"),
@@ -341,8 +343,11 @@ class Lauf:
         zeiten = [z for z in wichtig if z.startswith("Knopftest Zeiten: gesamt")]
         pause = re.search(r"Pause (\d+)x ([0-9.]+) s", zeiten[-1]) if zeiten else None
         self.gruen = rc == 0 and bool(schluss) and schluss[-1].endswith(" 0 FEHLER")
-        self.ergebnis = "%s: %s, exit %s, %d MB, %s (%.0f s%s)" % (
-            self.name, "gruen" if self.gruen else "ROT", rc, self.spitze // 1024 ** 2, schluss[-1] if schluss else "kein 'Knopftest fertig'", dauer,
+        # Pruefungen, deren Spieldaten fehlen, sind weder OK noch FEHLER (meldeUebersprungen): gruen, aber nicht geprueft
+        ausgelassen = sum(1 for z in wichtig if z.startswith("Knopftest uebersprungen (Daten fehlen)"))
+        self.ergebnis = "%s: %s, exit %s, %d MB, %s%s (%.0f s%s)" % (
+            self.name, "gruen" if self.gruen else "ROT", rc, self.spitze // 1024 ** 2, schluss[-1] if schluss else "kein 'Knopftest fertig'",
+            ", %d uebersprungen (Daten fehlen)" % ausgelassen if ausgelassen else "", dauer,
             ", davon Pausen %s s" % pause.group(2) if pause else "")
         self.fehler = [z for z in wichtig if "FEHLER" in z and not z.startswith("Knopftest fertig")][:20]
         self.dauer = dauer + getattr(self, "dauer_vorlauf", 0.0)

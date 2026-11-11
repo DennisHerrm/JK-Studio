@@ -763,6 +763,7 @@ std::vector<Schritt> zeitleiste0Schritte() {
         diag::detail("Knopftest: zeitleiste0 - reines JKA \"" + st->jka + "\", eingerichtet \"" + st->md + "\"");
     }));
     // academy1 / intro (reines JKA): Luke erklaert.
+    const std::size_t jkaAb = s.size();
     add(tu("zeitleiste0: Load mission (JKA)", [=] { missionenAusArchiv(st->jka + "\\assets1.pk3"); }));
     add(warteBis("zeitleiste0: academy1 in der Auswahl", [] { return missionsliste::hat("academy1", true); }, 3500));
     add(waehleInListe("academy1", false, 0, "##missionpick"));
@@ -776,6 +777,11 @@ std::vector<Schritt> zeitleiste0Schritte() {
                jk2probe::figurenGeladen();
     }, 1500));
     for (Schritt& x : zl0::szeneSchritte("academy1_intro", "JKA", st)) { s.push_back(std::move(x)); }
+    // GDPFAD: ohne das reine JKA faellt der Teil mit academy1 weg (eine Zeile "uebersprungen"), md_am_sith laeuft
+    if (const std::string fehlt = spielBasisFehlt(jkaBasis("BHED_JKA_BASIS")); !fehlt.empty()) {
+        s.erase(s.begin() + static_cast<std::ptrdiff_t>(jkaAb), s.end());
+        add(ohneSpieldaten("zeitleiste0 academy1/intro (reines JKA)", fehlt));
+    }
     // md_am_sith (Movie Duels): das Schiff.
     add(tu("zeitleiste0: Load mission (Movie Duels)", [=] {
         mission1::ungespeicherteEntitiesVergessen();

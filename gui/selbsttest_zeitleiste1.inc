@@ -1837,6 +1837,7 @@ std::vector<Schritt> zeitleiste1Schritte() {
         g_app->leftMode = 1;
         g_app->missionPickOpen = false;
     }));
+    const std::size_t jkaAb = s.size();
     add(tu("zeitleiste1: Load mission (JKA)", [=] { missionenAusArchiv(st->jka + "\\assets1.pk3"); }));
     add(warteBis("zeitleiste1: academy1 in der Auswahl", [] { return missionsliste::hat("academy1", true); }, 3500));
     add(waehleInListe("academy1", false, 0, "##missionpick"));
@@ -1853,6 +1854,11 @@ std::vector<Schritt> zeitleiste1Schritte() {
     for (Schritt& x : zl1::szeneSchritte("academy1_intro", 15, 15)) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::untertitelFoto("academy1_intro")) { s.push_back(std::move(x)); }
     for (Schritt& x : zl1::aufnahmeOriginal("academy1")) { s.push_back(std::move(x)); }
+    // GDPFAD: ohne das reine JKA faellt der Teil mit academy1 weg (eine Zeile "uebersprungen"), der Rest laeuft
+    if (const std::string fehlt = spielBasisFehlt(jkaBasis("BHED_JKA_BASIS")); !fehlt.empty()) {
+        s.erase(s.begin() + static_cast<std::ptrdiff_t>(jkaAb), s.end());
+        add(ohneSpieldaten("zeitleiste1 academy1/intro (reines JKA)", fehlt));
+    }
     add(tu("zeitleiste1: Load mission (Movie Duels)", [=] {
         mission1::ungespeicherteEntitiesVergessen();
         missionenAusArchiv(st->md);

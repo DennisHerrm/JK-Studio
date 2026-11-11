@@ -2162,25 +2162,30 @@ std::vector<Schritt> mission1Schritte() {
     // durch Leerzeichen getrennt); ohne: alles. zwischen/gizmo brauchen jka.
     const std::string teile = std::getenv("BHED_M1_TEIL") != nullptr ? std::string(" ") + std::getenv("BHED_M1_TEIL") + " " : std::string();
     const auto mit = [&teile](const char* t) { return teile.empty() || teile.find(std::string(" ") + t + " ") != std::string::npos; };
+    // GDPFAD: ohne das reine JKA laufen nur die Teile mit den eingerichteten Spielordnern (md, drehen, undo am Schiff, mini);
+    // jka, zwischen, undo an academy1, gizmo, laden und kino laden ihre Karten aus dessen assets1.pk3.
+    const std::string jkaFehlt = spielBasisFehlt(jkaBasis("BHED_JKA_BASIS"));
+    const bool jka = jkaFehlt.empty();
+    if (!jka) { add(ohneSpieldaten("Mission1 jka, zwischen, undo (academy1), gizmo, laden, kino", jkaFehlt)); }
     if (mit("md")) {
         for (Schritt& x : mission1GesichtSchritte(z, true)) { s.push_back(std::move(x)); }
     }
-    if (mit("jka") || mit("zwischen") || mit("gizmo") || mit("undo") || mit("undoa")) {
+    if (jka && (mit("jka") || mit("zwischen") || mit("gizmo") || mit("undo") || mit("undoa"))) {
         for (Schritt& x : mission1GesichtSchritte(z, false)) { s.push_back(std::move(x)); }
     }
-    if (mit("zwischen")) {
+    if (jka && mit("zwischen")) {
         for (Schritt& x : mission1ZwischenSchritte("rosh", true, "")) { s.push_back(std::move(x)); }
     }
-    if (mit("undo") || mit("undoa")) {
+    if (jka && (mit("undo") || mit("undoa"))) {
         for (Schritt& x : mission1UndoSchritteAcademy()) { s.push_back(std::move(x)); }
     }
-    if (mit("gizmo")) {
+    if (jka && mit("gizmo")) {
         for (Schritt& x : mission1GizmoSchritte("luke", "")) { s.push_back(std::move(x)); }
     }
-    if (mit("laden")) {
+    if (jka && mit("laden")) {
         for (Schritt& x : mission1LadenSchritte(z)) { s.push_back(std::move(x)); }
     }
-    if (mit("kino")) {
+    if (jka && mit("kino")) {
         for (Schritt& x : mission1KinoSchritte(z)) { s.push_back(std::move(x)); }
     }
     if (mit("drehen") || mit("undo")) {

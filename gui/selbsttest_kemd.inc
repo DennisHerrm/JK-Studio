@@ -303,7 +303,12 @@ std::vector<Schritt> kemdSchritte() {
     }));
     if (n.empty() || n == "shader") {
         for (Schritt& x : kemd::shaderTeil(kRegelwerkMovieDuels, "md")) { s.push_back(std::move(x)); }
-        for (Schritt& x : kemd::shaderTeil(kRegelwerkOpenJK, "ja")) { s.push_back(std::move(x)); }
+        // GDPFAD: der Teil mit den Ordnern einer JKA-Installation nur, wenn es sie auf dem Rechner gibt
+        if (const std::string fehlt = spielBasisFehlt(kemd::jaBasis()); fehlt.empty()) {
+            for (Schritt& x : kemd::shaderTeil(kRegelwerkOpenJK, "ja")) { s.push_back(std::move(x)); }
+        } else {
+            s.push_back(ohneSpieldaten("K2 ja (Shader im Editor mit den Ordnern einer JKA-Installation)", fehlt));
+        }
     }
     if (n.empty() || n == "assets") {
         for (Schritt& x : kemd::assetTeil()) { s.push_back(std::move(x)); }

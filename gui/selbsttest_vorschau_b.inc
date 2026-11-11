@@ -6811,6 +6811,7 @@ std::vector<Schritt> endeSchritte(bool voll) {
         s.push_back(tu("Beenden anfordern", [] { g_app->wantQuit = true; }));
     }
     s.push_back(antworteNein());
+    for (Schritt& x : s) { x.schluss = true; }   // GDPFAD: restAuslassen laesst nur weg, was davor steht
     return s;
 }
 
