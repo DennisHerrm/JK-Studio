@@ -296,7 +296,7 @@ struct MalBild {
     std::vector<mm::Rechteck> texSchmutzig;   // fuer die 2D-Ansicht noch hochzuladen (MBMAL: die geaenderten Flaechen statt ihrer Huelle)
     std::vector<StufenBindung> bindungen; // die Stufen der Vorschau mit diesem Bild
     std::uint64_t bindungenFuer = 0;      // P31: gesucht fuer diese Texturen (ModelTextures::ladeNummer, 0: neu suchen)
-    int maskeFuer = -1;                   // P8: l.stand der gemerkten Maskenflaechen (-1: neu bestimmen)
+    int maskeFuer = -1;                   // P8: l.maskeStand der gemerkten Maskenflaechen (-1: neu bestimmen)
     std::vector<std::array<int, 4>> maskeFlaechen;   // P8: maskierte Texel als Rechtecke x0, y0, x1, y1 (x1, y1 ausschliesslich)
 };
 
@@ -1076,7 +1076,7 @@ void maskeAendern(Str name, bool umkehren) {
     mm::sichern(m->v, m->l, -1, mm::Rechteck{0, 0, m->l.b - 1, m->l.h - 1});
     for (std::uint8_t& x : m->l.maske) { x = umkehren ? static_cast<std::uint8_t>(255 - x) : 0; }
     mm::schrittEnde(m->v, m->l);
-    m->maskeFuer = -1;   // P8: die Maske hat sich ohne Strich geaendert (l.stand bleibt)
+    ++m->l.maskeStand;   // P8: die Maske hat sich ohne Strich geaendert (die 2D-Ansicht liest sie neu)
     ++mz().befehle;
     mz().letzterBefehl = tr(name);
     melden(tr(name));
@@ -1654,7 +1654,7 @@ void maskeFlaechenNeu(MalBild& m) {
         }
         std::swap(offen, weiter);
     }
-    m.maskeFuer = m.l.stand;
+    m.maskeFuer = m.l.maskeStand;
 }
 
 void drawModellMalEditor(ImVec2 groesse) {
@@ -1752,9 +1752,10 @@ void drawModellMalEditor(ImVec2 groesse) {
         z.dreieckeGezeichnet = gez;
     }
     if (z.maskeZeigen) {
-        // die Maske als rote Flaeche (geschuetzt), Rechtecke gemerkt je Stand (P8)
+        // die Maske als rote Flaeche (geschuetzt), Rechtecke gemerkt je Stand der Maske (P8; MBMAL: nicht je Stand des Bilds -
+        // jeder Tupfer mit dem Pinsel las sonst alle Texel der Maske neu, 4 Millionen im 2048er Bild)
         z.maskeTexel = 0;
-        if (m->maskeFuer != m->l.stand) {
+        if (m->maskeFuer != m->l.maskeStand) {
             maskeFlaechenNeu(*m);
             z.maskeTexel = m->l.b * m->l.h;
         }

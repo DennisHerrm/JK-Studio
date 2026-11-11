@@ -91,6 +91,7 @@ struct Leinwand {
     std::vector<Rechteck> schmutzKachel;
     std::vector<std::int32_t> schmutzListe;
     int stand = 0;                           // zaehlt jede Aenderung
+    int maskeStand = 0;                      // MBMAL: zaehlt jede Aenderung der Maske (die 2D-Ansicht liest sie nur dann neu)
     int gespeichert = 0;                     // stand beim Laden/letzten Bauen
     int ausbluten = 4;
     // Zwischenspeicher eines Tupfers (je Texel der staerkste Abfall, einmal je Tupfer)

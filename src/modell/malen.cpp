@@ -453,6 +453,7 @@ int auftragen(Leinwand& l, Verlauf& v, const Pinsel& p, const std::vector<Treffe
     }
     for (const KachelFlaeche& f : flaechen) { schmutzigDazu(l, f.r); }
     ++l.stand;
+    if (maske) { ++l.maskeStand; }
     const Stoppuhr uhr(ms.zusammenMs);
     for (const KachelFlaeche& f : flaechen) { zusammensetzen(l, f.r); }
     return n;
@@ -901,6 +902,7 @@ void anwenden(Leinwand& l, const UndoSchritt& s, bool rueck) {
         const std::vector<std::uint8_t>& m = rueck ? s.maskeVorher : s.maskeNachher;
         if (!m.empty()) {
             l.maske = m;
+            ++l.maskeStand;
         }
         geaendert(l, ganz(l));
         zusammensetzen(l);
@@ -913,6 +915,7 @@ void anwenden(Leinwand& l, const UndoSchritt& s, bool rueck) {
         const Rechteck r{k.kx * kKachel, k.ky * kKachel, std::min(l.b - 1, k.kx * kKachel + kKachel - 1), std::min(l.h - 1, k.ky * kKachel + kKachel - 1)};
         schmutzigDazu(l, r);
         zusammensetzen(l, r);
+        if (k.ebene < 0) { ++l.maskeStand; }
     }
     ++l.stand;
 }
@@ -1133,6 +1136,7 @@ bool leinwandUmbacken(Leinwand& l, Verlauf& v, const std::string& name) {
     s.maskeNachher = maskeNeu;
     l.ebenen = std::move(neu);
     l.maske = std::move(maskeNeu);
+    ++l.maskeStand;
     schrittAblegen(v, std::move(s));
     l.dreieckeBeimLaden = l.dreiecke;
     geaendert(l, ganz(l));
