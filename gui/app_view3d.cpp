@@ -8752,7 +8752,7 @@ void drawKartenStatistik() {
     if (!g_app->kartenStatistikOffen) {
         return;
     }
-    if (!ImGui::Begin((std::string(tr(Str::MapStats)) + "###kartenstatistik").c_str(), &g_app->kartenStatistikOffen,
+    if (!ui::fensterBegin((std::string(tr(Str::MapStats)) + "###kartenstatistik").c_str(), &g_app->kartenStatistikOffen,
                       ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::End();
         return;

@@ -63,7 +63,7 @@ void undoListeZeichnen() {
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSize(ImVec2{30.0F * fs, 26.0F * fs}, ImGuiCond_FirstUseEver);
     const std::string titel = std::string(trK(Str::KeUlTitel)) + "###undoverlauf";
-    if (!ImGui::Begin(titel.c_str(), &ed.undoListeOffen)) {
+    if (!ui::fensterBegin(titel.c_str(), &ed.undoListeOffen)) {
         ImGui::End();
         return;
     }

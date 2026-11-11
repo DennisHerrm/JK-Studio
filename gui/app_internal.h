@@ -27,6 +27,7 @@
 // fuer eine Frage, die ImGui genau beantworten kann.
 #include "imgui.h"
 #include "imgui_internal.h"
+#include "ui_formular.h"   // UIFORM: Fenster ueber ui::fensterBegin/modalBegin (Mindestgroessen), Formular-Baustein
 
 #include "backend.h"
 #include "audio_win32.h"

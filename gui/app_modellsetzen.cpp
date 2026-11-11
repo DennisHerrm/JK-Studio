@@ -266,7 +266,7 @@ void drawModellFenster() {
                             ImGuiCond_FirstUseEver);
     bool offen = true;
     const std::string titel = std::string(tr(Str::M0Fenster)) + "###m0modelle";
-    if (ImGui::Begin(titel.c_str(), &offen)) {
+    if (ui::fensterBegin(titel.c_str(), &offen)) {
         for (const modellsetzen::KlassenAngebot& a : modellsetzen::modellKlassen(modellSpiel(), false)) {
             if (a.klasse != "misc_model_static" || a.da) { continue; }
             char t[700];

@@ -1222,7 +1222,7 @@ void entitaetenListeZeichnen() {
     ImGui::SetNextWindowSize(groesse, ImGuiCond_FirstUseEver);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     const std::string titel = std::string(trK(Str::KeElTitle)) + "###karteentliste";
-    if (ImGui::Begin(titel.c_str(), &u.listeOffen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar)) {
+    if (ui::fensterBegin(titel.c_str(), &u.listeOffen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar)) {
         ImGui::PopStyleVar();
         const ImVec2 o = ImGui::GetCursorScreenPos();
         const ImVec2 platz = ImGui::GetContentRegionAvail();
@@ -1489,7 +1489,7 @@ void lichtDialogZeichnen() {
     bool fertig = false;
     bool ok = false;
     // QFormLayout mit SetFixedSize: Tip, Intensity: [SpinBox], Checkbox, OK/Cancel
-    if (ImGui::BeginPopupModal(id.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+    if (ui::modalBegin(id.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
         ImGui::TextUnformatted(trK(Str::KeLiTip));
         ImGui::AlignTextToFramePadding();
         const ImVec2 lp = ImGui::GetCursorScreenPos();
@@ -1724,7 +1724,7 @@ void farbDialogZeichnen() {
     bool fertig = false;
     bool ok = false;
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{px(kAbstand), px(kAbstand)});
-    if (ImGui::BeginPopupModal(id.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+    if (ui::modalBegin(id.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
         auto& eigene = ed.ent.eigeneFarben;
         // links: Grundfarben, Pick Screen Color, Hinweis, eigene Farben, Add
         ImGui::BeginGroup();

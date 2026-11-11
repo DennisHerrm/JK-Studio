@@ -1826,7 +1826,7 @@ void drawWegFenster() {
     // war "Netz pruefen" abgeschnitten (Wegpunkttest).
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSizeConstraints(ImVec2{fs * 24.0F, 0.0F}, ImVec2{fs * 32.0F, FLT_MAX});
-    if (!ImGui::Begin((std::string(tr(Str::WegTitel)) + "###wegpunkte").c_str(), &g_app->wegFensterOffen,
+    if (!ui::fensterBegin((std::string(tr(Str::WegTitel)) + "###wegpunkte").c_str(), &g_app->wegFensterOffen,
                       ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::End();
         return;

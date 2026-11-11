@@ -5,6 +5,7 @@
 
 #include "bhed/diag.h"
 #include "fenster_dock.h"
+#include "ui_formular.h"
 
 #include "imgui_internal.h"
 
@@ -384,7 +385,7 @@ bool panelBeginnen(int bereich, const Vorgabe& v, int i) {
     // Abschluss rc607: NoFocusOnAppearing - ein eingeklapptes Feld, das beim Herausziehen seines Griffs
     // wieder erscheint, nahm sonst den Fokus, und ImGui beendete dabei das Ziehen (FocusWindow -> ClearActiveID):
     // der Griff blieb nach 14 Punkten stehen (Selbsttest karteneditor, Teiler "vom Rand zurueckgezogen").
-    const bool sichtbar = ImGui::Begin(name.c_str(), imRaum ? nullptr : &offen,
+    const bool sichtbar = ui::fensterBegin(name.c_str(), imRaum ? nullptr : &offen,
                                        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
                                            ImGuiWindowFlags_NoFocusOnAppearing);
     ImGui::PopStyleColor(farben);

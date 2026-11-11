@@ -109,7 +109,7 @@ void logikZeichnen() {
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSize(ImVec2{58.0F * fs, 34.0F * fs}, ImGuiCond_FirstUseEver);
     const std::string titel = std::string(trK(Str::KeLgTitel)) + "###kartelogik";
-    if (!ImGui::Begin(titel.c_str(), &z.offen, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+    if (!ui::fensterBegin(titel.c_str(), &z.offen, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
         ImGui::End();
         return;
     }

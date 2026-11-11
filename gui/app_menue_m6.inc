@@ -64,7 +64,7 @@ void zeichneFlussFenster(Dokument* aktivDok) {
     ImGui::SetNextWindowSize(ImVec2{fs * 50, fs * 32}, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_FirstUseEver, ImVec2{0.5F, 0.45F});   // unter der Leiste
     const std::string titel = std::string(tr(Str::MeFluss)) + "###menuefluss";
-    if (!ImGui::Begin(titel.c_str(), &z.flussOffen)) {
+    if (!ui::fensterBegin(titel.c_str(), &z.flussOffen)) {
         ImGui::End();
         return;
     }
@@ -494,7 +494,7 @@ void schliesseDokument(int k) {
 void zeichneSchliessenFrage() {
     Zustand& z = Z();
     if (z.schliessenDok >= 0 && !ImGui::IsPopupOpen("###schliessenFrage")) { ImGui::OpenPopup("###schliessenFrage"); }
-    if (!ImGui::BeginPopupModal((std::string(tr(Str::MeSpeichern)) + "###schliessenFrage").c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (!ui::modalBegin((std::string(tr(Str::MeSpeichern)) + "###schliessenFrage").c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         return;
     }
     const int k = z.schliessenDok;
@@ -556,7 +556,7 @@ void zeichneStileFenster(Dokument* d) {
     ImGui::SetNextWindowSize(ImVec2{fs * 30, fs * 26}, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_FirstUseEver, ImVec2{0.5F, 0.45F});   // unter der Leiste
     const std::string titel = std::string(tr(Str::MeStile)) + "###menuestile";
-    if (!ImGui::Begin(titel.c_str(), &z.stileOffen)) {
+    if (!ui::fensterBegin(titel.c_str(), &z.stileOffen)) {
         ImGui::End();
         return;
     }
@@ -691,7 +691,7 @@ void zeichneAssistentFenster(Dokument* d) {
     ImGui::SetNextWindowSize(ImVec2{fs * 44, fs * 30}, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_FirstUseEver, ImVec2{0.5F, 0.45F});   // unter der Leiste
     const std::string titel = std::string(tr(Str::MeAssistent)) + "###menueassistent";
-    if (!ImGui::Begin(titel.c_str(), &z.assistentOffen)) {
+    if (!ui::fensterBegin(titel.c_str(), &z.assistentOffen)) {
         ImGui::End();
         return;
     }

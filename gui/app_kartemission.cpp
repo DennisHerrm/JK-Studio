@@ -307,7 +307,7 @@ void drawKarteMission() {
     ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x * 0.5F, vp->WorkPos.y + vp->WorkSize.y * 0.5F}, ImGuiCond_Appearing, ImVec2{0.5F, 0.5F});
     ImGui::SetNextWindowSize(ImVec2{std::min(44.0F * fs, vp->WorkSize.x * 0.5F), std::min(18.0F * fs, vp->WorkSize.y * 0.5F)}, ImGuiCond_Appearing);
     const std::string titel = std::string(tr(Str::KmTitel)) + "###kartemission";
-    if (!ImGui::Begin(titel.c_str(), &g_stand.fensterOffen)) {
+    if (!ui::fensterBegin(titel.c_str(), &g_stand.fensterOffen)) {
         ImGui::End();
         return;
     }

@@ -4908,7 +4908,7 @@ void drawMessages() {
     const std::string titel = std::string(tr(Str::MessagesTitle)) + "###messages";
     // Lange Meldungen rollen waagerecht, statt abgeschnitten zu werden -
     // der Fenstertest fand bei der Untergrenze 9 Punkte zu wenig.
-    if (!ImGui::Begin(titel.c_str(), &g_app->messagesOpen,
+    if (!ui::fensterBegin(titel.c_str(), &g_app->messagesOpen,
                       ImGuiWindowFlags_HorizontalScrollbar)) {
         ImGui::End();
         return;

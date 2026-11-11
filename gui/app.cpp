@@ -1343,7 +1343,7 @@ void drawEditor() {
     }
     ImGui::PushStyleVar(ImGuiStyleVar_WindowTitleAlign, ImVec2{0.5F, 0.5F});
     const bool offen =
-        ImGui::BeginPopupModal(title.c_str(), &g_app->editorOpen,
+        ui::modalBegin(title.c_str(), &g_app->editorOpen,
                                ImGuiWindowFlags_AlwaysAutoResize);
     ImGui::PopStyleVar();
     if (!offen) {
@@ -2100,7 +2100,7 @@ void drawFind() {
     // weiterarbeiten koennen.
     ImGui::SetNextWindowSize(ImVec2{dx(230), 0.0F}, ImGuiCond_FirstUseEver);
     const std::string titel = std::string(tr(Str::ActFind)) + "###find";
-    if (!ImGui::Begin(titel.c_str(), &g_app->findOpen,
+    if (!ui::fensterBegin(titel.c_str(), &g_app->findOpen,
                       ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::End();
         return;
@@ -3094,7 +3094,7 @@ void drawPrefs() {
         --mittigBilder;
     }
     ImGui::OpenPopup(tr(Str::PrefsTitle));
-    if (!ImGui::BeginPopupModal(tr(Str::PrefsTitle), &g_app->prefsOpen,
+    if (!ui::modalBegin(tr(Str::PrefsTitle), &g_app->prefsOpen,
                                 ImGuiWindowFlags_AlwaysAutoResize)) {
         return;
     }
@@ -3357,7 +3357,7 @@ void drawInterplay() {
     ImGui::SetNextWindowSizeConstraints(
         ImVec2{ImGui::GetFontSize() * 30.0F, ImGui::GetFontSize() * 14.0F},
         ImVec2{FLT_MAX, FLT_MAX});
-    if (!ImGui::Begin(t.c_str(), &g_app->interplayOpen)) {
+    if (!ui::fensterBegin(t.c_str(), &g_app->interplayOpen)) {
         ImGui::End();
         return;
     }
@@ -3460,7 +3460,7 @@ void drawGamePaths() {
     const std::string titel = std::string(tr(Str::PathsTitle)) + "###paths";
     // Lange Pfade: waagerecht rollen statt abschneiden. Bei der Untergrenze
     // von 40 Zeichen war die Zeile 342 Punkte breiter als das Fenster.
-    if (!ImGui::Begin(titel.c_str(), &g_app->pathsOpen,
+    if (!ui::fensterBegin(titel.c_str(), &g_app->pathsOpen,
                       ImGuiWindowFlags_HorizontalScrollbar)) {
         ImGui::End();
         return;
@@ -3617,7 +3617,7 @@ void drawKeyBindings() {
         ImVec2{ImGui::GetFontSize() * 32.0F, ImGui::GetFontSize() * 20.0F},
         ImVec2{FLT_MAX, FLT_MAX});
     const std::string titel = std::string(tr(Str::KeysTitle)) + "###keys";
-    if (!ImGui::Begin(titel.c_str(), &g_app->keysOpen)) {
+    if (!ui::fensterBegin(titel.c_str(), &g_app->keysOpen)) {
         ImGui::End();
         return;
     }
@@ -3859,7 +3859,7 @@ void drawPk3Browser() {
     ImGui::SetNextWindowSizeConstraints(
         ImVec2{ImGui::GetFontSize() * 36.0F, ImGui::GetFontSize() * 18.0F},
         ImVec2{FLT_MAX, FLT_MAX});
-    if (!ImGui::BeginPopupModal(tr(Str::Pk3Title), &g_app->pk3Open)) {
+    if (!ui::modalBegin(tr(Str::Pk3Title), &g_app->pk3Open)) {
         return;
     }
 
@@ -4025,7 +4025,7 @@ void drawChangelog() {
     ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x * 0.5F, vp->WorkPos.y + vp->WorkSize.y * 0.5F},
                             ImGuiCond_Appearing, ImVec2{0.5F, 0.5F});
     bool offen = true;
-    if (ImGui::Begin((std::string(tr(Str::ChangelogTitle)) + "###changelog").c_str(), &offen,
+    if (ui::fensterBegin((std::string(tr(Str::ChangelogTitle)) + "###changelog").c_str(), &offen,
                      ImGuiWindowFlags_NoCollapse)) {
         char kopf[300];
         std::snprintf(kopf, sizeof(kopf), tr(Str::ChangelogIntro), kFassung);
@@ -4105,7 +4105,7 @@ void drawAbout() {
         return;
     }
     ImGui::OpenPopup(tr(Str::AboutTitle));
-    if (!ImGui::BeginPopupModal(tr(Str::AboutTitle), &g_app->aboutOpen,
+    if (!ui::modalBegin(tr(Str::AboutTitle), &g_app->aboutOpen,
                                 ImGuiWindowFlags_AlwaysAutoResize)) {
         return;
     }
@@ -6498,6 +6498,8 @@ void draw() {
     // Einstellungen, Fenster von fehlenden Bildschirmen zurueck - vor dem
     // ersten Fenster des Bildes.
     dock::bildAnfang();
+    // UIFORM: die Ueberlaeufe des letzten Bildes in die Mindestgroessen der Fenster (ui_formular.h).
+    ui::bildAnfang();
     // rc609 T1: Tabs in eigenen Fenstern - Loesen, Zurueck und Wechsel ausfuehren,
     // den Fokus bestimmen (tabfenster.h), bevor das erste Fenster zeichnet.
     tabfenster::bildAnfang();
@@ -6897,7 +6899,7 @@ void draw() {
     // Das hier zeigt DIESELBEN Zahlen im laufenden Programm. Wenn wieder
     // etwas klemmt, steht die Antwort da, statt dass wir sie erraten.
     if (g_app->layoutOpen) {
-        if (ImGui::Begin(tr(Str::DebugLayoutTitle), &g_app->layoutOpen,
+        if (ui::fensterBegin(tr(Str::DebugLayoutTitle), &g_app->layoutOpen,
                          ImGuiWindowFlags_AlwaysAutoResize |
                              ImGuiWindowFlags_NoSavedSettings)) {
             const ImGuiStyle& st = ImGui::GetStyle();

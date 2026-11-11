@@ -669,7 +669,7 @@ void drawModellSpeichernFrage() {
     if (t.frageArt != 0 && !ImGui::IsPopupOpen(id)) { ImGui::OpenPopup(id); }
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSize(ImVec2{fs * 34.0F, 0.0F}, ImGuiCond_Appearing);
-    if (!ImGui::BeginPopupModal((std::string(tr(Str::MbSpFrageTitel)) + id).c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (!ui::modalBegin((std::string(tr(Str::MbSpFrageTitel)) + id).c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         t.frageSichtbar = false;
         return;
     }

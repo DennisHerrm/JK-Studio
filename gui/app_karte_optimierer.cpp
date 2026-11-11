@@ -816,7 +816,7 @@ void zeichneOptimierer() {
     bool offen = true;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{px(11.0F), px(11.0F)});
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{px(6.0F), px(6.0F)});
-    if (!ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
+    if (!ui::fensterBegin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
         ImGui::End();
         ImGui::PopStyleVar(2);
         if (!offen) { g_z.offen = false; }

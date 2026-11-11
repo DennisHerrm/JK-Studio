@@ -724,7 +724,7 @@ void zeichneFenster() {
     if (!offen) { return; }
     const Zustand z = zustand();
     ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 34.0F, 0.0F}, ImGuiCond_Appearing);
-    if (ImGui::Begin((std::string(tr(Str::UpdTitle)) + "###update").c_str(), &offen,
+    if (ui::fensterBegin((std::string(tr(Str::UpdTitle)) + "###update").c_str(), &offen,
                      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
         char z1[256];
         std::snprintf(z1, sizeof(z1), tr(Str::UpdInstalled), lokaleFassung().c_str());

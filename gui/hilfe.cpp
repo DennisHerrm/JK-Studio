@@ -143,7 +143,7 @@ void fensterZeichnen() {
     }
     ImGui::SetNextWindowSize(ImVec2{fs * 30.0F, fs * 30.0F}, ImGuiCond_FirstUseEver);
     const std::string titel = std::string(tr(Str::HlfTitle)) + "###hilfe";
-    if (!ImGui::Begin(titel.c_str(), &s.offen, ImGuiWindowFlags_NoCollapse)) {
+    if (!ui::fensterBegin(titel.c_str(), &s.offen, ImGuiWindowFlags_NoCollapse)) {
         ImGui::End();
         return;
     }
@@ -199,7 +199,7 @@ void ersteSchritteZeichnen() {
     ImGui::SetNextWindowSize(ImVec2{fs * 26.0F, 0.0F}, ImGuiCond_Appearing);
     bool offen = true;
     const std::string titel = std::string(tr(Str::EsTitle)) + "###erstestart";
-    if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ui::fensterBegin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::PushTextWrapPos(fs * 25.0F);
         cjkTextUnformatted(tr(Str::EsIntro));
         ImGui::PopTextWrapPos();

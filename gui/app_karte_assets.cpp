@@ -266,7 +266,7 @@ void assetBrowserZeichnen() {
         g_a.posSetzen = false;
     }
     bool offen = true;
-    if (ImGui::Begin(titel.c_str(), &offen)) {
+    if (ui::fensterBegin(titel.c_str(), &offen)) {
         const Str arten[3] = {Str::KeAbModelle, Str::KeAbPrefabs, Str::KeAbKlaenge};
         for (int i = 0; i < 3; ++i) {
             if (i > 0) { ImGui::SameLine(); }

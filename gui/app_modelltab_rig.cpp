@@ -1374,7 +1374,7 @@ void drawModellRigUebersicht() {
     if (!t.uebersichtOffen) { return; }
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSize(ImVec2{fs * 34.0F, fs * 26.0F}, ImGuiCond_FirstUseEver);
-    if (!ImGui::Begin((std::string(tr(Str::MbRgUebersicht)) + "###riguebersicht").c_str(), &t.uebersichtOffen)) {
+    if (!ui::fensterBegin((std::string(tr(Str::MbRgUebersicht)) + "###riguebersicht").c_str(), &t.uebersichtOffen)) {
         ImGui::End();
         return;
     }

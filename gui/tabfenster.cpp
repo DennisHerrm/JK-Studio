@@ -512,7 +512,7 @@ bool begin(int i) {
     f.offen = true;
     // Wie das Hauptfenster: eine Menueleiste, kein Rollen, nie vor die
     // schwebenden Fenster (Panels, Dialoge) - dafuer ist es selbst eines.
-    return ImGui::Begin(fensterName(f.nr, g_app->leftMode).c_str(), &f.offen,
+    return ui::fensterBegin(fensterName(f.nr, g_app->leftMode).c_str(), &f.offen,
                         ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar |
                             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 }

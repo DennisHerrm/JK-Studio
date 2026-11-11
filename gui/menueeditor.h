@@ -286,6 +286,7 @@ void klangListeLeeren();
 [[nodiscard]] std::string paketInhalt(const std::string& spielPfad);
 // M2: Festbreitenschrift des Code-Editors (main_win32.cpp buildFonts)
 void setzeCodeSchrift(ImFont* f);
+[[nodiscard]] ImFont* codeSchrift();   // UIFORM: auch fuer die Code-Vorschau der Formulare (ui_formular.h)
 void setzeBalken(bool balken);   // 4:3 mit Balken (true) oder gestreckt
 void setzeAufloesung(int nr);    // rc608 Teil 3a: 0 = kein Spielfenster angegeben (4:3), sonst die Nummer der Liste (7 = 1920x1080)
 // M2 Punkt 2 / M4 Punkt 5: Video/GIF/RoQ als RoQ ins Paket (synchron, fuer Selbsttest),

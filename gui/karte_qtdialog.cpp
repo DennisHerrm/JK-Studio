@@ -111,7 +111,7 @@ bool beginnen(const std::string& id, bool& oeffnen, float innenB, float innenH, 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     bool offen = true;
     const ImGuiWindowFlags f = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse;
-    const bool sichtbar = modal ? ImGui::BeginPopupModal(id.c_str(), &offen, f) : ImGui::Begin(id.c_str(), &offen, f);
+    const bool sichtbar = modal ? ui::modalBegin(id.c_str(), &offen, f) : ui::fensterBegin(id.c_str(), &offen, f);
     ImGui::PopStyleVar();
     g_geschlossen = !offen || (modal && !sichtbar && !ImGui::IsPopupOpen(id.c_str()));
     if (!sichtbar) {

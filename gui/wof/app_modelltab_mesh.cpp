@@ -1357,7 +1357,7 @@ void drawModellMeshPopups() {
     ImGui::SetNextWindowBgAlpha(0.92F);
     const std::string titel = std::string(tr(werkzeugName(z.werkzeug))) + "###meshkaestchen";
     const ImGuiWindowFlags fl = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing;
-    if (ImGui::Begin(titel.c_str(), nullptr, fl)) {
+    if (ui::fensterBegin(titel.c_str(), nullptr, fl)) {
         bool neu = false;
         bool nurBetrag = false;
         const float feld = 150.0F * sk;

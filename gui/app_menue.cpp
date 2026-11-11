@@ -4426,7 +4426,7 @@ void zeichneTexteFenster(Dokument& d) {
     eigeneTexteLesen(d);
     ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 44, ImGui::GetFontSize() * 26}, ImGuiCond_Appearing);
     bool offen = true;
-    if (ImGui::Begin(tr(Str::MeTexte), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+    if (ui::fensterBegin(tr(Str::MeTexte), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
         const std::vector<std::string> sprachen = sprachenListe();
         bool geaendert = false;
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 10);
@@ -4709,7 +4709,7 @@ void zeichnePruefFenster() {
     if (!z.pruefFenster) { return; }
     ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 40, ImGui::GetFontSize() * 22}, ImGuiCond_Appearing);
     bool offen = true;
-    if (ImGui::Begin(tr(Str::MePruefen), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+    if (ui::fensterBegin(tr(Str::MePruefen), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
         ImGui::Checkbox("Jedi Academy", &z.pruefZiel[0]);
         ImGui::SameLine();
         ImGui::Checkbox("Jedi Outcast", &z.pruefZiel[1]);
@@ -4848,7 +4848,7 @@ void zeichneTestFrage() {
         z.testFrage = false;
     }
     if (z.testFrageZu && !ImGui::IsPopupOpen("##testfrage")) { z.testFrageZu = false; }   // keine Frage offen
-    if (ImGui::BeginPopupModal("##testfrage", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ui::modalBegin("##testfrage", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         if (z.testFrageZu) { ImGui::CloseCurrentPopup(); }
         z.testFrageZu = false;
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28);
@@ -4904,7 +4904,7 @@ void zeichneSchriftFenster() {
     if (!z.schriftFenster) { return; }
     ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 24, 0}, ImGuiCond_Appearing);
     bool offen = true;
-    if (ImGui::Begin(tr(Str::MeSchriftBauen), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+    if (ui::fensterBegin(tr(Str::MeSchriftBauen), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
         cjkTextWrapped("%s", anzeige(z.schriftTtf).c_str());
         eingabe(tr(Str::MeSchriftName), &z.schriftName);
         ImGui::SliderInt(tr(Str::MeSchriftGroesse), &z.schriftGroesse, 8, 64);
@@ -5774,7 +5774,7 @@ void zeichneVideoFenster() {
     }
     ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 30, 0}, ImGuiCond_Appearing);
     bool offen = true;
-    if (ImGui::Begin(tr(Str::MeVideoTitel), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+    if (ui::fensterBegin(tr(Str::MeVideoTitel), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
         cjkTextWrapped("%s", anzeige(z.videoQuelle).c_str());
         const gui::VideoInfo& vi = z.videoInfo;
         const std::string fehler = videoFehlerText(vi);
@@ -8377,6 +8377,7 @@ std::string textPaket() {
 }
 
 void setzeCodeSchrift(ImFont* f) { g_codeSchrift = f; }
+ImFont* codeSchrift() { return g_codeSchrift; }
 
 void setzeAufloesung(int nr) { Z().aufloesung = nr; }
 void setzeBalken(bool balken) { Z().seitenv = balken ? Seitenverhaeltnis::Balken : Seitenverhaeltnis::Strecken; }

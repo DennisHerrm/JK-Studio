@@ -143,7 +143,7 @@ void zeichneQtMeldung() {
     dialogSchriftAn();
     bool fertig = false;
     bool ja = false;
-    if (ImGui::BeginPopupModal(id.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+    if (ui::modalBegin(id.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
         static const UiIcon symbole[4] = {UiIcon::Haken, UiIcon::Warnung, UiIcon::Warnung, UiIcon::Warnung};
         const float g = ImGui::GetFontSize() * 2.0F;
         const ImVec2 p = ImGui::GetCursorScreenPos();

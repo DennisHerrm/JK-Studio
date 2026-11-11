@@ -1196,7 +1196,7 @@ void drawBauen() {
         ImGui::OpenPopup("###fafrage");
         z.frage = false;
     }
-    if (ImGui::BeginPopupModal((std::string(tr(Str::FaBauen)) + "###fafrage").c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ui::modalBegin((std::string(tr(Str::FaBauen)) + "###fafrage").c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::PushTextWrapPos(fs * 30.0F);
         cjkTextUnformatted(tr(Str::FaBefunde));
         for (const std::string& b : z.befunde) { ImGui::BulletText("%s", b.c_str()); }
@@ -1228,7 +1228,7 @@ void drawFigurAnimFenster() {
     ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x - fs * 35.0F, vp->WorkPos.y + fs * 4.0F}, ImGuiCond_FirstUseEver);
     // nicht hoeher als das Hauptfenster (bei grosser Schrift ragte es heraus und wurde ein eigenes Fenster, ph_hb7c: 1440 in 1384)
     ImGui::SetNextWindowSize(ImVec2{std::min(fs * 34.0F, vp->WorkSize.x - fs * 2.0F), std::min(fs * 40.0F, vp->WorkSize.y - fs * 5.0F)}, ImGuiCond_FirstUseEver);
-    if (!ImGui::Begin((std::string(tr(Str::FaTitel)) + "###figuranim").c_str(), &z.offen, ImGuiWindowFlags_MenuBar)) {
+    if (!ui::fensterBegin((std::string(tr(Str::FaTitel)) + "###figuranim").c_str(), &z.offen, ImGuiWindowFlags_MenuBar)) {
         ImGui::End();
         return;
     }

@@ -533,7 +533,7 @@ void zeichnen(const Layout& l) {
         // Ohne NoSavedSettings: ImGui schreibt Lage und Knoten der Panels und den
         // Baum in die Einstellungen (fenster_dock: merkenLaufend) - Neustart und
         // gespeicherte Anordnungen bringen ihn zurueck (uebernehmen).
-        const bool sichtbar = ImGui::Begin(fensterName(p[i]).c_str(), schwebt ? &offen : nullptr,
+        const bool sichtbar = ui::fensterBegin(fensterName(p[i]).c_str(), schwebt ? &offen : nullptr,
                                            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         ImGui::PopStyleColor(farben);
         ImGui::PopStyleVar();

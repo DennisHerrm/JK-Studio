@@ -209,7 +209,7 @@ void ueberblendenZeichnen() {
     const std::string titel = std::string(trK(Str::KeUbMenue)) + "###ueberblenden";
     ImGui::SetNextWindowSize(ImVec2(440, 620), ImGuiCond_FirstUseEver);
     bool offen = true;
-    if (ImGui::Begin(titel.c_str(), &offen)) {
+    if (ui::fensterBegin(titel.c_str(), &offen)) {
         const auto gr = gruppeDerAuswahl();
         if (gr && gr != g_b.ent.lock()) { (void)aufnehmen(gr); }   // schon eingerichtet: weiter malen
         cjkTextWrapped("%s", gr ? trK(Str::KeUbGruppe) : trK(Str::KeUbKeineGruppe));

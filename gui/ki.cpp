@@ -584,7 +584,7 @@ void frageZeichnen() {
     ImGui::SetNextWindowPos(vp->GetCenter(), ImGuiCond_Appearing, ImVec2{0.5F, 0.5F});
     ImGui::SetNextWindowSize(ImVec2{fs * 28.0F, 0.0F}, ImGuiCond_Appearing);
     const std::string titel = std::string(tr(Str::KiConfirmTitle)) + "###kifrage";
-    if (ImGui::Begin(titel.c_str(), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ui::fensterBegin(titel.c_str(), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::TextDisabled("%s", a->quelle.c_str());
         ImGui::PushTextWrapPos(fs * 27.0F);
         cjkTextUnformatted(tr(Str::KiConfirmIntro));
@@ -623,7 +623,7 @@ void protokollZeichnen() {
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSize(ImVec2{fs * 34.0F, fs * 18.0F}, ImGuiCond_FirstUseEver);
     const std::string titel = std::string(tr(Str::KiLog)) + "###kiprotokoll";
-    if (ImGui::Begin(titel.c_str(), &s.protokollOffen)) {
+    if (ui::fensterBegin(titel.c_str(), &s.protokollOffen)) {
         if (s.protokoll.empty()) { ImGui::TextDisabled("%s", tr(Str::KiLogEmpty)); }
         for (const Protokoll& p : s.protokoll) {
             ImGui::TextDisabled("%s", p.zeit.c_str());

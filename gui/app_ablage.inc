@@ -914,7 +914,7 @@ void drawFrage() {
     ImGui::SetNextWindowPos(
         ImVec2{vp->Pos.x + vp->Size.x * 0.5F, vp->Pos.y + vp->Size.y * 0.5F},
         ImGuiCond_Appearing, ImVec2{0.5F, 0.5F});
-    if (!ImGui::BeginPopupModal(titel.c_str(), nullptr,
+    if (!ui::modalBegin(titel.c_str(), nullptr,
                                 ImGuiWindowFlags_AlwaysAutoResize |
                                     ImGuiWindowFlags_NoSavedSettings)) {
         return;
@@ -1100,7 +1100,7 @@ void drawAskSave() {
     ImGui::SetNextWindowPos(
         ImVec2{vp->Pos.x + vp->Size.x * 0.5F, vp->Pos.y + vp->Size.y * 0.5F},
         ImGuiCond_Appearing, ImVec2{0.5F, 0.5F});
-    if (!ImGui::BeginPopupModal(tr(Str::AppTitle), nullptr,
+    if (!ui::modalBegin(tr(Str::AppTitle), nullptr,
                                 ImGuiWindowFlags_AlwaysAutoResize |
                                     ImGuiWindowFlags_NoSavedSettings)) {
         return;

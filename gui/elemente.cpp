@@ -6,6 +6,8 @@
 // dort unveraendert bleiben.
 #include "elemente.h"
 
+#include "ui_formular.h"
+
 #include <cmath>
 #include <cstring>
 #include <unordered_set>
@@ -271,6 +273,7 @@ void ImGuiTestEngineHook_ItemAdd(ImGuiContext* ctx, ImGuiID id, const ImRect& bb
                                  const ImGuiLastItemData* item_data) {
     bhed::gui::elemente::merkeId(ctx, id, bb, item_data);
     bhed::gui::elemente::merkeElement(ctx, id, bb);
+    bhed::gui::ui::hakenElement(ctx, id, bb);   // UIFORM: Bedienreihen der Fenster (nur in Messbildern)
 }
 
 void ImGuiTestEngineHook_ItemInfo(ImGuiContext* ctx, ImGuiID id, const char* label, ImGuiItemStatusFlags flags) {

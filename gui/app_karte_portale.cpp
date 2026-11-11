@@ -285,7 +285,7 @@ void konfigZeichnen() {
     ImGui::SetNextWindowSize(ImVec2{px(static_cast<float>(kDialogB)), px(static_cast<float>(kDialogH)) + titelH}, ImGuiCond_Always);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     bool offen = true;
-    const bool sichtbar = ImGui::Begin(titel.c_str(), &offen,
+    const bool sichtbar = ui::fensterBegin(titel.c_str(), &offen,
                                        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
                                            ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings);
     ImGui::PopStyleVar();
@@ -394,7 +394,7 @@ void ladenZeichnen() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     ImGui::PushStyleColor(ImGuiCol_ModalWindowDimBg, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});   // QDialog::exec dunkelt nicht ab
     bool offen = true;
-    const bool sichtbar = ImGui::BeginPopupModal(titel.c_str(), &offen,
+    const bool sichtbar = ui::modalBegin(titel.c_str(), &offen,
                                                  ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
                                                      ImGuiWindowFlags_NoSavedSettings);
     ImGui::PopStyleColor();

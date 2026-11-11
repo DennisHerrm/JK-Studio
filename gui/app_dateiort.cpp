@@ -217,7 +217,7 @@ void drawSpeicherWeg() {
         g_app->speicherWegMerken = false;
     }
     ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 36.0F, 0.0F}, ImGuiCond_Appearing);
-    if (!ImGui::BeginPopupModal(titel.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) { return; }
+    if (!ui::modalBegin(titel.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) { return; }
     const App::SpeicherAuftrag& a = g_app->speicherFragen.front();
     const float breite = ImGui::GetFontSize() * 35.0F;
     ImGui::PushTextWrapPos(breite);

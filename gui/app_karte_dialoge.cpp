@@ -1004,7 +1004,7 @@ void zeichneGlobaleEinstellungen() {
     ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x * 0.5F, vp->WorkPos.y + vp->WorkSize.y * 0.5F}, ImGuiCond_Appearing,
                             ImVec2{0.5F, 0.5F});
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
-    const bool sichtbar = ImGui::Begin((std::string(trK(Str::KeGlobalPrefsTitle)) + "###karteglobal").c_str(), nullptr,
+    const bool sichtbar = ui::fensterBegin((std::string(trK(Str::KeGlobalPrefsTitle)) + "###karteglobal").c_str(), nullptr,
                                        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
                                            ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleVar();
@@ -1102,7 +1102,7 @@ void zeichneUeber() {
                             ImVec2{0.5F, 0.5F});
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     bool offen = true;
-    const bool sichtbar = ImGui::Begin((std::string(trK(Str::KeAboutTitle)) + "###karteueber").c_str(), &offen,
+    const bool sichtbar = ui::fensterBegin((std::string(trK(Str::KeAboutTitle)) + "###karteueber").c_str(), &offen,
                                        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
                                            ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings);
     ImGui::PopStyleVar();
@@ -1208,7 +1208,7 @@ void zeichneEnginePfadDialog() {
     ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x * 0.5F, vp->WorkPos.y + vp->WorkSize.y * 0.5F}, ImGuiCond_Appearing,
                             ImVec2{0.5F, 0.5F});
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
-    const bool sichtbar = ImGui::Begin((std::string(trK(Str::KeEnginePathTitle)) + "###karteenginepfad").c_str(), nullptr,
+    const bool sichtbar = ui::fensterBegin((std::string(trK(Str::KeEnginePathTitle)) + "###karteenginepfad").c_str(), nullptr,
                                        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
                                            ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings);
     ImGui::PopStyleVar();
@@ -1321,7 +1321,7 @@ void zeichneSchriftDialog() {
                             ImVec2{0.5F, 0.5F});
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     bool offen = true;
-    const bool sichtbar = ImGui::Begin((std::string(trK(Str::KeFontTitle)) + "###karteschrift").c_str(), &offen,
+    const bool sichtbar = ui::fensterBegin((std::string(trK(Str::KeFontTitle)) + "###karteschrift").c_str(), &offen,
                                        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
                                            ImGuiWindowFlags_NoSavedSettings);
     ImGui::PopStyleVar();
@@ -1589,7 +1589,7 @@ void zeichneEinstellungen() {
     const std::string titel = std::string(trK(Str::KePrefsTitle)) + "###karteeinstellungen";
     bool offen = true;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
-    const bool sichtbar = ImGui::Begin(titel.c_str(), &offen,
+    const bool sichtbar = ui::fensterBegin(titel.c_str(), &offen,
                                        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
                                            ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleVar();
@@ -1975,7 +1975,7 @@ void frageZeichnen() {
     if (!g_td.frage) { return; }
     const std::string titel = std::string(g_td.frageAlle ? trK(Str::KeBooTitle) : trK(Str::KeKeyUsedTitle)) + "###kartetastenfrage";
     if (!ImGui::IsPopupOpen(titel.c_str())) { ImGui::OpenPopup(titel.c_str()); }
-    if (!ImGui::BeginPopupModal(titel.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+    if (!ui::modalBegin(titel.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
         return;
     }
     int wahl = -1;   // 0 Yes, 1 No, 2 Cancel
@@ -2082,7 +2082,7 @@ void zeichneTastenDialog() {
     const std::string titel = std::string(trK(Str::KeMappedCommands)) + "###kartetasten";
     bool offen = true;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
-    const bool sichtbar = ImGui::Begin(titel.c_str(), &offen,
+    const bool sichtbar = ui::fensterBegin(titel.c_str(), &offen,
                                        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
                                            ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleVar();

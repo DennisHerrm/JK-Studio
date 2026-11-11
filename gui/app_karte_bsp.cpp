@@ -320,7 +320,7 @@ void zeichneBspDialog() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     ImGui::PushStyleColor(ImGuiCol_ModalWindowDimBg, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
     bool offen = true;
-    const bool sichtbar = ImGui::BeginPopupModal(titel.c_str(), &offen,
+    const bool sichtbar = ui::modalBegin(titel.c_str(), &offen,
                                                  ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
                                                      ImGuiWindowFlags_NoSavedSettings);
     ImGui::PopStyleColor();

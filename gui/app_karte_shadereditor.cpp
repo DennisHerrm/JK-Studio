@@ -340,7 +340,7 @@ void shaderEditorZeichnen() {
     ImGui::SetNextWindowSize(ImVec2{std::round(640.0F * sk), std::round(720.0F * sk)}, ImGuiCond_FirstUseEver);
     const std::string titel = std::string(trK(Str::KeSeTitel)) + " - " + (g_se.geaendert ? "*" : "") + g_se.datei + "###shaderlive";
     bool offen = true;
-    if (!ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
+    if (!ui::fensterBegin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
         ImGui::End();
         if (!offen) { g_se.offen = false; }
         return;

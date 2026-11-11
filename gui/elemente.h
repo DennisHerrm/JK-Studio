@@ -18,6 +18,12 @@
 // wunschLabels); bildEnde() leert es und setzt die Stufe fuer das naechste
 // Bild. Meldet niemand etwas an, ist es im naechsten Bild aus.
 //
+// UIFORM (rc612): der Haken ItemAdd geht auch an ui_formular (hakenElement).
+// Es schaltet TestEngineHookItems selbst fuer einzelne Bilder ein,
+// in denen es die Bedienreihen eines Fensters misst (ui::bildAnfang); das
+// Register bleibt dabei auf seiner Stufe - in "Aus" kehren merkeElement und
+// merkeText sofort zurueck.
+//
 // Die Fehlerbehebung dieses Pakets: ImGuis TabItemEx meldet die Beschriftung
 // (IMGUI_TEST_ENGINE_ITEM_INFO, imgui_widgets.cpp:10711) VOR seinem ItemAdd
 // (imgui_widgets.cpp:10827). Solche Eintraege warten jetzt auf ihr Rechteck,

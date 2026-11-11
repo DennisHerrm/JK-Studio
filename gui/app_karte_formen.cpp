@@ -91,7 +91,7 @@ void zeichneSeitenDialog() {
     bool fertig = false;
     bool ok = false;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
-    const bool sichtbar = ImGui::BeginPopupModal(id.c_str(), nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar);
+    const bool sichtbar = ui::modalBegin(id.c_str(), nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar);
     ImGui::PopStyleVar();
     if (sichtbar) {
         g_innen = ImGui::GetCursorScreenPos();

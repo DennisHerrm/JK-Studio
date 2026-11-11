@@ -1180,7 +1180,7 @@ bool fensterZeichnen(ImGuiWindow* modal) {
     bool offen = true;
     s.hoverKennung.clear();
     const std::string titel = std::string(tr(Str::TourWindowTitle)) + "###tour";
-    if (ImGui::Begin(titel.c_str(), &offen,
+    if (ui::fensterBegin(titel.c_str(), &offen,
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
                          ImGuiWindowFlags_NoFocusOnAppearing)) {
         if (modal != nullptr) {

@@ -488,7 +488,7 @@ void bspRueckSchritt() {
                             ImVec2{1.0F, 1.0F});
     ImGui::SetNextWindowSize(ImVec2{std::round(420.0F * s), 0.0F}, ImGuiCond_FirstUseEver);
     const std::string titel = std::string(trK(Str::KeRkTitel)) + "###kartebsprueck";
-    if (ImGui::Begin(titel.c_str(), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+    if (ui::fensterBegin(titel.c_str(), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
         char z[256];
         if (st == 1) {
             std::snprintf(z, sizeof(z), trKN(Str::KeRkLaden, g_r.kandidaten), static_cast<int>(g_r.kandidaten));

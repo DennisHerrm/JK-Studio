@@ -176,7 +176,7 @@ void zeichneBildWahl() {
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSize(ImVec2{fs * 42.0F, fs * 30.0F}, ImGuiCond_Appearing);
     const std::string titel = std::string(tr(w.art == 1 ? Str::MlWahlVideo : Str::MlWahlBild)) + "###bildwahl";
-    if (!ImGui::BeginPopupModal(titel.c_str(), nullptr, ImGuiWindowFlags_NoCollapse)) { return; }
+    if (!ui::modalBegin(titel.c_str(), nullptr, ImGuiWindowFlags_NoCollapse)) { return; }
     w.istOffen = true;
     if (w.liste.empty()) { wahlListeBauen(*d); }
     const char* vonDatei = tr(Str::MlVonDatei);

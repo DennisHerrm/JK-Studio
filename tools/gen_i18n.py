@@ -2334,6 +2334,8 @@ from i18n_numpad import zeilen_vier as _numpad  # noqa: E402  (NUMPAD: Ziffernbl
 S += _numpad()
 from i18n_ap2 import zeilen_vier as _ap2  # noqa: E402  (AP0+AP2: Szenen-Explorer / Outliner des Model-Tabs)
 S += _ap2()
+from i18n_uiform import zeilen_vier as _uiform  # noqa: E402  (UIFORM: Formular-Baustein, Mindestgroessen aller Fenster)
+S += _uiform()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

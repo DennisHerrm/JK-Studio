@@ -1076,7 +1076,7 @@ void texturDialogeZeichnen() {
     if (ed.findenOffen) {
         const std::string titel = std::string(trK(Str::KeFrTitle)) + "###findenersetzen";
         bool offen = true;
-        if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (ui::fensterBegin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::BeginGroup();
             const float beschriftung = std::max(ImGui::CalcTextSize(trK(Str::KeFrFind)).x, ImGui::CalcTextSize(trK(Str::KeFrReplace)).x) +
                                        ImGui::GetStyle().CellPadding.x * 2.0F;
@@ -1129,7 +1129,7 @@ void texturDialogeZeichnen() {
         ed.shaderInfoOffen = false;
     }
     const std::string infoTitel = std::string(trK(Str::KeTexShaderInfo)) + "###shaderinfo";
-    if (ImGui::BeginPopupModal(infoTitel.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ui::modalBegin(infoTitel.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::Text("  %s", tr(Str::KeSiSelected));
         ImGui::TextUnformatted(ed.shaderInfoName.c_str());
         ImGui::Text("  %s", tr(Str::KeSiLocated));
@@ -1143,7 +1143,7 @@ void texturDialogeZeichnen() {
         ImGui::SetNextWindowSize(ImVec2{std::round(550.0F * sc), std::round(700.0F * sc)}, ImGuiCond_FirstUseEver);
         const std::string titel = (t.geaendert ? "*" : "") + t.datei + "###shadertext";
         bool offen = true;
-        if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
+        if (ui::fensterBegin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
             const float unten = ImGui::GetFrameHeightWithSpacing();
             const float zeileH = ImGui::GetTextLineHeight();
             if (t.springen >= 0 && t.springenBilder > 0) {   // scroll to shader: die Zeile oben
@@ -1242,7 +1242,7 @@ void texturDialogeZeichnen() {
             t.frageSchliessen = false;
         }
         const std::string frage = std::string(trK(Str::KeSave)) + "###shadertextfrage";
-        if (ImGui::BeginPopupModal(frage.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (ui::modalBegin(frage.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::TextUnformatted(tr(Str::KeSeModified));
             if (ImGui::Button(trK(Str::KeYes))) {
                 std::ofstream f(pfadAus(t.pfad), std::ios::binary);

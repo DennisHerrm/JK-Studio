@@ -230,7 +230,7 @@ void zeichneRueckfrage() {
     if (!e.frageOffen) { return; }
     const std::string id = e.frageTitel + "###kartefrage";
     if (!ImGui::IsPopupOpen(id.c_str())) { ImGui::OpenPopup(id.c_str()); }
-    if (ImGui::BeginPopupModal(id.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+    if (ui::modalBegin(id.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
         const bool teilBau = e.frageArt == 2;   // rc610 R2a: Lumps, die sich waehrend des Teil-Compiles geaendert haben
         ImGui::TextUnformatted(tr(teilBau ? Str::KeLumpsTeilBau : e.frageArt == 1 ? Str::KeLumpsUngespeichert : Str::KeConfirmModified));
         ImGui::Spacing();
@@ -1459,7 +1459,7 @@ void schwebend(Feld f, const char* titel, bool& sichtbar, int lx, int ly) {
     ImGui::SetNextWindowSize(groesse, wann);
     const std::string id = std::string(titel) + "###schwebend" + feldName(f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
-    if (ImGui::Begin(id.c_str(), &sichtbar, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse)) {
+    if (ui::fensterBegin(id.c_str(), &sichtbar, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse)) {
         const ImVec2 p = ImGui::GetCursorScreenPos();
         const ImVec2 gr = ImGui::GetContentRegionAvail();
         merkeFeld(std::string("Fenster:") + feldKurz(f), static_cast<int>(std::lround((p.x - vp.x) / g_s)),
@@ -1652,7 +1652,7 @@ void gruppenDialog() {
     const std::string titel = (ed.gruppenSeite == 2 ? texturTitel() : std::string(seitenTitel[ed.gruppenSeite])) + "###kartegruppe";
     (void)schwebendeSeiten;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
-    const bool sichtbar = ImGui::Begin(titel.c_str(), &ed.gruppenDialogOffen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar |
+    const bool sichtbar = ui::fensterBegin(titel.c_str(), &ed.gruppenDialogOffen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar |
                                                                                    ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleVar();
     if (sichtbar) {

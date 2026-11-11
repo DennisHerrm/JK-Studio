@@ -286,7 +286,7 @@ void zeichnePinselSuche() {
     bool finden = false;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     bool offen = true;
-    const bool sichtbar = ImGui::BeginPopupModal(id.c_str(), &offen, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar);
+    const bool sichtbar = ui::modalBegin(id.c_str(), &offen, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar);
     ImGui::PopStyleVar();
     if (sichtbar) {
         g_innen = ImGui::GetCursorScreenPos();
@@ -393,7 +393,7 @@ void zeichneKartenInfo() {
     ImGui::SetNextWindowPos(ImVec2{vp->WorkPos.x + vp->WorkSize.x * 0.5F, vp->WorkPos.y + vp->WorkSize.y * 0.5F}, ImGuiCond_Appearing, ImVec2{0.5F, 0.5F});
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     bool offen = true;
-    const bool sichtbar = ImGui::BeginPopupModal(id.c_str(), &offen, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar);
+    const bool sichtbar = ui::modalBegin(id.c_str(), &offen, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar);
     ImGui::PopStyleVar();
     bool fertig = !offen;
     if (sichtbar) {

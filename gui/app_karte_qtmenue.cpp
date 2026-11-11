@@ -650,7 +650,7 @@ bool qtAbrissFensterAnfang(const char* titel, const char* kennung, bool* offen, 
     if (nrc) { ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, m.abstand * 0.5F}); }
     const std::string id = std::string(titel) + "###" + kennung;
     // Programmstil: die Groesse aus dem Inhalt (wie ein ImGui-Menue)
-    const bool sichtbar = ImGui::Begin(id.c_str(), offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
+    const bool sichtbar = ui::fensterBegin(id.c_str(), offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
                                                                ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
                                                                (nrc ? ImGuiWindowFlags_None : ImGuiWindowFlags_AlwaysAutoResize));
     if (nrc) { ImGui::PopStyleVar(); }

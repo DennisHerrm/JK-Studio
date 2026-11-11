@@ -531,7 +531,7 @@ void geoImportDialogZeichnen() {
                              ImGuiCond_Appearing);
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5F, 0.5F));
     bool offen = true;
-    if (ImGui::Begin(titel.c_str(), &offen)) {
+    if (ui::fensterBegin(titel.c_str(), &offen)) {
         ImGui::TextUnformatted(z.datei.c_str());
         bool neuLesen = false;
         // ASEB: ein misc_model hat seine Lage schon (modelscale); ein Modell wie q3map2 hat Z oben und seine Shader

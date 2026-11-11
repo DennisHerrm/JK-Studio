@@ -184,7 +184,7 @@ void speichernFenster() {
     const ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(vp->GetCenter(), ImGuiCond_Appearing, ImVec2{0.5F, 0.5F});
     const std::string titel = std::string(tr(Str::DockSaveTitle)) + "###docksichern";
-    if (ImGui::Begin(titel.c_str(), &s.speichernOffen, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDocking |
+    if (ui::fensterBegin(titel.c_str(), &s.speichernOffen, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDocking |
                                                            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
         ImGui::TextUnformatted(tr(Str::DockSaveHint));
         if (ImGui::IsWindowAppearing()) { ImGui::SetKeyboardFocusHere(); }
@@ -577,7 +577,7 @@ bool fensterBeginnen(const char* id) {
         if (ImGui::FindWindowSettingsByID(ImHashStr(name.c_str())) == nullptr) { startLage(id); }
     }
     bool offen = true;
-    const bool sichtbar = ImGui::Begin(name.c_str(), &offen, ImGuiWindowFlags_NoCollapse);
+    const bool sichtbar = ui::fensterBegin(name.c_str(), &offen, ImGuiWindowFlags_NoCollapse);
     s.fensterGeschlossen = !offen;
     return sichtbar;
 }

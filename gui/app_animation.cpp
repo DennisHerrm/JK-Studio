@@ -880,7 +880,7 @@ void drawAnimFenster() {
     }
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSizeConstraints(ImVec2{fs * 28.0F, 0.0F}, ImVec2{fs * 40.0F, fs * 44.0F});
-    if (!ImGui::Begin((std::string(tr(Str::AnimTitle)) + "###animation").c_str(), &g_app->animFensterOffen,
+    if (!ui::fensterBegin((std::string(tr(Str::AnimTitle)) + "###animation").c_str(), &g_app->animFensterOffen,
                       ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::End();
         return;

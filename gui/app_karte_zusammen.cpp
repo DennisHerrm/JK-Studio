@@ -326,7 +326,7 @@ void zusammenDialogZeichnen() {
     ImGui::SetNextWindowSize(ImVec2{std::round(560.0F * s), std::round(420.0F * s)}, ImGuiCond_FirstUseEver);
     const std::string titel = std::string(trK(Str::KeZfTitel)) + "###kartezusammen";
     bool offen = true;
-    if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
+    if (ui::fensterBegin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
         cjkTextWrapped("%s", trK(Str::KeZfErklaerung));
         ImGui::Separator();
         ImGui::Text("%s %s", trK(Str::KeZfVorlage), g_d.vorlageName.empty() ? "-" : g_d.vorlageName.c_str());

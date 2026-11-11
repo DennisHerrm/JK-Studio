@@ -605,6 +605,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/elemente.cpp
     # p_render: ImGui-Text mit Umbruch zwischen CJK-Zeichen.
     gui/textumbruch.cpp
+    # UIFORM: Formular-Baustein und Mindestgroessen aller Fenster.
+    gui/ui_formular.cpp
     # rc601 tour: Tutorials im Programm - Fenster, Hervorhebung, Auswertung.
     gui/tour.cpp
     # H1: Messwerte aller Bereiche fuer die Tutorials (zahl:<name>).

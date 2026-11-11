@@ -267,7 +267,7 @@ void zeichneSicherungFrage() {
         ImGui::OpenPopup("##sicherung");
         z.sicherungFrage = false;
     }
-    if (!ImGui::BeginPopupModal("##sicherung", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar)) { return; }
+    if (!ui::modalBegin("##sicherung", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar)) { return; }
     char zeit[64] = "?";
     const std::time_t t = static_cast<std::time_t>(z.sicherungZeitpunkt);
     std::tm lt{};
@@ -445,7 +445,7 @@ void zeichneZuordnungFrage() {
         ImGui::OpenPopup("##zuordnung");
         z.zuordnungFrage = false;
     }
-    if (!ImGui::BeginPopupModal("##zuordnung", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar)) { return; }
+    if (!ui::modalBegin("##zuordnung", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar)) { return; }
     ImGui::TextUnformatted(tr(Str::MePrjZuordnen));
     ImGui::Separator();
     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 30);

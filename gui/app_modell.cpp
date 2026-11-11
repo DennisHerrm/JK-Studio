@@ -168,7 +168,7 @@ void drawNpcBrowser() {
     if (!g_app->npcBrowserOffen) { return; }
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSize(ImVec2{fs * 22.0F, fs * 30.0F}, ImGuiCond_FirstUseEver);
-    if (!ImGui::Begin((std::string(tr(Str::NpcBrowser)) + "###npcbrowser").c_str(), &g_app->npcBrowserOffen)) {
+    if (!ui::fensterBegin((std::string(tr(Str::NpcBrowser)) + "###npcbrowser").c_str(), &g_app->npcBrowserOffen)) {
         ImGui::End();
         return;
     }

@@ -436,7 +436,7 @@ void zeichneSurfaceInspector() {
     const std::string titel = std::string(trK(Str::KeSiTitle)) + "###kartesi";
     bool offen = true;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
-    const bool sichtbar = ImGui::Begin(titel.c_str(), &offen,
+    const bool sichtbar = ui::fensterBegin(titel.c_str(), &offen,
                                        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleVar();
     if (sichtbar) {

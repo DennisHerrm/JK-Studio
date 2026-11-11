@@ -1047,7 +1047,7 @@ void bauDialogZeichnen() {
     ImGui::PushStyleColor(ImGuiCol_ResizeGripHovered, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
     ImGui::PushStyleColor(ImGuiCol_ResizeGripActive, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
     bool offen = true;
-    const bool sichtbar = ImGui::BeginPopupModal(titel.c_str(), &offen,
+    const bool sichtbar = ui::modalBegin(titel.c_str(), &offen,
                                                  ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar |
                                                      ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings);
     ImGui::PopStyleColor(4);
@@ -1993,7 +1993,7 @@ void bauRueckmeldungenZeichnen() {
     ImGui::SetNextWindowSize(ImVec2{std::round(320.0F * s), std::round(200.0F * s)}, ImGuiCond_FirstUseEver);
     const std::string titel = std::string(trK(Str::KeDbgTitel)) + "###kartedbgdlg";
     bool offen = true;
-    if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
+    if (ui::fensterBegin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse)) {
         for (std::size_t i = 0; i < ed.bauRueckmeldungen.size(); ++i) {
             const std::string text = ed.bauRueckmeldungen[i].name + "##dbg" + std::to_string(i);
             if (ImGui::Selectable(text.c_str(), ed.bauRueckmeldungWahl == static_cast<int>(i))) { bauRueckmeldungWaehlen(static_cast<int>(i)); }
@@ -2084,7 +2084,7 @@ void bauFortschrittZeichnen() {
     ImGui::SetNextWindowSize(ImVec2{breite0 > 0.0F ? breite0 : std::round(420.0F * s), 0.0F}, ImGuiCond_Always);
     const std::string titel = std::string(trK(Str::KeFsTitel)) + "###kartebaufortschritt";
     bool offen = true;
-    if (ImGui::Begin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+    if (ui::fensterBegin(titel.c_str(), &offen, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
         breite0 = ImGui::GetWindowWidth();
         char z[512];
         std::snprintf(z, sizeof(z), trK(Str::KeFsSchritt), g_lauf.eintrag.c_str(), static_cast<int>(st.schritt + 1), static_cast<int>(st.schritte),

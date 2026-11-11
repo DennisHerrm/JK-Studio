@@ -5461,7 +5461,7 @@ void drawMissionPicker() {
     ImGui::OpenPopup("##missionpick");
     const ImVec2 centre = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(centre, ImGuiCond_Appearing, ImVec2{0.5F, 0.5F});
-    if (!ImGui::BeginPopupModal("##missionpick", nullptr,
+    if (!ui::modalBegin("##missionpick", nullptr,
                                 ImGuiWindowFlags_AlwaysAutoResize)) {
         return;
     }
