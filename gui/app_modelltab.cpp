@@ -964,6 +964,8 @@ const std::vector<ZusatzAktion>& zusatzAktionen() {
         {Str::MbGwSpiegelnPlus, Str::MbGwSpiegelHint, "", [] { (void)modellSpiegeln(1); }, 0},
         {Str::MbGwSpiegelnMinus, Str::MbGwSpiegelHint, "", [] { (void)modellSpiegeln(-1); }, 0},
         {Str::MbGwUebernehmen, Str::MbGwUebernehmenHint, "", [] { (void)modellUebernehmen(); }, 0},
+        {Str::AsAusfuehren, Str::AsAusfuehrenHint, "", [] { (void)modellAutoSkin(); }, 0},   // AP12
+        {Str::AsOeffnen, Str::AsOeffnenHint, "", [] { modellAutoSkinOeffnen(); }, 0},
         {Str::MbAuswahlAusblenden, Str::MbAugeHint, "", [] { modellAuswahlAusblenden(false); }, 1},
         {Str::MbAndereAusblenden, Str::MbAugeHint, "", [] { modellAuswahlAusblenden(true); }, 1},
         {Str::MbAllesEinblenden, Str::MbAugeHint, "", [] { modellAllesEinblenden(); }, 1},

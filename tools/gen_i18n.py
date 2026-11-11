@@ -2336,6 +2336,8 @@ from i18n_ap2 import zeilen_vier as _ap2  # noqa: E402  (AP0+AP2: Szenen-Explore
 S += _ap2()
 from i18n_uiform import zeilen_vier as _uiform  # noqa: E402  (UIFORM: Formular-Baustein, Mindestgroessen aller Fenster)
 S += _uiform()
+from i18n_ap12 import zeilen_vier as _ap12  # noqa: E402  (AP12: Auto-Skin)
+S += _ap12()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

@@ -2643,6 +2643,7 @@ void drawModellArbeitsflaeche() {
     drawModellUvPopups();   // Modell-Block 1b
     drawModellMeshPopups();   // Modell-Block 1d
     drawModellNavPopups();    // MBNAV: Menue der Ansichten (V), Kuchenmenue View (`)
+    drawModellAutoSkinFenster();   // AP12
     if (t.kontextOeffnen) {
         ImGui::OpenPopup("##mtkontext");
         t.kontextOeffnen = false;

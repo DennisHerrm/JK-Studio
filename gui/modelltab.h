@@ -1208,4 +1208,29 @@ void modellRigExplorerKopfMenue();
 void modellRigExplorerGriffMenue(int griff);
 
 }  // namespace bhed::gui
+
+// --- AP12: Auto-Skin (gui/app_modelltab_autoskin.cpp; die Gruppe im rechten Feld des Bereichs Weights setzt AP8) -------
+#include "bhed/modell/autoskin.h"
+namespace bhed::gui {
+struct ModellAutoSkin {
+    modell::AutoSkinOptionen o;          // ziel und teile setzt der Lauf (Zielspiel des Model-Tabs, Auswahl)
+    bool nurAuswahl = false;             // nur die im Szenen-Explorer gewaehlten Flaechen
+    char vorlage[128] = "models/players/kyle/model.glm";   // Uebertragen: das Original in den Spieldateien
+    bool fensterOffen = false;
+    bool fensterSichtbar = false;        // in diesem Bild gezeichnet (Selbsttest)
+    // der letzte Lauf
+    bool gelaufen = false;
+    int ladeStand = -1;                  // Dokument::ladeStand des Laufs - ein anderes Modell hat kein Ergebnis
+    std::string fehler;                  // die Meldung, wenn der letzte Lauf scheiterte
+    modell::AutoSkinBericht bericht;
+    modell::GewichtVergleich vergleich;  // gegen die Gewichte vor dem Lauf
+    modell::VerformungsFehler verformung;
+    double ms = 0.0;
+};
+[[nodiscard]] ModellAutoSkin& modellAutoSkinZustand();
+bool modellAutoSkin();               // mit den Einstellungen rechnen: ein Rueckgaengig-Schritt, Meldung, Ergebnis
+void modellAutoSkinOeffnen();        // das Fenster zeigen
+void drawModellAutoSkinGruppe();     // der Inhalt der Gruppe "Automatisch (Auto-Skin)"
+void drawModellAutoSkinFenster();
+}  // namespace bhed::gui
 #endif
