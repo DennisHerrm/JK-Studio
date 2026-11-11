@@ -1037,8 +1037,9 @@ void konfigFenster(const AnimEntry* e) {
     ImGui::SetNextWindowSize(ImVec2{fs * 46.0F, 0.0F}, ImGuiCond_Always);
     const ImVec2 d = ImGui::GetIO().DisplaySize;
     ImGui::SetNextWindowPos(ImVec2{d.x * 0.5F, d.y * 0.6F}, ImGuiCond_Appearing, ImVec2{0.5F, 0.5F});
-    if (!ImGui::Begin((std::string(tr(Str::MzZeitKonfig)) + "###mzkonfig").c_str(), &z.konfigOffen,
-                      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoResize)) {
+    // UIFORM: jedes Fenster beginnt ueber den Baustein; dieses setzt seine Groesse selbst (NoResize) und bleibt, wie es ist
+    if (!ui::fensterBegin((std::string(tr(Str::MzZeitKonfig)) + "###mzkonfig").c_str(), &z.konfigOffen,
+                          ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoResize)) {
         ImGui::End();
         return;
     }

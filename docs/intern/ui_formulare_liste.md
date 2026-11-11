@@ -25,7 +25,7 @@ Stand 11.11.2026, Zweig p_uiform. Erzeugt aus `git grep` nach `ui::fensterBegin`
 | AppTitle (`###frage`) (modal) | `gui/app_ablage.inc:917` | Meldung/Rueckfrage, passt sich dem Inhalt an | bleibt | keine eigene - passt sich dem Inhalt an |
 | AppTitle (modal) | `gui/app_ablage.inc:1103` | Meldung/Rueckfrage, passt sich dem Inhalt an | bleibt | keine eigene - passt sich dem Inhalt an |
 | AnimTitle (`###animation`) | `gui/app_animation.cpp:883` | Liste/Werkzeugfenster ohne Formularzeilen | bleibt | keine eigene - passt sich dem Inhalt an |
-| MessagesTitle (`###messages`) | `gui/app_anordnung.inc:4911` | Liste/Werkzeugfenster ohne Formularzeilen | Mindestgroesse | Titel + gemeldeter Inhalt (rollt waagrecht); im Dock-Knoten keine |
+| MessagesTitle (`###messages`) | `gui/app_anordnung.inc:4908` | Liste/Werkzeugfenster ohne Formularzeilen | Mindestgroesse | Titel + gemeldeter Inhalt (rollt waagrecht); im Dock-Knoten keine |
 | DoSpeicherWegTitel (`###speicherweg`) (modal) | `gui/app_dateiort.cpp:220` | Meldung/Rueckfrage, passt sich dem Inhalt an | bleibt | keine eigene - passt sich dem Inhalt an |
 | - | `gui/app_dockspace.inc:536` | Panel/Tab in eigenem Fenster bzw. im DockSpace - Inhalt des Bereichs | Mindestgroesse | Titel + gemeldeter Inhalt (teilt seinen Platz selbst auf); im Dock-Knoten keine - der Platz der Anordnung gilt |
 | Animate figure - Rueckfrage Bauen (modal) | `gui/app_figuranim_ui.inc:1199` | Befundliste und zwei Knoepfe | bleibt | keine eigene - passt sich dem Inhalt an |
@@ -94,7 +94,8 @@ Stand 11.11.2026, Zweig p_uiform. Erzeugt aus `git grep` nach `ui::fensterBegin`
 | Modell anbauen (modal) | `gui/app_modelltab_explorer.cpp:903` | Liste mit Suche; Abbrechen links unten | **ja** - Abbrechen unten rechts (Esc) | Titel + gemeldeter Inhalt + Bedienreihen; im Dock-Knoten keine, dort Rollbalken |
 | Karten-GLA bauen - Rueckfrage (modal) | `gui/app_modelltab_mb3.cpp:672` | Befundliste und zwei Knoepfe | bleibt | keine eigene - passt sich dem Inhalt an |
 | Retargeting: Quelle (modal) | `gui/app_modelltab_retarget.cpp:547` | Liste mit Suche | Mindestgroesse | Titel + gemeldeter Inhalt + Bedienreihen; im Dock-Knoten keine, dort Rollbalken |
-| MbRgUebersicht (`###riguebersicht`) | `gui/app_modelltab_rig.cpp:1377` | Liste/Werkzeugfenster ohne Formularzeilen | Mindestgroesse | Titel + gemeldeter Inhalt + Bedienreihen; im Dock-Knoten keine, dort Rollbalken |
+| MbRgUebersicht (`###riguebersicht`) | `gui/app_modelltab_rig.cpp:1378` | Liste/Werkzeugfenster ohne Formularzeilen | Mindestgroesse | Titel + gemeldeter Inhalt + Bedienreihen; im Dock-Knoten keine, dort Rollbalken |
+| MzZeitKonfig (`###mzkonfig`) | `gui/app_modelltab_zeit.cpp:1041` | Liste/Werkzeugfenster ohne Formularzeilen | bleibt | keine eigene - das Programm setzt die Groesse |
 | MapGpuRowNoTime (`###kartenstatistik`) | `gui/app_view3d.cpp:8755` | Liste/Werkzeugfenster ohne Formularzeilen | bleibt | keine eigene - passt sich dem Inhalt an |
 | `##missionpick` (modal) | `gui/app_view3d_spiel.inc:5464` | Meldung/Rueckfrage, passt sich dem Inhalt an | bleibt | keine eigene - passt sich dem Inhalt an |
 | WegTitel (`###wegpunkte`) | `gui/app_wegpunkte.cpp:1829` | Liste/Werkzeugfenster ohne Formularzeilen | bleibt | keine eigene - passt sich dem Inhalt an |
