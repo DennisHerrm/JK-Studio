@@ -617,12 +617,16 @@ std::string poseText(const std::vector<BoneMatrix>& pose) {
 
 void figurLaden(std::vector<Schritt>& s) {
     for (Schritt& x : mb1::laden("models/players/kyle/model.glm")) { s.push_back(std::move(x)); }
-    s.push_back(tu("MBV: vier Ansichten, keine Animation, die Perspektive schraeg von vorn (alle drei Achsgriffe greifbar)", [] {
+    s.push_back(tu("MBV: vier Ansichten, keine Animation, die Perspektive schraeg von der Seite (Gier 215, Nick 20: alle drei Achsgriffe greifbar)", [] {
         ModellTab& m = t();
         m.vierAnsichten = true;
         m.bereich = ModellBereich::Ansehen;
         g_app->animPlaying = false;
-        g_app->modelOrbit.turn(g_app->modelCam, 35.0F, 20.0F);
+        // Die Blickrichtung fest, nicht als Schritt von der Startansicht: geschrieben wurde der Test gegen die Startansicht bis
+        // rc611 (Gier 180) plus 35/20. Seit MBKOPF beginnt die Perspektive vor dem Gesicht (Gier 90); mit plus 35 zeigen die
+        // Griffe X und Y beide nach rechts und liegen am Kopf am Schirm aufeinander - der Zug am Y-Griff griff dort den X-Griff
+        // (zusammengefuehrter Stand, Lauf z1_mbv: 2 FEHLER, "quer" so gross wie der Weg).
+        g_app->modelOrbit.turn(g_app->modelCam, 215.0F - g_app->modelCam.angles[1], 20.0F - g_app->modelCam.angles[0]);
         diag::detail("Knopftest: MBV - kyle, " + std::to_string(m.dok.inhalt().teile.size()) + " Teile, head " + std::to_string(teilMit("head")) + ", torso " +
                      std::to_string(teilMit("torso")) + ", r_arm " + std::to_string(teilMit("r_arm")) + ", " + std::to_string(m.dok.inhalt().stufenZahl) + " Stufen");
     }));
