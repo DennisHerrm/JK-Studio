@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <atomic>
+
 /* vis structures */
 
 using visPlane_t = Plane3f;
@@ -130,6 +132,15 @@ struct threaddata_t
 	vportal_t           *base;
 	int c_chains;
 	struct BhedGeoMemo  *geo;           /* BehavEd vis2s: geometry memo of the thread */
+	/* BehavEd vis3 (fixed rule, visflow.cpp g_bhedFixed): the flow counts the frames of its recursion (work);
+	   its start plus this count is its clock, shown to the other threads in *now. It reads portalvis of the
+	   flows that ended by its view. */
+	uint64_t start;
+	uint64_t work;
+	uint64_t view;
+	std::atomic<uint64_t> *now;
+	std::atomic<uint64_t> *limit;
+	struct BhedChain    *chain;
 	pstack_t pstack_head;
 };
 

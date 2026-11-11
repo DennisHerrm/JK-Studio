@@ -156,6 +156,8 @@ static void HelpVis()
 		{ "-saveprt", "Keep the Portal file after running vis (so you can run vis again)" },
 		{ "-v -v", "Extra verbose mode for cluster debug" }, // q3map2 common takes first -v
 		{ "-bhedvisexact", "BehavEd: with several threads exactly the visibility of `-threads 1` (waits where a portal needs an unfinished one - slower on open maps)" },
+		{ "-bhedvisfixed", "BehavEd: with several threads a fixed rule which finished portals a portal uses (a clock that counts the work instead of the time) - the same .bsp in every run and with any number of threads" },
+		{ "-bhedvischeck", "BehavEd: check the visibility after the flows (sight lines through the portals must be visible, nothing outside the flood)" },
 	};
 	HelpOptions( "VIS Stage", 0, 80, options );
 }

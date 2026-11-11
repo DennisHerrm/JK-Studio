@@ -32,6 +32,7 @@
 #include "q3map2.h"
 #include "vis.h"
 #include "visflow.h"
+#include "bhed_vischeck.h" /* BehavEd vis3: -bhedvischeck */
 
 vportal_t          *sorted_portals[ MAX_MAP_PORTALS * 2 ];
 
@@ -257,6 +258,16 @@ static void CalcFastVis(){
 /* BehavEd vis1: -bhedvisexact - with several threads the visibility of -threads 1 (visflow.cpp,
    BhedVector), taken before argsToInject like -bhedvisreuse: the .bsp equals that of -threads 1 */
 static bool bhedExact;
+/* BehavEd vis3: -bhedvisfixed - the fixed rule for several threads (visflow.cpp, g_bhedFixed): the same .bsp
+   in every run and with every number of threads, without the waiting of -bhedvisexact. The number is that
+   of the chains of the rule; it is part of the rule (another number, another .bsp), so it is a constant -
+   BHED_VIS_FIXED_CHAINS is for measurements and the ctest (1: the flows of -threads 1). 64: the longest
+   chain of flows has to fit into the time 30 threads need for all of them, and the flows wait less often
+   for each other with twice as many chains as threads (t3_byss, docs/intern/NOTIZEN_vis3_1111.md). */
+static int bhedFixed;
+constexpr int c_bhedFixedChains = 64;
+/* BehavEd vis3: -bhedvischeck - checks the portal visibility of the flows (bhed_vischeck.h) */
+static bool bhedCheck;
 
 static void CalcVis(){
 	int i, minvis, maxvis;
@@ -287,7 +298,7 @@ static void CalcVis(){
 //	RunThreadsOnIndividual( numportals * 2, true, BetterPortalVis );
 
 	SortPortals();
-	BhedSortedRanks( bhedExact );
+	BhedSortedRanks( bhedExact, bhedFixed );
 
 	if ( fastvis ) {
 		CalcFastVis();
@@ -303,6 +314,9 @@ static void CalcVis(){
 	}
 	if ( BhedVisPaused() ) {
 		return;     /* BehavEd vis2: paused, the state is saved - no leaf vis, no .bsp */
+	}
+	if ( bhedCheck ) {
+		BhedVisCheck();
 	}
 	//
 	// assemble the leaf vis lists by oring and compressing the portal lists
@@ -933,8 +947,19 @@ int VisMain( Args& args ){
 	if ( args.takeArg( "-bhedvisstatetime" ) ) {
 		bhedStateEvery = std::max( 0.02, atof( args.takeNext() ) );
 	}
+	if ( args.takeArg( "-bhedvisfixed" ) ) {            /* BehavEd vis3: the same */
+		const char *chains = getenv( "BHED_VIS_FIXED_CHAINS" );
+		bhedFixed = chains != nullptr ? std::clamp( atoi( chains ), 1, 4096 ) : c_bhedFixedChains;
+	}
+	bhedCheck = args.takeArg( "-bhedvischeck" );          /* BehavEd vis3: the same */
+	if ( bhedExact && bhedFixed ) {
+		Error( "-bhedvisexact and -bhedvisfixed are two different rules, take one of them" );
+	}
 	if ( bhedExact ) {
 		Sys_Printf( "BehavEd: deterministic vis (the result of -threads 1)\n" );
+	}
+	if ( bhedFixed ) {
+		Sys_Printf( "BehavEd: fixed vis rule (the same result in every run and with any number of threads, %i chains)\n", bhedFixed );
 	}
 	const auto argsToInject = args.getVector();
 	{
@@ -1060,7 +1085,8 @@ int VisMain( Args& args ){
 		bhed_set_map_extension( stopFile, ".bhedvisstop" );
 		BhedVisStateSetup( stateFile, stopFile,
 		                   StringStream( "vis2 fast=", fastvis, " merge=", mergevis, " mergeportals=", mergevisportals, " nopassage=", noPassageVis,
-		                                 " passageOnly=", passageVisOnly, " nosort=", nosort, " hint=", hint, " far=", far, " exact=", bhedExact ).c_str(),
+		                                 " passageOnly=", passageVisOnly, " nosort=", nosort, " hint=", hint, " far=", far, " exact=", bhedExact,
+		                                 " fixed=", bhedFixed ).c_str(),
 		                   bhedPortalData, bhedStateEvery );
 	}
 

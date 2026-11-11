@@ -28,7 +28,7 @@ void                        PassageFlow( int portalnum );
 void                        CreatePassages( int portalnum );
 void                        PassageMemory();
 void                        BhedPassageMemoryUsed();
-void                        BhedSortedRanks( bool rankOrder );
+void                        BhedSortedRanks( bool rankOrder, int fixedChains );
 void                        BhedRunFlow( void ( *flow )( int ) );
 void                        BhedVisStateSetup( const char *file, const char *stop, const std::string& key, const std::string& prt, double every );
 bool                        BhedVisPaused();

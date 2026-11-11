@@ -328,6 +328,8 @@ add_executable(bhed_q3map2
   kompat/etclib.c
   # Stufe 8a: -light -bhedlightcache (Teil-Kompilierung, Nachbearbeitung ohne neu zu tracen)
   bhed_lichtcache.cpp
+  # vis3: -vis -bhedvischeck (Sichtlinien durch die Portale gegen die berechnete Sichtbarkeit)
+  bhed_vischeck.cpp
   # Stufe 8b: -light -bhedgpu (Schattentests auf der GPU, Direct3D 11 zur Laufzeit geladen)
   bhed_gpuschatten.cpp
   # Stufe 8c: -light -bhedgpubake (Lichtbeitraege auf der GPU, nicht Byte-gleich, mit Abweichungsbericht)

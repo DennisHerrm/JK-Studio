@@ -48,6 +48,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 
@@ -377,6 +378,149 @@ static bool BhedStopped(){
 	return g_bhedVisStop.load( std::memory_order_relaxed );
 }
 
+/* BehavEd vis3: -bhedvisfixed - a fixed rule for several threads: the same bytes in every run and
+   with every number of threads, without the chains of waiting flows of -bhedvisexact.
+   NRC's rule lets a flow read portalvis of whatever happens to be finished at that moment - the
+   result depends on how fast each thread got on. The fixed rule is one run of NRC's rule, on a
+   machine that is the same everywhere: a fixed number of chains (its threads) that all work at
+   the same pace, one frame of the recursion of a flow in one unit of time.
+     - The flows start in the sorted order at the boundaries of a grid of times
+       (BhedFixedAdvance): at a boundary each chain that is free takes the next portal - NRC's
+       thread loop, with threads that look for work only then. A step of the grid is half as
+       long as the flows that ended two steps before (their median).
+     - A flow that starts at s and has n frames ends at e = s + n + 1; then its chain is free.
+       The frames of a flow depend only on what the flow reads.
+     - A flow that starts at s and has done w frames reads portalvis of exactly the flows with
+       e <= view( s, w ) and portalflood of all others. The view starts at s and follows the
+       clock s + w of the flow at three quarters of its pace (BhedFlowFrame): a long flow gets to
+       see what ends while it runs, as with NRC's rule - where a thread is that much slower with
+       its portals than with the report of its end.
+   Every vector a flow reads is thus final (or portalflood) and the same in every run, so its
+   result and its frames are the same in every run, and so are all starts and ends.
+   The real threads work this machine off, each one a chain (BhedFixedChain). They keep to one
+   thing: nothing is decided before it is certain.
+     - A boundary is passed, and the next one open, when every chain with a flow has passed it
+       (BhedFixedAdvance): then it is certain which chains were free by it. A chain that gets
+       free by the open boundary takes its next flow at once.
+     - A flow may take portalflood for a portal without an end only when that end cannot come
+       before its view (BhedFixedUncertain): the flow of the portal runs on a chain whose clock
+       has reached the view, or it has no chain yet and cannot start before the view (BhedHorizon).
+       Else it waits, and gives its turn away meanwhile.
+   -threads sets how many chains compute at a time; the result does not depend on it. A chain
+   may be ahead of the others by a step of the grid and by what its view lags behind its clock
+   before it has to wait, and the chain with the lowest clock never waits.
+   docs/intern/NOTIZEN_vis3_1111.md has the measurements and the checks. */
+namespace
+{
+constexpr uint64_t c_bhedNever = ~uint64_t( 0 );
+constexpr uint16_t c_bhedNoChain = 0xFFFF;
+}
+
+struct alignas( 64 ) BhedChain
+{
+	/* with a flow: its start + its frames; free: the end of its last flow; c_bhedNever: the chain has ended */
+	std::atomic<uint64_t> clock{ 0 };
+	/* the flow calls BhedFixedReached when its clock gets here: a boundary or a chain waits for that */
+	std::atomic<uint64_t> limit{ c_bhedNever };
+	std::vector<uint64_t> seen;             /* the clocks of all chains as this one saw them last: lower bounds */
+	uint64_t seenOpen = 0, seenAfter = 0;   /* and the horizon (BhedHorizon) */
+	int seenContested = 0;
+	/* all below: under the mutex */
+	std::condition_variable cv;
+	int flow = -1;                          /* its flow (sorted position), -1: free */
+	bool ended = false;                     /* no flow left for it */
+	BhedChain *waitChain = nullptr;         /* its flow waits until the clock of that chain has reached waitFor ... */
+	bool waitHorizon = false;               /* ... or until the horizon has ... */
+	uint64_t waitFor = 0;
+	int waitPortal = -1;                    /* ... or this portal has its end, or its chain */
+	bool wake = false;                      /* the wait is over */
+	bool wantsTurn = false, granted = false;
+};
+
+namespace
+{
+int g_bhedFixed = 0;                                    /* chains of the fixed rule, 0: the rule is off */
+/* The view goes at 1 - 2^-pace of the pace of the clock, three quarters, and the grid of the starts is 2^-grid
+   of the median flow wide, a half. Measured on t3_byss and ctf3 (docs/intern/NOTIZEN_vis3_1111.md): a faster view
+   saves frames - the flows see more - and makes them wait more often, a finer grid likewise. Both are part of the
+   rule: other values, other bytes. */
+constexpr int c_bhedFixedPace = 2;
+constexpr int c_bhedFixedGrid = 1;
+std::unique_ptr<std::atomic<uint64_t>[]> g_bhedEnd;    /* by portal: the end of its flow, c_bhedNever while it has none */
+std::unique_ptr<std::atomic<uint16_t>[]> g_bhedChainOf; /* by portal: the chain of its flow, c_bhedNoChain before it starts */
+/* The horizon: what is certain about the flows that have no chain yet. They start at the open boundary - the one
+   that not every chain with a flow has passed - or later. At the open boundary only the chains that are still
+   behind it can take one more flow each, in the sorted order: a flow at or after the sorted position `contested`
+   starts at the boundary after the open one or later. */
+struct BhedHorizon
+{
+	uint64_t open, after;
+	int contested;
+};
+std::atomic<uint32_t> g_bhedHorizonChange{ 0 };         /* odd while the three below are written */
+std::atomic<uint64_t> g_bhedHorizonOpen{ 0 }, g_bhedHorizonAfter{ 0 };
+std::atomic<int> g_bhedHorizonContested{ 0 };
+
+struct BhedFixedSched
+{
+	std::mutex mutex;
+	std::unique_ptr<BhedChain[]> chains;
+	std::vector<int> order;                 /* the flows: the sorted positions of the portals that are not removed */
+	size_t next = 0;
+	uint64_t open = 0;                      /* the open boundary, c_bhedNever: no flow left */
+	uint64_t step = 1;                      /* from the open boundary to the one after it */
+	std::vector<std::pair<uint64_t, uint64_t>> ended;   /* end and frames of the flows that ended behind the last boundary that is passed */
+	int turnsFree = 0;
+	void ( *work )( int ) = nullptr;
+	uint64_t waits = 0;
+	double waited = 0;                      /* seconds the flows waited for another chain or the horizon */
+};
+BhedFixedSched g_bhedFixedSched;
+
+/* between a flow and the thread that runs it */
+struct BhedFlowClock
+{
+	uint64_t start = 0;                     /* in: start of the flow (fixed rule) */
+	BhedChain *chain = nullptr;             /* in: its chain */
+	uint64_t work = 0;                      /* out: frames of the flow */
+	bool done = false;                      /* out: the flow has its result */
+};
+thread_local BhedFlowClock t_bhedFlow;
+/* NRC's rule and -bhedvisexact: the flows count their frames all the same */
+thread_local std::atomic<uint64_t> t_bhedNoClock{ 0 }, t_bhedNoLimit{ c_bhedNever };
+
+std::atomic<uint64_t> g_bhedFlowFrames{ 0 }, g_bhedFlowLargest{ 0 };
+}
+
+static void BhedFixedReached();
+static void BhedFixedStop();
+static int BhedGeoMemos();
+static const uint64_t *BhedFixedUncertain( threaddata_t *thread, const vportal_t *p );
+
+static void BhedFlowBegin( threaddata_t& data ){
+	BhedChain *chain = t_bhedFlow.chain;
+	data.start = data.view = t_bhedFlow.start;
+	data.now = chain != nullptr ? &chain->clock : &t_bhedNoClock;
+	data.limit = chain != nullptr ? &chain->limit : &t_bhedNoLimit;
+	data.chain = chain;
+}
+
+/* a frame of the recursion: the clock of the flow, and its view */
+static inline void BhedFlowFrame( threaddata_t *thread ){
+	const uint64_t work = ++thread->work;
+	const uint64_t now = thread->start + work;
+	thread->now->store( now, std::memory_order_relaxed );
+	thread->view = now - ( work >> c_bhedFixedPace );
+	if ( now >= thread->limit->load( std::memory_order_relaxed ) ) [[unlikely]] {
+		BhedFixedReached();
+	}
+}
+
+static void BhedFlowDone( const threaddata_t& data ){
+	t_bhedFlow.work = data.work;
+	t_bhedFlow.done = true;
+}
+
 /* waits until p is done (false) or its flow has found every bit the caller misses (true);
    missing() is the number of bits still missing */
 template<typename Missing>
@@ -421,7 +565,26 @@ static bool BhedWaitFound( const vportal_t *p, Missing missing ){
 
 /* the vector a flow from thread->base reads for p (see above); nullptr: p comes before the flow and
    is still running - BhedResolve decides */
-static const uint64_t *BhedVector( const threaddata_t *thread, const vportal_t *p ){
+static const uint64_t *BhedVector( threaddata_t *thread, const vportal_t *p ){
+	if ( g_bhedFixed ) {
+		/* BehavEd vis3: the flows that have ended by the view of this flow */
+		const int pnum = int( p - portals );
+		const uint64_t end = g_bhedEnd[pnum].load( std::memory_order_acquire );
+		if ( end <= thread->view ) {
+			return reinterpret_cast<const uint64_t*>( p->portalvis );
+		}
+		if ( end != c_bhedNever ) {
+			return reinterpret_cast<const uint64_t*>( p->portalflood );
+		}
+		/* no end: none can come before the clock of its chain, or before the horizon while it has no chain -
+		   as far as this thread has seen them (read before the end above: lower bounds) */
+		const uint16_t chain = g_bhedChainOf[pnum].load( std::memory_order_acquire );
+		const BhedChain& me = *thread->chain;
+		if ( ( chain != c_bhedNoChain ? me.seen[chain] : g_bhedRank[pnum] >= me.seenContested ? me.seenAfter : me.seenOpen ) >= thread->view ) {
+			return reinterpret_cast<const uint64_t*>( p->portalflood );
+		}
+		return BhedFixedUncertain( thread, p );
+	}
 	if ( g_bhedRankOrder ) {
 		if ( g_bhedRank[p - portals] > g_bhedRank[thread->base - portals] ) {
 			return reinterpret_cast<const uint64_t*>( p->portalflood );
@@ -475,12 +638,16 @@ static void BhedMark( vportal_t *base, int pnum ){
 	}
 }
 
-void BhedSortedRanks( bool rankOrder ){
+void BhedSortedRanks( bool rankOrder, int fixedChains ){
 	g_bhedRank.assign( numportals * 2, 0 );
 	for ( int i = 0; i < numportals * 2; ++i )
 		g_bhedRank[sorted_portals[i] - portals] = i;
 	g_bhedRankOrder = rankOrder;
 	g_bhedWait = std::make_unique<BhedWaitSlot[]>( numportals * 2 );
+	g_bhedFixed = fixedChains;
+	g_bhedEnd = std::make_unique<std::atomic<uint64_t>[]>( numportals * 2 );
+	for ( int i = 0; i < numportals * 2; ++i )
+		g_bhedEnd[i].store( c_bhedNever, std::memory_order_relaxed );
 }
 
 /* BehavEd vis1: the pacifier of the flow counts work, not portals. The portals come sorted by
@@ -546,7 +713,7 @@ struct BhedVisState
 };
 BhedVisState g_bhedState;
 
-constexpr char c_bhedStateMagic[] = "BHVST1";
+constexpr char c_bhedStateMagic[] = "BHVST2";
 
 bool BhedFileExists( const char *name ){
 	if ( FILE *f = fopen( name, "rb" ) ) {
@@ -572,6 +739,11 @@ int BhedStateWrite(){
 	}
 	const uint32_t words = uint32_t( portalwords );
 	uint32_t count = 0;
+	/* BehavEd vis3, fixed rule: a flow is finished when it has its end, and the end goes into the state -
+	   any part of the finished flows will do, the others take their place in the schedule again */
+	std::vector<uint64_t> ends( numportals * 2, 0 );
+	for ( int i = 0; g_bhedFixed && i < numportals * 2; ++i )
+		ends[i] = g_bhedEnd[i].load( std::memory_order_acquire );
 	ok = ok && fwrite( &words, 4, 1, f ) == 1;
 	const long countAt = ftell( f );
 	ok = ok && fwrite( &count, 4, 1, f ) == 1;
@@ -579,13 +751,13 @@ int BhedStateWrite(){
 	for ( int i = 0; ok && i < numportals * 2; ++i )
 	{
 		const vportal_t& p = portals[i];
-		if ( p.removed || BhedStatus( &p ) != EVStatus::Done ) {
+		if ( p.removed || ( g_bhedFixed ? ends[i] == c_bhedNever : BhedStatus( &p ) != EVStatus::Done ) ) {
 			continue;
 		}
 		const uint32_t index = uint32_t( i );
 		for ( int w = 0; w < portalwords; ++w )
 			vis[w] = std::atomic_ref<uint64_t>( reinterpret_cast<uint64_t*>( p.portalvis )[w] ).load( std::memory_order_relaxed );
-		ok = fwrite( &index, 4, 1, f ) == 1 && fwrite( vis.data(), 8, vis.size(), f ) == vis.size();
+		ok = fwrite( &index, 4, 1, f ) == 1 && fwrite( &ends[i], 8, 1, f ) == 1 && fwrite( vis.data(), 8, vis.size(), f ) == vis.size();
 		++count;
 	}
 	ok = ok && fseek( f, countAt, SEEK_SET ) == 0 && fwrite( &count, 4, 1, f ) == 1;
@@ -631,6 +803,9 @@ const char *BhedStateRead(){
 		return true;
 	};
 	std::string key, prt;
+	if ( d.size() >= 6 && d.compare( 0, 5, c_bhedStateMagic, 5 ) == 0 && d[5] != c_bhedStateMagic[5] ) {
+		return "state of another version";
+	}
 	if ( d.size() < 6 || d.compare( 0, 6, c_bhedStateMagic ) != 0 || !block( key ) || !block( prt ) || pos + 8 > d.size() ) {
 		return "state damaged";
 	}
@@ -644,16 +819,21 @@ const char *BhedStateRead(){
 	memcpy( &words, d.data() + pos, 4 );
 	memcpy( &count, d.data() + pos + 4, 4 );
 	pos += 8;
-	const size_t entry = 4 + size_t( portalwords ) * 8;
+	const size_t entry = 12 + size_t( portalwords ) * 8;
 	if ( words != uint32_t( portalwords ) || count > uint32_t( numportals * 2 ) || d.size() - pos != count * entry ) {
 		return "state damaged";
 	}
 	/* check all entries before taking one */
+	std::vector<uint64_t> ends( numportals * 2, c_bhedNever );     /* by sorted position */
 	for ( uint32_t k = 0; k < count; ++k )
 	{
 		uint32_t index;
 		memcpy( &index, d.data() + pos + k * entry, 4 );
 		if ( index >= uint32_t( numportals * 2 ) || portals[index].removed || portals[index].portalvis == nullptr ) {
+			return "state damaged";
+		}
+		memcpy( &ends[g_bhedRank[index]], d.data() + pos + k * entry + 4, 8 );
+		if ( g_bhedFixed && ends[g_bhedRank[index]] == c_bhedNever ) {
 			return "state damaged";
 		}
 	}
@@ -662,9 +842,12 @@ const char *BhedStateRead(){
 		uint32_t index;
 		memcpy( &index, d.data() + pos + k * entry, 4 );
 		vportal_t& p = portals[index];
-		memcpy( p.portalvis, d.data() + pos + k * entry + 4, size_t( portalwords ) * 8 );
+		memcpy( p.portalvis, d.data() + pos + k * entry + 12, size_t( portalwords ) * 8 );
 		p.status = EVStatus::Done;
 		g_bhedState.restored[g_bhedRank[index]] = 1;
+		if ( g_bhedFixed ) {
+			g_bhedEnd[index].store( ends[g_bhedRank[index]], std::memory_order_relaxed );
+		}
 	}
 	g_bhedState.resumed = int( count );
 	return nullptr;
@@ -697,6 +880,9 @@ void BhedVisStateDone(){
 /* pauses the VIS: no new flows, the running and the waiting ones end without a result */
 static void BhedStopFlows(){
 	g_bhedVisStop.store( true, std::memory_order_seq_cst );
+	if ( g_bhedFixed ) {
+		BhedFixedStop();
+	}
 	for ( int i = 0; i < numportals * 2; ++i )
 	{
 		g_bhedWait[i].epoch.fetch_add( 1, std::memory_order_seq_cst );
@@ -728,6 +914,400 @@ uint32_t BhedGeoLastId(){
 }
 }
 
+/* BehavEd vis3: the chains of the fixed rule (see g_bhedFixed above) */
+namespace
+{
+/* the mutex is held: the flows that wait for this chain and need not any more */
+void BhedFixedWakeup( BhedChain& its ){
+	const uint64_t clock = its.clock.load( std::memory_order_seq_cst );
+	for ( int i = 0; i < g_bhedFixed; ++i )
+	{
+		BhedChain& chain = g_bhedFixedSched.chains[i];
+		if ( chain.waitChain == &its && !chain.wake
+		  && ( clock >= chain.waitFor || g_bhedEnd[chain.waitPortal].load( std::memory_order_relaxed ) != c_bhedNever ) ) {
+			chain.wake = true;
+			chain.cv.notify_one();
+		}
+	}
+}
+
+/* the mutex is held, a turn is free: to the chain with the lowest clock that wants one */
+void BhedFixedTurnFree(){
+	BhedFixedSched& sched = g_bhedFixedSched;
+	BhedChain *first = nullptr;
+	for ( int i = 0; i < g_bhedFixed; ++i )
+	{
+		BhedChain& chain = sched.chains[i];
+		if ( chain.wantsTurn && !chain.granted
+		  && ( first == nullptr || chain.clock.load( std::memory_order_relaxed ) < first->clock.load( std::memory_order_relaxed ) ) ) {
+			first = &chain;
+		}
+	}
+	if ( first != nullptr ) {
+		first->granted = true;
+		first->cv.notify_one();
+	}
+	else{
+		++sched.turnsFree;
+	}
+}
+
+void BhedFixedTurnTake( BhedChain& me, std::unique_lock<std::mutex>& lock ){
+	BhedFixedSched& sched = g_bhedFixedSched;
+	if ( sched.turnsFree > 0 ) {
+		--sched.turnsFree;
+		return;
+	}
+	me.granted = false;
+	me.wantsTurn = true;
+	me.cv.wait( lock, [&me]{ return me.granted; } );
+	me.wantsTurn = false;
+}
+
+/* the horizon as one piece (the three values belong to one open boundary) */
+BhedHorizon BhedHorizonGet(){
+	while ( true )
+	{
+		const uint32_t change = g_bhedHorizonChange.load( std::memory_order_seq_cst );
+		const BhedHorizon horizon{ g_bhedHorizonOpen.load( std::memory_order_seq_cst ), g_bhedHorizonAfter.load( std::memory_order_seq_cst ),
+		                           g_bhedHorizonContested.load( std::memory_order_seq_cst ) };
+		if ( ( change & 1 ) == 0 && g_bhedHorizonChange.load( std::memory_order_seq_cst ) == change ) {
+			return horizon;
+		}
+		_mm_pause();
+	}
+}
+
+/* the mutex is held; true: it is another one than before */
+bool BhedHorizonSet( uint64_t open, uint64_t after, int contested ){
+	if ( g_bhedHorizonOpen.load( std::memory_order_relaxed ) == open && g_bhedHorizonAfter.load( std::memory_order_relaxed ) == after
+	  && g_bhedHorizonContested.load( std::memory_order_relaxed ) == contested ) {
+		return false;
+	}
+	g_bhedHorizonChange.fetch_add( 1, std::memory_order_seq_cst );
+	g_bhedHorizonOpen.store( open, std::memory_order_seq_cst );
+	g_bhedHorizonAfter.store( after, std::memory_order_seq_cst );
+	g_bhedHorizonContested.store( contested, std::memory_order_seq_cst );
+	g_bhedHorizonChange.fetch_add( 1, std::memory_order_seq_cst );
+	return true;
+}
+
+/* what the horizon tells about the end of the portal as long as it has no chain */
+uint64_t BhedHorizonBound( const BhedHorizon& horizon, int pnum ){
+	return g_bhedRank[pnum] >= horizon.contested ? horizon.after : horizon.open;
+}
+
+/* the mutex is held: hands out flows and moves the open boundary on as far as that is certain.
+   The chains that are free by the open boundary take the next flows of the sorted order at once: they start
+   there whatever the other chains do (which chain takes which flow does not matter, a flow is its place in
+   the order and its start). The boundary is passed when every chain with a flow has passed it - then no
+   chain can get free by it any more, and the one after it is the open one. */
+void BhedFixedAdvance(){
+	BhedFixedSched& sched = g_bhedFixedSched;
+	if ( BhedStopped() ) {
+		return;     /* paused: no flow starts any more */
+	}
+	bool moved = false;
+	while ( sched.open != c_bhedNever )
+	{
+		const uint64_t boundary = sched.open;
+		for ( int i = 0; i < g_bhedFixed && sched.next < sched.order.size(); ++i )
+		{
+			BhedChain& chain = sched.chains[i];
+			if ( chain.flow < 0 && !chain.ended && chain.clock.load( std::memory_order_relaxed ) <= boundary ) {
+				chain.flow = sched.order[sched.next++];
+				/* first the clock, then the chain of the portal: who finds the chain finds the clock of this flow */
+				chain.clock.store( boundary, std::memory_order_seq_cst );
+				g_bhedChainOf[sorted_portals[chain.flow] - portals].store( uint16_t( i ), std::memory_order_seq_cst );
+				chain.cv.notify_one();
+				moved = true;
+			}
+		}
+		if ( sched.next == sched.order.size() ) {
+			sched.open = c_bhedNever;
+			moved |= BhedHorizonSet( c_bhedNever, c_bhedNever, INT_MAX );
+			break;
+		}
+		int behind = 0;
+		for ( int i = 0; i < g_bhedFixed; ++i )
+		{
+			BhedChain& chain = sched.chains[i];
+			if ( chain.flow >= 0 && chain.clock.load( std::memory_order_seq_cst ) < boundary ) {
+				++behind;
+				/* its flow tells when it gets there (BhedFlowFrame) */
+				if ( chain.limit.load( std::memory_order_relaxed ) > boundary ) {
+					chain.limit.store( boundary, std::memory_order_seq_cst );
+				}
+			}
+		}
+		if ( behind > 0 ) {
+			moved |= BhedHorizonSet( boundary, boundary + sched.step,
+			                         sched.next + behind < sched.order.size() ? sched.order[sched.next + behind] : INT_MAX );
+			break;
+		}
+		/* passed. The grid goes on with the step that was fixed when this boundary became the open one; the
+		   step behind the next boundary is half the median length of the flows that ended in the step before
+		   this boundary (all of them have ended now) - where none ended the grid gets wider. */
+		std::vector<uint64_t> frames;
+		for ( size_t k = 0; k < sched.ended.size(); )
+		{
+			if ( sched.ended[k].first <= boundary ) {
+				frames.push_back( sched.ended[k].second );
+				sched.ended[k] = sched.ended.back();
+				sched.ended.pop_back();
+			}
+			else{
+				++k;
+			}
+		}
+		sched.open = boundary + sched.step;
+		if ( frames.empty() ) {
+			sched.step += std::max<uint64_t>( sched.step >> 3, 1 );
+		}
+		else{
+			std::nth_element( frames.begin(), frames.begin() + ( frames.size() - 1 ) / 2, frames.end() );
+			sched.step = std::max<uint64_t>( frames[( frames.size() - 1 ) / 2] >> c_bhedFixedGrid, 1 );
+		}
+	}
+	if ( sched.open == c_bhedNever ) {
+		/* no flow left: the free chains end */
+		for ( int i = 0; i < g_bhedFixed; ++i )
+		{
+			BhedChain& chain = sched.chains[i];
+			if ( chain.flow < 0 && !chain.ended ) {
+				chain.ended = true;
+				chain.clock.store( c_bhedNever, std::memory_order_seq_cst );
+				chain.cv.notify_one();
+			}
+		}
+	}
+	if ( moved ) {
+		/* the flows that wait for the horizon look again */
+		for ( int i = 0; i < g_bhedFixed; ++i )
+		{
+			BhedChain& chain = sched.chains[i];
+			if ( chain.waitHorizon && !chain.wake ) {
+				chain.wake = true;
+				chain.cv.notify_one();
+			}
+		}
+	}
+}
+
+/* the flow of this thread waits until the clock of the chain (nullptr: the horizon) has reached `until`
+   or the portal has got its end (its chain), and gives its turn away meanwhile */
+void BhedFixedWait( BhedChain *its, uint64_t until, int portal ){
+	BhedFixedSched& sched = g_bhedFixedSched;
+	BhedChain& me = *t_bhedFlow.chain;
+	std::unique_lock<std::mutex> lock( sched.mutex );
+	/* ends, chains of portals and the horizon change under the mutex; a clock goes on without it - the
+	   flow of that chain looks at the limit in every frame (BhedFlowFrame) */
+	bool wait;
+	if ( its != nullptr ) {
+		if ( its->limit.load( std::memory_order_relaxed ) > until ) {
+			its->limit.store( until, std::memory_order_seq_cst );
+		}
+		wait = g_bhedEnd[portal].load( std::memory_order_relaxed ) == c_bhedNever && its->clock.load( std::memory_order_seq_cst ) < until;
+	}
+	else{
+		wait = g_bhedChainOf[portal].load( std::memory_order_relaxed ) == c_bhedNoChain && BhedHorizonBound( BhedHorizonGet(), portal ) < until;
+	}
+	if ( wait && !BhedStopped() ) {
+		me.waitChain = its;
+		me.waitHorizon = its == nullptr;
+		me.waitFor = until;
+		me.waitPortal = portal;
+		me.wake = false;
+		++sched.waits;
+		BhedFixedTurnFree();
+		Timer timer;
+		me.cv.wait( lock, [&me]{ return me.wake; } );
+		sched.waited += timer.elapsed_sec();
+		me.waitChain = nullptr;
+		me.waitHorizon = false;
+		BhedFixedTurnTake( me, lock );
+	}
+}
+
+/* one chain: the thread runs the flows that are handed to it */
+void BhedFixedChain( int index, const std::vector<char> *restored ){
+	BhedFixedSched& sched = g_bhedFixedSched;
+	BhedChain& me = sched.chains[index];
+	std::unique_lock<std::mutex> lock( sched.mutex );
+	bool turn = false;
+	while ( true )
+	{
+		if ( turn && me.flow < 0 ) {
+			BhedFixedTurnFree();    /* nothing to run at the moment */
+			turn = false;
+		}
+		me.cv.wait( lock, [&me]{ return me.flow >= 0 || me.ended || BhedStopped(); } );
+		if ( me.flow < 0 || BhedStopped() ) {
+			break;
+		}
+		const int flow = me.flow;
+		const int pnum = int( sorted_portals[flow] - portals );
+		const uint64_t start = me.clock.load( std::memory_order_relaxed );
+		uint64_t end;
+		if ( ( *restored )[flow] ) {
+			/* resumed: the flow has its vector and its end from the state - it takes its place in the schedule again */
+			end = g_bhedEnd[pnum].load( std::memory_order_relaxed );
+			if ( end <= start ) {
+				Error( "BehavEd: the vis state does not fit the fixed rule (portal %i)", pnum );
+			}
+		}
+		else{
+			if ( !turn ) {
+				BhedFixedTurnTake( me, lock );
+				turn = true;
+			}
+			lock.unlock();
+			t_bhedFlow.start = start;
+			t_bhedFlow.chain = &me;
+			sched.work( flow );
+			lock.lock();
+			if ( !t_bhedFlow.done ) {
+				break;      /* paused */
+			}
+			/* the vector is complete: first its end, then the clock of the chain - a flow that reads the clock
+			   and then finds no end (BhedFixedUncertain) is right that the end comes after that clock */
+			end = start + t_bhedFlow.work + 1;
+			g_bhedEnd[pnum].store( end, std::memory_order_seq_cst );
+		}
+		me.clock.store( end, std::memory_order_seq_cst );
+		me.limit.store( c_bhedNever, std::memory_order_seq_cst );
+		me.flow = -1;
+		sched.ended.emplace_back( end, end - start - 1 );
+		BhedFixedWakeup( me );
+		BhedFixedAdvance();
+	}
+	if ( turn ) {
+		BhedFixedTurnFree();
+	}
+	/* paused: all flows end without a result */
+	me.ended = true;
+	me.flow = -1;
+	me.clock.store( c_bhedNever, std::memory_order_seq_cst );
+}
+
+/* before the flows (and before the thread that writes the state) */
+void BhedFixedSetup(){
+	BhedFixedSched& sched = g_bhedFixedSched;
+	sched.chains = std::make_unique<BhedChain[]>( g_bhedFixed );
+	for ( int i = 0; i < g_bhedFixed; ++i )
+	{
+		/* a flow never waits for its own chain */
+		sched.chains[i].seen.assign( g_bhedFixed, 0 );
+		sched.chains[i].seen[i] = c_bhedNever;
+	}
+	sched.order.clear();
+	for ( int flow = 0; flow < numportals * 2; ++flow )
+		if ( !sorted_portals[flow]->removed ) {
+			sched.order.push_back( flow );
+		}
+	sched.next = 0;
+	sched.open = 0;
+	sched.step = 1;
+	sched.ended.clear();
+	sched.turnsFree = std::clamp( numthreads, 1, g_bhedFixed );
+	sched.waits = 0;
+	sched.waited = 0;
+	g_bhedChainOf = std::make_unique<std::atomic<uint16_t>[]>( numportals * 2 );
+	for ( int i = 0; i < numportals * 2; ++i )
+		g_bhedChainOf[i].store( c_bhedNoChain, std::memory_order_relaxed );
+	BhedHorizonSet( 0, 1, 0 );
+}
+
+void BhedFixedRun( void ( *work )( int ), const std::vector<char>& restored ){
+	BhedFixedSched& sched = g_bhedFixedSched;
+	sched.work = work;
+	for ( int flow = 0; flow < numportals * 2; ++flow )
+		if ( sorted_portals[flow]->removed ) {
+			work( flow );       /* no flow: it takes no time and no chain */
+		}
+	{
+		std::lock_guard<std::mutex> lock( sched.mutex );
+		BhedFixedAdvance();
+	}
+	BhedThreaded( true );
+	std::vector<std::thread> pool;
+	for ( int i = 0; i < g_bhedFixed; ++i )
+		pool.emplace_back( BhedFixedChain, i, &restored );
+	for ( std::thread& t : pool )
+		t.join();
+	BhedThreaded( false );
+}
+}
+
+/* the flow of this thread has come to the limit of its chain: a boundary or a flow waits for that */
+static void BhedFixedReached(){
+	BhedChain& me = *t_bhedFlow.chain;
+	std::lock_guard<std::mutex> lock( g_bhedFixedSched.mutex );
+	me.limit.store( c_bhedNever, std::memory_order_seq_cst );
+	BhedFixedWakeup( me );
+	BhedFixedAdvance();     /* sets the limit again when the chain is behind the next boundary */
+	/* and for the flows that still wait for this chain */
+	const uint64_t now = me.clock.load( std::memory_order_relaxed );
+	uint64_t limit = me.limit.load( std::memory_order_relaxed );
+	for ( int i = 0; i < g_bhedFixed; ++i )
+	{
+		const BhedChain& chain = g_bhedFixedSched.chains[i];
+		if ( chain.waitChain == &me && !chain.wake && chain.waitFor > now ) {
+			limit = std::min( limit, chain.waitFor );
+		}
+	}
+	me.limit.store( limit, std::memory_order_seq_cst );
+}
+
+/* the portal has no end, and what this flow knows does not tell that none can come before its view.
+   It cannot: when the flow of the portal runs on a chain whose clock has reached the view, or when the
+   portal has no chain yet and the horizon has reached the view - its flow starts at a boundary that is
+   not handed out yet. Until then the flow waits; when the portal gets its end meanwhile, the end decides.
+   The order of reading matters: the horizon before the chain of the portal, the clock of the chain
+   before the end. */
+static const uint64_t *BhedFixedUncertain( threaddata_t *thread, const vportal_t *p ){
+	const int pnum = int( p - portals );
+	BhedChain& me = *thread->chain;
+	const uint64_t *flood = reinterpret_cast<const uint64_t*>( p->portalflood );
+	while ( true )
+	{
+		const BhedHorizon horizon = BhedHorizonGet();
+		const uint16_t chain = g_bhedChainOf[pnum].load( std::memory_order_seq_cst );
+		BhedChain *its = chain == c_bhedNoChain ? nullptr : &g_bhedFixedSched.chains[chain];
+		const uint64_t bound = its != nullptr ? its->clock.load( std::memory_order_seq_cst ) : BhedHorizonBound( horizon, pnum );
+		const uint64_t end = g_bhedEnd[pnum].load( std::memory_order_seq_cst );
+		if ( end != c_bhedNever ) {
+			return end <= thread->view ? reinterpret_cast<const uint64_t*>( p->portalvis ) : flood;
+		}
+		me.seenOpen = horizon.open;
+		me.seenAfter = horizon.after;
+		me.seenContested = horizon.contested;
+		if ( its != nullptr ) {
+			me.seen[chain] = bound;
+		}
+		if ( bound >= thread->view || BhedStopped() ) {     /* paused: the flow has no result */
+			return flood;
+		}
+		BhedFixedWait( its, thread->view, pnum );
+	}
+}
+
+/* paused: the chains that wait or sleep end */
+static void BhedFixedStop(){
+	BhedFixedSched& sched = g_bhedFixedSched;
+	if ( !sched.chains ) {
+		return;
+	}
+	std::lock_guard<std::mutex> lock( sched.mutex );
+	for ( int i = 0; i < g_bhedFixed; ++i )
+	{
+		BhedChain& chain = sched.chains[i];
+		chain.wake = true;
+		chain.granted = true;
+		chain.cv.notify_all();
+	}
+}
+
 void BhedRunFlow( void ( *flow )( int ) ){
 	static void ( *s_flow )( int );
 	s_flow = flow;
@@ -750,6 +1330,9 @@ void BhedRunFlow( void ( *flow )( int ) ){
 			Sys_Printf( "BehavEd: vis resumed from %s: %i of %i portals done (%.1f %% of the work)\n", g_bhedState.file.c_str(), g_bhedState.resumed,
 			            numportals * 2, 100.0 * double( work ) / double( std::max<uint64_t>( g_bhedWorkTotal, 1 ) ) );
 		}
+	}
+	if ( g_bhedFixed ) {
+		BhedFixedSetup();
 	}
 	g_bhedPacifierShown = -1;
 	BhedPacifier( g_bhedWorkDone );
@@ -791,8 +1374,18 @@ void BhedRunFlow( void ( *flow )( int ) ){
 		} );
 	}
 
+	g_bhedFlowFrames = 0;
+	g_bhedFlowLargest = 0;
 	const auto one = []( int portalnum ){
+		t_bhedFlow.done = false;
 		s_flow( portalnum );
+		if ( t_bhedFlow.done ) {
+			g_bhedFlowFrames.fetch_add( t_bhedFlow.work, std::memory_order_relaxed );
+			uint64_t largest = g_bhedFlowLargest.load( std::memory_order_relaxed );
+			while ( t_bhedFlow.work > largest && !g_bhedFlowLargest.compare_exchange_weak( largest, t_bhedFlow.work, std::memory_order_relaxed ) )
+			{
+			}
+		}
 		if ( !g_bhedState.restored[portalnum] && !BhedStopped() ) {    /* paused: the flow has no result */
 			BhedPacifier( g_bhedWorkDone += BhedFlowWork( sorted_portals[portalnum] ) );
 			if ( g_bhedState.stopAfter > 0 && ++g_bhedState.computed == g_bhedState.stopAfter ) {
@@ -800,7 +1393,10 @@ void BhedRunFlow( void ( *flow )( int ) ){
 			}
 		}
 	};
-	if ( !g_bhedRankOrder || numthreads <= 1 ) {
+	if ( g_bhedFixed ) {
+		BhedFixedRun( one, g_bhedState.restored );
+	}
+	else if ( !g_bhedRankOrder || numthreads <= 1 ) {
 		RunThreadsOnIndividual( numportals * 2, false, one );
 	}
 	else{
@@ -825,6 +1421,18 @@ void BhedRunFlow( void ( *flow )( int ) ){
 		return;
 	}
 	Sys_Printf( " (%i)\n", int( timer.elapsed_sec() ) );
+	if ( g_bhedFixed ) {
+		uint64_t last = 0;
+		for ( int i = 0; i < numportals * 2; ++i )
+			if ( !portals[i].removed ) {
+				last = std::max( last, g_bhedEnd[i].load( std::memory_order_relaxed ) );
+			}
+		Sys_FPrintf( SYS_VRB, "BehavEd: fixed vis rule: %i chains, %i at a time, the last flow ends at %llu, %llu waits for a chain or the horizon (%.2f s), %i geometry memos\n",
+		             g_bhedFixed, std::clamp( numthreads, 1, g_bhedFixed ), (unsigned long long)last, (unsigned long long)g_bhedFixedSched.waits,
+		             g_bhedFixedSched.waited, BhedGeoMemos() );
+	}
+	/* BehavEd vis3: the work of the flows in frames - the same in every run with one thread, -bhedvisexact and -bhedvisfixed */
+	Sys_FPrintf( SYS_VRB, "BehavEd: flows: %llu frames, the largest %llu\n", (unsigned long long)g_bhedFlowFrames.load(), (unsigned long long)g_bhedFlowLargest.load() );
 	if ( BhedGeoBits() > 0 && g_bhedGeoKnown + g_bhedGeoMade != 0 ) {
 		Sys_FPrintf( SYS_VRB, "BehavEd: geometry memo (2^%i states a thread): %llu portals known, %llu computed, %llu windings made again, %llu planes made again, emptied %llu times, %llu states without id\n",
 		             BhedGeoBits(), (unsigned long long)g_bhedGeoKnown.load(), (unsigned long long)g_bhedGeoMade.load(),
@@ -1209,6 +1817,7 @@ static void RecursiveLeafFlow( int leafnum, threaddata_t *thread, pstack_t *prev
 	int n;
 
 	thread->c_chains++;
+	BhedFlowFrame( thread );
 
 	leaf = &leafs[leafnum];
 //	CheckStack( leaf, thread );
@@ -1451,6 +2060,7 @@ void PortalFlow( int portalnum ){
 
 	memset( &data, 0, sizeof( data ) );
 	data.base = p;
+	BhedFlowBegin( data );
 
 	data.pstack_head.portal = p;
 	data.pstack_head.source = p->winding;
@@ -1463,6 +2073,7 @@ void PortalFlow( int portalnum ){
 		return;     /* BehavEd vis2: paused - no result, it may have read unfinished vectors */
 	}
 
+	BhedFlowDone( data );
 	BhedSetStatus( p, EVStatus::Done );
 
 	c_can = CountBits( p->portalvis, numportals * 2 );
@@ -1481,6 +2092,8 @@ static void RecursivePassageFlow( vportal_t *portal, threaddata_t *thread, pstac
 	vportal_t   *p;
 	leaf_t      *leaf;
 	int i;
+
+	BhedFlowFrame( thread );
 
 	leaf = &leafs[portal->leaf];
 
@@ -1574,6 +2187,7 @@ void PassageFlow( int portalnum ){
 
 	memset( &data, 0, sizeof( data ) );
 	data.base = p;
+	BhedFlowBegin( data );
 
 	data.pstack_head.portal = p;
 	data.pstack_head.source = p->winding;
@@ -1586,6 +2200,7 @@ void PassageFlow( int portalnum ){
 		return;     /* BehavEd vis2: paused - no result, it may have read unfinished vectors */
 	}
 
+	BhedFlowDone( data );
 	BhedSetStatus( p, EVStatus::Done );
 
 	/*
@@ -1667,7 +2282,7 @@ struct BhedGeoMemo
 	/* portals taken from the memo, computed, windings and planes made again, memo emptied, states that got no id */
 	uint64_t known = 0, made = 0, again = 0, planes = 0, emptied = 0, refused = 0;
 
-	BhedGeoMemo() : bits( BhedGeoBits() ), lastId( BhedGeoLastId() ),
+	explicit BhedGeoMemo( int size = BhedGeoBits() ) : bits( size ), lastId( BhedGeoLastId() ),
 		states( bits > 0 ? static_cast<State*>( safe_calloc( ( size_t( 1 ) << bits ) * sizeof( State ) ) ) : nullptr ),
 		block( bits > 0 ? safe_calloc( outcomeBytes() + 64 ) : nullptr ),
 		outcomes( reinterpret_cast<Outcome*>( ( reinterpret_cast<uintptr_t>( block ) + 63 ) & ~uintptr_t( 63 ) ) ){
@@ -1798,6 +2413,50 @@ static BhedGeoMemo *BhedGeoThreadMemo(){
 		memo = std::make_unique<BhedGeoMemo>();
 	}
 	return memo.get();
+}
+
+/* BehavEd vis3: the memo of a flow. With NRC's rule and -bhedvisexact that is the memo of its thread. The fixed
+   rule has a thread for each chain, more than compute at a time - a memo for each would be 5.5 MB times the
+   chains. There a flow takes a memo from a store when it begins and gives it back when it ends (it holds ids in
+   its frames meanwhile, also while it waits). The store has as many memos of the full size as chains compute
+   at a time (-threads); the flows that are under way beyond that - as many as are waiting - get small ones,
+   a quarter of the size. The result does not depend on the size of a memo. */
+namespace
+{
+std::mutex g_bhedGeoStoreMutex;
+std::vector<std::unique_ptr<BhedGeoMemo>> g_bhedGeoStore[2];   /* the memos no flow has at the moment: full size, small */
+int g_bhedGeoMemos[2] = { 0, 0 };                              /* all there are */
+}
+
+static BhedGeoMemo *BhedGeoTake(){
+	if ( !g_bhedFixed ) {
+		return BhedGeoThreadMemo();
+	}
+	int small;
+	{
+		std::lock_guard<std::mutex> lock( g_bhedGeoStoreMutex );
+		for ( auto& store : g_bhedGeoStore )
+			if ( !store.empty() ) {
+				BhedGeoMemo *memo = store.back().release();     /* the one that was given back last */
+				store.pop_back();
+				return memo;
+			}
+		small = g_bhedGeoMemos[0] >= std::clamp( numthreads, 1, g_bhedFixed );
+		++g_bhedGeoMemos[small];
+	}
+	return new BhedGeoMemo( small && BhedGeoBits() > 2 ? BhedGeoBits() - 2 : BhedGeoBits() );
+}
+
+static int BhedGeoMemos(){
+	std::lock_guard<std::mutex> lock( g_bhedGeoStoreMutex );
+	return g_bhedGeoMemos[0] + g_bhedGeoMemos[1];
+}
+
+static void BhedGeoGive( BhedGeoMemo *memo ){
+	if ( g_bhedFixed ) {
+		std::lock_guard<std::mutex> lock( g_bhedGeoStoreMutex );
+		g_bhedGeoStore[memo->bits < BhedGeoBits()].emplace_back( memo );
+	}
 }
 
 /* at the end of a flow: the counts of the thread to the sum of the run */
@@ -1986,6 +2645,7 @@ static void RecursivePassagePortalFlow( vportal_t *portal, threaddata_t *thread,
 	int i;
 
 //	thread->c_chains++;
+	BhedFlowFrame( thread );
 
 	leaf = &leafs[portal->leaf];
 //	CheckStack( leaf, thread );
@@ -2156,22 +2816,25 @@ void PassagePortalFlow( int portalnum ){
 
 	memset( &data, 0, sizeof( data ) );
 	data.base = p;
+	BhedFlowBegin( data );
 
 	data.pstack_head.portal = p;
 	data.pstack_head.source = p->winding;
 	data.pstack_head.portalplane = p->plane;
 	BhedHeadFrame( data.pstack_head, p );
-	data.geo = BhedGeoThreadMemo();
+	data.geo = BhedGeoTake();
 	data.geo->begin();
 
 	RecursivePassagePortalFlow( p, &data, &data.pstack_head );
 	data.geo->end();
 	BhedGeoCount( *data.geo );
+	BhedGeoGive( data.geo );
 	BhedHeadDone( data.pstack_head );
 	if ( g_bhedVisStop.load( std::memory_order_seq_cst ) ) {
 		return;     /* BehavEd vis2: paused - no result, it may have read unfinished vectors */
 	}
 
+	BhedFlowDone( data );
 	BhedSetStatus( p, EVStatus::Done );
 
 	/*
