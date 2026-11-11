@@ -580,6 +580,38 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
         g_app->modelDirty = true;
     }));
     add(pause(0.5));
+    // Wie weit die Nachbarpunkte (+7, +9) des Pfads Hand am Schirm vom Punkt bei +8 liegen: der Zug greift den Punkt, der der
+    // Maus am naechsten ist (punktUnter), und die Maus steht auf ganzen Bildpunkten.
+    const auto nachbarn = [](const char* wo) {
+        ImVec2 q;
+        ImVec2 v;
+        ImVec2 n;
+        const bool da = modellPfadPunktAufSchirm(0, f0() + 8, q) && modellPfadPunktAufSchirm(0, f0() + 7, v) && modellPfadPunktAufSchirm(0, f0() + 9, n);
+        const ModellAnsicht& a = g_app->mtab.ansichten[g_app->mtab.aktiv];
+        char z[300];
+        std::snprintf(z, sizeof z, "Knopftest: MB6 Pfad Hand %s - Ansicht %d (Art %d), Gier %.1f, Nick %.1f; Punkt +8 (%.2f, %.2f), +7 liegt %.2f, +9 liegt %.2f Bildpunkte daneben%s",
+                      wo, g_app->mtab.aktiv, static_cast<int>(a.art), static_cast<double>(g_app->modelCam.angles[1]), static_cast<double>(g_app->modelCam.angles[0]),
+                      static_cast<double>(q.x), static_cast<double>(q.y), static_cast<double>(std::hypot(v.x - q.x, v.y - q.y)),
+                      static_cast<double>(std::hypot(n.x - q.x, n.y - q.y)), da ? "" : " (nicht am Schirm)");
+        diag::detail(z);
+    };
+    if (!handbuch) {
+        add(tu("MB6 Pfade: Nachbarpunkte des Pfads Hand in der Startansicht (nur gemeldet)", [nachbarn] { nachbarn("Startansicht"); }));
+        add(tu("MB6 Pfade: Perspektive von der Seite (Gier 180, Nick 0), eingepasst", [] {
+            // Die Blickrichtung fest, nicht die Startansicht: geschrieben wurde der Test in der Startansicht bis rc611 (Gier 180,
+            // von der Seite). Seit MBKOPF beginnt die Perspektive vor dem Gesicht (Gier 90); von dort liegen die Punkte des
+            // Pfads Hand bei +7 und +9 am Schirm nur 2,16 und 2,00 Bildpunkte neben dem bei +8 (von der Seite 6,26 und 5,61;
+            // gemessen im Lauf m6a_mb_mb6, die Zeilen "MB6 Pfad Hand ..." nennen es in jedem Lauf). Die Maus steht auf ganzen
+            // Bildpunkten, dort 1,22 neben dem Punkt (1254,74 / 581,97), und der Zug griff den Nachbarn bei +9
+            // (zusammengefuehrter Stand, Laeufe tr_mb_mb6 und w_mb_mb6: "Path point moved: rhand at frame 30302" statt 30301,
+            // 37 OK, 1 FEHLER - die Pruefung sieht den Punkt bei +8 dann unbewegt). Von der Seite: 38 OK, 0 FEHLER.
+            g_app->modelOrbit.turn(g_app->modelCam, 180.0F - g_app->modelCam.angles[1], -g_app->modelCam.angles[0]);
+            modellAnsichtEinpassenAktiv();
+            g_app->modelDirty = true;
+        }));
+        add(pause(0.5));
+        add(tu("MB6 Pfade: Nachbarpunkte des Pfads Hand von der Seite (nur gemeldet)", [nachbarn] { nachbarn("von der Seite"); }));
+    }
     add(pruefe("MB6 Pfade: drei Pfade (Hand, Fuss, Saebelspitze), die Spitze liegt eine Klinge weit vor der Hand", [] {
         const ModellTab& t = g_app->mtab;
         if (t.pfade.size() != 3U || !t.pfade[2].spitze) { return false; }
@@ -605,7 +637,7 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
             const bool da = modellPfadPunktAufSchirm(p, f0() + 8, q);
             const int art = p == 1 ? kBeinR : kArmR;
             diag::detail("Knopftest: MB6 Pfad " + std::string(kPfadName[p]) + " - Punkt (" + std::to_string(q.x) + ", " + std::to_string(q.y) + "), Maus (" + std::to_string(ziel->x) +
-                         ", " + std::to_string(ziel->y) + "), " + g_app->mtab.rigMeldung);
+                         ", " + std::to_string(ziel->y) + "), gegriffen bei +" + std::to_string(g_app->mtab.kvPfadBild - f0()) + ", " + g_app->mtab.rigMeldung);
             return da && std::hypot(q.x - ziel->x, q.y - ziel->y) < 2.0F && ikSchluessel(art, f0() + 8) && modellIkAnteil(art) >= 1.0F;
         }));
         if (handbuch && p == 2) { add(hilfe2::schrittFoto("h_mb6_pfade")); }
