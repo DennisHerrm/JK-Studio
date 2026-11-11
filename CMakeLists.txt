@@ -2003,3 +2003,13 @@ if(BEHAVED_TESTS)
                      --vergleich ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/abdeckung.md --pruefen)
   endif()
 endif()
+
+# AP12: Auto-Skin (Kern) - Gewichte eines Netzes aus dem Skelett seiner GLA (geodaetisch ueber Voxel, Huelle, von einem
+# Original uebertragen), JKA-Grenzen; mit -DBEHAVED_KARTE_JA=<JA base> die Gegenprobe an Raven-Figuren (nur lesen)
+target_sources(bhed_core PRIVATE src/modell/autoskin.cpp)
+if(BEHAVED_TESTS)
+  add_executable(modellautoskintest tests/modell_autoskin.cpp)
+  target_link_libraries(modellautoskintest PRIVATE bhed_core)
+  add_test(NAME modell_autoskin COMMAND modellautoskintest "${BEHAVED_KARTE_JA}")
+  set_tests_properties(modell_autoskin PROPERTIES TIMEOUT 900)
+endif()
