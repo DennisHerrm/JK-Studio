@@ -53,33 +53,33 @@ X = {
     "werkzeuge": (
         "**{{PtWzPinsel}}**, **{{PtWzWeich}}**, **{{PtWzWischen}}**, **{{PtWzKlonen}}** (Ctrl+click sets the source), **{{PtWzFuellen}}**, **{{PtWzMaske}}** "
         "and **{{PtWzRadierer}}** are in the rollout **{{PtRolloutMax}}** (Blender: **{{PtRolloutBlender}}**), in the menu **{{PtMenue}}**, in the right-click "
-        "of the view and in the search. Radius, strength, hardness (falloff) and spacing set the brush; with a pen the pressure can change size and strength. "
+        "of the view and in the search. Radius, strength, hardness (falloff) and spacing set the brush; with a pen the pressure can change size and strength. In the view the dabs follow the line you draw on the screen, each one on the surface visible there, like in Substance Painter and Blender - a fast stroke from one hand to the other paints only where the brush passed over the model, nothing over the background. "
         "In Blender mode F and Shift+F drag the radius and the strength, S samples a colour, X swaps the two colours and 1 shows the mask. **{{PtSpiegeln}}** "
         "paints every dab a second time on the mirrored side of the model (axis x for characters). Faces that point away from the hit one by more than 80 "
         "degrees stay untouched unless **{{PtRueckseiten}}** is on.",
         "**{{PtWzPinsel}}**, **{{PtWzWeich}}**, **{{PtWzWischen}}**, **{{PtWzKlonen}}** (Strg+Klick setzt die Quelle), **{{PtWzFuellen}}**, **{{PtWzMaske}}** "
         "und **{{PtWzRadierer}}** stehen im Rollout **{{PtRolloutMax}}** (Blender: **{{PtRolloutBlender}}**), im Menü **{{PtMenue}}**, im Rechtsklick der "
-        "Ansicht und in der Suche. Radius, Stärke, Härte (Abfall) und Abstand stellen den Pinsel ein; mit einem Stift ändert der Druck Größe und Stärke. Im "
+        "Ansicht und in der Suche. Radius, Stärke, Härte (Abfall) und Abstand stellen den Pinsel ein; mit einem Stift ändert der Druck Größe und Stärke. In der Ansicht folgen die Tupfer der Linie, die du auf dem Bildschirm ziehst, jeder auf der dort sichtbaren Fläche, wie in Substance Painter und Blender - ein schneller Strich von einer Hand zur anderen malt nur dort, wo der Pinsel über das Modell ging, nichts über dem Hintergrund. Im "
         "Blender-Modus ziehen F und Umschalt+F Radius und Stärke, S nimmt eine Farbe auf, X tauscht die beiden Farben, 1 zeigt die Maske. **{{PtSpiegeln}}** "
         "malt jeden Tupfer ein zweites Mal auf der gespiegelten Seite des Modells (Achse x bei Figuren). Flächen, die mehr als 80 Grad von der getroffenen weg "
         "zeigen, bleiben unberührt, außer **{{PtRueckseiten}}** ist an.",
         "**{{PtWzPinsel}}**、**{{PtWzWeich}}**、**{{PtWzWischen}}**、**{{PtWzKlonen}}** (Ctrl+单击设置源点)、**{{PtWzFuellen}}**、**{{PtWzMaske}}** 和 **{{PtWzRadierer}}** "
-        "位于卷展栏 **{{PtRolloutMax}}** (Blender: **{{PtRolloutBlender}}**)、菜单 **{{PtMenue}}**、视图右键菜单和搜索中。半径、强度、硬度 (衰减) 和间距设置画笔; 使用手写笔时压力可改变大小和强度。"
+        "位于卷展栏 **{{PtRolloutMax}}** (Blender: **{{PtRolloutBlender}}**)、菜单 **{{PtMenue}}**、视图右键菜单和搜索中。半径、强度、硬度 (衰减) 和间距设置画笔; 使用手写笔时压力可改变大小和强度。在视图中, 点按沿着你在屏幕上画出的线分布, 每一个都落在那里可见的表面上, 与 Substance Painter 和 Blender 相同 - 从一只手快速划到另一只手只会绘制画笔经过模型的地方, 背景上什么也不画。"
         "Blender 模式下 F 和 Shift+F 拖动半径和强度, S 取色, X 交换两种颜色, 1 显示遮罩。**{{PtSpiegeln}}** 会在模型的镜像一侧再画一次每个点按 (角色为 x 轴)。"
         "与命中面朝向相差超过 80 度的面不受影响, 除非打开 **{{PtRueckseiten}}**。",
         "**{{PtWzPinsel}}**、**{{PtWzWeich}}**、**{{PtWzWischen}}**、**{{PtWzKlonen}}** (Ctrl+クリックでソース)、**{{PtWzFuellen}}**、**{{PtWzMaske}}**、**{{PtWzRadierer}}** "
         "はロールアウト **{{PtRolloutMax}}** (Blender: **{{PtRolloutBlender}}**)、メニュー **{{PtMenue}}**、ビューの右クリック、検索にあります。半径、強さ、硬さ (減衰)、間隔でブラシを"
-        "設定し、ペンでは筆圧でサイズと強さを変えられます。Blender モードでは F と Shift+F で半径と強さをドラッグ、S で色を拾い、X で 2 色を入れ替え、1 でマスクを表示します。"
+        "設定し、ペンでは筆圧でサイズと強さを変えられます。ビューではダブは画面上に描いた線に沿って並び、それぞれがそこに見えるサーフェスに置かれます (Substance Painter や Blender と同じ) - 片手からもう一方の手への素早いストロークは、ブラシがモデルの上を通った所だけに塗り、背景の上には何も塗りません。Blender モードでは F と Shift+F で半径と強さをドラッグ、S で色を拾い、X で 2 色を入れ替え、1 でマスクを表示します。"
         "**{{PtSpiegeln}}** は各ダブをモデルの鏡像側にもう一度塗ります (キャラクターは x 軸)。当たった面から 80 度以上外を向く面は **{{PtRueckseiten}}** がオンでない限り塗られません。",
         "**{{PtWzPinsel}}**, **{{PtWzWeich}}**, **{{PtWzWischen}}**, **{{PtWzKlonen}}** (Ctrl+clic fija el origen), **{{PtWzFuellen}}**, **{{PtWzMaske}}** y "
         "**{{PtWzRadierer}}** están en el despliegue **{{PtRolloutMax}}** (Blender: **{{PtRolloutBlender}}**), en el menú **{{PtMenue}}**, en el clic derecho "
-        "de la vista y en la búsqueda. Radio, fuerza, dureza (caída) y espaciado ajustan el pincel; con un lápiz la presión puede cambiar tamaño y fuerza. En "
+        "de la vista y en la búsqueda. Radio, fuerza, dureza (caída) y espaciado ajustan el pincel; con un lápiz la presión puede cambiar tamaño y fuerza. En la vista los toques siguen la línea que trazas en la pantalla, cada uno sobre la superficie visible allí, como en Substance Painter y Blender: un trazo rápido de una mano a la otra solo pinta donde el pincel pasó sobre el modelo, nada sobre el fondo. En "
         "modo Blender F y Mayús+F arrastran radio y fuerza, S toma un color, X intercambia los dos colores y 1 muestra la máscara. **{{PtSpiegeln}}** pinta "
         "cada toque una segunda vez en el lado reflejado del modelo (eje x en personajes). Las caras que se apartan más de 80 grados de la tocada quedan "
         "intactas salvo que **{{PtRueckseiten}}** esté activo.",
         "**{{PtWzPinsel}}**, **{{PtWzWeich}}**, **{{PtWzWischen}}**, **{{PtWzKlonen}}** (Ctrl+klik nastaví zdroj), **{{PtWzFuellen}}**, **{{PtWzMaske}}** a "
         "**{{PtWzRadierer}}** jsou v roletě **{{PtRolloutMax}}** (Blender: **{{PtRolloutBlender}}**), v menu **{{PtMenue}}**, v pravém kliknutí pohledu a ve "
-        "hledání. Poloměr, síla, tvrdost (útlum) a rozestup nastaví štětec; s perem může přítlak měnit velikost a sílu. V režimu Blender F a Shift+F táhnou "
+        "hledání. Poloměr, síla, tvrdost (útlum) a rozestup nastaví štětec; s perem může přítlak měnit velikost a sílu. V pohledu doteky sledují čáru, kterou táhnete na obrazovce, každý na ploše, která je tam vidět, jako v Substance Painter a Blenderu - rychlý tah z jedné ruky do druhé maluje jen tam, kde štětec přešel přes model, nic přes pozadí. V režimu Blender F a Shift+F táhnou "
         "poloměr a sílu, S nabere barvu, X prohodí obě barvy a 1 zobrazí masku. **{{PtSpiegeln}}** namaluje každý dotek podruhé na zrcadlové straně modelu "
         "(osa x u postav). Plochy odvrácené od zasažené o víc než 80 stupňů zůstanou nedotčené, pokud není zapnuto **{{PtRueckseiten}}**."),
     "h_ebenen": ("Layers, mask and seams", "Ebenen, Maske und Nähte", "图层、遮罩与接缝", "レイヤー、マスク、シーム", "Capas, máscara y costuras", "Vrstvy, maska a švy"),

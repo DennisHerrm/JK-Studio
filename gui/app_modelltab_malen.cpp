@@ -612,26 +612,58 @@ struct Treffer {
     float tiefe = 2.0F;
 };
 
-bool treffer(const ModellAnsicht& a, ImVec2 maus, Treffer& tr) {
+// MBMAL Punkt 5: die Ecken der gezeichneten Flaechen in der Pose am Schirm einer Ansicht - einmal je Mausereignis statt je
+// Strahl (ein Strich verteilt seine Tupfer am Schirm, jeder Tupfer ist ein Strahl gegen dasselbe Netz)
+struct SchirmEcke {
+    ImVec2 p;
+    float w = 0.0F;
+    float z = 0.0F;
+    bool ok = false;
+};
+using SchirmNetz = std::vector<std::vector<SchirmEcke>>;   // je Flaeche der Haut (leer: nicht gezeichnet)
+
+void schirmNetzBauen(const ModellAnsicht& a, SchirmNetz& n) {
+    const ModellTab& t = mt();
+    const auto& h = modellHaut();
+    n.resize(h.size());
+    for (std::size_t i = 0; i < h.size(); ++i) {
+        std::vector<SchirmEcke>& e = n[i];
+        e.clear();
+        if (i >= t.anzeige.surfaces.size() || !modellTeilGezeichnet(static_cast<int>(i))) { continue; }
+        e.resize(h[i].size());
+        for (std::size_t k = 0; k < h[i].size(); ++k) {
+            const float* q = h[i][k].data();
+            e[k].ok = nachSchirm(a, q, e[k].p, e[k].w);
+            const float* m = a.viewProj;
+            e[k].z = (m[8] * q[0] + m[9] * q[1] + m[10] * q[2] + m[11]) / std::max(e[k].w, 1e-3F);
+        }
+    }
+}
+
+// Strahl durch `maus` gegen das Netz der Pose: das vorderste Dreieck, wie es die Ansicht zeigt
+bool treffer(const SchirmNetz& n, ImVec2 maus, Treffer& tr) {
     const ModellTab& t = mt();
     const auto& h = modellHaut();
     tr = Treffer{};
     if (mm::messung().an) { ++mm::messung().strahlen; }
-    for (std::size_t i = 0; i < h.size() && i < t.anzeige.surfaces.size(); ++i) {
-        if (!modellTeilGezeichnet(static_cast<int>(i))) { continue; }
+    for (std::size_t i = 0; i < h.size() && i < t.anzeige.surfaces.size() && i < n.size(); ++i) {
+        const std::vector<SchirmEcke>& ecke = n[i];
+        if (ecke.empty()) { continue; }
         const GlmSurface& s = t.anzeige.surfaces[i];
         for (std::size_t k = 0; k + 2 < s.indexes.size(); k += 3) {
-            ImVec2 p[3];
-            float w[3];
-            float z[3];
-            bool ok = true;
-            for (std::size_t e = 0; e < 3 && ok; ++e) {
-                const float* q = h[i][s.indexes[k + e]].data();
-                ok = nachSchirm(a, q, p[e], w[e]);
-                const float* m = a.viewProj;
-                z[e] = (m[8] * q[0] + m[9] * q[1] + m[10] * q[2] + m[11]) / std::max(w[e], 1e-3F);
+            const SchirmEcke& c0 = ecke[s.indexes[k]];
+            const SchirmEcke& c1 = ecke[s.indexes[k + 1]];
+            const SchirmEcke& c2 = ecke[s.indexes[k + 2]];
+            if (!c0.ok || !c1.ok || !c2.ok) { continue; }
+            // schnell verwerfen: ausserhalb des Rechtecks um das Dreieck (ein Bildpunkt Rand fuer die Rundung - ein Punkt mit
+            // b0, b1, b2 >= 0 liegt darin, das Ergebnis ist dasselbe wie ohne)
+            if (maus.x < std::min({c0.p.x, c1.p.x, c2.p.x}) - 1.0F || maus.x > std::max({c0.p.x, c1.p.x, c2.p.x}) + 1.0F ||
+                maus.y < std::min({c0.p.y, c1.p.y, c2.p.y}) - 1.0F || maus.y > std::max({c0.p.y, c1.p.y, c2.p.y}) + 1.0F) {
+                continue;
             }
-            if (!ok) { continue; }
+            const ImVec2 p[3] = {c0.p, c1.p, c2.p};
+            const float w[3] = {c0.w, c1.w, c2.w};
+            const float z[3] = {c0.z, c1.z, c2.z};
             const float f = (p[1].x - p[0].x) * (p[2].y - p[0].y) - (p[2].x - p[0].x) * (p[1].y - p[0].y);
             if (std::fabs(f) < 1e-6F) { continue; }
             const float b0 = ((p[1].x - maus.x) * (p[2].y - maus.y) - (p[2].x - maus.x) * (p[1].y - maus.y)) / f;
@@ -657,6 +689,12 @@ bool treffer(const ModellAnsicht& a, ImVec2 maus, Treffer& tr) {
         }
     }
     return tr.teil >= 0;
+}
+
+bool treffer(const ModellAnsicht& a, ImVec2 maus, Treffer& tr) {
+    SchirmNetz n;
+    schirmNetzBauen(a, n);
+    return treffer(n, maus, tr);
 }
 
 // Welt je Bildpunkt an einem Ort der Pose (fuer den Radius des Pinsels in Bildpunkten)
@@ -720,6 +758,7 @@ void strichBeginnen(MalBild& m) {
     z.strich = mm::Strich{};
     z.strichLaeuft = true;
     z.strich2d = false;   // MBMAL: der Strich gehoert der Ansicht, in der er beginnt (das 2D-Bild setzt es danach)
+    z.uvDavor = false;
     z.klonErster = true;
 }
 
@@ -732,6 +771,69 @@ void klonVersatzSetzen(const float uv[2]) {
     z.klonErster = false;
 }
 
+// MBMAL Punkt 5: die zugewandten Dreiecke (und gespiegelt) fuer das Dreieck des letzten Tupfers - neu nur, wenn ein Tupfer
+// ein anderes Dreieck trifft
+struct ZugewandtJe {
+    int dreieck = -1;
+    std::vector<std::uint8_t> zw;
+    std::vector<std::uint8_t> zwGesp;
+};
+
+// MBMAL Punkt 5: ein Tupfer an einer getroffenen Stelle des Strichs. Der Treffer kommt in die Ruhelage (dort ist der Tupfer
+// eine Kugel), der Radius aus den Bildpunkten des Pinsels an seiner Stelle der Pose, die zugewandten Dreiecke nach seiner
+// Flaeche; Spiegeln wie eingestellt. erster: der Tupfer, mit dem der Strich beginnt. -1, wenn das Dreieck nicht zum Bild gehoert.
+int tupferAn(MalBild& m, const ModellAnsicht& a, const Treffer& trf, bool erster, ZugewandtJe& zj) {
+    ModellMalen& z = mz();
+    mm::Messung& ms = mm::messung();
+    float ort[3];
+    float uv[2];
+    const int di = ruheOrt(m, trf, ort, uv);
+    if (di < 0) { return -1; }
+    // Pinselgroesse in der Welt: Bildpunkte mal Welt je Bildpunkt am Treffpunkt der Pose (gleiche Einheiten wie die Ruhelage)
+    const float radius = z.radiusPx * weltJePixel(a, trf.pose);
+    const mm::Pinsel p = pinselJetzt(radius);
+    if (p.werkzeug == mm::Werkzeug::Klonen) { klonVersatzSetzen(uv); }
+    if (zj.dreieck != di) {
+        zj.dreieck = di;
+        zj.zw = zugewandt(m, m.normalen[uz(di)]);
+        std::array<float, 3> nGesp = m.normalen[uz(di)];
+        nGesp[uz(z.spiegelAchse)] = -nGesp[uz(z.spiegelAchse)];
+        zj.zwGesp = z.spiegeln ? zugewandt(m, nGesp) : std::vector<std::uint8_t>{};
+    }
+    if (ms.an && !erster) {
+        // der Weg in der Ruhelage seit dem vorigen Tupfer - ein Sprung zwischen Koerperteilen bekommt keine Tupfer dazwischen
+        const double weg = std::hypot(ort[0] - z.letzterOrt[0], ort[1] - z.letzterOrt[1], ort[2] - z.letzterOrt[2]);
+        ms.wegRuhe += weg;
+        ms.ereignisseWeit += weg > 10.0 * static_cast<double>(radius) ? 1 : 0;
+        if (weg > ms.wegRuheMax) {
+            ms.wegRuheMax = weg;
+            ms.sprungFlaechen[0] = ms.letzteFlaeche;
+            ms.sprungFlaechen[1] = trf.teil;
+            for (int k = 0; k < 3; ++k) {
+                ms.sprungVon[k] = static_cast<double>(z.letzterOrt[k]);
+                ms.sprungNach[k] = static_cast<double>(ort[k]);
+            }
+        }
+    }
+    ms.letzteFlaeche = trf.teil;
+    // Verwischen: der Weg in UV seit dem vorigen Tupfer, wenn er dieses Bild traf (wie im 2D-Bild)
+    const float richtung[2] = {uv[0] - z.letzteUv[0], uv[1] - z.letzteUv[1]};
+    int n = mm::tupfer3d(m.l, m.v, p, ort, druckJetzt(), &zj.zw, z.uvDavor ? richtung : nullptr);
+    if (z.spiegeln) {
+        float sp[3];
+        mm::spiegelPunkt(ort, z.spiegelAchse, sp);
+        n += mm::tupfer3d(m.l, m.v, p, sp, druckJetzt(), &zj.zwGesp, nullptr);
+    }
+    ++z.tupfer;
+    z.letzteUv[0] = uv[0];
+    z.letzteUv[1] = uv[1];
+    z.uvDavor = true;
+    for (int k = 0; k < 3; ++k) { z.letzterOrt[k] = ort[k]; }
+    return n;
+}
+
+SchirmNetz g_schirmNetz;   // je Mausereignis neu gefuellt (der Speicher bleibt)
+
 }  // namespace
 
 // --- Malen in der 3D-Ansicht ------------------------------------------------------------------------------------------
@@ -742,50 +844,82 @@ bool modellMalenAnsicht(const ModellAnsicht& a, ImVec2 maus, bool neu) {
     ModellMalen& z = mz();
     mm::Messung& ms = mm::messung();
     const mm::Stoppuhr ansichtUhr(ms.ansichtMs);
-    mm::Stoppuhr trefferUhr(ms.trefferMs);
-    Treffer trf;
-    if (!treffer(a, maus, trf)) { return false; }
-    const std::vector<Gruppe> g = gruppen();
-    if (neu) {
-        // die Gruppe unter dem Pinsel wird die Leinwand (wie Blender das Bild des Materials unter dem Pinsel)
-        const int gw = gruppeVonTeil(g, trf.teil);
-        if (gw < 0) {
-            melden(tr(Str::PtKeinBild));
-            return false;
-        }
-        if (gw != z.gruppe) {
-            z.gruppe = gw;
-            z.stufe = 0;
-        }
-    } else if (!z.strichLaeuft || z.strich2d) {
+    if (!neu && (!z.strichLaeuft || z.strich2d)) {
         // MBMAL: ein Strich aus dem 2D-Bild malt hier nicht weiter. Bis hier rief die aktive Ansicht bei jeder Mausbewegung mit
         // gedrueckter Taste den Tupfer in 3D - lag die Maus am Schirm ueber einem Dreieck der Figur (auch ausserhalb der Ansicht,
         // oder der Strich lief aus dem 2D-Bild in die Ansicht), setzte Strich::weiter Tupfer auf die Gerade von der Stelle im Bild
         // (in Texeln) zum Treffpunkt (in der Ruhelage): zehntausende Tupfer in einem Bild und Streifen quer ueber das Bild.
         return false;
     }
+    mm::Stoppuhr trefferUhr(ms.trefferMs);
+    schirmNetzBauen(a, g_schirmNetz);
+    // MBMAL Punkt 5: der Abstand der Tupfer gilt am Schirm (Spacing: Anteil des Pinselradius in Bildpunkten) - wie Substance
+    // Painter und Blender (Stroke Spacing im Bildraum, je Tupfer eine Projektion auf die sichtbare Flaeche)
+    const float schritt = std::max(z.radiusPx * std::max(z.pinsel.abstand, 0.01F), 1e-4F);
+    const float stelle[3] = {maus.x, maus.y, 0.0F};
+    ZugewandtJe zj;
+    if (!neu) {
+        MalBild* m = jetzt(true);
+        if (m == nullptr) { return false; }
+        trefferUhr.halt();
+        // MBMAL Punkt 5: die Tupfer liegen auf der Linie zwischen den Mauspositionen am Schirm, jeder mit einem eigenen Strahl
+        // gegen das gezeigte Netz der Pose. Ueber dem Hintergrund oder einem anderen Bild malt ein Tupfer nichts. Bis hier
+        // verband Strich::weiter die Treffer in der Ruhelage: sprang der Pinsel zwischen Koerperteilen (r_hand -> l_hand, in
+        // der Pose nah, in der Ruhelage 42 Einheiten), lag dort eine Tupferlinie - Streifen, wo der Pinsel nie war.
+        int n = 0;
+        bool gemalt = false;
+        for (const std::array<float, 3>& st : z.strich.weiter(stelle, schritt)) {
+            // ausserhalb der Ansicht zeigt sie keine Flaeche: dort malt der Tupfer nichts (der Strich laeuft weiter)
+            const bool drin = st[0] >= a.lo[0] && st[1] >= a.lo[1] && st[0] <= a.lo[0] + a.groesse[0] && st[1] <= a.lo[1] + a.groesse[1];
+            Treffer trf;
+            mm::Stoppuhr uhr(ms.trefferMs);
+            const bool hit = drin && treffer(g_schirmNetz, ImVec2{st[0], st[1]}, trf);
+            uhr.halt();
+            const int k = hit ? tupferAn(*m, a, trf, false, zj) : -1;
+            if (k < 0) {
+                z.uvDavor = false;
+                if (ms.an) { ++ms.tupferDaneben; }
+                continue;
+            }
+            n += k;
+            gemalt = true;
+        }
+        if (!gemalt) { return false; }
+        if (ms.an) { ++ms.ereignisse; }
+        z.texelGemalt += n;
+        anzeigeNachfuehren(*m);
+        return true;
+    }
+    Treffer trf;
+    if (!treffer(g_schirmNetz, maus, trf)) { return false; }
+    // die Gruppe unter dem Pinsel wird die Leinwand (wie Blender das Bild des Materials unter dem Pinsel)
+    const int gw = gruppeVonTeil(gruppen(), trf.teil);
+    if (gw < 0) {
+        melden(tr(Str::PtKeinBild));
+        return false;
+    }
+    if (gw != z.gruppe) {
+        z.gruppe = gw;
+        z.stufe = 0;
+    }
     MalBild* m = jetzt(true);
     if (m == nullptr) {
-        if (neu) { melden(tr(Str::PtKeinBild)); }
+        melden(tr(Str::PtKeinBild));
         return false;
     }
     float ort[3];
     float uv[2];
-    const int di = ruheOrt(*m, trf, ort, uv);
-    if (di < 0) { return false; }
+    if (ruheOrt(*m, trf, ort, uv) < 0) { return false; }
     // Ctrl+Klick: Quelle fuer Klonen (Blender: Strg+Linksklick setzt die Quelle)
-    if (neu && ImGui::GetIO().KeyCtrl && z.werkzeug == static_cast<int>(mm::Werkzeug::Klonen)) {
+    if (ImGui::GetIO().KeyCtrl && z.werkzeug == static_cast<int>(mm::Werkzeug::Klonen)) {
         z.klonQuelle[0] = uv[0];
         z.klonQuelle[1] = uv[1];
         z.klonQuelleDa = true;
         melden(format(Str::PtKlonQuelle, static_cast<double>(uv[0]), static_cast<double>(uv[1])));
         return true;
     }
-    // Pinselgroesse in der Welt: Bildpunkte mal Welt je Bildpunkt am Treffpunkt der Pose (gleiche Einheiten wie die Ruhelage)
-    const float radius = z.radiusPx * weltJePixel(a, trf.pose);
-    const mm::Pinsel p = pinselJetzt(radius);
+    const mm::Pinsel p = pinselJetzt(z.radiusPx * weltJePixel(a, trf.pose));
     if (p.werkzeug == mm::Werkzeug::Fuellen) {
-        if (!neu) { return true; }
         mm::schrittBeginnen(m->v, m->l, tr(Str::PtUndoFuellen));
         // UV ausserhalb 0..1 wiederholt sich (GL_REPEAT): der Texel im Bild
         const int x = std::clamp(static_cast<int>((uv[0] - std::floor(uv[0])) * static_cast<float>(m->l.b)), 0, m->l.b - 1);
@@ -798,49 +932,13 @@ bool modellMalenAnsicht(const ModellAnsicht& a, ImVec2 maus, bool neu) {
         anzeigeNachfuehren(*m);
         return true;
     }
-    if (neu) {
-        strichBeginnen(*m);
-        if (p.werkzeug == mm::Werkzeug::Klonen && !z.klonQuelleDa) { melden(tr(Str::PtKlonOhneQuelle)); }
-    }
-    if (p.werkzeug == mm::Werkzeug::Klonen) { klonVersatzSetzen(uv); }
-    const std::vector<std::uint8_t> zw = zugewandt(*m, m->normalen[uz(di)]);
-    std::array<float, 3> nGesp = m->normalen[uz(di)];
-    nGesp[uz(z.spiegelAchse)] = -nGesp[uz(z.spiegelAchse)];
-    const std::vector<std::uint8_t> zwGesp = z.spiegeln ? zugewandt(*m, nGesp) : std::vector<std::uint8_t>{};
+    strichBeginnen(*m);
+    if (p.werkzeug == mm::Werkzeug::Klonen && !z.klonQuelleDa) { melden(tr(Str::PtKlonOhneQuelle)); }
     trefferUhr.halt();
-    if (ms.an) {
-        ++ms.ereignisse;
-        if (z.strich.laeuft) {
-            const double weg = std::hypot(ort[0] - z.strich.letzter[0], ort[1] - z.strich.letzter[1], ort[2] - z.strich.letzter[2]);
-            ms.wegRuhe += weg;
-            ms.ereignisseWeit += weg > 10.0 * static_cast<double>(radius) ? 1 : 0;
-            if (weg > ms.wegRuheMax) {
-                ms.wegRuheMax = weg;
-                ms.sprungFlaechen[0] = ms.letzteFlaeche;
-                ms.sprungFlaechen[1] = trf.teil;
-                for (int k = 0; k < 3; ++k) {
-                    ms.sprungVon[k] = static_cast<double>(z.strich.letzter[k]);
-                    ms.sprungNach[k] = static_cast<double>(ort[k]);
-                }
-            }
-        }
-        ms.letzteFlaeche = trf.teil;
-    }
-    int n = 0;
-    float voriges[2] = {z.letzteUv[0], z.letzteUv[1]};
-    for (const std::array<float, 3>& st : z.strich.weiter(ort, std::max(radius * std::max(p.abstand, 0.01F), 1e-4F))) {
-        const float richtung[2] = {uv[0] - voriges[0], uv[1] - voriges[1]};
-        n += mm::tupfer3d(m->l, m->v, p, st.data(), druckJetzt(), &zw, neu ? nullptr : richtung);
-        if (z.spiegeln) {
-            float sp[3];
-            mm::spiegelPunkt(st.data(), z.spiegelAchse, sp);
-            n += mm::tupfer3d(m->l, m->v, p, sp, druckJetzt(), &zwGesp, nullptr);
-        }
-        ++z.tupfer;
-    }
-    z.letzteUv[0] = uv[0];
-    z.letzteUv[1] = uv[1];
-    z.texelGemalt += n;
+    (void)z.strich.weiter(stelle, schritt);   // der Strich beginnt an der Maus (der erste Tupfer ist dieser Treffer)
+    const int n = tupferAn(*m, a, trf, true, zj);
+    if (ms.an) { ++ms.ereignisse; }
+    z.texelGemalt += std::max(n, 0);
     anzeigeNachfuehren(*m);
     return true;
 }
