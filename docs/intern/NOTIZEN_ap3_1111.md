@@ -200,6 +200,20 @@ der saubere Neubau.
 Aufgefallen, nicht von AP3: `dock4` und `tabfenster` schreiben nach der Zählung „Beenden: Programm läuft nach "No" weiter (offene Frage
 im Map Editor: "Exit Radiant")“ - steht genauso im Release-Lauf `Y:\karte\laeufe\rel611_dock4`.
 
+### Auf karte1 gesetzt (12.11., Opus)
+
+Die vier Commits auf karte1 `a3381725f` neu aufgesetzt (Basis vorher `852d12be7`). Konflikte nur in Listen: `tools/gen_i18n.py`,
+`tools/i18n_sprache_es.py`, `tools/i18n_sprache_cs.py`, `tools/handbuch/gen_handbuch.py` (GDPFAD und AP3 je ein Block am Ende, beide
+behalten); `include/bhed/i18n.h`, `src/i18n.cpp`, `handbuch/*/suche.js` mit den Generatoren neu erzeugt (6056 Texte; `gen_hilfe_orte.py`
+ohne Unterschied).
+
+| Schritt | Ergebnis |
+|---|---|
+| Bau, alle Ziele (inkrementell, /W4 /WX) | 0 Fehler, 0 Warnungen (`Y:\werkzeuge\ap3\bau_karte1.log`) |
+| ctest, 12 gleichzeitig | 256 / 256 bestanden (205 s) |
+| Gruppen, die den Model-Tab berühren (`ap3k_summe.txt`) | ap3 105 · kopf 116 · kopfrot 26 · nav 133 · ap2 64 · ap1 137 · mb5 160 · raster 41 · funktionen 62 · tasten 44 · blender 68 · uiform 114 - je 0 FEHLER |
+| Lints | i18n, sources, fassung ok; `gen_handbuch.py --pruefen` ok |
+
 ## Offen
 
 - Die Gruppen der Bereiche Modellieren, UV, Weights, Painting, Animation zeichnen noch mit `ImGui::CollapsingHeader` und Knöpfen in
