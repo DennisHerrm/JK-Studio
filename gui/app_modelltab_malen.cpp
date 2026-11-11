@@ -719,6 +719,7 @@ void strichBeginnen(MalBild& m) {
     mm::schrittBeginnen(m.v, m.l, tr(Str::PtUndoStrich));
     z.strich = mm::Strich{};
     z.strichLaeuft = true;
+    z.strich2d = false;   // MBMAL: der Strich gehoert der Ansicht, in der er beginnt (das 2D-Bild setzt es danach)
     z.klonErster = true;
 }
 
@@ -756,6 +757,12 @@ bool modellMalenAnsicht(const ModellAnsicht& a, ImVec2 maus, bool neu) {
             z.gruppe = gw;
             z.stufe = 0;
         }
+    } else if (!z.strichLaeuft || z.strich2d) {
+        // MBMAL: ein Strich aus dem 2D-Bild malt hier nicht weiter. Bis hier rief die aktive Ansicht bei jeder Mausbewegung mit
+        // gedrueckter Taste den Tupfer in 3D - lag die Maus am Schirm ueber einem Dreieck der Figur (auch ausserhalb der Ansicht,
+        // oder der Strich lief aus dem 2D-Bild in die Ansicht), setzte Strich::weiter Tupfer auf die Gerade von der Stelle im Bild
+        // (in Texeln) zum Treffpunkt (in der Ruhelage): zehntausende Tupfer in einem Bild und Streifen quer ueber das Bild.
+        return false;
     }
     MalBild* m = jetzt(true);
     if (m == nullptr) {
