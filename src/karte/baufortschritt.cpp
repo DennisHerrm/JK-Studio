@@ -153,6 +153,13 @@ bool bauLichtCacheZeile(const std::string& zeile, BauLichtCache& c) {
         c.aus = a;
         c.alle = b;
         c.anteil = std::clamp(prozent / 100.0, 0.0, 1.0);
+        if (x >= 1 && x <= 4096) {   // vis2c
+            c.anteile.resize(static_cast<std::size_t>(x), c.anteil);
+            c.anteile.back() = c.anteil;
+        }
+    } else if (rest.find(" vertex lit") != std::string::npos && std::sscanf(s, " pass %d of %d: %d of %d", &x, &y, &a, &b) == 4) {   // vis2c: der Durchgang ist geschrieben
+        c.geschrieben = std::max(c.geschrieben, x);
+        c.paesse = y;
     } else if (std::sscanf(s, ": %d of %d lightmaps", &a, &b) == 2) {
         c.summeAus = a;
         c.summeAlle = b;
@@ -162,6 +169,7 @@ bool bauLichtCacheZeile(const std::string& zeile, BauLichtCache& c) {
         // lcb2: nach Geometrie-Aenderungen sagt die Zeile, dass die Lightmaps ueber ihren Inhalt gefunden werden
         static const char kInhalt[] = " found (geometry, shaders or brush entities changed: lightmaps are found by content";
         c.nachInhalt = rest.rfind(kInhalt, 0) == 0;
+        c.geoGleich = rest.rfind(" found (geometry and switches unchanged", 0) == 0;   // vis2c
         const std::size_t k = rest.rfind("; ");
         if (std::sscanf(s, " found (geometry and switches unchanged, %d of %d passes kept)", &a, &b) == 2 ||
             (c.nachInhalt && k != std::string::npos && std::sscanf(rest.c_str() + k, "; %d of %d passes kept)", &a, &b) == 2)) {
@@ -180,8 +188,69 @@ bool bauLichtCacheZeile(const std::string& zeile, BauLichtCache& c) {
     return true;
 }
 
+bool bauVisStandZeile(const std::string& zeile, BauVisStand& v) {
+    static const std::string kKopf = "BehavEd: ";
+    const std::size_t p = zeile.find(kKopf);
+    if (p == std::string::npos) { return false; }
+    const std::string rest = zeile.substr(p + kKopf.size());
+    int n = 0;
+    int m = 0;
+    double prozent = 0.0;
+    if (rest.rfind("deterministic vis", 0) == 0) {
+        v.exakt = true;
+        return true;
+    }
+    if (rest.rfind("vis state not used (", 0) == 0) {
+        v.zustand = BauVisStand::Zustand::NichtGenutzt;
+        const std::string g = rest.substr(20);
+        v.grund = g.rfind("no state", 0) == 0              ? BauVisStand::Grund::KeinStand
+                  : g.rfind("other vis switches", 0) == 0  ? BauVisStand::Grund::Schalter
+                  : g.rfind("other portals", 0) == 0       ? BauVisStand::Grund::Portale
+                                                           : BauVisStand::Grund::Beschaedigt;
+        return true;
+    }
+    if (rest.rfind("vis resumed from ", 0) == 0) {
+        // der Pfad kann ": " enthalten - die Zahlen stehen hinter dem letzten
+        const std::size_t k = rest.rfind(": ");
+        if (k != std::string::npos && std::sscanf(rest.c_str() + k, ": %d of %d portals done (%lf", &n, &m, &prozent) == 3) {
+            v.zustand = BauVisStand::Zustand::Fortgesetzt;
+            v.grund = BauVisStand::Grund::Keiner;
+            v.fertig = n;
+            v.alle = m;
+            v.anteil = std::clamp(prozent / 100.0, 0.0, 1.0);
+        }
+        return true;
+    }
+    if (std::sscanf(rest.c_str(), "vis paused, %d of %d portals done", &n, &m) == 2) {
+        v.zustand = BauVisStand::Zustand::Angehalten;
+        v.fertig = n;
+        v.alle = m;
+        return true;
+    }
+    return false;
+}
+
+bool bauLichtCacheRetten(const BauLichtCache& c) {
+    if (c.geschrieben < 1) { return false; }
+    if (c.zustand == BauLichtCache::Zustand::Aus) { return true; }
+    if (c.zustand != BauLichtCache::Zustand::Gefunden) { return false; }
+    if (c.geoGleich) { return c.geschrieben > c.behalten; }
+    const int n = std::max(c.paesse, c.geschrieben);
+    double mitAltem = 0.0;
+    for (int i = 0; i < n; ++i) {
+        const std::size_t k = static_cast<std::size_t>(i);
+        mitAltem += k < c.anteile.size() ? c.anteile[k] : (c.anteile.empty() ? 1.0 : c.anteile.back());
+    }
+    return static_cast<double>(n - c.geschrieben) < mitAltem;
+}
+
 void BauSchrittBeobachter::zeileFertig(double t) {
     std::string name;
+    // vis2c: die Zeilen des VIS-Zwischenstands stehen zwischen dem Kopf der Flussphase und deren Pacifier
+    if (bauVisStandZeile(m_zeile, m_visStand)) {
+        m_zeile.clear();
+        return;
+    }
     // lcb1: die Zeilen des Licht-Caches - die Zeile eines Durchgangs steht zwischen dem Kopf von
     // IlluminateRawLightmap und dessen Pacifier (der Pacifier wird weiter erwartet)
     if (bauLichtCacheZeile(m_zeile, m_lichtCache)) {
@@ -240,8 +309,9 @@ void BauSchrittBeobachter::text(const std::string& stueck, double t) {
                 m_zeile += c;
                 continue;
             }
-            // " (sekunden)\n": die Phase ist durch
-            m_pacifier = 1.0;
+            // " (sekunden)\n": die Phase ist durch. vis2c: alles andere (das Anhalten des VIS schreibt mitten im
+            // Pacifier "\nBehavEd: vis paused ...") laesst den Anteil stehen
+            if (c == ' ') { m_pacifier = 1.0; }
             m_zustand = Zustand::Normal;
         }
         if (c == '\n') {
@@ -277,6 +347,9 @@ BauSchaetzung bauSchaetzen(const BauLaufZeiten* letzter, const std::vector<std::
             pos = std::min(d, tk + in);
             break;
         }
+        // vis2c: aus einem Zwischenstand fortgesetzt - von der Flussphase des letzten Baus bleibt der Teil 1 - f0
+        // (der Pacifier beginnt bei f0); die Phase ist die, in der "vis resumed" kam: die laufende
+        const double f0 = b.visStand().zustand == BauVisStand::Zustand::Fortgesetzt ? std::min(b.visStand().anteil, 0.999) : 0.0;
         // lcb1: der Licht-Cache - je Phase des letzten Laufs ein Faktor (1 = so lang wie damals)
         std::vector<double> faktor(p.phasen.size(), 1.0);
         if (bauStufeAusBefehl(befehle[schritt]) == BauStufe::Licht && befehle[schritt].find("-bhedlightcache") != std::string::npos) {
@@ -305,7 +378,9 @@ BauSchaetzung bauSchaetzen(const BauLaufZeiten* letzter, const std::vector<std::
             for (std::size_t k = 0; k < p.phasen.size(); ++k) {
                 const double tk = p.phasen[k].start;
                 const double tn = k + 1 < p.phasen.size() ? p.phasen[k + 1].start : d;
-                summe += std::max(0.0, std::min(x, tn) - tk) * faktor[k];
+                double stueck = std::max(0.0, std::min(x, tn) - tk);
+                if (f0 > 0.0 && p.phasen[k].schluessel == b.schluessel()) { stueck = std::max(0.0, stueck - f0 * (tn - tk)); }   // vis2c
+                summe += stueck * faktor[k];
             }
             return summe;
         };
@@ -327,7 +402,9 @@ BauSchaetzung bauSchaetzen(const BauLaufZeiten* letzter, const std::vector<std::
     // Erster Bau: nur die laufende Phase laesst sich hochrechnen (Untergrenze)
     const double f = b.pacifier();
     const double inPhase = std::max(0.0, t - b.phasenStart());
-    if (f >= 0.025 && f < 1.0 && inPhase > 0.2) { s.rest = inPhase * (1.0 - f) / f; }
+    // vis2c: nach dem Fortsetzen aus einem Zwischenstand beginnt der Pacifier bei f0 - gerechnet ist seitdem f - f0
+    const double f0 = b.visStand().zustand == BauVisStand::Zustand::Fortgesetzt ? b.visStand().anteil : 0.0;
+    if (f - f0 >= 0.025 && f < 1.0 && inPhase > 0.2) { s.rest = inPhase * (1.0 - f) / (f - f0); }
     // Gesamtbalken in ganzen Schritten; im Licht mit -bounce je Durchgang
     double imSchritt = 0.0;
     if (schritt < n) {

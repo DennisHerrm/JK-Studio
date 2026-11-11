@@ -1444,6 +1444,7 @@ target_sources(bhed_core PRIVATE
   src/karte/bau.cpp
   src/karte/baumonitor.cpp
   src/karte/baufortschritt.cpp
+  src/karte/baupause.cpp
   src/karte/editordaten.cpp
   src/karte/modellrueck.cpp
   src/karte/lichtschaetzung.cpp
@@ -1819,6 +1820,17 @@ if(BEHAVED_TESTS)
   # Tastenkuerzel wie Qt (Text, possibleKeys, deutsche Tastatur).
   # Stufe 3 Punkt 3: Build-Menue lesen, schreiben, auswerten (build.cpp) und
   # der XML-Leser.
+  # Auftrag vis2c: Bauen anhalten und fortsetzen mit den Dateischritten des Editors (bhed/karte/baupause.h) - VIS
+  # mitten im Fluss angehalten, LIGHT nach zwei fertigen Durchgaengen beendet; "Karte wie angehalten" und "aktuelle
+  # Karte" gleich dem Bau ohne Pause, der Licht-Cache der fertigen Durchgaenge bleibt
+  if(TARGET bhed_q3map2 AND Python3_Interpreter_FOUND)
+    add_executable(kartepause tests/kartepause.cpp)
+    target_link_libraries(kartepause PRIVATE bhed_core)
+    add_test(NAME q3map2_baupause
+             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_baupause.py ctest
+                     $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe $<TARGET_FILE:kartepause> ${CMAKE_CURRENT_BINARY_DIR}/q3map2_baupause)
+    set_tests_properties(q3map2_baupause PROPERTIES TIMEOUT 1800)
+  endif()
   add_executable(kartebau tests/kartebau.cpp)
   target_link_libraries(kartebau PRIVATE bhed_core)
   add_test(NAME karte_bau COMMAND kartebau ${CMAKE_CURRENT_SOURCE_DIR}/data/karte ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)

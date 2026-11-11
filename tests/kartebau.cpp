@@ -24,6 +24,7 @@
 // Aufruf: kartebau <data/karte> [<tests/karte/q3map2>]
 #include "bhed/karte/bau.h"
 #include "bhed/karte/baufortschritt.h"
+#include "bhed/karte/baupause.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/editordaten.h"
 #include "bhed/karte/baumonitor.h"
@@ -33,6 +34,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -382,6 +384,185 @@ void fortschrittPruefen(const std::string& q3) {
         pruefe(visFastInKommandozeile("-bsp -meta; -vis -fast; -light -fast -patchshadows -samples 2 -filter -bounce 2") &&
                    !visFastInKommandozeile("-bsp -meta; -vis; -light -fast") && !visFastInKommandozeile(""),
                "_q3map2_cmdline: -vis -fast nur in der VIS-Stufe (md_rev_TarisUpper2)");
+    }
+    {   // vis2c: -vis -bhedvisstate (visflow.cpp BhedRunFlow) - nach dem Kopf der Flussphase steht eine Zeile zum
+        // Zwischenstand, dann der Pacifier; beim Anhalten bricht der Pacifier mit einer neuen Zeile ab
+        BauSchrittBeobachter b;
+        b.text("--- PassagePortalFlow (2084) ---\nBehavEd: vis state not used (no state): C:/m/a.bhedvisstate\n0...1...2", 3.0);
+        pruefe(b.phase() == "PassagePortalFlow" && std::fabs(b.pacifier() - 8.0 / 40.0) < 1e-9,
+               "vis2c: nach \"vis state not used\" laeuft der Pacifier der Flussphase weiter (" + std::to_string(b.pacifier()) + ")");
+        b.text("...3.\nBehavEd: vis paused, 1200 of 2084 portals done, state saved in C:/m/a.bhedvisstate\n", 5.0);
+        pruefe(std::fabs(b.pacifier() - 13.0 / 40.0) < 1e-9,
+               "vis2c: beim Anhalten bleibt der Anteil stehen, kein Sprung auf 100 % (" + std::to_string(b.pacifier()) + ")");
+        BauSchrittBeobachter c;
+        c.text("--- PassagePortalFlow (2084) ---\nBehavEd: vis resumed from C:/m/a.bhedvisstate: 1200 of 2084 portals done (32.5 % of the work)\n"
+               "0...1...2...3.",
+               0.1);
+        pruefe(std::fabs(c.pacifier() - 13.0 / 40.0) < 1e-9, "vis2c: nach \"vis resumed\" beginnt der Pacifier beim Stand des Zwischenstands");
+        c.text("..4...5...6...7...8...9... (7)\n", 7.0);
+        pruefe(c.pacifier() == 1.0, "vis2c: \" (sekunden)\" beendet die Phase weiterhin");
+    }
+    {   // vis2c: die Zeilen des Zwischenstands, Restzeit nach dem Fortsetzen
+        BauVisStand v;
+        const bool keine = !bauVisStandZeile("BehavEd: passages take 3 MB, vis memory 9 MB", v) && !bauVisStandZeile("0...1...2", v);
+        const bool exakt = bauVisStandZeile("BehavEd: deterministic vis (the result of -threads 1)", v) && v.exakt;
+        const bool nicht = bauVisStandZeile("BehavEd: vis state not used (other portals): C:/m/a.bhedvisstate", v) &&
+                           v.zustand == BauVisStand::Zustand::NichtGenutzt && v.grund == BauVisStand::Grund::Portale;
+        const bool fort = bauVisStandZeile("BehavEd: vis resumed from C:/m: x/a.bhedvisstate: 1200 of 2084 portals done (32.5 % of the work)", v) &&
+                          v.zustand == BauVisStand::Zustand::Fortgesetzt && v.fertig == 1200 && v.alle == 2084 && std::fabs(v.anteil - 0.325) < 1e-9;
+        const bool halt = bauVisStandZeile("BehavEd: vis paused, -1 of 2084 portals done, state saved in C:/m/a.bhedvisstate", v) &&
+                          v.zustand == BauVisStand::Zustand::Angehalten && v.fertig == -1 && v.alle == 2084;
+        pruefe(keine && exakt && nicht && fort && halt, "vis2c: Zeilen des VIS-Zwischenstands (Regel, nicht genutzt mit Grund, fortgesetzt, angehalten)");
+        // erster Bau, fortgesetzt bei 32,5 %: nach 10 s steht der Pacifier bei 21/40 = 52,5 % - gerechnet sind 20 %, es fehlen 47,5 %
+        BauSchrittBeobachter b;
+        b.text("--- PassagePortalFlow (2084) ---\nBehavEd: vis resumed from C:/m/a.bhedvisstate: 1200 of 2084 portals done (32.5 % of the work)\n"
+               "0...1...2...3.",
+               0.0);
+        b.text("..4...5.", 10.0);
+        const std::vector<std::string> befehle{q + "-vis -bhedvisstate \"C:/m/a.map\""};
+        const BauSchaetzung s = bauSchaetzen(nullptr, befehle, 0, b, 10.0, {});
+        pruefe(std::fabs(b.pacifier() - 21.0 / 40.0) < 1e-9 && std::fabs(s.rest - 10.0 * 0.475 / 0.2) < 1e-6,
+               "vis2c: Restzeit nach dem Fortsetzen aus dem seitdem Gerechneten (23,75 s, " + std::to_string(s.rest) + ")");
+        // mit Verlauf: die Flussphase dauerte 100 s (von 2 bis 102 s); fortgesetzt bei 32,5 % bleiben am Anfang 67,5 s,
+        // bei 52,5 % noch 47,5 s
+        BauLaufZeiten letzter;
+        letzter.schritte.push_back({befehle[0], 102.0, {{"BasePortalVis#1", 0.5}, {"PassagePortalFlow#1", 2.0}}});
+        BauSchrittBeobachter c;
+        c.text("--- BasePortalVis (2084) ---\n0...1...2...3...4...5...6...7...8...9... (0)\n", 0.5);
+        c.text("--- PassagePortalFlow (2084) ---\nBehavEd: vis resumed from C:/m/a.bhedvisstate: 1200 of 2084 portals done (32.5 % of the work)\n"
+               "0...1...2...3.",
+               2.0);
+        const BauSchaetzung s0 = bauSchaetzen(&letzter, befehle, 0, c, 2.0, {});
+        c.text("..4...5.", 22.0);
+        const BauSchaetzung s1 = bauSchaetzen(&letzter, befehle, 0, c, 22.0, {});
+        pruefe(s0.ausVerlauf && std::fabs(s0.rest - 67.5) < 1e-6 && std::fabs(s1.rest - 47.5) < 1e-6,
+               "vis2c: Restzeit aus dem letzten Bau zaehlt nur den Rest der Flussphase (67,5 s, dann 47,5 s: " + std::to_string(s0.rest) + ", " +
+                   std::to_string(s1.rest) + ")");
+    }
+    {   // vis2c: der Licht-Cache eines beendeten Licht-Schritts - wann aus der .neu der Cache wird
+        const auto lauf = [](const std::vector<std::string>& zeilen) {
+            BauLichtCache c;
+            for (const std::string& z : zeilen) { (void)bauLichtCacheZeile(z, c); }
+            return c;
+        };
+        const std::string kein = "BehavEd: light cache not usable: no cache yet - everything is traced";
+        const std::string gleich2 = "BehavEd: light cache found (geometry and switches unchanged, 2 of 5 passes kept)";
+        const std::string inhalt = "BehavEd: light cache found (geometry, shaders or brush entities changed: lightmaps are found by content, "
+                                   "vertex lit surfaces and the grid are traced; 5 of 5 passes kept)";
+        const auto anfang = [](int p, int prozent) {
+            return "BehavEd: light cache pass " + std::to_string(p) + " of 5: 10 of 90 lightmaps from the cache (" + std::to_string(prozent) +
+                   ".0 % of the work to trace)";
+        };
+        const auto ende = [](int p) {
+            return "BehavEd: light cache pass " + std::to_string(p) + " of 5: 0 of 12 vertex lit surfaces from the cache, grid traced";
+        };
+        const BauLichtCache lc2 = lauf({kein, anfang(1, 100), ende(1), anfang(2, 100), ende(2), anfang(3, 100)});
+        pruefe(lc2.geschrieben == 2 && lc2.paesse == 5 && bauLichtCacheRetten(lc2) && !bauLichtCacheRetten(lauf({kein, anfang(1, 100)})),
+               "vis2c: ohne alten Cache wird ab einem fertigen Durchgang gerettet (2 von 5 fertig), ohne fertigen nicht");
+        pruefe(!bauLichtCacheRetten(lauf({gleich2, anfang(1, 0), ende(1), anfang(2, 0), ende(2), anfang(3, 100)})) &&
+                   bauLichtCacheRetten(lauf({gleich2, anfang(1, 0), ende(1), anfang(2, 0), ende(2), anfang(3, 100), ende(3), anfang(4, 100)})),
+               "vis2c: ein passender alter Cache mit 2 Durchgaengen bleibt, bis der neue Lauf mehr fertig hat");
+        // ueber den Inhalt zugeordnet: 30 % je Durchgang neu -> mit dem alten 1,5 Durchgaenge Arbeit; gerettet bleiben
+        // nach 1 fertigen 4, nach 4 fertigen 1 Durchgang voll zu rechnen
+        pruefe(!bauLichtCacheRetten(lauf({inhalt, anfang(1, 30), ende(1), anfang(2, 30)})) &&
+                   bauLichtCacheRetten(lauf({inhalt, anfang(1, 30), ende(1), anfang(2, 30), ende(2), anfang(3, 30), ende(3), anfang(4, 30), ende(4),
+                                             anfang(5, 30)})),
+               "vis2c: nach Geometrie-Aenderungen gewinnt der Cache mit dem kleineren Rest (alt 1,5 gegen gerettet 4 bzw. 1 Durchgang)");
+    }
+    {   // vis2c: -bhedvisstate nur fuer -vis von bhed_q3map2; der Zwischenstand in Dateien
+        namespace fs = std::filesystem;
+        pruefe(befehlMitVisStand(q + "-vis -saveprt \"C:/m/a.map\"") == q + "-vis -saveprt -bhedvisstate \"C:/m/a.map\"" &&
+                   befehlMitVisStand(befehlMitVisStand(q + "-vis \"C:/m/a.map\"")) == q + "-vis -bhedvisstate \"C:/m/a.map\"" &&
+                   befehlMitVisStand(q + "-light \"C:/m/a.map\"") == q + "-light \"C:/m/a.map\"" &&
+                   befehlMitVisStand("\"C:/x/q3map2.exe\" -vis \"C:/m/a.map\"") == "\"C:/x/q3map2.exe\" -vis \"C:/m/a.map\"" &&
+                   befehlVisAnhaltbar(q + "-vis -bhedvisstate \"C:/m/a.map\"") && !befehlVisAnhaltbar(q + "-vis \"C:/m/a.map\"") &&
+                   !befehlVisAnhaltbar(q + "-light -bhedvisstate \"C:/m/a.map\""),
+               "vis2c: -bhedvisstate nur fuer -vis von bhed_q3map2, vor der Karte, nicht doppelt");
+        // 4 Portale: 8 Portalseiten, portalbytes 8 -> 6 + 4 + 256 + 4 + .prt + 8 + 8 * 12
+        const std::string prt = "PRT1\n3\n4\n0\n4 0 1 0 (0 0 0 ) (0 0 64 ) (0 64 64 ) (0 64 0 ) \n4 1 2 0 (64 0 0 ) (64 0 64 ) (64 64 64 ) (64 64 0 ) \n"
+                                "4 0 2 1 (1 0 0 ) (1 0 64 ) (1 64 64 ) (1 64 0 ) \n4 1 2 0 (2 0 0 ) (2 0 64 ) (2 64 64 ) (2 64 0 ) \n";
+        pruefe(visStandHoechstBytes(prt) == 278 + static_cast<long long>(prt.size()) + 96 && visStandHoechstBytes("x") == 0,
+               "vis2c: Hoechstgroesse des VIS-Zwischenstands aus der .prt (" + std::to_string(visStandHoechstBytes(prt)) + ")");
+        std::error_code ec;
+        const fs::path wurzel = fs::temp_directory_path(ec) / "bhed_kartebau_pause";
+        fs::remove_all(wurzel, ec);
+        fs::create_directories(wurzel, ec);
+        const std::string stamm = (wurzel / "k x").generic_string();
+        const auto schreib = [](const std::string& p, const std::string& inhalt) {
+            std::ofstream f(p, std::ios::binary | std::ios::trunc);
+            f << inhalt;
+        };
+        for (const char* e : {".map", ".bsp", ".prt", ".srf", ".bhedvisstate", ".bhedlight"}) { schreib(stamm + e, std::string("alt") + e); }
+        BauPause p;
+        p.eintrag = "[Final] \"Fast\"";
+        p.karte = "C:/karten/k x.map";
+        p.stamm = stamm;
+        p.mapDatei = stamm + ".map";
+        const std::string qq = "\"C:/x/bhed_q3map2.exe\" -game ja ";
+        p.befehle = {qq + "-meta \"" + stamm + ".map\"", qq + "-vis -bhedvisstate \"" + stamm + ".map\"", qq + "-light -bhedlightcache \"" + stamm + ".map\""};
+        p.schritt = 1;
+        p.zeit = "2026-11-11 14:05";
+        p.vergangen = 12.5;
+        p.fertig = {3.25};
+        p.visFertig = 1200;
+        p.visAlle = 2084;
+        p.kartenHash = bauDateiHash(p.mapDatei);
+        BauPause r;
+        const bool rund = bauPauseAusText(bauPauseText(p), r) && r.eintrag == p.eintrag && r.karte == p.karte && r.stamm == p.stamm &&
+                          r.befehle == p.befehle && r.schritt == 1 && r.zeit == p.zeit && r.vergangen == 12.5 && r.fertig == p.fertig &&
+                          r.visFertig == 1200 && r.visAlle == 2084 && r.kartenHash == p.kartenHash && p.kartenHash != 0;
+        BauPause kaputt = p;
+        kaputt.schritt = 3;
+        pruefe(rund && !bauPauseAusText(bauPauseText(kaputt), r) && !bauPauseAusText("{\"fassung\":2}", r) && !bauPauseAusText("x", r),
+               "vis2c: stand.json hin und zurueck; ein Schritt hinter dem letzten Befehl, eine andere Fassung oder Unsinn ist kein Stand");
+        const std::string ps = bauPauseStamm(stamm);
+        pruefe(bauPauseGroesse(stamm) == -1 && bauPauseSichern(p) && lies(ps + ".map") == "alt.map" && lies(ps + ".bsp") == "alt.bsp" &&
+                   lies(ps + ".prt") == "alt.prt" && lies(ps + ".srf") == "alt.srf" && lies(ps + ".bhedvisstate") == "alt.bhedvisstate" &&
+                   !fs::exists(stamm + ".bhedvisstate") && lies(ps + ".bhedlight") == "alt.bhedlight" && lies(stamm + ".bhedlight") == "alt.bhedlight" &&
+                   bauPauseLesen(stamm, r) && r.schritt == 1 && bauPauseGroesse(stamm) > 40,
+               "vis2c: Anhalten legt <karte>.bhedpause an (Karte, .bsp, .prt, .srf kopiert, VIS-Zwischenstand verschoben, Licht-Cache dabei)");
+        // der Licht-Cache neben der Karte wird ersetzt (wie q3map2: remove, rename) - der des Zwischenstands bleibt
+        fs::remove(stamm + ".bhedlight", ec);
+        schreib(stamm + ".bhedlight", "neuer bau");
+        const std::vector<std::string> alt = bauPauseBefehleAlt(p);
+        pruefe(lies(ps + ".bhedlight") == "alt.bhedlight" && alt.size() == 3 && alt[1] == qq + "-vis -bhedvisstate \"" + ps + ".map\"" &&
+                   alt[2] == qq + "-light -bhedlightcache \"" + ps + ".map\"",
+               "vis2c: \"Karte wie angehalten\" baut auf den Kopien; ihr Licht-Cache bleibt, wenn der neben der Karte ersetzt wird");
+        // die alte Karte ist fertig gebaut: Ergebnisse zurueck, die Karte des Anwenders bleibt
+        schreib(stamm + ".map", "neue karte");
+        schreib(ps + ".bsp", "fertig.bsp");
+        fs::remove(ps + ".bhedvisstate", ec);
+        fs::create_directories(ps, ec);
+        schreib(ps + "/lm_0000.tga", "lm");
+        pruefe(bauPauseAltFertig(p) && lies(stamm + ".bsp") == "fertig.bsp" && lies(stamm + ".map") == "neue karte" &&
+                   lies(stamm + ".bhedlight") == "alt.bhedlight" && lies(stamm + "/lm_0000.tga") == "lm" && !fs::exists(bauPauseOrdner(stamm)),
+               "vis2c: nach dem Bau der alten Karte liegen .bsp, Licht-Cache und Lightmap-Ordner neben der Karte, die Karte selbst bleibt");
+        // aktuelle Karte: der VIS-Zwischenstand kommt zurueck neben die .bsp, der Ordner ist weg
+        schreib(stamm + ".bhedvisstate", "stand");
+        pruefe(bauPauseSichern(p) && bauPauseAktuellVorbereiten(p) && lies(stamm + ".bhedvisstate") == "stand" && !fs::exists(bauPauseOrdner(stamm)),
+               "vis2c: \"aktuelle Karte\" legt den VIS-Zwischenstand zurueck neben die .bsp");
+        // Licht: die .bsp von vor dem Schritt; der Cache eines beendeten Schritts
+        schreib(stamm + ".bsp", "vor dem licht");
+        const bool gesichert = bauVorLichtSichern(stamm);
+        schreib(stamm + ".bsp", "halb");
+        const bool zurueck = bauVorLichtZurueck(stamm) && lies(stamm + ".bsp") == "vor dem licht" && !fs::exists(stamm + ".bhedprelight");
+        const bool wieder = bauVorLichtSichern(stamm);
+        schreib(stamm + ".bsp", "halb");
+        p.schritt = 2;
+        p.fertig = {3.25, 9.0};
+        const bool imStand = bauPauseSichern(p) && lies(ps + ".bsp") == "vor dem licht" && !fs::exists(stamm + ".bhedprelight");
+        pruefe(gesichert && zurueck && wieder && imStand, "vis2c: die .bsp von vor dem Licht-Schritt kommt nach einem Abbruch zurueck bzw. in den Zwischenstand");
+        BauLichtCache c;
+        (void)bauLichtCacheZeile("BehavEd: light cache not usable: no cache yet - everything is traced", c);
+        (void)bauLichtCacheZeile("BehavEd: light cache pass 1 of 5: 0 of 12 vertex lit surfaces from the cache, grid traced", c);
+        schreib(stamm + ".bhedlight.neu", "zwei durchgaenge");
+        const bool gerettet = bauLichtCacheRettenDatei(stamm, c) && lies(stamm + ".bhedlight") == "zwei durchgaenge" && !fs::exists(stamm + ".bhedlight.neu");
+        schreib(stamm + ".bhedlight.neu", "nichts fertig");
+        const bool nicht = !bauLichtCacheRettenDatei(stamm, BauLichtCache{}) && lies(stamm + ".bhedlight") == "zwei durchgaenge" &&
+                           !fs::exists(stamm + ".bhedlight.neu");
+        pruefe(gerettet && nicht && bauPauseVerwerfen(stamm) && !fs::exists(bauPauseOrdner(stamm)),
+               "vis2c: aus der .bhedlight.neu eines beendeten Licht-Schritts wird der Cache (sonst geht sie weg); Verwerfen loescht den Zwischenstand");
+        fs::remove_all(wurzel, ec);
     }
 }
 

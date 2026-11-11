@@ -86,9 +86,43 @@ struct BauLichtCache {
     double anteil = -1.0;    // Anteil der Arbeit, der neu gerechnet wird (0..1), -1 unbekannt
     int summeAus = -1;       // am Ende: ueber alle Durchgaenge
     int summeAlle = 0;
+    // vis2c: fuer das Retten des Caches eines abgebrochenen Licht-Schritts (bauLichtCacheRetten)
+    int geschrieben = 0;     // so viele Durchgaenge stehen fertig in <karte>.bhedlight.neu ("... vertex lit surfaces ...")
+    bool geoGleich = false;  // der alte Cache passt genau ("geometry and switches unchanged")
+    std::vector<double> anteile;   // je begonnenem Durchgang der Anteil, der neu gerechnet wird (wie anteil)
 };
 // Eine Zeile von bhed_q3map2 lesen; false, wenn sie nicht vom Licht-Cache ist.
 bool bauLichtCacheZeile(const std::string& zeile, BauLichtCache& c);
+// vis2c: ein Licht-Schritt mit -bhedlightcache wurde mitten in der Arbeit beendet. Lohnt es, aus seiner
+// <karte>.bhedlight.neu (ein Abschnitt je fertigem Durchgang) den Cache zu machen? Der Leser nimmt Caches mit
+// weniger Durchgaengen ("k of n passes kept"). Ja, wenn danach weniger zu rechnen bleibt als mit dem alten Cache:
+//   - kein brauchbarer alter Cache: ab einem fertigen Durchgang;
+//   - der alte passt genau (Geometrie und Schalter gleich): nur wenn mehr Durchgaenge fertig sind, als er hat;
+//   - der alte wird ueber den Inhalt zugeordnet (Geometrie geaendert): der gerettete erspart die fertigen
+//     Durchgaenge ganz und laesst die uebrigen voll rechnen, der alte laesst von jedem Durchgang den gemeldeten
+//     Anteil rechnen (kommende wie der zuletzt gemeldete) - der kleinere Rest gewinnt, alle Durchgaenge gleich
+//     schwer gerechnet.
+[[nodiscard]] bool bauLichtCacheRetten(const BauLichtCache& c);
+
+// vis2c: was bhed_q3map2 -vis -bhedvisstate ueber seinen Zwischenstand sagt (visflow.cpp BhedRunFlow, vis.cpp VisMain):
+//   "BehavEd: deterministic vis (the result of -threads 1)"                                       (-bhedvisexact)
+//   "BehavEd: vis state not used (no state | state damaged | other vis switches | other portals): <datei>"
+//   "BehavEd: vis resumed from <datei>: n of m portals done (x % of the work)"
+//   "BehavEd: vis paused, n of m portals done, state saved in <datei>"    (n = -1: der Stand liess sich nicht schreiben)
+// Die Zeilen "not used" und "resumed" stehen zwischen dem Kopf der Flussphase und deren Pacifier; der Pacifier
+// beginnt nach "resumed" bei x %.
+struct BauVisStand {
+    enum class Zustand { Unbekannt, NichtGenutzt, Fortgesetzt, Angehalten };
+    enum class Grund { Keiner, KeinStand, Beschaedigt, Schalter, Portale };
+    Zustand zustand = Zustand::Unbekannt;
+    Grund grund = Grund::Keiner;
+    int fertig = 0;          // Portale aus dem Zwischenstand bzw. beim Anhalten gesichert (-1: nicht gesichert)
+    int alle = 0;
+    double anteil = 0.0;     // Anteil der Arbeit aus dem Zwischenstand (0..1)
+    bool exakt = false;      // die deterministische Regel
+};
+// Eine Zeile von bhed_q3map2 lesen; false, wenn sie nicht vom VIS-Zwischenstand ist.
+bool bauVisStandZeile(const std::string& zeile, BauVisStand& v);
 
 // Liest die Ausgabe eines Schritts.
 class BauSchrittBeobachter {
@@ -105,6 +139,7 @@ public:
     [[nodiscard]] int bounceVon() const { return m_bounceVon; }    // y aus "bounce x of y"
     [[nodiscard]] const std::vector<BauPhasenMarke>& marken() const { return m_marken; }
     [[nodiscard]] const BauLichtCache& lichtCache() const { return m_lichtCache; }   // lcb1
+    [[nodiscard]] const BauVisStand& visStand() const { return m_visStand; }         // vis2c
 
 private:
     void zeileFertig(double t);
@@ -121,6 +156,7 @@ private:
     std::vector<BauPhasenMarke> m_marken;
     std::vector<std::pair<std::string, int>> m_zaehler;
     BauLichtCache m_lichtCache;
+    BauVisStand m_visStand;
 };
 
 // Eine Kopfzeile von q3map2? name = der Text dazwischen ("Radiosity (bounce 1 of 2)").
