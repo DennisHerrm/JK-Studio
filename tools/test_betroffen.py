@@ -15,6 +15,7 @@ from __future__ import annotations
 import fnmatch
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -85,6 +86,9 @@ def bereich_der_datei(pfad: str) -> tuple[tuple[str, ...] | None, str]:
 
 
 def geaenderte_dateien(basis: str, repo: str) -> list[str]:
+    if shutil.which("git") is None:   # kein Rueckverfolg auf einem Rechner ohne git (tools/lint_fremdprogramm.py)
+        sys.exit("git fehlt im Suchpfad - ohne den Unterschied laesst sich nichts eingrenzen: die volle Runde fahren")
+
     def git(*a: str) -> list[str]:
         r = subprocess.run(["git", "-C", repo, *a], capture_output=True, encoding="utf-8", errors="replace")
         if r.returncode != 0:
