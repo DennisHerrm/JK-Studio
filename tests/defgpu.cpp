@@ -38,6 +38,17 @@ namespace {
 
 int fehler = 0;
 
+// TESTTEMPO (rc612): `defgpu_probe warp` und `defgpu_probe grafikkarte` rechnen je ein Geraet - ctest faehrt beide Teile
+// nebeneinander (defgpu, defgpu_grafikkarte). Die Eingaben sind dieselben wie im ganzen Lauf (kein Zufallswert entsteht
+// in einer Geraeteschleife); die Gegenproben ohne Geraet (P44, verformeTess, RB_SurfaceGrid) laufen im Teil warp.
+enum class Teil { Alles, Warp, Grafikkarte };
+Teil g_teil = Teil::Alles;
+
+bool dran(D3D_DRIVER_TYPE art) {
+    return g_teil == Teil::Alles || (g_teil == Teil::Warp) == (art == D3D_DRIVER_TYPE_WARP);
+}
+bool ohneGeraetDran() { return g_teil != Teil::Grafikkarte; }
+
 void erwarte(const std::string& was, bool ok) {
     std::printf("  %-4s  %s\n", ok ? "ok" : "FEHL", was.c_str());
     if (!ok) { ++fehler; }
@@ -268,8 +279,16 @@ bool gleichBits(float a, std::uint32_t b) {
 
 }  // namespace
 
-int main() {
-    std::printf("defgpu\n");
+int main(int argc, char** argv) {
+    if (argc > 1) {
+        const std::string teil = argv[1];
+        if (teil != "warp" && teil != "grafikkarte") {
+            std::printf("defgpu_probe [warp|grafikkarte]\n");
+            return 2;
+        }
+        g_teil = teil == "warp" ? Teil::Warp : Teil::Grafikkarte;
+    }
+    std::printf("defgpu%s%s\n", argc > 1 ? " " : "", argc > 1 ? argv[1] : "");
     spielInit();
     std::mt19937 zz(20261108U);
     const auto zahl = [&](double a, double b) { return static_cast<float>(a + (b - a) * (static_cast<double>(zz()) / 4294967296.0)); };
@@ -299,9 +318,11 @@ int main() {
         parseShaderScript(std::string("textures/defgpu/x\n{\ndeformVertexes ") + k[1] + "\n{\nmap x\n}\n}\n", sm);
         faelle.push_back(Fall{k[0], sm["textures/defgpu/x"]});
     }
-    erwarte("P44: zwei Eintraege derselben Art bleiben beide (anzahl 2, zwei Wellen)",
-            faelle[12].info.deform2.anzahl == 2 && faelle[12].info.deform2.eintraege[1].welle.func == WaveFunc::Triangle &&
-                faelle[12].info.deform2.eintraege[0].welle.func == WaveFunc::Sin);
+    if (ohneGeraetDran()) {
+        erwarte("P44: zwei Eintraege derselben Art bleiben beide (anzahl 2, zwei Wellen)",
+                faelle[12].info.deform2.anzahl == 2 && faelle[12].info.deform2.eintraege[1].welle.func == WaveFunc::Triangle &&
+                    faelle[12].info.deform2.eintraege[0].welle.func == WaveFunc::Sin);
+    }
 
     for (const Fall& f : faelle) {
         // Ecken in Karten-Groessen, Normalen der Laenge 1, st beliebig; Zeiten in ganzen ms (auch nach einer Stunde)
@@ -348,6 +369,7 @@ int main() {
         };
         for (const Weg& w : wege) {
             for (const D3D_DRIVER_TYPE art : {D3D_DRIVER_TYPE_WARP, D3D_DRIVER_TYPE_HARDWARE}) {
+                if (!dran(art)) { continue; }
                 const char* wer = art == D3D_DRIVER_TYPE_WARP ? "WARP" : "Grafikkarte";
                 std::vector<std::uint32_t> aus;
                 std::string name;
@@ -550,8 +572,10 @@ int main() {
             char zl[300];
             std::snprintf(zl, sizeof zl, "REST3 %s: verformeTess zu RB_DeformTessGeometry bitgleich (Ort, Normale, st, Lightmap-st, Farbe): %d von %zu Ecken abweichend",
                           sf.was, falsch, te.size());
-            erwarte(zl, lief && te.size() == t.xyz.size() && falsch == 0);
-            erwarte(std::string("REST3 ") + sf.was + ": Indizes wie im Spiel", idx == t.idx);
+            if (ohneGeraetDran()) {
+                erwarte(zl, lief && te.size() == t.xyz.size() && falsch == 0);
+                erwarte(std::string("REST3 ") + sf.was + ": Indizes wie im Spiel", idx == t.idx);
+            }
             // Der Vertex-Shader der Karte mit den Merkmalen des Stapels reicht die Ecken durch
             BatchState bs{};
             bs.deformWave = info.deformWave;
@@ -569,6 +593,7 @@ int main() {
             const float vsAchsen[9] = {sicht.vorn[0], sicht.vorn[1], sicht.vorn[2], sicht.links[0], sicht.links[1], sicht.links[2],
                                        sicht.hoch[0], sicht.hoch[1], sicht.hoch[2]};
             for (const D3D_DRIVER_TYPE art : {D3D_DRIVER_TYPE_WARP, D3D_DRIVER_TYPE_HARDWARE}) {
+                if (!dran(art)) { continue; }
                 const char* wer = art == D3D_DRIVER_TYPE_WARP ? "WARP" : "Grafikkarte";
                 std::vector<std::uint32_t> aus;
                 std::string name;
@@ -689,12 +714,14 @@ int main() {
             if (pf.abbruch) {
                 std::snprintf(zl, sizeof zl, "REST3b %s: tess wie RB_SurfaceGrid (%zu Ecken, %zu Indizes), verformeTess meldet den Abbruch des Spiels",
                               pf.was, te.size(), idx.size());
-                erwarte(zl, tessGleich && !lief);
+                if (ohneGeraetDran()) { erwarte(zl, tessGleich && !lief); }
                 continue;
             }
             std::snprintf(zl, sizeof zl, "REST3b %s (%zu x %zu): tess wie RB_SurfaceGrid, verformt bitgleich wie RB_DeformTessGeometry: %d von %zu Ecken "
                           "abweichend (vorher unverformt: %d)", pf.was, spalten.size(), zeilen.size(), falsch, te.size(), vorher);
-            erwarte(zl, tessGleich && lief && te.size() == spiel.xyz.size() && falsch == 0 && idx == spiel.idx && vorher > 0);
+            if (ohneGeraetDran()) {
+                erwarte(zl, tessGleich && lief && te.size() == spiel.xyz.size() && falsch == 0 && idx == spiel.idx && vorher > 0);
+            }
         }
     }
     // --- FIX5 Tempo: die tcMod-Kette im Vertex-Shader der Karte, nur mit den Schritten der Stufe und turb nur mit kTurb -----------
@@ -758,6 +785,7 @@ int main() {
                 ecken[i] = vsstrom::Ecke{{q[0], q[1], q[2]}, {q[4], q[5], q[6]}, {q[3], q[7]}, {0.0F, 0.0F, 1.0F, 1.0F}, {1.0F, 1.0F, 0.0F, 0.0F}};
             }
             for (const D3D_DRIVER_TYPE art : {D3D_DRIVER_TYPE_WARP, D3D_DRIVER_TYPE_HARDWARE}) {
+                if (!dran(art)) { continue; }
                 const char* wer = art == D3D_DRIVER_TYPE_WARP ? "WARP" : "Grafikkarte";
                 std::vector<std::uint32_t> aus;
                 std::string name;

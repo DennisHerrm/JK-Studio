@@ -823,7 +823,10 @@ if(BEHAVED_TESTS)
     # FIX5: deformVertexes (wave, normal, bulge, move) der Karte und der Figuren als Compute-Shader gegen rd-vanilla, bitgleich
     add_executable(defgpu_probe tests/defgpu.cpp)
     target_link_libraries(defgpu_probe PRIVATE bhed_core d3d11 d3dcompiler)
-    add_test(NAME defgpu COMMAND defgpu_probe)
+    # TESTTEMPO (rc612): der laengste ctest-Fall in zwei Teilen nebeneinander - WARP (mit den Gegenproben ohne Geraet)
+    # und Grafikkarte; zusammen dieselben Zeilen wie `defgpu_probe` ohne Angabe
+    add_test(NAME defgpu COMMAND defgpu_probe warp)
+    add_test(NAME defgpu_grafikkarte COMMAND defgpu_probe grafikkarte)
     # REST3 Punkt 7: der Bytecode der Shader mit Bitgleichheits-Anspruch - [precise] je beitragender Anweisung, keine mad/dp/div/sqrt
     # (D3D11.3 Functional Spec 3.1.3) - der Beleg fuer Grafikkarten, auf denen nicht gemessen wird
     add_executable(precisebeleg_probe tests/precisebeleg.cpp)
