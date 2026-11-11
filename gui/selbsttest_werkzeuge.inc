@@ -2829,7 +2829,13 @@ std::vector<Schritt> modellSchritte() {
     add(tu("Ansicht verdrehen", [] { g_app->modelOrbit.turn(g_app->modelCam, 70.0F, 20.0F); g_app->modelDirty = true; }));
     add(klick(tr(Str::ModelResetView), "###main"));
     add(pause(0.3));
-    add(pruefe("Einpassen: wieder von vorn", [] { return std::fabs(g_app->modelCam.angles[1] - 180.0F) < 1.0F; }));
+    // "von vorn" ist seit MBKOPF Gier 90 und Nick 0 (modellAnsichtEinpassen: die Kamera vor dem Gesicht, die Figur schaut nach -Y);
+    // bis rc611 war es 180 (von der Seite), und diese Erwartung stand hier noch (Modus modell auf dem zusammengefuehrten Stand:
+    // 14 OK, 1 FEHLER).
+    add(pruefe("Einpassen: wieder von vorn", [] {
+        diag::detail("Knopftest: Einpassen - Gier " + std::to_string(g_app->modelCam.angles[1]) + ", Nick " + std::to_string(g_app->modelCam.angles[0]));
+        return std::fabs(g_app->modelCam.angles[1] - 90.0F) < 1.0F && std::fabs(g_app->modelCam.angles[0]) < 1.0F;
+    }));
     add(tu("zurueck zur Karte", [] { g_app->leftMode = 1; g_app->doc.markSaved(); }));
     add(pause(0.2));
     return s;
