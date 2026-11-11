@@ -1158,6 +1158,7 @@ Schritt rundlauf(const std::string& spiel) {
                           if (!schon.insert({e.firstFrame, e.numFrames}).second) { continue; }
                           z->seqs.push_back(e);
                       }
+                      testtempo::anteil(z->seqs);   // TESTTEMPO: BHED_TEST_ANTEIL=i/n
                       z->anfang = std::chrono::steady_clock::now();
                       diag::detail("Knopftest: MB5 Reduzieren " + spiel + " - " + std::to_string(z->seqs.size()) + " Sequenzen, " + std::to_string(z->g.numFrames) + " Frames");
                       return false;

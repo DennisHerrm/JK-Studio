@@ -196,6 +196,17 @@ void bauMenueNeuLaden() {   // Reset: build_commands_clear(); LoadBuildMenu()
 std::string bauMenueDateiPfad() { return menuePfad(e().bauMenueName.empty() ? std::string("build_menu.xml") : e().bauMenueName); }
 
 // build_init_variables (qe3.cpp:152-178)
+int bauMonitorPort() {
+    static const int port = [] {
+        const char* text = std::getenv("BHED_BAU_PORT");
+        const int erster = text != nullptr ? std::atoi(text) : 0;
+        return (erster >= 1024 && erster <= 65535 - kBauMonitorPorts) ? erster : kBauMonitorPort;
+    }();
+    return port;
+}
+
+std::string bauMonitorAdresse() { return "127.0.0.1:" + std::to_string(bauMonitorPort()); }
+
 karte::BauVariablen bauVariablen() {
     Editor& ed = e();
     karte::BauVariablen v;
@@ -212,7 +223,7 @@ karte::BauVariablen bauVariablen() {
     // Stufe 9 Punkt 2 (Abweichung): der Import-Ordner (Modelle aus "Geometrie als Brushes")
     if (const std::string imp = importOrdner(); !imp.empty()) { zusatz += " -fs_pakpath \"" + imp + "\""; }
     v["ExtraResourcePaths"] = zusatz;
-    v["MonitorAddress"] = ed.bau.ueberwachen ? kBauMonitorAdresse : "";
+    v["MonitorAddress"] = ed.bau.ueberwachen ? bauMonitorAdresse() : std::string();
     v["GameName"] = bauSpielName();
     const std::string karte = bauKartenPfad();
     const std::string ohneEndung = karte.substr(0, karte.rfind('.') == std::string::npos ? karte.size() : karte.rfind('.'));
@@ -1950,7 +1961,9 @@ void schrittBeginnen() {
         return;
     }
     // monitoring off or unmonitored command
-    if (!ed.bau.ueberwachen || l.befehle[l.schritt].find(kBauMonitorAdresse) == std::string::npos) {
+    const int ersterPort = bauMonitorPort();
+    const std::string vorgabeAdresse = bauMonitorAdresse();
+    if (!ed.bau.ueberwachen || l.befehle[l.schritt].find(vorgabeAdresse) == std::string::npos) {
         // RunBatch: die restlichen Befehle - hier nacheinander im Hintergrund statt
         // einer qe3bsp.bat in einem Konsolenfenster (Abweichung)
         if (ed.bau.logAusgeben) {   // "> junk.txt" beim ersten, ">>" danach
@@ -1971,26 +1984,26 @@ void schrittBeginnen() {
     ausgabe("Setting up");
     std::string grund;
     int port = 0;
-    for (int p = kBauMonitorPort; p < kBauMonitorPort + kBauMonitorPorts && port == 0; ++p) {
+    for (int p = ersterPort; p < ersterPort + kBauMonitorPorts && port == 0; ++p) {
         if (l.horcher.lauschen(p, grund)) { port = p; }
     }
     if (port == 0) {
-        const std::string msg = "Failed to get a listening socket on ports " + std::to_string(kBauMonitorPort) + "-" +
-                                std::to_string(kBauMonitorPort + kBauMonitorPorts - 1) +
+        const std::string msg = "Failed to get a listening socket on ports " + std::to_string(ersterPort) + "-" +
+                                std::to_string(ersterPort + kBauMonitorPorts - 1) +
                                 ".\nTry running with Build monitoring disabled if you can't fix this.\n";
         konsoleSchreiben(KonsolenZeile::Art::Ausgabe, msg);
         meldungsKasten(msg);
-        zusammenfassung(1, "port " + std::to_string(kBauMonitorPort));
+        zusammenfassung(1, "port " + std::to_string(ersterPort));
         return;
     }
-    if (port != kBauMonitorPort) {
+    if (port != ersterPort) {
         // der Bauprozess verbindet sich mit dem Port, auf dem dieser Editor lauscht
         const std::string adresse = "127.0.0.1:" + std::to_string(port);
         std::string& befehl = l.befehle[l.schritt];
-        for (std::size_t i = befehl.find(kBauMonitorAdresse); i != std::string::npos; i = befehl.find(kBauMonitorAdresse, i + adresse.size())) {
-            befehl.replace(i, std::char_traits<char>::length(kBauMonitorAdresse), adresse);
+        for (std::size_t i = befehl.find(vorgabeAdresse); i != std::string::npos; i = befehl.find(vorgabeAdresse, i + adresse.size())) {
+            befehl.replace(i, vorgabeAdresse.size(), adresse);
         }
-        ausgabe("Port " + std::to_string(kBauMonitorPort) + " is in use (another build), monitoring on " + adresse);
+        ausgabe("Port " + std::to_string(ersterPort) + " is in use (another build), monitoring on " + adresse);
     }
     ausgabe("Listening...");
     l.schrittStart = std::chrono::steady_clock::now();   // m_timeout_timer.start()

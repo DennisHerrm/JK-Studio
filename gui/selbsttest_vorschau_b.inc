@@ -6674,12 +6674,14 @@ std::vector<Schritt> karteSchritte() {
         g_app->playing = false;
         g_app->ruheImTest = true;
     }));
-    add(pause(2.0));
+    // TESTTEMPO (rc612): beide Pausen sind Messfenster nach der Uhr - die Ruhe beginnt eine Sekunde Wanduhr ohne Eingabe,
+    // gezaehlt werden Bilder je Sekunde Wanduhr (mit Pausen nach Bildern war die zweite vorbei, ehe die Ruhe begann)
+    add(messfenster(2.0));
     add(tu("Ruhe: Bilder zaehlen", [=] {
         *bilderVorher = ImGui::GetFrameCount();
         *seit = std::chrono::steady_clock::now();
     }));
-    add(pause(2.0));
+    add(messfenster(2.0));
     add(pruefe("Ruhe: ohne Eingabe hoechstens wenige Bilder je Sekunde", [=] {
         const double sek = std::chrono::duration<double>(std::chrono::steady_clock::now() - *seit).count();
         const int bilder = ImGui::GetFrameCount() - *bilderVorher;

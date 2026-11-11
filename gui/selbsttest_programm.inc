@@ -675,12 +675,26 @@ Schritt ruhigBis(const std::string& was, std::function<ImRect()> rechteck, int m
 // Das Tutorial-Fenster: nach einem Schrittwechsel wird es neu gestellt und waechst ein Bild spaeter;
 // ein erledigter Schritt schaltet 0,6 s spaeter von selbst weiter (Ablauf::bild) - bis dahin steht
 // es nicht still (gesehen unter Last: "All tutorials" wanderte 46 Pixel, waehrend der Klick lief).
+// TESTTEMPO (rc612): auch nicht, solange die Zeile "Der Knopf ist gerade verdeckt" noch aussteht (0,3 s nach dem
+// Schrittwechsel, wenn das Ziel nicht zu finden ist) - drei gleiche Bilder davor sagen nichts (nachgestellt mit
+// BHED_TEST_BREMSE=60: Klick "Next" "beim Loslassen nicht mehr unter der Maus", der Knopf lag eine Zeile tiefer).
 Schritt tourRuhig() {
     return ruhigBis("Tutorial-Fenster", [] {
         ImGuiWindow* w = ImGui::FindWindowByName("###tour");
         const TourSicht v = tourSicht();
-        return w != nullptr && (w->Active || w->WasActive) && !(v.aktiv && v.erfuellt) ? w->Rect() : ImRect{};
+        return w != nullptr && (w->Active || w->WasActive) && !(v.aktiv && v.erfuellt) && !v.hinweisKommt ? w->Rect() : ImRect{};
     });
+}
+// Der Knopf Compile! zeigt 1,5 s "Done" bzw. 2 s "Failed" statt seiner Beschriftung. So lange findet ein Schritt mit dem Ziel
+// knopf:Compile ihn nicht (Zeile "verdeckt" im Tutorial-Fenster), danach wieder: das Fenster waechst und schrumpft um eine
+// Zeile. Vor einem Klick ins Tutorial-Fenster das Ende abwarten und drei Bilder dazu (das Register meldet die Beschriftung ein
+// Bild spaeter, das Fenster passt seine Groesse im Bild danach an).
+Schritt compileRuhig() {
+    auto bilder = std::make_shared<int>(0);
+    return warteBis("Tour: der Knopf Compile zeigt wieder seine Beschriftung", [bilder] {
+        *bilder = ImGui::GetTime() >= std::max(g_app->kompiliertBis, g_app->kompiliertFehlerBis) ? *bilder + 1 : 0;
+        return *bilder > 3;
+    }, 4000);
 }
 // Bis die Bedingung gilt, hoechstens 600 Bilder, ohne eigenen Fehler.
 Schritt tourBis(const std::string& was, std::function<bool()> bedingung) {
@@ -1075,6 +1089,7 @@ std::vector<Schritt> tourSchritte() {
     }));
     add(klick(tr(Str::Compile), "###main"));
     add(warteBis("Tour: k-uebersetzen bei Schritt 2 (uebersetzt, gescheitert)", [] { return tourSicht().schritt == 1; }, 4000));
+    add(compileRuhig());
     add(tourRuhig());
     add(klick(tr(Str::TourNext), "###tour"));
     add(pause(0.4));
@@ -1086,6 +1101,7 @@ std::vector<Schritt> tourSchritte() {
     add(klickAn("Tour: der hervorgehobene Zaehler", [=] { return zielMitte(0); }));
     add(warteBis("Tour: k-uebersetzen bei Schritt 4 (Meldungen offen)", [] { return tourSicht().schritt == 3; }, 4000));
     add(pruefe("Tour: das Meldungsfenster ist offen", [] { return g_app->messagesOpen; }));
+    add(compileRuhig());
     add(tourRuhig());
     add(klick(tr(Str::TourClose), "###tour"));
     add(tu("Tour: Meldungen zu", [] { g_app->messagesOpen = false; }));

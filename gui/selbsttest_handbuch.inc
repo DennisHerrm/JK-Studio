@@ -377,7 +377,34 @@ std::vector<Schritt> handbuchSchritte();   // dito: die Bilder h_vis2c_fortsetze
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
-    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    // TESTTEMPO (rc612): der volle Lauf ist eine Folge von Gruppen (gruppe("name") vor jeder). BHED_KARTE_GRUPPEN="stufe3,stufe4"
+    // faehrt nach dem gemeinsamen Anfang nur die genannten, in der Reihenfolge des vollen Laufs - mehrere Prozesse nebeneinander
+    // teilen sich so den vollen Lauf und liefern zusammen dieselben Pruefzeilen (tools/testrunde.py, Laeufe ke_*). Eine Gruppe
+    // mit `kalt`, die nicht auf ihre Vorgaengerin folgt, beginnt wie ihr Einzellauf (BHED_KARTE_NUR) mit stufe9c::einrichten().
+    // stufe8g braucht stufe8c davor (die gebaute Karte), stufe9 beide. Was hinter einer Gruppe ohne eigenes gruppe() steht,
+    // gehoert zu ihr.
+    const char* const gruppenText = std::getenv("BHED_KARTE_GRUPPEN");
+    const std::string gruppenWahl = gruppenText != nullptr ? "," + std::string(gruppenText) + "," : std::string();
+    auto gruppenBekannt = std::make_shared<std::string>(",");
+    bool gruppeAn = true;
+    bool vorigeAn = true;
+    auto add = [&](Schritt x) {
+        if (gruppeAn) { s.push_back(std::move(x)); }
+    };
+    const auto gruppe = [&](const std::string& name, bool kalt = false) {
+        *gruppenBekannt += name + ",";
+        vorigeAn = gruppeAn;
+        gruppeAn = gruppenWahl.empty() || gruppenWahl.find("," + name + ",") != std::string::npos;
+        if (!gruppeAn) { return; }
+        if (kalt && !vorigeAn) {
+            for (Schritt& x : stufe9c::einrichten()) { s.push_back(std::move(x)); }
+        }
+        s.push_back(tu("Gruppe " + name, [name] {
+            char z[120];
+            std::snprintf(z, sizeof(z), "Knopftest: Gruppe %s ab %.1f s", name.c_str(), testtempo::bisher());
+            diag::detail(z);
+        }));
+    };
     // =tempo: nur die Messliste der Stufe 7 (tools/karte/tempo.py editor)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "tempo") == 0) {
         for (Schritt& x : tempo::schritte()) { add(std::move(x)); }
@@ -760,32 +787,59 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    gruppe("rahmen");
     for (Schritt& x : karteneditorRahmenSchritte()) { add(std::move(x)); }
+    gruppe("tasten");
     for (Schritt& x : karteneditorTastenSchritte()) { add(std::move(x)); }
+    gruppe("numpad");
     for (Schritt& x : numpad::schritte()) { add(std::move(x)); }   // rc612 NUMPAD
+    gruppe("mass");
     for (Schritt& x : karteneditorMassSchritte()) { add(std::move(x)); }
+    gruppe("xy");
     for (Schritt& x : karteneditorXySchritte()) { add(std::move(x)); }
+    gruppe("kamera");
     for (Schritt& x : karteneditorKameraSchritte()) { add(std::move(x)); }
+    gruppe("auswahl");
     for (Schritt& x : karteneditorAuswahlSchritte()) { add(std::move(x)); }
+    gruppe("textur");
     for (Schritt& x : karteneditorTexturSchritte()) { add(std::move(x)); }
+    gruppe("entitaeten");
     for (Schritt& x : karteneditorEntitaetenSchritte()) { add(std::move(x)); }
+    gruppe("konsole");
     for (Schritt& x : karteneditorKonsoleSchritte()) { add(std::move(x)); }
+    gruppe("stufe2");
     for (Schritt& x : karteneditorStufe2Schritte()) { add(std::move(x)); }
+    gruppe("stufe3");
     for (Schritt& x : karteneditorStufe3Schritte()) { add(std::move(x)); }
+    gruppe("stufe4");
     for (Schritt& x : karteneditorStufe4Schritte()) { add(std::move(x)); }
+    gruppe("stufe5");
     for (Schritt& x : karteneditorStufe5Schritte()) { add(std::move(x)); }
+    gruppe("befehle");
     for (Schritt& x : karteneditorAlleBefehleSchritte()) { add(std::move(x)); }
+    gruppe("stufe6");
     for (Schritt& x : karteneditorStufe6Schritte()) { add(std::move(x)); }
+    gruppe("stufe7");
     for (Schritt& x : stufe7::schritte()) { add(std::move(x)); }   // Stufe 7: Echtzeit-Licht, Schnell-Backen (gross nur mit BHED_KARTE_GROSS)
+    gruppe("stufe8");
     for (Schritt& x : stufe8::schritte()) { add(std::move(x)); }   // Stufe 8a: Fortschritt, BSP-Import, Teil-Kompilierungen
+    gruppe("stufe8b");
     for (Schritt& x : stufe8b::schritte()) { add(std::move(x)); }   // Stufe 8b: neue Editor-Werkzeuge
+    gruppe("stufe8c");
     for (Schritt& x : stufe8c::schritte()) { add(std::move(x)); }   // Stufe 8c: Tutorial "Erste eigene Karte"
+    gruppe("stufe8g");
     for (Schritt& x : stufe8g::schritte()) { add(std::move(x)); }   // Stufe 8g: Build > GPU bake (nach dem Tutorial)
+    gruppe("stufe9");
     for (Schritt& x : stufe9::schritte()) { add(std::move(x)); }    // Stufe 9: restliche Karten-Werkzeuge (nach 8g)
+    gruppe("stufe9c", true);
     for (Schritt& x : stufe9c::schritte()) { add(std::move(x)); }   // Stufe 9c: Werkzeugleisten, Echtzeit-Licht wie im Spiel
+    gruppe("stufe9d", true);
     for (Schritt& x : stufe9d::schritte()) { add(std::move(x)); }   // Stufe 9d: Nebel, Effekte, Skyportal, Shader live, Patch-Bruecke
+    gruppe("licht1", true);
     for (Schritt& x : licht1::schritte()) { add(std::move(x)); }   // rc610 LICHT1: Echtzeit-Licht der ganzen Karte (langer Hangar)
+    gruppe("modobj", true);
     for (Schritt& x : modobj::schritte()) { add(std::move(x)); }   // rc610 MODOBJ: Modell-Browser mit .obj/.fbx usw., Setzen wandelt in .md3
+    gruppe("aseb", true);
     for (Schritt& x : aseb::schritte()) { add(std::move(x)); }   // ASEB: .ase/.md3 usw. zu Brushes, misc_model in Brushes umwandeln
     // REST Punkt 4: die Gruppen ab hier enden in Events (leftMode 0) - jede beginnt wie ihr Einzellauf (BHED_KARTE_NUR) mit
     // stufe9c::einrichten() im Karten-Editor. Ohne das lief kreste in Events: der Editor zeichnete nicht, die Vorschau der
@@ -793,21 +847,42 @@ std::vector<Schritt> karteneditorSchritte() {
     const auto einrichten = [&] {
         for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
     };
+    gruppe("kreste");
     einrichten();
     for (Schritt& x : kreste::schritte()) { add(std::move(x)); }   // p_karte: ASEB im echten Bau, Ladetest im Spielbild
+    gruppe("r2a");
     einrichten();
     for (Schritt& x : r2a::schritte()) { add(std::move(x)); }   // rc610 R2a: Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen
+    gruppe("r3");
     einrichten();
     for (Schritt& x : r3::schritte()) { add(std::move(x)); }   // rc610 R3: gespiegelte Modelle, Glow im Echtzeit-Licht
+    gruppe("rd");
     einrichten();
     for (Schritt& x : rd::schritte()) { add(std::move(x)); }   // p_render: bewegte Stufen, Gluehen im Spiegel und an Effekten
+    gruppe("rest8");
     einrichten();
     for (Schritt& x : rest8::schritte()) { add(std::move(x)); }   // REST8: doppelte Shadernamen (Echtzeit-Licht, Kartenpruefung)
+    gruppe("reste1");
     einrichten();
     for (Schritt& x : reste1::schritte()) { add(std::move(x)); }    // Liste reste1: Decals in der Echtzeit-Ansicht
+    gruppe("fotos");
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
+    gruppe("gross");
     for (Schritt& x : karteneditorGrossSchritte()) { add(std::move(x)); }   // nur mit BHED_KARTE_GROSS
+    gruppeAn = true;
     add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+    if (!gruppenWahl.empty()) {   // ein Schreibfehler soll nicht still alles weglassen
+        add(tu("Gruppen: jede genannte gibt es", [gruppenWahl, gruppenBekannt] {
+            for (std::size_t von = 1; von < gruppenWahl.size();) {
+                const std::size_t bis = gruppenWahl.find(',', von);
+                const std::string name = gruppenWahl.substr(von, bis - von);
+                if (!name.empty() && gruppenBekannt->find("," + name + ",") == std::string::npos) {
+                    meldeFehler("BHED_KARTE_GRUPPEN: unbekannte Gruppe \"" + name + "\"");
+                }
+                von = bis + 1U;
+            }
+        }));
+    }
     return s;
 }
 
@@ -2165,8 +2240,7 @@ std::vector<Schritt> karte8HandbuchSchritte() {
         ke::editor().bspRueckLetzt = ke::Editor::BspRueckLetzt{};
         (void)ke::bspOeffnenDatei(stufe8::edStamm() + ".bsp");
     }));
-    add(stufe8::warteSek("Handbuch Stufe 8: Rueckgewinnung fertig",
-                         [] { return ke::bspRueckStand().stand == 0 && ke::editor().bspRueckLetzt.sekunden > 0; }, 180));
+    add(stufe8::rueckFertig("Handbuch Stufe 8: Rueckgewinnung fertig"));
     add(tu("Handbuch Stufe 8: Ansichten auf die Saeule", [ansichten] { ansichten(karte::Vektor3f(-90.0F, -90.0F, 130.0F), karte::Vektor3f(-8.0F, 45.0F, 0.0F)); }));
     add(warteBis("Handbuch Stufe 8: Texturen geladen", [] { return ke::kameraBilderFertig(); }, 6000));
     add(pause(0.8));

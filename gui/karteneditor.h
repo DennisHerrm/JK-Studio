@@ -1753,11 +1753,15 @@ void lumpRueckfrage(const std::string& titel, std::function<void()> danach);
 void entitaetenKlassenNeuLaden();
 
 // --- Karten bauen (Stufe 3, app_karte_bau.cpp; build.cpp, qe3.cpp, watchbsp.cpp) ---
-inline constexpr const char* kBauMonitorAdresse = "127.0.0.1:39000";   // RADIANT_MONITOR_ADDRESS
+// RADIANT_MONITOR_ADDRESS "127.0.0.1:39000"
 // reste1 Punkt 3: ist 39000 belegt (ein zweiter Bau, ein zweites JK Studio), lauscht die Ueberwachung
 // auf dem naechsten freien der folgenden Ports und schreibt ihn in die Befehlszeile (NRC: Abbruch).
 inline constexpr int kBauMonitorPort = 39000;
 inline constexpr int kBauMonitorPorts = 64;
+// TESTTEMPO (rc612): BHED_BAU_PORT=<erster Port> gibt dieser Instanz einen eigenen Bereich von kBauMonitorPorts Ports -
+// Selbsttests nebeneinander belegen sich die Ports nicht gegenseitig. Ohne die Variable kBauMonitorPort wie NRC.
+[[nodiscard]] int bauMonitorPort();
+[[nodiscard]] std::string bauMonitorAdresse();   // "127.0.0.1:<bauMonitorPort()>"
 void bauMenueSicherstellen();          // BuildMenu_Construct/LoadBuildMenu fuer das Spiel des Editors
 void bauMenueSpeichern();              // SaveBuildMenu (BuildMenu_Destroy)
 void bauMenueNeuLaden();               // Reset: build_commands_clear + LoadBuildMenu

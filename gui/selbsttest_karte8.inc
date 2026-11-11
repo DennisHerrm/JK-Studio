@@ -38,6 +38,79 @@ Schritt warteSek(const std::string& was, std::function<bool()> bedingung, double
     return x;
 }
 
+// TESTTEMPO (rc612): auf das Ende der Rueckgewinnung warten. Sie laedt die Modelle in einem Prozess mit niedriger Prioritaet -
+// neben anderen Laeufen und Bauten brauchte dieselbe kleine Karte 172 s statt 21-24 s (Runde rc611), bei LCB2 und VIS2c ueber
+// die bisherigen 180 s ("nicht nach 180 s", ohne dass etwas falsch war). Das Ereignis: sie lief (oder hat schon ein Ergebnis)
+// und laeuft nicht mehr. Endet sie ohne Ergebnis (Fehler, abgebrochen), ist das sofort ein FEHLER - vorher erst nach Ablauf der
+// Grenze. Die Grenze faengt nur noch das Haengen: 1500 s wie dieselben Warteschritte in selbsttest_bspmerge.inc.
+constexpr double kRueckGrenze = 1500.0;
+Schritt rueckFertig(const std::string& was) {
+    auto t0 = std::make_shared<std::chrono::steady_clock::time_point>();
+    auto lief = std::make_shared<bool>(false);
+    Schritt x{"Warte: " + was, [=](int b) {
+                  if (b == 0) {
+                      *t0 = std::chrono::steady_clock::now();
+                      *lief = false;
+                  }
+                  const double t = std::chrono::duration<double>(std::chrono::steady_clock::now() - *t0).count();
+                  const int stand = ke::bspRueckStand().stand;
+                  const bool ergebnis = ke::editor().bspRueckLetzt.sekunden > 0;
+                  *lief = *lief || stand != 0 || ergebnis;
+                  if (*lief && stand == 0) {
+                      if (!ergebnis) {
+                          meldeFehler(was + ": zu Ende ohne Ergebnis (Fehler oder abgebrochen)");
+                          return true;
+                      }
+                      char z[64];
+                      std::snprintf(z, sizeof(z), " nach %.2f s", t);
+                      diag::detail("Knopftest: " + was + z);
+                      return true;
+                  }
+                  if (t > kRueckGrenze) {
+                      meldeFehler(was + ": nicht nach " + std::to_string(static_cast<int>(kRueckGrenze)) + " s");
+                      return true;
+                  }
+                  return false;
+              }};
+    x.eigeneZeitgrenze = true;
+    return x;
+}
+
+// TESTTEMPO (rc612): auf einen Zustand warten, den nur ein LAUFENDER Bau zeigt (Schritt, Durchgang, Pacifier). Unter Last
+// dauerte derselbe Bau 82 s statt 6-10 s, die bisherigen 60 s liefen ab, ehe q3map2 beim Licht war ("nicht nach 60 s").
+// Das Ereignis: der Zustand ist da - oder der Bau lief und ist zu Ende, ohne ihn gezeigt zu haben (dann sofort FEHLER).
+// Die Grenze faengt nur noch das Haengen.
+Schritt warteImBau(const std::string& was, std::function<bool()> bedingung) {
+    auto t0 = std::make_shared<std::chrono::steady_clock::time_point>();
+    auto lief = std::make_shared<bool>(false);
+    Schritt x{"Warte: " + was, [=](int b) {
+                  if (b == 0) {
+                      *t0 = std::chrono::steady_clock::now();
+                      *lief = false;
+                  }
+                  const double t = std::chrono::duration<double>(std::chrono::steady_clock::now() - *t0).count();
+                  if (bedingung()) {
+                      char z[64];
+                      std::snprintf(z, sizeof(z), " nach %.2f s", t);
+                      diag::detail("Knopftest: " + was + z);
+                      return true;
+                  }
+                  const bool laeuft = ke::bauLaeuft();
+                  if (*lief && !laeuft) {
+                      meldeFehler(was + ": der Bau ist zu Ende, ohne das gezeigt zu haben");
+                      return true;
+                  }
+                  *lief = *lief || laeuft;
+                  if (t > kRueckGrenze) {
+                      meldeFehler(was + ": nicht nach " + std::to_string(static_cast<int>(kRueckGrenze)) + " s");
+                      return true;
+                  }
+                  return false;
+              }};
+    x.eigeneZeitgrenze = true;
+    return x;
+}
+
 // reste2 Punkt 1: wie ein Mensch das Mausrad ueber dem Fenster des Eintrags drehen (eine Raste je
 // zwei Bilder), bis der Eintrag ganz zu sehen ist - hoechstens 60 Rasten.
 Schritt radBisSichtbar(const std::string& label, const std::string& fenster) {
@@ -119,10 +192,10 @@ std::vector<Schritt> fortschritt() {
         e.bauProjekt.eintraege.push_back(karte::BauEintrag{"Test langsam", {"[q3map2] -light -super 8 -samples 16 -bounce 100 \"[MapFile]\""}});
     }));
     add(bauMenuepunkt(kEintrag));
-    add(warteSek("erster Bau: Schritt 3 (LIGHT) mit einer Phase von q3map2", [] {
+    add(warteImBau("erster Bau: Schritt 3 (LIGHT) mit einer Phase von q3map2", [] {
         const ke::BauFortschrittStand st = ke::bauFortschrittStand();
         return st.laeuft && st.schritt == 2 && st.stufe == "LIGHT" && !st.phase.empty();
-    }, 60));
+    }));
     add(pause(0.6));
     add(pruefe("erster Bau: Fenster \"Build progress\" offen, Stufe LIGHT, keine Restzeit aus einem Verlauf", [] {
         const ke::BauFortschrittStand st = ke::bauFortschrittStand();
@@ -153,10 +226,10 @@ std::vector<Schritt> fortschritt() {
     add(bauMenuepunkt(kEintrag));
     // Nicht die Phase: "Radiosity" steht nur kurz je Durchgang (die Lichtphasen des Durchgangs folgen), die
     // Bilder trafen sie mal, mal nicht (rot bei 3,9 s LIGHT). Der Durchgang bleibt bis zum Ende des Schritts.
-    add(warteSek("zweiter Bau: Schritt 3 im zweiten Durchgang", [] {
+    add(warteImBau("zweiter Bau: Schritt 3 im zweiten Durchgang", [] {
         const ke::BauFortschrittStand st = ke::bauFortschrittStand();
         return st.laeuft && st.schritt == 2 && st.stufe == "LIGHT" && st.bounce >= 2;
-    }, 60));
+    }));
     add(pruefe("zweiter Bau: Restzeit aus dem letzten Bau dieser Karte", [schaetzung] {
         const ke::BauFortschrittStand st = ke::bauFortschrittStand();
         (*schaetzung)[0] = st.vergangen + st.schaetzung.rest;
@@ -180,10 +253,10 @@ std::vector<Schritt> fortschritt() {
     // Ein langer Lichtlauf: Bounce x von 100, dann Abbrechen im Fenster
     add(tu("Konsole leeren", [] { ke::konsoleLeeren(); }));
     add(bauMenuepunkt("Test langsam"));
-    add(warteSek("Test langsam: Bounce 1 von 100 mit Pacifier", [] {
+    add(warteImBau("Test langsam: Bounce 1 von 100 mit Pacifier", [] {
         const ke::BauFortschrittStand st = ke::bauFortschrittStand();
         return st.laeuft && st.bounce >= 1 && st.bounceVon == 100 && st.pacifier >= 0.0;
-    }, 120));
+    }));
     add(pause(0.3));
     add(foto("karteneditor_s8_fortschritt_bounce"));
     add(klick(ke::trK(Str::KeBmAbbrechen), "kartebaufortschritt"));
@@ -535,7 +608,7 @@ std::vector<Schritt> modelle() {
     }));
     add(warteSek("Rueckgewinnung laeuft (Fenster)", [] { return ke::bspRueckStand().stand == 1 || ke::bspRueckStand().stand == 2 || ke::editor().bspRueckLetzt.sekunden > 0; }, 30));
     add(foto("karteneditor_s8_modelle_laeuft"));
-    add(warteSek("Rueckgewinnung fertig", [] { return ke::bspRueckStand().stand == 0 && ke::editor().bspRueckLetzt.sekunden > 0; }, 180));
+    add(rueckFertig("Rueckgewinnung fertig"));
     add(pruefe("misc_model zurueck: pillar.md3 mit origin 128 128 0, angle 45, modelscale 1.5; Konsole; Update entities only moeglich", [] {
         const EdZahl z = edZaehlen();
         const ke::Editor& e = ke::editor();
@@ -577,7 +650,7 @@ std::vector<Schritt> modelle() {
         e.karte.auswahl.leeren();
         ke::auswahlGeaendert();
     }));
-    add(warteSek("Rueckgewinnung beendet", [] { return ke::bspRueckStand().stand == 0; }, 180));
+    add(warteSek("Rueckgewinnung beendet", [] { return ke::bspRueckStand().stand == 0; }, kRueckGrenze));   // TESTTEMPO: Grenze nur gegen das Haengen
     add(pause(0.3));
     add(pruefe("Geometrie waehrend der Rueckgewinnung geaendert: Ergebnis verworfen (Konsole), kein misc_model, Fingerabdruck bleibt anders", [liefNoch] {
         const EdZahl z = edZaehlen();

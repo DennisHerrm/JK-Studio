@@ -952,6 +952,8 @@ Schritt bildVergleich2(const std::string& spiel) {
                           if (z->modelle.size() > g) { z->modelle.resize(g); }
                           if (z->npcs.size() > g) { z->npcs.resize(g); }
                       }
+                      testtempo::anteil(z->modelle);   // TESTTEMPO: BHED_TEST_ANTEIL=i/n
+                      testtempo::anteil(z->npcs);
                       z->anfang = std::chrono::steady_clock::now();
                       diag::detail("Knopftest: MB2 Bild " + spiel + " - " + std::to_string(z->modelle.size()) + " Modelle, " +
                                    std::to_string(z->npcs.size()) + " NPC-Typen");

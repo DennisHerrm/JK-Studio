@@ -900,6 +900,7 @@ Schritt rundlauf(const std::string& spiel) {
                           if (!schon.insert({e.firstFrame, e.numFrames}).second) { continue; }
                           z->seqs.push_back(e);
                       }
+                      testtempo::anteil(z->seqs);   // TESTTEMPO: BHED_TEST_ANTEIL=i/n
                       z->rig = modell::rigAnlegen(z->g, modell::Inhalt{}, 0, {});
                       z->anfang = std::chrono::steady_clock::now();
                       diag::detail("Knopftest: MB6 IK-Rundlauf " + spiel + " - " + std::to_string(z->seqs.size()) + " Sequenzen, " + std::to_string(z->g.numFrames) + " Frames, " +

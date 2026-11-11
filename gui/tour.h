@@ -85,6 +85,9 @@ struct TourSicht {
     std::string ordner;             // wo touren.json gefunden wurde
     std::string hinweis;            // H1: der freundliche Hinweis, der gerade steht
     int stufe = 0;                  // H2: erste nicht erfuellte Stufe der Vorbedingung (= Zahl der Stufen: alle da)
+    // Selbsttest: das Ziel des Schritts ist (noch) nicht zu finden, und die Zeile "Der Knopf ist gerade verdeckt" erscheint
+    // erst 0,3 s nach dem Schrittwechsel - bis dahin waechst das Fenster noch um diese Zeile
+    bool hinweisKommt = false;
 };
 TourSicht tourSicht();
 

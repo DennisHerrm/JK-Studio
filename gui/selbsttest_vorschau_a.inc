@@ -362,6 +362,10 @@ Schritt tonSzene(std::shared_ptr<TonVorher> v, const std::string& name, const st
 Schritt tonAbspielen(const std::string& was, double bisMs) {
     return {"Ton: " + was + " abspielen bis " + std::to_string(static_cast<int>(bisMs)) + " ms", [=](int b) {
                 g_app->playing = true;
+                // TESTTEMPO (rc612): in Simulationszeit. Der Schritt setzt die Zeit in Stufen von 50 ms, das Abspielen zaehlt im
+                // naechsten Bild dessen Dauer dazu - nach einem Bild von 400 ms (volle Last) lag ein Klang, der bei 1000 ms
+                // faellig ist, hinter dem Fenster seiner Pruefung ("der Klang kommt, sobald sie gezeichnet wird", 950-1300 ms).
+                testtempo::g_simZeit = true;
                 if (b == 0) {
                     g_app->playMs = 0.0;
                     g_app->audioUpTo = -1.0;
@@ -370,6 +374,7 @@ Schritt tonAbspielen(const std::string& was, double bisMs) {
                 const double t = static_cast<double>(b) * 50.0;
                 if (t > bisMs) {
                     g_app->playing = false;
+                    testtempo::g_simZeit = false;
                     return true;
                 }
                 g_app->playMs = t;
@@ -553,6 +558,10 @@ std::vector<Schritt> tonSchritte() {
                  0.0F, 0.0F, 100.0F));
     aufgebaut();
     add(tonAbspielen("Satz in der Ferne", 500.0));
+    // TESTTEMPO (rc612): bis "anhalten" in Simulationszeit - das Abspielen laeuft ueber rund 15 Bilder weiter (zwei Klicks, eine
+    // Pause); bei wenigen Bildern je Sekunde ist der Satz sonst vorbei, ehe der Ton wieder an ist ("steigt mitten im Satz wieder
+    // ein" rot mit BHED_TEST_BREMSE=1500).
+    add(simZeit(true));
     add(tu("Ton: weiterspielen", [] { g_app->playing = true; }));
     add(klick(tr(Str::TlAudio)));
     add(klick(tr(Str::TlAudio)));
@@ -570,6 +579,7 @@ std::vector<Schritt> tonSchritte() {
         return k != nullptr && k->abMs > 300.0;
     }));
     add(tu("Ton: anhalten", [] { g_app->playing = false; }));
+    add(simZeit(false));
 
     // 6. use auf einen Namen, den ein func_breakable OHNE origin und ein
     //    ferner target_speaker tragen: Use_Target_Speaker spielt am
@@ -4283,6 +4293,7 @@ std::vector<Schritt> kartenPruefungSchritte() {
              (void)kp::shaderTexte();
              std::vector<Schritt> neu;
              for (std::size_t nr = ab; nr < liste.size(); ++nr) {
+                 if (!testtempo::imAnteil(nr, liste.size())) { continue; }   // TESTTEMPO: BHED_TEST_ANTEIL=i/n
                  const std::string karte = liste[nr];
                  auto meld = std::make_shared<std::size_t>(0);
                  auto zeilen = std::make_shared<std::size_t>(0);

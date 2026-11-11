@@ -175,6 +175,7 @@ Schritt rundlauf(const std::string& spiel) {
                       }
                       std::sort(z->glas.begin(), z->glas.end());
                       z->glas.erase(std::unique(z->glas.begin(), z->glas.end()), z->glas.end());
+                      testtempo::anteil(z->glas);   // TESTTEMPO: BHED_TEST_ANTEIL=i/n
                       std::sort(glms.begin(), glms.end());
                       glms.erase(std::unique(glms.begin(), glms.end()), glms.end());
                       // je .glm die GLA aus dem Kopf (animFile)

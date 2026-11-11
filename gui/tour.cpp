@@ -1395,6 +1395,7 @@ TourSicht tourSicht() {
     v.ordner = s.ordner;
     v.hinweis = s.hinweis;
     v.stufe = s.stufe;
+    v.hinweisKommt = s.zielErwartet && s.ziele.empty() && !s.zeigtOeffner && ImGui::GetTime() <= s.pulsBis - 0.9;
     return v;
 }
 

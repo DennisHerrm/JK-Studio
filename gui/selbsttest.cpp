@@ -2649,6 +2649,42 @@ bool pausenNachBild() {
 bool g_pauseLaeuft = false;                  // dieses Bild gehoert zu einer Pause nach Bildern
 constexpr float kPauseBild = 1.0F / 20.0F;   // Simulationszeit je Bild der Pause
 constexpr double kPauseEchtAnteil = 0.25;    // so viel der Pause vergeht mindestens auf der Wanduhr
+// Zwischen simZeit(true) und simZeit(false) rueckt die ImGui-Zeit je Bild hoechstens 1/60 s vor (selbsttestVorBild): fuer
+// Bedienung, die das Programm an seiner Zeit misst (kurzer Rechtsklick unter 300 ms, Hinweis fuer 666 ms). Unter Last zeichnet
+// der Selbsttest nur wenige Bilder je Sekunde - ein Klick ueber 13 Bilder waere dann kein kurzer mehr, ohne dass das Programm
+// etwas falsch macht. Die Pruefung danach bleibt dieselbe.
+// BHED_TEST_SIMZEIT=0 schaltet sie ab - zum Nachstellen der Zeitrennen, die sie behebt (mit BHED_TEST_BREMSE).
+bool g_simZeit = false;
+constexpr float kSimBild = 1.0F / 60.0F;
+bool simZeitErlaubt() {
+    static const bool an = [] {
+        const char* p = std::getenv("BHED_TEST_SIMZEIT");
+        return p == nullptr || std::strcmp(p, "0") != 0;
+    }();
+    return an;
+}
+
+// BHED_TEST_ANTEIL=i/n (1 <= i <= n): Schleifen ueber Spieldaten (jede Karte, jedes Modell, jede Sequenz) nehmen nur den i-ten
+// von n zusammenhaengenden Abschnitten ihrer sortierten Liste. n Prozesse nebeneinander pruefen zusammen dieselben Eintraege
+// in derselben Reihenfolge wie ein Lauf ohne die Variable (tools/testrunde.py, Laeufe <name>_1v4 ...).
+bool imAnteil(std::size_t index, std::size_t anzahl) {
+    static const std::pair<std::size_t, std::size_t> an = [] {
+        unsigned i = 0;
+        unsigned n = 0;
+        const char* text = std::getenv("BHED_TEST_ANTEIL");
+        if (text == nullptr || std::sscanf(text, "%u/%u", &i, &n) != 2 || i < 1U || i > n) { return std::pair<std::size_t, std::size_t>{0U, 1U}; }
+        return std::pair<std::size_t, std::size_t>{i - 1U, n};
+    }();
+    return index >= anzahl * an.first / an.second && index < anzahl * (an.first + 1U) / an.second;
+}
+template <typename T>
+void anteil(std::vector<T>& liste) {
+    std::vector<T> teil;
+    for (std::size_t i = 0; i < liste.size(); ++i) {
+        if (imAnteil(i, liste.size())) { teil.push_back(std::move(liste[i])); }
+    }
+    liste = std::move(teil);
+}
 
 // Wo bleibt die Zeit: Wanduhr und Bilder je Schrittart, eine Zeile vor der Zusammenfassung ("Knopftest Zeiten: ...");
 // mit BHED_TEST_ZEITEN dazu die zehn laengsten Schritte.
@@ -2665,6 +2701,7 @@ struct Zeiten {
     std::string text;
 };
 Zeiten g_zeiten;
+double bisher() { return g_zeiten.sek[0] + g_zeiten.sek[1] + g_zeiten.sek[2] + g_zeiten.sek[3]; }   // Sekunden seit dem ersten Schritt
 
 // Je Bild des Knopftests: die Zeit seit dem letzten Bild gehoert dem Schritt, der in ihm lief.
 void bild(const std::string& text, bool neuerSchritt) {
@@ -2686,7 +2723,7 @@ void bild(const std::string& text, bool neuerSchritt) {
             z.laengste.resize(10);
         }
     }
-    z.art = text == "Pause" ? Zeiten::kPause : text.rfind("Warte", 0) == 0 ? Zeiten::kWarte : text.rfind("Foto", 0) == 0 ? Zeiten::kFoto : Zeiten::kSonst;
+    z.art = text.rfind("Pause", 0) == 0 ? Zeiten::kPause : text.rfind("Warte", 0) == 0 ? Zeiten::kWarte : text.rfind("Foto", 0) == 0 ? Zeiten::kFoto : Zeiten::kSonst;
     ++z.schritte[z.art];
     z.imSchritt = 0.0;
     z.text = text;
@@ -2721,8 +2758,29 @@ Schritt pause(double sekunden) {
                 if (!testtempo::pausenNachBild()) { return ImGui::GetTime() >= *bis; }
                 const double echt = std::chrono::duration<double>(std::chrono::steady_clock::now() - *echtAb).count();
                 const bool fertig = echt >= sekunden || (ImGui::GetTime() >= *bis && echt >= sekunden * testtempo::kPauseEchtAnteil);
-                testtempo::g_pauseLaeuft = !fertig;
+                // nur bis die Simulationszeit der Pause erreicht ist: wartet sie danach noch auf ihr Viertel Wanduhr (schnelle
+                // Bilder), laeuft die ImGui-Zeit nicht weiter voraus - Hinweise und Fristen des Programms saehen sonst ein
+                // Vielfaches der Pause
+                testtempo::g_pauseLaeuft = !fertig && ImGui::GetTime() < *bis;
                 return fertig;
+            }};
+}
+
+// Eine Pause als Messfenster: immer nach der Uhr, auch mit BHED_TEST_PAUSEN=bild - fuer Stellen, die ueber die Pause hinweg
+// die Wanduhr messen (Bilder je Sekunde im Ruhezustand).
+Schritt messfenster(double sekunden) {
+    auto bis = std::make_shared<double>(-1.0);
+    return {"Pause (Messfenster, nach der Uhr)", [=](int b) {
+                if (b == 0) { *bis = ImGui::GetTime() + sekunden; }
+                return ImGui::GetTime() >= *bis;
+            }};
+}
+
+// Simulationszeit fuer die Schritte dazwischen (testtempo::g_simZeit): simZeit(true) ... simZeit(false).
+Schritt simZeit(bool an) {
+    return {an ? "Simulationszeit: je Bild hoechstens 1/60 s" : "Simulationszeit: wieder nach der Uhr", [=](int) {
+                testtempo::g_simZeit = an;
+                return true;
             }};
 }
 
@@ -6213,6 +6271,7 @@ void mausFensterMelden(ImVec2 p) {
 void selbsttestVorBild() {
     // TESTTEMPO (rc612): in einer Pause nach Bildern (BHED_TEST_PAUSEN=bild) rueckt die ImGui-Zeit je Bild mindestens 1/20 s vor
     if (testtempo::g_pauseLaeuft) { ImGui::GetIO().DeltaTime = std::max(ImGui::GetIO().DeltaTime, testtempo::kPauseBild); }
+    if (testtempo::g_simZeit && testtempo::simZeitErlaubt()) { ImGui::GetIO().DeltaTime = std::min(ImGui::GetIO().DeltaTime, testtempo::kSimBild); }
     modell1BildAnfang();   // modell1: Bildanfang fuer die Messung
     dock1VorBild();
     if (karteneditor::zeigerSim().an) {   // Stufe 7 Punkt 6c: der simulierte Zeiger (wie Windows)

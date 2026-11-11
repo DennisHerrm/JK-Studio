@@ -126,6 +126,7 @@ Schritt bildVergleich(const std::string& spiel) {
                       if (grenze != nullptr && std::atoi(grenze) > 0 && z->liste.size() > static_cast<std::size_t>(std::atoi(grenze))) {
                           z->liste.resize(static_cast<std::size_t>(std::atoi(grenze)));
                       }
+                      testtempo::anteil(z->liste);   // TESTTEMPO: BHED_TEST_ANTEIL=i/n
                       z->anfang = std::chrono::steady_clock::now();
                       diag::detail("Knopftest: MB1 Bild " + spiel + " - " + std::to_string(z->liste.size()) + " Modelle");
                       return false;

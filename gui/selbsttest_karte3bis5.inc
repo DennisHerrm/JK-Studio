@@ -794,7 +794,12 @@ std::vector<Schritt> maus() {
         e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
     }));
     add(pause(0.3));
+    // TESTTEMPO (rc612): der Schritt haelt M2 13 Bilder - unter Last ueber 300 ms, dann ist es kein kurzer Klick mehr und der
+    // Freelook endet beim Loslassen ("Strg + Maus im Freelook" rot in Laeufen mit Leerlauf-Prioritaet). In Simulationszeit
+    // sind es hoechstens 13/60 s.
+    add(simZeit(true));
     add(maus("kurzer M2: Freelook an", kam(-64, 0, 32), 1, 0));
+    add(simZeit(false));
     add(pause(0.3));
     add({"im Freelook: Strg halten, Maus nach rechts", [](int b) {
              ImGuiIO& io = ImGui::GetIO();
@@ -1361,6 +1366,13 @@ std::string raumKarteOeffnen(const char* name, bool leck) {
     return p.string();
 }
 
+// TESTTEMPO (rc612): die Adresse der Bau-Ueberwachung dieser Instanz, `versatz` Ports weiter. Ohne BHED_BAU_PORT (eigener
+// Bereich fuer Laeufe nebeneinander) ist es NRCs 127.0.0.1:39000 - sonst passt keine der Pruefungen, die sie vergleichen.
+std::string s3Adresse(int versatz) {
+    if (std::getenv("BHED_BAU_PORT") == nullptr && ke::bauMonitorPort() != 39000) { return "nicht 39000"; }
+    return "127.0.0.1:" + std::to_string(ke::bauMonitorPort() + versatz);
+}
+
 std::function<ImVec2()> bauZeile(int liste, int zeile, int spalte = 0) {
     return [liste, zeile, spalte] { return ke::bauDialogZeile(liste, zeile, spalte); };
 }
@@ -1728,20 +1740,24 @@ std::vector<Schritt> baumenue() {
         const std::string spiel = ke::kartenSpielNummer() == kRegelwerkMovieDuels ? "MD" : "base";
         return v.size() == 10 && v.at("RadiantPath") == prog + "/" && v.at("ExecutableType") == "exe" && v.at("MapFile") == karte &&
                karte.size() > 14 && karte.compare(karte.size() - 14, 14, "s3bau/raum.map") == 0 && v.at("BspFile").find("s3bau/raum.bsp") != std::string::npos &&
-               v.at("MapName") == "raum.map" && v.at("MonitorAddress") == "127.0.0.1:39000" && v.at("GameName") == spiel;
+               v.at("MapName") == "raum.map" && v.at("MonitorAddress") == s3Adresse(0) && v.at("GameName") == spiel;
     }));
+    // TESTTEMPO (rc612): der Hinweis steht 666 ms Programmzeit - unter Last sind Klick und Pause laenger (rot neben anderen
+    // Laeufen; die Zwischenablage des Selbsttests ist eine eigene je Prozess, testablage). In Simulationszeit bleibt es bei 0,15 s.
+    add(simZeit(true));
     add(klickAn("[MapFile] anklicken (Spalte 0)", bauZeile(3, 5, 0)));
     add(pause(0.15));
     add(pruefe("Klick auf [MapFile]: \"[MapFile]\" in der Zwischenablage, Tooltip \"Copied to clipboard.\"", [] {
         const char* c = ImGui::GetClipboardText();
         return c != nullptr && std::string(c) == "[MapFile]" && ke::bauDialogStand().kopiertSichtbar;
     }));
+    add(simZeit(false));
     add(pruefe("Werkzeug q3map2 ausgewertet: \"<Programm>/bhed_q3map2.exe\" -v ... -connect 127.0.0.1:39000 -game ja -fs_basepath ... -fs_game base", [] {
         karte::BauVariablen v = ke::bauVariablen();
         karte::bauWerkzeugeAuswerten(ke::editor().bauProjekt, v);
         const std::string& q = v["q3map2"];
         diag::detail("Knopftest: Stufe 3/3 q3map2 = " + q);
-        return q.rfind("\"" + v["RadiantPath"] + "bhed_q3map2.exe\" -v -connect 127.0.0.1:39000 -game ja -fs_basepath \"", 0) == 0 &&
+        return q.rfind("\"" + v["RadiantPath"] + "bhed_q3map2.exe\" -v -connect " + s3Adresse(0) + " -game ja -fs_basepath \"", 0) == 0 &&
                q.find("\" -fs_game " + v["GameName"]) != std::string::npos;
     }));
     add(foto("karteneditor_s3_build_variablen"));
@@ -1955,7 +1971,7 @@ std::vector<Schritt> bauen() {
     add(tu("Port 39000 belegen, Konsole leeren", [horcher] {
         std::string f;
         horcher->push_back(std::make_unique<bauplattform::Horcher>());
-        if (!horcher->back()->lauschen(ke::kBauMonitorPort, f)) { meldeFehler("Port 39000 nicht belegt: " + f); }
+        if (!horcher->back()->lauschen(ke::bauMonitorPort(), f)) { meldeFehler("Port 39000 nicht belegt: " + f); }
         ke::konsoleLeeren();
     }));
     add(bauMenuepunkt("Single: bsp stage"));
@@ -1963,14 +1979,14 @@ std::vector<Schritt> bauen() {
     add(pruefe("Port 39000 belegt: gebaut mit 127.0.0.1:39001, q3map2 verbunden, fertig", [] {
         const std::string k = konsoleText();
         diag::detail("Knopftest: Stufe 3/4 Port: " + k.substr(0, std::min<std::size_t>(k.size(), 600)));
-        return k.find("monitoring on 127.0.0.1:39001") != std::string::npos && k.find("-connect 127.0.0.1:39001 ") != std::string::npos &&
+        return k.find("monitoring on " + s3Adresse(1)) != std::string::npos && k.find("-connect " + s3Adresse(1) + " ") != std::string::npos &&
                k.find("Connected.") != std::string::npos && k.find(fertigZeile("Single: bsp stage", 1)) != std::string::npos &&
                !ke::editor().meldung.offen;
     }));
     // Alle Ports belegt: NRCs Meldung (mit dem Bereich) und der Kasten "Build monitoring"
     add(tu("Ports 39001-39063 auch belegen, Konsole leeren", [horcher] {
         std::string f;
-        for (int p = ke::kBauMonitorPort + 1; p < ke::kBauMonitorPort + ke::kBauMonitorPorts; ++p) {
+        for (int p = ke::bauMonitorPort() + 1; p < ke::bauMonitorPort() + ke::kBauMonitorPorts; ++p) {
             horcher->push_back(std::make_unique<bauplattform::Horcher>());
             if (!horcher->back()->lauschen(p, f)) { meldeFehler("Port " + std::to_string(p) + " nicht belegt: " + f); }
         }
@@ -1980,7 +1996,9 @@ std::vector<Schritt> bauen() {
     add(pause(0.3));
     add(pruefe("Alle Ports belegt: \"Failed to get a listening socket on ports 39000-39063.\" in der Konsole und im Kasten \"Build monitoring\", kein Bauen", [] {
         const ke::Editor& e = ke::editor();
-        return konsoleText().find("Failed to get a listening socket on ports 39000-39063.\nTry running with Build monitoring disabled") != std::string::npos &&
+        return konsoleText().find("Failed to get a listening socket on ports " + std::to_string(ke::bauMonitorPort()) + "-" +
+                                  std::to_string(ke::bauMonitorPort() + ke::kBauMonitorPorts - 1) +
+                                  ".\nTry running with Build monitoring disabled") != std::string::npos &&
                e.meldung.offen && e.meldung.titel == "Build monitoring" && !ke::bauLaeuft();
     }));
     add(klick(std::string(ke::trK(Str::KePrefOk)) + "##meldungok"));
