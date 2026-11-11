@@ -35,6 +35,11 @@ ERLAUBT |= {'bcrypt.dll'}
 # API-Schluessel und das MCP-Token liegen verschluesselt im Einstellungsordner.
 # Gehoert seit Windows 2000 zum System.
 ERLAUBT |= {'crypt32.dll'}
+# vis2 (deterministisches VIS): std::atomic::wait in third_party/q3map2/tools/quake3/q3map2/visflow.cpp
+# (BhedWaitFound) bindet WaitOnAddress und WakeByAddressAll fest - der API-Satz
+# api-ms-win-core-synch-l1-2-0.dll, auf jedem Windows ab 8 vorhanden (JK Studio setzt Windows 10 ab 1903
+# voraus). Der ctest q3map2_importe war seit dem Einbau (c5d848b7c) rot.
+ERLAUBT |= {'api-ms-win-core-synch-l1-2-0.dll'}
 
 
 def imports(path):
