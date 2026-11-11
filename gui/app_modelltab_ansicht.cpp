@@ -2565,42 +2565,10 @@ void drawModellArbeitsflaeche() {
     t.pfadSchluessel = 0;
     modellKlickPruefen();
     modellMalenVorschauAbgleich();   // P19
-    // Die Bereiche (Ansehen/Pruefen, Modellieren, UV, Weights, Painting,
-    // Animation) und die Tasten des Bedienmodus in einer Zeile.
-    drawModellBereiche();
-    ImGui::SameLine(0.0F, ImGui::GetFontSize());
-    ImGui::AlignTextToFramePadding();
-    {
-        // mb1a2: die Tastenzeile so weit, wie Platz ist (ganze Abschnitte zwischen " · "), der Rest im Tooltip - nichts
-        // abgeschnitten
-        // MBNAV: zuerst die Navigation der Ansicht (Maus), dann die Tasten
-        const std::string ganz = std::string(tr(modellBlender() ? Str::MnZeileBlender : Str::MnZeileMax)) + " \xc2\xb7 " +
-                                 tr(modellBlender() ? Str::MbTastenBlender : Str::MbTastenMax);
-        const float frei = ImGui::GetContentRegionAvail().x;
-        std::string zeigen = ganz;
-        if (ImGui::CalcTextSize(ganz.c_str()).x > frei) {
-            const std::string trenner = " \xc2\xb7 ";
-            std::string teil;
-            std::size_t ab = 0;
-            zeigen.clear();
-            while (ab < ganz.size()) {
-                const std::size_t bis = ganz.find(trenner, ab);
-                const std::string stueck = ganz.substr(ab, bis == std::string::npos ? std::string::npos : bis - ab);
-                const std::string probe = (teil.empty() ? stueck : teil + trenner + stueck) + trenner + "...";
-                if (ImGui::CalcTextSize(probe.c_str()).x > frei) { break; }
-                teil = teil.empty() ? stueck : teil + trenner + stueck;
-                if (bis == std::string::npos) { break; }
-                ab = bis + trenner.size();
-            }
-            zeigen = teil + (teil.size() < ganz.size() ? trenner + "..." : std::string());
-        }
-        cjkTextDisabled("%s", zeigen.c_str());
-        if (zeigen != ganz) { ImGui::SetItemTooltip("%s", ganz.c_str()); }
-    }
+    // AP3: die Bereiche und der Hinweis des Bedienmodus stehen in der Kopfzeile des Tabs (drawModellBereiche in gui/app_modelltab_feld.cpp)
     const ImVec2 frei = ImGui::GetContentRegionAvail();
-    const float fs = ImGui::GetFontSize();
-    // Das Befehlsfeld behaelt seine Breite (die Texte passen hinein), die Ansicht nimmt den Rest.
-    const float befehlB = std::max(std::min(fs * 17.0F, frei.x - fs * 8.0F), fs * 8.0F);
+    // Das Befehlsfeld behaelt seine Breite (AP3: mit der Trennkante ziehbar, Vorgabe 22 Zeichenhoehen), die Ansicht nimmt den Rest.
+    const float befehlB = modellFeldBreite(frei.x);
     const float sp = ImGui::GetStyle().ItemSpacing.x;
     // AP1: Dopesheet und Kurveneditor stehen als Spurbereich in der Zeitleiste (app_modelltab_zeit.cpp), nicht mehr hier
     ImVec2 ansichtenG{std::max(frei.x - befehlB - sp, 64.0F), std::max(frei.y, 64.0F)};
@@ -2629,7 +2597,9 @@ void drawModellArbeitsflaeche() {
         eineAnsicht(t.aktiv, ansichtenG, neu);
     }
     ImGui::EndChild();
-    ImGui::SameLine(0.0F, sp);
+    ImGui::SameLine(0.0F, 0.0F);
+    modellFeldTrenner(sp, ansichtenG.y, frei.x);   // AP3: die Trennkante - ziehen aendert die Breite des Felds
+    ImGui::SameLine(0.0F, 0.0F);
     ImGui::BeginChild("mtbefehlsfeld", ImVec2{befehlB, ansichtenG.y}, ImGuiChildFlags_Borders);
     drawModellBefehlsfeld();
     ImGui::EndChild();

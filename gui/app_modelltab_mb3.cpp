@@ -751,10 +751,9 @@ void drawModellAnimationBereich() {
         // Nachtrag shank 06.11.: das Ziel erst beim Bauen waehlen, jederzeit wechselbar - ein klares Feld mit Erklaerung.
         static const Str kZiele[3] = {Str::MbZielKarte, Str::MbZielHumanoid, Str::MbZielEigen};
         static const Str kZielHinweise[3] = {Str::MbZielKarteHint, Str::MbZielHumanoidHint, Str::MbZielEigenHint};
-        ImGui::AlignTextToFramePadding();
-        cjkTextUnformatted(tr(Str::MbZiel));
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(-1.0F);
+        // AP3: Formularzeilen des Bausteins - eine Beschriftungsspalte, alle Felder an derselben Kante (UIFORM: hier stand das
+        // Fehlerbild von "Into script": Beschriftung, SameLine ohne feste Spalte, Feld bis zum Rand)
+        ui::zeile(tr(Str::MbZiel));
         if (ImGui::BeginCombo("##glaziel", tr(kZiele[t.glaZiel]))) {
             for (int z = 0; z < 3; ++z) {
                 if (ImGui::Selectable(tr(kZiele[z]), z == t.glaZiel)) { modellGlaZielSetzen(z); }
@@ -767,18 +766,12 @@ void drawModellAnimationBereich() {
         cjkTextDisabled("%s", tr(kZielHinweise[t.glaZiel]));
         ImGui::PopTextWrapPos();
         if (t.glaZiel == 0) {
-            ImGui::AlignTextToFramePadding();
-            cjkTextUnformatted(tr(Str::MbKgKarte));
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(-1.0F);
+            ui::zeile(tr(Str::MbKgKarte));
             ImGui::InputText("##kgkarte", t.kgKarte, sizeof t.kgKarte);
             ImGui::SetItemTooltip("%s", tr(Str::MbKgKarteHint));
         }
         if (t.glaZiel == 2) {
-            ImGui::AlignTextToFramePadding();
-            cjkTextUnformatted(tr(Str::MbZielEigenName));
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(-1.0F);
+            ui::zeile(tr(Str::MbZielEigenName));
             ImGui::InputText("##kgeigen", t.eigenName, sizeof t.eigenName);
             ImGui::SetItemTooltip("%s", tr(Str::MbZielEigenHint));
         }

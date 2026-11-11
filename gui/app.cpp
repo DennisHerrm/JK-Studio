@@ -3306,6 +3306,17 @@ void drawPrefs() {
         if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), tr(Str::PrefsDifficulty)); }   // H2
         if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::PrefsDifficultyNote)); }
     }
+    {
+        // AP3 R4: der Bedienmodus des Model-Tabs (bis rc611 zwei Knoepfe im rechten Feld des Tabs; auch in seiner Statuszeile,
+        // im Menue der Kopfzeile der Ansicht und in "Alle Aktionen suchen") - wirkt sofort.
+        const char* const modi[2] = {tr(Str::MbWieMax), tr(Str::MbWieBlender)};
+        int m = std::clamp(st.modellBedienung, 0, 1);
+        const std::string name = std::string(tr(Str::ViewModel)) + ": " + tr(Str::MbBedienung) + "###prefsmodellbedienung";
+        ImGui::SetNextItemWidth(w * 0.5F);
+        if (ImGui::Combo(name.c_str(), &m, modi, 2)) { modellBedienungSetzen(m); }
+        if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), "###prefsmodellbedienung"); }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MzModusHint)); }
+    }
 
     ImGui::EndChild();
     ImGui::Dummy(ImVec2{0, ImGui::GetStyle().ItemSpacing.y});
@@ -5467,6 +5478,8 @@ void reiterLeisteMausrad(ImGuiTabBar* leiste) {
 // eigenen Fenstern - im Hauptfenster und in einem eigenen Fenster des Tabs
 // (rc609 T1) dieselbe Funktion, `leftMode` ist der Tab des zeichnenden Fensters.
 void bereichZeichnen(const Layout& l) {
+    // AP3: die Bereiche des Model-Tabs als Reihe ueber die ganze Breite - ueber Explorer, Ansichten und rechtem Feld (Entwurf)
+    if (g_app->leftMode == 2) { drawModellBereiche(); }
     if (g_app->leftMode == 3) {
         drawKartenEditorBereich(l);
     } else if (g_app->leftMode == 4) {
@@ -6510,6 +6523,7 @@ void draw() {
     dock::bildAnfang();
     // UIFORM: die Ueberlaeufe des letzten Bildes in die Mindestgroessen der Fenster (ui_formular.h).
     ui::bildAnfang();
+    ui::rolloutBildAnfang();   // AP3: die Proben des Rollout-Bausteins aus dem letzten Bild (ui_rollout.h)
     // rc609 T1: Tabs in eigenen Fenstern - Loesen, Zurueck und Wechsel ausfuehren,
     // den Fokus bestimmen (tabfenster.h), bevor das erste Fenster zeichnet.
     tabfenster::bildAnfang();

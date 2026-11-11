@@ -305,6 +305,16 @@ void navigationZeilen() {
     ImGui::SetItemTooltip("%s", tr(Str::MkKompassNordHint));
 }
 
+// AP3 R4: der Bedienmodus des Model-Tabs als Untermenue (bis rc611 zwei Knoepfe im rechten Feld).
+void bedienmodusMenue() {
+    if (!ImGui::BeginMenu(tr(Str::MbBedienung))) { return; }
+    const bool blender = modellBlender();
+    if (ImGui::MenuItem(tr(Str::MbWieMax), nullptr, !blender)) { modellBedienungSetzen(0); }
+    if (ImGui::MenuItem(tr(Str::MbWieBlender), nullptr, blender)) { modellBedienungSetzen(1); }
+    ImGui::SetItemTooltip("%s", tr(Str::MzModusHint));
+    ImGui::EndMenu();
+}
+
 // --- 3ds Max: die drei Menues ---------------------------------------------------------------------------------------
 
 void menueAllgemein(int n) {
@@ -342,6 +352,8 @@ void menueAllgemein(int n) {
         sichtfeldZeile();
         ImGui::EndMenu();
     }
+    ImGui::Separator();
+    bedienmodusMenue();   // AP3 R4
 }
 
 struct AnsichtZeile {
@@ -474,6 +486,8 @@ void menueAnsichtBlender(int n) {
         modellNavBlVier();   // MBNAV: Anordnung wie Blender
         geaendert();
     }
+    ImGui::Separator();
+    bedienmodusMenue();   // AP3 R4
 }
 
 void menueOverlays(int n) {

@@ -2598,6 +2598,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_pt.inc: Modell-Block 1c
 namespace ap2 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_ap2.inc: AP2 Szenen-Explorer / Outliner, BHED_HB_NUR=ap2
 }  // namespace ap2
+namespace ap3 {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_ap3.inc: AP3 rechtes Feld des Model-Tabs, BHED_HB_NUR=ap3
+}  // namespace ap3
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2667,6 +2670,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap2") == 0) {
         return ap2::handbuchSchritte();   // AP2: Szenen-Explorer (wie 3ds Max) / Outliner (wie Blender), nach Ebenen
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap3") == 0) {
+        return ap3::handbuchSchritte();   // AP3: das rechte Feld - Befehlsfeld mit Reitern (wie 3ds Max), Eigenschaften (wie Blender)
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste

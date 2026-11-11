@@ -14,13 +14,6 @@ ZEILEN = [
     ("MbAnsichtHinten", "Back", "Hinten", "后", "後", "Atrás", "Zezadu"),
     ("MbAnsichtRechts", "Right", "Rechts", "右", "右", "Derecha", "Zprava"),
     # --- Blender-Belegung ---
-    ("MbTastenBlender",
-     "G/R/S Grab/Rotate/Scale (X/Y/Z, number) · Tab Edit · 1/2/3 Vertex/Edge/Face · Numpad views · Space Play · ←/→ Frame · F3 Search",
-     "G/R/S Greifen/Drehen/Skalieren (X/Y/Z, Zahl) · Tab Bearbeiten · 1/2/3 Ecke/Kante/Fläche · Ziffernblock-Ansichten · Leertaste Abspielen · ←/→ Bild · F3 Suchen",
-     "G/R/S 抓取/旋转/缩放 (X/Y/Z, 数值) · Tab 编辑 · 1/2/3 顶点/边/面 · 小键盘视图 · 空格 播放 · ←/→ 帧 · F3 搜索",
-     "G/R/S 移動/回転/拡大縮小 (X/Y/Z, 数値) · Tab 編集 · 1/2/3 頂点/辺/面 · テンキー視点 · Space 再生 · ←/→ フレーム · F3 検索",
-     "G/R/S Mover/Rotar/Escalar (X/Y/Z, número) · Tab Edición · 1/2/3 Vértice/Arista/Cara · Vistas del teclado numérico · Espacio Reproducir · ←/→ Fotograma · F3 Buscar",
-     "G/R/S Uchopit/Otočit/Měřítko (X/Y/Z, číslo) · Tab Úpravy · 1/2/3 Vrchol/Hrana/Plocha · Pohledy z numerické klávesnice · Mezerník Přehrát · ←/→ Snímek · F3 Hledat"),
     ("MbBlGreifen", "Grab (G)", "Greifen (G)", "抓取 (G)", "移動 (G)", "Mover (G)", "Uchopit (G)"),
     ("MbBlDrehen", "Rotate (R)", "Drehen (R)", "旋转 (R)", "回転 (R)", "Rotar (R)", "Otočit (R)"),
     ("MbBlSkalieren", "Scale (S)", "Skalieren (S)", "缩放 (S)", "拡大縮小 (S)", "Escalar (S)", "Měřítko (S)"),

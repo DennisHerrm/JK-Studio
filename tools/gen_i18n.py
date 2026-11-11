@@ -2344,6 +2344,8 @@ from i18n_vis2 import zeilen_vier as _vis2  # noqa: E402  (VIS2c: Bauen anhalten
 S += _vis2()
 from i18n_gdpfad import zeilen_vier as _gdpfad  # noqa: E402  (GDPFAD: ein eingerichteter Spielordner, den es nicht mehr gibt)
 S += _gdpfad()
+from i18n_ap3 import zeilen_vier as _ap3  # noqa: E402  (AP3: rechtes Feld des Model-Tabs - Befehlsfeld / Eigenschaften mit Reitern)
+S += _ap3()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

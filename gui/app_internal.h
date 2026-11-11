@@ -28,6 +28,7 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "ui_formular.h"   // UIFORM: Fenster ueber ui::fensterBegin/modalBegin (Mindestgroessen), Formular-Baustein
+#include "ui_rollout.h"    // AP3: Rollout-Baustein des rechten Felds (Rahmen mit Reitern, Gruppen, Raster, Werte)
 
 #include "backend.h"
 #include "audio_win32.h"
@@ -3111,6 +3112,9 @@ enum class UiIcon : int {
     // AP2: Szenen-Explorer / Outliner - Status einer Flaeche im Spiel (an, aus; aus ohne Kinder = MbG2Aus), Wurzelflaeche,
     // einfrieren (Schneeflocke wie 3ds Max, Pfeil "waehlbar" wie Blender), Filter, Sequenz abspielen, Start der Sekundaersequenz
     MbFlAn, MbFlAus, MbAnker, MbFrost, MbWaehlbar, MbFilter, MbSeqSpiel, MbStern,
+    // AP3: rechtes Feld - Reiter des Eigenschaften-Editors wie Blender (Werkzeug, Objekt, Modifier-Stapel, Netzdaten, Constraints,
+    // Material) und Knoepfe der Gruppen (neu laden, tauschen)
+    FeldWerkzeug, FeldObjekt, FeldModifier, FeldDaten, FeldConstraints, FeldMaterial, Neuladen, Tauschen,
 };
 void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe);
 // Quadratischer Icon-Knopf; der Text ist Kennung und Tooltip-Titel.

@@ -236,8 +236,9 @@ lauf("updateleiste2", "updateleiste2", 600, behalten="updateleiste", bereich="up
 # Stand a00f6cf90). Kopfzeile/ViewCube (kopfrot, kopf - mit den zwei Zeilen von kopfab am Ende), Boden-Raster, Navigation,
 # Bearbeiten in der Pose, Szenen-Explorer, Auto-Skin, Zeitleiste; der Modus uiform (Formular-Baustein, Mindestgroessen). Die
 # Gruppe numpad des Karten-Editors und die Malgruppe ptsprung stehen schon oben (voller karteneditor-Lauf, mb_ptsprung). Nicht
-# im Pool: Bildlaeufe (rasterfotos, ap1foto, ap2foto, ap12foto, mbefoto) und die Messung ptlang.
-for g in "kopfrot kopf raster nav mbv ap2 ap12 ap1".split():
+# im Pool: Bildlaeufe (rasterfotos, ap1foto, ap2foto, ap12foto, ap3foto, mbefoto) und die Messung ptlang. ap3: Rollout-Baustein und
+# rechtes Feld des Model-Tabs (AP3).
+for g in "kopfrot kopf raster nav mbv ap2 ap12 ap1 ap3".split():
     lauf("mb_" + g, "modellblock", 2400, MB + ["BHED_MODELL_NUR=" + g, "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 lauf("uiform", "uiform", 3600, bereich="programm")
 

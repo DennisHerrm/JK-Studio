@@ -220,7 +220,8 @@ void kopfSchritte(std::vector<Schritt>& s) {
     for (Schritt& x : mb1::laden("models/players/stormtrooper/model.glm")) { add(std::move(x)); }
     add(pause(0.4));
     // --- das rechte Feld: keine Gruppe "Anzeige" mehr, einmal der Hinweis -----------------------------------------
-    add(pruefe("MBKOPF 5: das rechte Feld hat keine Gruppe Anzeige mehr", [] { return finde(tr(Str::MbRAnzeige), "", 0, false, "") == nullptr; }));
+    // AP3: unter den Gruppen des rechten Felds ("mtrollouts") - "Display" heisst seither auch ein Reiter des Befehlsfelds
+    add(pruefe("MBKOPF 5: das rechte Feld hat keine Gruppe Anzeige mehr", [] { return finde(tr(Str::MbRAnzeige), "mtrollouts", 0, false, "") == nullptr; }));
     add(klick(tr(Str::MkVerstanden)));
     add(pause(0.2));
     add(pruefe("MBKOPF 5: der Hinweis auf den neuen Ort ist bestaetigt und weg", [] {

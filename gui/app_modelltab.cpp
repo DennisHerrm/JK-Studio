@@ -75,33 +75,6 @@ void modellFokusAktualisieren() {
 
 namespace {
 
-// Die Stufe des Modell-Blocks, die einen spaeteren Bereich bringt (stufenplan.md).
-const char* bereichStufe(ModellBereich b) {
-    switch (b) {
-        case ModellBereich::Modellieren: break;   // Modell-Block 1d
-        case ModellBereich::Uv: break;   // Modell-Block 1b
-        case ModellBereich::Weights: break;
-        case ModellBereich::Painting: break;   // Modell-Block 1c
-        case ModellBereich::Animation: return "4-7";   // Stufe 2: GLA, animation.cfg, Karten-GLA, Marker; Stufe 3: Rig, Posen, Ghosts, Pfade
-        case ModellBereich::Ansehen: break;
-    }
-    return "";
-}
-
-Str bereichText(int i) {
-    static const Str kTexte[kModellBereiche] = {Str::MbBereichAnsehen, Str::MbBereichModellieren, Str::MbBereichUv,
-                                                Str::MbBereichWeights, Str::MbBereichPainting,    Str::MbBereichAnimation};
-    return kTexte[std::clamp(i, 0, kModellBereiche - 1)];
-}
-
-// Ein Umschaltknopf in der Art der Bereichsreiter (gewaehlt = Knopffarbe "aktiv").
-bool reiterKnopf(const char* text, bool gewaehlt) {
-    if (gewaehlt) { ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)); }
-    const bool k = ImGui::Button(text);
-    if (gewaehlt) { ImGui::PopStyleColor(); }
-    return k;
-}
-
 // Die Stufe "automatisch wie im Spiel" fuer die Perspektive (G2_ComputeLOD).
 int automatischeStufe(const modell::Inhalt& in) {
     const modell::Grenzen& g = modell::grenzen(static_cast<modell::Zielspiel>(mt().zielspiel));
@@ -384,22 +357,7 @@ std::vector<modell::Befund> modellBefunde() {
                                 t.gezeichnet);
 }
 
-// --- Bereiche ------------------------------------------------------------------------------------
-
-void drawModellBereiche() {
-    ModellTab& t = mt();
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{2.0F, ImGui::GetStyle().ItemSpacing.y});
-    for (int i = 0; i < kModellBereiche; ++i) {
-        if (i > 0) { ImGui::SameLine(); }
-        ImGui::PushID(i);
-        if (reiterKnopf(tr(bereichText(i)), static_cast<int>(t.bereich) == i)) {
-            t.bereich = static_cast<ModellBereich>(i);
-            g_app->modelDirty = true;   // mb1a2: Weights zeigt die Farbe des Knochens
-        }
-        ImGui::PopID();
-    }
-    ImGui::PopStyleVar();
-}
+// --- Bereiche: seit AP3 als Reihe in der Kopfzeile des Tabs (gui/app_modelltab_feld.cpp, drawModellBereiche) ---
 
 // --- Szenen-Explorer: seit AP2 in gui/app_modelltab_explorer.cpp (ein Baum mit Sequenzen, Ebenen, Einfrieren) ---
 
@@ -441,15 +399,13 @@ void glaFenster() {
     ImGui::EndPopup();
 }
 
+// AP3: die Gruppen von Ansehen/Pruefen in der Form des Entwurfs (Baustein gui/ui_rollout.h, shank 04.11. Bild 1): Kurzinfo in der
+// Ueberschrift, Werte als Tabelle, Knoepfe im Raster mit Symbol und Taste, Wahl als Segment, Tipp als Kasten. Der Inhalt ist der
+// von rc611; jede Gruppe nennt ihren Reiter im Befehlsfeld (wie 3ds Max) bzw. im Eigenschaften-Editor (wie Blender) - im Reiter,
+// den der Bereich vorgibt (Anzeige bzw. Objekt), stehen wie im Entwurf alle untereinander.
 void rolloutModell() {
     ModellTab& t = mt();
     const modell::Inhalt& in = t.dok.inhalt();
-    cjkTextDisabled("%s", tr(Str::MbDatei));
-    ImGui::SameLine();
-    cjkTextUnformatted(fileName(g_app->modelPath).c_str());
-    cjkTextDisabled("%s", tr(Str::MbGla));
-    ImGui::SameLine();
-    cjkTextUnformatted(g_app->anim.name.empty() ? in.glaPfad.c_str() : g_app->anim.name.c_str());
     int flaechen = 0;
     int dreiecke = 0;
     int ecken = 0;
@@ -459,64 +415,64 @@ void rolloutModell() {
         dreiecke += in.teile[i].stufen[static_cast<std::size_t>(t.lodJetzt)].dreiecke();
         ecken += static_cast<int>(in.teile[i].stufen[static_cast<std::size_t>(t.lodJetzt)].ecken.size());
     }
-    ImGui::PushTextWrapPos(0.0F);
-    cjkTextDisabled(trN(Str::MbZahlen, flaechen, dreiecke, ecken), flaechen, dreiecke, ecken, t.lodJetzt + 1);
-    cjkTextDisabled(trN(Str::MbKnochenZahl, in.knochenZahl, in.stufenZahl), in.knochenZahl, in.stufenZahl);
+    char info[96];
+    std::snprintf(info, sizeof info, trN(Str::MfInfoDreiecke, dreiecke), dreiecke);
+    if (!ui::rolloutBeginn(tr(Str::MbRModell), {.kurzinfo = info, .reiter = modellReiter(MbReiter::Anzeige, MbReiterBl::Daten)})) { return; }
+    std::vector<ui::WertZeile> werte;
+    werte.push_back({tr(Str::MbDatei), fileName(g_app->modelPath), ui::Ton::Normal, g_app->modelPath});
+    werte.push_back({tr(Str::MbGla), g_app->anim.name.empty() ? in.glaPfad : g_app->anim.name, ui::Ton::Normal, {}});
+    werte.push_back({tr(Str::MbXArtFlaechen), std::to_string(flaechen), ui::Ton::Normal, {}});
+    werte.push_back({tr(Str::MfDreiecke), std::to_string(dreiecke), ui::Ton::Normal, {}});
+    werte.push_back({tr(Str::MfEcken), std::to_string(ecken), ui::Ton::Normal, {}});
+    werte.push_back({tr(Str::MbXArtKnochen), std::to_string(in.knochenZahl), ui::Ton::Normal, {}});
+    ui::wertTabelle(werte.data(), static_cast<int>(werte.size()));
     if (!t.auswahl.empty()) {
         const int n = static_cast<int>(t.auswahl.size());
-        cjkTextDisabled(trN(Str::MbAuswahl, n), n);
+        char gewaehlt[96];
+        std::snprintf(gewaehlt, sizeof gewaehlt, trN(Str::MbAuswahl, n), n);
+        ui::absatz(gewaehlt);
     }
-    ImGui::PopTextWrapPos();
-    if (ImGui::Button(tr(Str::MbAndereGla))) { ImGui::OpenPopup("###mtgla"); }
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(Str::MbAndereGlaHint)); }
-    glaFenster();
-    ImGui::SameLine();
-    if (ImGui::Button(tr(Str::MbFoto))) {
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(tr(Str::MbAndereGla), {.icon = UiIcon::Tauschen, .hinweis = tr(Str::MbAndereGlaHint)})) { ImGui::OpenPopup("###mtgla"); }
+    // Alt+R gibt es wie in ModView nur in der Belegung wie 3ds Max
+    if (ui::werkzeugKnopf(tr(Str::MbTexNeu), {.icon = UiIcon::Neuladen, .taste = modellBlender() ? nullptr : "Alt+R"})) { modellTexturenNeuLaden(); }
+    if (ui::werkzeugKnopf(tr(Str::MbFoto), {.icon = UiIcon::Kamera, .hinweis = tr(Str::MbFotoHint)})) {
         const std::string p = platform::saveFileDialog(tr(Str::MbFoto), "Bitmap (*.bmp)|*.bmp", g_app->settings.lastDir,
                                                        fileName(directoryOf(g_app->modelPath)) + ".bmp");
         if (!p.empty()) { (void)modellFotoSpeichern(p, 1920); }
     }
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(Str::MbFotoHint)); }
-    if (ImGui::Button(tr(Str::MbTexNeu))) { modellTexturenNeuLaden(); }
+    ui::rasterEnde();
+    glaFenster();
+    ui::rolloutEnde();
 }
 
 void rolloutLod() {
     ModellTab& t = mt();
     const modell::Inhalt& in = t.dok.inhalt();
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{2.0F, ImGui::GetStyle().ItemSpacing.y});
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{ImGui::GetFontSize() * 0.25F, ImGui::GetStyle().FramePadding.y});
-    if (reiterKnopf(tr(Str::MbLodAuto), t.lodWahl == 0)) { t.lodWahl = 0; }
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
-        ImGui::SetNextWindowSize(ImVec2{ImGui::GetFontSize() * 24.0F, 0.0F});
-        ImGui::SetTooltip("%s", tr(Str::MbLodAutoHint));
-    }
-    // LOD 1-10 wie ModView (F1-F10 dort); nur die vorhandenen sind waehlbar.
-    for (int s = 1; s <= 10; ++s) {
-        ImGui::SameLine();
-        ImGui::PushID(s);   // eigene Kennung: "10" steht auch beim Blickwinkel
-        ImGui::BeginDisabled(s > in.stufenZahl);
-        char n[8];
-        std::snprintf(n, sizeof n, "%d", s);
-        if (reiterKnopf(n, t.lodWahl == s)) { t.lodWahl = s; }
-        ImGui::EndDisabled();
-        ImGui::PopID();
-    }
-    ImGui::PopStyleVar(2);
-    cjkTextDisabled(tr(Str::MbLodJetzt), t.lodJetzt + 1, in.stufenZahl);
+    char info[48];
+    std::snprintf(info, sizeof info, tr(Str::MfInfoLod), t.lodJetzt + 1);
+    if (!ui::rolloutBeginn(tr(Str::MbRLod), {.kurzinfo = info, .reiter = modellReiter(MbReiter::Anzeige, MbReiterBl::Daten)})) { return; }
+    // "Auto" wie im Spiel (G2_ComputeLOD) als Haken, darunter LOD 1-10 wie ModView (F1-F10 dort); nur die vorhandenen sind waehlbar.
+    bool automatisch = t.lodWahl == 0;
+    if (ui::schalter(tr(Str::MbLodAuto), &automatisch, tr(Str::MbLodAutoHint))) { t.lodWahl = automatisch ? 0 : t.lodJetzt + 1; }
+    static const char* const kStufen[10] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
+    // mit "Auto" ist keine Stufe gewaehlt (die gezeichnete steht in der Kurzinfo und in der Zeile darunter); ein Klick stellt sie fest
+    int stufe = t.lodWahl > 0 ? t.lodWahl - 1 : -1;
+    if (ui::segment("##mtlod", kStufen, 10, &stufe, 10, in.stufenZahl)) { t.lodWahl = stufe + 1; }
+    char gezeichnet[96];
+    std::snprintf(gezeichnet, sizeof gezeichnet, tr(Str::MbLodJetzt), t.lodJetzt + 1, in.stufenZahl);
+    ui::absatz(gezeichnet);
     // Picmip wie die Vorschau (r_picmip, Einstellung).
-    ImGui::AlignTextToFramePadding();
-    cjkTextUnformatted(tr(Str::MbPicmip));
-    for (int p = 0; p <= 3; ++p) {
-        ImGui::SameLine();
-        char n[8];
-        std::snprintf(n, sizeof n, "%d##pm", p);
-        if (reiterKnopf(n, g_app->settings.bildPicmip == p) && g_app->settings.bildPicmip != p) {
-            g_app->settings.bildPicmip = p;
-            modellTexturenNeuLaden();
-        }
+    static const char* const kPicmip[4] = {"0##pm", "1##pm", "2##pm", "3##pm"};
+    int picmip = std::clamp(g_app->settings.bildPicmip, 0, 3);
+    ui::zeile(tr(Str::MbPicmip));
+    if (ui::segment("##mtpicmip", kPicmip, 4, &picmip, 4, -1, nullptr, ImGui::GetFontSize() * 8.0F)) {
+        g_app->settings.bildPicmip = picmip;
+        modellTexturenNeuLaden();
     }
     // Die Haeute des Modells ("off" blendet Flaechen aus) und der Flaechenzaehler - AP1 Z20: bis rc611 auch in der Zeitleiste
     modellHautZeile();
+    ui::rolloutEnde();
 }
 
 // MBKOPF: die Gruppe "Anzeige" ist in die Kopfzeile der Ansicht gewandert (shank 10.11.: "weil das sieht da rechts einfach
@@ -535,31 +491,43 @@ void anzeigeUmzugHinweis() {
 
 void rolloutAnbauten() {
     ModellTab& t = mt();
+    char info[16];
+    std::snprintf(info, sizeof info, "%d", static_cast<int>(t.anbauten.size()));
+    if (!ui::rolloutBeginn(tr(Str::MbRAnbauten), {.kurzinfo = t.anbauten.empty() ? nullptr : info, .reiter = modellReiter(MbReiter::Hierarchie, MbReiterBl::Constraints)})) { return; }
     if (t.anbauten.empty()) {
-        ImGui::PushTextWrapPos(0.0F);
-        cjkTextDisabled("%s", tr(Str::MbAnbauKeine));
-        ImGui::PopTextWrapPos();
+        ui::tipp(tr(Str::MbAnbauKeine));
+        ui::rolloutEnde();
         return;
     }
     for (std::size_t i = 0; i < t.anbauten.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
-        if (ImGui::SmallButton(tr(Str::MbLoesen))) {
+        const std::string zeile = fileName(t.anbauten[i].pfad) + " \xe2\x86\x92 " + t.anbauten[i].ziel;
+        const bool loesen = ui::eintrag(zeile.c_str(), tr(Str::MbLoesen));
+        ImGui::PopID();
+        if (loesen) {
             t.anbauten.erase(t.anbauten.begin() + static_cast<std::ptrdiff_t>(i));
             g_app->modelDirty = true;
-            ImGui::PopID();
             break;
         }
-        ImGui::SameLine();
-        cjkText("%s -> %s", fileName(t.anbauten[i].pfad).c_str(), t.anbauten[i].ziel.c_str());
-        ImGui::PopID();
     }
-    if (ImGui::Button(tr(Str::MbAlleLoesen))) { modellAnbautenLoesen(); }
+    if (!t.anbauten.empty() && ui::werkzeugKnopf(tr(Str::MbAlleLoesen), {.icon = UiIcon::Loeschen})) { modellAnbautenLoesen(); }
+    ui::tipp(tr(Str::MfAnbauTipp));
+    ui::rolloutEnde();
 }
 
 void rolloutPruefen() {
     ModellTab& t = mt();
     const modell::Grenzen& g = modell::grenzen(static_cast<modell::Zielspiel>(t.zielspiel));
-    ImGui::SetNextItemWidth(-1.0F);
+    const std::vector<modell::Befund> b = modellBefunde();
+    const int n = static_cast<int>(b.size());
+    char info[64];
+    if (b.empty()) {
+        std::snprintf(info, sizeof info, "%s", tr(Str::MfInfoGut));
+    } else {
+        std::snprintf(info, sizeof info, trN(Str::MfInfoFehler, n), n);
+    }
+    if (!ui::rolloutBeginn(tr(Str::MbRPruefen), {.kurzinfo = info, .ton = b.empty() ? ui::Ton::Gut : ui::Ton::Fehler, .reiter = modellReiter(MbReiter::Dienste, MbReiterBl::Objekt)})) { return; }
+    ui::zeile(tr(Str::MbZielspiel));
     if (ImGui::BeginCombo("##zielspiel", g.name)) {
         for (int s = 0; s < modell::kZielspiele; ++s) {
             if (ImGui::Selectable(modell::grenzen(static_cast<modell::Zielspiel>(s)).name, s == t.zielspiel)) {
@@ -570,14 +538,27 @@ void rolloutPruefen() {
         ImGui::EndCombo();
     }
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(Str::MbZielspiel)); }
-    ImGui::PushTextWrapPos(0.0F);
-    cjkTextDisabled(tr(Str::MbPrGrenzen), g.name, g.eckenJeFlaeche, g.dreieckeJeFlaeche, g.knochenJeFlaeche, g.gewichteJeEcke);
-    cjkTextDisabled(tr(Str::MbPrInstanzen), 1, g.g2Modelle);
-    const std::vector<modell::Befund> b = modellBefunde();
+    // die Grenzen des Zielspiels als Tabelle (bis rc611 ein Satz)
+    char titel[160];
+    std::snprintf(titel, sizeof titel, tr(Str::MfPrGrenzenVon), g.name);
+    ui::absatz(titel);
+    const auto zahl = [](Str form, int wert) {
+        char z[64];
+        std::snprintf(z, sizeof z, tr(form), wert);
+        return std::string(z);
+    };
+    char instanzen[48];
+    std::snprintf(instanzen, sizeof instanzen, "%d / %d", 1, g.g2Modelle);
+    ui::wertTabelle({{tr(Str::MfPrEcken), zahl(Str::MfPrUnter, g.eckenJeFlaeche), ui::Ton::Normal, {}},
+                     {tr(Str::MfPrDreiecke), zahl(Str::MfPrUnter, g.dreieckeJeFlaeche), ui::Ton::Normal, {}},
+                     {tr(Str::MfPrKnochen), zahl(Str::MfPrHoechstens, g.knochenJeFlaeche), ui::Ton::Normal, {}},
+                     {tr(Str::MfPrGewichte), zahl(Str::MfPrHoechstens, g.gewichteJeEcke), ui::Ton::Normal, {}},
+                     {tr(Str::MfPrInstanzen), instanzen, ui::Ton::Normal, {}}});
     if (b.empty()) {
-        cjkText(tr(Str::MbPrOk), g.name);
+        char ok[200];
+        std::snprintf(ok, sizeof ok, tr(Str::MbPrOk), g.name);
+        ui::absatz(ok, ui::Ton::Gut);
     }
-    const ImVec4 warn = ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram);
     for (const modell::Befund& x : b) {
         char z[400];
         switch (x.art) {
@@ -604,51 +585,41 @@ void rolloutPruefen() {
                 std::snprintf(z, sizeof z, tr(Str::MbPrShader), x.name.c_str());
                 break;
         }
-        cjkTextColored(warn, "%s", z);
+        ui::absatz(z, ui::Ton::Warnung);
     }
-    ImGui::PopTextWrapPos();
+    ui::rolloutEnde();
 }
 
 }  // namespace
 
 void drawModellBefehlsfeld() {
     ModellTab& t = mt();
-    ImGui::PushTextWrapPos(0.0F);
-    cjkTextDisabled("%s - %s", tr(Str::MbBefehlsfeld), tr(bereichText(static_cast<int>(t.bereich))));
-    ImGui::PopTextWrapPos();
-    // Bedienmodus: wie 3ds Max (Vorgabe) oder wie Blender (Belegung in 1a-2).
-    ImGui::AlignTextToFramePadding();
-    cjkTextDisabled("%s", tr(Str::MbBedienung));
-    if (reiterKnopf(tr(Str::MbWieMax), g_app->settings.modellBedienung == 0)) { modellBedienungSetzen(0); }
-    ImGui::SameLine(0.0F, 2.0F);
-    if (reiterKnopf(tr(Str::MbWieBlender), g_app->settings.modellBedienung == 1)) { modellBedienungSetzen(1); }
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(Str::MbWieBlenderHint)); }
-    ImGui::Separator();
-    ImGui::BeginChild("mtrollouts", ImVec2{-1.0F, -1.0F});
+    // AP3: der Rahmen - Titelzeile (Befehlsfeld / Eigenschaften | Bereich), die Reiter des Bedienmodus und der rollende
+    // Bereich "mtrollouts" (gui/app_modelltab_feld.cpp). Der Schalter des Bedienmodus steht in der Statuszeile (Klick auf
+    // "wie 3ds Max" / "wie Blender"), im Menue der Kopfzeile der Ansicht und in den Einstellungen.
+    modellFeldBeginn();
     if (t.bereich == ModellBereich::Weights && !g_app->model.empty() && ImGui::CollapsingHeader(tr(Str::MbRGewichte), ImGuiTreeNodeFlags_DefaultOpen)) {
         drawModellGewichte();   // mb1a2
     }
     if (t.bereich == ModellBereich::Uv && !g_app->model.empty()) { drawModellUvBereich(); }   // Modell-Block 1b
     if (t.bereich == ModellBereich::Modellieren) { drawModellMeshBereich(); }   // Modell-Block 1d (auch ohne Modell: Neues Requisit)
     if (t.bereich == ModellBereich::Painting && !g_app->model.empty()) { drawModellMalenBereich(); }   // Modell-Block 1c
-    if (t.bereich != ModellBereich::Ansehen && t.bereich != ModellBereich::Weights && t.bereich != ModellBereich::Animation && t.bereich != ModellBereich::Uv &&
-        t.bereich != ModellBereich::Modellieren && t.bereich != ModellBereich::Painting) {
-        ImGui::PushTextWrapPos(0.0F);
-        cjkTextDisabled(tr(Str::MbBereichSpaeter), bereichStufe(t.bereich));
-        ImGui::PopTextWrapPos();
-        ImGui::Separator();
-    }
     if (t.bereich == ModellBereich::Animation && !g_app->model.empty()) {
         drawModellRigBereich();       // Stufe 3: Rig, Posen, Ghosts, Pfade, Backen
         drawModellKurvenBereich();    // Stufe 3b: Editoren, Reduzieren, Spiegeln, Posen-Bibliothek
         drawModellAnimationBereich();   // Stufe 2
     }
     if (!g_app->model.empty()) {
-        if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRModell), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutModell(); }
-        if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRLod), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutLod(); }
-        anzeigeUmzugHinweis();   // MBKOPF: die Anzeige-Schalter stehen in der Kopfzeile der Ansicht
-        if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRAnbauten), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutAnbauten(); }
-        if (t.bereich == ModellBereich::Ansehen && ImGui::CollapsingHeader(tr(Str::MbRPruefen), ImGuiTreeNodeFlags_DefaultOpen)) { rolloutPruefen(); }
+        if (t.bereich == ModellBereich::Ansehen) {
+            rolloutModell();
+            rolloutLod();
+        }
+        // MBKOPF: die Anzeige-Schalter stehen in der Kopfzeile der Ansicht - der Hinweis darauf nur im Reiter, den der Bereich vorgibt
+        if (ui::feldReiterStandard()) { anzeigeUmzugHinweis(); }
+        if (t.bereich == ModellBereich::Ansehen) {
+            rolloutAnbauten();
+            rolloutPruefen();
+        }
     }
     if (!t.meldung.empty()) {
         ImGui::Separator();
@@ -656,7 +627,7 @@ void drawModellBefehlsfeld() {
         cjkTextDisabled("%s", t.meldung.c_str());
         ImGui::PopTextWrapPos();
     }
-    ImGui::EndChild();
+    modellFeldEnde();
 }
 
 // --- Tasten wie 3ds Max --------------------------------------------------------------------
@@ -961,6 +932,9 @@ const std::vector<ZusatzAktion>& zusatzAktionen() {
         {Str::MbGwUebernehmen, Str::MbGwUebernehmenHint, "", [] { (void)modellUebernehmen(); }, 0},
         {Str::AsAusfuehren, Str::AsAusfuehrenHint, "", [] { (void)modellAutoSkin(); }, 0},   // AP12
         {Str::AsOeffnen, Str::AsOeffnenHint, "", [] { modellAutoSkinOeffnen(); }, 0},
+        // AP3 R4: der Bedienmodus (bis rc611 zwei Knoepfe im rechten Feld; sonst Statuszeile, Kopfzeile der Ansicht, Einstellungen)
+        {Str::MbWieMax, Str::MzModusHint, "", [] { modellBedienungSetzen(0); }, 1},
+        {Str::MbWieBlender, Str::MzModusHint, "", [] { modellBedienungSetzen(1); }, 1},
         {Str::MbAuswahlAusblenden, Str::MbAugeHint, "", [] { modellAuswahlAusblenden(false); }, 1},
         {Str::MbAndereAusblenden, Str::MbAugeHint, "", [] { modellAuswahlAusblenden(true); }, 1},
         {Str::MbAllesEinblenden, Str::MbAugeHint, "", [] { modellAllesEinblenden(); }, 1},

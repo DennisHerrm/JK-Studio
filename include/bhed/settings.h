@@ -292,6 +292,8 @@ struct Settings {
     int modellRasterHaupt = 8;
     int modellRasterAusdehnung = 7;
     bool modellAnzeigeUmzugGesehen = false;
+    // AP3: Breite des rechten Felds des Model-Tabs in Zeichenhoehen (0: Vorgabe 22), mit der Trennkante gezogen
+    float modellFeldBreite = 0.0F;
     // rc609 J: das Fenster "Shader und Flaechen" im Mission-Tab und im Karten-Editor
     bool lumpEditOffen = false;
     bool lumpEditKarteOffen = false;

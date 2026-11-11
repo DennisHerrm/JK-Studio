@@ -3112,6 +3112,8 @@ from i18n_vis2 import texte as _vis2  # noqa: E402
 TEXTE.update(_vis2("es"))
 from i18n_gdpfad import texte as _gdpfad  # noqa: E402
 TEXTE.update(_gdpfad("es"))
+from i18n_ap3 import texte as _ap3  # noqa: E402
+TEXTE.update(_ap3("es"))
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch
 # wie in NRC (das nur Englisch kennt) - so passen die JKHub-Tutorials auch auf

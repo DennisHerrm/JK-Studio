@@ -35,7 +35,7 @@ SELBSTTEST = (
     (("vorschau", "mission1", "teil", "geschuetze", "zeitleiste", "weg", "kampfpunkte", "deckung", "enttext", "dateiort", "modellsetzen", "leistung"),
      "vorschau"),
     # zusammengefuehrter Stand rc612: die Selbsttests der Zweige neben TESTTEMPO (mbkopf, mbraster, mbnav, mbv, mbefoto beginnen mit "mb")
-    (("ap1", "ap2", "ap12"), "modell"),
+    (("ap1", "ap2", "ap12", "ap3"), "modell"),
     ("numpad", "karteneditor"),
     ("uiform", "programm"),
     ("gdpfad", "programm"),   # GDPFAD: das Programm ohne den eingerichteten Spielordner (Lauf spielordnerfehlt)
@@ -55,6 +55,7 @@ REGELN: tuple[tuple[str, tuple[str, ...] | None], ...] = (
     ("gui/app_menue.cpp", ("menue",)), ("gui/menueeditor.h", ("menue",)), ("gui/videoimport*", ("menue",)), ("src/menue/*", ("menue",)),
     ("include/bhed/menue/*", ("menue",)),
     ("gui/app_modelltab*", ("modell",)), ("gui/modelltab.h", ("modell",)), ("gui/wof/*", ("modell",)), ("src/modell/*", ("modell",)),
+    ("gui/ui_rollout.*", ("modell",)),                 # AP3: der Rollout-Baustein - benutzt vom rechten Feld des Model-Tabs
     ("include/bhed/modell/*", ("modell",)),
     ("gui/fenster_dock.*", ("dock",)), ("gui/dockvorgabe.*", ("dock",)), ("gui/tabfenster.*", ("dock",)),
     ("gui/update*", ("update",)), ("src/update*", ("update",)), ("src/umzug.cpp", ("update",)),

@@ -1318,5 +1318,49 @@ void drawModellSpurbereich(ImVec2 groesse);
 void modellCfgAbgleich();   // app_modelltab_mb3.cpp: die animation.cfg im Dokument zur geladenen GLA (je Bild, aus der Leiste)
 [[nodiscard]] std::vector<int> modellKvSchluesselBilder();   // Bilder mit Schluesseln der gezeigten Knochen (aufsteigend)
 
+// --- AP3 (MBENTWURF Teil B, 11.11.): das rechte Feld als Befehlsfeld (wie 3ds Max) bzw. Eigenschaften-Editor (wie Blender)
+// mit Reitern, die Kopfzeile des Tabs mit den Bereichen (gui/app_modelltab_feld.cpp). Der Baustein fuer Rahmen und Gruppen
+// steht in gui/ui_rollout.h - jede Gruppe des rechten Felds beginnt mit ui::rolloutBeginn(titel, {...}) und nennt ueber
+// modellReiter(), in welchem Reiter sie steht.
+// Die Reiter in ihrer Reihenfolge: wie 3ds Max (Create, Modify, Hierarchy, Motion, Display, Utilities) und wie Blender
+// (Tool, Object, Modifiers, Data, Bone, Constraints, Material).
+enum class MbReiter : int { Erstellen = 0, Aendern, Hierarchie, Bewegung, Anzeige, Dienste, Zahl };
+enum class MbReiterBl : int { Werkzeug = 0, Objekt, Modifier, Daten, Knochen, Constraints, Material, Zahl };
+// Fuer ui::RolloutOpt::reiter: der Reiter einer Gruppe im laufenden Bedienmodus. auchStandard: zusaetzlich im Reiter, den der
+// Bereich vorgibt (dort zeigt der Entwurf alle Gruppen des Bereichs untereinander). Mehrere Reiter: mit | verbinden.
+//   ui::rolloutBeginn(tr(Str::MbRAnbauten), {.reiter = modellReiter(MbReiter::Hierarchie, MbReiterBl::Constraints)})
+[[nodiscard]] unsigned modellReiter(MbReiter max, MbReiterBl blender, bool auchStandard = true);
+// Der Reiter, den ein Bereich vorgibt (Entwurf: Ansehen/Pruefen -> Anzeige bzw. Objekt, Animation -> Bewegung bzw. Knochen,
+// Modellieren -> Aendern bzw. Modifier, UV und Weights -> Aendern bzw. Daten, Painting -> Aendern bzw. Werkzeug).
+[[nodiscard]] MbReiter modellReiterStandard(ModellBereich b);
+[[nodiscard]] MbReiterBl modellReiterStandardBl(ModellBereich b);
+struct ModellFeld {
+    int reiter = -1;            // der gewaehlte Reiter des laufenden Bereichs und Bedienmodus (-1: der vorgegebene)
+    int bereich = -1;           // fuer welchen Bereich und Bedienmodus er gilt (ein Wechsel waehlt wieder den vorgegebenen)
+    bool blender = false;
+    // Selbsttest: was im letzten Bild gezeichnet wurde
+    float trennerVon = 0.0F;    // die Trennkante zwischen Ansichten und Feld (x von..bis)
+    float trennerBis = 0.0F;
+    float kopfVon = 0.0F;       // die Reihe der Bereiche in der Kopfzeile des Tabs (x von..bis, y oben, Breite eines Felds)
+    float kopfBis = 0.0F;
+    float kopfY = 0.0F;
+    float kopfFeld = 0.0F;
+    int kopfBild = -1;          // ImGui-Bild, in dem die Kopfzeile gezeichnet wurde
+    std::string tippText;       // der Hinweis neben den Bereichen: ganz und wie gezeigt (gekuerzt: der Rest im Tooltip)
+    std::string tippGezeigt;
+};
+[[nodiscard]] ModellFeld& modellFeld();
+// Einen Reiter des rechten Felds waehlen (Aktionssuche, Selbsttest); gilt, solange Bereich und Bedienmodus bleiben.
+void modellFeldReiter(MbReiter max, MbReiterBl blender);
+// Rahmen des rechten Felds: Titelzeile, Reiter des Bedienmodus, rollender Bereich "mtrollouts" (drawModellBefehlsfeld).
+void modellFeldBeginn();
+void modellFeldEnde();
+// Die Breite des Felds in Bildpunkten bei `frei` Bildpunkten fuer Ansichten und Feld (Einstellung modellFeldBreite, Vorgabe 22
+// Zeichenhoehen) und die Trennkante links davon (ziehen aendert die Breite, Doppelklick stellt die Vorgabe her).
+[[nodiscard]] float modellFeldBreite(float frei);
+void modellFeldTrenner(float breite, float hoehe, float frei);
+// drawModellBereiche() (oben deklariert) zeichnet seit AP3 die Kopfzeile des Model-Tabs ueber Explorer, Ansichten und rechtem
+// Feld: die Bereiche als Reihe gleich breiter Felder und der Hinweis des Bedienmodus fuer den Bereich (app.cpp bereichZeichnen).
+
 }  // namespace bhed::gui
 #endif

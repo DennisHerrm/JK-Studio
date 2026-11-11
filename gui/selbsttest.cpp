@@ -6023,6 +6023,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_ap2.inc"        // AP0+AP2: Tooltip der Modusleiste, Szenen-Explorer / Outliner (modellblock, BHED_MODELL_NUR=ap2|ap2foto)
 #include "selbsttest_ap12.inc"       // AP12: Auto-Skin, Kern (modellblock, BHED_MODELL_NUR=ap12|ap12foto)
 #include "selbsttest_ap1.inc"        // AP1: Zeitleiste des Model-Tabs nach dem Entwurf (modellblock, BHED_MODELL_NUR=ap1 / ap1foto)
+#include "selbsttest_ap3.inc"        // AP3: Rollout-Baustein und Rahmen des rechten Felds (modellblock, BHED_MODELL_NUR=ap3 / ap3foto)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
@@ -7034,6 +7035,7 @@ void selbsttest() {
                     for (Schritt& x : ap2::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP0+AP2 (Szenen-Explorer)
                     for (Schritt& x : ap12::schritte(nur)) { a.schritte.push_back(std::move(x)); }      // AP12 (Auto-Skin)
                     for (Schritt& x : ap1::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP1 (Zeitleiste)
+                    for (Schritt& x : ap3::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP3 (rechtes Feld)
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

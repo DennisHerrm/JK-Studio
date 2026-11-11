@@ -147,6 +147,14 @@ ImVec4 uiIconFarbe(UiIcon icon) {
         case UiIcon::MbFilter: c = ImVec4{0.80F, 0.82F, 0.86F, 1.0F}; break;
         case UiIcon::MbSeqSpiel: c = ImVec4{1.00F, 0.78F, 0.30F, 1.0F}; break;    // bernstein wie die Animation
         case UiIcon::MbStern: c = ImVec4{1.00F, 0.78F, 0.30F, 1.0F}; break;
+        // AP3: rechtes Feld
+        case UiIcon::FeldObjekt: c = ImVec4{1.00F, 0.62F, 0.30F, 1.0F}; break;        // orange
+        case UiIcon::FeldModifier: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;      // blau
+        case UiIcon::FeldDaten: c = ImVec4{0.42F, 0.85F, 0.45F, 1.0F}; break;         // gruen
+        case UiIcon::FeldConstraints: c = ImVec4{0.36F, 0.82F, 0.95F, 1.0F}; break;   // cyan
+        case UiIcon::FeldMaterial: c = ImVec4{0.95F, 0.45F, 0.50F, 1.0F}; break;      // rot
+        case UiIcon::Neuladen: c = ImVec4{0.42F, 0.85F, 0.45F, 1.0F}; break;
+        case UiIcon::Tauschen: c = ImVec4{0.98F, 0.75F, 0.30F, 1.0F}; break;
 
         default: break;
     }
@@ -629,6 +637,48 @@ void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe)
             dl->AddPolyline(v.data(), static_cast<int>(v.size()), farbe, ImDrawFlags_Closed, z.w);
             break;
         }
+        // --- AP3: rechtes Feld -----------------------------------------------------------------------
+        case UiIcon::FeldWerkzeug:   // Schraubenschluessel: offenes Maul oben rechts, Griff nach unten links
+            z.bogen(11.0F, 5.0F, 3.2F, 0.0F, 4.7F);
+            z.linie(8.7F, 7.3F, 3.0F, 13.0F);
+            z.punkt(3.0F, 13.0F, 0.9F);
+            break;
+        case UiIcon::FeldObjekt:   // Objekt: Rahmen mit vier Eckpunkten
+            z.rahmen(4.0F, 4.0F, 12.0F, 12.0F, 0.5F);
+            z.punkt(4.0F, 4.0F, 1.5F);
+            z.punkt(12.0F, 4.0F, 1.5F);
+            z.punkt(4.0F, 12.0F, 1.5F);
+            z.punkt(12.0F, 12.0F, 1.5F);
+            break;
+        case UiIcon::FeldModifier:   // Modifier-Stapel: drei Lagen
+            z.rahmen(2.5F, 2.5F, 13.5F, 5.5F, 1.0F);
+            z.rahmen(2.5F, 6.5F, 13.5F, 9.5F, 1.0F);
+            z.rahmen(2.5F, 10.5F, 13.5F, 13.5F, 1.0F);
+            break;
+        case UiIcon::FeldDaten:   // Netzdaten: Dreieck mit seinen drei Ecken
+            z.zug({ImVec2{8.0F, 3.0F}, ImVec2{13.0F, 12.5F}, ImVec2{3.0F, 12.5F}}, true);
+            z.punkt(8.0F, 3.0F, 1.7F);
+            z.punkt(13.0F, 12.5F, 1.7F);
+            z.punkt(3.0F, 12.5F, 1.7F);
+            break;
+        case UiIcon::FeldConstraints:   // Bindung: zwei Kettenglieder
+            z.kreis(5.8F, 8.0F, 3.4F);
+            z.kreis(10.2F, 8.0F, 3.4F);
+            break;
+        case UiIcon::FeldMaterial:   // Material: Kugel mit Glanzlicht
+            z.kreis(8.0F, 8.0F, 5.6F);
+            z.bogen(8.0F, 8.0F, 3.2F, kPi, kPi * 1.5F);
+            break;
+        case UiIcon::Neuladen:   // neu laden: offener Kreis mit Pfeilspitze
+            z.bogen(8.0F, 8.0F, 5.0F, 0.9F, 6.0F);
+            z.spitze(12.8F, 6.6F, 0.28F, 0.96F, 2.8F);
+            break;
+        case UiIcon::Tauschen:   // tauschen: zwei Pfeile gegeneinander
+            z.linie(3.0F, 5.5F, 13.0F, 5.5F);
+            z.spitze(13.0F, 5.5F, 1.0F, 0.0F);
+            z.linie(13.0F, 10.5F, 3.0F, 10.5F);
+            z.spitze(3.0F, 10.5F, -1.0F, 0.0F);
+            break;
     }
 }
 

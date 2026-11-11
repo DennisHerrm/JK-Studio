@@ -780,9 +780,14 @@ std::vector<Schritt> funktionenSchritte() {
     add(pause(0.2));
     add(pruefe("MB1 Ansichten: Alt+W - wieder eine", [] { return !g_app->mtab.vierAnsichten; }));
     // --- Bedienmodus --------------------------------------------------------------------
-    add(klick(tr(Str::MbWieBlender), "###main"));
+    // AP3: der Schalter steht nicht mehr im rechten Feld - Klick auf den Bedienmodus in der Statuszeile, Wahl im Menue
+    add(klick("##mzmodus"));
+    add(pause(0.3));
+    add(klick(tr(Str::MbWieBlender)));
     add(pruefe("MB1 Bedienmodus: wie Blender gewaehlt (Einstellung)", [] { return g_app->settings.modellBedienung == 1; }));
-    add(klick(tr(Str::MbWieMax), "###main"));
+    add(klick("##mzmodus"));
+    add(pause(0.3));
+    add(klick(tr(Str::MbWieMax)));
     add(pruefe("MB1 Bedienmodus: wieder wie 3ds Max", [] { return g_app->settings.modellBedienung == 0; }));
     add(tu("MB1: zurueck", [] {
         g_app->leftMode = 1;

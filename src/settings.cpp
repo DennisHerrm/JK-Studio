@@ -187,6 +187,7 @@ std::string writeSettings(const Settings& s) {
     put(o, "modelGridMajor", std::to_string(s.modellRasterHaupt));
     put(o, "modelGridExtent", std::to_string(s.modellRasterAusdehnung));
     put(o, "modelDisplayMovedSeen", s.modellAnzeigeUmzugGesehen);
+    put(o, "modelPanelWidth", std::to_string(s.modellFeldBreite));   // AP3
     put(o, "lumpEditOffen", s.lumpEditOffen);
     put(o, "lumpEditKarteOffen", s.lumpEditKarteOffen);
     put(o, "texListeOffen", s.texListeOffen);
@@ -366,6 +367,10 @@ bool readSettings(const std::string& text, Settings& out) {
         else if (key == "modelGridMajor") { out.modellRasterHaupt = std::clamp(std::atoi(value.c_str()), 2, 100); }
         else if (key == "modelGridExtent") { out.modellRasterAusdehnung = std::clamp(std::atoi(value.c_str()), 1, 1000); }
         else if (key == "modelDisplayMovedSeen") { out.modellAnzeigeUmzugGesehen = toBool(value); }
+        else if (key == "modelPanelWidth") {   // AP3: 0 = Vorgabe, sonst 12..44 Zeichenhoehen
+            const float v = static_cast<float>(std::atof(value.c_str()));
+            out.modellFeldBreite = v <= 0.0F ? 0.0F : std::clamp(v, 12.0F, 44.0F);
+        }
         else if (key == "lumpEditOffen") { out.lumpEditOffen = toBool(value); }
         else if (key == "lumpEditKarteOffen") { out.lumpEditKarteOffen = toBool(value); }
         else if (key == "texListeOffen") { out.texListeOffen = toBool(value); }
