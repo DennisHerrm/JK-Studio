@@ -5768,6 +5768,7 @@ enum class Str {
     MnBlOrbitAuswahlHint,
     MnBlZoomMaus,
     MnBlZoomMausHint,
+    MbvEntartet,
     Count,
 };
 
