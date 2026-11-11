@@ -24,7 +24,7 @@ Wanduhr, nachgewiesen gleiche Pruefzeilen). Wird ein solcher Lauf rot, wiederhol
 nach der Wanduhr; es zaehlt die Wiederholung, und die Zeile nennt, was nur nach Bildern rot war.
 
 Die Orte der Testdaten dieses Rechners stehen unter ORTE und lassen sich per Umgebungsvariable
-aendern (TR_SP, TR_S6, TR_TESTDATEN, TR_STEAM, TR_BELEGE, TR_CFG).
+aendern (TR_SP, TR_S6, TR_TESTDATEN, TR_GROSS, TR_STEAM, TR_BELEGE, TR_CFG).
 """
 
 from __future__ import annotations
@@ -45,7 +45,13 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # --- ORTE -------------------------------------------------------------------------------------------------
 SP = os.environ.get("TR_SP", r"Y:\werkzeuge\sp_af9c")              # Einstellungen, dekompilierte Karten
 S6 = os.environ.get("TR_S6", r"Y:\werkzeuge\sp_654neu")            # Daten des Modell-Blocks
-TESTDATEN = os.environ.get("TR_TESTDATEN", r"Y:\karte\laeufe\testdaten")
+# Feste Orte ausserhalb der Laufordner (bis 11.11. lag TESTDATEN unter Y:\karte\laeufe und ging beim Aufraeumen der
+# Laufordner verloren; Herkunft und Pruefsummen: Y:\werkzeuge\testdaten_HERKUNFT.md).
+#   TESTDATEN  zz_JediTempleGarden_MD.pk3 (BHED_WE_PK3: wegerzeugung, we_taspir1, we_t1d, deckung, kampfpunkte, wegmalen -
+#              der Ordner wird dort Spielordner, deshalb liegt sonst nichts darin) und bm_duel1.map (kemd)
+#   GROSS_ORT  q3\duel_mos_espa.map und bsp\duel_mos_espa.bsp: die grosse Karte des vollen karteneditor-Laufs
+TESTDATEN = os.environ.get("TR_TESTDATEN", r"Y:\werkzeuge\testdaten")
+GROSS_ORT = os.environ.get("TR_GROSS", r"Y:\werkzeuge\testdaten_gross")
 STEAM = os.environ.get("TR_STEAM", r"C:\Program Files (x86)\Steam\steamapps\common")
 BELEGE = os.environ.get("TR_BELEGE", r"C:\Users\shank\Downloads\behaved-1_0_0-rc567\JKStudio_Uebergabe\plaene\modellblock_stufe0\belege")
 CFG = os.environ.get("TR_CFG", os.path.join(SP, "behaved.cfg.sicher"))
@@ -84,8 +90,8 @@ def lauf(name: str, modus: str, sek: int = 2400, var: tuple | list = (), **mehr)
     LAEUFE.append(dict(name=name, modus=modus, sek=sek, var=list(var), **mehr))
 
 
-GROSS = ["BHED_FOTOS=<FOTOS>", "BHED_KARTE_GROSS=" + SP + r"\karte_dekomp\md\q3\duel_mos_espa.map",
-         "BHED_KARTE_GROSS_BSP=" + SP + r"\karte_dekomp\md\bsp\duel_mos_espa.bsp"]
+GROSS = ["BHED_FOTOS=<FOTOS>", "BHED_KARTE_GROSS=" + os.path.join(GROSS_ORT, "q3", "duel_mos_espa.map"),
+         "BHED_KARTE_GROSS_BSP=" + os.path.join(GROSS_ORT, "bsp", "duel_mos_espa.bsp")]
 MISSION = ["BHED_MISSION_ARCHIV=" + os.path.join(MD, "MD", "MD_Missions_Ep3.pk3"), "BHED_MISSION_NAME=md_am_sith"]
 MB = ["BHED_RT_GLA=" + S6 + r"\rt\gla", "BHED_MB_BELEGE=" + BELEGE, "BHED_MB7_BSP=" + S6 + r"\mb7\karte\mb7raum.bsp"]
 
