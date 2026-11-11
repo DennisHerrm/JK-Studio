@@ -33,6 +33,10 @@ SELBSTTEST = (
     (("programm", "werkzeuge", "pruefung3"), "programm"),
     (("vorschau", "mission1", "teil", "geschuetze", "zeitleiste", "weg", "kampfpunkte", "deckung", "enttext", "dateiort", "modellsetzen", "leistung"),
      "vorschau"),
+    # zusammengefuehrter Stand rc612: die Selbsttests der Zweige neben TESTTEMPO (mbkopf, mbraster, mbnav, mbv, mbefoto beginnen mit "mb")
+    (("ap1", "ap2", "ap12"), "modell"),
+    ("numpad", "karteneditor"),
+    ("uiform", "programm"),
 )
 
 # Muster (fnmatch auf den Pfad mit /) -> Bereiche; die erste passende Regel gilt. () = kein Selbsttest noetig.

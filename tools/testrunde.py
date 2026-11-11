@@ -181,6 +181,15 @@ lauf("dock1neustart", "dock1neustart", 1500, behalten="dock1", bereich="dock")
 lauf("tabfensterneustart", "tabfensterneustart", 1500, behalten="tabfenster", bereich="dock")
 lauf("updateleiste2", "updateleiste2", 600, behalten="updateleiste", bereich="update")
 
+# Zusammengefuehrter Stand rc612: die Gruppen und Modi der Zweige, die neben TESTTEMPO entstanden (dessen Tabelle kennt den
+# Stand a00f6cf90). Kopfzeile/ViewCube (kopfrot, kopf - mit den zwei Zeilen von kopfab am Ende), Boden-Raster, Navigation,
+# Bearbeiten in der Pose, Szenen-Explorer, Auto-Skin, Zeitleiste; der Modus uiform (Formular-Baustein, Mindestgroessen). Die
+# Gruppe numpad des Karten-Editors und die Malgruppe ptsprung stehen schon oben (voller karteneditor-Lauf, mb_ptsprung). Nicht
+# im Pool: Bildlaeufe (rasterfotos, ap1foto, ap2foto, ap12foto, mbefoto) und die Messung ptlang.
+for g in "kopfrot kopf raster nav mbv ap2 ap12 ap1".split():
+    lauf("mb_" + g, "modellblock", 2400, MB + ["BHED_MODELL_NUR=" + g, "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
+lauf("uiform", "uiform", 3600, bereich="programm")
+
 # Nicht im Pool: eigene Vorbereitung, Messungen (allein und mit BHED_D3D_DEBUG=0), Bildlaeufe fuer das Handbuch
 lauf("update", "update", 1500, allein="braucht den lokalen Update-Server (tools/karte/updater_uebergang.py, ctest updater_uebergang)", bereich="update")
 lauf("umzug", "umzug", 600, allein="braucht einen vorbereiteten %APPDATA%-Ersatz (zwei Starts)", bereich="update")
