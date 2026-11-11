@@ -1,4 +1,4 @@
-# Notizen vis2 / vis2b (10.11.): VIS – deterministisch schneller, Anhalten und Fortsetzen (q3map2-Seite)
+# Notizen vis2 / vis2b / vis2c (10./11.11.): VIS – deterministisch schneller, Bauen anhalten und fortsetzen (q3map2 und Karten-Editor)
 
 Aufträge `auftrag_vis2_1011.md` und `auftrag_vis2b_1011.md`. Worktree `Y:\p_vis2`, Zweig `p_vis2` ab a00f6cf90, Bau
 `Y:/p_vis2/build`. Werkzeuge, Karten, Läufe und Messfassungen: `Y:\werkzeuge\vis2` (Inhalt in `UEBERGABE.md` dort).
@@ -13,7 +13,7 @@ Bezug für „gleich“ ist überall das Ergebnis von `-threads 1` (alle Lumps o
 
 Der deterministische VIS (`-bhedvisexact`) ist auf offenen Karten 1,4- bis 2-mal so schnell wie vorher, erreicht die
 heutige Vorgabe (NRCs Regel) aber nicht – **die Vorgabe bleibt NRCs Regel**; `-vis` lässt sich in beiden Regeln
-anhalten und fortsetzen (q3map2-Seite fertig und im ctest), die Editor-Seite ist nicht begonnen.
+anhalten und fortsetzen (q3map2-Seite fertig und im ctest); **der Karten-Editor hält einen Bau an und setzt ihn fort** (vis2c, Abschnitt 8): [Bauen anhalten] im Baufortschritt, Build > Bauen fortsetzen... mit „Aktuelle Karte“ / „Karte wie angehalten“, und ein beendeter Licht-Schritt behält die fertigen Durchgänge seines Licht-Caches.
 
 ## 1. Was die Läufe der heutigen Vorgabe unterscheidet (vis2b Punkt 1)
 
@@ -140,8 +140,16 @@ anhalten und fortsetzen (q3map2-Seite fertig und im ctest), die Editor-Seite ist
 - Geändert gegenüber dem Vorgänger: Zwischenstand auch ohne `-bhedvisexact`; die Stoppdatei wird beim Start nicht mehr
   gelöscht (ein Anhalten, während q3map2 noch lädt, ging sonst verloren – der Aufrufer räumt alte Stoppdateien weg);
   der Stand wird nicht mehr als Abbild im Speicher aufgebaut.
-- Licht (nicht angefasst, LCB2b): der Licht-Cache dient beim Fortsetzen als Zwischenstand (`-bhedlightcache`); ob er
-  mitten im Licht-Schritt schon Teile sichert, ist nicht geprüft.
+- Licht (nicht angefasst, LCB2b): der Licht-Cache dient beim Fortsetzen als Zwischenstand (`-bhedlightcache`).
+  Geprüft am 10.11. (vis2c, `Y:\werkzeuge\vis2\skripte\lichtabbruch.py`, zweiraum.map, `-light -super 4 -samples 8 -threads 2
+  -bounce 4 -bhedlightcache`, Prozess beendet, sobald Durchgang 2 von 5 geschrieben gemeldet ist): **mitten im Licht-Schritt
+  beendet bleibt heute nichts erhalten.** Es liegt nur `zweiraum.bhedlight.neu` da (19,9 MB, 2 Abschnitte begonnen, 1
+  vollständig – das Ende des zweiten hängt noch im Schreibpuffer), kein `zweiraum.bhedlight`; der nächste Lauf meldet „light
+  cache not usable: no cache yet - everything is traced“ (0 von 90 Lightmaps aus dem Cache) und überschreibt die `.neu`.
+  Innerhalb eines Durchgangs sichert der Cache nichts (ein Abschnitt je Durchgang, am Durchgangsende geschrieben). Ohne Eingriff
+  in die Licht-Rechnung ließen sich die fertigen Durchgänge retten: `fflush` nach jedem Abschnitt (eine Zeile in
+  `bhed_lichtcache.cpp`) und der Editor benennt beim Anhalten die `.neu` zum Cache des angehaltenen Baus um (der Leser nimmt
+  Caches mit weniger Durchgängen und verwirft einen abgeschnittenen letzten Abschnitt selbst) – gebaut in vis2c, Abschnitt 8.
 
 ## 6. Tests
 
@@ -164,11 +172,9 @@ anhalten und fortsetzen (q3map2-Seite fertig und im ctest), die Editor-Seite ist
 
 ## 7. Offen
 
-- **Editor-Seite ganz** (vis2 Punkte 3 und 4): [Anhalten] im Baufortschritt (im VIS-Schritt Stoppdatei und auf Rückgabe 3
-  warten – `bauSchritt()` läuft heute nach jeder Rückgabe weiter –, sonst Prozess beenden), Kopie der .map und der
-  Zwischenstände, Build > Fortsetzen mit „aktuelle Karte / alte Karte“, Anzeige „aus Zwischenstand fortgesetzt“ und
-  Restzeit (die Zeile „vis resumed … x % of the work“ auswerten; der Pacifier beginnt dann bei x %), 6 Sprachen,
-  Handbuch mit Bildern, Selbsttest, ctest mit Anhalten mitten im Licht. Entwurf und Fundstellen: `UEBERGABE.md`.
+- Editor-Seite: erledigt in vis2c (Abschnitt 8). Dort offen: der Satz „duel_mos_espa: 5 instead of 1.5 minutes“ im Tooltip von
+  „Same VIS in every build“ und im Handbuch (bewusst nicht angefasst – nach der Messrunde im Ruhefenster); Licht-Fortsetzen
+  innerhalb eines Durchgangs und das Zusammenführen von altem und gerettetem Cache (Schnittstelle für LCB2, Abschnitt 8).
 - Endgültige Messtabelle im Ruhefenster: `sh /y/werkzeuge/vis2/messung_final.sh` (etwa 25 min) → `messung_final.txt`.
 - Vorgabe: bleibt NRCs Regel. Soll der deterministische VIS Vorgabe werden, entscheidet shank mit der Tabelle aus dem
   Ruhefenster (Preis: auf offenen Karten etwa das 1,1- bis 1,7-fache der VIS-Zeit; Gewinn: gleiche .bsp bei jedem Bau,
@@ -177,34 +183,194 @@ anhalten und fortsetzen (q3map2-Seite fertig und im ctest), die Editor-Seite ist
   ein dünnes Format (nur Wörter ≠ 0) fehlt.
 - md_fh1_jedi im Kartensatz ungeprüft; kejim_post, taspir1, mb2_manaan mit dem neuen Pool nicht gelaufen.
 
+## 8. Editor-Seite: Bauen anhalten und fortsetzen (vis2c, 11.11.)
+
+Auftrag `auftrag_vis2c_1011.md`, Abschnitt VIS2c. An `vis.cpp`/`visflow.*`/`threads.cpp` ist nichts geändert (dort arbeitet VIS2s).
+
+### Was der Editor jetzt tut
+
+- **[Bauen anhalten]** im Fenster Baufortschritt (neben [Bauen abbrechen]), per Rechtsklick in diesem Fenster und als
+  Build > Bauen anhalten; **Build > Bauen fortsetzen...** öffnet das Fenster „Bauen fortsetzen“ (Eintrag, Schritt, Datum,
+  fertige Portale bzw. Licht-Durchgänge, Größe und Ort des Zwischenstands, „Karte geändert?“, ehrlicher Satz zur VIS-Regel) mit
+  [Aktuelle Karte], [Karte wie angehalten], [Zwischenstand verwerfen]. Jeder Knopf und Menüpunkt hat einen Tooltip. Der
+  Karten-Editor hat keine Aktionssuche (die gibt es im Model-Tab) – auffindbar über Menü, Fenster, Rechtsklick und das Handbuch.
+- Jedes `-vis` von bhed_q3map2 läuft aus dem Build-Menü mit `-bhedvisstate` (`befehlMitVisStand`; ein fremdes q3map2 bekommt
+  den Schalter nicht). Anhalten im VIS = Stoppdatei `<karte>.bhedvisstop`, q3map2 sichert und endet mit Rückgabe 3; war das
+  VIS schon fertig (`-fast`, Treffer von `-bhedvisreuse`, letzter Fluss durch), wird nach dem Schritt angehalten. Jeder andere
+  Schritt wird beendet und beginnt beim Fortsetzen neu.
+- Zwischenstand = Ordner `<karte>.bhedpause` neben der gebauten Karte (nie im Spielordner – dort baut der Editor ohnehin
+  nicht): Kopie der Karte (.map bzw. .reg), .bsp, .prt, .srf, der VIS-Zwischenstand (verschoben, nicht kopiert: bis 2,9 GB,
+  und ein `-vis -fast` dazwischen löschte ihn sonst), der Licht-Cache (fester Link, sonst Kopie) und `stand.json` (Eintrag,
+  alle Befehle, Schritt, Zeiten, Hash der Karte). Ein Zwischenstand je Karte; erneutes Anhalten ersetzt ihn, ein normaler
+  Bau lässt ihn liegen und sagt es in der Konsole.
+- **„Karte wie angehalten“**: die übrigen Befehle laufen auf den Kopien im Ordner (die Karte des Anwenders wird nicht
+  überschrieben), `stand.json` geht nach jedem fertigen Schritt mit, danach kommen .bsp, .prt, .srf, Licht-Cache, Editor-Daten
+  und der Ordner externer Lightmaps neben die Karte. **„Aktuelle Karte“**: der Eintrag wird für die Karte von jetzt neu
+  gebaut; vorher kommt der VIS-Zwischenstand zurück neben die .bsp – q3map2 nimmt ihn nur bei gleicher .prt und gleichen
+  Schaltern („vis state not used (other portals)“ sonst), der Licht-Cache prüft jede Lightmap. Ergebnis wie ein Vollbau.
+- **Licht**: vor jedem Licht-Schritt sichert der Editor die .bsp (`<karte>.bhedprelight`; ein beendetes `-light` kann sie halb
+  geschrieben hinterlassen) – nach Abbrechen/Anhalten ist die .bsp wieder die von vor dem Schritt. Aus `<karte>.bhedlight.neu`
+  wird nach der Regel `bauLichtCacheRetten` der Cache: ohne brauchbaren alten Cache ab einem fertigen Durchgang; passt der
+  alte genau, nur wenn mehr Durchgänge fertig sind, als er hat; wird der alte über den Inhalt zugeordnet (Geometrie geändert),
+  gewinnt der mit dem kleineren Rest (alt: Summe der gemeldeten Anteile je Durchgang; gerettet: die unfertigen Durchgänge
+  ganz). Das gilt für Anhalten, Abbrechen und das Programmende. Verloren geht der Durchgang, der gerade lief; ohne
+  „Teil-Kompilierung: Licht wiederverwenden“ der ganze Licht-Schritt (die Konsole sagt es).
+- **Anzeige** im Baufortschritt, VIS-Schritt: „aus dem Zwischenstand fortgesetzt: n von m Portalen (x % der Arbeit)“ bzw.
+  „Zwischenstand nicht genutzt: Grund“, Größe des Zwischenstands auf der Platte (einmal je Sekunde gelesen), die Regel
+  (deterministisch: Byte für Byte / NRC: gültiger Lauf), „Wird angehalten...“. Vor dem VIS: Höchstgröße des Zwischenstands
+  aus der .prt (`visStandHoechstBytes`, beim Sichern kurz doppelt) gegen den freien Platz – Warnung in Konsole und Fenster.
+  Restzeit nach dem Fortsetzen: der Pacifier beginnt bei x %, gezählt wird nur der Rest (erster Bau und mit Verlauf).
+  Die Zeiten eines fortgesetzten Baus werden nicht als Verlauf und nicht für GPU-Auto gemerkt.
+- **Zwei Funde am Beginn eines Schritts** (beide im Selbsttest rot gesehen, NRC prüft dort nur die Zeit): (1) nach einem langen
+  Bild (16 s: große Karte gespeichert, erstes Bild) endete der Bau mit „timeout“, obwohl q3map2 längst am lauschenden Socket
+  wartete – die wartende Verbindung wird jetzt vor der Zeitgrenze angenommen; (2) unter Last brauchte bhed_q3map2 (im Selbsttest
+  mit Leerlauf-Priorität) über 5 s bis zum Verbinden – „timeout“, und q3map2 lief ohne Rückkanal verwaist weiter. Jetzt gilt die
+  Zeitgrenze nur, wenn der Prozess schon zu Ende ist; ein q3map2 ohne Rückkanal wird bis zu seinem Ende abgewartet (Abbrechen
+  geht), dann kommt dieselbe Meldung.
+- Der Editor bleibt während des Baus bedienbar (war schon so: der Bau ist eine Zustandsmaschine je Bild) – jetzt im
+  Selbsttest belegt (Duplicate und Undo während des Licht-Schritts, Bilder werden weiter gezeichnet).
+
+### Zwei Anzeigefehler, rot nachgestellt und behoben (ctest karte_bau: 4 FEHL → 0, 119 Prüfungen)
+
+1. Mit `-bhedvisstate` steht nach dem Kopf der Flussphase die Zeile „BehavEd: vis state not used ...“ bzw. „vis resumed ...“;
+   der Beobachter erwartete danach keinen Pacifier mehr (Pacifier −1: der VIS-Balken wanderte nur).
+2. Beim Anhalten schreibt q3map2 mitten im Pacifier „\nBehavEd: vis paused ...“; jedes Ende des Pacifiers galt als fertig
+   (Sprung auf 100 %). Jetzt beendet nur „ (Sekunden)“ die Phase.
+
+### Licht-Cache: rot und grün (ctest q3map2_baupause)
+
+- Rot mit dem q3map2 von 5433c92eb: LIGHT beendet, sobald „pass 2 of 5 ... vertex lit surfaces“ gemeldet ist; aus der `.neu`
+  den Cache gemacht – der nächste Licht-Schritt meldete „2 of 5 passes kept“, nahm aber in Durchgang 2 **0 von 2447**
+  Lightmaps (der zweite Abschnitt hing noch im Schreibpuffer; die Lumps waren trotzdem gleich dem Bezug – der Leser verwirft
+  den abgeschnittenen Abschnitt).
+- Behoben mit **zwei Zeilen** in `src/q3map2/bhed_lichtcache.cpp` (BhedLichtCacheDurchgangEnde, gehört LCB2):
+  `if ( g_neu != nullptr ) fflush( g_neu );` vor der Zeile „... vertex lit surfaces ...“ – eingefügt nach der schließenden
+  Klammer des Schreib-Blocks, eine unveränderte Zeile neben den auf karte1 geänderten Zeilen (lässt sich ohne Konflikt
+  zusammenführen). Die Licht-Rechnung ist nicht berührt.
+- Grün: Durchgang 1 und 2 ganz aus dem Cache, die übrigen gerechnet, alle Lumps gleich dem Bau ohne Abbruch – für
+  „Karte wie angehalten“ und für Abbrechen + noch einmal bauen.
+
+### Schnittstellen für LCB2 (Licht-Cache, Baufortschritt)
+
+- Der Editor liest das Format des Caches nicht; er zählt die Zeilen „light cache pass x of y: ... vertex lit surfaces ...“
+  (= Abschnitt x steht auf der Platte), liest „found (geometry and switches unchanged, k of n passes kept)“ und die Anteile
+  aus „pass x of y: a of b lightmaps from the cache (p % ...“ und benennt `<karte>.bhedlight.neu` → `<karte>.bhedlight` um.
+  Bleiben diese drei Zeilen und der Name `.neu`, bleibt das Retten heil; der Text hinter „(p %“ ist frei.
+- `BauLichtCache` hat drei neue Felder (`geschrieben`, `geoGleich`, `anteile`) am Ende; karte1 hat dort `nachInhalt` – beim
+  Zusammenführen beide behalten (`geoGleich` = nicht `nachInhalt` bei gefundenem Cache).
+- Im Fenster Baufortschritt sind nur der VIS-Block (vor dem Licht-Cache-Block) und die Knopfzeile am Ende neu.
+- Vorschlag (nicht gebaut, wäre LCB2s Datei): beim Öffnen des alten Caches eine liegen gebliebene `.neu` mit gleichem Kopf
+  (Schalter, worldspawn, Geometrie) mitlesen und ihre Durchgänge vorziehen – dann blieben nach Geometrie-Änderungen die
+  fertigen Durchgänge UND die Inhalts-Treffer der späteren, und die Abwägung im Editor entfiele.
+
+### Was der VIS-Zwischenstand über die Reihenfolge der Flüsse annimmt (für VIS3, `-bhedvisfixed`)
+
+Gelesen in `visflow.cpp` (BhedStateWrite, BhedStateRead, BhedRunFlow) und `vis.cpp` (BhedVisStateSetup) – Stand vis2b, hier nicht geändert:
+
+- Die Datei `<karte>.bhedvisstate` („BHVST1“) enthält den Schlüssel (VIS-Schalter fast/merge/mergeportals/nopassage/passageOnly/
+  nosort/hint, farplane, die Regel `exact=`), die ganze .prt, die Wortzahl und je **fertigem** Fluss die Nummer der Portalseite in
+  `portals[]` (Reihenfolge der .prt, zwei Seiten je Portal) mit ihrem `portalvis`. **Die Reihenfolge der Flüsse steht nicht darin**,
+  auch nicht, welche gerade liefen. Beim Fortsetzen entsteht die Sortierung (`sorted_portals`, `g_bhedRank`) neu aus derselben .prt
+  und denselben Schaltern; die übernommenen Flüsse werden über ihre Portalnummer als fertig markiert.
+- Angenommen wird also: (1) ein Fluss mit Status „fertig“ hat sein **endgültiges** `portalvis` (es ändert sich später nicht mehr);
+  (2) BasePortalVis und die Sortierung hängen nur von .prt und Schaltern ab; (3) für „Byte für Byte“: das Ergebnis jedes noch offenen
+  Flusses hängt nur von den Endergebnissen einer durch die Regel festgelegten Menge anderer Flüsse ab, nicht davon, was zeitlich
+  zuerst fertig war. Mit `-bhedvisexact` gilt (3) durch die Regel selbst (jeder Fluss liest `portalvis` genau der Flüsse vor ihm in
+  der Sortierung und `portalflood` aller danach); mit NRCs Regel gilt (3) nicht – dort ist das Fortsetzen ein gültiger Lauf der Regel.
+- Eine neue feste Regel (`-bhedvisfixed`) funktioniert damit unverändert, wenn (a) ihr Schalter in den Schlüssel kommt (sonst nimmt
+  eine Regel den Stand der anderen), (b) (1) und (3) für sie gelten – sie darf die Flüsse in jeder Reihenfolge rechnen, solange sie
+  übernommene Flüsse als fertig behandelt und auf die nicht übernommenen wartet, von denen ein Fluss abhängt –, und (c) das Anhalten
+  bleibt, wie es ist: keine neuen Flüsse, laufende und wartende enden ohne Ergebnis, Stand schreiben, Rückgabe 3.
+- Der Editor ist von der Regel unabhängig. Er braucht: den Schalter `-bhedvisstate`, die Stoppdatei `<karte>.bhedvisstop`, die
+  Rückgabe 3 bzw. die Zeile „BehavEd: vis paused, n of m portals done ...“ und die Zeilen „vis resumed from ...: n of m portals done
+  (x % of the work)“ / „vis state not used (Grund): ...“. Den Satz zum Ergebnis („Byte für Byte“ gegen „gültiger Lauf“) wählt er
+  heute nach `-bhedvisexact` im Befehl (Fenster „Bauen fortsetzen“) bzw. nach der Zeile „BehavEd: deterministic vis (the result of
+  -threads 1)“ (Baufortschritt). Bekommt der Editor einen Schalter für `-bhedvisfixed`, braucht diese Regel dort einen eigenen Satz
+  (oder dieselbe Zeile, wenn sie Byte für Byte reproduzierbar ist) – zwei Stellen in `gui/app_karte_bau.cpp` (KeBpRegelExakt / KeBpRegelNrc).
+
+### Tests
+
+- ctest **karte_bau** (tests/kartebau.cpp, +15 Prüfungen): Zeilen des VIS-Zwischenstands, Pacifier nach „not used“/„resumed“
+  und beim Anhalten, Restzeit nach dem Fortsetzen (erster Bau 23,75 s; mit Verlauf 67,5 → 47,5 s), Regel fürs Retten des
+  Licht-Caches (drei Fälle), `befehlMitVisStand`, Höchstgröße aus der .prt, `stand.json` hin und zurück, alle Dateischritte
+  in einem Temp-Ordner (Anhalten, alte Karte, aktuelle Karte, .bsp vor dem Licht, Cache retten, Verwerfen).
+- ctest **q3map2_baupause** (neu, tools/karte/q3map2_baupause.py + tests/kartepause.cpp, 19 Prüfungen, Gitter 7 × 7 mit
+  Lichtern): Bezug ohne Pause; VIS mitten im Fluss angehalten → „Karte wie angehalten“ / „aktuelle Karte“ nach einem
+  `-vis -fast` dazwischen / „aktuelle Karte“ mit geänderter Karte („other portals“, gleich dem Vollbau der neuen Karte);
+  LIGHT nach zwei fertigen Durchgängen beendet → „Karte wie angehalten“ und Abbrechen + neu bauen; NRCs Regel (10848 gegen
+  10829 Paare, Grenze 2 %). Alle Lumps gleich dem Bezug.
+- Selbsttest **vis2c** (gui/selbsttest_vis2c.inc, drei Programmstarts mit einem Laufordner, `sh /y/werkzeuge/vis2/skripte/vis2c.sh`):
+  Lauf 1 7/0 (ein Bauprozess, der erst nach 7 s verbindet, und ein Bild von 6 s nach dem Baustart enden nicht mit „timeout“; Bezug; im VIS
+  mit dem Knopf angehalten – Tooltip, beide Knöpfe ganz zu sehen, fertige und offene Portale, z. B. 1328 von 1876), Lauf 2 8/0
+  (Zwischenstand nach dem Neustart da; Menü, Tooltips, Fenster mit drei Knöpfen; „Karte wie angehalten“: 18 von 18 Lumps gleich
+  dem Bezug; im Licht per Rechtsklick angehalten: 2 von 5 Durchgängen gerettet), Lauf 3 6/0 („Aktuelle Karte“: 18 von 18 Lumps
+  gleich; während des Baus Duplicate und Undo, der Editor zeichnet weiter; ohne Build-Überwachung im VIS angehalten: 1060 von 1876
+  Portalen; Verwerfen). Zusammen 21/0. Testkarte: offene Halle 9 × 9 Felder mit niedrigen Blöcken (ein Gitter aus Räumen mit
+  Türen war für einen Klick zu schnell: VIS unter 1 s).
+- Schlussrunde: nach der Regel „Schlussrunde je Zweig ab 11.11.“ – Bau inkrementell ohne Warnungen (/W4 /WX); ctest 245 von 248: rot
+  q3map2_importe (seit vis2b: `std::atomic::wait` importiert api-ms-win-core-synch-l1-2-0.dll; die Erlaubnisliste ist im Zweig p_vis2s
+  schon ergänzt – hier nicht doppelt), q3map2_teilbau (zwei lcb2-Fälle der Basis a00f6cf90, wie in den anderen Zweigen) und
+  karte_lizenz (die zwei neuen Dateien nannten ihre Herkunft nicht – behoben, kartelizenz 232/0); Selbsttest vis2c 21/0; berührte
+  Gruppen: stufe3 223/0 (Build-Menü, Bauablauf), stufe9d 28/0 (Same VIS in every build), stufe8 41/5 – alle fünf in der
+  Rückgewinnung nach Open .bsp („nicht nach 180 s“, in zwei Läufen gleich; nicht in geändertem Code, Ursache nicht untersucht), die
+  Bau-Prüfungen der Gruppe (Fortschritt, Abbrechen, Teil-Kompilierung) grün. Drei vorhandene Erwartungen folgen dem neuen Schalter
+  (`-vis ... -bhedvisstate "<Karte>"` in stufe3, stufe8, stufe9d). Lints: portability 99 (wie Basis; ein eigener Fund – `std::size_t`
+  ohne `<cstddef>` – behoben), fremdprogramm 1 und pruefcodes 11 wie Basis, die übrigen ohne Beanstandung. Handbuchbilder in sechs
+  Sprachen angesehen (2538 breit). Bewusst NICHT gelaufen (einmal auf dem zusammengeführten Stand): sauberer Neubau, Modus 1,
+  karteneditor ganz, die übrigen Gruppen.
+
 ## Changelog
 
 ## English
 
 - Map compiler, "Same VIS in every build" (`-bhedvisexact`): 1.4 to 2 times as fast on open maps. A portal now waits for an earlier one only until that one has found what is asked for, and waiting portals no longer keep worker threads from starting others. The result is unchanged - byte for byte what one thread computes.
 - Map compiler: a full VIS can be paused and continued. `bhed_q3map2 -vis -bhedvisstate` saves the finished portals every two minutes; a file `<map>.bhedvisstop` pauses the run (return code 3, the .bsp stays untouched), and the next run with the same portal file and switches continues where it stopped. With "Same VIS in every build" the result equals an uninterrupted VIS byte for byte.
+- Map editor: a build can be paused and continued later. **Pause build** in the Build progress window (also by right click there and in the Build menu) saves the finished steps, a copy of the map and the state of the running step beside the map; JK Studio can be closed in between. Build > **Resume build...** continues for the current map - reusing only what is still valid, with the result of a full build - or finishes exactly the paused build on the saved copy of the map.
+- Map editor: a full VIS that is paused saves its finished portals and ends within seconds; a cancelled VIS continues from its last saved state next time if the portals are the same. The Build progress window shows what was taken over and how large the state on disk is, and warns before the VIS if the drive is too full.
+- Map editor: a light step that is paused or cancelled keeps its finished passes in the light cache (with "Partial compile: reuse light"); until now everything was computed again. The .bsp is put back as it was before the light step.
+- Map editor: the Build progress window keeps the progress bar of the VIS when the VIS runs with a saved state, and the remaining time after a resume counts only what is left.
 
 ## Deutsch
 
 - Karten-Compiler, „Dasselbe VIS in jedem Bau“ (`-bhedvisexact`): auf offenen Karten 1,4- bis 2-mal so schnell. Ein Portal wartet auf ein früheres nur noch, bis dieses das Gefragte gefunden hat, und wartende Portale halten keine Threads mehr davon ab, andere zu beginnen. Das Ergebnis ist unverändert – Byte für Byte das eines Threads.
 - Karten-Compiler: ein volles VIS lässt sich anhalten und fortsetzen. `bhed_q3map2 -vis -bhedvisstate` sichert alle zwei Minuten die fertigen Portale; eine Datei `<karte>.bhedvisstop` hält den Lauf an (Rückgabe 3, die .bsp bleibt unberührt), und der nächste Lauf mit derselben Portaldatei und denselben Schaltern macht dort weiter. Mit „Dasselbe VIS in jedem Bau“ ist das Ergebnis Byte für Byte das eines VIS ohne Pause.
+- Karten-Editor: ein Bau lässt sich anhalten und später fortsetzen. **Bauen anhalten** im Fenster Baufortschritt (auch per Rechtsklick dort und im Build-Menü) sichert die fertigen Schritte, eine Kopie der Karte und den Stand des laufenden Schritts neben der Karte; JK Studio kann dazwischen geschlossen werden. Build > **Bauen fortsetzen...** macht für die aktuelle Karte weiter - verwendet nur wieder, was noch gilt, mit dem Ergebnis eines vollen Baus - oder führt genau den angehaltenen Bau auf der gesicherten Kopie der Karte zu Ende.
+- Karten-Editor: ein volles VIS, das angehalten wird, sichert seine fertigen Portale und endet in Sekunden; ein abgebrochenes VIS macht beim nächsten Mal mit seinem letzten Zwischenstand weiter, wenn die Portale gleich sind. Das Fenster Baufortschritt zeigt, was übernommen wurde und wie groß der Zwischenstand auf der Platte ist, und warnt vor dem VIS, wenn das Laufwerk zu voll ist.
+- Karten-Editor: ein Licht-Schritt, der angehalten oder abgebrochen wird, behält seine fertigen Durchgänge im Licht-Cache (mit „Teil-Kompilierung: Licht wiederverwenden“); bisher wurde alles neu gerechnet. Die .bsp ist danach wieder die von vor dem Licht-Schritt.
+- Karten-Editor: das Fenster Baufortschritt behält den Balken des VIS, wenn das VIS mit Zwischenstand läuft, und die Restzeit nach dem Fortsetzen zählt nur, was noch fehlt.
 
 ## 中文
 
 - 地图编译器,“每次编译得到相同的 VIS”(`-bhedvisexact`):在开阔的地图上快 1.4 到 2 倍。一个门户只需等到前面的门户找到所需的内容为止,等待中的门户也不再占着线程不让其他门户开始。结果不变——与单线程逐字节相同。
 - 地图编译器:完整的 VIS 可以暂停并继续。`bhed_q3map2 -vis -bhedvisstate` 每两分钟保存已完成的门户;文件 `<地图>.bhedvisstop` 会暂停运行(返回码 3,.bsp 保持不变),下一次使用相同门户文件和相同开关的运行会从停下的地方继续。打开“每次编译得到相同的 VIS”时,结果与不间断的 VIS 逐字节相同。
+- 地图编辑器:编译可以暂停,之后再继续。编译进度窗口中的 **暂停编译**(也可在该窗口中点右键或使用 Build 菜单)会把已完成的步骤、地图的副本以及正在运行的步骤的状态保存在地图旁边;其间可以关闭 JK Studio。Build > **继续编译...** 可以针对当前地图继续——只重用仍然有效的部分,结果与完整编译相同——或者在保存的地图副本上原样完成被暂停的编译。
+- 地图编辑器:被暂停的完整 VIS 会保存已完成的门户并在几秒内结束;被取消的 VIS 下次会在门户相同时从最后保存的状态继续。编译进度窗口会显示接手了多少、磁盘上的状态有多大,并在驱动器空间不足时于 VIS 之前给出警告。
+- 地图编辑器:被暂停或取消的光照步骤会把已完成的遍保留在光照缓存中(需打开“部分编译:重用光照”);此前一切都要重新计算。之后 .bsp 恢复为光照步骤之前的状态。
+- 地图编辑器:VIS 使用保存的状态运行时,编译进度窗口仍会显示 VIS 的进度条;继续之后的剩余时间只计算还没完成的部分。
 
 ## 日本語
 
 - マップコンパイラー、「毎回のビルドで同じ VIS」(`-bhedvisexact`): 開けたマップで 1.4〜2 倍速くなりました。ポータルは、前のポータルが必要な分を見つけるまでだけ待ち、待っているポータルがほかのポータルの開始を妨げることもなくなりました。結果は変わりません。1 スレッドの結果とバイト単位で同じです。
 - マップコンパイラー: 完全な VIS を一時停止して再開できます。`bhed_q3map2 -vis -bhedvisstate` は完了したポータルを 2 分ごとに保存します。ファイル `<マップ>.bhedvisstop` で実行が一時停止し(戻り値 3、.bsp はそのまま)、同じポータルファイルと同じスイッチの次の実行が続きから計算します。「毎回のビルドで同じ VIS」では、結果は中断なしの VIS とバイト単位で同じです。
+- マップエディター: ビルドを一時停止して、あとで再開できます。ビルドの進行状況ウィンドウの **ビルドを一時停止**(同じウィンドウの右クリックや Build メニューからも可)で、完了したステップ、マップのコピー、実行中のステップの状態をマップの隣に保存します。その間に JK Studio を閉じてもかまいません。Build > **ビルドを再開...** は、現在のマップに対して続ける(まだ有効な分だけを再利用し、結果はフルビルドと同じ)か、保存したマップのコピーで一時停止したビルドをそのまま最後まで行います。
+- マップエディター: 完全な VIS を一時停止すると、完了したポータルを保存して数秒で終わります。中止した VIS は、ポータルが同じなら次回、最後に保存した状態から続けます。ビルドの進行状況ウィンドウには、引き継いだ内容とディスク上の状態の大きさが表示され、ドライブの空きが足りないときは VIS の前に警告します。
+- マップエディター: 一時停止または中止したライトのステップは、終わったパスをライトキャッシュに残します(「部分コンパイル:ライトを再利用」がオンのとき)。これまではすべて計算し直していました。.bsp はライトのステップの前の状態に戻ります。
+- マップエディター: VIS が保存した状態を使って動くときも、ビルドの進行状況ウィンドウに VIS の進行バーが表示され、再開後の残り時間は残っている分だけを数えます。
 
 ## Español
 
 - Compilador de mapas, «VIS igual en cada compilación» (`-bhedvisexact`): entre 1,4 y 2 veces más rápido en mapas abiertos. Un portal solo espera a uno anterior hasta que este ha encontrado lo que se le pide, y los portales en espera ya no impiden que los hilos empiecen otros. El resultado no cambia: byte a byte el de un solo hilo.
 - Compilador de mapas: un VIS completo se puede pausar y continuar. `bhed_q3map2 -vis -bhedvisstate` guarda cada dos minutos los portales terminados; un archivo `<mapa>.bhedvisstop` pausa la ejecución (código de retorno 3, el .bsp queda intacto) y la siguiente ejecución con el mismo archivo de portales y los mismos parámetros continúa donde se detuvo. Con «VIS igual en cada compilación», el resultado es byte a byte el de un VIS sin pausa.
+- Editor de mapas: una compilación se puede pausar y continuar más tarde. **Pausar la compilación** en la ventana Progreso de la compilación (también con clic derecho allí y en el menú Build) guarda los pasos terminados, una copia del mapa y el estado del paso en curso junto al mapa; entretanto se puede cerrar JK Studio. Build > **Reanudar la compilación...** continúa para el mapa actual (reutilizando solo lo que sigue siendo válido, con el resultado de una compilación completa) o termina exactamente la compilación pausada sobre la copia guardada del mapa.
+- Editor de mapas: un VIS completo que se pausa guarda sus portales terminados y acaba en segundos; un VIS cancelado continúa la próxima vez desde su último estado guardado si los portales son los mismos. La ventana Progreso de la compilación muestra lo que se ha recuperado y cuánto ocupa el estado en disco, y avisa antes del VIS si la unidad está demasiado llena.
+- Editor de mapas: un paso de luz que se pausa o se cancela conserva sus pasadas terminadas en la caché de luz (con «Compilación parcial: reutilizar la luz»); hasta ahora se calculaba todo de nuevo. Después, el .bsp vuelve a ser el de antes del paso de luz.
+- Editor de mapas: la ventana Progreso de la compilación conserva la barra de progreso del VIS cuando este se ejecuta con un estado guardado, y el tiempo restante tras reanudar solo cuenta lo que falta.
 
 ## Čeština
 
 - Kompilátor map, „Stejné VIS při každém sestavení“ (`-bhedvisexact`): na otevřených mapách 1,4krát až 2krát rychlejší. Portál čeká na dřívější jen do chvíle, kdy ten našel, na co se ptá, a čekající portály už nebrání vláknům začít jiné. Výsledek se nemění – bajt po bajtu to, co spočítá jedno vlákno.
 - Kompilátor map: plné VIS lze pozastavit a pokračovat v něm. `bhed_q3map2 -vis -bhedvisstate` ukládá každé dvě minuty hotové portály; soubor `<mapa>.bhedvisstop` běh pozastaví (návratový kód 3, .bsp zůstane nedotčený) a další běh se stejným souborem portálů a stejnými přepínači pokračuje tam, kde skončil. Se „Stejné VIS při každém sestavení“ je výsledek bajt po bajtu stejný jako VIS bez pauzy.
+- Editor map: sestavení lze pozastavit a později v něm pokračovat. **Pozastavit sestavení** v okně Průběh sestavení (také pravým tlačítkem tamtéž a v nabídce Build) uloží hotové kroky, kopii mapy a stav běžícího kroku vedle mapy; JK Studio lze mezitím zavřít. Build > **Pokračovat v sestavení...** pokračuje pro aktuální mapu - znovu použije jen to, co stále platí, s výsledkem plného sestavení - nebo dokončí přesně pozastavené sestavení na uložené kopii mapy.
+- Editor map: pozastavené plné VIS uloží hotové portály a skončí během několika sekund; zrušené VIS příště pokračuje ze svého posledního uloženého stavu, pokud jsou portály stejné. Okno Průběh sestavení ukazuje, co bylo převzato a jak velký je stav na disku, a před VIS varuje, je-li jednotka příliš plná.
+- Editor map: krok světla, který je pozastaven nebo zrušen, si ponechá hotové průchody v mezipaměti světla (s volbou „Dílčí kompilace: znovu použít světlo“); dosud se vše počítalo znovu. Soubor .bsp je poté opět ten z doby před krokem světla.
+- Editor map: okno Průběh sestavení si ponechá ukazatel průběhu VIS, když VIS běží s uloženým stavem, a zbývající čas po pokračování počítá jen to, co ještě chybí.
