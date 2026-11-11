@@ -5769,6 +5769,9 @@ enum class Str {
     MnBlZoomMaus,
     MnBlZoomMausHint,
     MbvEntartet,
+    KeZbRaster,
+    KeZbRasterTip,
+    KeZbKeyChanged,
     Count,
 };
 
