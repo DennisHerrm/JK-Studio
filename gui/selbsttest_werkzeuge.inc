@@ -2755,7 +2755,7 @@ std::vector<Schritt> modellSchritte() {
     add(klick(tr(Str::ModelAnimAll), "", 0, false));
     add(pause(0.3));
     // Transport: Schleife erzwingen, abspielen, anhalten
-    add(klick(tr(Str::ModelLoop), "###main"));
+    add(klick(tr(Str::MzSchleife), "###main"));   // AP1: in der Zeitleiste (Ansehen/Pruefen) als Text "Force loop"
     add(pruefe("Schleife: erzwungen", [] { return g_app->loopMode == 1; }));
     add(tu("angehalten", [] { g_app->animPlaying = false; }));
     add(pause(0.1));

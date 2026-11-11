@@ -215,6 +215,12 @@ struct Settings {
     // Modell-Block 1a-1: Bedienmodus des Model-Tabs - 0 wie 3ds Max (Vorgabe, shank 04.11.), 1 wie Blender
     // (Belegung kommt in 1a-2). Knochen als Bone-Kasten, mit Flossen schaltbar.
     int modellBedienung = 0;
+    // AP1: die Zeitleiste des Model-Tabs - Spuren offen, Hoehe des Spurbereichs je Bedienmodus (in Schrifthoehen),
+    // Zeitanzeige (0 Frames, 1 Sekunden)
+    bool modellZeitSpuren = true;
+    float modellZeitSpurHoeheMax = 8.0F;
+    float modellZeitSpurHoeheBlender = 8.0F;
+    int modellZeitAnzeige = 0;
     bool modellFlossen = false;
     // rc608 Teil 9b: r_ext_multisample der Vorschau (MSAA). -1 wie das Spiel (rExtMultisampleVorgabe), sonst 0, 2, 4, 8.
     int rExtMultisample = -1;

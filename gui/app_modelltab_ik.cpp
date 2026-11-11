@@ -116,8 +116,9 @@ bool ikAendern(Str undo, int art, const std::function<bool(modell::RigSchicht&, 
     if (zug && t.ikZug) {
         t.dok.vorschau(tun, false);
     } else {
-        t.dok.aendern(tr(undo), tun, false);
+        const std::uint64_t schritt = t.dok.aendern(tr(undo), tun, false);
         t.ikZug = zug;
+        if (zug) { modellZeitZugGemeldet(schritt); }   // AP1: Auto Key aus - ein gezogener Regler bleibt ohne Schluessel bis Set Key
     }
     g_app->modelDirty = true;
     g_app->animPlaying = false;

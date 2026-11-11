@@ -167,6 +167,7 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
         g_app->animFrame = f0();
         g_app->animTime = 0.0F;
         (void)modellRigAnlegen();
+        g_app->mtab.kvOffen = false;   // AP1: die Spuren stehen ab Werk offen - hier oeffnet sie das Menue
         g_app->modelDirty = true;
     }));
     add(pause(0.5));

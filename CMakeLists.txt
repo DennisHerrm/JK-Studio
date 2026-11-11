@@ -514,6 +514,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_modelltab_mb3.cpp
     gui/app_modelltab_rig.cpp
     gui/app_modelltab_kurven.cpp
+    gui/app_modelltab_zeit.cpp
     gui/app_modelltab_ik.cpp
     gui/app_modelltab_physik.cpp
     gui/app_modelltab_retarget.cpp

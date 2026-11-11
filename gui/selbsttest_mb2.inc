@@ -311,6 +311,9 @@ std::vector<Schritt> uiSchritte() {
     add(pruefe("MB3 Marker: Strg+Z stellt die Zeile zurueck", [=] {
         return g_app->animList[static_cast<std::size_t>(g_app->animIndex)].numFrames == walk->numFrames;
     }));
+    // AP1: die Zeile der animation.cfg (Anfang, Anzahl, Schleife, fps, Balken) steht im Fenster Zeitkonfiguration
+    add(tu("MB3 Marker: Zeitkonfiguration oeffnen", [] { modellZeit().konfigOffen = true; }));
+    add(pause(0.4));
     add(ziehenVonNach("das rechte Ende des Markerbalkens 40 Punkte nach rechts", [] {
         const Element* e = findeEndung("##mkbalken", "");
         if (e == nullptr) { return ImVec2{}; }
@@ -331,6 +334,7 @@ std::vector<Schritt> uiSchritte() {
         diag::detail("Knopftest: MB3 Marker gezogen - Anzahl " + std::to_string(walk->numFrames) + " -> " + std::to_string(e.numFrames));
         return e.numFrames > walk->numFrames && e.firstFrame == walk->firstFrame;
     }));
+    add(tu("MB3 Marker: Zeitkonfiguration zu", [] { modellZeit().konfigOffen = false; }));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
     // Rot: eine Zeile hinter dem Ende der GLA muss die Pruefung melden (T-Pose in OpenJK-Fassungen).
     add(tu("MB3 Pruefen: die letzte Sequenz zehn Frames hinter das Ende der GLA", [] {

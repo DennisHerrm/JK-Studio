@@ -3108,6 +3108,8 @@ from i18n_uiform import texte as _uiform  # noqa: E402
 TEXTE.update(_uiform("cs"))
 from i18n_ap12 import texte as _ap12  # noqa: E402
 TEXTE.update(_ap12("cs"))
+from i18n_ap1 import texte as _ap1  # noqa: E402
+TEXTE.update(_ap1("cs"))
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.
 TEXTE.update({_e[0]: _e[1] for _e in _nrc()})

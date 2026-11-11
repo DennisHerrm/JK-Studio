@@ -515,13 +515,8 @@ void rolloutLod() {
             modellTexturenNeuLaden();
         }
     }
-    // Die Haeute des Modells (Liste wie ModView; "off" blendet Flaechen aus).
-    for (std::size_t i = 0; i < g_app->modelSkins.size(); ++i) {
-        if (ImGui::Selectable(g_app->modelSkins[i].c_str(), static_cast<int>(i) == g_app->modelSkinIndex)) {
-            applySkinByIndex(static_cast<int>(i));
-            ++g_app->modellHautWechsel;
-        }
-    }
+    // Die Haeute des Modells ("off" blendet Flaechen aus) und der Flaechenzaehler - AP1 Z20: bis rc611 auch in der Zeitleiste
+    modellHautZeile();
 }
 
 // MBKOPF: die Gruppe "Anzeige" ist in die Kopfzeile der Ansicht gewandert (shank 10.11.: "weil das sieht da rechts einfach
@@ -1082,6 +1077,7 @@ bool modellTasten() {
         mt().modalEndeBild = ImGui::GetFrameCount();
         return true;
     }
+    if (modellZeitTasten()) { return true; }   // AP1: Zeitleiste (N Auto Key, Key-Modus; wie Blender Pfeil hoch/runter, K)
     if (modellKurvenTasten()) { return true; }   // Stufe 3b: Schluessel, Editor-Tasten (Bereich Animation)
     if (modellRigTasten()) { return true; }   // Stufe 3: Pose, Auswahl (Bereich Animation)
     if (modellUvTasten()) { return true; }    // Modell-Block 1b: UV-Editor (Bereich UV)

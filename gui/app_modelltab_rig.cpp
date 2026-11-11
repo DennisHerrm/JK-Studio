@@ -612,6 +612,7 @@ void modellRigZiehen(int gizmoArt, const float wert[3]) {
         const AnimEntry* e = sequenz();
         const std::string name = e != nullptr ? e->name : std::string();
         t.rigSchritt = t.dok.aendern(tr(gizmoArt == 1 ? Str::MbRgUndoVerschieben : Str::MbRgUndoDrehen), [&](modell::Inhalt& in) { (void)in.rig.schichten[name]; }, false);
+        modellZeitZugGemeldet(t.rigSchritt);   // AP1: Auto Key aus - die Pose bleibt ohne Schluessel bis Set Key
         g_app->animPlaying = false;
     }
     BoneMatrix dreh = BoneMatrix::identity();

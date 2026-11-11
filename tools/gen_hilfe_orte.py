@@ -198,6 +198,7 @@ LEISTEN = [
     ("gui/app_wegpunkte.cpp", "vorschau", VORSCHAU + " && zahl:vorschau.wegfenster < gezeichnet:vorschau.wegknopf", "ViewMap>WegTitel"),
     ("gui/app_modelltab_explorer.cpp", "modell", MODELL, "ViewModel"),   # AP2: Namen kopieren, Ins Skript
     ("gui/app_modell.cpp", "modell", MODELL, "ViewModel"),
+    ("gui/app_modelltab_zeit.cpp", "modell", MODELL, "ViewModel"),   # AP1: die Zeitleiste des Model-Tabs
 ]
 
 
@@ -210,6 +211,9 @@ def leisten():
     for datei, bereich, voraus, vor in LEISTEN:
         for z in lies(datei):
             m = re.search(r"icon(?:Text)?Knopf\(tr\(Str::(\w+)\), *UiIcon::\w+, *tr\(Str::(\w+)\)", z)
+            if not m and datei.endswith("app_modelltab_zeit.cpp"):
+                # AP1: knopf(tr(Str::X), <Symbol>, <Text>, tr(Str::Hinweis), ...) - die Knoepfe der Zeitleiste
+                m = re.search(r"\bknopf\(tr\(Str::(\w+)\), *[^,]+, *[^,]+, *tr\(Str::(\w+)\)", z)
             if not m:
                 continue
             ziel = EINDEUTIG.get(m.group(1), "knopf:%s" % m.group(1))

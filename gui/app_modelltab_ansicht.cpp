@@ -2602,10 +2602,8 @@ void drawModellArbeitsflaeche() {
     // Das Befehlsfeld behaelt seine Breite (die Texte passen hinein), die Ansicht nimmt den Rest.
     const float befehlB = std::max(std::min(fs * 17.0F, frei.x - fs * 8.0F), fs * 8.0F);
     const float sp = ImGui::GetStyle().ItemSpacing.x;
-    // Stufe 3b: Dopesheet/Kurveneditor unter den Ansichten, solange offen (die Ansichten werden so viel niedriger)
-    if (t.kvOffen && t.kvHoehe <= 0.0F) { t.kvHoehe = fs * 16.0F; }
-    const float editorH = modellAnimEditorHoehe(frei.y);
-    ImVec2 ansichtenG{std::max(frei.x - befehlB - sp, 64.0F), std::max(frei.y - (editorH > 0.0F ? editorH + ImGui::GetStyle().ItemSpacing.y : 0.0F), 64.0F)};
+    // AP1: Dopesheet und Kurveneditor stehen als Spurbereich in der Zeitleiste (app_modelltab_zeit.cpp), nicht mehr hier
+    ImVec2 ansichtenG{std::max(frei.x - befehlB - sp, 64.0F), std::max(frei.y, 64.0F)};
     // Modell-Block 1b: im Bereich UV der UV-Editor links neben den Ansichten (wie Blenders Arbeitsbereich "UV Editing" und
     // der UV-Editor von WhiteoutFlakes); Platz nur, solange er offen ist
     if (const float uvB = modellUvEditorBreite(ansichtenG.x); uvB > 0.0F) {
@@ -2635,7 +2633,6 @@ void drawModellArbeitsflaeche() {
     ImGui::BeginChild("mtbefehlsfeld", ImVec2{befehlB, ansichtenG.y}, ImGuiChildFlags_Borders);
     drawModellBefehlsfeld();
     ImGui::EndChild();
-    if (editorH > 0.0F) { drawModellAnimEditorUnten(ImVec2{frei.x, editorH}); }
     drawModellAktionen();
     drawModellRigUebersicht();   // Stufe 3
     drawModellAnimEditor();      // Stufe 3b: Dopesheet / Kurveneditor

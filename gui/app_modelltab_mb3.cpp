@@ -882,6 +882,8 @@ void markerSetzen(const AnimEntry& neu) {
 
 }  // namespace
 
+void modellCfgAbgleich() { cfgAbgleich(); }
+
 bool modellMarkerAendern(const AnimEntry& neu) {
     const int vorher = mt().markerAenderungen;
     markerSetzen(neu);
@@ -889,6 +891,7 @@ bool modellMarkerAendern(const AnimEntry& neu) {
     return mt().markerAenderungen != vorher;
 }
 
+// AP1: die Zeile steht im Fenster Zeitkonfiguration (app_modelltab_zeit.cpp), bis rc611 als vierte Zeile in der Leiste
 void modellMarkerZeile(const AnimEntry* e) {
     ModellTab& t = mt();
     cfgAbgleich();

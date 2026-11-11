@@ -14,7 +14,7 @@
 //            Haut, Flaechen, Schieberegler
 #include "app_internal.h"
 #include "textumbruch.h"
-#include "tour.h"   // H2: Ziele der Tour k-skins
+#include "tour.h"   // Touren (k-modell)
 
 #include <algorithm>
 #include <cmath>
@@ -243,38 +243,10 @@ bool modellBrauchtBilder() {
     return spielt || rtSpielt || g_app->modellDrehteller;
 }
 
-// Modell-Block 1a-1: die dritte Zeile - Primaer (ganzer Koerper) und
-// Sekundaer (ab dem Sekundaer-Start) wie ModView, dazu die Zaehlung.
-void modellSequenzZeile(const AnimEntry* e) {
-    const ModellTab& t = g_app->mtab;
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextDisabled("%s", tr(Str::MbPrimaer));
-    ImGui::SameLine();
-    ImGui::TextUnformatted(e != nullptr ? e->name.c_str() : "-");
-    ImGui::SameLine(0.0F, ImGui::GetFontSize() * 1.5F);
-    char sek[160];
-    std::snprintf(sek, sizeof sek, tr(Str::MbSekundaer), t.sekundaerKnochen.c_str());
-    ImGui::TextDisabled("%s", sek);
-    ImGui::SameLine();
-    const bool hatSek = t.sekundaer >= 0 && static_cast<std::size_t>(t.sekundaer) < g_app->animList.size();
-    ImGui::TextUnformatted(hatSek ? g_app->animList[static_cast<std::size_t>(t.sekundaer)].name.c_str() : "-");
-    if (hatSek) {
-        ImGui::SameLine();
-        if (ImGui::SmallButton(tr(Str::MbSekundaerAus))) {
-            g_app->mtab.sekundaer = -1;
-            g_app->modelDirty = true;
-        }
-    }
-    ImGui::SameLine(0.0F, ImGui::GetFontSize() * 1.5F);
-    ImGui::TextDisabled("%s", tr(modellBlender() ? Str::MbZeitHinweisBlender : Str::MbZeitHinweis));   // mb1a2: Zaehlung je Modus
-}
-
 // --- Die Leiste unter allen drei Spalten -------------------------------------------------
 void drawModelPanel() {
     modellKlickPruefen();   // Modell-Block 1a-1: die Leiste gehoert zum Model-Tab (Tasten wie 3ds Max)
     const bool have = !g_app->model.empty();
-    const float fs = ImGui::GetFontSize();
-    const float sp = ImGui::GetStyle().ItemSpacing.x;
     const bool animDa = have && !g_app->anim.empty() && g_app->animIndex >= 0 &&
                         static_cast<std::size_t>(g_app->animIndex) < g_app->animList.size();
     const AnimEntry* e = animDa ? &g_app->animList[static_cast<std::size_t>(g_app->animIndex)] : nullptr;
@@ -320,162 +292,8 @@ void drawModelPanel() {
         }
     }
 
-    // --- Zeile 1: Transportleiste ------------------------------------------------
-    ImGui::BeginDisabled(e == nullptr);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{fs * 0.2F, ImGui::GetStyle().ItemSpacing.y});
-    if (iconKnopf(tr(Str::TlRewind), UiIcon::ZumAnfang, nullptr) && e != nullptr) {
-        g_app->animFrame = e->firstFrame;
-        g_app->animTime = 0.0F;
-        g_app->modelDirty = true;
-    }
-    ImGui::SameLine();
-    if (iconKnopf(tr(Str::ModelPrevFrame), UiIcon::Zurueck, nullptr) && e != nullptr) {
-        g_app->animFrame = std::max(e->firstFrame, g_app->animFrame - 1);
-        g_app->animPlaying = false;
-        g_app->modelDirty = true;
-    }
-    ImGui::SameLine();
-    if (iconKnopf(g_app->animPlaying ? tr(Str::ModelStop) : tr(Str::ModelPlay),
-                  g_app->animPlaying ? UiIcon::Pause : UiIcon::Abspielen, nullptr, g_app->animPlaying)) {
-        if (!g_app->animPlaying && e != nullptr && g_app->animFrame >= e->firstFrame + e->numFrames - 1) {
-            g_app->animFrame = e->firstFrame;
-        }
-        g_app->animPlaying = !g_app->animPlaying;
-    }
-    ImGui::SameLine();
-    if (iconKnopf(tr(Str::ModelNextFrame), UiIcon::Vor, nullptr) && e != nullptr) {
-        g_app->animFrame = std::min(e->firstFrame + e->numFrames - 1, g_app->animFrame + 1);
-        g_app->animPlaying = false;
-        g_app->modelDirty = true;
-    }
-    // Bild und Zeit, gross
-    ImGui::SameLine(0.0F, fs * 0.6F);
-    {
-        // Modell-Block 1a-1: wie 3ds Max ab 0 gezaehlt - 12 / 39 heisst Bild 12
-        // von 0..39 (stufenplan.md, Entscheidung shank 04.11.: Zeitleiste im
-        // Max-Modus ab 0, passt direkt zur animation.cfg).
-        // mb1a2: wie Blender ab 1 (frame_start 1, blender_dump.txt) - 1 / 40 heisst das erste von 40 Bildern; der
-        // GLA-Frame (ab 0) steht im Tooltip (stufenplan.md, Empfehlung zur Zaehlung).
-        const bool abEins = modellBlender();
-        const int rel = e != nullptr ? g_app->animFrame - e->firstFrame : 0;
-        char jetzt[32];
-        char gesamt[64];
-        std::snprintf(jetzt, sizeof(jetzt), "%d", e != nullptr ? rel + (abEins ? 1 : 0) : (abEins ? 1 : 0));
-        std::snprintf(gesamt, sizeof(gesamt), " / %d   %.2f s", e != nullptr ? std::max(e->numFrames - (abEins ? 0 : 1), 0) : 0,
-                      e != nullptr ? static_cast<double>(rel) / static_cast<double>(std::max(e->fps, 1)) : 0.0);
-        const ImVec2 t1 = ImGui::CalcTextSize(jetzt);
-        const ImVec2 t2 = ImGui::CalcTextSize(gesamt);
-        const float hh = ImGui::GetFrameHeight();
-        ImGui::Dummy(ImVec2{t1.x + t2.x + fs * 0.8F, hh});
-        const ImVec2 a = ImGui::GetItemRectMin();
-        const ImVec2 b = ImGui::GetItemRectMax();
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        dl->AddRectFilled(a, b, ImGui::GetColorU32(ImGuiCol_FrameBg), ImGui::GetStyle().FrameRounding + 2.0F);
-        dl->AddText(ImVec2{a.x + fs * 0.4F, a.y + (hh - t1.y) * 0.5F}, ImGui::GetColorU32(ImGuiCol_Text), jetzt);
-        dl->AddText(ImVec2{a.x + fs * 0.4F + t1.x, a.y + (hh - t1.y) * 0.5F}, ImGui::GetColorU32(ImGuiCol_TextDisabled),
-                    gesamt);
-        if (e != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
-            ImGui::SetTooltip(tr(Str::MbGlaBild), g_app->animFrame, rel);
-        }
-        g_app->mtab.zaehlungText = std::string(jetzt) + gesamt;   // Selbsttest
-    }
-    ImGui::SameLine(0.0F, fs * 0.6F);
-    // Schleife: aus der animation.cfg (aus), erzwungen (an)
-    if (iconKnopf(tr(Str::ModelLoop), UiIcon::Schleife, tr(Str::ModelLoopHint), g_app->loopMode == 1, true, true)) {
-        g_app->loopMode = g_app->loopMode == 1 ? 0 : 1;
-    }
-    ImGui::SameLine();
-    {
-        static const float kTempi[] = {0.1F, 0.25F, 0.5F, 1.0F, 1.5F, 2.0F, 3.0F};
-        char tempo[16];
-        std::snprintf(tempo, sizeof(tempo), "%gx", static_cast<double>(g_app->animSpeed));
-        ImGui::SetNextItemWidth(fs * 3.4F);
-        if (ImGui::BeginCombo("##modeltempo", tempo, ImGuiComboFlags_NoArrowButton)) {
-            for (const float v : kTempi) {
-                char n[16];
-                std::snprintf(n, sizeof(n), "%gx", static_cast<double>(v));
-                if (ImGui::Selectable(n, std::fabs(v - g_app->animSpeed) < 0.001F)) { g_app->animSpeed = v; }
-            }
-            ImGui::EndCombo();
-        }
-        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::ModelSpeed)); }
-    }
-    ImGui::SameLine();
-    // Modell-Block 1a-1: Interpolation an/aus (ModView Interpolate).
-    if (iconKnopf(tr(Str::MbInterpolation), UiIcon::Animieren, tr(Str::MbInterpolationHint), g_app->mtab.interpolieren, true, true)) {
-        g_app->mtab.interpolieren = !g_app->mtab.interpolieren;
-        g_app->modelDirty = true;
-    }
-    ImGui::PopStyleVar();
-    ImGui::EndDisabled();
-    // Die gewaehlte Animation, ihr Name
-    if (e != nullptr) {
-        ImGui::SameLine(0.0F, fs * 0.8F);
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(e->name.c_str());
-    }
-    // Haut und Flaechen rechts daneben
-    if (have && !g_app->modelSkins.empty()) {
-        ImGui::SameLine(0.0F, fs * 1.2F);
-        ImGui::SetNextItemWidth(fs * 11.0F);
-        const std::string current =
-            (g_app->modelSkinIndex >= 0 && static_cast<std::size_t>(g_app->modelSkinIndex) < g_app->modelSkins.size())
-                ? g_app->modelSkins[static_cast<std::size_t>(g_app->modelSkinIndex)]
-                : std::string("-");
-        if (ImGui::BeginCombo(tr(Str::ModelSkin), current.c_str())) {
-            for (std::size_t i = 0; i < g_app->modelSkins.size(); ++i) {
-                const bool selS = (static_cast<int>(i) == g_app->modelSkinIndex);
-                if (ImGui::Selectable(g_app->modelSkins[i].c_str(), selS)) {
-                    applySkinByIndex(static_cast<int>(i));
-                    ++g_app->modellHautWechsel;
-                }
-                if (selS) { ImGui::SetItemDefaultFocus(); }
-            }
-            ImGui::EndCombo();
-        }
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(Str::ModelSkinHint)); }
-        // H2: die Auswahlliste meldet ihre Beschriftung sonst nur aufgeklappt (Tour k-skins, Helfer).
-        if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), tr(Str::ModelSkin)); }
-        ImGui::SameLine();
-        int shown = 0;
-        int total = 0;
-        for (const GlmSurface& sf : g_app->model.surfaces) {
-            if (sf.isTag()) { continue; }
-            ++total;
-            if (sf.isVisible(g_app->showCaps)) { ++shown; }
-        }
-        ImGui::TextDisabled(trN(Str::ModelSurfaces, shown, total), shown, total);
-        // Klick: alle Flaechen ins Detailprotokoll (siehe Watt Tambor, rc3xx).
-        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::ModelSurfaceDump)); }
-        tourZielMelden("modell.flaechen", ImRect{ImGui::GetItemRectMin(), ImGui::GetItemRectMax()});   // H2: Ziel der Tour k-skins
-        if (ImGui::IsItemClicked()) {
-            modellFlaechenProtokoll();
-            ++g_app->modellFlaechenListen;
-        }
-    }
-
-    // --- Zeile 2: Schieberegler ----------------------------------------------------
-    if (e == nullptr) {
-        int none = 0;
-        ImGui::BeginDisabled();
-        ImGui::SetNextItemWidth(-FLT_MIN);
-        ImGui::SliderInt("##frameoff", &none, 0, 0, "");
-        ImGui::EndDisabled();
-        modellSequenzZeile(nullptr);
-        modellMarkerZeile(nullptr);   // Stufe 2
-        return;
-    }
-    int rel = g_app->animFrame - e->firstFrame;
-    ImGui::SetNextItemWidth(-FLT_MIN);
-    if (ImGui::SliderInt("##frame", &rel, 0, std::max(e->numFrames - 1, 0), "")) {
-        g_app->animFrame = e->firstFrame + rel;
-        g_app->animTime = 0.0F;
-        g_app->animPlaying = false;
-        g_app->modelDirty = true;
-    }
-    modellSequenzZeile(e);
-    modellMarkerZeile(e);   // Stufe 2: die Zeile der animation.cfg, bearbeitbar
-    (void)sp;
+    // AP1: die Leiste selbst - nach dem freigegebenen Entwurf, je Bedienmodus wie 3ds Max bzw. wie Blender
+    drawModellZeitleiste(e);
 }
 
 // Was der Zeichner von jeder Flaeche sieht - ins Detailprotokoll.

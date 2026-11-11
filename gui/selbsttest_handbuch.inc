@@ -2484,6 +2484,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_mb3.inc: Modell-Block S
 namespace kv5 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_mb5.inc: Modell-Block Stufe 3b, BHED_HB_NUR=mb5
 }  // namespace kv5
+namespace ap1 {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_ap1.inc: AP1 Zeitleiste des Model-Tabs, BHED_HB_NUR=ap1
+}  // namespace ap1
 namespace ik6 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_mb6.inc: Modell-Block Stufe 4, BHED_HB_NUR=mb6
 }  // namespace ik6
@@ -2550,6 +2553,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "mb5") == 0) {
         return kv5::handbuchSchritte();   // Modell-Block Stufe 3b: Dopesheet, Kurveneditor, Werkzeuge, Reduzieren
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap1") == 0) {
+        return ap1::handbuchSchritte();   // AP1: die Zeitleiste des Model-Tabs (wie 3ds Max, wie Blender, Ansehen/Pruefen)
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "mb6") == 0) {
         return ik6::handbuchSchritte();   // Modell-Block Stufe 4: IK/FK, Fussrolle, Raum, Pfade
@@ -6264,15 +6270,16 @@ std::vector<Schritt> handbuchSchritteInhalt() {
             return ImRect{0.0F, ImGui::GetFrameHeight() * 2.0F, d.x * 0.58F, band.Max.y};
         };
         bildTeil("m_modus", modellR, [=] { return M{knopf(tr(Str::ViewModel))}; });
-        bildTeil("m_abspielen", modellR, [=] { return M{knopf(tr(Str::ModelLoop))}; });
+        bildTeil("m_abspielen", modellR, [=] { return M{knopf(tr(Str::MzSchleife))}; });   // AP1: "Force loop" in der Zeitleiste
         bildTeil("m_insskript", modellR, [=] { return M{knopf(tr(Str::ModelAnimToScript))}; });
         bildTeil("m_details", modellR, [=] { return M{knopf(tr(Str::ModelBones)), knopf(tr(Str::ModelTextures))}; });
         bildTeil("m_caps", modellR, [=] { return M{knopf(tr(Str::ModelCaps))}; });
         bildTeil("m_gla", modellR, [=] { return M{knopf(tr(Str::ModelLoadGla))}; });
-        bildTeil("m_flaechen", modellR, [=] {
+        // AP1 Z20: Haut und Flaechenzaehler stehen im Befehlsfeld (Gruppe "Detailstufe und Skin"), der Zaehler unter der Hautliste
+        bildTeil("m_flaechen", voll, [=] {
             const ImRect sk = knopf(tr(Str::ModelSkin));
             if (sk.GetWidth() <= 0.0F) { return M{}; }
-            return M{ImRect{sk.Max.x + 2.0F, sk.Min.y, sk.Max.x + ImGui::GetFontSize() * 9.0F, sk.Max.y}};
+            return M{ImRect{sk.Min.x, sk.Max.y + 2.0F, sk.Min.x + ImGui::GetFontSize() * 10.0F, sk.Max.y + ImGui::GetFontSize() * 1.6F}};
         });
         setzenSchritt("zurueck zur Mission", [=] { g_app->leftMode = 1; }, 0.6);
         add(tu("Kurz: Intro zurueck", [=] {

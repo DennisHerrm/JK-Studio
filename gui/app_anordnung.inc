@@ -1437,12 +1437,9 @@ Layout computeLayout() {
     // Wer die Bedienung schon sieht, weiss auch, was ihn erwartet.
     // dock1: steht die Leiste in einem eigenen Fenster, faellt das Band weg.
     if (g_app->leftMode == 2 && dock::zuhause("modell.leiste")) {
-        // Modell: zwei Zeilen - Bedienung und Zeitleiste. Beide sind
-        // Elementzeilen, also genau zwei Mal rowH, plus die Aussenraender
-        // des Bandes.
-        // Modell-Block 1a-1: dazu die Zeile Primaer/Sekundaer.
-        // Stufe 2: und die Zeile der Marker (animation.cfg), mit drei Zeilen lag sie unter dem Rand (mb3_ui1: Ziehen ohne Wirkung).
-        l.toolH = rowH * 4.0F + st.ItemSpacing.y * 3.0F;
+        // AP1: die Zeitleiste des Model-Tabs nach dem Entwurf - so hoch wie ihre Fassung (kurz, Sequenz, voll mit
+        // Spuren; der Griff ueber der Leiste zieht den Spurbereich), bis rc611 fest vier Zeilen.
+        l.toolH = modellZeitleisteHoehe();
     } else if (g_app->leftMode == 1 && dock::zuhause("mission.zeitleiste")) {
         // IMMER Platz lassen, auch ohne Karte - sonst springt die Anordnung
         // beim Laden.

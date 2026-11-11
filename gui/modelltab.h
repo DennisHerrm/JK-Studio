@@ -621,7 +621,6 @@ struct ModellTab {
     // Stufe 3b: Dopesheet und Kurveneditor (app_modelltab_kurven.cpp)
     bool kvOffen = false;
     int kvArt = 0;                // 0 Dopesheet, 1 Kurveneditor
-    float kvHoehe = 0.0F;         // unter den Ansichten (0: Vorgabe)
     std::string kvTitel;          // Selbsttest: der Name des Editors im letzten Bild
     bool kvEinpassen = true;
     float kvVon = 0.0F;
@@ -787,7 +786,6 @@ bool modellTeilGezeichnet(int teil);
 void modellDokumentLaden(const std::string& bytes);
 void modellAnzeigeAktualisieren();
 void drawModellBereiche();
-void modellSequenzZeile(const AnimEntry* e);
 // mb1a2
 void modellDateiMenue();
 void modellDateiTasten(bool nurRueckgaengig);
@@ -875,8 +873,6 @@ bool modellRigAktionenSuche(const std::string& such);   // Zeilen in "Alle Aktio
 [[nodiscard]] bool modellRigGriffAufSchirm(int griff, ImVec2& out);
 // Stufe 3b (app_modelltab_kurven.cpp): Dopesheet, Kurveneditor, Animationswerkzeuge, Pfade ziehen
 void drawModellAnimEditor();
-[[nodiscard]] float modellAnimEditorHoehe(float frei);   // 0, wenn zu
-void drawModellAnimEditorUnten(ImVec2 groesse);
 void drawModellKurvenBereich();
 void modellKurvenMenue();
 void modellKurvenKontextMenue();
@@ -1233,5 +1229,94 @@ bool modellAutoSkin();               // mit den Einstellungen rechnen: ein Rueck
 void modellAutoSkinOeffnen();        // das Fenster zeigen
 void drawModellAutoSkinGruppe();     // der Inhalt der Gruppe "Automatisch (Auto-Skin)"
 void drawModellAutoSkinFenster();
+// --- AP1 (MBENTWURF Teil B, 11.11.): die Zeitleiste des Model-Tabs nach dem freigegebenen Entwurf, je Bedienmodus wie
+// 3ds Max bzw. wie Blender (gui/app_modelltab_zeit.cpp; der Spurbereich ist das Dopesheet in gui/app_modelltab_kurven.cpp)
+// Drei Fassungen je Bereich: kurz (Modellieren, UV, Weights, Painting), Sequenz (Ansehen/Pruefen), voll (Animation).
+enum class ZeitFassung : int { Kurz = 0, Sequenz, Voll };
+// Was die Leiste im letzten Bild gezeichnet hat (Selbsttest, Fotos): Lage der Teile (x, y, Breite, Hoehe) und Zaehler.
+struct ModellZeitProbe {
+    int bild = -1;            // ImGui-Bild, in dem die Leiste gezeichnet wurde
+    int fassung = -1;         // ZeitFassung
+    bool blender = false;
+    float band[4]{};
+    float griff[4]{};
+    float namen[4]{};         // die Namensspalte neben der Skala
+    float skala[4]{};
+    float spuren[4]{};        // der Spurbereich unter der Skala (Hoehe 0: zu)
+    float status[4]{};
+    float kopf[4]{};          // das Kaestchen des Abspielkopfs
+    float bildX0 = 0.0F;      // Lage des ersten und des letzten Bilds der Sequenz auf der Skala
+    float bildX1 = 0.0F;
+    int frameStriche = 0;     // feine Striche je Frame in der Skala (wie 3ds Max)
+    int spurStriche = 0;      // ... in den Spuren
+    int spurZeilen = 0;       // gezeichnete Spuren
+    int teilstriche = 0;      // Teilstriche mit Zahl
+    int striche = 0;          // Schluessel als Striche (wie 3ds Max): alle, davon rot / gruen / zweifarbig
+    int stricheRot = 0;
+    int stricheGruen = 0;
+    int stricheZwei = 0;
+    int rauten = 0;           // Schluessel als Rauten (wie Blender)
+    int kopfLinien = 0;       // Linien des aktuellen Bilds (Skala und Spuren)
+    int transportZeilen = 0;
+    std::string namenText;    // "Selection (track bar)" / "Summary" / leer
+    std::string kopfText;     // die Zahl im Kaestchen
+    std::string hinweisText;  // die Zeile unter der Leiste
+    std::string statusText;   // die Statuszeile (Modus · Tasten · Undo/Suche)
+    std::string transport;    // die Knoepfe und Felder der Knopfreihe der Reihe nach, mit | getrennt
+};
+struct ModellZeit {
+    bool autoKey = true;       // Auto Key (Max: N) / Auto-Keying (Blender): an = jeder Zug an einem Griff setzt einen Schluessel
+    bool keyModus = false;     // wie 3ds Max "Key Mode": Bild zurueck/vor (auch , .) springen von Schluessel zu Schluessel
+    bool sequenzAuf = true;    // Ansehen/Pruefen: die Zeilen Primaer/Sekundaer unter der Skala
+    bool konfigOffen = false;  // Fenster Zeitkonfiguration
+    bool menueOeffnen = false; // das Menue der Zeitleiste (Knopf, Rechtsklick)
+    bool keyingOeffnen = false;   // Blender K: das Keying-Menue
+    bool modusOeffnen = false;    // Klick auf den Bedienmodus in der Statuszeile
+    // Die Pose ohne Schluessel (Auto Key aus): die Rueckgaengig-Schritte der Zuege seit dem letzten Set Key
+    std::vector<std::uint64_t> offen;
+    int offenBild = -1;
+    std::string offenSequenz;
+    int offenStand = -1;
+    int zugBild = -10;         // das letzte Bild, in dem ein Zug lief (sein letzter Schritt gehoert noch zur Pose)
+    int verworfen = 0;         // Selbsttest: verworfene Posen
+    int uebernommen = 0;       // Selbsttest: mit Set Key behaltene Posen
+    int spruenge = 0;          // Selbsttest: Spruenge zum vorigen/naechsten Schluessel
+    bool griffZieht = false;
+    float griffMaus = 0.0F;
+    float griffHoehe = 0.0F;
+    bool skalaZieht = false;
+    bool einstellungenGelesen = false;
+    float breite = 0.0F;       // Breite der Leiste im letzten Bild (Umbruch der Knopfreihe)
+    ModellZeitProbe probe;
+};
+[[nodiscard]] ModellZeit& modellZeit();
+[[nodiscard]] ZeitFassung modellZeitFassung();
+[[nodiscard]] float modellZeitleisteHoehe();     // Hoehe des Bands unter den Spalten (app_anordnung.inc)
+void drawModellZeitleiste(const AnimEntry* e);   // die Leiste (drawModelPanel, nach der Uhr)
+bool modellZeitTasten();                         // Max: N, Key-Modus; Blender: Pfeil hoch/runter, K, Pos1 im Editor
+bool modellZeitAktionenSuche(const std::string& such);   // Zeilen in "Alle Aktionen suchen"
+void modellZeitAutoKey(bool an);
+void modellZeitZugGemeldet(std::uint64_t schritt);   // ein Zug an einem Griff/Regler hat diesen Rueckgaengig-Schritt angelegt
+bool modellZeitOffenUebernehmen();               // Set Key: die Pose ohne Schluessel behalten (false: es gab keine)
+bool modellZeitSchluesselSprung(int richtung);   // zum vorigen (-1) / naechsten (+1) Schluessel
+void modellHautZeile();                          // Z20: Haut und Flaechenzaehler in der Gruppe "Detailstufe und Skin"
+// Gemeinsame Masse und Zeichner von Skala und Spuren (Zeitleiste und Dopesheet/Kurveneditor: ein Lineal, Bild 0 buendig)
+[[nodiscard]] float modellZeitNamenBreite();
+[[nodiscard]] float modellZeitSkalaHoehe();
+[[nodiscard]] float modellZeitSpurZeile();           // Hoehe einer Spur
+[[nodiscard]] float modellZeitSpurAbstand();         // Abstand zwischen zwei Spuren
+[[nodiscard]] float modellZeitSchluesselY(float skalaOben);     // Mitte der Schluessel in der Skala
+[[nodiscard]] float modellZeitSchluesselZone(float skalaOben);  // darunter stehen die Zahlen (dort setzt die Maus das Bild)
+void modellZeitSkala(ImDrawList* dl, ImVec2 lo, ImVec2 hi, float von, float bis, int erstes, int anzahl, int fps);
+void modellZeitNamenText(ImDrawList* dl, ImVec2 skalaLinksOben, const char* text);   // der Name neben der Skala
+void modellZeitSpurGrund(ImDrawList* dl, ImVec2 lo, ImVec2 hi, float von, float bis, int erstes, int anzahl);
+// art: Bit 0 Bewegung (rot), Bit 1 Drehung (gruen); hoehe = Hoehe des Strichs bzw. Durchmesser der Raute
+void modellZeitSchluessel(ImDrawList* dl, float x, float yMitte, float hoehe, unsigned art, bool gewaehlt, bool inSkala);
+void modellZeitZeiger(ImDrawList* dl, ImVec2 lo, ImVec2 hi, float von, float bis, int erstes, int bild, float spurenUnten);
+// app_modelltab_kurven.cpp: Skala mit den Schluesseln der Auswahl und darunter die Spuren (Dopesheet) oder der Kurveneditor
+void drawModellSpurbereich(ImVec2 groesse);
+void modellCfgAbgleich();   // app_modelltab_mb3.cpp: die animation.cfg im Dokument zur geladenen GLA (je Bild, aus der Leiste)
+[[nodiscard]] std::vector<int> modellKvSchluesselBilder();   // Bilder mit Schluesseln der gezeigten Knochen (aufsteigend)
+
 }  // namespace bhed::gui
 #endif

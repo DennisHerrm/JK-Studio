@@ -1,11 +1,13 @@
 // app_modelltab_kurven.cpp - Model-Tab, Modell-Block Stufe 3b: Dopesheet, Kurveneditor, Animationswerkzeuge, Aufraeumen,
 // Bewegungspfade ziehen
 //
-//   Editor        ein eigenes Fenster (andockbar, Platz nur solange offen): wie 3ds Max "Track View - Dope Sheet" /
-//                 "Track View - Curve Editor", wie Blender "Dope Sheet" / "Graph Editor". Links die Zeilen (Zusammenfassung,
-//                 Sammelzeilen je Glied, Knochen, im Kurveneditor die Kanaele mit Auge), rechts die Zeit in ganzen Frames.
-//   Dopesheet     Rauten je Schluessel; Klick waehlt (Umschalt: dazu), Rahmen ziehen waehlt, gewaehlte ziehen verschiebt
-//                 in der Zeit; Sammel- und Zusammenfassungszeilen waehlen alle Schluessel ihres Frames.
+//   Editor        seit AP1 der Spurbereich der Zeitleiste (app_modelltab_zeit.cpp; ein Lineal, Platz nur solange die Spuren
+//                 offen sind): wie 3ds Max Spurleiste und "Track View - Dope Sheet" / "Track View - Curve Editor", wie
+//                 Blender "Dope Sheet" / "Graph Editor". Links die Zeilen (Auswahl bzw. Zusammenfassung in der Skala,
+//                 Spuren je Glied, Knochen, im Kurveneditor die Kanaele mit Auge), rechts die Zeit in ganzen Frames.
+//   Dopesheet     Schluessel als Striche (wie 3ds Max) oder Rauten (wie Blender); Klick waehlt (Umschalt: dazu), Rahmen
+//                 ziehen waehlt, gewaehlte ziehen verschiebt in der Zeit; die Zeilen der Auswahl und der Glieder waehlen
+//                 alle Schluessel ihres Frames.
 //   Kurveneditor  eine Kurve je Kanal (bhed/modell/animkurven.h, Bezier wie Blender), Schluessel ziehen (Zeit und Wert),
 //                 Henkel ziehen (eine Auto-Art wird dabei Ausgerichtet bzw. Vektor Frei, wie Blender), Alles zeigen.
 //   Werkzeuge     ueber Menue "Animation" > Animationswerkzeuge, Rechtsklick im Editor und in der Ansicht, Suche X/F3; die
@@ -175,6 +177,17 @@ ImU32 kanalFarbe(int c, float alpha = 1.0F) {
     return ImGui::ColorConvertFloat4ToU32(ImVec4{f[0], f[1], f[2], alpha});
 }
 
+// AP1: der Name der Figur vor dem Glied einer Spur (Entwurf "Kyle - Koerper"): der Ordner des Modells
+std::string figurName() {
+    std::string pfad = g_app->modelPath;
+    std::replace(pfad.begin(), pfad.end(), '\\', '/');
+    const std::size_t ende = pfad.find_last_of('/');
+    if (ende == std::string::npos || ende == 0) { return {}; }
+    const std::size_t anfang = pfad.find_last_of('/', ende - 1);
+    const std::size_t ab = anfang == std::string::npos ? 0 : anfang + 1;
+    return pfad.substr(ab, ende - ab);
+}
+
 // --- Zeilen ------------------------------------------------------------------------------------------------------------
 struct Zeile {
     int art = 0;       // 0 Zusammenfassung, 1 Glied, 2 Knochen, 3 Kanal, 4 IK-Spur (Stufe 7: knochen = ikWahlCode)
@@ -281,6 +294,7 @@ void wahlAusSchicht() {
 }
 
 bool schluesselSetzen() {
+    if (modellZeitOffenUebernehmen()) { return true; }   // AP1: Auto Key aus - die eben gestellte Pose behaelt ihre Schluessel
     std::vector<int> k = auswahlKnochen();
     if (k.empty() || g_app->anim.bones.empty()) {
         melden(tr(Str::MbRgKeineAuswahl));
@@ -1072,39 +1086,31 @@ Feld g_feld;   // vom letzten Bild (Selbsttest, Ziehen)
 std::vector<Zeile> g_zeilen;
 std::vector<float> g_zeileY;   // Mitte je Zeile (Dopesheet)
 
+// AP1: das Lineal ist die Skala der Zeitleiste (ein Lineal fuer Zeitleiste und Spuren, Bild 0 ueberall an derselben
+// Stelle; Zaehlung wie Max ab 0 in der Sequenz, wie Blender ab 1) - gezeichnet in app_modelltab_zeit.cpp.
 void zeitLineal(ImDrawList* dl, const Feld& f, float oben, float hoehe) {
-    const float fs = ImGui::GetFontSize();
-    dl->AddRectFilled(ImVec2{f.lo.x, oben}, ImVec2{f.hi.x, oben + hoehe}, ImGui::GetColorU32(ImGuiCol_FrameBg));
-    const float spanne = std::max(f.bis - f.von, 1.0F);
-    const float pxProBild = (f.hi.x - f.lo.x) / spanne;
-    if (!(pxProBild > 1e-4F) || !std::isfinite(pxProBild)) { return; }   // zu schmal: kein Lineal (sonst endete die Schleife nie)
-    int schritt = 1;
-    while (static_cast<float>(schritt) * pxProBild < fs * 3.0F) { schritt *= (schritt == 1 || schritt == 10 || schritt == 100) ? 5 : 2; }
-    const bool abEins = modellBlender();
-    const int erstesB = static_cast<int>(std::floor(f.von / static_cast<float>(schritt))) * schritt;
     int erstes = 0;
     int anzahl = 0;
     bereich(erstes, anzahl);
-    for (int b = erstesB; static_cast<float>(b) <= f.bis; b += schritt) {
-        const float x = f.x(static_cast<float>(b));
-        if (x < f.lo.x) { continue; }
-        dl->AddLine(ImVec2{x, oben + hoehe * 0.55F}, ImVec2{x, oben + hoehe}, ImGui::GetColorU32(ImGuiCol_TextDisabled));
-        dl->AddLine(ImVec2{x, oben + hoehe}, ImVec2{x, f.hi.y}, ImGui::GetColorU32(ImGuiCol_Separator, 0.35F));
-        char z[16];
-        // Zaehlung wie die Zeitleiste: wie Max ab 0 in der Sequenz, wie Blender ab 1
-        std::snprintf(z, sizeof z, "%d", b - erstes + (abEins ? 1 : 0));
-        dl->AddText(ImVec2{x + 2.0F, oben}, ImGui::GetColorU32(ImGuiCol_TextDisabled), z);
-    }
-    // Sequenz (Marker der animation.cfg) als heller Bereich
-    dl->AddRectFilled(ImVec2{std::max(f.x(static_cast<float>(erstes)), f.lo.x), oben + hoehe}, ImVec2{std::min(f.x(static_cast<float>(erstes + anzahl - 1)), f.hi.x), f.hi.y},
-                      ImGui::GetColorU32(ImGuiCol_Header, 0.18F));
+    const AnimEntry* e = sequenz();
+    modellZeitSkala(dl, ImVec2{f.lo.x, oben}, ImVec2{f.hi.x, oben + hoehe}, f.von, f.bis, erstes, e != nullptr ? anzahl : 0, e != nullptr ? e->fps : 20);
 }
 
 void zeitZeiger(ImDrawList* dl, const Feld& f, float oben) {
-    const float x = f.x(static_cast<float>(bildJetzt()));
-    if (x < f.lo.x || x > f.hi.x) { return; }
-    const ImU32 orange = IM_COL32(255, 150, 40, 255);
-    dl->AddLine(ImVec2{x, oben}, ImVec2{x, f.hi.y}, orange, 2.0F);
+    int erstes = 0;
+    int anzahl = 0;
+    bereich(erstes, anzahl);
+    modellZeitZeiger(dl, ImVec2{f.lo.x, oben}, ImVec2{f.hi.x, oben + modellZeitSkalaHoehe()}, f.von, f.bis, erstes, bildJetzt(), f.hi.y);
+}
+
+// AP1: was ein Schluessel bewegt - Bit 0 Bewegung (Verschiebung im Rahmen des Knochens, IK-Ziele), Bit 1 Drehung.
+// Die Spurleiste von 3ds Max faerbt danach (Rot = Position, Gruen = Drehung); Skalierung speichert JKA nicht.
+unsigned schluesselArt(const modell::RigSchluessel& k) {
+    constexpr float kEps = 1e-4F;
+    unsigned art = 0U;
+    if (std::fabs(k.t[0]) > kEps || std::fabs(k.t[1]) > kEps || std::fabs(k.t[2]) > kEps) { art |= 1U; }
+    if (std::fabs(k.q[1]) > kEps || std::fabs(k.q[2]) > kEps || std::fabs(k.q[3]) > kEps) { art |= 2U; }
+    return art;
 }
 
 void bildSetzen(int b) {
@@ -1145,12 +1151,17 @@ void zugBeginnen(float mausX) {
 
 // --- Dopesheet ----------------------------------------------------------------------------------------------------------
 
+// AP1: das Dopesheet ist der Spurbereich der Zeitleiste (Entwurf zeitleiste(max)): oben die Skala, in ihr die Zeile der
+// Auswahl (wie 3ds Max die Spurleiste, wie Blender die Zusammenfassung), darunter eine Spur je Glied und Knochen. Die
+// Schluessel wie 3ds Max als Striche (Rot = Bewegung, Gruen = Drehung) hinter einem feinen Strich je Frame, wie Blender
+// als Rauten. In der Skala: oben (Schluessel) waehlt und verschiebt die Maus Schluessel, unten (Zahlen) setzt sie das Bild.
 void drawDopesheet(const ImVec2 groesse) {
     ModellTab& t = mt();
     const float fs = ImGui::GetFontSize();
-    const float zeileH = ImGui::GetFrameHeight();
-    const float linksB = fs * 13.0F;
-    const float linealH = fs * 1.3F;
+    const float zeileH = modellZeitSpurZeile();
+    const float teilung = zeileH + modellZeitSpurAbstand();
+    const float linksB = modellZeitNamenBreite();
+    const float linealH = modellZeitSkalaHoehe();
     g_zeilen = zeilen(false);
     g_zeileY.assign(g_zeilen.size(), 0.0F);
     const modell::RigSchicht& s = schicht();
@@ -1162,32 +1173,57 @@ void drawDopesheet(const ImVec2 groesse) {
         t.kvBis = static_cast<float>(erstes + anzahl);
         t.kvEinpassen = false;
     }
-    ImGui::BeginChild("##dszeilen", ImVec2{groesse.x, groesse.y}, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("##dszeilen", ImVec2{groesse.x, groesse.y}, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     const ImVec2 lo = ImGui::GetCursorScreenPos();
     ImDrawList* dl = ImGui::GetWindowDrawList();
     Feld f;
     f.lo = ImVec2{lo.x + linksB, lo.y + linealH};
-    f.hi = ImVec2{lo.x + groesse.x, lo.y + std::max(groesse.y, linealH + zeileH)};
+    f.hi = ImVec2{lo.x + groesse.x, lo.y + std::max(groesse.y, linealH)};
     f.von = t.kvVon;
     f.bis = t.kvBis;
-    // links: Namen (eigene Zeilen mit Klick auf Glied = auf/zu)
-    float y = lo.y + linealH - t.kvScrollY;
+    const float spurenOben = f.lo.y + ImGui::GetStyle().ItemSpacing.y;
+    const float schluesselY = modellZeitSchluesselY(lo.y);
+    const float zahlenY = modellZeitSchluesselZone(lo.y);
+    const std::string figur = figurName();
+    // links: Namen. Die Zeile der Auswahl steht neben der Skala, die Spuren darunter (Klick auf ein Glied = auf/zu).
+    modellZeitNamenText(dl, lo, tr(modellBlender() ? Str::MbKvZusammenfassung : Str::MzAuswahlSpur));
+    float y = spurenOben - t.kvScrollY;
+    dl->PushClipRect(ImVec2{lo.x, spurenOben}, ImVec2{f.lo.x, f.hi.y}, true);
     for (std::size_t i = 0; i < g_zeilen.size(); ++i) {
         const Zeile& z = g_zeilen[i];
+        if (z.art == 0) {
+            g_zeileY[i] = schluesselY;
+            continue;
+        }
         g_zeileY[i] = y + zeileH * 0.5F;
-        if (y + zeileH >= f.lo.y && y <= f.hi.y) {
+        if (y + zeileH >= spurenOben && y <= f.hi.y) {
             std::string name;
-            if (z.art == 0) { name = tr(Str::MbKvZusammenfassung); }
-            if (z.art == 1) { name = std::string(t.kvGliedZu[static_cast<std::size_t>(z.glied)] != 0 ? "+ " : "- ") + tr(gliedText(z.glied)); }
-            if (z.art == 2) { name = "    " + g_app->anim.bones[static_cast<std::size_t>(z.knochen)].name; }
+            float einzug = 0.0F;
+            if (z.art == 1) {
+                // wie im Entwurf "Kyle - Koerper": Figur und Glied; das Dreieck davor klappt die Knochen des Glieds auf und zu
+                name = (figur.empty() ? std::string() : figur + " \xc2\xb7 ") + tr(gliedText(z.glied));
+                const bool zu = t.kvGliedZu[static_cast<std::size_t>(z.glied)] != 0;
+                const float g = std::floor(zeileH * 0.5F);
+                const ImVec2 m{std::floor(lo.x + g * 0.7F), std::floor(y + zeileH * 0.5F)};
+                if (zu) {
+                    dl->AddTriangleFilled(ImVec2{m.x - g * 0.3F, m.y - g * 0.5F}, ImVec2{m.x - g * 0.3F, m.y + g * 0.5F}, ImVec2{m.x + g * 0.4F, m.y}, ImGui::GetColorU32(ImGuiCol_TextDisabled));
+                } else {
+                    dl->AddTriangleFilled(ImVec2{m.x - g * 0.5F, m.y - g * 0.3F}, ImVec2{m.x + g * 0.5F, m.y - g * 0.3F}, ImVec2{m.x, m.y + g * 0.4F}, ImGui::GetColorU32(ImGuiCol_TextDisabled));
+                }
+                einzug = fs * 0.9F;
+            }
+            if (z.art == 2) {
+                name = g_app->anim.bones[static_cast<std::size_t>(z.knochen)].name;
+                einzug = fs * 1.7F;
+            }
             if (z.art == 4) {
                 static const Str kGlied[4] = {Str::MbIkArmL, Str::MbIkArmR, Str::MbIkBeinL, Str::MbIkBeinR};
                 const int sp = modell::ikWahlSpur(z.knochen);
-                name = "    IK " + std::string(tr(kGlied[std::clamp(static_cast<int>(s.ik[static_cast<std::size_t>(sp)].art), 0, 3)]));
+                name = "IK " + std::string(tr(kGlied[std::clamp(static_cast<int>(s.ik[static_cast<std::size_t>(sp)].art), 0, 3)]));
+                einzug = fs * 1.7F;
             }
-            if ((i % 2U) == 0U) { dl->AddRectFilled(ImVec2{lo.x, y}, ImVec2{f.hi.x, y + zeileH}, ImGui::GetColorU32(ImGuiCol_TableRowBgAlt)); }
             const bool wahlZeile = z.art == 2 && !auswahlKnochen().empty() && auswahlKnochen().front() == z.knochen;
-            dl->AddText(ImVec2{lo.x + fs * 0.3F, y + (zeileH - fs) * 0.5F}, ImGui::GetColorU32(z.art < 2 ? ImGuiCol_Text : (wahlZeile ? ImGuiCol_PlotHistogram : ImGuiCol_Text)), name.c_str());
+            dl->AddText(ImVec2{lo.x + einzug, y + (zeileH - fs) * 0.5F}, ImGui::GetColorU32(wahlZeile ? ImGuiCol_PlotHistogram : ImGuiCol_Text), name.c_str());
             ImGui::SetCursorScreenPos(ImVec2{lo.x, y});
             ImGui::PushID(static_cast<int>(i));
             if (ImGui::InvisibleButton("##zn", ImVec2{linksB, zeileH})) {
@@ -1197,46 +1233,52 @@ void drawDopesheet(const ImVec2 groesse) {
                     t.knochenWahl = z.knochen;
                 }
             }
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip) && ImGui::CalcTextSize(name.c_str()).x + einzug > linksB) { ImGui::SetTooltip("%s", name.c_str()); }
             ImGui::PopID();
         }
-        y += zeileH;
+        y += teilung;
     }
-    const float inhaltH = static_cast<float>(g_zeilen.size()) * zeileH;
-    // rechts: das Zeitfeld (ein Knopf ueber alles, damit die Maus hier dem Editor gehoert)
-    ImGui::SetCursorScreenPos(f.lo);
-    ImGui::InvisibleButton("##dsfeld", ImVec2{std::max(f.hi.x - f.lo.x, 1.0F), std::max(f.hi.y - f.lo.y, 1.0F)}, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+    dl->PopClipRect();
+    const float inhaltH = static_cast<float>(g_zeilen.size() > 0 ? g_zeilen.size() - 1 : 0) * teilung;
+    // rechts: Skala und Spuren (ein Knopf ueber alles, damit die Maus hier dem Editor gehoert)
+    ImGui::SetCursorScreenPos(ImVec2{f.lo.x, lo.y});
+    ImGui::InvisibleButton("##dsfeld", ImVec2{std::max(f.hi.x - f.lo.x, 1.0F), std::max(f.hi.y - lo.y, 1.0F)}, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
     const bool ueber = ImGui::IsItemHovered();
-    dl->PushClipRect(ImVec2{f.lo.x, lo.y}, f.hi, true);
     zeitLineal(dl, f, lo.y, linealH);
-    // Rauten
+    // Spuren: Grund (wie 3ds Max mit einem Strich je Frame) und Schluessel; die Zeile der Auswahl steht in der Skala
     const float r = zeileH * 0.32F;
     t.kvRauten = 0;
     for (std::size_t i = 0; i < g_zeilen.size(); ++i) {
+        const bool inSkala = g_zeilen[i].art == 0;
         const float ym = g_zeileY[i];
-        if (ym < f.lo.y || ym > f.hi.y) { continue; }
+        if (!inSkala && (ym + zeileH * 0.5F < spurenOben || ym - zeileH * 0.5F > f.hi.y)) { continue; }
+        dl->PushClipRect(ImVec2{f.lo.x, inSkala ? lo.y : spurenOben}, ImVec2{f.hi.x, inSkala ? f.lo.y : f.hi.y}, true);
+        if (!inSkala) { modellZeitSpurGrund(dl, ImVec2{f.lo.x, ym - zeileH * 0.5F}, ImVec2{f.hi.x, ym + zeileH * 0.5F}, f.von, f.bis, erstes, anzahl); }
         const std::vector<int> ks = knochenDer(g_zeilen[i]);
-        std::set<int> bilder;
+        std::map<int, unsigned> bilder;   // Bild -> was die Schluessel dort bewegen (schluesselArt)
         std::set<int> gew;
         for (const int b : ks) {
             const std::vector<modell::RigSchluessel>* liste = schluesselDer(s, b);
             if (liste == nullptr) { continue; }
             for (const modell::RigSchluessel& k : *liste) {
-                bilder.insert(k.bild);
+                bilder[k.bild] |= schluesselArt(k) | (modell::ikWahlSpur(b) >= 0 ? 1U : 0U);
                 if (gewaehlt(b, k.bild)) { gew.insert(k.bild); }
             }
         }
-        for (const int b : bilder) {
+        const float hoehe = inSkala ? std::floor(fs * 0.92F) : zeileH - 2.0F;
+        for (const auto& [b, art] : bilder) {
             const float x = f.x(static_cast<float>(b));
             if (x < f.lo.x - r || x > f.hi.x + r) { continue; }
-            const bool g = gew.count(b) != 0U;
-            const float rr = g_zeilen[i].art < 2 ? r * 1.15F : r;
-            const ImU32 innen = g ? IM_COL32(255, 175, 60, 255)
-                                  : (g_zeilen[i].art < 2 ? IM_COL32(150, 150, 150, 255) : (g_zeilen[i].art == 4 ? IM_COL32(120, 200, 255, 255) : IM_COL32(225, 225, 225, 255)));
-            dl->AddQuadFilled(ImVec2{x, ym - rr}, ImVec2{x + rr, ym}, ImVec2{x, ym + rr}, ImVec2{x - rr, ym}, innen);
-            dl->AddQuad(ImVec2{x, ym - rr}, ImVec2{x + rr, ym}, ImVec2{x, ym + rr}, ImVec2{x - rr, ym}, IM_COL32(20, 20, 20, 255), 1.0F);
+            // die Raute so gross wie im Entwurf: in der Skala fast eine Schrifthoehe, in den Spuren knapp drei Viertel der Zeile
+            modellZeitSchluessel(dl, x, ym, modellBlender() && !inSkala ? hoehe * 0.72F : hoehe, art, gew.count(b) != 0U, inSkala);
             ++t.kvRauten;
         }
+        dl->PopClipRect();
     }
+    if (g_zeilen.size() <= 1U && f.hi.y - spurenOben > fs) {
+        dl->AddText(ImVec2{f.lo.x + fs * 0.4F, spurenOben + fs * 0.2F}, ImGui::GetColorU32(ImGuiCol_TextDisabled), tr(Str::MbKvKeineSchluessel));
+    }
+    dl->PushClipRect(ImVec2{f.lo.x, lo.y}, f.hi, true);
     zeitZeiger(dl, f, lo.y);
     // Rahmen
     const ImGuiIO& io = ImGui::GetIO();
@@ -1250,7 +1292,7 @@ void drawDopesheet(const ImVec2 groesse) {
     const auto rauteUnter = [&](ImVec2 m, int& zeile, int& bild) {
         zeile = -1;
         for (std::size_t i = 0; i < g_zeilen.size(); ++i) {
-            if (std::fabs(m.y - g_zeileY[i]) <= zeileH * 0.5F) { zeile = static_cast<int>(i); }
+            if (g_zeilen[i].art == 0 ? (m.y >= lo.y && m.y < zahlenY) : (m.y >= spurenOben && std::fabs(m.y - g_zeileY[i]) <= zeileH * 0.5F)) { zeile = static_cast<int>(i); }
         }
         bild = static_cast<int>(std::lround(f.bildAus(m.x)));
         if (zeile < 0 || std::fabs(f.x(static_cast<float>(bild)) - m.x) > std::max(r * 1.3F, 4.0F)) { return false; }
@@ -1261,7 +1303,7 @@ void drawDopesheet(const ImVec2 groesse) {
     };
     if (ueber && io.MouseWheel != 0.0F) {
         if (io.KeyCtrl || io.KeyShift) {
-            t.kvScrollY = std::clamp(t.kvScrollY - io.MouseWheel * zeileH * 3.0F, 0.0F, std::max(inhaltH - (f.hi.y - f.lo.y), 0.0F));
+            t.kvScrollY = std::clamp(t.kvScrollY - io.MouseWheel * teilung * 3.0F, 0.0F, std::max(inhaltH - (f.hi.y - spurenOben), 0.0F));
         } else {   // Zoom um die Maus
             const float um = f.bildAus(io.MousePos.x);
             const float k = std::pow(0.85F, io.MouseWheel);
@@ -1273,8 +1315,9 @@ void drawDopesheet(const ImVec2 groesse) {
         const float d = io.MouseDelta.x / std::max(f.hi.x - f.lo.x, 1.0F) * (t.kvBis - t.kvVon);
         t.kvVon -= d;
         t.kvBis -= d;
-        t.kvScrollY = std::clamp(t.kvScrollY - io.MouseDelta.y, 0.0F, std::max(inhaltH - (f.hi.y - f.lo.y), 0.0F));
+        t.kvScrollY = std::clamp(t.kvScrollY - io.MouseDelta.y, 0.0F, std::max(inhaltH - (f.hi.y - spurenOben), 0.0F));
     }
+    t.kvScrollY = std::clamp(t.kvScrollY, 0.0F, std::max(inhaltH - (f.hi.y - spurenOben), 0.0F));
     if (ImGui::IsItemActivated() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         int zeile = -1;
         int bild = 0;
@@ -1290,16 +1333,13 @@ void drawDopesheet(const ImVec2 groesse) {
             }
             zugBeginnen(io.MousePos.x);
             t.kvZiehArt = 2;
+        } else if (io.MousePos.y >= zahlenY && io.MousePos.y < spurenOben) {
+            t.kvZiehArt = 4;   // unter den Schluesseln der Skala (Zahlen): Klick und Ziehen setzen das Bild
         } else {
             t.kvZiehArt = 1;
             t.kvZugMaus[0] = io.MousePos.x;
             t.kvZugMaus[1] = io.MousePos.y;
         }
-    }
-    // Lineal oben: Klick/Ziehen setzt die Zeit
-    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && io.MousePos.x >= f.lo.x && io.MousePos.x <= f.hi.x && io.MousePos.y >= lo.y && io.MousePos.y < f.lo.y &&
-        ImGui::IsWindowHovered()) {
-        t.kvZiehArt = 4;
     }
     if (t.kvZiehArt == 4) {
         if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
@@ -1329,6 +1369,7 @@ void drawDopesheet(const ImVec2 groesse) {
         }
         for (std::size_t i = 0; i < g_zeilen.size(); ++i) {
             if (g_zeileY[i] < y0 - zeileH * 0.3F || g_zeileY[i] > y1 + zeileH * 0.3F) { continue; }
+            if (g_zeilen[i].art != 0 && g_zeileY[i] < spurenOben) { continue; }   // unter die Skala gerollte Spuren
             for (const int b : knochenDer(g_zeilen[i])) {
                 const std::vector<modell::RigSchluessel>* liste = schluesselDer(s, b);
                 if (liste == nullptr) { continue; }
@@ -1419,8 +1460,8 @@ void kurvenAbtasten() {
 void drawKurven(const ImVec2 groesse) {
     ModellTab& t = mt();
     const float fs = ImGui::GetFontSize();
-    const float linksB = fs * 13.0F;
-    const float linealH = fs * 1.3F;
+    const float linksB = modellZeitNamenBreite();   // AP1: Namensspalte und Skala der Zeitleiste
+    const float linealH = modellZeitSkalaHoehe();
     const modell::RigSchicht& s = schicht();
     int erstes = 0;
     int anzahl = 0;
@@ -1446,11 +1487,14 @@ void drawKurven(const ImVec2 groesse) {
         t.kvYBis = hi + rand;
         t.kvEinpassen = false;
     }
-    ImGui::BeginChild("##kezeilen", ImVec2{groesse.x, groesse.y}, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("##kezeilen", ImVec2{groesse.x, groesse.y}, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     const ImVec2 lo = ImGui::GetCursorScreenPos();
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    // links: Knochen (Klick klappt die Kanaele auf), Kanaele mit Auge
-    ImGui::BeginChild("##kekanaele", ImVec2{linksB, groesse.y}, ImGuiChildFlags_Borders);
+    // links: neben der Skala der Name des Editors, darunter die Knochen (Klick klappt die Kanaele auf), Kanaele mit Auge
+    modellZeitNamenText(dl, lo, t.kvTitel.c_str());
+    const float kanaeleOben = linealH + ImGui::GetStyle().ItemSpacing.y;
+    ImGui::SetCursorScreenPos(ImVec2{lo.x, lo.y + kanaeleOben});
+    ImGui::BeginChild("##kekanaele", ImVec2{linksB - fs * 0.3F, std::max(groesse.y - kanaeleOben, 1.0F)}, ImGuiChildFlags_Borders);
     for (const int b : gezeigteKnochen()) {
         ImGui::PushID(b);
         const bool auf = t.kvKnochenAuf.count(b) != 0U;
@@ -1478,7 +1522,7 @@ void drawKurven(const ImVec2 groesse) {
     }
     ImGui::EndChild();
     Feld f;
-    f.lo = ImVec2{lo.x + linksB + fs * 0.3F, lo.y + linealH};
+    f.lo = ImVec2{lo.x + linksB, lo.y + linealH};
     f.hi = ImVec2{lo.x + groesse.x, lo.y + groesse.y};
     f.von = t.kvVon;
     f.bis = t.kvBis;
@@ -1787,6 +1831,7 @@ void modellKurvenMenue() {
 void modellKurvenKontextMenue() { modellKurvenMenue(); }
 
 bool modellKurvenAktionenSuche(const std::string& such) {
+    if (modellZeitAktionenSuche(such)) { return true; }   // AP1: die Aktionen der Zeitleiste (Auto Key, Spuren, Zeitkonfiguration ...)
     for (const KvAktion& a : kvAktionen()) {
         const std::string text = aktionText(a);
         std::string k = text;
@@ -1820,100 +1865,54 @@ bool modellKurvenTasten() {
 bool modellKurvenTastenImEditor() { return mt().kvHoverVorher; }
 
 void drawModellAnimEditor() {
-    // der Regler der Werkzeuge (Popup); der Editor selbst steht unter den Ansichten (drawModellAnimEditorUnten)
+    // der Regler der Werkzeuge (Popup); der Editor selbst ist der Spurbereich der Zeitleiste (drawModellSpurbereich)
     ModellTab& t = mt();
     t.kvHoverVorher = t.kvHover;
     t.kvHover = false;
     drawRegler();
 }
 
-float modellAnimEditorHoehe(float frei) {
+// AP1: der Spurbereich der Zeitleiste (Aufruf in drawModellZeitleiste, Bereich Animation): die Skala mit den Schluesseln
+// der Auswahl, darunter - solange die Spuren offen sind - das Dopesheet oder der Kurveneditor. Bis rc611 ein eigener
+// Kasten mit Menueleiste zwischen Ansichten und Zeitleiste, ab Werk zu; Menue und Filter stehen jetzt im Menue der
+// Zeitleiste und im Rechtsklick.
+void drawModellSpurbereich(ImVec2 groesse) {
     ModellTab& t = mt();
-    if (!t.kvOffen) { return 0.0F; }
-    const float fs = ImGui::GetFontSize();
-    t.kvHoehe = std::clamp(t.kvHoehe, fs * 8.0F, std::max(frei * 0.7F, fs * 8.0F));
-    return t.kvHoehe;
-}
-
-// Unten unter den Ansichten, ueber der Zeitleiste (Platz nur, solange er offen ist; die Ansichten werden so viel kleiner,
-// nichts liegt ueber der Figur). Die Kante oben zieht die Hoehe.
-void drawModellAnimEditorUnten(ImVec2 groesse) {
-    ModellTab& t = mt();
-    if (!t.kvOffen) { return; }
-    const float fs = ImGui::GetFontSize();
     const bool blender = modellBlender();
-    const Str titel = t.kvArt == 0 ? (blender ? Str::MbKvDsBl : Str::MbKvDsMax) : (blender ? Str::MbKvKeBl : Str::MbKvKeMax);
+    const bool kurven = t.kvOffen && t.kvArt == 1;
+    const Str titel = !kurven ? (blender ? Str::MbKvDsBl : Str::MbKvDsMax) : (blender ? Str::MbKvKeBl : Str::MbKvKeMax);
     t.kvTitel = tr(titel);
-    // Kante zum Ziehen der Hoehe
-    ImGui::InvisibleButton("##kvkante", ImVec2{groesse.x, 5.0F});
-    if (ImGui::IsItemHovered() || ImGui::IsItemActive()) { ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS); }
-    if (ImGui::IsItemActive()) { t.kvHoehe -= ImGui::GetIO().MouseDelta.y; }
-    ImGui::GetWindowDrawList()->AddLine(ImVec2{ImGui::GetItemRectMin().x, ImGui::GetItemRectMin().y + 2.0F}, ImVec2{ImGui::GetItemRectMax().x, ImGui::GetItemRectMin().y + 2.0F},
-                                        ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_SeparatorHovered : ImGuiCol_Separator), 2.0F);
-    if (!ImGui::BeginChild("###animeditor", ImVec2{groesse.x, groesse.y - 5.0F - ImGui::GetStyle().ItemSpacing.y}, ImGuiChildFlags_Borders,
-                           ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
-        ImGui::EndChild();
-        return;
-    }
-    modellKlickPruefen();   // ein Klick hier gehoert zum Model-Tab (Tasten, Fokus)
     const auto ab = std::chrono::steady_clock::now();
-    if (ImGui::BeginMenuBar()) {
-        cjkTextUnformatted(tr(titel));
-        ImGui::Separator();
-        // die Ansichten umschalten wie die Editor-Art in Blender bzw. der Modus der Track View
-        if (ImGui::MenuItem(tr(blender ? Str::MbKvDsBl : Str::MbKvDsOeffnen), nullptr, t.kvArt == 0)) {
-            t.kvArt = 0;
-            t.kvEinpassen = true;
-        }
-        ImGui::SetItemTooltip("%s", tr(Str::MbKvDsHint));
-        if (ImGui::MenuItem(tr(blender ? Str::MbKvKeBl : Str::MbKvKeOeffnen), nullptr, t.kvArt == 1)) {
-            t.kvArt = 1;
-            t.kvEinpassen = true;
-        }
-        ImGui::SetItemTooltip("%s", tr(Str::MbKvKeHint));
-        ImGui::Separator();
-        // alle Werkzeuge in einem Menue (die Gruppen als Untermenues), die Filter unter Ansicht - die Leiste bleibt kurz
-        if (ImGui::BeginMenu(tr(Str::MbKvMenue))) {
-            for (int g = 1; g < kKvGruppen; ++g) {
-                if (ImGui::BeginMenu(tr(kKvGruppenText[g]))) {
-                    gruppeAlsMenue(g);
-                    ImGui::EndMenu();
-                }
-            }
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu(tr(Str::MenuView))) {
-            if (ImGui::MenuItem(tr(Str::MbKvNurAnimierte), nullptr, t.kvNurAnimierte)) { t.kvNurAnimierte = !t.kvNurAnimierte; }
-            ImGui::SetItemTooltip("%s", tr(Str::MbKvNurAnimierteHint));
-            if (ImGui::MenuItem(tr(Str::MbKvNurGewaehlte), nullptr, t.kvNurGewaehlte)) { t.kvNurGewaehlte = !t.kvNurGewaehlte; }
-            ImGui::SetItemTooltip("%s", tr(Str::MbKvNurGewaehlteHint));
-            if (ImGui::MenuItem(tr(Str::MbKvAllesZeigen))) { t.kvEinpassen = true; }
-            ImGui::SetItemTooltip("%s", tr(Str::MbKvAllesZeigenHint));
-            ImGui::Separator();
-            if (ImGui::MenuItem(tr(Str::KmSchliessen))) { t.kvOffen = false; }
-            ImGui::SetItemTooltip("%s", tr(Str::MbKvOeffnenHint));
-            ImGui::EndMenu();
-        }
-        ImGui::EndMenuBar();
-    }
-    const modell::RigSchicht& s = schicht();
-    cjkTextDisabled("%s  |  %s", sequenzName().c_str(), tr(s.bindeBasis ? Str::MbKvBasisBinde : Str::MbKvBasisQuelle));
-    if (s.leer()) {
-        ImGui::SameLine();
-        cjkTextDisabled("  %s", tr(Str::MbKvKeineSchluessel));
-    }
-    const ImVec2 rest = ImGui::GetContentRegionAvail();
-    if (rest.x > fs * 4.0F && rest.y > fs * 3.0F) {
-        if (t.kvArt == 0) {
-            drawDopesheet(rest);
+    if (groesse.x > ImGui::GetFontSize() * 4.0F) {
+        if (kurven) {
+            drawKurven(groesse);
         } else {
-            drawKurven(rest);
+            drawDopesheet(groesse);
         }
     }
     modalSchritt();
     t.kvZeitMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ab).count();
-    t.kvGezeichnet = ImGui::GetFrameCount();
-    ImGui::EndChild();
+    if (t.kvOffen) { t.kvGezeichnet = ImGui::GetFrameCount(); }
+}
+
+// AP1: die Bilder mit Schluesseln der gezeigten Knochen und IK-Spuren in der Sequenz, aufsteigend (Sprung zum vorigen /
+// naechsten Schluessel: wie Blender Pfeil runter / hoch, wie 3ds Max der Key-Modus)
+std::vector<int> modellKvSchluesselBilder() {
+    int erstes = 0;
+    int anzahl = 0;
+    bereich(erstes, anzahl);
+    std::set<int> bilder;
+    const modell::RigSchicht& s = schicht();
+    const auto dazu = [&](const std::vector<modell::RigSchluessel>& liste) {
+        for (const modell::RigSchluessel& k : liste) {
+            if (k.bild >= erstes && k.bild < erstes + anzahl) { bilder.insert(k.bild); }
+        }
+    };
+    for (const int b : gezeigteKnochen()) {
+        if (static_cast<std::size_t>(b) < s.knochen.size()) { dazu(s.knochen[static_cast<std::size_t>(b)]); }
+    }
+    for (const modell::IkSpur& sp : s.ik) { dazu(sp.ziel); }
+    return {bilder.begin(), bilder.end()};
 }
 
 void drawModellKurvenBereich() {
