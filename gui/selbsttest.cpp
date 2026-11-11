@@ -2589,11 +2589,99 @@ ImGuiWindow* baumFenster(const std::string& teil) {
 // Eine halbe Sekunde nichts tun. Zwei Zuege kurz hintereinander an
 // derselben Stelle wertet ImGui als Doppelklick - und der oeffnet den
 // Editor, der dann jeden weiteren Klick abfaengt.
+//
+// TESTTEMPO (rc612, docs/intern/tests_tempo.md): mit BHED_TEST_PAUSEN=bild zaehlt die Pause in Bildern mit
+// Simulationszeit statt nach der Wanduhr. Jedes Bild der Pause laesst die ImGui-Zeit um mindestens 1/20 s vorruecken
+// (selbsttestVorBild), die Pause endet, sobald diese Zeit um `sekunden` weiter ist - wie auf einem Rechner, der 20
+// Bilder je Sekunde zeichnet (0,3 s = 6 Bilder; neben Bauten zeichnet der Selbsttest heute 5 bis 40 je Sekunde,
+// gemessen 11.11.); Doppelklick-, Tooltip- und Wiederholfristen sehen dieselbe Zeit wie bisher. Dazu muss ein Viertel
+// der Sekunden wirklich vergangen sein (Hintergrundfaeden), und spaetestens nach `sekunden` Wanduhr ist sie wie bisher
+// zu Ende - sie dauert also nie laenger. Ohne die Variable unveraendert.
+namespace testtempo {
+bool pausenNachBild() {
+    static const bool an = [] {
+        const char* p = std::getenv("BHED_TEST_PAUSEN");
+        return p != nullptr && std::strcmp(p, "bild") == 0;
+    }();
+    return an;
+}
+bool g_pauseLaeuft = false;                  // dieses Bild gehoert zu einer Pause nach Bildern
+constexpr float kPauseBild = 1.0F / 20.0F;   // Simulationszeit je Bild der Pause
+constexpr double kPauseEchtAnteil = 0.25;    // so viel der Pause vergeht mindestens auf der Wanduhr
+
+// Wo bleibt die Zeit: Wanduhr und Bilder je Schrittart, eine Zeile vor der Zusammenfassung ("Knopftest Zeiten: ...");
+// mit BHED_TEST_ZEITEN dazu die zehn laengsten Schritte.
+struct Zeiten {
+    enum Art : std::uint8_t { kPause, kWarte, kFoto, kSonst, kArten };
+    double sek[kArten]{};
+    int bilder[kArten]{};
+    int schritte[kArten]{};
+    std::vector<std::pair<double, std::string>> laengste;
+    std::chrono::steady_clock::time_point letztes{};
+    bool laeuft = false;
+    Art art = kSonst;
+    double imSchritt = 0.0;
+    std::string text;
+};
+Zeiten g_zeiten;
+
+// Je Bild des Knopftests: die Zeit seit dem letzten Bild gehoert dem Schritt, der in ihm lief.
+void bild(const std::string& text, bool neuerSchritt) {
+    Zeiten& z = g_zeiten;
+    const auto jetzt = std::chrono::steady_clock::now();
+    if (z.laeuft) {
+        const double dt = std::chrono::duration<double>(jetzt - z.letztes).count();
+        z.sek[z.art] += dt;
+        ++z.bilder[z.art];
+        z.imSchritt += dt;
+    }
+    z.letztes = jetzt;
+    z.laeuft = true;
+    if (!neuerSchritt) { return; }
+    if (!z.text.empty()) {
+        z.laengste.emplace_back(z.imSchritt, z.text);
+        if (z.laengste.size() > 64U) {
+            std::sort(z.laengste.begin(), z.laengste.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+            z.laengste.resize(10);
+        }
+    }
+    z.art = text == "Pause" ? Zeiten::kPause : text.rfind("Warte", 0) == 0 ? Zeiten::kWarte : text.rfind("Foto", 0) == 0 ? Zeiten::kFoto : Zeiten::kSonst;
+    ++z.schritte[z.art];
+    z.imSchritt = 0.0;
+    z.text = text;
+}
+
+void melden() {
+    Zeiten& z = g_zeiten;
+    char t[320];
+    std::snprintf(t, sizeof(t),
+                  "Knopftest Zeiten: gesamt %.1f s, %d Bilder | Pause %dx %.1f s (%s) | Warte %dx %.1f s | Foto %dx %.1f s | sonst %dx %.1f s",
+                  z.sek[0] + z.sek[1] + z.sek[2] + z.sek[3], z.bilder[0] + z.bilder[1] + z.bilder[2] + z.bilder[3], z.schritte[Zeiten::kPause],
+                  z.sek[Zeiten::kPause], pausenNachBild() ? "nach Bildern" : "Wanduhr", z.schritte[Zeiten::kWarte], z.sek[Zeiten::kWarte],
+                  z.schritte[Zeiten::kFoto], z.sek[Zeiten::kFoto], z.schritte[Zeiten::kSonst], z.sek[Zeiten::kSonst]);
+    diag::detail(t);
+    if (std::getenv("BHED_TEST_ZEITEN") == nullptr) { return; }
+    std::sort(z.laengste.begin(), z.laengste.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+    for (std::size_t i = 0; i < z.laengste.size() && i < 10U; ++i) {
+        std::snprintf(t, sizeof(t), "Knopftest Zeiten: %7.1f s  ", z.laengste[i].first);
+        diag::detail(t + z.laengste[i].second.substr(0, 160));
+    }
+}
+}  // namespace testtempo
+
 Schritt pause(double sekunden) {
     auto bis = std::make_shared<double>(-1.0);
+    auto echtAb = std::make_shared<std::chrono::steady_clock::time_point>();
     return {"Pause", [=](int b) {
-                if (b == 0) { *bis = ImGui::GetTime() + sekunden; }
-                return ImGui::GetTime() >= *bis;
+                if (b == 0) {
+                    *bis = ImGui::GetTime() + sekunden;
+                    *echtAb = std::chrono::steady_clock::now();
+                }
+                if (!testtempo::pausenNachBild()) { return ImGui::GetTime() >= *bis; }
+                const double echt = std::chrono::duration<double>(std::chrono::steady_clock::now() - *echtAb).count();
+                const bool fertig = echt >= sekunden || (ImGui::GetTime() >= *bis && echt >= sekunden * testtempo::kPauseEchtAnteil);
+                testtempo::g_pauseLaeuft = !fertig;
+                return fertig;
             }};
 }
 
@@ -6080,6 +6168,8 @@ void mausFensterMelden(ImVec2 p) {
 }
 
 void selbsttestVorBild() {
+    // TESTTEMPO (rc612): in einer Pause nach Bildern (BHED_TEST_PAUSEN=bild) rueckt die ImGui-Zeit je Bild mindestens 1/20 s vor
+    if (testtempo::g_pauseLaeuft) { ImGui::GetIO().DeltaTime = std::max(ImGui::GetIO().DeltaTime, testtempo::kPauseBild); }
     modell1BildAnfang();   // modell1: Bildanfang fuer die Messung
     dock1VorBild();
     if (karteneditor::zeigerSim().an) {   // Stufe 7 Punkt 6c: der simulierte Zeiger (wie Windows)
@@ -6995,6 +7085,11 @@ void selbsttest() {
             const std::function<bool(int)> tun = a.schritte[a.schritt].tun;
             g_liste = &a.schritte;
             g_einfuegeAn = a.schritt + 1U;
+            // TESTTEMPO (rc612): Zeit je Schrittart mitzaehlen, eine Zeile vor der Zusammenfassung; eine Pause nach Bildern
+            // meldet sich in jedem ihrer Bilder selbst (testtempo::g_pauseLaeuft)
+            testtempo::bild(text, a.imSchritt == 0);
+            if (a.imSchritt == 0 && text == "Zusammenfassung") { testtempo::melden(); }
+            testtempo::g_pauseLaeuft = false;
             if (a.imSchritt == 0) { diag::detail("Knopftest: " + text); }
             // rc610 R1: ein Schritt aendert den Zustand wie eine Eingabe - die Ansichten des Karten-Editors zeichnen neu,
             // auch wenn sie nur bei Bedarf zeichnen (karteneditor::zeichnenNachBedarfImTest, BHED_KARTE_NACHBEDARF)
