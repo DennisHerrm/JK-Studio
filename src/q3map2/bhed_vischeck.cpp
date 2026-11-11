@@ -53,12 +53,63 @@ double Length( Vec a ){
 Vec Point( const Vector3& v ){
 	return { v[0], v[1], v[2] };
 }
-/* the normal of a portal points into the leaf it leads to */
+/* BehavEd vis4: the check judges by a shape of its own for every portal, in double precision - not by the
+   plane the flows work with (vis.cpp PlaneFromWinding, wrong where the first three points are nearly on one
+   line), so that a wrong plane of theirs cannot make the check see a sight line where there is none or miss
+   one that is there.
+   The plane is made from all points of the winding. Its normal points into the leaf the portal leads to: it
+   is the one the winding turns counterclockwise about (LoadPortals: the forward portal has NRC's plane
+   flipped, the backward portal the points reversed), so the inside of the winding is on the left of every
+   edge. Corners nearer to the one before than the flows' epsilon are left out - a corner written twice,
+   the edge between the two has a direction that is nothing but rounding: what is left is convex and lies
+   within the winding, so a point inside it is inside the portal. With less than three corners left the
+   portal is no way for a line (a sliver) and no start or end of one. */
+struct Shape
+{
+	Vec normal{ 0, 0, 0 };
+	double dist = 0;
+	std::vector<Vec> corners;       /* empty: not usable */
+};
+std::vector<Shape> g_shapes;
+
+Shape ShapeOfWinding( const fixedWinding_t *w ){
+	Shape shape;
+	if ( w->numpoints < 3 ) {
+		return shape;
+	}
+	const Vec origin = Point( w->points[0] );
+	for ( int i = 1; i + 1 < w->numpoints; ++i )
+		shape.normal = shape.normal + Cross( Point( w->points[i] ) - origin, Point( w->points[i + 1] ) - origin );
+	const double length = Length( shape.normal );
+	if ( length == 0 ) {
+		return shape;
+	}
+	shape.normal = shape.normal * ( 1 / length );
+	for ( int i = 0; i < w->numpoints; ++i )
+	{
+		const Vec point = Point( w->points[i] );
+		shape.dist += Dot( shape.normal, point );
+		if ( shape.corners.empty() || Length( point - shape.corners.back() ) >= ON_EPSILON ) {
+			shape.corners.push_back( point );
+		}
+	}
+	shape.dist /= w->numpoints;
+	while ( shape.corners.size() > 1 && Length( shape.corners.back() - shape.corners.front() ) < ON_EPSILON )
+		shape.corners.pop_back();
+	if ( shape.corners.size() < 3 ) {
+		shape.corners.clear();
+	}
+	return shape;
+}
+
 Vec Normal( const vportal_t *p ){
-	return Point( p->plane.normal() );
+	return g_shapes[p - portals].normal;
 }
 double Distance( const vportal_t *p, Vec point ){
-	return Dot( Normal( p ), point ) - p->plane.dist();
+	return Dot( Normal( p ), point ) - g_shapes[p - portals].dist;
+}
+bool Usable( const vportal_t *p ){
+	return !p->removed && !g_shapes[p - portals].corners.empty();
 }
 
 /* xorshift64: the lines of a portal are the same in every run */
@@ -97,31 +148,19 @@ Vec RandomPoint( const fixedWinding_t *w, Random& rnd ){
 	return origin + ( Point( w->points[i] ) - origin ) * u + ( Point( w->points[i + 1] ) - origin ) * v;
 }
 
-/* the point lies in the plane of the portal: inside its winding, at least c_clear from every edge? */
+/* the point lies in the plane of the portal: inside its shape, at least c_clear from every edge? */
 bool Inside( const vportal_t *p, Vec point ){
-	const fixedWinding_t *w = p->winding;
-	const Vec normal = Normal( p );
-	int side = 0;
-	for ( int i = 0; i < w->numpoints; ++i )
+	const Shape& shape = g_shapes[p - portals];
+	const size_t count = shape.corners.size();
+	for ( size_t i = 0; i < count; ++i )
 	{
-		const Vec a = Point( w->points[i] ), b = Point( w->points[i + 1 == w->numpoints ? 0 : i + 1] );
-		const Vec in = Cross( normal, b - a );
-		const double length = Length( in );
-		if ( length < 1e-9 ) {
-			continue;
-		}
-		const double d = Dot( in, point - a ) / length;
-		if ( d >= c_clear && side >= 0 ) {
-			side = 1;
-		}
-		else if ( d <= -c_clear && side <= 0 ) {
-			side = -1;
-		}
-		else{
+		const Vec a = shape.corners[i], b = shape.corners[i + 1 == count ? 0 : i + 1];
+		const Vec in = Cross( shape.normal, b - a );    /* to the left of the edge: into the winding */
+		if ( Dot( in, point - a ) < c_clear * Length( in ) ) {
 			return false;
 		}
 	}
-	return side != 0;
+	return count != 0;
 }
 
 /* the line from the point a of the portal p to the point b of the portal q: the portals it passes on its way
@@ -144,7 +183,7 @@ bool SightLine( const vportal_t *p, Vec a, const vportal_t *q, Vec b, std::vecto
 		double outAt = 0, outSlope = 0;
 		for ( const vportal_t *x : Span( leaf->portals, leaf->numportals ) )
 		{
-			if ( x->removed ) {
+			if ( !Usable( x ) ) {
 				continue;
 			}
 			const double slope = Dot( dir, Normal( x ) );
@@ -182,6 +221,7 @@ struct Check
 	std::atomic<uint64_t> pairs{ 0 }, outside{ 0 };
 	std::atomic<uint64_t> found{ 0 }, onLines{ 0 }, missing{ 0 }, missingCluster{ 0 };
 	std::atomic<uint64_t> onlyHere{ 0 }, onlyRef{ 0 }, refFound{ 0 }, missingRef{ 0 };
+	std::atomic<uint64_t> wrongPlanes{ 0 };  /* planes of the flows that miss their own winding by more than ON_EPSILON */
 	std::mutex mutex;
 	std::string example;
 };
@@ -232,8 +272,20 @@ bool LeafSees( int from, int to ){
 
 void CheckPortal( int num ){
 	const vportal_t *p = portals + num;
-	if ( p->removed || p->winding->numpoints < 3 ) {
+	if ( !Usable( p ) ) {
 		return;
+	}
+	/* a plane of the flows that is none (the normal 0 0 0: the first three points on one line) or misses
+	   its own winding by more than their epsilon */
+	if ( vector3_length_squared( p->plane.normal() ) == 0 ) {
+		++g_check.wrongPlanes;
+	}
+	else{
+		for ( const Vector3& point : Span( p->winding->points, p->winding->numpoints ) )
+			if ( std::fabs( plane3_distance_to_point( p->plane, point ) ) > ON_EPSILON ) {
+				++g_check.wrongPlanes;
+				break;
+			}
 	}
 	const uint64_t *vis = reinterpret_cast<const uint64_t*>( p->portalvis );
 	const uint64_t *flood = reinterpret_cast<const uint64_t*>( p->portalflood );
@@ -248,14 +300,29 @@ void CheckPortal( int num ){
 	}
 	g_check.pairs += pairs;
 	g_check.outside += outside;
+	/* BehavEd vis4: every fourth line goes to a portal nearby whatever the flood says - one of the leaf behind
+	   the portal or of the leafs behind those. A portal the flood has lost without reason (its plane wrong or
+	   none) is in no portalflood and would never be the end of a line: in a corridor of three portals with
+	   such a one in the middle the check found nothing to complain about. */
+	std::vector<int> near;
+	for ( const vportal_t *x : Span( leafs[p->leaf].portals, leafs[p->leaf].numportals ) )
+	{
+		near.push_back( int( x - portals ) );
+		for ( const vportal_t *y : Span( leafs[x->leaf].portals, leafs[x->leaf].numportals ) )
+			near.push_back( int( y - portals ) );
+	}
 
 	Random rnd{ ( uint64_t( num ) + 1 ) * 0x9E3779B97F4A7C15ull | 1 };
 	std::vector<int> passed;
 	uint64_t found = 0, onLines = 0, missing = 0, missingCluster = 0, missingRef = 0;
-	for ( int k = 0; k < g_check.lines && !might.empty(); ++k )
+	for ( int k = 0; k < g_check.lines; ++k )
 	{
-		const vportal_t *q = portals + might[rnd.next() % might.size()];
-		if ( q->winding->numpoints < 3 ) {
+		const std::vector<int>& ends = ( k & 3 ) == 3 || might.empty() ? near : might;
+		if ( ends.empty() ) {
+			break;
+		}
+		const vportal_t *q = portals + ends[rnd.next() % ends.size()];
+		if ( !Usable( q ) ) {
 			continue;
 		}
 		const Vec a = RandomPoint( p->winding, rnd ), b = RandomPoint( q->winding, rnd );
@@ -295,7 +362,7 @@ void CheckPortal( int num ){
 			{
 				const int x = w * 64 + std::countr_zero( bits );
 				const vportal_t *q = portals + x;
-				if ( q->removed || q->winding->numpoints < 3 ) {
+				if ( !Usable( q ) ) {
 					continue;
 				}
 				for ( int k = 0; k < c_pairLines; ++k )
@@ -355,8 +422,16 @@ void BhedVisCheck(){
 		memcpy( g_check.ref.data(), data.data() + 14, g_check.ref.size() * 8 );
 	}
 
+	g_shapes.resize( count );
+	for ( uint32_t i = 0; i < count; ++i )
+		g_shapes[i] = ShapeOfWinding( portals[i].winding );
+
 	Sys_Printf( "\n--- BehavEd: vis check (%i lines a portal) ---\n", g_check.lines );
 	RunThreadsOnIndividual( numportals * 2, true, CheckPortal );
+	if ( g_check.wrongPlanes != 0 ) {
+		Sys_Printf( "BehavEd: vis check: %llu portal planes of the flows miss their own winding by more than %.1f or are none\n",
+		            (unsigned long long)g_check.wrongPlanes.load(), ON_EPSILON );
+	}
 	Sys_Printf( "BehavEd: vis check: %llu visible portal pairs, %llu of them outside portalflood\n",
 	            (unsigned long long)g_check.pairs.load(), (unsigned long long)g_check.outside.load() );
 	Sys_Printf( "BehavEd: vis check: %llu sight lines with %llu portals on them, %llu of these portals not visible, %llu of them into a cluster that is not visible\n",
