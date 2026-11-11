@@ -7557,6 +7557,8 @@ from inhalt_rest9 import CS as _REST9  # noqa: E402
 TEXTE.update(_REST9)
 from inhalt_ap2 import CS as _AP2  # noqa: E402
 TEXTE.update(_AP2)
+from inhalt_ap3 import CS as _AP3  # noqa: E402  (AP3: rechtes Feld des Model-Tabs)
+TEXTE.update(_AP3)
 
 # Modell-Block 1a-1: Model-Tab, Ansehen/Pruefen
 from inhalt_mb1a1 import CS as _MB1  # noqa: E402

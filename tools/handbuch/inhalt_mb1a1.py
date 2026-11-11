@@ -190,22 +190,22 @@ X = {
     "h_max": ("Controls like 3ds Max", "Bedienung wie 3ds Max", "像 3ds Max 一样操作", "3ds Max と同じ操作", "Controles como 3ds Max",
               "Ovládání jako 3ds Max"),
     "max": (
-        "**{{MbBedienung}}** **{{MbWieMax}}** is the default; the key map **{{MbWieBlender}}** comes in stage 1a-2. The keys work after a click "
+        "**{{MbBedienung}}** **{{MbWieMax}}** is the default; **{{MbWieBlender}}** is chosen with a click on the control mode at the left of the status line of the tab. The keys work after a click "
         "into the view, the explorer, the command panel or the timeline; <kbd>X</kbd> lists them all. The gizmo moves, rotates or scales the "
         "selected surfaces in the model document (all levels of detail) - <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes it back.",
-        "**{{MbBedienung}}** **{{MbWieMax}}** ist die Vorgabe; die Belegung **{{MbWieBlender}}** kommt in Stufe 1a-2. Die Tasten wirken nach "
+        "**{{MbBedienung}}** **{{MbWieMax}}** ist die Vorgabe; **{{MbWieBlender}}** wählst du mit einem Klick auf den Bedienmodus links in der Statuszeile des Tabs. Die Tasten wirken nach "
         "einem Klick in die Ansicht, den Explorer, das Befehlsfeld oder die Zeitleiste; <kbd>X</kbd> listet sie alle. Das Gizmo verschiebt, "
         "dreht oder skaliert die gewählten Flächen im Modelldokument (alle Detailstufen) - <kbd>Strg</kbd>+<kbd>Z</kbd> nimmt es zurück.",
-        "**{{MbBedienung}}** 默认为 **{{MbWieMax}}**;**{{MbWieBlender}}** 的键位将在 1a-2 阶段提供。在视图、资源管理器、命令面板或时间轴中单击后按键"
+        "**{{MbBedienung}}** 默认为 **{{MbWieMax}}**;单击选项卡状态栏左侧的操作方式可切换到 **{{MbWieBlender}}**。在视图、资源管理器、命令面板或时间轴中单击后按键"
         "生效;<kbd>X</kbd> 列出全部按键。Gizmo 在模型文档中移动、旋转或缩放所选的面(所有细节级别)——<kbd>Ctrl</kbd>+<kbd>Z</kbd> 可撤销。",
-        "**{{MbBedienung}}** は **{{MbWieMax}}** が既定です。**{{MbWieBlender}}** のキー割り当てはステージ 1a-2 で追加されます。キーはビュー、"
+        "**{{MbBedienung}}** は **{{MbWieMax}}** が既定です。**{{MbWieBlender}}** には、タブのステータス行の左にある操作モードをクリックして切り替えます。キーはビュー、"
         "エクスプローラー、コマンドパネル、タイムラインのいずれかをクリックした後に効きます。<kbd>X</kbd> で一覧を表示します。ギズモはモデル"
         "ドキュメント内の選択サーフェスを移動・回転・スケールします (すべての詳細レベル)。<kbd>Ctrl</kbd>+<kbd>Z</kbd> で元に戻せます。",
-        "**{{MbBedienung}}** **{{MbWieMax}}** es el predeterminado; el mapa de teclas **{{MbWieBlender}}** llega en la etapa 1a-2. Las teclas "
+        "**{{MbBedienung}}** **{{MbWieMax}}** es el predeterminado; **{{MbWieBlender}}** se elige con un clic en el modo de control a la izquierda de la línea de estado de la pestaña. Las teclas "
         "funcionan tras un clic en la vista, el explorador, el panel de comandos o la línea de tiempo; <kbd>X</kbd> las muestra todas. El "
         "gizmo mueve, rota o escala las superficies seleccionadas en el documento del modelo (todos los niveles de detalle); "
         "<kbd>Ctrl</kbd>+<kbd>Z</kbd> lo deshace.",
-        "**{{MbBedienung}}** **{{MbWieMax}}** je výchozí; klávesy **{{MbWieBlender}}** přijdou ve fázi 1a-2. Klávesy fungují po kliknutí do "
+        "**{{MbBedienung}}** **{{MbWieMax}}** je výchozí; **{{MbWieBlender}}** zvolíte kliknutím na režim ovládání vlevo ve stavovém řádku karty. Klávesy fungují po kliknutí do "
         "pohledu, průzkumníku, panelu příkazů nebo časové osy; <kbd>X</kbd> je vypíše všechny. Gizmo posouvá, otáčí nebo mění měřítko vybraných "
         "povrchů v dokumentu modelu (všechny úrovně detailu) - <kbd>Ctrl</kbd>+<kbd>Z</kbd> to vrátí."),
     "k_maus": ("Middle mouse / Alt + middle / wheel", "Mittlere Maus / Alt + Mitte / Rad", "鼠标中键 / Alt + 中键 / 滚轮", "中ボタン / Alt + 中ボタン / ホイール",
