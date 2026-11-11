@@ -7000,6 +7000,8 @@ TEXTE = {
         "O vuelve a pulsar el panel en **{{DockOwnWindow}}**.",
     "Save, load and reset layouts":
         "Guardar, cargar y restablecer disposiciones",
+    'Windows keep a minimum size in the current language and text size: the title bar always fits, forms keep their longest label, their fields at the narrowest width and the row of buttons, and rows of controls stay reachable - lists and trees may still scroll. A window cannot be dragged smaller than that, and a size saved smaller in old settings is raised when it opens. Docked windows and the panels of a layout keep the size of their place - the minimum size never enlarges them; if the place is too narrow, such a window gets a scroll bar instead of being squeezed. Dialogs of a fixed size stay as they are.':
+        'Las ventanas tienen un tamaño mínimo en el idioma y el tamaño de texto actuales: la barra de título cabe siempre, los formularios conservan su etiqueta más larga, los campos en su ancho mínimo y la fila de botones, y las filas de controles siguen al alcance; las listas y los árboles pueden seguir desplazándose. Una ventana no se puede arrastrar más pequeña, y un tamaño guardado más pequeño en ajustes antiguos se amplía al abrirla. Las ventanas acopladas y los paneles de una disposición conservan el tamaño de su sitio: el tamaño mínimo nunca los agranda; si el sitio es demasiado estrecho, una ventana así recibe una barra de desplazamiento en lugar de aplastarse. Los diálogos de tamaño fijo se quedan como están.',
     "Screens that change":
         "Pantallas que cambian",
     "A screen is unplugged or arranged differently: windows that were on it come back onto the screen of the main window, at their size.":

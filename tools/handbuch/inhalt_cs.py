@@ -6997,6 +6997,8 @@ TEXTE = {
         "Nebo na panel v **{{DockOwnWindow}}** klikněte znovu.",
     "Save, load and reset layouts":
         "Uložení, načtení a obnovení rozvržení",
+    'Windows keep a minimum size in the current language and text size: the title bar always fits, forms keep their longest label, their fields at the narrowest width and the row of buttons, and rows of controls stay reachable - lists and trees may still scroll. A window cannot be dragged smaller than that, and a size saved smaller in old settings is raised when it opens. Docked windows and the panels of a layout keep the size of their place - the minimum size never enlarges them; if the place is too narrow, such a window gets a scroll bar instead of being squeezed. Dialogs of a fixed size stay as they are.':
+        'Okna mají minimální velikost v aktuálním jazyce a velikosti písma: záhlaví se vejde vždy, formuláře si drží nejdelší popisek, pole v nejmenší šířce a řadu tlačítek a řady ovládacích prvků zůstávají na dosah - seznamy a stromy se dál mohou posouvat. Menší okno stáhnout nelze a velikost uloženou menší ve starém nastavení zvětší při otevření. Ukotvená okna a panely rozvržení si drží velikost svého místa - minimální velikost je nikdy nezvětší; je-li místo příliš úzké, dostane takové okno posuvník, místo aby se zmáčklo. Dialogy s pevnou velikostí zůstávají, jak jsou.',
     "Screens that change":
         "Když se obrazovky mění",
     "A screen is unplugged or arranged differently: windows that were on it come back onto the screen of the main window, at their size.":

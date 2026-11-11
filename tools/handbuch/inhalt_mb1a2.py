@@ -197,37 +197,47 @@ X = {
         "the script. To put an animation into a script, open **{{MbInsSkriptFenster}}** (button above the animations, right-click on a sequence, "
         "the menu File or Ctrl+Shift+I). Choose the script (open ones or a new one), the character for an affect block (empty: none) and the "
         "command - SET_ANIM_BOTH/UPPER/LOWER or a hold time with the length of the animation; the preview shows the line, **{{MbInsSkriptEinfuegen}}** "
-        "puts it in with one undo step. While the window is closed it takes no space.",
+        "puts it in with one undo step. The small button in the animation field takes the animation selected in the list; Enter inserts, "
+        "Esc or **{{UfAbbrechen}}** closes the window. While the window is closed it takes no space.",
         "Der Model-Tab ist nur für Modelle: kein Skriptbaum, keine Knopfspalte, kein Kompilierstand; Datei > Öffnen öffnet ein Modell, und Strg+S "
         "berührt das Skript nicht. Um eine Animation in ein Skript zu setzen, öffne **{{MbInsSkriptFenster}}** (Knopf über den Animationen, Rechtsklick "
         "auf eine Sequenz, Menü Datei oder Strg+Umschalt+I). Wähle das Skript (offene oder ein neues), die Figur für einen affect-Block (leer: keiner) "
         "und den Befehl - SET_ANIM_BOTH/UPPER/LOWER oder eine Haltezeit mit der Länge der Animation; die Vorschau zeigt die Zeile, "
-        "**{{MbInsSkriptEinfuegen}}** setzt sie mit einem Rückgängig-Schritt ein. Solange das Fenster zu ist, belegt es keinen Platz.",
+        "**{{MbInsSkriptEinfuegen}}** setzt sie mit einem Rückgängig-Schritt ein. Der kleine Knopf im Feld der Animation nimmt die in der Liste "
+        "gewählte Animation; Enter fügt ein, Esc oder **{{UfAbbrechen}}** schließt das Fenster. Solange das Fenster zu ist, belegt es keinen Platz.",
         "模型选项卡只用于模型:没有脚本树、没有按钮列、没有编译状态;文件 > 打开会打开模型,Ctrl+S 不会动脚本。要把动画放进脚本,请打开 "
         "**{{MbInsSkriptFenster}}** (动画上方的按钮、右键单击序列、文件菜单或 Ctrl+Shift+I)。选择脚本 (已打开的或新建)、affect 块的角色 (留空: 无) "
-        "和命令——SET_ANIM_BOTH/UPPER/LOWER 或以动画长度为保持时间;预览显示该行,**{{MbInsSkriptEinfuegen}}** 以一个撤销步骤插入。窗口关闭时不占空间。",
+        "和命令——SET_ANIM_BOTH/UPPER/LOWER 或以动画长度为保持时间;预览显示该行,**{{MbInsSkriptEinfuegen}}** 以一个撤销步骤插入。动画字段中的小按钮"
+        "使用列表中选中的动画;Enter 插入,Esc 或 **{{UfAbbrechen}}** 关闭窗口。窗口关闭时不占空间。",
         "モデルタブはモデル専用です。スクリプトツリー、ボタン列、コンパイル状態はなく、ファイル > 開く はモデルを開き、Ctrl+S はスクリプトに触れません。"
         "アニメーションをスクリプトに入れるには **{{MbInsSkriptFenster}}** を開きます (アニメーションの上のボタン、シーケンスの右クリック、ファイル"
         "メニュー、Ctrl+Shift+I)。スクリプト (開いているものか新規)、affect ブロックのキャラクター (空欄: なし)、コマンド (SET_ANIM_BOTH/UPPER/LOWER、"
         "またはアニメーションの長さのホールド時間) を選ぶと、プレビューに行が表示され、**{{MbInsSkriptEinfuegen}}** で元に戻せる 1 回の操作として挿入"
-        "します。ウィンドウを閉じている間は場所を取りません。",
+        "します。アニメーション欄の小さなボタンは一覧で選択中のアニメーションを入れます。Enter で挿入、Esc または **{{UfAbbrechen}}** でウィンドウを"
+        "閉じます。ウィンドウを閉じている間は場所を取りません。",
         "La pestaña Model es solo para modelos: sin árbol del script, sin columna de botones, sin estado de compilación; Archivo > Abrir abre un "
         "modelo y Ctrl+S no toca el script. Para poner una animación en un script, abre **{{MbInsSkriptFenster}}** (botón sobre las animaciones, clic "
         "derecho en una secuencia, el menú Archivo o Ctrl+Mayús+I). Elige el script (abiertos o uno nuevo), el personaje para un bloque affect "
         "(vacío: ninguno) y el comando: SET_ANIM_BOTH/UPPER/LOWER o un tiempo de espera con la duración de la animación; la vista previa muestra "
-        "la línea y **{{MbInsSkriptEinfuegen}}** la inserta con un paso de deshacer. Mientras la ventana está cerrada no ocupa sitio.",
+        "la línea y **{{MbInsSkriptEinfuegen}}** la inserta con un paso de deshacer. El botón pequeño del campo de animación toma la animación "
+        "elegida en la lista; Intro inserta, Esc o **{{UfAbbrechen}}** cierra la ventana. Mientras la ventana está cerrada no ocupa sitio.",
         "Karta Model je jen pro modely: žádný strom skriptu, žádný sloupec tlačítek, žádný stav kompilace; Soubor > Otevřít otevře model a Ctrl+S "
         "se skriptu nedotkne. Chcete-li dát animaci do skriptu, otevřete **{{MbInsSkriptFenster}}** (tlačítko nad animacemi, pravé tlačítko na "
         "sekvenci, nabídka Soubor nebo Ctrl+Shift+I). Vyberte skript (otevřené nebo nový), postavu pro blok affect (prázdné: žádný) a příkaz - "
         "SET_ANIM_BOTH/UPPER/LOWER nebo dobu držení s délkou animace; náhled ukáže řádek a **{{MbInsSkriptEinfuegen}}** ho vloží jedním krokem zpět. "
+        "Malé tlačítko v poli animace vezme animaci vybranou v seznamu; Enter vloží, Esc nebo **{{UfAbbrechen}}** okno zavře. "
         "Dokud je okno zavřené, nezabírá místo."),
     "b_bild_skript": (
-        "The window Into script: animation, command, character, script, the preview of the line and Insert.",
-        "Das Fenster Ins Skript: Animation, Befehl, Figur, Skript, die Vorschau der Zeile und Einfügen.",
-        "\"插入脚本\" 窗口:动画、命令、角色、脚本、该行的预览和插入。",
-        "\"スクリプトへ\" ウィンドウ: アニメーション、コマンド、キャラクター、スクリプト、行のプレビューと挿入。",
-        "La ventana Al script: animación, comando, personaje, script, la vista previa de la línea e Insertar.",
-        "Okno Do skriptu: animace, příkaz, postava, skript, náhled řádku a Vložit."),
+        "The window Into script: one column of labels, all fields on one edge, the line in the code box, Insert (highlighted) and Cancel at the "
+        "bottom right.",
+        "Das Fenster Ins Skript: eine Spalte für die Beschriftungen, alle Felder an einer Kante, die Zeile im Code-Kasten, Einfügen "
+        "(hervorgehoben) und Abbrechen unten rechts.",
+        "\"插入脚本\" 窗口:标签一列,所有字段左边对齐,代码框中的该行,右下角的插入 (突出显示) 和取消。",
+        "\"スクリプトへ\" ウィンドウ: ラベルは 1 列、すべての欄が同じ端にそろい、コードボックスに行、右下に挿入 (強調) とキャンセル。",
+        "La ventana Al script: una columna de etiquetas, todos los campos en un mismo borde, la línea en el cuadro de código, Insertar "
+        "(resaltado) y Cancelar abajo a la derecha.",
+        "Okno Do skriptu: jeden sloupec popisků, všechna pole u jedné hrany, řádek v rámečku s kódem, Vložit (zvýrazněné) a Zrušit vpravo "
+        "dole."),
 }
 
 ES = {t[0]: t[4] for t in X.values()}
