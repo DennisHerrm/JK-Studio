@@ -1738,8 +1738,13 @@ std::vector<Schritt> sprungSchritte() {
         (void)lw();   // die Leinwand der Auswahl (torso: body) bleibt gewaehlt, auch ohne Auswahl
     }));
     add(pause(0.5));
-    add(tu("PT Sprung: einpassen (ganze Figur)", [] {
+    add(tu("PT Sprung: von der Seite (Gier 180, Nick 0), einpassen (ganze Figur)", [] {
         g_app->mtab.auswahl.clear();
+        // Die Blickrichtung fest, nicht die Startansicht: geschrieben und gemessen wurde der Test in der Startansicht bis rc611
+        // (Gier 180, von der Seite; groesster Schritt zweier Tupfer des Strichs ueber den torso in der Ruhelage 0,23). Seit
+        // MBKOPF beginnt die Perspektive vor dem Gesicht (Gier 90); von dort lagen zwei Tupfer desselben Strichs 1,36
+        // auseinander, ueber der Grenze 1,0 fuer "ohne Sprung" (zusammengefuehrter Stand, Lauf z2_ptsprung: 2 OK, 1 FEHLER).
+        g_app->modelOrbit.turn(g_app->modelCam, 180.0F - g_app->modelCam.angles[1], -g_app->modelCam.angles[0]);
         modellAnsichtEinpassenAktiv();
     }));
     add(pause(1.0));
@@ -1843,6 +1848,14 @@ std::vector<Schritt> sprungSchritte() {
                       n, hexVon(fnvBytes(reinterpret_cast<const std::uint8_t*>(bin.data()), bin.size())).c_str(), p.ausserhalb, static_cast<double>(grenze),
                       static_cast<double>(p.weitestePx), mz().tupfer - st->tupfer0, ms.strahlen, ms.wegRuheMax);
         diag::detail(z);
+        {   // wo der groesste Schritt liegt: Flaechen und Orte in der Ruhelage (zeigt, ob er zwischen zwei Koerperteilen liegt)
+            const modell::Inhalt& in = g_app->mtab.dok.inhalt();
+            const auto nameVon = [&in](int t) { return t >= 0 && static_cast<std::size_t>(t) < in.teile.size() ? in.teile[static_cast<std::size_t>(t)].name : std::string("-"); };
+            std::snprintf(z, sizeof z, "Knopftest: PT Sprung Flaeche - der groesste Schritt: von %s (%.2f %.2f %.2f) nach %s (%.2f %.2f %.2f)",
+                          nameVon(ms.sprungFlaechen[0]).c_str(), ms.sprungVon[0], ms.sprungVon[1], ms.sprungVon[2], nameVon(ms.sprungFlaechen[1]).c_str(),
+                          ms.sprungNach[0], ms.sprungNach[1], ms.sprungNach[2]);
+            diag::detail(z);
+        }
         if (!p.flaechenAusserhalb.empty()) { diag::detail("Knopftest: PT Sprung Flaeche - ausserhalb des Wegs: " + p.flaechenAusserhalb); }
         return n > 50 && ms.wegRuheMax < 1.0;
     }));
