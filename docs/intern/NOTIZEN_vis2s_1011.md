@@ -1,4 +1,4 @@
-# Notizen vis2s (11.11.): VIS schneller bei gleichem Ergebnis – Profil, Geometrie-Merker, Winding-Schnitt
+# Notizen vis2s (11.11.): VIS schneller bei gleichem Ergebnis – Profil, Geometrie-Merker, Winding-Schnitt (Runde 1 und 2)
 
 Auftrag `auftrag_vis2c_1011.md`, Abschnitt VIS2s. Worktree `Y:\p_vis2s`, Zweig `p_vis2s` ab fee4525c1, Bau
 `Y:/p_vis2s/build` (nur `bhed_q3map2_clang` und `kartegrenzen`). Werkzeuge, Läufe, Messfassungen: `Y:\werkzeuge\vis2s`
@@ -15,10 +15,12 @@ Bezug für „gleich“ ist überall das Ergebnis von `-threads 1` (alle Lumps o
 
 ## Stand in einem Satz
 
-Der Fluss rechnet auf den gemessenen Karten mit 7 bis 15 % weniger CPU-Zeit dasselbe Ergebnis Byte für Byte (beide
-Regeln, jede Thread-Zahl); die Lücke zwischen dem deterministischen VIS und NRCs Regel schließt das nicht – sie liegt
-an der Kette echter Abhängigkeiten, nicht an der Rechenzeit je Fluss, und ein exakter Weg, die Kette zu brechen, hat
-sich nicht gefunden. **Die Vorgabe bleibt NRCs Regel.**
+Der Fluss rechnet auf den gemessenen Karten mit 22 bis 39 % weniger CPU-Zeit dasselbe Ergebnis Byte für Byte (beide
+Regeln, jede Thread-Zahl; nach der ersten Runde waren es 7 bis 15 %). Die zweite Runde (Abschnitt 7) hat gemessen,
+warum vom Geometrie-Merker so wenig ankam – nicht der Cache, sondern seine Größe und sein eigener Aufwand –, und ihn
+danach umgebaut. Die Lücke zwischen dem deterministischen VIS und NRCs Regel schließt das nicht – sie liegt an der
+Kette echter Abhängigkeiten, nicht an der Rechenzeit je Fluss (Abschnitt 5; die feste Regel baut Auftrag VIS3 in
+`Y:\p_vis3`). **Die Vorgabe bleibt NRCs Regel.**
 
 ## 1. Profil: wohin die Zeit geht
 
@@ -73,8 +75,9 @@ Zählfassung (`diag\stat_patch.py`, ein Thread; ctf3 in Klammern):
    - Gleich für jede Tabellengröße: ein überschriebener Platz bekommt eine neue Nummer, keine Nummer wird zweimal
      vergeben. NRCs Eigenheit (der Zwischenspeicher behält nur ein Anfangsstück, wenn das erste Portal dabei
      weggeschnitten wird) bleibt erhalten – sie steckt in den „Ebenen vorher/nachher“ des Schlüssels.
-   - Größe: 2^12 Zustände und 2^14 Ergebnisse je Thread (1,4 MB). `BHED_VIS_GEOMEMO=<n>` stellt 2^n Zustände ein,
-     0 schaltet den Merker ab (für Messungen und den ctest). `-v` zeigt am Ende des Flusses, was er getan hat.
+   - Größe in Runde 1: 2^12 Zustände und 2^14 Ergebnisse je Thread (1,4 MB); seit Runde 2 2^14 Zustände und 2^17
+     Ergebnisse (5,5 MB, Abschnitt 7). `BHED_VIS_GEOMEMO=<n>` stellt 2^n Zustände ein, 0 schaltet den Merker ab
+     (für Messungen und den ctest). `-v` zeigt am Ende des Flusses, was er getan hat.
    - Trefferquote: md_ch_ben 37,4 von 82,5 Mio. Portalen aus dem Merker (45 %; 2,5 Mio. überschriebene Zustände,
      4,7 Mio. nachgebaute Ebenen), ctf3 5,7 von 17,7 Mio. (32 %), t3_byss rund 31 %.
 2. **Winding-Schnitt mit vier Punkten auf einmal** (`VisChopWinding`, SSE2): dieselben Produkte und Summen in
@@ -96,11 +99,10 @@ Nachweis „gleich `-threads 1`“ (Visibility-Lump / alle Lumps gegen `bezug.tx
 | duel_mos_espa (39a0dcd7…/a4e5ceb1…) | 32 Threads `-bhedvisexact`: nur Merker (668 s); Endstand (690 s, 1623 CPU-s) | gleich |
 | Gitter 9 × 9 (ctest q3map2_visgleich) | `-vis`, `-vis -nopassage`, `-vis -passageOnly` mit 1, 8, 32, 100 Threads; Merker Vorgabe, 2^4, aus | Visibility-Lump = NRCs q3map2.exe |
 
-Die Läufe „Endstand“ liefen mit `v
-eu1`; der eingecheckte Stand unterscheidet sich davon nur in einem Kommentar –
-alle Abschnitte der neu gebauten exe (.text, .rdata, .data, .pdata …) sind bytegleich (`neuhed_q3map2.exe`).
+Die Läufe „Endstand“ liefen mit `v\neu1`; der eingecheckte Stand unterscheidet sich davon nur in einem Kommentar –
+alle Abschnitte der neu gebauten exe (.text, .rdata, .data, .pdata …) sind bytegleich (`neu\bhed_q3map2.exe`).
 
-## 3. Richtwerte unter Last
+## 3. Richtwerte unter Last (Runde 1, Stand c3f5950d4)
 
 Gleichzeitig gestartete Läufe (dieselbe Fremdlast für alle), CPU-Sekunden; „nur Schnitt“ = Fassung ohne Merker
 (Zwischenstand `v\mB`), „nur Merker“ = `v\m1`:
@@ -197,39 +199,185 @@ Gleichzeitig gestartete Läufe (dieselbe Fremdlast für alle), CPU-Sekunden; „
   (keine Meldung in einer geänderten Datei).
 - Bau: `bhed_q3map2_clang`, `kartegrenzen`, `kartezusammen` ohne Warnung.
 
-## 7. Offen
+## 7. Runde 2 (11.11., Fable): warum vom Merker nur 2 bis 14 % ankamen – und der Merker danach
 
-- Endgültige Messtabelle im Ruhefenster: `sh /y/werkzeuge/vis2s/messung_final.sh` (etwa 35 min) →
-  `messung_final.txt` mit basis / neu / ohne Merker je Karte. Danach die Zahl im Changelog bestätigen oder berichtigen.
-- Merker schlanker bauen (Ergebnisse im Eintrag ihres Zustands statt in einer zweiten Tabelle, Windings erst bei
-  Bedarf kopieren, kleinere Tabellen): unter voller Last kostet ein Treffer heute zwei verfehlte Cache-Zeilen; von
-  den rechnerisch 22 bis 32 % kommen 2 bis 14 % an.
+Stand vorher c3f5950d4 („r1“). Auch diese Zeiten sind **Richtwerte**: der Rechner war durchgehend mit rund 30 Kernen
+fremd belegt; in den Messfenstern (Sperre) liefen 5 bis 21 fremde Kerne weiter. Ein Ruhefenster gab es nicht –
+`messung_final.sh` ist nicht als Ganzes gelaufen (nur geprüft, siehe 7.5).
+
+### 7.1 Gemessen: wo der Gewinn blieb
+
+Messfassung `diag\zeit_patch.py` gegen c3f5950d4 (Takte des Zeitstempelzählers um Nachschlagen, Geometrie und
+Eintragen, Zähler je Thread; Abschnitte über 2 Mio. Takte gelten als Unterbrechung und fallen weg; der Zeitnehmer
+kostet 50 bis 60 Takte je Abschnitt – ohne Merker gemessen – und ist abgezogen):
+
+| | md_ch_ben, 1 Thread | t3_byss, NRCs Regel, 32 Threads |
+|---|---|---|
+| Portale in die Geometrie | 82,5 Mio. | 361 Mio. |
+| Geometrie ohne Merker | 137,8 Mrd. Takte (1669 je Portal) | 784,8 Mrd. (2173 je Portal) |
+| Treffer mit 2^12 Zuständen | 37,4 Mio. (45 %) | 94,8 Mio. (26 %) |
+| damit gespart | 54,3 Mrd. = 39 % der Geometrie (ein Treffer-Portal kostet 1453, nicht 1669) | 157 Mrd. = 20 % (1659 statt 2173) |
+| Aufwand des Merkers | 15,1 Mrd. = 28 % des Gesparten | 72,9 Mrd. = 46 % des Gesparten |
+| – Nachschlagen ohne Treffer | 86 Takte × 45,2 Mio. | 66 × 266 Mio. |
+| – Zustand suchen und eintragen (Hash über alle Punkte, 216 Bytes) | 156 × 45,2 Mio. | 139 × 266 Mio. |
+| – Treffer mit Kopie der Windings | 130 × 23,7 Mio. | 263 × 47,2 Mio. |
+| – Treffer „weggeschnitten“ | 78 × 13,6 Mio. | 123 × 47,6 Mio. |
+| Treffer, deren Zustand überschrieben war (Geometrie noch einmal) | 2,5 Mio. | 9,5 Mio. |
+| über einen Treffer betretene Rahmen / davon mit einem Portal, das die Windings wirklich braucht | 23,7 / 2,6 Mio. (11 %) | 47,2 / 9,2 Mio. (20 %) |
+
+- Die Rechnung der ersten Runde („Trefferquote × Anteil der Geometrie“ = 22 bis 32 %) lag zu hoch: Treffer-Portale
+  sind billiger als der Durchschnitt, und ein Viertel bis die Hälfte des Gesparten fraß der Merker selbst – am
+  meisten bei den Portalen **ohne** Treffer (Hash über alle Punkte, Zustand schreiben), also gerade auf den offenen Karten.
+- **Nicht der Cache begrenzte, sondern die Größe.** Dieselbe Fassung mit 2^16 statt 2^12 Zuständen (22 statt 1,4 MB
+  je Thread, weit außerhalb jedes Caches) auf t3_byss: 51 statt 26 % Treffer, 391 statt 479 CPU-s. Die Vermutung der
+  ersten Runde („unter voller Last fallen die Tabellen aus dem Cache“) war damit widerlegt – ein Treffer spart rund
+  2000 Takte, ein verfehlter Cache-Zugriff kostet 100 bis 300.
+- 80 bis 89 % der über einen Treffer betretenen Rahmen brauchen ihre Windings nie; die Fassung der ersten Runde
+  kopierte sie jedes Mal und rechnete die Geometrie neu, wenn der Zustand überschrieben war.
+
+### 7.2 Umgesetzt – Byte für Byte dasselbe Ergebnis
+
+1. **Windings erst bei Bedarf** (`pstack_t::lazy`, `BhedGeoWindings`). Ein Treffer gibt dem Rahmen darunter nur noch
+   die Nummer der Windings mit; er läuft über die Ergebnisse dieser Nummer weiter. Erst wenn dort ein Portal nicht im
+   Merker steht, werden die Punkte aus dem Zustand geholt – oder, falls dessen Platz inzwischen überschrieben ist,
+   aus den Windings des Rahmens darüber neu gerechnet (dieselbe Geometrie mit den Füllständen der
+   Trennebenen-Zwischenspeicher von damals; die Füllstände danach und der Platz des Ergebnisses werden geprüft,
+   Abweichung = `Error`). Ein überschriebener Zustand kostet so keinen Treffer mehr.
+2. **Ergebnisse in Buckets zu vier** (16 Bytes je Ergebnis, ein Bucket = eine Cache-Zeile; ein neues Ergebnis nimmt
+   einen leeren Platz, sonst den des ältesten Zustands) und **acht Ergebnisse je Zustand** statt vier.
+3. **Bucket vorab holen**: die Adresse steht fest, sobald das Portal in mightsee steht; `_mm_prefetch`, während der
+   Rahmen noch seine Bitvektoren baut. Ein eben erst angelegter Zustand kann noch kein Ergebnis haben – sein Rahmen
+   fragt gar nicht erst.
+4. **Hash der Punkte**: ein Produkt 64 × 64 → 128 Bit je Punkt, keines wartet auf ein anderes (vorher zwei
+   verkettete Multiplikationen je Punkt). Zustand 208 statt 216 Bytes (Nummern 32 Bit).
+5. **32-Bit-Nummern**: ist die Hälfte verbraucht, beginnt der Merker zwischen zwei Flüssen leer; ein einzelner
+   Fluss, dem die andere Hälfte ausgeht, rechnet ohne neue Zustände weiter. `BHED_VIS_GEOMEMO_IDS=<n>` setzt die
+   Grenze für den ctest herab.
+6. **Größe 2^14 Zustände und 2^17 Ergebnisse je Thread (5,5 MB)** statt 2^12 / 2^14 (1,4 MB).
+
+Portale, für die die Geometrie noch gerechnet wird (ein Thread, also reproduzierbar; in Klammern Anteil an allen):
+
+| Fassung | md_ch_ben (82,53 Mio.) | ctf3 (17,70 Mio.) | t3_byss (357,44 Mio.) |
+|---|---|---|---|
+| r1, 2^12 Zustände, 4 Ergebnisse je Zustand | 45,17 Mio. (55 %) | 11,99 Mio. (68 %) | – (32 Threads: 74 %) |
+| Windings bei Bedarf, sonst wie r1 | 38,94 Mio. | 10,83 Mio. | 239,4 Mio. (67 %) |
+| dazu Buckets zu vier, 8 Ergebnisse je Zustand | 34,07 Mio. | 10,09 Mio. | 208,2 Mio. (58 %; mit Zuständen zu zweit) |
+| 2^13 Zustände | 31,04 Mio. | 9,97 Mio. | |
+| **2^14 Zustände (Vorgabe)** | **30,38 Mio. (37 %)** | **9,93 Mio. (56 %)** | 158,5 Mio. (44 %; mit Zuständen zu zweit) |
+| 2^16 Zustände | 30,17 Mio. | 9,91 Mio. | 150,3 Mio. (42 %; 4 Ergebnisse je Zustand) |
+
+- md_ch_ben und ctf3 sind mit 2^14 am Boden (mehr Tabelle findet nichts mehr: was übrig ist, sind wirklich neue
+  Windings). t3_byss gewinnt bis 2^16 weiter, aber wenig: im Messfenster (NRCs Regel, 32 Threads, je 2 Läufe)
+  2^12 381 / 401 CPU-s, 2^13 330 / 336, **2^14 322 / 323**, 2^15 309 / 311, 2^16 303 / 304 – bei 200, 242, **326**,
+  494 und 830 MB Spitze (fee4525c1: 159 MB). 2^14 ist das Knie; 2^15 brächte 4 % für den doppelten Speicher.
+- Speicher: 5,5 MB je Thread. NRCs Regel mit 32 Threads: t3_byss Spitze 159 → 202 (r1) → 326 MB. Der
+  deterministische VIS hält bis zu 4 × numthreads Threads (128): t3_byss 238 → 410 (r1) → 910 MB, duel_mos_espa
+  284 → 469 → 959 MB. Kleiner stellen: `BHED_VIS_GEOMEMO=13` (2,7 MB je Thread, t3_byss rund 3 % mehr CPU-Zeit).
+
+### 7.3 Geprüft und verworfen (mit Zahlen)
+
+- **Zustände zu zweit je Platz** (der ältere weicht): md_ch_ben 34,07 → 34,00 Mio. (2^12), 31,04 → 30,83 Mio. (2^13),
+  30,55 → 30,39 Mio. (2^14) gerechnete Portale. Unter 1 %, nicht eingebaut.
+- **Andere Regel im Bucket** (Reihenfolge des Eintragens; zuletzt benutzt nach vorn): md_ch_ben 2^12 34,07 / 34,07 /
+  33,99 Mio., ctf3 10,09 / 10,08 / 10,07 Mio. Kein Unterschied – genommen ist die Regel ohne Schreiben beim Treffer.
+- **Ergebnisse direkt adressiert statt in Buckets**: 2^12 mit 4 / 8 / 16 Ergebnissen je Zustand md_ch_ben 38,94 /
+  36,94 / 35,44 Mio.; Buckets zu vier schaffen mit 4 Ergebnissen 35,86 Mio., mit 8 34,07 Mio.
+- **PlaneFromPoints vermeiden oder wiederverwenden** (Punkt 2 des Auftrags) – nicht gebaut, weil exakt nichts zu
+  holen ist:
+  - Wurzel und Division sind IEEE-genau gerundet; denselben float liefert nur dieselbe Operation. Kehrwert mal drei
+    statt drei Divisionen trifft die Rundung nur mit einer Prüfung je Komponente (liegt das Produkt mehr als zwei
+    Einheiten der letzten double-Stelle von einer float-Rundungsgrenze?) – das spart zwei Divisionen und kostet neun
+    Operationen dazu.
+  - Wiederverwenden hieße ein Merker je Ebene (36 Bytes Schlüssel): schon in Runde 1 gemessen, Nachschlagen kostet
+    so viel wie Rechnen.
+  - Kandidaten ohne Normieren aussondern (Vorprobe mit der unnormierten Ebene): exakt nur mit einer Fehlerschranke
+    gegen NRCs float-Rechnung (rund 3,5 · 2^-24 · Summe der Koordinatenbeträge: bei 8192 Einheiten 0,01, bei 65 536
+    schon 0,08 von 0,1 `ON_EPSILON`); die Vorprobe kostet je Kandidat rund 40 Operationen, spart bei den 51 %
+    abgewiesenen rund 30 und kommt bei den 49 % angenommenen obendrauf.
+  - Zwei Kandidaten nebeneinander und die SIMD-Suche waren schon gemessen (Abschnitt 4, `NOTIZEN_vis2_1011.md`).
+  - Seit dem Merker rechnet die Geometrie nur noch für 37 bis 56 % der Portale; das Normieren (in Runde 1 rund 19 %
+    der Flusszeit) macht heute etwa ein Zehntel aus – auch ein Drittel davon wären 3 %.
+- **Geometrie vor dem Warten im deterministischen VIS** (Punkt 3): vom Hauptchat gestrichen – Reihenfolge und
+  Warten der Flüsse gehören dem Auftrag VIS3 (`Y:\p_vis3`, ab c3f5950d4). An `BhedResolve`, `BhedWaitFound` und dem
+  Pool ist hier nichts geändert.
+
+### 7.4 Richtwerte: in Messfenstern (Sperre; 5 bis 21 fremde Kerne liefen weiter) und gleichzeitig ohne Sperre
+
+basis = fee4525c1, r1 = c3f5950d4, neu = Endstand dieses Zweigs; CPU-Sekunden (Wandzeit in Klammern), abwechselnd im
+selben Fenster, wo nichts anderes dabeisteht:
+
+| Karte, Lauf | basis | r1 | neu | neu / basis (CPU) | gleich `-threads 1` |
+|---|---|---|---|---|---|
+| t3_byss, NRCs Regel, 32 Threads, 2 Runden | 474 / 479 (27,5 / 20,4 s) | 412 / 426 (18,2 / 18,5 s) | 322 / 323 (14,2 / 13,7 s) | 0,68 | – |
+| t3_byss, `-bhedvisexact`, 32 Threads, 2 Runden (Fremdlast 19 bis 21 Kerne) | 444 / 463 (47,9 / 46,6 s) | 430 / 416 (42,6 / 43,5 s) | 337 / 312 (31,5 / 31,9 s) | 0,72 | ja |
+| md_ch_ben, NRCs Regel, 32 Threads, 2 Runden | 71,5 / 77,4 (4,7 / 3,5 s) | 56,9 / 59,4 (3,3 / 2,7 s) | 44,7 / 49,8 (3,1 / 2,2 s) | 0,63 | – |
+| md_ch_ben, `-bhedvisexact`, 32 Threads, 2 Runden | 82,9 / 87,7 (6,9 / 6,1 s) | – | 55,0 / 60,6 (4,5 / 4,1 s) | 0,68 | ja |
+| md_ch_ben, 1 Thread, 2 Runden, alle Fassungen gleichzeitig (ohne Sperre, Fremdlast 29 Kerne) | 77,5 / 79,6 | 65,2 / 68,0 | 51,0 / 53,1 | 0,66 | ja |
+| ctf3, 1 Thread, ebenso | 24,9 / 24,7 | 21,9 / 21,9 | 19,3 / 19,3 | 0,78 | ja |
+| duel_mos_espa, NRCs Regel, 32 Threads, alle drei gleichzeitig (ohne Sperre, Fremdlast 24 Kerne) | 1665 (298 s) | 1540 (266 s) | 1048 (179 s) | 0,63 | – |
+| duel_mos_espa, `-bhedvisexact`, 32 Threads, beide gleichzeitig (ohne Sperre) | 1799 (618 s) | – | 1099 (281 s) | 0,61 | ja |
+
+Die jeweils erste Runde mit einem Thread lief mit dem Zwischenstand `v\r2b` und `BHED_VIS_GEOMEMO=14` (derselbe Code,
+die Vorgabe stand noch auf 2^12). Ein Lauf von r1 mit NRCs Regel auf md_ch_ben wich vom `-threads 1`-Ergebnis ab – NRCs
+Regel eben; alle Läufe mit einem Thread oder `-bhedvisexact` sind gleich.
+
+- CPU-Zeit gegen fee4525c1: ctf3 0,78, md_ch_ben 0,63 bis 0,68, t3_byss 0,68 (NRCs Regel) und 0,72 (deterministisch), duel_mos_espa 0,63 (NRCs Regel) und 0,61 (deterministisch) – 22 bis 39 % weniger; gegen Runde 1 (c3f5950d4) 12 bis 32 % weniger. Ohne Merker (`BHED_VIS_GEOMEMO=0`) liegt der Endstand bei fee4525c1 (md_ch_ben 80,8 neben 79,6, ctf3 23,7 neben 24,7 CPU-s im selben Lauf): der Gewinn kommt fast ganz aus dem Merker.
+- Die Wandzeit fällt mit, wo die Kerne frei sind (t3_byss, NRCs Regel: 20,4 bis 27,5 → 13,7 bis 14,2 s).
+
+### 7.5 Tests (Runde 2)
+
+- ctest **q3map2_visgleich** (`merker()`): `-vis -v` mit einem Thread in der Vorgabegröße, mit 16 Zuständen
+  (`BHED_VIS_GEOMEMO=4`), mit 40 Nummern (`BHED_VIS_GEOMEMO=6`, `BHED_VIS_GEOMEMO_IDS=40`) und ohne Merker – alle
+  Lumps gleich, Visibility-Lump gleich NRCs. Die Zeile „geometry memo“ muss zeigen: Vorgabe 775 Portale aus dem
+  Merker, 41 Ebenen nachgebaut; klein 405 aus dem Merker, **39 Windings** und 36 Ebenen nachgebaut; wenige Nummern
+  **974-mal geleert, 7493 Zustände ohne Nummer**. Rot mit der exe von c3f5950d4 (3 FEHLER), grün mit dem Endstand.
+- Gleich `-threads 1` (alle Lumps gegen `bezug.txt`), Endstand (exe 088e5d0d…): ctf3 und md_ch_ben mit einem Thread,
+  t3_byss (42,6 s, 383 CPU-s) und duel_mos_espa (322 s, 1294 CPU-s) mit 32 Threads und `-bhedvisexact`. Dazu jeder
+  Zwischenstand: ctf3 und md_ch_ben mit 2^4, 2^12, 2^13, 2^14, 2^16 Zuständen und mit 64 Nummern, t3_byss mit einem
+  Thread in fünf Fassungen des Merkers (über 60 Läufe, alle GLEICH in `messung.txt`).
+- ctest, Auswahl `^q3map2_|^karte_grenzen$` (14 Tests, `-j 14`) auf dem Endstand: 13 grün (q3map2_visgleich, vispause, determinismus, vergleich, pr316, gpu, gpubake, funde, pfade, uebersetzer, zusammen, importe, karte_grenzen). **q3map2_teilbau rot wie am Zweigbeginn** – dieselben 2 Fehlschläge im Licht-Cache („-bounce 2, Brush (Detail in Raum B): 9/24, 7/24, 7/24“ und „Shader (Wand in Raum A): 18/18, 18/18, 18/18“), 104 Zeilen OK, 1022 s; gehört LCB2. Bau des Ziels `bhed_q3map2_clang` ohne Warnung.
+- Lints mit den geänderten Dateien: lint_sources ok; lint_portability 99, lint_pruefcodes 11, lint_fremdprogramm 1
+  wie am Zweigbeginn, keine Meldung in einer geänderten Datei.
+- `messung_final.sh` (Ruhefenster, etwa 45 min, jetzt mit r1 als dritter Fassung; die Tabelle nimmt nur den letzten
+  Aufruf): mit drei Läufen geprüft, Messreihe und Tabelle laufen durch. Als Ganzes nicht gelaufen – kein Ruhefenster.
+- Bewusst nicht gelaufen: die übrigen ctests, Selbsttest-Gruppen, karteneditor, Modus 1 (geändert sind nur
+  `visflow.cpp`, `vis.h` und `tools/karte/q3map2_visgleich.py`; die volle Runde läuft auf dem zusammengeführten Stand).
+
+## 8. Offen
+
+- Endgültige Messtabelle im Ruhefenster: `sh /y/werkzeuge/vis2s/messung_final.sh` (etwa 45 min) →
+  `messung_final.txt` mit basis / r1 / neu / ohne Merker je Karte. Danach die Zahl im Changelog bestätigen.
+- Speicher des Merkers im deterministischen VIS: je Thread ein Merker, bis zu 4 × numthreads Threads. Wenn VIS3 die
+  Reihenfolge der Flüsse neu ordnet, den Merker dort an die rechnenden Flüsse binden (ein wartender Fluss braucht
+  keinen; seine Rahmen müssten dann ihre Nummern vergessen) oder die Größe an die Thread-Zahl koppeln.
 - Der Merker gilt nur für PassagePortalFlow (die Vorgabe). `-vis -nopassage` hat den schnelleren Schnitt, keinen Merker.
-- Geometrie vor dem Warten im deterministischen VIS (Abschnitt 5).
-- Deterministische Regel als Vorgabe: Entscheidung shank (Abschnitt 5, letzter Punkt).
+- Was die Geometrie heute noch rechnet, sind neue Windings (md_ch_ben 37 %, ctf3 56 %, t3_byss rund 44 % der
+  Portale); dort bleibt nur die Ebenensuche selbst (7.3) und die Vorprobe mit Fehlerschranke als Aussicht von
+  höchstens wenigen Prozent.
+- Deterministische Regel als Vorgabe: Entscheidung shank, Umsetzung VIS3 (Abschnitt 5, letzter Punkt).
 
 ## Changelog
 
 ## English
 
-- Map compiler: VIS takes about a tenth less computing time for the same result. The portal flow remembers what it clipped before - it walks through the same chains of portals again and again - and cuts windings four points at a time. The visibility data stays the same byte for byte, with any number of threads and with "Same VIS in every build".
+- Map compiler: VIS takes a fifth to a third less computing time for the same result (and about 5 MB more memory for each thread). The portal flow remembers what it clipped before - it walks through the same chains of portals again and again - and cuts windings four points at a time. The visibility data stays the same byte for byte, with any number of threads and with "Same VIS in every build".
 
 ## Deutsch
 
-- Karten-Compiler: VIS braucht für dasselbe Ergebnis etwa ein Zehntel weniger Rechenzeit. Der Portalfluss merkt sich, was er schon geschnitten hat – er läuft dieselben Portalketten immer wieder ab –, und schneidet Windings mit vier Punkten auf einmal. Die Sichtbarkeitsdaten bleiben Byte für Byte gleich, mit jeder Thread-Zahl und mit „Dasselbe VIS in jedem Bau“.
+- Karten-Compiler: VIS braucht für dasselbe Ergebnis ein Fünftel bis ein Drittel weniger Rechenzeit (und je Thread etwa 5 MB mehr Speicher). Der Portalfluss merkt sich, was er schon geschnitten hat – er läuft dieselben Portalketten immer wieder ab –, und schneidet Windings mit vier Punkten auf einmal. Die Sichtbarkeitsdaten bleiben Byte für Byte gleich, mit jeder Thread-Zahl und mit „Dasselbe VIS in jedem Bau“.
 
 ## 中文
 
-- 地图编译器:VIS 得到相同结果所需的计算时间减少约十分之一。门户流会记住已经裁剪过的内容(它会反复走过相同的门户链),并且一次裁剪四个顶点。可见性数据逐字节保持不变,无论线程数多少,也无论是否打开“每次编译得到相同的 VIS”。
+- 地图编译器:VIS 得到相同结果所需的计算时间减少五分之一到三分之一(每个线程多用约 5 MB 内存)。门户流会记住已经裁剪过的内容(它会反复走过相同的门户链),并且一次裁剪四个顶点。可见性数据逐字节保持不变,无论线程数多少,也无论是否打开“每次编译得到相同的 VIS”。
 
 ## 日本語
 
-- マップコンパイラー: VIS は同じ結果を得るための計算時間が約 1 割短くなりました。ポータルフローは一度クリップした内容を覚えておき(同じポータルの連なりを何度もたどるため)、ワインディングを 4 点ずつ切ります。可視データはバイト単位で変わりません。スレッド数にも「毎回のビルドで同じ VIS」にも関係なく同じです。
+- マップコンパイラー: VIS は同じ結果を得るための計算時間が 2 割から 3 割強短くなりました(スレッドごとに約 5 MB 多くメモリを使います)。ポータルフローは一度クリップした内容を覚えておき(同じポータルの連なりを何度もたどるため)、ワインディングを 4 点ずつ切ります。可視データはバイト単位で変わりません。スレッド数にも「毎回のビルドで同じ VIS」にも関係なく同じです。
 
 ## Español
 
-- Compilador de mapas: VIS necesita aproximadamente una décima parte menos de tiempo de cálculo para el mismo resultado. El flujo de portales recuerda lo que ya ha recortado –recorre una y otra vez las mismas cadenas de portales– y corta los polígonos de cuatro en cuatro puntos. Los datos de visibilidad siguen siendo idénticos byte a byte, con cualquier número de hilos y con «VIS igual en cada compilación».
+- Compilador de mapas: VIS necesita entre una quinta parte y un tercio menos de tiempo de cálculo para el mismo resultado (y unos 5 MB más de memoria por hilo). El flujo de portales recuerda lo que ya ha recortado –recorre una y otra vez las mismas cadenas de portales– y corta los polígonos de cuatro en cuatro puntos. Los datos de visibilidad siguen siendo idénticos byte a byte, con cualquier número de hilos y con «VIS igual en cada compilación».
 
 ## Čeština
 
-- Kompilátor map: VIS potřebuje pro stejný výsledek asi o desetinu méně výpočetního času. Tok portálů si pamatuje, co už ořezal – prochází stále znovu stejné řetězce portálů – a ořezává polygony po čtyřech bodech najednou. Data viditelnosti zůstávají bajt po bajtu stejná, s libovolným počtem vláken i se „Stejné VIS při každém sestavení“.
+- Kompilátor map: VIS potřebuje pro stejný výsledek o pětinu až třetinu méně výpočetního času (a asi o 5 MB paměti více na vlákno). Tok portálů si pamatuje, co už ořezal – prochází stále znovu stejné řetězce portálů – a ořezává polygony po čtyřech bodech najednou. Data viditelnosti zůstávají bajt po bajtu stejná, s libovolným počtem vláken i se „Stejné VIS při každém sestavení“.
