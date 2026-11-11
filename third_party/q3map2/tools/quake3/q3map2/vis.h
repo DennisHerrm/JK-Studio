@@ -109,7 +109,13 @@ struct pstack_t
 #ifdef SEPERATORCACHE
 	visPlane_t seperators[ 2 ][ MAX_SEPERATORS ];
 	int numseperators[ 2 ];
+	/* BehavEd vis2s (geometry memo, visflow.cpp): the memo can tell the result of a portal without the
+	   planes - numseperators counts the planes the frame has by NRC's rule, sephave those that are
+	   really in seperators, sepedge the source edge the search for the next one starts at */
+	int sephave[ 2 ];
+	int sepedge[ 2 ];
 #endif
+	uint64_t geo;                       /* BehavEd vis2s: memo id of ( source, pass ), 0: none */
 };
 
 
@@ -117,6 +123,7 @@ struct threaddata_t
 {
 	vportal_t           *base;
 	int c_chains;
+	struct BhedGeoMemo  *geo;           /* BehavEd vis2s: geometry memo of the thread */
 	pstack_t pstack_head;
 };
 

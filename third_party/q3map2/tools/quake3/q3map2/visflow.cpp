@@ -701,6 +701,20 @@ static void BhedStopFlows(){
 	}
 }
 
+/* BehavEd vis2s: the geometry memo of the flows (BhedGeoMemo below) - its size and what it did */
+namespace
+{
+std::atomic<uint64_t> g_bhedGeoKnown{ 0 }, g_bhedGeoMade{ 0 }, g_bhedGeoLost{ 0 }, g_bhedGeoPlanes{ 0 };
+
+int BhedGeoBits(){
+	static const int bits = []{
+		const char *value = getenv( "BHED_VIS_GEOMEMO" );
+		return value != nullptr ? std::clamp( atoi( value ), 0, 20 ) : 12;
+	}();
+	return bits;
+}
+}
+
 void BhedRunFlow( void ( *flow )( int ) ){
 	static void ( *s_flow )( int );
 	s_flow = flow;
@@ -798,6 +812,11 @@ void BhedRunFlow( void ( *flow )( int ) ){
 		return;
 	}
 	Sys_Printf( " (%i)\n", int( timer.elapsed_sec() ) );
+	if ( BhedGeoBits() > 0 && g_bhedGeoKnown + g_bhedGeoMade != 0 ) {
+		Sys_FPrintf( SYS_VRB, "BehavEd: geometry memo (2^%i states a thread): %llu portals known, %llu computed, %llu states overwritten, %llu planes made again\n",
+		             BhedGeoBits(), (unsigned long long)g_bhedGeoKnown.load(), (unsigned long long)g_bhedGeoMade.load(),
+		             (unsigned long long)g_bhedGeoLost.load(), (unsigned long long)g_bhedGeoPlanes.load() );
+	}
 }
 
 
@@ -861,7 +880,50 @@ static fixedWinding_t  *VisChopWinding( fixedWinding_t *in, pstack_t *stack, con
 	counts[0] = counts[1] = counts[2] = 0;
 
 	// determine sides for each point
-	for ( i = 0; i < in->numpoints; ++i )
+	/* BehavEd vis2s: four points at a time. The same numbers as NRC's loop below: the products and sums of
+	   plane3_distance_to_point in single precision and in its order, the distance of the plane taken off in
+	   double precision, the result rounded to float (dists[i]). A float is above the double ON_EPSILON
+	   exactly if it is at least float( ON_EPSILON ) - 0.1f is the smallest float above 0.1 - and below
+	   -ON_EPSILON exactly if it is at most -0.1f. The last four points may overlap the four before (the
+	   same numbers once more); the sides are written out only when the winding is really cut.
+	   (md_ch_ben: 487 million calls with four points on average, two of three end right after the distances.) */
+	static_assert( sizeof( Vector3 ) == 3 * sizeof( float ) );
+	static_assert( MAX_POINTS_ON_FIXED_WINDING <= 32 );
+	unsigned frontbits = 0, backbits = 0;
+	const bool four = in->numpoints >= 4;
+	i = 0;
+	if ( four ) {
+		const __m128 nx = _mm_set1_ps( split.normal()[0] ), ny = _mm_set1_ps( split.normal()[1] ), nz = _mm_set1_ps( split.normal()[2] );
+		const __m128d dist = _mm_set1_pd( split.dist() );
+		const __m128 front = _mm_set1_ps( float( ON_EPSILON ) ), back = _mm_set1_ps( -float( ON_EPSILON ) );
+		while ( true )
+		{
+			const float *f = &in->points[i][0];
+			const __m128 a = _mm_loadu_ps( f );                                     // x0 y0 z0 x1
+			const __m128 b = _mm_loadu_ps( f + 4 );                                 // y1 z1 x2 y2
+			const __m128 c = _mm_loadu_ps( f + 8 );                                 // z2 x3 y3 z3
+			const __m128 xy23 = _mm_shuffle_ps( b, c, _MM_SHUFFLE( 2, 1, 3, 2 ) );  // x2 y2 x3 y3
+			const __m128 yz01 = _mm_shuffle_ps( a, b, _MM_SHUFFLE( 1, 0, 2, 1 ) );  // y0 z0 y1 z1
+			const __m128 x = _mm_shuffle_ps( a, xy23, _MM_SHUFFLE( 2, 0, 3, 0 ) );
+			const __m128 y = _mm_shuffle_ps( yz01, xy23, _MM_SHUFFLE( 3, 1, 2, 0 ) );
+			const __m128 z = _mm_shuffle_ps( yz01, c, _MM_SHUFFLE( 3, 0, 3, 1 ) );
+			const __m128 sum = _mm_add_ps( _mm_add_ps( _mm_mul_ps( x, nx ), _mm_mul_ps( y, ny ) ), _mm_mul_ps( z, nz ) );
+			const __m128 lo = _mm_cvtpd_ps( _mm_sub_pd( _mm_cvtps_pd( sum ), dist ) );
+			const __m128 hi = _mm_cvtpd_ps( _mm_sub_pd( _mm_cvtps_pd( _mm_movehl_ps( sum, sum ) ), dist ) );
+			const __m128 d = _mm_movelh_ps( lo, hi );
+			_mm_storeu_ps( dists + i, d );
+			frontbits |= unsigned( _mm_movemask_ps( _mm_cmpge_ps( d, front ) ) ) << i;
+			backbits |= unsigned( _mm_movemask_ps( _mm_cmple_ps( d, back ) ) ) << i;
+			if ( i + 4 >= in->numpoints ) {
+				break;
+			}
+			i = std::min( i + 4, in->numpoints - 4 );
+		}
+		counts[0] = frontbits != 0;
+		counts[1] = backbits != 0;
+		i = in->numpoints;
+	}
+	for ( ; i < in->numpoints; ++i )
 	{
 		dists[i] = plane3_distance_to_point( split, in->points[i] );
 		if ( dists[i] > ON_EPSILON ) {
@@ -885,6 +947,10 @@ static fixedWinding_t  *VisChopWinding( fixedWinding_t *in, pstack_t *stack, con
 		return nullptr;
 	}
 
+	if ( four ) {
+		for ( j = 0; j < in->numpoints; ++j )
+			sides[j] = ( frontbits >> j & 1 ) ? eSideFront : ( backbits >> j & 1 ) ? eSideBack : eSideOn;
+	}
 	sides[i] = sides[0];
 	dists[i] = dists[0];
 
@@ -922,7 +988,7 @@ static fixedWinding_t  *VisChopWinding( fixedWinding_t *in, pstack_t *stack, con
 		}
 
 		// generate a split point
-		const Vector3& p2 = in->points[( i + 1 ) % in->numpoints];
+		const Vector3& p2 = in->points[i + 1 == in->numpoints ? 0 : i + 1];
 
 		dot = dists[i] / ( dists[i] - dists[i + 1] );
 		for ( j = 0; j < 3; ++j )
@@ -948,6 +1014,113 @@ static fixedWinding_t  *VisChopWinding( fixedWinding_t *in, pstack_t *stack, con
 	return neww;
 }
 
+/* BehavEd vis2s: the inner loop of ClipToSeperators - the separating plane through the source edge i
+   and a vertex of pass, false if there is none. NRC's code, moved into a function of its own: the planes
+   of a frame do not depend on the target, so they can be made again later (BhedSeperatorsHave). */
+static bool BhedEdgeSeperator( const fixedWinding_t *source, const fixedWinding_t *pass, int i, bool flipclip, visPlane_t& plane ){
+	int j, k, l;
+	float d;
+	int counts[3];
+	bool fliptest;
+
+	l = i + 1 == source->numpoints ? 0 : i + 1;     /* BehavEd vis2s: without the division of ( i + 1 ) % numpoints */
+
+	// find a vertex of pass that makes a plane that puts all of the
+	// vertexes of pass on the front side and all of the vertexes of
+	// source on the back side
+	for ( j = 0; j < pass->numpoints; ++j )
+	{
+		// if points don't make a valid plane, skip it
+		if ( !PlaneFromPoints( plane, source->points[i], pass->points[j], source->points[l] ) ) {
+			continue;
+		}
+
+		//
+		// find out which side of the generated separating plane has the
+		// source portal
+		//
+#if 1
+		fliptest = false;
+		for ( k = 0; k < source->numpoints; ++k )
+		{
+			if ( k == i || k == l ) {
+				continue;
+			}
+			d = plane3_distance_to_point( plane, source->points[k] );
+			if ( d < -ON_EPSILON ) { // source is on the negative side, so we want all
+			                        // pass and target on the positive side
+				fliptest = false;
+				break;
+			}
+			else if ( d > ON_EPSILON ) { // source is on the positive side, so we want all
+			                            // pass and target on the negative side
+				fliptest = true;
+				break;
+			}
+		}
+		if ( k == source->numpoints ) {
+			continue;       // planar with source portal
+		}
+#else
+		fliptest = flipclip;
+#endif
+		//
+		// flip the normal if the source portal is backwards
+		//
+		if ( fliptest ) {
+			plane = plane3_flipped( plane );
+		}
+#if 1
+		//
+		// if all of the pass portal points are now on the positive side,
+		// this is the separating plane
+		//
+		counts[0] = counts[1] = counts[2] = 0;
+		for ( k = 0; k < pass->numpoints; ++k )
+		{
+			if ( k == j ) {
+				continue;
+			}
+			d = plane3_distance_to_point( plane, pass->points[k] );
+			if ( d < -ON_EPSILON ) {
+				break;
+			}
+			else if ( d > ON_EPSILON ) {
+				counts[0]++;
+			}
+			else{
+				counts[2]++;
+			}
+		}
+		if ( k != pass->numpoints ) {
+			continue;   // points on negative side, not a separating plane
+		}
+		if ( !counts[0] ) {
+			continue;   // planar with separating plane
+		}
+#else
+		k = ( j + 1 ) % pass->numpoints;
+		d = plane3_distance_to_point( plane, pass->points[k] );
+		if ( d < -ON_EPSILON ) {
+			continue;
+		}
+		k = ( j + pass->numpoints - 1 ) % pass->numpoints;
+		d = plane3_distance_to_point( plane, pass->points[k] );
+		if ( d < -ON_EPSILON ) {
+			continue;
+		}
+#endif
+		//
+		// flip the normal if we want the back side
+		//
+		if ( flipclip ) {
+			plane = plane3_flipped( plane );
+		}
+		return true;
+	}
+	return false;
+}
+
 /*
    ==============
    ClipToSeperators
@@ -965,135 +1138,43 @@ static fixedWinding_t  *VisChopWinding( fixedWinding_t *in, pstack_t *stack, con
    ==============
  */
 static fixedWinding_t  *ClipToSeperators( fixedWinding_t *source, fixedWinding_t *pass, fixedWinding_t *target, bool flipclip, pstack_t *stack ){
-	int i, j, k, l;
 	float d;
-	int counts[3];
-	bool fliptest;
 
 	// check all combinations
-	for ( i = 0; i < source->numpoints; ++i )
+	for ( int i = 0; i < source->numpoints; ++i )
 	{
-		l = ( i + 1 ) % source->numpoints;
-
-		// find a vertex of pass that makes a plane that puts all of the
-		// vertexes of pass on the front side and all of the vertexes of
-		// source on the back side
-		for ( j = 0; j < pass->numpoints; ++j )
-		{
-			visPlane_t plane;
-			// if points don't make a valid plane, skip it
-			if ( !PlaneFromPoints( plane, source->points[i], pass->points[j], source->points[l] ) ) {
-				continue;
-			}
-
-			//
-			// find out which side of the generated separating plane has the
-			// source portal
-			//
-#if 1
-			fliptest = false;
-			for ( k = 0; k < source->numpoints; ++k )
-			{
-				if ( k == i || k == l ) {
-					continue;
-				}
-				d = plane3_distance_to_point( plane, source->points[k] );
-				if ( d < -ON_EPSILON ) { // source is on the negative side, so we want all
-				                        // pass and target on the positive side
-					fliptest = false;
-					break;
-				}
-				else if ( d > ON_EPSILON ) { // source is on the positive side, so we want all
-				                            // pass and target on the negative side
-					fliptest = true;
-					break;
-				}
-			}
-			if ( k == source->numpoints ) {
-				continue;       // planar with source portal
-			}
-#else
-			fliptest = flipclip;
-#endif
-			//
-			// flip the normal if the source portal is backwards
-			//
-			if ( fliptest ) {
-				plane = plane3_flipped( plane );
-			}
-#if 1
-			//
-			// if all of the pass portal points are now on the positive side,
-			// this is the separating plane
-			//
-			counts[0] = counts[1] = counts[2] = 0;
-			for ( k = 0; k < pass->numpoints; ++k )
-			{
-				if ( k == j ) {
-					continue;
-				}
-				d = plane3_distance_to_point( plane, pass->points[k] );
-				if ( d < -ON_EPSILON ) {
-					break;
-				}
-				else if ( d > ON_EPSILON ) {
-					counts[0]++;
-				}
-				else{
-					counts[2]++;
-				}
-			}
-			if ( k != pass->numpoints ) {
-				continue;   // points on negative side, not a separating plane
-			}
-			if ( !counts[0] ) {
-				continue;   // planar with separating plane
-			}
-#else
-			k = ( j + 1 ) % pass->numpoints;
-			d = plane3_distance_to_point( plane, pass->points[k] );
-			if ( d < -ON_EPSILON ) {
-				continue;
-			}
-			k = ( j + pass->numpoints - 1 ) % pass->numpoints;
-			d = plane3_distance_to_point( plane, pass->points[k] );
-			if ( d < -ON_EPSILON ) {
-				continue;
-			}
-#endif
-			//
-			// flip the normal if we want the back side
-			//
-			if ( flipclip ) {
-				plane = plane3_flipped( plane );
-			}
+		visPlane_t plane;
+		if ( !BhedEdgeSeperator( source, pass, i, flipclip, plane ) ) {
+			continue;
+		}
 
 #ifdef SEPERATORCACHE
-			stack->seperators[flipclip][stack->numseperators[flipclip]] = plane;
-			if ( ++stack->numseperators[flipclip] >= MAX_SEPERATORS ) {
-				Error( "MAX_SEPERATORS" );
-			}
-#endif
-			//MrE: fast check first
-			d = plane3_distance_to_point( plane, stack->portal->origin );
-			//if completely at the back of the separator plane
-			if ( d < -stack->portal->radius ) {
-				return nullptr;
-			}
-			//if completely on the front of the separator plane
-			if ( d > stack->portal->radius ) {
-				break;
-			}
-
-			//
-			// clip target by the separating plane
-			//
-			target = VisChopWinding( target, stack, plane );
-			if ( !target ) {
-				return nullptr;        // target is not visible
-			}
-			break;      // optimization by Antony Suter
+		stack->seperators[flipclip][stack->numseperators[flipclip]] = plane;
+		if ( ++stack->numseperators[flipclip] >= MAX_SEPERATORS ) {
+			Error( "MAX_SEPERATORS" );
 		}
+		stack->sephave[flipclip] = stack->numseperators[flipclip];
+		stack->sepedge[flipclip] = i + 1;
+#endif
+		//MrE: fast check first
+		d = plane3_distance_to_point( plane, stack->portal->origin );
+		//if completely at the back of the separator plane
+		if ( d < -stack->portal->radius ) {
+			return nullptr;
+		}
+		//if completely on the front of the separator plane
+		if ( d > stack->portal->radius ) {
+			continue;
+		}
+
+		//
+		// clip target by the separating plane
+		//
+		target = VisChopWinding( target, stack, plane );
+		if ( !target ) {
+			return nullptr;        // target is not visible
+		}
+		// optimization by Antony Suter: one plane per source edge
 	}
 
 	return target;
@@ -1501,6 +1582,257 @@ void PassageFlow( int portalnum ){
 	 */
 }
 
+/* BehavEd vis2s: geometry memo of the flow.
+   Profile (md_ch_ben, one thread): 51 % of the flow makes separating planes (ClipToSeperators), 21 %
+   clips windings, 25 % are the bit vectors. A flow walks through the same portals again and again -
+   56 million frames for 1750 portals, nearly all of them chasing bits that are in mightsee and never
+   become visible - and half of the time the frame has exactly the windings of an earlier one.
+   What the geometry does with a portal p of the leaf is a function of the flow (plane, origin and
+   radius of the base portal), of the source and pass windings the frame was entered with, of p and of
+   the number of planes each of the two separator caches holds at that moment - not of the bit
+   vectors and not of anything found so far. The memo keeps this function:
+     state:   ( flow, points of source, points of pass ) -> id, compared point by point
+     outcome: ( id, p, planes cached before ) -> planes cached after, clipped away or the id and the
+              windings behind p
+   A frame that finds its portal in the memo takes the windings from there and makes no plane and no
+   cut. The caches then hold fewer planes than NRC's code counts (pstack_t::sephave); a later portal of
+   the frame that is not in the memo makes the missing ones again (BhedSeperatorsHave) - the same
+   planes, they depend on the windings of the frame only. Same bits as without the memo, for any
+   size of the tables: a slot that is overwritten gets a new id, an id is never used twice.
+   BHED_VIS_GEOMEMO=<n> sets the size (2^n states and four times as many outcomes for each thread,
+   12 if not set: 1.4 MB), 0 switches the memo off - for measurements and for the ctest, which runs
+   a small memo (16 states) to get at the overwritten slots.
+   md_ch_ben: 45 % of the portals come from the memo, 10 to 14 % less CPU time; t3_byss and
+   duel_mos_espa: 26 to 28 %, 2 to 3 % (measured beside other load, docs/intern/NOTIZEN_vis2s_1011.md). */
+struct BhedGeoMemo
+{
+	static constexpr int c_points = 16;         /* points of source and pass together, more: not in the memo */
+	static constexpr uint32_t c_gone = ~uint32_t( 0 );
+	struct State
+	{
+		uint64_t id;                            /* 0: empty */
+		uint64_t hash;
+		int32_t flow;
+		uint8_t numsource, numpass;
+		Vector3 points[c_points];               /* source, then pass */
+	};
+	struct Outcome
+	{
+		uint64_t state;                         /* id of the frame's windings, 0: empty */
+		uint32_t pnum;
+		uint8_t before[2], after[2];            /* planes in the two separator caches */
+		uint32_t slot;                          /* state behind the portal, c_gone: clipped away */
+		uint32_t unused;
+		uint64_t id;
+	};
+	const bool on;
+	const size_t numstates, numoutcomes;
+	State *states;
+	Outcome *outcomes;
+	uint64_t ids = 0;
+	uint64_t known = 0, made = 0, lost = 0, planes = 0;    /* portals taken from the memo, computed, states overwritten, planes made again */
+
+	BhedGeoMemo() : on( BhedGeoBits() > 0 ), numstates( size_t( 1 ) << std::max( BhedGeoBits(), 1 ) ), numoutcomes( numstates * 4 ),
+		states( static_cast<State*>( safe_calloc( numstates * sizeof( State ) ) ) ),
+		outcomes( static_cast<Outcome*>( safe_calloc( numoutcomes * sizeof( Outcome ) ) ) ){
+	}
+	~BhedGeoMemo(){
+		free( states );
+		free( outcomes );
+	}
+	BhedGeoMemo( const BhedGeoMemo& ) = delete;
+	BhedGeoMemo& operator=( const BhedGeoMemo& ) = delete;
+
+	Outcome& outcome( uint64_t state, int pnum, int before0, int before1 ){
+		const uint64_t h = state * 0x9E3779B97F4A7C15ull + uint64_t( pnum ) * 0xC2B2AE3D27D4EB4Full
+		                   + uint64_t( before0 * 32 + before1 ) * 0x165667B19E3779F9ull;
+		return outcomes[( h >> 40 ) & ( numoutcomes - 1 )];
+	}
+
+	/* the id of ( flow, source, pass ) and its slot; 0: too many points */
+	uint64_t intern( int flow, const fixedWinding_t *source, const fixedWinding_t *pass, uint32_t& slot ){
+		const int numsource = source->numpoints, numpass = pass->numpoints;
+		if ( !on || numsource + numpass > c_points ) {
+			return 0;
+		}
+		uint64_t h = ( uint64_t( uint32_t( flow ) ) << 16 | uint64_t( numsource ) << 8 | uint64_t( numpass ) ) * 0x9E3779B97F4A7C15ull;
+		const auto mix = [&h]( const fixedWinding_t *w ){
+			for ( int i = 0; i < w->numpoints; ++i )
+			{
+				uint64_t a;
+				uint32_t b;
+				memcpy( &a, &w->points[i], 8 );
+				memcpy( &b, reinterpret_cast<const char*>( &w->points[i] ) + 8, 4 );
+				h = ( h ^ a ) * 0xFF51AFD7ED558CCDull;
+				h = ( h ^ ( h >> 32 ) ^ b ) * 0xC4CEB9FE1A85EC53ull;
+			}
+		};
+		mix( source );
+		mix( pass );
+		h ^= h >> 29;
+		slot = uint32_t( h & ( numstates - 1 ) );
+		State& s = states[slot];
+		if ( s.id != 0 && s.hash == h && s.flow == flow && s.numsource == numsource && s.numpass == numpass
+		  && memcmp( s.points, source->points, numsource * sizeof( Vector3 ) ) == 0
+		  && memcmp( s.points + numsource, pass->points, numpass * sizeof( Vector3 ) ) == 0 ) {
+			return s.id;
+		}
+		s.id = ++ids;
+		s.hash = h;
+		s.flow = flow;
+		s.numsource = uint8_t( numsource );
+		s.numpass = uint8_t( numpass );
+		memcpy( s.points, source->points, numsource * sizeof( Vector3 ) );
+		memcpy( s.points + numsource, pass->points, numpass * sizeof( Vector3 ) );
+		return s.id;
+	}
+};
+
+static BhedGeoMemo *BhedGeoThreadMemo(){
+	static thread_local std::unique_ptr<BhedGeoMemo> memo;
+	if ( !memo ) {
+		memo = std::make_unique<BhedGeoMemo>();
+	}
+	return memo.get();
+}
+
+/* at the end of a flow: the counts of the thread to the sum of the run */
+static void BhedGeoCount( BhedGeoMemo& memo ){
+	g_bhedGeoKnown += memo.known;
+	g_bhedGeoMade += memo.made;
+	g_bhedGeoLost += memo.lost;
+	g_bhedGeoPlanes += memo.planes;
+	memo.known = memo.made = memo.lost = memo.planes = 0;
+}
+
+/* the separator cache `flip` of the frame really holds the planes NRC's code counts for it (see BhedGeoMemo) */
+static void BhedSeperatorsHave( BhedGeoMemo& memo, const pstack_t *prevstack, pstack_t& stack, int flip ){
+	const fixedWinding_t *source = flip ? prevstack->pass : prevstack->source;
+	const fixedWinding_t *pass = flip ? prevstack->source : prevstack->pass;
+	while ( stack.sephave[flip] < stack.numseperators[flip] )
+	{
+		visPlane_t plane;
+		bool found = false;
+		while ( !found && stack.sepedge[flip] < source->numpoints )
+			found = BhedEdgeSeperator( source, pass, stack.sepedge[flip]++, flip != 0, plane );
+		if ( !found ) {
+			Error( "BhedSeperatorsHave: plane %i of %i not found", stack.sephave[flip], stack.numseperators[flip] );
+		}
+		stack.seperators[flip][stack.sephave[flip]++] = plane;
+		++memo.planes;
+	}
+}
+
+/* the geometry of RecursivePassagePortalFlow for the portal p of the leaf (NRC's code, moved): the
+   windings behind p in stack.source and stack.pass, false: p cannot be seen */
+static bool BhedPortalGeometry( threaddata_t *thread, pstack_t *prevstack, pstack_t& stack, vportal_t *p ){
+	int n;
+
+#if 1
+	{
+		const float d = plane3_distance_to_point( thread->pstack_head.portalplane, p->origin );
+		if ( d < -p->radius ) {
+			return false;
+		}
+		else if ( d > p->radius ) {
+			stack.pass = p->winding;
+		}
+		else
+		{
+			stack.pass = VisChopWinding( p->winding, &stack, thread->pstack_head.portalplane );
+			if ( !stack.pass ) {
+				return false;
+			}
+		}
+	}
+#else
+	stack.pass = VisChopWinding( p->winding, &stack, thread->pstack_head.portalplane );
+	if ( !stack.pass ) {
+		return false;
+	}
+#endif
+
+
+#if 1
+	{
+		const float d = plane3_distance_to_point( p->plane, thread->base->origin );
+		//MrE: vis-bug fix
+		//if ( d > p->radius )
+		if ( d > thread->base->radius ) {
+			return false;
+		}
+		//MrE: vis-bug fix
+		//if ( d < -p->radius )
+		else if ( d < -thread->base->radius ) {
+			stack.source = prevstack->source;
+		}
+		else
+		{
+			// get plane of portal, point normal into the neighbor leaf
+			stack.source = VisChopWinding( prevstack->source, &stack, plane3_flipped( p->plane ) );
+			//FIXME: shouldn't we create a new source origin and radius for fast checks?
+			if ( !stack.source ) {
+				return false;
+			}
+		}
+	}
+#else
+	stack.source = VisChopWinding( prevstack->source, &stack, plane3_flipped( p->plane ) );
+	if ( !stack.source ) {
+		return false;
+	}
+#endif
+
+	if ( !prevstack->pass ) { // the second leaf can only be blocked if coplanar
+		return true;
+	}
+
+#ifdef SEPERATORCACHE
+	if ( stack.numseperators[0] ) {
+		BhedSeperatorsHave( *thread->geo, prevstack, stack, 0 );
+		for ( n = 0; n < stack.numseperators[0]; ++n )
+		{
+			stack.pass = VisChopWinding( stack.pass, &stack, stack.seperators[0][n] );
+			if ( !stack.pass ) {
+				break;      // target is not visible
+			}
+		}
+		if ( n < stack.numseperators[0] ) {
+			return false;
+		}
+	}
+	else
+	{
+		stack.pass = ClipToSeperators( prevstack->source, prevstack->pass, stack.pass, false, &stack );
+	}
+#else
+	stack.pass = ClipToSeperators( stack.source, prevstack->pass, stack.pass, false, &stack );
+#endif
+	if ( !stack.pass ) {
+		return false;
+	}
+
+#ifdef SEPERATORCACHE
+	if ( stack.numseperators[1] ) {
+		BhedSeperatorsHave( *thread->geo, prevstack, stack, 1 );
+		for ( n = 0; n < stack.numseperators[1]; ++n )
+		{
+			stack.pass = VisChopWinding( stack.pass, &stack, stack.seperators[1][n] );
+			if ( !stack.pass ) {
+				break;      // target is not visible
+			}
+		}
+	}
+	else
+	{
+		stack.pass = ClipToSeperators( prevstack->pass, prevstack->source, stack.pass, true, &stack );
+	}
+#else
+	stack.pass = ClipToSeperators( prevstack->pass, stack.source, stack.pass, true, &stack );
+#endif
+	return stack.pass != nullptr;
+}
+
 /*
    ==================
    RecursivePassagePortalFlow
@@ -1510,8 +1842,7 @@ static void RecursivePassagePortalFlow( vportal_t *portal, threaddata_t *thread,
 	pstack_t stack;
 	vportal_t   *p;
 	leaf_t      *leaf;
-	visPlane_t backplane;
-	int i, n;
+	int i;
 
 //	thread->c_chains++;
 
@@ -1529,9 +1860,16 @@ static void RecursivePassagePortalFlow( vportal_t *portal, threaddata_t *thread,
 #ifdef SEPERATORCACHE
 	stack.numseperators[0] = 0;
 	stack.numseperators[1] = 0;
+	stack.sephave[0] = 0;
+	stack.sephave[1] = 0;
+	stack.sepedge[0] = 0;
+	stack.sepedge[1] = 0;
 #endif
 
 	const uint64_t *vis = reinterpret_cast<const uint64_t*>( thread->base->portalvis );
+	BhedGeoMemo& memo = *thread->geo;
+	const uint64_t geo = prevstack->geo;    /* the windings of this frame in the memo, 0: not there */
+	const int flow = int( thread->base - portals );
 
 	const passage_t *passage = portal->passages;
 	// check all portals for flowing into other leafs
@@ -1573,7 +1911,6 @@ static void RecursivePassagePortalFlow( vportal_t *portal, threaddata_t *thread,
 
 		// get plane of portal, point normal into the neighbor leaf
 		stack.portalplane = p->plane;
-		backplane = plane3_flipped( p->plane );
 
 		stack.portal = p;
 		stack.next = nullptr;
@@ -1581,112 +1918,56 @@ static void RecursivePassagePortalFlow( vportal_t *portal, threaddata_t *thread,
 		stack.freewindings[1] = 1;
 		stack.freewindings[2] = 1;
 
-#if 1
-		{
-			const float d = plane3_distance_to_point( thread->pstack_head.portalplane, p->origin );
-			if ( d < -p->radius ) {
-				continue;
-			}
-			else if ( d > p->radius ) {
-				stack.pass = p->winding;
-			}
-			else
-			{
-				stack.pass = VisChopWinding( p->winding, &stack, thread->pstack_head.portalplane );
-				if ( !stack.pass ) {
+		/* BehavEd vis2s: the geometry, from the memo where it has been done before */
+		BhedGeoMemo::Outcome *outcome = nullptr;
+		const int before0 = stack.numseperators[0], before1 = stack.numseperators[1];
+		bool known = false;
+		if ( geo != 0 ) {
+			outcome = &memo.outcome( geo, pnum, before0, before1 );
+			if ( outcome->state == geo && outcome->pnum == uint32_t( pnum ) && outcome->before[0] == before0 && outcome->before[1] == before1 ) {
+				if ( outcome->slot == BhedGeoMemo::c_gone ) {
+					stack.numseperators[0] = outcome->after[0];
+					stack.numseperators[1] = outcome->after[1];
+					++memo.known;
 					continue;
 				}
+				const BhedGeoMemo::State& behind = memo.states[outcome->slot];
+				if ( behind.id != outcome->id ) {
+					++memo.lost;    /* the state was overwritten: once more */
+				}
+				else{
+					++memo.known;
+					stack.numseperators[0] = outcome->after[0];
+					stack.numseperators[1] = outcome->after[1];
+					stack.windings[0].numpoints = behind.numsource;
+					memcpy( stack.windings[0].points, behind.points, behind.numsource * sizeof( Vector3 ) );
+					stack.windings[1].numpoints = behind.numpass;
+					memcpy( stack.windings[1].points, behind.points + behind.numsource, behind.numpass * sizeof( Vector3 ) );
+					stack.source = &stack.windings[0];
+					stack.pass = &stack.windings[1];
+					stack.geo = behind.id;
+					known = true;
+				}
 			}
 		}
-#else
-		stack.pass = VisChopWinding( p->winding, &stack, thread->pstack_head.portalplane );
-		if ( !stack.pass ) {
-			continue;
-		}
-#endif
-
-
-#if 1
-		{
-			const float d = plane3_distance_to_point( p->plane, thread->base->origin );
-			//MrE: vis-bug fix
-			//if ( d > p->radius )
-			if ( d > thread->base->radius ) {
+		if ( !known ) {
+			const bool visible = BhedPortalGeometry( thread, prevstack, stack, p );
+			uint32_t slot = BhedGeoMemo::c_gone;
+			stack.geo = visible ? memo.intern( flow, stack.source, stack.pass, slot ) : 0;
+			++memo.made;
+			if ( outcome != nullptr && ( !visible || stack.geo != 0 ) && stack.numseperators[0] < 256 && stack.numseperators[1] < 256 ) {
+				outcome->state = geo;
+				outcome->pnum = uint32_t( pnum );
+				outcome->before[0] = uint8_t( before0 );
+				outcome->before[1] = uint8_t( before1 );
+				outcome->after[0] = uint8_t( stack.numseperators[0] );
+				outcome->after[1] = uint8_t( stack.numseperators[1] );
+				outcome->slot = slot;
+				outcome->id = stack.geo;
+			}
+			if ( !visible ) {
 				continue;
 			}
-			//MrE: vis-bug fix
-			//if ( d < -p->radius )
-			else if ( d < -thread->base->radius ) {
-				stack.source = prevstack->source;
-			}
-			else
-			{
-				stack.source = VisChopWinding( prevstack->source, &stack, backplane );
-				//FIXME: shouldn't we create a new source origin and radius for fast checks?
-				if ( !stack.source ) {
-					continue;
-				}
-			}
-		}
-#else
-		stack.source = VisChopWinding( prevstack->source, &stack, backplane );
-		if ( !stack.source ) {
-			continue;
-		}
-#endif
-
-		if ( !prevstack->pass ) { // the second leaf can only be blocked if coplanar
-
-			// mark the portal as visible
-			BhedMark( thread->base, pnum );
-
-			RecursivePassagePortalFlow( p, thread, &stack );
-			continue;
-		}
-
-#ifdef SEPERATORCACHE
-		if ( stack.numseperators[0] ) {
-			for ( n = 0; n < stack.numseperators[0]; ++n )
-			{
-				stack.pass = VisChopWinding( stack.pass, &stack, stack.seperators[0][n] );
-				if ( !stack.pass ) {
-					break;      // target is not visible
-				}
-			}
-			if ( n < stack.numseperators[0] ) {
-				continue;
-			}
-		}
-		else
-		{
-			stack.pass = ClipToSeperators( prevstack->source, prevstack->pass, stack.pass, false, &stack );
-		}
-#else
-		stack.pass = ClipToSeperators( stack.source, prevstack->pass, stack.pass, false, &stack );
-#endif
-		if ( !stack.pass ) {
-			continue;
-		}
-
-#ifdef SEPERATORCACHE
-		if ( stack.numseperators[1] ) {
-			for ( n = 0; n < stack.numseperators[1]; ++n )
-			{
-				stack.pass = VisChopWinding( stack.pass, &stack, stack.seperators[1][n] );
-				if ( !stack.pass ) {
-					break;      // target is not visible
-				}
-			}
-		}
-		else
-		{
-			stack.pass = ClipToSeperators( prevstack->pass, prevstack->source, stack.pass, true, &stack );
-		}
-#else
-		stack.pass = ClipToSeperators( prevstack->pass, stack.source, stack.pass, true, &stack );
-#endif
-		if ( !stack.pass ) {
-			continue;
 		}
 
 		// mark the portal as visible
@@ -1736,8 +2017,10 @@ void PassagePortalFlow( int portalnum ){
 	data.pstack_head.source = p->winding;
 	data.pstack_head.portalplane = p->plane;
 	BhedHeadFrame( data.pstack_head, p );
+	data.geo = BhedGeoThreadMemo();
 
 	RecursivePassagePortalFlow( p, &data, &data.pstack_head );
+	BhedGeoCount( *data.geo );
 	BhedHeadDone( data.pstack_head );
 	if ( g_bhedVisStop.load( std::memory_order_seq_cst ) ) {
 		return;     /* BehavEd vis2: paused - no result, it may have read unfinished vectors */
