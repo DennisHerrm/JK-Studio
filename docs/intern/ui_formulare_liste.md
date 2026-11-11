@@ -90,6 +90,7 @@ Stand 11.11.2026, Zweig p_uiform. Erzeugt aus `git grep` nach `ui::fensterBegin`
 | NpcBrowser (`###npcbrowser`) | `gui/app_modell.cpp:171` | Liste/Werkzeugfenster ohne Formularzeilen | Mindestgroesse | Titel + gemeldeter Inhalt + Bedienreihen; im Dock-Knoten keine, dort Rollbalken |
 | M0Fenster (`###m0modelle`) | `gui/app_modellsetzen.cpp:269` | Liste/Werkzeugfenster ohne Formularzeilen | Mindestgroesse | Titel + gemeldeter Inhalt + Bedienreihen; im Dock-Knoten keine, dort Rollbalken |
 | Andere GLA (modal) | `gui/app_modelltab.cpp:412` | Liste mit Suche; zwei gleichrangige Knoepfe (Abbrechen, GLA-Datei laden) | Mindestgroesse (kein Hauptknopf) | Titel + gemeldeter Inhalt + Bedienreihen; im Dock-Knoten keine, dort Rollbalken |
+| AsGruppe (`###mtautoskin`) | `gui/app_modelltab_autoskin.cpp:251` | Liste/Werkzeugfenster ohne Formularzeilen | bleibt | keine eigene - passt sich dem Inhalt an |
 | Modell anbauen (modal) | `gui/app_modelltab_explorer.cpp:903` | Liste mit Suche; Abbrechen links unten | **ja** - Abbrechen unten rechts (Esc) | Titel + gemeldeter Inhalt + Bedienreihen; im Dock-Knoten keine, dort Rollbalken |
 | Karten-GLA bauen - Rueckfrage (modal) | `gui/app_modelltab_mb3.cpp:672` | Befundliste und zwei Knoepfe | bleibt | keine eigene - passt sich dem Inhalt an |
 | Retargeting: Quelle (modal) | `gui/app_modelltab_retarget.cpp:547` | Liste mit Suche | Mindestgroesse | Titel + gemeldeter Inhalt + Bedienreihen; im Dock-Knoten keine, dort Rollbalken |

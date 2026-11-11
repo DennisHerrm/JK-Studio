@@ -247,8 +247,9 @@ void drawModellAutoSkinFenster() {
     const float breite = fs * 26.0F;
     ImGui::SetNextWindowPos(ImVec2{v->Pos.x + v->Size.x - fs, v->Pos.y + v->Size.y * 0.04F}, ImGuiCond_Appearing, ImVec2{1.0F, 0.0F});
     ImGui::SetNextWindowSizeConstraints(ImVec2{breite, 0.0F}, ImVec2{breite, v->Size.y * 0.94F});
-    if (ImGui::Begin((std::string(tr(Str::AsGruppe)) + "###mtautoskin").c_str(), &z.fensterOffen,
-                     ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
+    // UIFORM: jedes Fenster beginnt ueber den Baustein; dieses passt sich dem Inhalt an und behaelt seine eigene Grenze
+    if (ui::fensterBegin((std::string(tr(Str::AsGruppe)) + "###mtautoskin").c_str(), &z.fensterOffen,
+                         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
         z.fensterSichtbar = true;
         drawModellAutoSkinGruppe();
     }

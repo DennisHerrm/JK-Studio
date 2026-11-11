@@ -1117,6 +1117,7 @@ void modellNavZuruecksetzen();
 // gui/app_modelltab_ansicht.cpp
 bool modellGrenzen(bool nurAuswahl, float mn[3], float mx[3]);  // der Kasten der Auswahl bzw. der gezeichneten Flaechen in der Pose
 void modellAnsichtFertig(int n);                                // ein laufender weicher Wechsel endet sofort an seinem Ziel
+
 // --- AP2 (MBENTWURF Teil B): Szenen-Explorer (wie 3ds Max) / Outliner (wie Blender) - gui/app_modelltab_explorer.cpp -----------
 // Ein Baum fuer alle Bereiche: Modell, Flaechen (Hierarchie), Tags mit Anbauten, Knochen, Rig-Griffe, Sequenzen; umschaltbar
 // "Nach Hierarchie / Nach Ebenen" (Blender: Hierarchie / Sammlungen). Auge = nur in der Ansicht ausblenden, Schneeflocke
