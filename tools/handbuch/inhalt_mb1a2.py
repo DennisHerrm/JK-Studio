@@ -252,6 +252,7 @@ def _t(schluessel):
 
 def seiten():
     """Die Seiten modell-weights und modell-bedienung (Gruppe Missionen, nach modell-ansehen)."""
+    import inhalt_fix612b   # FIX612B
     return [
         {
             "id": "modell-weights",
@@ -265,6 +266,7 @@ def seiten():
                 ("h2", "spiel", _t("w_h_spiel")),
                 ("p", _t("w_spiel")),
                 ("img", "h_mb2_kontext", _t("w_bild_kontext")),
+                *inhalt_fix612b.bloecke(),   # FIX612B: Speichern, Detailstufe und Strg+Z beim Malen
             ],
         },
         {

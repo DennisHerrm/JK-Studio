@@ -7613,3 +7613,5 @@ from inhalt_d3d12 import CS as _D3D12  # noqa: E402
 TEXTE.update(_D3D12)
 from inhalt_lcfix import CS as _LCFIX  # noqa: E402
 TEXTE.update(_LCFIX)
+from inhalt_fix612b import CS as _FIX612B  # noqa: E402
+TEXTE.update(_FIX612B)
