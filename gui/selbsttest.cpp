@@ -6037,6 +6037,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_ap13s.inc"      // AP13S: Modifier-Stapel und Glaetten-Vorschau (modellblock, BHED_MODELL_NUR=ap13s / ap13sfoto / ap13shb)
 #include "selbsttest_ap13k.inc"      // AP13K: Knochen-Darstellung, Rig-Stile, Durchsicht (modellblock, BHED_MODELL_NUR=ap13k / ap13kfoto; Handbuch BHED_HB_NUR=ap13k)
 #include "selbsttest_ap14.inc"       // AP14: Zusammenfuehrung - Baustein-Reste, Zeitleiste bei Mindestgroesse, Suche (modellblock, BHED_MODELL_NUR=ap14 / ap14foto)
+#include "selbsttest_klein.inc"      // KLEIN: Art je Werkzeug, Eingefrorenes, Home bleibt, Kamera-Knopf, About, Rig-Meldungen (modellblock, BHED_MODELL_NUR=klein / kleinneustart)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_grafik.inc"     // grafik: Wahl der Grafikschnittstelle, Rueckfall auf Direct3D 11 (D3D12 Stufe 1)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
@@ -7072,6 +7073,7 @@ void selbsttest() {
                     for (Schritt& x : fix612b::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // FIX612B (Funde der Code-Pruefung P2)
                     for (Schritt& x : fix612::modellSchritte(nur)) { a.schritte.push_back(std::move(x)); }   // FIX612 (Code-Pruefung seit rc611)
                     for (Schritt& x : ap14::schritte(nur)) { a.schritte.push_back(std::move(x)); }      // AP14 (Zusammenfuehrung, Baustein-Reste)
+                    for (Schritt& x : kleinkram::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // KLEIN (Kleinkram im Model-Tab, About)
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

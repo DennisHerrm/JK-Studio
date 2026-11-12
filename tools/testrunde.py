@@ -263,6 +263,11 @@ lauf("mb_ap9", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap9", "BHED_POSEN=<FO
 lauf("mb_ap7", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap7", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 # AP13K: Knochen-Darstellung (R14), Durchsicht, Knochen im Vordergrund, Rig-Stile (nicht im Pool: der Bildlauf ap13kfoto)
 lauf("mb_ap13k", "modellblock", 1800, MB + ["BHED_MODELL_NUR=ap13k", "BHED_FOTOS=<FOTOS>"], bereich="modell")
+# KLEIN: die Art je Werkzeug (Extrudieren/Einfuegen), Eingefrorenes im Treffertest der Unterobjekte, der Kamera-Knopf des Gizmos, die
+# Meldungen des Rigs in der Zaehlung der Zeitleiste, das About-Fenster bei Schrift 24; "Als Home setzen" bleibt - der zweite Start
+# (kleinneustart) prueft es mit den Einstellungen des ersten
+lauf("mb_klein", "modellblock", 2400, MB + ["BHED_MODELL_NUR=klein", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
+lauf("mb_kleinneustart", "modellblock", 1500, MB + ["BHED_MODELL_NUR=kleinneustart", "BHED_FOTOS=<FOTOS>"], behalten="mb_klein", bereich="modell")
 
 # Nicht im Pool: eigene Vorbereitung, Messungen (allein und mit BHED_D3D_DEBUG=0), Bildlaeufe fuer das Handbuch
 lauf("update", "update", 1500, allein="braucht den lokalen Update-Server (tools/karte/updater_uebergang.py, ctest updater_uebergang)", bereich="update")
