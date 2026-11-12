@@ -2216,3 +2216,11 @@ if(BEHAVED_TESTS)
     add_test(NAME testrunde_ports COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/testrunde.py --pruefe-ports)
   endif()
 endif()
+
+# TEMPO (12.11.): stabile Reihenfolge nach einem float-Schluessel in O(n) fuer die Lichtliste des Echtzeit-Lichts
+# (bhed/stabilsort.h, nur Kopfdatei) - der Test vergleicht mit std::stable_sort
+if(BEHAVED_TESTS)
+  add_executable(stabilsorttest tests/stabilsort.cpp)
+  target_link_libraries(stabilsorttest PRIVATE bhed_core)
+  add_test(NAME stabilsort COMMAND stabilsorttest)
+endif()

@@ -28,6 +28,19 @@ namespace bhed::gui::karteneditor {
 // Stufe 9c: vp = Kameramatrix (spaltenweise, wie Zustand3::matrix), breite/hoehe
 // des Bilds (Kacheln); die Schattengeometrie baut die Funktion selbst aus der Karte.
 void echtLichtBildVorbereiten(const karte::Vektor3f& auge, const float* vp, int breite, int hoehe, std::size_t geoStand);
+// TEMPO (12.11.2026): echtLichtBildVorbereiten merkt je Blick die Auswahl der Lichter (Kamera und Lichterliste gleich) und
+// die Lichtliste fuer die Grafikkarte (dazu der Stand der Schattenwuerfel und Sonnenkarten gleich). Die Zaehler: wie oft
+// neu gerechnet, wie oft gemerkt genommen. Gegenprobe echtLichtMerkProbe(true) oder BHED_ECHTLICHT_MERKPROBE=1: bei jedem
+// Treffer neu rechnen und Wert fuer Wert vergleichen - abweichungen muss 0 bleiben.
+struct EchtLichtMerkStand {
+    std::size_t auswahlNeu = 0;
+    std::size_t auswahlGemerkt = 0;
+    std::size_t listeNeu = 0;
+    std::size_t listeGemerkt = 0;
+    std::size_t abweichungen = 0;
+};
+[[nodiscard]] EchtLichtMerkStand echtLichtMerkStand();
+void echtLichtMerkProbe(bool an);
 // rc610 R2a: eine Stufe eines Shaders, wie die Echtzeit-Ansicht sie zeichnet (ParseStage, tr_shader.cpp): Bild ("?" + Pfad fuer das
 // Bildlager), blendFunc (Werte wie SpielDarstellung), alphaFunc, Farbe aus rgbGen/alphaGen const bzw. identity (sonst 1),
 // depthWrite (deckend immer), portalRange einer Stufe mit alphaGen portal.

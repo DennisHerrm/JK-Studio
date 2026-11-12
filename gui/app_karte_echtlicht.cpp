@@ -32,6 +32,7 @@
 #include "bhed/karte/pinsel.h"
 #include "bhed/mapview.h"
 #include "bhed/schattenatlas.h"
+#include "bhed/stabilsort.h"
 #include "bhed/regelwerk.h"
 #include "bhed/wave.h"
 
@@ -43,6 +44,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -1442,51 +1444,120 @@ void nebelBildSetzen(const Vektor3f& auge, const float* vp, std::size_t geoStand
     kartegpu::nebelSetzen(gpu, ebenen, global, vorn);
 }
 
-void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite, int hoehe, std::size_t geoStand) {
-    Editor& e = ed();
-    const auto t0 = std::chrono::steady_clock::now();
-    ++g_bild;
-    weltAktualisieren(geoStand);
-    static std::size_t schattenNeuGeladen = 0;   // Stufe 9d: nach Flush & Reload Shaders auch die Schattengeometrie (Shader-Regeln)
-    const bool patches = patchSchattenAn();   // rc609 L: die Einstellung der Karte
-    // DXR (rc612): die Schattenart - Schattenstrahlen, wenn gewaehlt und moeglich (Direct3D 12 mit DXR 1.1), sonst Schattenkarten
-    const bool strahlenWahl = strahlenGewaehlt() && kartegpu::dxr::moeglich();
-    if (!strahlenGewaehlt() && g_schatten.strahlen) { kartegpu::dxr::loesen(); }   // abgewaehlt: die Strukturen gehen zurueck
-    if (g_schatten.geoStand != geoStand || g_schatten.patches != patches || g_schatten.geraet != kartegpu::geraetStand() ||
-        schattenNeuGeladen != e.neuGeladen || g_schatten.strahlenWahl != strahlenWahl || (g_schatten.strahlen && !kartegpu::dxr::szeneSteht()) ||
-        schattenBildDa()) {
-        schattenNeuGeladen = e.neuGeladen;
-        schattenGeoBauen(geoStand, patches, strahlenWahl);
-        wuerfelPruefen();
-        for (SonnenKarte& k : g_kaskade) { k.gueltig = false; }
-        for (SonnenKarte& k : g_himmelKarten) { k.gueltig = false; }
+namespace {
+
+// --- TEMPO (12.11.2026): die Lichtauswahl eines Blicks merken --------------------------------
+//
+// Die Auswahl (Schritt 1 und 2: welche Lichter im Bild liegen, ihr Rang, ihre Kacheln) haengt nur an der Kamera (Matrix,
+// Auge, Bildgroesse) und an der Lichterliste (g_welt.nummer). Die Lichtliste fuer die Grafikkarte (Schritt 5 und 6) haengt
+// dazu am Stand der Schattenwuerfel und Sonnenkarten genau dieser Lichter. Bisher rechnete jedes Bild beides neu - bei
+// stehender Kamera rund die Haelfte des Hauptfadens, mit Spiegel oder Himmelsportal den Hauptblick dazu dreimal je Bild.
+// Jetzt je Blick gemerkt (vier Plaetze, der am laengsten ungenutzte weicht) und nur neu gerechnet, wenn sich einer der
+// Eingaenge aendert. Verglichen wird Wert fuer Wert; was die Grafikkarte bekommt, ist dasselbe (Gegenprobe:
+// echtLichtMerkProbe rechnet bei jedem Treffer neu und vergleicht).
+struct Wahl {
+    std::size_t i = 0;
+    float wert = 0;
+    float faktor = 1;   // Himmelssonnen: Energie der weggelassenen
+    int platz = -1;     // Sonne: Schicht bzw. -3 Kaskaden
+    int x0 = 0;
+    int y0 = 0;
+    int x1 = 0;
+    int y1 = 0;
+};
+bool gleicheWahl(const Wahl& a, const Wahl& b) {
+    return a.i == b.i && std::memcmp(&a.wert, &b.wert, sizeof(float)) == 0 && std::memcmp(&a.faktor, &b.faktor, sizeof(float)) == 0 && a.platz == b.platz &&
+           a.x0 == b.x0 && a.y0 == b.y0 && a.x1 == b.x1 && a.y1 == b.y1;
+}
+// Was Schritt 5 vom Wuerfel eines Lichts liest (20 Byte ohne Luecken: mit memcmp vergleichbar)
+struct WuerfelBild {
+    int da = 0;   // 0 kein Wuerfel (Sonne), 1 wartet, 2 fertig
+    int groesse = 0;
+    int seite = -1;
+    int wuerfel = -1;
+    float weite = 0;
+};
+struct BlickMerk {
+    bool belegt = false;
+    std::size_t zuletzt = 0;   // g_bild des letzten Gebrauchs
+    // Eingaenge der Auswahl
+    float vp[16] = {};
+    float auge[3] = {};
+    int breite = 0;
+    int hoehe = 0;
+    std::size_t weltNummer = 0;
+    std::vector<Wahl> wahl;   // die Lichter im Bild nach dem Rang
+    std::vector<Wahl> sw;     // die Sonnen
+    // Eingaenge der Lichtliste: der Stand der Wuerfel (je Eintrag von wahl) und der Sonnenkarten (je Eintrag von sw)
+    bool listeDa = false;
+    std::uint32_t listenArt = 0;   // was die Liste ausser Wuerfeln und Sonnenkarten bestimmt (siehe echtLichtBildVorbereiten)
+    std::vector<WuerfelBild> wuerfel;
+    std::vector<std::uint8_t> karten;
+    // die Lichtliste, wie lichtSetzen sie bekommt
+    std::vector<kartegpu::LichtGpu> gpu;
+    std::vector<float> ecken;
+    std::vector<std::uint32_t> kacheln;
+    std::vector<std::uint32_t> zbins;
+    int sonnenZahl = 0;
+    int worte = 1;
+    std::size_t fehlend = 0;
+    std::size_t ohneSchatten = 0;
+};
+std::array<BlickMerk, 4> g_blicke;
+EchtLichtMerkStand g_merkStand;
+bool g_merkProbe = false;
+bool g_merkProbeGelesen = false;
+
+// gpuLicht je Licht einmal je Lichterliste: die Werte haengen nur am Licht. Die Ecken eines Flaechenlichts liegen in
+// g_lichtFestEcken; ihr Platz in der Eckenliste des Bilds (flaeche[2]) kommt beim Gebrauch dazu, wie gpuLicht ihn setzt.
+struct LichtFest {
+    kartegpu::LichtGpu g{};
+    std::uint32_t eckenAb = 0;
+    std::uint32_t eckenZahl = 0;
+    bool da = false;
+};
+std::vector<LichtFest> g_lichtFest;
+std::vector<float> g_lichtFestEcken;
+std::size_t g_lichtFestNummer = static_cast<std::size_t>(-1);
+
+kartegpu::LichtGpu gpuLichtGemerkt(const karte::EchtLichtWelt& w, std::size_t i, std::vector<float>& ecken) {
+    if (g_lichtFestNummer != g_welt.nummer || g_lichtFest.size() != w.lichter.size()) {
+        g_lichtFestNummer = g_welt.nummer;
+        g_lichtFest.assign(w.lichter.size(), LichtFest{});
+        g_lichtFestEcken.clear();
     }
-    const karte::EchtLichtWelt& w = g_welt.welt;
-    const bool strahlen = g_schatten.strahlen;   // DXR: dieses Bild rechnet seine Schatten mit Strahlen
-    kartegpu::dxr::bildSetzen(strahlen);
-    e.echtLicht.strahlenAktiv = kartegpu::dxr::aktiv();
-    if (strahlen) {
-        wuerfelAus(w);
-    } else {
-        wuerfelVerteilen(w);
+    LichtFest& f = g_lichtFest[i];
+    if (!f.da) {
+        const std::size_t ab = g_lichtFestEcken.size();
+        f.g = gpuLicht(w.lichter[i], g_lichtFestEcken);
+        f.eckenAb = static_cast<std::uint32_t>(ab);
+        f.eckenZahl = static_cast<std::uint32_t>(g_lichtFestEcken.size() - ab);
+        f.da = true;
     }
-    e.echtLicht.lichter = w.lichter.size();
-    const int kachelnX = std::max(1, (breite + kartegpu::kKachel - 1) / kartegpu::kKachel);
-    const int kachelnY = std::max(1, (hoehe + kartegpu::kKachel - 1) / kartegpu::kKachel);
+    kartegpu::LichtGpu g = f.g;
+    if (f.eckenZahl > 0U) {
+        g.flaeche[2] = static_cast<float>(ecken.size() / 3);
+        const auto von = g_lichtFestEcken.begin() + static_cast<std::ptrdiff_t>(f.eckenAb);
+        ecken.insert(ecken.end(), von, von + static_cast<std::ptrdiff_t>(f.eckenZahl));
+    }
+    return g;
+}
+
+// Schritt 1 und 2: die Lichter im Bild nach dem Rang (wahl) und die Sonnen (sw)
+void auswahlRechnen(const karte::EchtLichtWelt& w, const Vektor3f& auge, const float* vp, int breite, int hoehe, int kachelnX, int kachelnY,
+                    std::vector<Wahl>& wahl, std::vector<Wahl>& sw) {
+    // Zwischenspeicher ueber die Bilder: keine Speicheranforderung je Bild
+    static std::vector<Wahl> roh;
+    static std::vector<float> schluessel;
+    static std::vector<std::uint32_t> reihe;
+    static std::vector<std::uint64_t> arbeit;
+    static KachelEbenen ebenen;
+    static std::vector<std::size_t> sonnen;
+    roh.clear();
+    sonnen.clear();
+    wahl.clear();
+    sw.clear();
     // 1. Sichtbarkeit (Huelle im Bild) und Rang nach dem Beitrag am Auge
-    struct Wahl {
-        std::size_t i = 0;
-        float wert = 0;
-        float faktor = 1;   // Himmelssonnen: Energie der weggelassenen
-        int platz = -1;     // Sonne: Schicht bzw. -3 Kaskaden
-        int x0 = 0;
-        int y0 = 0;
-        int x1 = 0;
-        int y1 = 0;
-    };
-    std::vector<Wahl> wahl;
-    std::vector<std::size_t> sonnen;
-    KachelEbenen ebenen;
     kachelEbenenSetzen(vp, breite, hoehe, kachelnX, kachelnY, ebenen);
     for (std::size_t i = 0; i < w.lichter.size(); ++i) {
         const EchtLicht& l = w.lichter[i];
@@ -1503,12 +1574,20 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
         const Vektor3f d = l.ursprung - auge;
         const float ab = std::max(16.0F, std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]));
         x.wert = l.linear ? std::max(0.0F, l.photonen * karte::kEchtLinearSkala - ab * l.fade) : l.photonen / (ab * ab);
-        wahl.push_back(x);
+        roh.push_back(x);
     }
-    std::stable_sort(wahl.begin(), wahl.end(), [](const Wahl& a, const Wahl& b) { return a.wert > b.wert; });
+    // Die Reihenfolge von std::stable_sort mit a.wert > b.wert (bhed/stabilsort.h), ohne die Eintraege n log n mal zu bewegen
+    schluessel.resize(roh.size());
+    for (std::size_t k = 0; k < roh.size(); ++k) { schluessel[k] = roh[k].wert; }
+    if (stabileReihenfolge(schluessel.data(), roh.size(), true, reihe, arbeit)) {
+        wahl.resize(roh.size());
+        for (std::size_t k = 0; k < roh.size(); ++k) { wahl[k] = roh[reihe[k]]; }
+    } else {   // ein NaN als Wert: wie bisher
+        wahl = roh;
+        std::stable_sort(wahl.begin(), wahl.end(), [](const Wahl& a, const Wahl& b) { return a.wert > b.wert; });
+    }
     // 2. Sonnen: die staerkste ohne q3map_skyLight bekommt die Kaskaden, die anderen
     // je eine Karte (zu viele: gleichmaessig ausgewaehlt, Energie erhalten)
-    std::vector<Wahl> sw;
     {
         std::size_t haupt = static_cast<std::size_t>(-1);
         for (const std::size_t i : sonnen) {
@@ -1560,6 +1639,221 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
             sw.push_back(x);
         }
     }
+}
+
+// Schritt 5 und 6: die Lichtliste des Blicks fuer lichtSetzen (m.gpu, m.ecken, m.zbins, m.kacheln)
+// listenArt: siehe echtLichtBildVorbereiten (0 Schattenkarten, 1 DXR-Schattenstrahlen; wer die Liste nach einer weiteren
+// Groesse baut, liest sie hier)
+void listeRechnen(const karte::EchtLichtWelt& w, const float* vp, int kachelnX, int kachelnY, std::uint32_t listenArt, BlickMerk& m) {
+    const bool strahlen = listenArt == 1U;   // DXR: dieses Bild rechnet seine Schatten mit Strahlen
+    struct Tief {
+        const Wahl* x = nullptr;
+        float tiefe = 0;
+    };
+    static std::vector<const Wahl*> liste;
+    static std::vector<Tief> tiefRoh;
+    static std::vector<Tief> tief;
+    static std::vector<float> schluessel;
+    static std::vector<std::uint32_t> reihe;
+    static std::vector<std::uint64_t> arbeit;
+    const std::vector<Wahl>& wahl = m.wahl;
+    const std::vector<Wahl>& sw = m.sw;
+    // 5. Lichtliste: die Sonnen vorn, dann die Lichter nach der Tiefe ihres Mittelpunkts; wer auf seinen Wuerfel wartet,
+    // fehlt in diesem Bild (sonst leuchtete es kurz durch die Waende), wer keinen Platz hat, kommt ohne Schatten
+    std::vector<kartegpu::LichtGpu>& gpu = m.gpu;
+    std::vector<float>& ecken = m.ecken;
+    gpu.clear();
+    ecken.clear();
+    liste.clear();
+    gpu.reserve(sw.size() + wahl.size());
+    for (const Wahl& x : sw) {
+        kartegpu::LichtGpu g = gpuLichtGemerkt(w, x.i, ecken);
+        g.pos[3] *= x.faktor;
+        const bool karte = x.platz <= -3 ? g_kaskade[0].gueltig : g_himmelKarten[static_cast<std::size_t>(x.platz)].gueltig;
+        if (!karte && !strahlen) { continue; }   // die Karte kommt in einem der naechsten Bilder (DXR: braucht keine)
+        g.mehr[0] = static_cast<float>(std::max(x.platz, -3));
+        gpu.push_back(g);
+        liste.push_back(&x);
+    }
+    const int sonnenZahl = static_cast<int>(gpu.size());
+    // Tiefe = w der Kamera (wie SV_Position.w im Shader); eine Huelle reicht |w-Zeile| * r weit
+    const float wZeile = std::sqrt(vp[3] * vp[3] + vp[7] * vp[7] + vp[11] * vp[11]);
+    tiefRoh.clear();
+    m.fehlend = 0;
+    m.ohneSchatten = 0;
+    for (const Wahl& x : wahl) {
+        const Wuerfel* z = g_lichtWuerfel[x.i];
+        if (z != nullptr && z->platz.gueltig() && !z->fertig) {
+            ++m.fehlend;
+            continue;
+        }
+        const Vektor3f& o = w.lichter[x.i].ursprung;
+        tiefRoh.push_back({&x, vp[3] * o[0] + vp[7] * o[1] + vp[11] * o[2] + vp[15]});
+    }
+    // Die Reihenfolge von std::stable_sort mit a.tiefe < b.tiefe (bhed/stabilsort.h)
+    schluessel.resize(tiefRoh.size());
+    for (std::size_t k = 0; k < tiefRoh.size(); ++k) { schluessel[k] = tiefRoh[k].tiefe; }
+    if (stabileReihenfolge(schluessel.data(), tiefRoh.size(), false, reihe, arbeit)) {
+        tief.resize(tiefRoh.size());
+        for (std::size_t k = 0; k < tiefRoh.size(); ++k) { tief[k] = tiefRoh[reihe[k]]; }
+    } else {   // ein NaN als Tiefe: wie bisher
+        tief = tiefRoh;
+        std::stable_sort(tief.begin(), tief.end(), [](const Tief& a, const Tief& b) { return a.tiefe < b.tiefe; });
+    }
+    std::vector<std::uint32_t>& zbins = m.zbins;
+    zbins.assign(static_cast<std::size_t>(kartegpu::kZbins) * 2U, 0U);
+    std::array<bool, static_cast<std::size_t>(kartegpu::kZbins)> zbinBelegt{};
+    for (const Tief& t : tief) {
+        const EchtLicht& l = w.lichter[t.x->i];
+        kartegpu::LichtGpu g = gpuLichtGemerkt(w, t.x->i, ecken);
+        const Wuerfel* z = g_lichtWuerfel[t.x->i];
+        if (z != nullptr && z->platz.gueltig()) {
+            // die Ecke des Wuerfels in seiner Seite (Vielfache von 64): je Zeile 512 / Groesse Wuerfel zu sechs Seiten
+            const AtlasPlatz& p = z->platz;
+            const int jeZeile = 512 / p.groesse;
+            const int ex = (p.wuerfel % jeZeile) * 6 * p.groesse;
+            const int ey = (p.wuerfel / jeZeile) * p.groesse;
+            g.mehr[0] = static_cast<float>((p.seite * 64 + ex / 64) * 64 + ey / 64);
+            g.mehr[1] = z->weite;
+            g.zusatz[3] = static_cast<float>(p.groesse);
+        } else if (!strahlen) {   // DXR: jeder Schatten kommt vom Strahl
+            ++m.ohneSchatten;
+        }
+        const auto j = static_cast<std::uint32_t>(gpu.size());
+        gpu.push_back(g);
+        liste.push_back(t.x);
+        // die Tiefenstufen, die die Huelle trifft (eine Stufe Rand je Seite gegen Rundung)
+        const float r = wuerfelWeite(l) * wZeile;
+        const int b0 = std::max(0, kartegpu::zbinFuer(t.tiefe - r) - 1);
+        const int b1 = std::min(kartegpu::kZbins - 1, kartegpu::zbinFuer(t.tiefe + r) + 1);
+        for (int b = b0; b <= b1; ++b) {
+            const auto bb = static_cast<std::size_t>(b);
+            if (!zbinBelegt[bb]) {
+                zbinBelegt[bb] = true;
+                zbins[bb * 2] = j;
+            }
+            zbins[bb * 2 + 1] = j + 1;
+        }
+    }
+    // 6. Kachelmasken (die Sonnen gelten ueberall und stehen nicht darin)
+    const int worte = std::max(1, static_cast<int>((gpu.size() + 31) / 32));
+    std::vector<std::uint32_t>& kacheln = m.kacheln;
+    kacheln.assign(static_cast<std::size_t>(kachelnX) * static_cast<std::size_t>(kachelnY) * static_cast<std::size_t>(worte), 0U);
+    for (std::size_t j = static_cast<std::size_t>(sonnenZahl); j < liste.size(); ++j) {
+        const Wahl& x = *liste[j];
+        const std::uint32_t bit = 1U << (j % 32U);
+        const std::size_t wort = j / 32U;
+        if (x.x0 > x.x1) { continue; }
+        // dieselben Plaetze wie (ky * kachelnX + kx) * worte + wort, mit einem laufenden Platz je Zeile
+        const auto schritt = static_cast<std::size_t>(worte);
+        const std::size_t breit = static_cast<std::size_t>(x.x1 - x.x0) + 1U;
+        std::uint32_t* const feld = kacheln.data();
+        for (int ky = x.y0; ky <= x.y1; ++ky) {
+            std::size_t platz = (static_cast<std::size_t>(ky) * static_cast<std::size_t>(kachelnX) + static_cast<std::size_t>(x.x0)) * schritt + wort;
+            for (std::size_t n = 0; n < breit; ++n, platz += schritt) { feld[platz] |= bit; }
+        }
+    }
+    m.sonnenZahl = sonnenZahl;
+    m.worte = worte;
+}
+
+// Gegenprobe (echtLichtMerkProbe): zwei Lichtlisten gleich, Wert fuer Wert?
+bool gleicheListe(const BlickMerk& a, const BlickMerk& b) {
+    const auto gleich = [](const void* x, const void* y, std::size_t bytes) { return bytes == 0 || std::memcmp(x, y, bytes) == 0; };
+    return a.sonnenZahl == b.sonnenZahl && a.worte == b.worte && a.fehlend == b.fehlend && a.ohneSchatten == b.ohneSchatten && a.gpu.size() == b.gpu.size() &&
+           a.ecken.size() == b.ecken.size() && a.kacheln.size() == b.kacheln.size() && a.zbins.size() == b.zbins.size() &&
+           gleich(a.gpu.data(), b.gpu.data(), a.gpu.size() * sizeof(kartegpu::LichtGpu)) && gleich(a.ecken.data(), b.ecken.data(), a.ecken.size() * sizeof(float)) &&
+           gleich(a.kacheln.data(), b.kacheln.data(), a.kacheln.size() * sizeof(std::uint32_t)) &&
+           gleich(a.zbins.data(), b.zbins.data(), a.zbins.size() * sizeof(std::uint32_t));
+}
+
+}  // namespace
+
+EchtLichtMerkStand echtLichtMerkStand() { return g_merkStand; }
+void echtLichtMerkProbe(bool an) {
+    g_merkProbe = an;
+    g_merkProbeGelesen = true;
+}
+
+void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite, int hoehe, std::size_t geoStand) {
+    Editor& e = ed();
+    const auto t0 = std::chrono::steady_clock::now();
+    ++g_bild;
+    if (!g_merkProbeGelesen) {   // BHED_ECHTLICHT_MERKPROBE=1: jeden Treffer neu rechnen und vergleichen (Selbsttest)
+        g_merkProbeGelesen = true;
+        const char* p = std::getenv("BHED_ECHTLICHT_MERKPROBE");
+        g_merkProbe = p != nullptr && p[0] == '1';
+    }
+    weltAktualisieren(geoStand);
+    static std::size_t schattenNeuGeladen = 0;   // Stufe 9d: nach Flush & Reload Shaders auch die Schattengeometrie (Shader-Regeln)
+    const bool patches = patchSchattenAn();   // rc609 L: die Einstellung der Karte
+    // DXR (rc612): die Schattenart - Schattenstrahlen, wenn gewaehlt und moeglich (Direct3D 12 mit DXR 1.1), sonst Schattenkarten
+    const bool strahlenWahl = strahlenGewaehlt() && kartegpu::dxr::moeglich();
+    if (!strahlenGewaehlt() && g_schatten.strahlen) { kartegpu::dxr::loesen(); }   // abgewaehlt: die Strukturen gehen zurueck
+    if (g_schatten.geoStand != geoStand || g_schatten.patches != patches || g_schatten.geraet != kartegpu::geraetStand() ||
+        schattenNeuGeladen != e.neuGeladen || g_schatten.strahlenWahl != strahlenWahl || (g_schatten.strahlen && !kartegpu::dxr::szeneSteht()) ||
+        schattenBildDa()) {
+        schattenNeuGeladen = e.neuGeladen;
+        schattenGeoBauen(geoStand, patches, strahlenWahl);
+        wuerfelPruefen();
+        for (SonnenKarte& k : g_kaskade) { k.gueltig = false; }
+        for (SonnenKarte& k : g_himmelKarten) { k.gueltig = false; }
+    }
+    const karte::EchtLichtWelt& w = g_welt.welt;
+    const bool strahlen = g_schatten.strahlen;   // DXR: dieses Bild rechnet seine Schatten mit Strahlen
+    kartegpu::dxr::bildSetzen(strahlen);
+    e.echtLicht.strahlenAktiv = kartegpu::dxr::aktiv();
+    if (strahlen) {
+        wuerfelAus(w);
+    } else {
+        wuerfelVerteilen(w);
+    }
+    e.echtLicht.lichter = w.lichter.size();
+    const int kachelnX = std::max(1, (breite + kartegpu::kKachel - 1) / kartegpu::kKachel);
+    const int kachelnY = std::max(1, (hoehe + kartegpu::kKachel - 1) / kartegpu::kKachel);
+    // 1. und 2. Die Auswahl dieses Blicks: gemerkt oder neu (auswahlRechnen)
+    const float augeJetzt[3] = {auge[0], auge[1], auge[2]};
+    BlickMerk* m = nullptr;
+    BlickMerk* frei = nullptr;
+    for (BlickMerk& b : g_blicke) {
+        if (b.belegt && b.weltNummer == g_welt.nummer && b.breite == breite && b.hoehe == hoehe && std::memcmp(b.vp, vp, sizeof(b.vp)) == 0 &&
+            std::memcmp(b.auge, augeJetzt, sizeof(b.auge)) == 0) {
+            m = &b;
+            break;
+        }
+        if (frei == nullptr || (frei->belegt && (!b.belegt || b.zuletzt < frei->zuletzt))) { frei = &b; }
+    }
+    if (m != nullptr) {
+        ++g_merkStand.auswahlGemerkt;
+        if (g_merkProbe) {
+            std::vector<Wahl> wahlNeu;
+            std::vector<Wahl> swNeu;
+            auswahlRechnen(w, auge, vp, breite, hoehe, kachelnX, kachelnY, wahlNeu, swNeu);
+            bool gleich = wahlNeu.size() == m->wahl.size() && swNeu.size() == m->sw.size();
+            for (std::size_t k = 0; gleich && k < wahlNeu.size(); ++k) { gleich = gleicheWahl(wahlNeu[k], m->wahl[k]); }
+            for (std::size_t k = 0; gleich && k < swNeu.size(); ++k) { gleich = gleicheWahl(swNeu[k], m->sw[k]); }
+            g_merkStand.abweichungen += gleich ? 0U : 1U;
+        }
+    } else {
+        m = frei;
+        m->belegt = true;
+        std::memcpy(m->vp, vp, sizeof(m->vp));
+        std::memcpy(m->auge, augeJetzt, sizeof(m->auge));
+        m->breite = breite;
+        m->hoehe = hoehe;
+        m->weltNummer = g_welt.nummer;
+        m->listeDa = false;
+        auswahlRechnen(w, auge, vp, breite, hoehe, kachelnX, kachelnY, m->wahl, m->sw);
+        ++g_merkStand.auswahlNeu;
+    }
+    m->zuletzt = g_bild;
+    const std::vector<Wahl>& wahl = m->wahl;
+    const std::vector<Wahl>& sw = m->sw;
+    // --- Haken "nach der Lichtauswahl": ab hier stehen wahl (Lichter im Bild nach dem Rang) und sw (Sonnen) dieses Blicks
+    // fest, gemerkt oder neu gerechnet - wie vorher nach Schritt 2. Was die Lichtliste (Schritt 5 und 6) ausser dem Stand
+    // der Wuerfel und Sonnenkarten bestimmt, gehoert in listenArt: der Wert ist Teil des Schluessels der gemerkten Liste
+    // und geht an listeRechnen (z. B. eine andere Schattenart: 1 statt 0 - sonst bliebe bei stehender Kamera die alte Liste).
+    const std::uint32_t listenArt = strahlen ? 1U : 0U;   // DXR: Schattenstrahlen (listeRechnen)
     // 3. Sonnenkarten: hoechstens eine Kaskade und zwei Himmelskarten je Bild neu
     const Vektor3f wm = g_welt.grenzen.origin;
     const Vektor3f we = g_welt.grenzen.extents;
@@ -1659,96 +1953,56 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
         if (e.statusBefehl == g_meldung) { e.statusBefehl.clear(); }
         g_meldung.clear();
     }
-    // 5. Lichtliste: die Sonnen vorn, dann die Lichter nach der Tiefe ihres Mittelpunkts; wer auf seinen Wuerfel wartet,
-    // fehlt in diesem Bild (sonst leuchtete es kurz durch die Waende), wer keinen Platz hat, kommt ohne Schatten
-    std::vector<kartegpu::LichtGpu> gpu;
-    std::vector<float> ecken;
-    std::vector<const Wahl*> liste;
-    gpu.reserve(sw.size() + wahl.size());
-    for (const Wahl& x : sw) {
-        const EchtLicht& l = w.lichter[x.i];
-        kartegpu::LichtGpu g = gpuLicht(l, ecken);
-        g.pos[3] *= x.faktor;
-        const bool karte = x.platz <= -3 ? g_kaskade[0].gueltig : g_himmelKarten[static_cast<std::size_t>(x.platz)].gueltig;
-        if (!karte && !strahlen) { continue; }   // die Karte kommt in einem der naechsten Bilder (DXR: braucht keine)
-        g.mehr[0] = static_cast<float>(std::max(x.platz, -3));
-        gpu.push_back(g);
-        liste.push_back(&x);
-    }
-    const int sonnenZahl = static_cast<int>(gpu.size());
-    // Tiefe = w der Kamera (wie SV_Position.w im Shader); eine Huelle reicht |w-Zeile| * r weit
-    const float wZeile = std::sqrt(vp[3] * vp[3] + vp[7] * vp[7] + vp[11] * vp[11]);
-    struct Tief {
-        const Wahl* x = nullptr;
-        float tiefe = 0;
-    };
-    std::vector<Tief> tief;
-    tief.reserve(wahl.size());
-    e.echtLicht.fehlend = 0;
-    e.echtLicht.ohneSchatten = 0;
-    for (const Wahl& x : wahl) {
-        const Wuerfel* z = g_lichtWuerfel[x.i];
-        if (z != nullptr && z->platz.gueltig() && !z->fertig) {
-            ++e.echtLicht.fehlend;
-            continue;
-        }
-        const Vektor3f& o = w.lichter[x.i].ursprung;
-        tief.push_back({&x, vp[3] * o[0] + vp[7] * o[1] + vp[11] * o[2] + vp[15]});
-    }
-    std::stable_sort(tief.begin(), tief.end(), [](const Tief& a, const Tief& b) { return a.tiefe < b.tiefe; });
-    std::vector<std::uint32_t> zbins(static_cast<std::size_t>(kartegpu::kZbins) * 2U, 0U);
-    std::vector<bool> zbinBelegt(static_cast<std::size_t>(kartegpu::kZbins), false);
-    for (const Tief& t : tief) {
-        const EchtLicht& l = w.lichter[t.x->i];
-        kartegpu::LichtGpu g = gpuLicht(l, ecken);
-        const Wuerfel* z = g_lichtWuerfel[t.x->i];
-        if (z != nullptr && z->platz.gueltig()) {
-            // die Ecke des Wuerfels in seiner Seite (Vielfache von 64): je Zeile 512 / Groesse Wuerfel zu sechs Seiten
-            const AtlasPlatz& p = z->platz;
-            const int jeZeile = 512 / p.groesse;
-            const int ex = (p.wuerfel % jeZeile) * 6 * p.groesse;
-            const int ey = (p.wuerfel / jeZeile) * p.groesse;
-            g.mehr[0] = static_cast<float>((p.seite * 64 + ex / 64) * 64 + ey / 64);
-            g.mehr[1] = z->weite;
-            g.zusatz[3] = static_cast<float>(p.groesse);
-        } else if (!strahlen) {   // DXR: jeder Schatten kommt vom Strahl
-            ++e.echtLicht.ohneSchatten;
-        }
-        const auto j = static_cast<std::uint32_t>(gpu.size());
-        gpu.push_back(g);
-        liste.push_back(t.x);
-        // die Tiefenstufen, die die Huelle trifft (eine Stufe Rand je Seite gegen Rundung)
-        const float r = wuerfelWeite(l) * wZeile;
-        const int b0 = std::max(0, kartegpu::zbinFuer(t.tiefe - r) - 1);
-        const int b1 = std::min(kartegpu::kZbins - 1, kartegpu::zbinFuer(t.tiefe + r) + 1);
-        for (int b = b0; b <= b1; ++b) {
-            const auto bb = static_cast<std::size_t>(b);
-            if (!zbinBelegt[bb]) {
-                zbinBelegt[bb] = true;
-                zbins[bb * 2] = j;
+    // 5. und 6. Die Lichtliste: neu nur, wenn sich am Stand der Wuerfel oder der Sonnenkarten dieser Lichter etwas geaendert hat
+    {
+        static std::vector<WuerfelBild> wuerfelJetzt;
+        static std::vector<std::uint8_t> kartenJetzt;
+        wuerfelJetzt.resize(wahl.size());
+        for (std::size_t k = 0; k < wahl.size(); ++k) {
+            const Wuerfel* z = g_lichtWuerfel[wahl[k].i];
+            WuerfelBild& b = wuerfelJetzt[k];
+            b = WuerfelBild{};
+            if (z != nullptr) {
+                b.da = z->fertig ? 2 : 1;
+                b.groesse = z->platz.groesse;
+                b.seite = z->platz.seite;
+                b.wuerfel = z->platz.wuerfel;
+                b.weite = z->weite;
             }
-            zbins[bb * 2 + 1] = j + 1;
         }
-    }
-    // 6. Kachelmasken (die Sonnen gelten ueberall und stehen nicht darin)
-    const int worte = std::max(1, static_cast<int>((gpu.size() + 31) / 32));
-    std::vector<std::uint32_t> kacheln(static_cast<std::size_t>(kachelnX) * static_cast<std::size_t>(kachelnY) * static_cast<std::size_t>(worte), 0U);
-    for (std::size_t j = static_cast<std::size_t>(sonnenZahl); j < liste.size(); ++j) {
-        const Wahl& x = *liste[j];
-        const std::uint32_t bit = 1U << (j % 32U);
-        const std::size_t wort = j / 32U;
-        for (int ky = x.y0; ky <= x.y1; ++ky) {
-            for (int kx = x.x0; kx <= x.x1; ++kx) {
-                kacheln[(static_cast<std::size_t>(ky) * static_cast<std::size_t>(kachelnX) + static_cast<std::size_t>(kx)) * static_cast<std::size_t>(worte) + wort] |= bit;
+        kartenJetzt.resize(sw.size());
+        for (std::size_t k = 0; k < sw.size(); ++k) {
+            const bool gilt = sw[k].platz <= -3 ? g_kaskade[0].gueltig : g_himmelKarten[static_cast<std::size_t>(sw[k].platz)].gueltig;
+            kartenJetzt[k] = static_cast<std::uint8_t>(gilt ? 1 : 0);
+        }
+        const bool gemerkt = m->listeDa && m->listenArt == listenArt && m->wuerfel.size() == wuerfelJetzt.size() && m->karten == kartenJetzt &&
+                             (wuerfelJetzt.empty() || std::memcmp(m->wuerfel.data(), wuerfelJetzt.data(), wuerfelJetzt.size() * sizeof(WuerfelBild)) == 0);
+        if (!gemerkt) {
+            listeRechnen(w, vp, kachelnX, kachelnY, listenArt, *m);
+            m->listenArt = listenArt;
+            m->wuerfel = wuerfelJetzt;
+            m->karten = kartenJetzt;
+            m->listeDa = true;
+            ++g_merkStand.listeNeu;
+        } else {
+            ++g_merkStand.listeGemerkt;
+            if (g_merkProbe) {
+                BlickMerk probe;
+                probe.wahl = m->wahl;
+                probe.sw = m->sw;
+                listeRechnen(w, vp, kachelnX, kachelnY, listenArt, probe);
+                g_merkStand.abweichungen += gleicheListe(probe, *m) ? 0U : 1U;
             }
         }
     }
+    e.echtLicht.fehlend = m->fehlend;
+    e.echtLicht.ohneSchatten = m->ohneSchatten;
     const float umgebung[3] = {w.umgebung[0], w.umgebung[1], w.umgebung[2]};
     const float minimum[3] = {w.minimum[0], w.minimum[1], w.minimum[2]};
     const float minimumEcken[3] = {w.minimumEcken[0], w.minimumEcken[1], w.minimumEcken[2]};
-    kartegpu::lichtSetzen(gpu, sonnenZahl, ecken, kacheln, kachelnX, kachelnY, worte, zbins, umgebung, minimum, minimumEcken);
+    kartegpu::lichtSetzen(m->gpu, m->sonnenZahl, m->ecken, m->kacheln, kachelnX, kachelnY, m->worte, m->zbins, umgebung, minimum, minimumEcken);
     nebelBildSetzen(auge, vp, geoStand);   // Stufe 9d
-    e.echtLicht.gezeichnet = gpu.size();
+    e.echtLicht.gezeichnet = m->gpu.size();
     e.echtLicht.lichtMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 }
 

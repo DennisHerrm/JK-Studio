@@ -595,10 +595,35 @@ inline std::vector<Schritt> schritte() {
             add(pause(1.5));
             add(kameraBild("editor_echtlicht"));
             add(foto("leistung_editor"));
+            // TEMPO (12.11.): die Lichtauswahl je Blick ist gemerkt (ke::echtLichtMerkStand). Steht die Kamera, kommt die
+            // Lichtliste aus dem Merk; dreht sie, wird je Bild neu gerechnet. Mit BHED_ECHTLICHT_MERKPROBE=1 rechnet jeder
+            // Treffer neu und vergleicht Wert fuer Wert (die Bildzeiten gelten dann nicht).
+            auto merk = std::make_shared<std::array<ke::EchtLichtMerkStand, 3>>();
+            add(tu("Leistung: Merkstand vor ruhend", [merk] { (*merk)[0] = ke::echtLichtMerkStand(); }));
             add(bildzeit("Map Editor Echtzeit-Licht ruhend", [] {}, nullptr));
+            add(tu("Leistung: Merkstand nach ruhend", [merk] { (*merk)[1] = ke::echtLichtMerkStand(); }));
             add(bildzeit("Map Editor Echtzeit-Licht Kamera dreht", [] {}, [](int b) {
                 ke::Editor& ed = ke::editor();
                 ed.kamera.freiBewegen(6, (b / 60) % 2 == 0 ? 1 : -1, ed.kameraE);
+            }));
+            add(pruefe("Leistung: Echtzeit-Licht - stehende Kamera nimmt die gemerkte Lichtliste, drehende rechnet neu, keine Abweichung", [merk] {
+                (*merk)[2] = ke::echtLichtMerkStand();
+                const auto& m = *merk;
+                const std::size_t ruhendNeu = m[1].listeNeu - m[0].listeNeu;
+                const std::size_t ruhendGemerkt = m[1].listeGemerkt - m[0].listeGemerkt;
+                const std::size_t drehtNeu = m[2].auswahlNeu - m[1].auswahlNeu;
+                const std::size_t drehtGemerkt = m[2].auswahlGemerkt - m[1].auswahlGemerkt;
+                const char* probe = std::getenv("BHED_ECHTLICHT_MERKPROBE");
+                char z[300];
+                std::snprintf(z, sizeof(z),
+                              "Knopftest: Leistung Echtzeit-Licht Merk - ruhend: Lichtliste neu %zu, gemerkt %zu; dreht: Auswahl neu %zu, gemerkt %zu; "
+                              "Abweichungen %zu (Gegenprobe %s)",
+                              ruhendNeu, ruhendGemerkt, drehtNeu, drehtGemerkt, m[2].abweichungen, probe != nullptr && probe[0] == '1' ? "an" : "aus");
+                diag::detail(z);
+                // ruhend: fast jeder Aufruf nimmt die gemerkte Liste (neu nur, solange Wuerfel ausstehen); dreht: der Hauptblick
+                // jedes Bilds ist neu (mit Spiegel oder Himmelsportal kommt er im selben Bild noch einmal - gemerkt)
+                return ruhendGemerkt > 0U && ruhendGemerkt * 4U >= (ruhendGemerkt + ruhendNeu) * 3U && drehtNeu > 0U && drehtNeu * 3U >= drehtNeu + drehtGemerkt &&
+                       m[2].abweichungen == 0U;
             }));
             add(leerlauf("Map Editor Echtzeit-Licht"));
             // Der Grafikspeicher erst jetzt: alle Schattenwuerfel sind gezeichnet. Gleich nach dem Oeffnen ("nach der .map")
