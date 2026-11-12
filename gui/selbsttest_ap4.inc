@@ -186,11 +186,13 @@ struct BereichSoll {
 std::vector<BereichSoll> soll() {
     return {
         {ModellBereich::Ansehen, "P0b", {Str::BzMessen, Str::BzFlaecheWaehlen, Str::BzKnochenWaehlen, Str::MbFoto}, Str::MbBlObjektModus},
-        {ModellBereich::Modellieren, "M0b", {Str::MdExtrude, Str::MdInset, Str::BzFase, Str::MdLoopCut, Str::BzMesser, Str::MdMerge}, Str::MbBlEditModus},
-        {ModellBereich::Uv, "U0b", {Str::UvNahtMarkieren, Str::UvAbwickeln, Str::UvEntspannen, Str::UvPacken}, Str::MbBlEditModus},
-        {ModellBereich::Weights, "W0b", {Str::MgRPinsel, Str::MgWeich, Str::MgVerlauf, Str::MrGwAufnehmen}, Str::BzModusWeight},
-        {ModellBereich::Painting, "T0b", {Str::PtWzPinsel, Str::PtWzFuellen, Str::PtWzKlonen, Str::PtWzWischen, Str::PtWzMaske}, Str::BzModusTexture},
-        {ModellBereich::Animation, "A0b", {Str::MbRgKopieren, Str::MbRgGespiegelt, Str::MbKvReduzieren}, Str::BzModusPose},
+        // ENTSCHEID1: die Namen wie Blender 5.0 (space_toolsystem_toolbar.py label=...), Extrudieren und Messer zeigen das
+        // gewaehlte Werkzeug ihrer Gruppe (ab Werk das erste: Extrude Region, Knife)
+        {ModellBereich::Modellieren, "M0b", {Str::BeExtrude, Str::BeInset, Str::BzFase, Str::BeLoopCut, Str::BzMesser, Str::MdMerge}, Str::MbBlEditModus},
+        {ModellBereich::Uv, "U0b", {Str::BeNaht, Str::UvAbwickeln, Str::BeEntspannen, Str::BePacken}, Str::MbBlEditModus},
+        {ModellBereich::Weights, "W0b", {Str::MgRPinsel, Str::MgWeich, Str::BeVerlauf, Str::BeGewichtHolen}, Str::BzModusWeight},
+        {ModellBereich::Painting, "T0b", {Str::MgRPinsel, Str::BeFuellen, Str::PtWzKlonen, Str::BeWischen, Str::BeMaske}, Str::BzModusTexture},
+        {ModellBereich::Animation, "A0b", {Str::BeKopieren, Str::BeGespiegelt, Str::MbKvReduzieren}, Str::BzModusPose},
     };
 }
 
@@ -474,17 +476,17 @@ void werkzeugSchritte(std::vector<Schritt>& s) {
     add(pause(0.6));
     auto befehleVor = std::make_shared<int>(0);
     add(tu("AP4: UV-Befehle zaehlen", [befehleVor] { *befehleVor = mtab().uv.befehle; }));
-    add(klickLeiste(tr(Str::UvPacken)));
+    add(klickLeiste(tr(Str::BePacken)));
     add(pause(0.5));
     add(pruefe(zeile("U0b", 1, "Klick auf Packen fuehrt den UV-Befehl Packen aus (wie Strg+P)"), [befehleVor] { return mtab().uv.befehle == *befehleVor + 1 && mtab().uv.letzterBefehl == tr(Str::UvPacken); }));
     add(tu("AP4: Packen zuruecknehmen", [] { (void)modellRueckgaengig(); }));
     // W0b: Verlauf, Gewicht holen, Pinsel
     add(tu("AP4: Bereich Weights", [] { mtab().bereich = ModellBereich::Weights; }));
     add(pause(0.5));
-    add(klickLeiste(tr(Str::MgVerlauf)));
+    add(klickLeiste(tr(Str::BeVerlauf)));
     add(pause(0.3));
     add(pruefe(zeile("W0b", 1, "Klick auf Verlauf waehlt das Werkzeug Verlauf"), [] { return modellGewichte().werkzeug == 2 && modellBlWerkzeugAn(6); }));
-    add(klickLeiste(tr(Str::MrGwAufnehmen)));
+    add(klickLeiste(tr(Str::BeGewichtHolen)));
     add(pause(0.3));
     add(pruefe(zeile("W0b", 1, "Klick auf Gewicht holen: der naechste Klick in die Ansicht nimmt auf"), [] { return mtab().gwAufnehmenKlick && modellBlWerkzeugAn(7); }));
     add(klickLeiste(tr(Str::MgRPinsel)));
@@ -494,12 +496,12 @@ void werkzeugSchritte(std::vector<Schritt>& s) {
     // T0b: Fuellen
     add(tu("AP4: Bereich Painting", [] { mtab().bereich = ModellBereich::Painting; }));
     add(pause(0.6));
-    add(klickLeiste(tr(Str::PtWzFuellen)));
+    add(klickLeiste(tr(Str::BeFuellen)));
     add(pause(0.3));
     add(pruefe(zeile("T0b", 1, "Klick auf Fuellen waehlt das Werkzeug Fuellen (hervorgehoben)"), [] {
         return mtab().malen.werkzeug == static_cast<int>(modell::texmalen::Werkzeug::Fuellen) && modellBlWerkzeugAn(5);
     }));
-    add(klickLeiste(tr(Str::PtWzPinsel)));
+    add(klickLeiste(tr(Str::MgRPinsel)));
     add(pause(0.3));
     add(pruefe(zeile("T0b", 1, "Klick auf Pinsel waehlt wieder den Pinsel"), [] { return mtab().malen.werkzeug == static_cast<int>(modell::texmalen::Werkzeug::Pinsel); }));
     // A0b / A11: Pose kopieren
@@ -510,10 +512,10 @@ void werkzeugSchritte(std::vector<Schritt>& s) {
     }));
     add(pause(0.6));
     add(pruefe(zeile("A11", 1, "Gespiegelt einfuegen ist gesperrt, solange keine Pose kopiert ist"), [] {
-        const Element* e = inLeiste(tr(Str::MbRgGespiegelt));
+        const Element* e = inLeiste(tr(Str::BeGespiegelt));
         return e != nullptr && !modellAnimWerkzeug(1).aktiv;
     }));
-    add(klickLeiste(tr(Str::MbRgKopieren)));
+    add(klickLeiste(tr(Str::BeKopieren)));
     add(pause(0.4));
     add(pruefe(zeile("A11", 1, "Klick auf Pose kopieren kopiert die Pose (Schnittstelle von AP10)"), [] { return mtab().kopieDa && modellAnimWerkzeug(1).aktiv; }));
     add(tu("AP4: zurueck nach Ansehen/Pruefen", [] {
@@ -521,6 +523,495 @@ void werkzeugSchritte(std::vector<Schritt>& s) {
         modellBl().werkzeug = 0;
         mtab().gizmo = 0;
         g_app->modellKnochen = false;
+    }));
+    add(pause(0.3));
+}
+
+// --- ENTSCHEID1 Punkt 3: Seitenleiste (N) eingebbar wie Blender ---------------------------------------------------------
+// shank 12.11. "ja Bitte wie in Blender": Position/Drehung (und was Blender dort zeigt) als Zahlenfelder - ziehen aendert, ein Klick
+// tippt ein (Enter uebernimmt, Esc bricht ab), Strg+Z nimmt zurueck, eine Rueckgaengig-Stufe je Eingabe. Blender: Item-Panel der
+// Seitenleiste (Object: Location/Rotation/Scale/Dimensions; Pose Mode: der aktive Knochen; Edit Mode: Median) - hier die Flaeche
+// (Mitte und Abmessungen ihres Kastens in der Pose) und der Griff des Rigs im Posenmodus (Ort und Drehung des Knochens).
+
+const ModellBlender::SeitenFeld* seitenFeld(const std::string& id) {
+    for (const auto& f : modellBl().seitenFelder) {
+        if (f.id == id) { return &f; }
+    }
+    return nullptr;
+}
+
+std::function<ImVec2()> feldOrt(const std::string& id) {
+    return [id] {
+        const ModellBlender::SeitenFeld* f = seitenFeld(id);
+        return f != nullptr ? f->rect.GetCenter() : ImVec2{-50.0F, -50.0F};
+    };
+}
+
+bool kasten(float m[3], float d[3]) {
+    float mn[3];
+    float mx[3];
+    if (!modellGrenzen(true, mn, mx)) { return false; }
+    for (int i = 0; i < 3; ++i) {
+        m[i] = (mn[i] + mx[i]) * 0.5F;
+        d[i] = mx[i] - mn[i];
+    }
+    return true;
+}
+
+// Euler XYZ (Blenders Vorgabe, R = Rz * Ry * Rx) aus der Drehung einer Weltmatrix (Spalten normiert) - eigene Rechnung des Tests
+void euler(const BoneMatrix& b, float out[3]) {
+    float r[3][3];
+    for (int c = 0; c < 3; ++c) {
+        const float l = std::sqrt(b.m[0][c] * b.m[0][c] + b.m[1][c] * b.m[1][c] + b.m[2][c] * b.m[2][c]);
+        for (int z = 0; z < 3; ++z) { r[z][c] = l > 1e-6F ? b.m[z][c] / l : 0.0F; }
+    }
+    const float grad = 180.0F / 3.14159265358979323846F;
+    out[0] = std::atan2(r[2][1], r[2][2]) * grad;
+    out[1] = std::asin(std::clamp(-r[2][0], -1.0F, 1.0F)) * grad;
+    out[2] = std::atan2(r[1][0], r[0][0]) * grad;
+}
+
+int griffNach(modell::GriffArt art) {
+    const auto& g = mtab().rig.griffe;
+    for (std::size_t i = 0; i < g.size(); ++i) {
+        if (g[i].art == art) { return static_cast<int>(i); }
+    }
+    return -1;
+}
+
+int griffKnochen() {
+    const ModellTab& t = mtab();
+    return t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size() ? t.rig.griffe[static_cast<std::size_t>(t.griffWahl)].knochen : -1;
+}
+
+std::string zahlText(float v) {
+    char z[32];
+    std::snprintf(z, sizeof z, "%.2f", static_cast<double>(v));
+    return z;
+}
+
+Schritt strgZ() { return tasteMit(ImGuiMod_Ctrl, ImGuiKey_Z, "Strg+Z"); }
+
+void seitenEingabeSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    struct Stand {
+        float m[3]{};
+        float d[3]{};
+        float e[3]{};
+        float o[3]{};
+        int schritte = 0;
+        float ziel = 0.0F;
+    };
+    auto st = std::make_shared<Stand>();
+    // --- Flaeche torso in Ansehen/Pruefen (Objektmodus) ---
+    add(tu("AP4 ENTSCHEID1: wie Blender, Ansehen/Pruefen, torso, Seitenleiste an (Reiter Gegenstand)", [] {
+        modellBedienungSetzen(1);
+        mtab().bereich = ModellBereich::Ansehen;
+        mtab().gizmo = 0;
+        modellBl().werkzeug = 0;
+        modellBl().seitenleiste = true;
+        modellBl().seitenReiter = 0;
+        const int f = flaecheNach("torso");
+        mtab().auswahl = f >= 0 ? std::vector<int>{f} : std::vector<int>{};
+        mtab().knochenWahl = -1;
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.6));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Position X/Y/Z und Dimensionen X/Y/Z der Flaeche sind Zahlenfelder in der Seitenleiste (wie Blender), mit Tooltip"), [] {
+        int n = 0;
+        std::string ids;
+        for (const auto& f : modellBl().seitenFelder) {
+            ids += f.id + (f.eingebbar ? "+ " : "- ");
+            n += (f.id.rfind("ort", 0) == 0 || f.id.rfind("masse", 0) == 0) && f.eingebbar && !leer(f.rect) && fenster("mtseitenleiste").Contains(f.rect) ? 1 : 0;
+        }
+        melde("Seitenfelder: " + ids);
+        return n == 6;
+    }));
+    add(tu("AP4 ENTSCHEID1: Stand merken", [st] {
+        (void)kasten(st->m, st->d);
+        st->schritte = modellBl().seitenSchritte;
+        st->ziel = std::round(st->m[0] * 10.0F + 37.0F) / 10.0F;
+    }));
+    add(klickAn("AP4 ENTSCHEID1: Klick auf Position X (zum Eintippen)", feldOrt("ort0")));
+    add(pause(0.3));
+    add(Schritt{"AP4 ENTSCHEID1: Wert tippen", [st](int b) {
+                    if (b == 0) { return false; }
+                    ImGuiIO& io = ImGui::GetIO();
+                    if (b == 1) { io.AddKeyEvent(ImGuiMod_Ctrl, true); io.AddKeyEvent(ImGuiKey_A, true); return false; }
+                    if (b == 2) { io.AddKeyEvent(ImGuiKey_A, false); io.AddKeyEvent(ImGuiMod_Ctrl, false); return false; }
+                    if (b == 3) { io.AddInputCharactersUTF8(zahlText(st->ziel).c_str()); return false; }
+                    return b >= 6;
+                }});
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.4));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Eintippen und Enter setzt die Mitte der Flaeche auf den Wert (die Flaeche wandert), ein Rueckgaengig-Schritt"), [st] {
+        float m[3];
+        float d[3];
+        const bool ok = kasten(m, d);
+        char z[200];
+        std::snprintf(z, sizeof z, "Position X: soll %.2f, ist %.3f (vorher %.3f), Y %.3f -> %.3f, Schritte %d", static_cast<double>(st->ziel), static_cast<double>(m[0]),
+                      static_cast<double>(st->m[0]), static_cast<double>(st->m[1]), static_cast<double>(m[1]), modellBl().seitenSchritte - st->schritte);
+        melde(z);
+        return ok && std::fabs(m[0] - st->ziel) < 0.01F && std::fabs(m[1] - st->m[1]) < 0.01F && std::fabs(d[0] - st->d[0]) < 0.01F && modellBl().seitenSchritte == st->schritte + 1;
+    }));
+    add(tu("AP4 ENTSCHEID1: Fokus im Model-Tab", [] { mtab().fokus = true; }));
+    add(strgZ());
+    add(pause(0.4));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Strg+Z nimmt die ganze Eingabe in einem Schritt zurueck"), [st] {
+        float m[3];
+        float d[3];
+        return kasten(m, d) && std::fabs(m[0] - st->m[0]) < 1e-3F && std::fabs(m[1] - st->m[1]) < 1e-3F && std::fabs(m[2] - st->m[2]) < 1e-3F;
+    }));
+    // Esc bricht ab
+    add(tu("AP4 ENTSCHEID1: Stand merken", [st] { st->schritte = modellBl().seitenSchritte; }));
+    add(klickAn("AP4 ENTSCHEID1: Klick auf Position Z", feldOrt("ort2")));
+    add(pause(0.3));
+    add(tippe("999"));
+    add(taste(ImGuiKey_Escape, "Esc"));
+    add(pause(0.4));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Esc bricht die Eingabe ab - die Flaeche steht wie vorher, kein Rueckgaengig-Schritt"), [st] {
+        float m[3];
+        float d[3];
+        return kasten(m, d) && std::fabs(m[2] - st->m[2]) < 1e-3F && modellBl().seitenSchritte == st->schritte;
+    }));
+    // Ziehen: Dimensionen Z
+    add(ziehenAn("AP4 ENTSCHEID1: Dimensionen Z nach rechts ziehen", feldOrt("masse2"), 60.0F, 0.0F, 0));
+    add(pause(0.4));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Ziehen nach rechts vergroessert die Dimension Z (die Flaeche wird hoeher), ein Rueckgaengig-Schritt"), [st] {
+        float m[3];
+        float d[3];
+        const bool ok = kasten(m, d);
+        char z[160];
+        std::snprintf(z, sizeof z, "Dimension Z %.3f -> %.3f, X %.3f -> %.3f, Schritte %d", static_cast<double>(st->d[2]), static_cast<double>(d[2]), static_cast<double>(st->d[0]),
+                      static_cast<double>(d[0]), modellBl().seitenSchritte - st->schritte);
+        melde(z);
+        return ok && d[2] > st->d[2] + 0.5F && std::fabs(d[0] - st->d[0]) < 0.01F && modellBl().seitenSchritte == st->schritte + 1;
+    }));
+    add(tu("AP4 ENTSCHEID1: Fokus im Model-Tab", [] { mtab().fokus = true; }));
+    add(strgZ());
+    add(pause(0.4));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Strg+Z nimmt das ganze Ziehen in einem Schritt zurueck"), [st] {
+        float m[3];
+        float d[3];
+        return kasten(m, d) && std::fabs(d[2] - st->d[2]) < 1e-3F && std::fabs(m[2] - st->m[2]) < 1e-3F;
+    }));
+    add(mbefoto::mausAuf("das Feld Position Y", [] {
+        static Element e;
+        const ModellBlender::SeitenFeld* f = seitenFeld("ort1");
+        e.rect = f != nullptr ? f->rect : ImRect{};
+        return f != nullptr ? &e : nullptr;
+    }));
+    add(pause(0.6));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: unter der Maus erklaert der Tooltip das Feld (ziehen, tippen, Strg+Z)"), [] { return tooltipDa(); }));
+    // --- Knochen in Ansehen/Pruefen: nur ablesbar (Blender stellt Knochen im Posenmodus) ---
+    add(tu("AP4 ENTSCHEID1: Knochen cranium gewaehlt, keine Flaeche", [] {
+        mtab().auswahl.clear();
+        mtab().knochenWahl = knochenNach("cranium");
+        setzeMaus(ImVec2{-50.0F, -50.0F});
+    }));
+    add(pause(0.4));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: ein Knochen im Objektmodus steht nur zum Ablesen da (wie Blender: Knochen stellt man im Posenmodus)"), [] {
+        const ModellBlender::SeitenFeld* o = seitenFeld("ort0");
+        const ModellBlender::SeitenFeld* d = seitenFeld("dreh0");
+        return o != nullptr && d != nullptr && !o->eingebbar && !d->eingebbar;
+    }));
+    // --- Griffe des Rigs im Posenmodus (Bereich Animation) ---
+    add(tu("AP4 ENTSCHEID1: Bereich Animation, Rig, Griff Becken", [] {
+        mtab().bereich = ModellBereich::Animation;
+        mtab().knochenWahl = -1;
+        animWaehlen(mbefoto::sequenz(), false);
+        g_app->animPlaying = false;
+        if (!modellRigDa()) { (void)modellAnimRigErstellen(false); }
+        modellRigGriffWaehlen(griffNach(modell::GriffArt::Becken));
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.6));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Griff Becken im Posenmodus - Position und Rotation sind eingebbar"), [] {
+        int n = 0;
+        for (const char* id : {"ort0", "ort1", "ort2", "dreh0", "dreh1", "dreh2"}) {
+            const ModellBlender::SeitenFeld* f = seitenFeld(id);
+            n += f != nullptr && f->eingebbar ? 1 : 0;
+        }
+        return mtab().griffWahl >= 0 && n == 6;
+    }));
+    add(tu("AP4 ENTSCHEID1: Stand des Beckens merken", [st] {
+        const int k = griffKnochen();
+        if (k < 0 || static_cast<std::size_t>(k) >= g_app->modellWelt.size()) { return; }
+        const BoneMatrix& b = g_app->modellWelt[static_cast<std::size_t>(k)];
+        for (int i = 0; i < 3; ++i) { st->o[i] = b.m[i][3]; }
+        st->schritte = modellBl().seitenSchritte;
+        st->ziel = std::round(st->o[0] * 10.0F + 53.0F) / 10.0F;
+    }));
+    add(klickAn("AP4 ENTSCHEID1: Klick auf Position X des Beckens", feldOrt("ort0")));
+    add(pause(0.3));
+    add(Schritt{"AP4 ENTSCHEID1: Wert tippen", [st](int b) {
+                    if (b == 0) { return false; }
+                    ImGuiIO& io = ImGui::GetIO();
+                    if (b == 1) { io.AddKeyEvent(ImGuiMod_Ctrl, true); io.AddKeyEvent(ImGuiKey_A, true); return false; }
+                    if (b == 2) { io.AddKeyEvent(ImGuiKey_A, false); io.AddKeyEvent(ImGuiMod_Ctrl, false); return false; }
+                    if (b == 3) { io.AddInputCharactersUTF8(zahlText(st->ziel).c_str()); return false; }
+                    return b >= 6;
+                }});
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.5));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Position X des Beckens eingetippt - der Knochen steht dort (in der Pose), ein Rueckgaengig-Schritt"), [st] {
+        const int k = griffKnochen();
+        if (k < 0 || static_cast<std::size_t>(k) >= g_app->modellWelt.size()) { return false; }
+        const BoneMatrix& b = g_app->modellWelt[static_cast<std::size_t>(k)];
+        char z[200];
+        std::snprintf(z, sizeof z, "Becken X: soll %.2f, ist %.3f (vorher %.3f), Y %.3f -> %.3f, Schritte %d", static_cast<double>(st->ziel), static_cast<double>(b.m[0][3]),
+                      static_cast<double>(st->o[0]), static_cast<double>(st->o[1]), static_cast<double>(b.m[1][3]), modellBl().seitenSchritte - st->schritte);
+        melde(z);
+        return std::fabs(b.m[0][3] - st->ziel) < 0.02F && std::fabs(b.m[1][3] - st->o[1]) < 0.02F && modellBl().seitenSchritte == st->schritte + 1;
+    }));
+    add(tu("AP4 ENTSCHEID1: Fokus im Model-Tab", [] { mtab().fokus = true; }));
+    add(strgZ());
+    add(pause(0.5));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Strg+Z stellt das Becken zurueck"), [st] {
+        const int k = griffKnochen();
+        if (k < 0 || static_cast<std::size_t>(k) >= g_app->modellWelt.size()) { return false; }
+        const BoneMatrix& b = g_app->modellWelt[static_cast<std::size_t>(k)];
+        return std::fabs(b.m[0][3] - st->o[0]) < 1e-3F && std::fabs(b.m[1][3] - st->o[1]) < 1e-3F;
+    }));
+    // Kopf: nur drehen (wie im Gizmo/R); Rotation Z eintippen
+    add(tu("AP4 ENTSCHEID1: Griff Kopf", [st] {
+        modellRigGriffWaehlen(griffNach(modell::GriffArt::Kopf));
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.5));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Griff Kopf - Rotation eingebbar, Position nur ablesbar (der Kopf dreht nur, wie mit dem Gizmo)"), [] {
+        const ModellBlender::SeitenFeld* o = seitenFeld("ort0");
+        const ModellBlender::SeitenFeld* d = seitenFeld("dreh2");
+        return o != nullptr && d != nullptr && !o->eingebbar && d->eingebbar;
+    }));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: die nur ablesbaren Felder zeigen ihren Wert grau wie Blenders inaktive Felder, die eingebbaren nicht (Fotofund)"), [] {
+        int grau = 0;
+        int falsch = 0;
+        for (const auto& f : modellBl().seitenFelder) {
+            grau += !f.eingebbar && f.grau ? 1 : 0;
+            falsch += (f.eingebbar && f.grau) || (!f.eingebbar && !f.grau) ? 1 : 0;
+        }
+        melde("Felder grau " + std::to_string(grau) + ", falsch " + std::to_string(falsch));
+        return grau == 3 && falsch == 0;
+    }));
+    add(tu("AP4 ENTSCHEID1: Drehung des Kopfs merken", [st] {
+        const int k = griffKnochen();
+        if (k < 0 || static_cast<std::size_t>(k) >= g_app->modellWelt.size()) { return; }
+        euler(g_app->modellWelt[static_cast<std::size_t>(k)], st->e);
+        st->schritte = modellBl().seitenSchritte;
+        st->ziel = std::round(st->e[2] * 10.0F + 200.0F) / 10.0F;
+    }));
+    add(klickAn("AP4 ENTSCHEID1: Klick auf Rotation Z des Kopfs", feldOrt("dreh2")));
+    add(pause(0.3));
+    add(Schritt{"AP4 ENTSCHEID1: Winkel tippen", [st](int b) {
+                    if (b == 0) { return false; }
+                    ImGuiIO& io = ImGui::GetIO();
+                    if (b == 1) { io.AddKeyEvent(ImGuiMod_Ctrl, true); io.AddKeyEvent(ImGuiKey_A, true); return false; }
+                    if (b == 2) { io.AddKeyEvent(ImGuiKey_A, false); io.AddKeyEvent(ImGuiMod_Ctrl, false); return false; }
+                    if (b == 3) { io.AddInputCharactersUTF8(zahlText(st->ziel).c_str()); return false; }
+                    return b >= 6;
+                }});
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.5));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Rotation Z des Kopfs eingetippt - der Knochen hat diese Rotation (Euler XYZ wie Blender), X und Y bleiben"), [st] {
+        const int k = griffKnochen();
+        if (k < 0 || static_cast<std::size_t>(k) >= g_app->modellWelt.size()) { return false; }
+        float e[3];
+        euler(g_app->modellWelt[static_cast<std::size_t>(k)], e);
+        char z[200];
+        std::snprintf(z, sizeof z, "Kopf Rotation: soll Z %.1f, ist %.2f / %.2f / %.2f (vorher %.2f / %.2f / %.2f)", static_cast<double>(st->ziel), static_cast<double>(e[0]),
+                      static_cast<double>(e[1]), static_cast<double>(e[2]), static_cast<double>(st->e[0]), static_cast<double>(st->e[1]), static_cast<double>(st->e[2]));
+        melde(z);
+        const auto winkel = [](float a, float b) { return std::fabs(std::remainder(a - b, 360.0F)); };
+        return winkel(e[2], st->ziel) < 0.1F && winkel(e[0], st->e[0]) < 0.1F && winkel(e[1], st->e[1]) < 0.1F && modellBl().seitenSchritte == st->schritte + 1;
+    }));
+    add(tu("AP4 ENTSCHEID1: Fokus im Model-Tab", [] { mtab().fokus = true; }));
+    add(strgZ());
+    add(pause(0.5));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Strg+Z stellt die Drehung des Kopfs zurueck"), [st] {
+        const int k = griffKnochen();
+        if (k < 0 || static_cast<std::size_t>(k) >= g_app->modellWelt.size()) { return false; }
+        float e[3];
+        euler(g_app->modellWelt[static_cast<std::size_t>(k)], e);
+        return std::fabs(std::remainder(e[2] - st->e[2], 360.0F)) < 0.01F;
+    }));
+    add(tu("AP4 ENTSCHEID1: Seitenleiste aus, zurueck nach Ansehen/Pruefen", [] {
+        modellRigGriffWaehlen(-1);
+        modellBl().seitenleiste = false;
+        mtab().bereich = ModellBereich::Ansehen;
+    }));
+    add(pause(0.3));
+}
+
+// --- ENTSCHEID1 Punkt 5: Werkzeuggruppen wie Blender, Werkzeugnamen zeigen ----------------------------------------------------
+// Blender 5.0: space_toolsystem_common.py draw_cls - eine Gruppe ist ein Knopf mit operator_menu_hold (Menue WM_MT_toolsystem_submenu,
+// das zuletzt gewaehlte Werkzeug der Gruppe steht im Knopf); interface_handlers.cc: halten oeffnet nach BUTTON_AUTO_OPEN_THRESH
+// (0,2 s), Ziehen ueber die Ziehschwelle sofort, Loslassen ausserhalb des Menues schliesst es (BLOCK_POPUP_HOLD); kleines Dreieck
+// in der Ecke (Commit 7c02008e "button triangle for hold action").
+
+struct Halten {
+    int los = -1;          // Bild, in dem die Maus zum Ziel geht
+    double t0 = 0.0;
+    bool offen = false;    // war die Gruppe offen, als die Zeit um war?
+    float nach = -1.0F;
+    bool gezogen = false;
+};
+
+// Druecken auf `ort`, waehrend des Haltens um dx ziehen, nach `sek` Sekunden die Maus auf `ziel` und loslassen.
+Schritt haltenUndLoslassen(const std::string& was, std::function<ImVec2()> ort, double sek, float dx, std::function<ImVec2()> ziel, std::shared_ptr<Halten> h) {
+    auto z = std::make_shared<ImVec2>();
+    return {"Halte " + was, [=](int b) {
+                ImGuiIO& io = ImGui::GetIO();
+                if (b == 0) {
+                    *h = Halten{};
+                    *z = ort();
+                    setzeMaus(*z);
+                    return false;
+                }
+                if (b == 2) {
+                    io.AddMouseButtonEvent(0, true);
+                    h->t0 = ImGui::GetTime();
+                    return false;
+                }
+                if (b > 2 && h->los < 0) {
+                    if (dx != 0.0F && b <= 5) { setzeMaus(ImVec2{z->x + dx * static_cast<float>(b - 2) / 3.0F, z->y}); }
+                    if (ImGui::GetTime() - h->t0 < sek && b < 3000) { return false; }
+                    h->offen = !modellBl().gruppeOffen.empty();
+                    h->nach = modellBl().gruppeOffenNach;
+                    h->gezogen = modellBl().gruppeGezogen;
+                    h->los = b;
+                    setzeMaus(ziel());
+                    return false;
+                }
+                if (b == h->los + 3) { io.AddMouseButtonEvent(0, false); return false; }
+                return b >= h->los + 8;
+            }};
+}
+
+std::function<ImVec2()> eintragOrt(Str text) {
+    return [text] {
+        for (const auto& e : modellBl().gruppenEintraege) {
+            if (e.first == tr(text)) { return e.second.GetCenter(); }
+        }
+        return ImVec2{-50.0F, -50.0F};
+    };
+}
+
+int knopfNr(const std::string& label) {
+    const auto& k = modellBl().knoepfe;
+    for (std::size_t i = 0; i < k.size(); ++i) {
+        if (k[i].first == label) { return static_cast<int>(i); }
+    }
+    return -1;
+}
+
+void gruppenSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    add(tu("AP4 ENTSCHEID1: wie Blender, Modellieren, torso, Werkzeug ohne Kaestchen", [] {
+        modellBedienungSetzen(1);
+        mtab().bereich = ModellBereich::Modellieren;
+        modellBl().werkzeugleiste = true;
+        const int f = flaecheNach("torso");
+        mtab().auswahl = f >= 0 ? std::vector<int>{f} : std::vector<int>{};
+        mtab().mesh.cutAn = false;
+        mtab().mesh.quickAn = false;
+        setzeMaus(ImVec2{-50.0F, -50.0F});
+    }));
+    add(pause(0.6));
+    add(pruefe(zeile("M0b", 1, "ENTSCHEID1: Extrude Region und Knife sind Gruppen wie in Blender - ein kleines Dreieck unten rechts im Knopf"), [] {
+        const ModellBlender& b = modellBl();
+        bool ok = b.gruppen.size() == 2 && b.dreiecke.size() == 2;
+        std::string z;
+        for (std::size_t i = 0; ok && i < b.gruppen.size(); ++i) {
+            const int k = knopfNr(b.gruppen[i]);
+            z += b.gruppen[i] + " ";
+            ok = k >= 0;
+            if (!ok) { break; }
+            const ImRect r = b.knoepfe[static_cast<std::size_t>(k)].second;
+            const ImRect d = b.dreiecke[i];
+            ok = r.Contains(d) && d.Min.x >= r.GetCenter().x && d.Min.y >= r.GetCenter().y && d.GetWidth() <= r.GetWidth() * 0.4F;
+        }
+        melde("Gruppen: " + z + "- " + std::to_string(b.gruppen.size()) + " Gruppen, " + std::to_string(b.dreiecke.size()) + " Dreiecke");
+        return ok && std::find(b.gruppen.begin(), b.gruppen.end(), std::string(tr(Str::BeExtrude))) != b.gruppen.end() &&
+               std::find(b.gruppen.begin(), b.gruppen.end(), std::string(tr(Str::BzMesser))) != b.gruppen.end();
+    }));
+    add(klickLeiste(tr(Str::BeExtrude)));
+    add(pause(0.4));
+    add(pruefe(zeile("M0b", 1, "ENTSCHEID1: ein kurzer Klick auf die Gruppe nimmt das Werkzeug im Knopf (Extrude Region = Extrudieren als Gruppe), die Gruppe bleibt zu"), [] {
+        const ModellMesh& m = mtab().mesh;
+        return m.kaestchenOffen && m.werkzeug == MeshWerkzeug::Extrude && m.art == 0 && modellBl().gruppeOffen.empty();
+    }));
+    add(tu("AP4 ENTSCHEID1: Kaestchen schliessen", [] { modellMeshUebernehmen(false); }));
+    add(pause(0.3));
+    auto h = std::make_shared<Halten>();
+    add(haltenUndLoslassen("Extrude Region 0,4 s, dann auf Extrude Individual loslassen", knopfOrt(tr(Str::BeExtrude)), 0.4, 0.0F, eintragOrt(Str::BeExtrudeEinzeln), h));
+    add(pause(0.4));
+    add(pruefe(zeile("M0b", 1, "ENTSCHEID1: Gedrueckt halten oeffnet nach 0,2 s die Gruppe (Blender BUTTON_AUTO_OPEN_THRESH), Loslassen auf einem Eintrag waehlt ihn"), [h] {
+        const ModellMesh& m = mtab().mesh;
+        char z[200];
+        std::snprintf(z, sizeof z, "Halten: offen %d nach %.3f s, gezogen %d; Werkzeug %d, Art %d, Leiste %s", h->offen ? 1 : 0, static_cast<double>(h->nach), h->gezogen ? 1 : 0,
+                      static_cast<int>(m.werkzeug), m.art, leistenTexte().c_str());
+        melde(z);
+        return h->offen && !h->gezogen && h->nach >= 0.18F && h->nach < 0.4F && m.kaestchenOffen && m.werkzeug == MeshWerkzeug::Extrude && m.art == 2 &&
+               modellBl().gruppeOffen.empty();
+    }));
+    add(pruefe(zeile("M0b", 1, "ENTSCHEID1: der Knopf zeigt jetzt das gewaehlte Werkzeug der Gruppe (Extrude Individual), wie Blender"), [] {
+        return knopfNr(tr(Str::BeExtrudeEinzeln)) == 4 && knopfNr(tr(Str::BeExtrude)) < 0;
+    }));
+    add(tu("AP4 ENTSCHEID1: Kaestchen schliessen", [] { modellMeshUebernehmen(false); }));
+    add(pause(0.3));
+    auto z2 = std::make_shared<Halten>();
+    add(haltenUndLoslassen("Knife und gleich ziehen, dann auf dem Knopf loslassen", knopfOrt(tr(Str::BzMesser)), 0.1, 14.0F, knopfOrt(tr(Str::BzMesser)), z2));
+    add(pause(0.4));
+    add(pruefe(zeile("M0b", 1, "ENTSCHEID1: Ziehen oeffnet die Gruppe sofort (vor 0,2 s); Loslassen ausserhalb des Menues schliesst es ohne Wahl"), [z2] {
+        const ModellMesh& m = mtab().mesh;
+        char z[160];
+        std::snprintf(z, sizeof z, "Ziehen: offen %d nach %.3f s, gezogen %d; Messer %d, Halbieren %d", z2->offen ? 1 : 0, static_cast<double>(z2->nach), z2->gezogen ? 1 : 0,
+                      m.cutAn ? 1 : 0, m.quickAn ? 1 : 0);
+        melde(z);
+        return z2->offen && z2->gezogen && z2->nach >= 0.0F && z2->nach < 0.18F && !m.cutAn && !m.quickAn && modellBl().gruppeOffen.empty();
+    }));
+    add(tu("AP4 ENTSCHEID1: Extrude-Gruppe zurueck auf Extrude Region", [] { modellBlGruppenVorgabe(); }));
+    add(pause(0.3));
+    // Rechtsklick "Werkzeugnamen zeigen"
+    auto schmal = std::make_shared<float>(0.0F);
+    add(tu("AP4 ENTSCHEID1: Breite der Leiste merken", [schmal] { *schmal = fenster("mtwerkzeugleiste").GetWidth(); }));
+    add(klickAn("AP4 ENTSCHEID1: Rechtsklick in die Werkzeugleiste (unter den Knoepfen)", [] {
+                    const ImRect l = fenster("mtwerkzeugleiste");
+                    return ImVec2{l.GetCenter().x, l.Max.y - em() * 0.8F};
+                }, 1));
+    add(pause(0.4));
+    add(pruefe(zeile("R17", 1, "ENTSCHEID1: der Rechtsklick auf die Werkzeugleiste bietet \"Werkzeugnamen zeigen\""), [] { return finde(tr(Str::BeWerkzeugnamen), "##Popup_", 0, false) != nullptr; }));
+    add(klick(tr(Str::BeWerkzeugnamen), "##Popup_"));
+    add(pause(0.6));
+    add(pruefe(zeile("R17", 1, "ENTSCHEID1: mit Namen ist die Leiste breiter, jeder Knopf zeigt seinen Namen neben dem Symbol, die Einstellung merkt es sich"), [schmal] {
+        const ModellBlender& b = modellBl();
+        const ImRect l = fenster("mtwerkzeugleiste");
+        float laengster = 0.0F;
+        bool ok = b.knoepfe.size() >= 7;
+        for (const auto& k : b.knoepfe) {
+            laengster = std::max(laengster, ImGui::CalcTextSize(k.first.c_str()).x);
+            ok = ok && l.Contains(k.second) && k.second.GetWidth() > k.second.GetHeight() * 1.5F;
+        }
+        Settings neu;
+        const bool datei = readSettings(writeSettings(g_app->settings), neu) && neu.modellBlWerkzeugnamen;
+        melde("Namen: Leiste " + std::to_string(static_cast<int>(*schmal)) + " -> " + std::to_string(static_cast<int>(l.GetWidth())) + ", laengster Name " +
+              std::to_string(static_cast<int>(laengster)) + ", Einstellung " + std::to_string(g_app->settings.modellBlWerkzeugnamen) + ", Datei " + std::to_string(datei));
+        return ok && b.namenGezeigt && l.GetWidth() > *schmal + laengster && g_app->settings.modellBlWerkzeugnamen && datei;
+    }));
+    add(klickAn("AP4 ENTSCHEID1: Rechtsklick in die Werkzeugleiste", [] {
+                    const ImRect l = fenster("mtwerkzeugleiste");
+                    return ImVec2{l.GetCenter().x, l.Max.y - em() * 0.8F};
+                }, 1));
+    add(pause(0.4));
+    add(klick(tr(Str::BeWerkzeugnamen), "##Popup_"));
+    add(pause(0.6));
+    add(pruefe(zeile("R17", 1, "ENTSCHEID1: noch einmal - wieder die schmale Leiste nur mit Symbolen"), [schmal] {
+        return !modellBl().namenGezeigt && std::fabs(fenster("mtwerkzeugleiste").GetWidth() - *schmal) < 1.0F && !g_app->settings.modellBlWerkzeugnamen && leisteSenkrecht();
+    }));
+    add(tu("AP4 ENTSCHEID1: zurueck nach Ansehen/Pruefen", [] {
+        mtab().bereich = ModellBereich::Ansehen;
+        mtab().auswahl.clear();
     }));
     add(pause(0.3));
 }
@@ -644,6 +1135,41 @@ void umschaltSchritte(std::vector<Schritt>& s) {
 
 // --- Fotos ----------------------------------------------------------------------------------------------------------------
 
+// ENTSCHEID1: die Gruppe eines Knopfs gedrueckt halten, bis sie offen ist, dann die Maus auf den Eintrag `eintrag` - die Taste bleibt
+// gedrueckt (fuer ein Foto des offenen Menues); gruppeLoslassen() laesst ausserhalb los und schliesst es ohne Wahl.
+Schritt gruppeHalten(const std::string& knopf, Str eintrag) {
+    auto t0 = std::make_shared<double>(0.0);
+    return {"Halte die Gruppe " + knopf, [=](int b) {
+                if (b == 0) {
+                    setzeMaus(knopfOrt(knopf)());
+                    return false;
+                }
+                if (b == 2) {
+                    ImGui::GetIO().AddMouseButtonEvent(0, true);
+                    *t0 = ImGui::GetTime();
+                    return false;
+                }
+                if (b < 2 || (ImGui::GetTime() - *t0 < 0.4 && b < 3000)) { return false; }
+                setzeMaus(eintragOrt(eintrag)());
+                return b > 2 && ImGui::GetTime() - *t0 >= 0.5;
+            }};
+}
+
+Schritt gruppeLoslassen() {
+    return {"Gruppe loslassen (ausserhalb)", [](int b) {
+                if (b == 0) {
+                    setzeMaus(ImVec2{-50.0F, -50.0F});
+                    return false;
+                }
+                if (b == 2) {
+                    ImGui::GetIO().AddMouseButtonEvent(0, false);
+                    return false;
+                }
+                return b >= 6;
+            }};
+}
+
+
 void fotoSchritte(std::vector<Schritt>& s) {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     static const char* const kName[kModellBereiche] = {"pruefen", "modell", "uv", "weights", "paint", "anim"};
@@ -714,10 +1240,56 @@ void fotoSchritte(std::vector<Schritt>& s) {
     add(pause(0.6));
     add(foto("ap4_blender_moduswahl"));
     add(mbefoto::popupsZu());
-    add(mbefoto::mausAuf("den Knopf Pose kopieren", [] { return inLeiste(tr(Str::MbRgKopieren)); }));
+    add(mbefoto::mausAuf("den Knopf Pose kopieren", [] { return inLeiste(tr(Str::BeKopieren)); }));
     add(pause(0.3));
     add(foto("ap4_blender_tooltip"));
     add(tu("AP4 Foto: Maus weg", [] { setzeMaus(ImVec2{-50.0F, -50.0F}); }));
+    add(pause(0.3));
+    // ENTSCHEID1: Werkzeugnamen zeigen, die offene Gruppe Extrude, die Seitenleiste mit Zahlenfeldern (Griff Kopf im Posenmodus)
+    add(tu("AP4 Foto: Modellieren, Werkzeugnamen zeigen", [] {
+        mtab().bereich = ModellBereich::Modellieren;
+        g_app->settings.modellBlWerkzeugnamen = true;
+        modellBlGruppenVorgabe();
+    }));
+    add(pause(0.8));
+    add(foto("ap4_blender_namen"));
+    add(gruppeHalten(tr(Str::BeExtrude), Str::BeExtrudeEinzeln));
+    add(foto("ap4_blender_gruppe"));
+    add(gruppeLoslassen());
+    add(tu("AP4 Foto: schmale Leiste; Animation, Griff Kopf, Seitenleiste", [] {
+        g_app->settings.modellBlWerkzeugnamen = false;
+        mtab().bereich = ModellBereich::Animation;
+        if (!modellRigDa()) { (void)modellAnimRigErstellen(false); }
+        modellRigGriffWaehlen(griffNach(modell::GriffArt::Kopf));
+        modellBl().seitenleiste = true;
+        modellBl().seitenReiter = 0;
+    }));
+    add(pause(0.8));
+    add(mbefoto::mausAuf("das Feld Rotation Z", [] {
+        static Element e;
+        const ModellBlender::SeitenFeld* f = seitenFeld("dreh2");
+        e.rect = f != nullptr ? f->rect : ImRect{};
+        return f != nullptr ? &e : nullptr;
+    }));
+    add(pause(0.8));
+    add(foto("ap4_blender_seite_felder"));
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1 Foto: jede Beschriftung der Seitenleiste passt in ihre Spalte oder endet mit ... (Blender kuerzt so; Fotofund im kleinen Fenster)"), [] {
+        bool ok = !modellBl().seitenFelder.empty();
+        std::string z;
+        for (const auto& f : modellBl().seitenFelder) {
+            if (f.beschriftungBreite > f.platz + 0.5F) {
+                ok = false;
+                z += " " + f.id + " '" + f.beschriftung + "' " + std::to_string(static_cast<int>(f.beschriftungBreite)) + ">" + std::to_string(static_cast<int>(f.platz));
+            }
+        }
+        melde("Beschriftungen:" + (z.empty() ? std::string(" alle passen") : z));
+        return ok;
+    }));
+    add(tu("AP4 Foto: Seitenleiste aus, Maus weg", [] {
+        modellRigGriffWaehlen(-1);
+        modellBl().seitenleiste = false;
+        setzeMaus(ImVec2{-50.0F, -50.0F});
+    }));
     add(pause(0.3));
 }
 
@@ -752,6 +1324,16 @@ std::vector<Schritt> handbuchSchritte() {
     add(tu("AP4 Handbuch: wie Blender", [] { modellBedienungSetzen(1); }));
     add(pause(1.0));
     add(hilfe2::schrittFoto("h_ap4_blender"));
+    add(tu("AP4 Handbuch: Werkzeugnamen zeigen (ENTSCHEID1)", [] {
+        g_app->settings.modellBlWerkzeugnamen = true;
+        modellBlGruppenVorgabe();
+    }));
+    add(pause(0.8));
+    add(gruppeHalten(tr(Str::BeExtrude), Str::BeExtrudeEinzeln));
+    add(hilfe2::schrittFoto("h_ap4_gruppen"));
+    add(gruppeLoslassen());
+    add(tu("AP4 Handbuch: schmale Leiste", [] { g_app->settings.modellBlWerkzeugnamen = false; }));
+    add(pause(0.5));
     add(tu("AP4 Handbuch: wie Blender, Ansehen/Pruefen, Seitenleiste, Messen", [] {
         g_app->mtab.bereich = ModellBereich::Ansehen;
         modellBl().seitenleiste = true;
@@ -848,6 +1430,8 @@ std::vector<Schritt> schritte(const char* nur) {
         rahmenSchritte(s);
         bereichSchritte(s);
         werkzeugSchritte(s);
+        seitenEingabeSchritte(s);
+        gruppenSchritte(s);
         umschaltSchritte(s);
     } else {
         fotoSchritte(s);

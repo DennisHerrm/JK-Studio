@@ -383,31 +383,99 @@ void maxSchritte(std::vector<Schritt>& s) {
         return modellTeilEingefroren(mb1::teil("torso")) && std::find(t.auswahl.begin(), t.auswahl.end(), mb1::teil("torso")) == t.auswahl.end() &&
                t.meldung.find("torso") != std::string::npos;
     }));
-    // In der Ansicht: erst sehen, welche Flaeche an dieser Stelle vorn liegt (nichts eingefroren), dann sie einfrieren
-    auto vorn = std::make_shared<int>(-1);
-    add(tu("AP2 X13: torso geloest, Auswahl leer", [] {
+    // In der Ansicht (ENTSCHEID1, shank 11.11.: "hindurch auf die flaeche dahinter"): wie 3ds Max nimmt eine eingefrorene Flaeche am
+    // Treffertest nicht teil - der Klick waehlt die Flaeche dahinter (Autodesk-Hilfe "Freezing and Unfreezing Objects": eingefrorene
+    // Objekte "cannot be selected"). Gesucht wird eine Stelle, an der zwei verschiedene Flaechen hintereinander liegen, und eine, an
+    // der nur eine Flaeche liegt.
+    struct Stelle {
+        ImVec2 p{-1.0F, -1.0F};
+        int vorn = -1;
+        int hinten = -1;
+        ImVec2 allein{-1.0F, -1.0F};
+        int einzige = -1;
+    };
+    auto st = std::make_shared<Stelle>();
+    add(tu("AP2 X13: torso geloest, Auswahl leer; Stellen suchen (zwei Flaechen hintereinander, eine Flaeche allein)", [st] {
         modellTeilEinfrieren(mb1::teil("torso"), false, false);
+        ModellTab& t = g_app->mtab;
+        t.auswahl.clear();
+        *st = Stelle{};
+        const ModellAnsicht& a = t.ansichten[static_cast<std::size_t>(std::clamp(t.aktiv, 0, 3))];
+        const float schritt = std::max(em() * 0.5F, 4.0F);
+        for (float y = a.lo[1] + em() * 3.0F; y < a.lo[1] + a.groesse[1] - em() * 2.0F; y += schritt) {
+            for (float x = a.lo[0] + em(); x < a.lo[0] + a.groesse[0] - em(); x += schritt) {
+                const std::vector<int> f = modellFlaechenUnter(a, ImVec2{x, y});
+                if (f.empty() || modellTeilEingefroren(f[0])) { continue; }
+                if (st->vorn < 0 && f.size() >= 2 && f[1] != f[0] && !modellTeilEingefroren(f[1])) {
+                    // die hintere bleibt sichtbar, wenn man die vordere ausblendet (sie ist kein Kind von ihr) - fuer die Gegenprobe
+                    modellTeilAuge(f[0], false);
+                    const bool bleibt = !modellTeilVersteckt(f[1]);
+                    modellTeilAuge(f[0], false);
+                    if (bleibt && !modellTeilVersteckt(f[0])) {
+                        st->p = ImVec2{x, y};
+                        st->vorn = f[0];
+                        st->hinten = f[1];
+                    }
+                }
+                if (st->einzige < 0 && std::all_of(f.begin(), f.end(), [&](int i) { return i == f[0]; })) {
+                    st->allein = ImVec2{x, y};
+                    st->einzige = f[0];
+                }
+            }
+        }
+        const auto& teile = t.dok.inhalt().teile;
+        const auto nameVon = [&](int i) { return i >= 0 ? teile[static_cast<std::size_t>(i)].name : std::string("-"); };
+        melde("X13: Stelle " + std::to_string(static_cast<int>(st->p.x)) + "/" + std::to_string(static_cast<int>(st->p.y)) + " vorn " + nameVon(st->vorn) + ", dahinter " +
+              nameVon(st->hinten) + "; allein " + nameVon(st->einzige));
+    }));
+    add(klickAn("AP2 X13: Klick in die Ansicht (nichts eingefroren)", [st] { return st->p; }));
+    add(pause(0.3));
+    add(pruefe("AP2 X13: ohne Einfrieren waehlt der Klick die vordere Flaeche", [st] {
+        const ModellTab& t = g_app->mtab;
+        return st->vorn >= 0 && t.auswahl.size() == 1 && t.auswahl.front() == st->vorn;
+    }));
+    add(tu("AP2 X13: die vordere Flaeche einfrieren", [st] {
+        modellTeilEinfrieren(st->vorn, true, false);
+        g_app->mtab.auswahl.clear();
+        g_app->mtab.meldung.clear();
+    }));
+    add(klickAn("AP2 X13: Klick in die Ansicht auf die eingefrorene Flaeche", [st] { return st->p; }));
+    add(pause(0.3));
+    add(pruefe("AP2 X13: eingefroren - der Klick geht hindurch und waehlt die Flaeche dahinter (wie 3ds Max)", [st] {
+        const ModellTab& t = g_app->mtab;
+        melde("X13: gewaehlt " + std::to_string(t.auswahl.size()) + (t.auswahl.empty() ? std::string() : " (" + std::to_string(t.auswahl.front()) + ")") + ", soll " +
+              std::to_string(st->hinten) + ", Meldung '" + t.meldung + "'");
+        return st->hinten >= 0 && t.auswahl.size() == 1 && t.auswahl.front() == st->hinten && modellTeilEingefroren(st->vorn);
+    }));
+    add(tu("AP2 X13: Gegenprobe - die vordere aufgetaut und ausgeblendet", [st] {
+        modellTeilEinfrieren(st->vorn, false, false);
+        modellTeilAuge(st->vorn, false);
         g_app->mtab.auswahl.clear();
     }));
-    add(klickAn("AP2 X13: Klick in die Ansicht auf torso (nichts eingefroren)", mb1::flaechenOrt("torso")));
+    add(klickAn("AP2 X13: Klick auf dieselbe Stelle", [st] { return st->p; }));
     add(pause(0.3));
-    add(tu("AP2 X13: die getroffene Flaeche und torso einfrieren", [vorn] {
-        ModellTab& t = g_app->mtab;
-        *vorn = t.auswahl.empty() ? -1 : t.auswahl.front();
-        melde("X13: an der Stelle von torso liegt vorn " + (*vorn >= 0 ? t.dok.inhalt().teile[static_cast<std::size_t>(*vorn)].name : std::string("nichts")));
-        modellTeilEinfrieren(*vorn, true, false);
-        modellTeilEinfrieren(mb1::teil("torso"), true, false);
-        t.auswahl.clear();
-        t.meldung.clear();
+    add(pruefe("AP2 X13: Gegenprobe - mit ausgeblendeter vorderer Flaeche waehlt der Klick dieselbe Flaeche dahinter", [st] {
+        const ModellTab& t = g_app->mtab;
+        return st->hinten >= 0 && t.auswahl.size() == 1 && t.auswahl.front() == st->hinten;
     }));
-    add(klickAn("AP2 X13: Klick in die Ansicht auf die eingefrorene Flaeche", mb1::flaechenOrt("torso")));
+    add(tu("AP2 X13: einblenden; die einzige Flaeche an der zweiten Stelle einfrieren", [st] {
+        modellAllesEinblenden();
+        modellTeilEinfrieren(st->einzige, true, false);
+        g_app->mtab.auswahl.clear();
+        g_app->mtab.meldung.clear();
+    }));
+    add(klickAn("AP2 X13: Klick auf die Stelle, an der nur die eingefrorene Flaeche liegt", [st] { return st->allein; }));
     add(pause(0.3));
-    add(pruefe("AP2 X13: eingefroren - der Klick in der Ansicht waehlt die Flaeche nicht und meldet es", [vorn] {
+    add(pruefe("AP2 X13: eingefroren und nichts dahinter - der Klick waehlt nichts und meldet es", [st] {
         const ModellTab& t = g_app->mtab;
         melde("X13: Meldung '" + t.meldung + "', gewaehlt " + std::to_string(t.auswahl.size()));
-        if (*vorn < 0) { return false; }
-        return std::find(t.auswahl.begin(), t.auswahl.end(), *vorn) == t.auswahl.end() &&
-               t.meldung.find(t.dok.inhalt().teile[static_cast<std::size_t>(*vorn)].name) != std::string::npos;
+        if (st->einzige < 0) { return false; }
+        return t.auswahl.empty() && t.meldung.find(t.dok.inhalt().teile[static_cast<std::size_t>(st->einzige)].name) != std::string::npos;
+    }));
+    add(tu("AP2 X13: fuer den Rahmen nur torso eingefroren (dazu die Kappen ab Werk)", [st] {
+        modellTeilEinfrieren(st->einzige, false, false);
+        modellTeilEinfrieren(mb1::teil("torso"), true, false);
+        g_app->mtab.auswahl.clear();
     }));
     add(Schritt{"AP2 X13: Rahmen ziehen", [](int b) {
                     const ModellAnsicht& a = g_app->mtab.ansichten[g_app->mtab.aktiv];
@@ -428,9 +496,6 @@ void maxSchritte(std::vector<Schritt>& s) {
         melde("X13: Rahmen waehlt " + std::to_string(t.auswahl.size()) + " Flaechen");
         return std::find(t.auswahl.begin(), t.auswahl.end(), mb1::teil("hips")) != t.auswahl.end() &&
                std::find(t.auswahl.begin(), t.auswahl.end(), mb1::teil("torso")) == t.auswahl.end();
-    }));
-    add(tu("AP2 X13: die vordere Flaeche wieder loesen", [vorn] {
-        if (*vorn >= 0 && *vorn != mb1::teil("torso")) { modellTeilEinfrieren(*vorn, false, false); }
     }));
     add(klickAn("AP2 X13: Schneeflocke von torso zurueck", ort("torso", 2, static_cast<int>(ExplorerArt::Flaeche))));
     add(pause(0.2));

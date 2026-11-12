@@ -132,6 +132,54 @@ bool allesImBand(std::string& was) {
     return true;
 }
 
+// ENTSCHEID1 (shank 11.11.: "Aus man kann es an machen"): Auto Key ab Werk aus wie in 3ds Max (Auto Key Mode aus) und Blender
+// (Auto-Keying aus); die Einstellung modelTimelineAutoKey merkt sich die Wahl des Anwenders. Laeuft vor allen anderen Schritten
+// mit den Einstellungen des Laufs (behaved.cfg.sicher kennt den Schluessel nicht: das ist die Vorgabe ab Werk).
+void werkVorgabe(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const auto name = [](const std::string& text) { return "AP1 Z6 ENTSCHEID1 (wie 3ds Max): " + text; };
+    const auto ausDatei = [](const Settings& quelle) {
+        Settings neu;
+        neu.modellZeitAutoKey = !quelle.modellZeitAutoKey;   // so faellt auf, wenn das Lesen den Wert nicht setzt
+        const bool ok = readSettings(writeSettings(quelle), neu);
+        return ok && neu.modellZeitAutoKey == quelle.modellZeitAutoKey;
+    };
+    add(tu("AP1 ENTSCHEID1: wie 3ds Max, Ansehen/Pruefen", [] {
+        modellBedienungSetzen(0);
+        g_app->mtab.bereich = ModellBereich::Ansehen;
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.6));
+    add(pruefe(name("Auto Key ist ab Werk aus wie in 3ds Max und Blender (neue Einstellungen, Einstellungsdatei des Laufs ohne den Schluessel, Zeitleiste)"), [] {
+        melde("Werk: Settings{} " + std::to_string(Settings{}.modellZeitAutoKey) + ", Lauf " + std::to_string(g_app->settings.modellZeitAutoKey) + ", Zeitleiste " +
+              std::to_string(modellZeit().autoKey) + ", Leiste da " + std::to_string(leisteDa()));
+        return leisteDa() && !Settings{}.modellZeitAutoKey && !g_app->settings.modellZeitAutoKey && !modellZeit().autoKey;
+    }));
+    add(klickBand(tr(Str::MzAutoKey)));
+    add(pause(0.3));
+    add(pruefe(name("ein Klick auf Auto Key schaltet an, die Einstellung merkt es sich und steht so in der Datei"), [ausDatei] {
+        melde("an: Zeitleiste " + std::to_string(modellZeit().autoKey) + ", Einstellung " + std::to_string(g_app->settings.modellZeitAutoKey));
+        return modellZeit().autoKey && g_app->settings.modellZeitAutoKey && ausDatei(g_app->settings);
+    }));
+    add(tu("AP1 ENTSCHEID1: wie ein neuer Start - die Zeitleiste liest die Einstellung neu", [] {
+        modellZeit().autoKey = false;
+        modellZeit().einstellungenGelesen = false;
+    }));
+    add(pause(0.4));
+    add(pruefe(name("nach einem neuen Start steht Auto Key wieder an (die Wahl des Anwenders)"), [] { return modellZeit().autoKey; }));
+    add(klickBand(tr(Str::MzAutoKey)));
+    add(pause(0.3));
+    add(pruefe(name("ein zweiter Klick schaltet aus, auch in der Einstellung und in der Datei"), [ausDatei] {
+        return !modellZeit().autoKey && !g_app->settings.modellZeitAutoKey && ausDatei(g_app->settings);
+    }));
+    add(tu("AP1 ENTSCHEID1: wie ein neuer Start", [] {
+        modellZeit().autoKey = true;
+        modellZeit().einstellungenGelesen = false;
+    }));
+    add(pause(0.4));
+    add(pruefe(name("nach einem neuen Start bleibt Auto Key aus"), [] { return !modellZeit().autoKey; }));
+}
+
 void pruefungen(std::vector<Schritt>& s, int modus) {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     const bool bl = modus == 1;
@@ -402,7 +450,7 @@ void pruefungen(std::vector<Schritt>& s, int modus) {
         g_app->animFrame = f0() + 7;
     }));
     add(pause(0.2));
-    add(pruefe(name("Z6", "der Knopf " + autoLabel + " steht in der Knopfreihe, ab Werk an"), [=] {
+    add(pruefe(name("Z6", "der Knopf " + autoLabel + " steht in der Knopfreihe, fuer die folgenden Zeilen an (ab Werk aus: ENTSCHEID1)"), [=] {
         melde("Z6: Knopf " + std::to_string(imBand(autoLabel) != nullptr) + ", an " + std::to_string(modellZeit().autoKey));
         return imBand(autoLabel) != nullptr && modellZeit().autoKey;
     }));
@@ -474,7 +522,7 @@ void pruefungen(std::vector<Schritt>& s, int modus) {
         add(pruefe(name("A12", "die Taste K setzt einen Schluessel am Bild +3"), [] { return schl(rhand(), f0() + 3) != nullptr; }));
         add(taste(ImGuiKey_N, "N (Auto Key an)"));
         add(pause(0.2));
-        add(pruefe(name("A12", "die Taste N schaltet Auto Key wieder an"), [] { return modellZeit().autoKey; }));
+        add(pruefe(name("A12", "die Taste N schaltet Auto Key wieder an (die Einstellung folgt)"), [] { return modellZeit().autoKey && g_app->settings.modellZeitAutoKey; }));
     }
     add(tu("AP1: Auto Key an, Testschluessel", [] {
         modellZeitAutoKey(true);
@@ -720,7 +768,7 @@ void fotos(std::vector<Schritt>& s, int modus) {
     add(tu("AP1 Foto: Hand R drehen", [] { handDrehen(); }));
     add(pause(0.6));
     add(foto(p + "anim_pose_offen"));
-    add(tu("AP1 Foto: Auto Key an", [] { modellZeitAutoKey(true); }));
+    add(tu("AP1 Foto: Auto Key wieder aus (ab Werk, ENTSCHEID1)", [] { modellZeitAutoKey(false); }));
     add(pause(0.3));
 }
 
@@ -742,7 +790,7 @@ std::vector<Schritt> handbuchSchritte() {
         t.kvEinpassen = true;
         modellZeit().sequenzAuf = true;
         modellZeit().konfigOffen = false;
-        modellZeitAutoKey(true);
+        modellZeitAutoKey(false);   // ENTSCHEID1: wie ab Werk (aus, wie 3ds Max und Blender)
         g_app->animPlaying = false;
         g_app->animFrame = f0() + 12;
         g_app->modelDirty = true;
@@ -812,7 +860,10 @@ std::vector<Schritt> schritte(const char* nur) {
         g_app->modelDirty = true;
     }));
     add(pause(0.6));
+    auto autoKey = std::make_shared<bool>(false);
+    add(tu("AP1: Auto Key merken", [autoKey] { *autoKey = modellZeit().autoKey; }));
     if (n == "ap1") {
+        werkVorgabe(s);
         pruefungen(s, 0);
         pruefungen(s, 1);
     } else {
@@ -827,7 +878,7 @@ std::vector<Schritt> schritte(const char* nur) {
         g_app->uiScale = *skala;
         g_app->mtab.bereich = ModellBereich::Ansehen;
         g_app->mtab.sekundaer = -1;
-        modellZeitAutoKey(true);
+        modellZeitAutoKey(*autoKey);
         modellAnbautenLoesen();
         g_app->leftMode = 1;
         g_app->doc.markSaved();
