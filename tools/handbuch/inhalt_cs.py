@@ -7615,3 +7615,5 @@ from inhalt_lcfix import CS as _LCFIX  # noqa: E402
 TEXTE.update(_LCFIX)
 from inhalt_fix612b import CS as _FIX612B  # noqa: E402
 TEXTE.update(_FIX612B)
+from inhalt_dxr import CS as _DXR  # noqa: E402
+TEXTE.update(_DXR)

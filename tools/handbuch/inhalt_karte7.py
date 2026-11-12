@@ -6,6 +6,7 @@ gemessen vorher und nachher, mit gleichem Ergebnis.
 """
 from inhalt_basis import T
 
+import inhalt_dxr
 import tempo7
 
 
@@ -118,6 +119,7 @@ KARTE_TEMPO = {
             "Gemessen gegen das Schnell-Backen an festen Kamerapunkten (md_ch_ben, mp/duel1, md_eitd_jedi mit Himmelslicht, eine große Testerkarte): die mittlere Helligkeitsabweichung sank von 2-95 auf 0,2-2 von 255. Was bleibt, ist vor allem die Auflösung der Lightmaps (ein Luxel je 16 Einheiten) und das Bounce-Licht, das die Vorschau nicht hat.",
             "在固定摄像机位置与快速烘焙比较(md_ch_ben、mp/duel1、带天空光的 md_eitd_jedi、一张大型测试地图):平均亮度偏差从 2-95 降到 0.2-2(满值 255)。剩下的差别主要来自光照贴图的分辨率(每 16 单位一个 luxel)以及预览没有的反弹光。",
             "固定したカメラ位置でクイックベイクと比較しました(md_ch_ben、mp/duel1、空の光のある md_eitd_jedi、大きなテスターのマップ)。明るさの平均の差は 255 のうち 2-95 から 0.2-2 に下がりました。残る差は主にライトマップの解像度(16 ユニットに 1 ルクセル)と、プレビューにないバウンス光です。")),
+        *inhalt_dxr.bloecke(),   # DXR: Raytracing-Schatten als Schattenart des Echtzeit-Lichts
         ("h2", "gebautwiespiel", T("Built map as in the game", "Gebaute Karte wie im Spiel", "已构建的地图如游戏中显示", "ビルドしたマップをゲームと同じ表示に")),
         ("p", T("**{{KeLBuild}} > {{KeSpielbildMenue}}** (on by default) shows the result of the build as the game shows it: after {{KeBackenMenue}}, or with a template .bsp, the camera draws the built map through the same renderer as the preview in the Mission tab - every shader stage with tcGen, rgbGen, tcMod and blend, the sky box, glow, fog, the game's gamma, and only what the game draws from the camera's place (PVS). The light comes from the lightmaps exactly as in the game (lightmap times 1; the editor used to double it). Selection, handles and lines stay on top as before.",
             '**{{KeLBuild}} > {{KeSpielbildMenue}}** (ab Werk an) zeigt das Ergebnis des Baus so, wie das Spiel es zeigt: nach {{KeBackenMenue}} oder mit einer Vorlage-.bsp zeichnet die Kamera die gebaute Karte durch denselben Zeichner wie die Vorschau im Mission-Tab - alle Stufen der Shader mit tcGen, rgbGen, tcMod und Blend, die Himmelsbox, Glühen, Nebel, das Gamma des Spiels und nur, was das Spiel vom Ort der Kamera aus zeichnet (PVS). Das Licht kommt aus den Lightmaps genau wie im Spiel (Lightmap mal 1; der Editor hatte es bisher verdoppelt). Auswahl, Griffe und Linien bleiben darüber wie bisher.',

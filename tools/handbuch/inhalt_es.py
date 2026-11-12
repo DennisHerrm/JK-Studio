@@ -7618,3 +7618,5 @@ from inhalt_lcfix import ES as _LCFIX  # noqa: E402
 TEXTE.update(_LCFIX)
 from inhalt_fix612b import ES as _FIX612B  # noqa: E402
 TEXTE.update(_FIX612B)
+from inhalt_dxr import ES as _DXR  # noqa: E402
+TEXTE.update(_DXR)

@@ -252,6 +252,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _ent2()})
             from i18n_p_dx12 import zeilen_vier as _p_dx12   # D3D12 Stufe 1: Grafikschnittstelle im Menue Ansicht
             texte.update({e[0]: e[1:] for e in _p_dx12()})
+            from i18n_dxr import zeilen_vier as _dxr   # DXR: Raytracing-Schatten im Echtzeit-Licht
+            texte.update({e[0]: e[1:] for e in _dxr()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)
