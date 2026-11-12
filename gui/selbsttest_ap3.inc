@@ -629,9 +629,11 @@ void musterSchritte(std::vector<Schritt>& s) {
             if (g_app->mtab.anbauten.empty()) { (void)modellAnbauen("models/weapons2/saber_1/saber_1.glm", "*r_hand", false, true); }
         }));
         add(pause(0.7));
-        const std::string alle = std::string(tr(Str::MbRModell)) + "|" + tr(Str::MbRLod) + "|" + tr(Str::MbRAnbauten) + "|" + tr(Str::MbRPruefen);
+        // AP5: die Gruppen des Entwurfs (Auswahl, Boden und Kamera, Szene dazu)
+        const std::string alle = std::string(tr(Str::MbRModell)) + "|" + tr(Str::PqRAuswahl) + "|" + tr(Str::MbRLod) + "|" + tr(Str::PqRBoden) + "|" + tr(Str::MbRAnbauten) + "|" +
+                                 tr(Str::MbRPruefen) + "|" + tr(Str::PqRSzene);
         // --- F3: Gruppe mit Kurzinfo und Kasten ---
-        add(pruefe(zeile("F3", modus, "im Reiter des Bereichs stehen die vier Gruppen untereinander: Modell, Detailstufe und Skin, Anbauten, Pruefung"), [=] {
+        add(pruefe(zeile("F3", modus, "im Reiter des Bereichs stehen die Gruppen untereinander: Modell, Auswahl, Detailstufe und Skin, Boden und Kamera, Anbauten, Pruefung, Szene"), [=] {
             melde("F3 Gruppen: " + feldGruppen());
             return feldFrisch() && feldGruppen() == alle;
         }));
@@ -657,12 +659,16 @@ void musterSchritte(std::vector<Schritt>& s) {
             if (m == nullptr) { return false; }
             return modus == 0 ? (m->stil == ui::RolloutStil::Max && m->rundung <= 2.0F) : (m->stil == ui::RolloutStil::Blender && m->rundung >= std::floor(em() * 0.3F));
         }));
+        add(insFeld(tr(Str::MbRLod)));   // AP5: mit den neuen Gruppen (Auswahl) steht die Ueberschrift wie Blender tiefer
+        add(pause(0.2));
         add(klick(tr(Str::MbRLod), "mtrollouts"));
         add(pause(0.3));
         add(pruefe(zeile("F3", modus, "ein Klick auf die Ueberschrift klappt die Gruppe zu"), [] {
             const ui::RolloutProbe* l = feldGruppe(Str::MbRLod);
             return l != nullptr && !l->offen && l->kasten.GetHeight() == l->kopf.GetHeight();
         }));
+        add(insFeld(tr(Str::MbRLod)));   // AP5: mit den neuen Gruppen (Auswahl) steht die Ueberschrift wie Blender tiefer
+        add(pause(0.2));
         add(klick(tr(Str::MbRLod), "mtrollouts"));
         add(pause(0.3));
         add(pruefe(zeile("F3", modus, "ein zweiter Klick klappt sie wieder auf"), [] {
@@ -670,16 +676,16 @@ void musterSchritte(std::vector<Schritt>& s) {
             return l != nullptr && l->offen;
         }));
         // --- F5: Knopfraster ---
-        add(pruefe(zeile("F5", modus, modus == 0 ? "Modell: die Knoepfe Andere GLA, Texturen neu laden, Foto stehen im Raster mit zwei gleich breiten Spalten, jeder mit Symbol, Texturen neu laden mit der Taste Alt+R"
-                                                 : "Modell: die Knoepfe Andere GLA, Texturen neu laden, Foto stehen im Raster mit zwei gleich breiten Spalten, jeder mit Symbol (Alt+R gibt es wie Blender nicht)"), [=] {
+        // AP5 P1: in Modell Andere GLA, Texturen neu laden (Alt+R in beiden Bedienmodi wie im Entwurf), Importieren; Foto in "Boden und Kamera"
+        add(pruefe(zeile("F5", modus, "Modell: die Knoepfe Andere GLA, Texturen neu laden, Importieren stehen im Raster mit zwei gleich breiten Spalten, jeder mit Symbol, Texturen neu laden mit der Taste Alt+R"), [=] {
             const ui::RolloutProbe* m = feldGruppe(Str::MbRModell);
             const Element* a = imRoll(tr(Str::MbAndereGla));
             const Element* b = imRoll(tr(Str::MbTexNeu));
-            const Element* c = imRoll(tr(Str::MbFoto));
+            const Element* c = imRoll(tr(Str::PqImport));
             if (m == nullptr || a == nullptr || b == nullptr || c == nullptr) { return false; }
             melde("F5 Raster: " + mbefoto::rechteck("gla", a->rect) + " " + mbefoto::rechteck("tex", b->rect) + " " + mbefoto::rechteck("foto", c->rect) + ", Spalten " +
                   std::to_string(m->rasterSpalten) + ", Knoepfe " + std::to_string(m->knoepfe));
-            return m->rasterSpalten == 2 && m->knoepfe == 3 && m->symbole == 3 && m->tasten == (modus == 0 ? 1 : 0) && std::fabs(a->rect.GetWidth() - b->rect.GetWidth()) < 0.5F && a->rect.Min.y == b->rect.Min.y && a->rect.Max.y == b->rect.Max.y &&
+            return m->rasterSpalten == 2 && m->knoepfe == 3 && m->symbole == 3 && m->tasten == 1 && std::fabs(a->rect.GetWidth() - b->rect.GetWidth()) < 0.5F && a->rect.Min.y == b->rect.Min.y && a->rect.Max.y == b->rect.Max.y &&
                    b->rect.Min.x > a->rect.Max.x && c->rect.Min.y > a->rect.Max.y && std::fabs(c->rect.Min.x - a->rect.Min.x) < 0.5F && std::fabs(c->rect.GetWidth() - a->rect.GetWidth()) < 0.5F &&
                    m->kasten.Contains(a->rect) && m->kasten.Contains(b->rect) && m->kasten.Contains(c->rect);
         }));
@@ -776,7 +782,7 @@ void musterSchritte(std::vector<Schritt>& s) {
         const Str reiterB = modus == 0 ? Str::MfDienste : Str::MfDaten;
         const Str reiterStd = modus == 0 ? Str::MfAnzeige : Str::MfObjekt;
         const std::string sollA = tr(Str::MbRAnbauten);
-        const std::string sollB = modus == 0 ? std::string(tr(Str::MbRPruefen)) : std::string(tr(Str::MbRModell)) + "|" + tr(Str::MbRLod);
+        const std::string sollB = modus == 0 ? std::string(tr(Str::MbRPruefen)) + "|" + tr(Str::PqRSzene) : std::string(tr(Str::MbRModell)) + "|" + tr(Str::MbRLod);   // AP5: Szene
         add(klick(tr(reiterA), "mtbefehlsfeld"));
         add(pause(0.4));
         add(pruefe(zeile(modus == 0 ? "F1" : "F2", modus, modus == 0 ? "der Reiter Hierarchie zeigt nur die Anbauten" : "der Reiter Constraints zeigt nur die Anbauten"), [=] {
@@ -785,13 +791,13 @@ void musterSchritte(std::vector<Schritt>& s) {
         }));
         add(klick(tr(reiterB), "mtbefehlsfeld"));
         add(pause(0.4));
-        add(pruefe(zeile(modus == 0 ? "F1" : "F2", modus, modus == 0 ? "der Reiter Dienstprogramme zeigt nur die Pruefung fuer das Spiel" : "der Reiter Daten zeigt Modell und Detailstufe"), [=] {
+        add(pruefe(zeile(modus == 0 ? "F1" : "F2", modus, modus == 0 ? "der Reiter Dienstprogramme zeigt die Pruefung fuer das Spiel und die Szene" : "der Reiter Daten zeigt Modell und Detailstufe"), [=] {
             melde("Reiter B: " + feldGruppen());
             return feldGruppen() == sollB;
         }));
         add(klick(tr(reiterStd), "mtbefehlsfeld"));
         add(pause(0.4));
-        add(pruefe(zeile(modus == 0 ? "F1" : "F2", modus, "zurueck im Reiter des Bereichs stehen wieder alle vier"), [=] { return feldGruppen() == alle; }));
+        add(pruefe(zeile(modus == 0 ? "F1" : "F2", modus, "zurueck im Reiter des Bereichs stehen wieder alle Gruppen"), [=] { return feldGruppen() == alle; }));
         if (modus == 0) {
             // --- F16: das Ganze wie 3ds Max ---
             add(pruefe(zeile("F16", modus, "Befehlsfeld mit Reitern, Gruppen mit Kurzinfo im Max-Stil, Knopfraster, Wertetabelle, Tippkasten - alles im selben Feld"), [=] {

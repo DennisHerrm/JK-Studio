@@ -144,6 +144,9 @@ bool alleSchalterWirken(const std::string& wo, bool mitAuswahl) {
         // MBRASTER: Schalter des anderen Bedienmodus und solche, die in dieser Ansicht nichts zeigen (Blender: Grid nur in den
         // Achsenansichten, Floor nur in den freien), gehoeren nicht zu dieser Ansicht
         if (!modellKopfSchalterHier(i, t().aktiv)) { continue; }
+        // AP5: die Knochengewicht-Schwelle verschiebt bei 5 % (Vorgabe von ModView) Ecken um Bruchteile eines Bildpunkts - ihre Wirkung
+        // prueft selbsttest_ap5.inc bei 0.25 gegen eine eigene Zaehlung der Ecken (P3a)
+        if (name == tr(Str::PqSchwelle)) { continue; }
         if (name == tr(Str::MkFlossen)) {
             g_app->modellKnochen = false;
             const bool ohneKnochenGrau = !modellKopfSchalterGeht(i);

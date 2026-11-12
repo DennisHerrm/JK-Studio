@@ -47,6 +47,7 @@
 #include "bhed/modell/rig.h"        // Stufe 3: selbsttest_mb3.inc
 #include "bhed/modell/ik.h"         // Stufe 4: selbsttest_mb6.inc
 #include "bhed/modell/posiert.h"    // mbvers: selbsttest_mbv.inc
+#include "bhed/modell/szene.h"      // AP5: selbsttest_ap5.inc
 #include "bhed/gpuskin.h"  // mb1a2
 #include "bhed/menue/werkzeuge.h"
 #include "bhed/ki.h"
@@ -6030,6 +6031,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_ap8.inc"        // AP8: Bereich Weights nach dem Entwurf (modellblock, BHED_MODELL_NUR=ap8 / ap8foto; Handbuch BHED_HB_NUR=ap8)
 #include "selbsttest_ap10.inc"       // AP10: rechtes Feld im Bereich Animation nach dem Entwurf (modellblock, BHED_MODELL_NUR=ap10 / ap10foto)
 #include "selbsttest_ap4.inc"        // AP4: Model-Tab im Bedienmodus wie Blender (modellblock, BHED_MODELL_NUR=ap4 / ap4foto; Handbuch BHED_HB_NUR=ap4)
+#include "selbsttest_ap5.inc"        // AP5: Bereich Ansehen/Pruefen vollstaendig (modellblock, BHED_MODELL_NUR=ap5 / ap5foto; Handbuch BHED_HB_NUR=ap5)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
@@ -7048,6 +7050,7 @@ void selbsttest() {
                     for (Schritt& x : ap8::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP8 (Bereich Weights)
                     for (Schritt& x : ap10::schritte(nur)) { a.schritte.push_back(std::move(x)); }      // AP10 (Bereich Animation)
                     for (Schritt& x : ap4::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP4 (Aufbau wie Blender)
+                    for (Schritt& x : ap5::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP5 (Ansehen/Pruefen vollstaendig)
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

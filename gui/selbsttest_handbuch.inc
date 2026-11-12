@@ -2616,6 +2616,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_ap10.inc: AP10 rechtes 
 namespace ap4 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_ap4.inc: AP4 Model-Tab wie Blender, BHED_HB_NUR=ap4
 }  // namespace ap4
+namespace ap5 {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_ap5.inc: AP5 Bereich Ansehen/Pruefen, BHED_HB_NUR=ap5
+}  // namespace ap5
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2703,6 +2706,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap4") == 0) {
         return ap4::handbuchSchritte();   // AP4: der Model-Tab wie 3ds Max und wie Blender (Werkzeugleiste, Outliner, Seitenleiste)
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap5") == 0) {
+        return ap5::handbuchSchritte();   // AP5: der Bereich Ansehen/Pruefen wie 3ds Max und wie Blender, die Pruefanzeigen
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste
@@ -6402,7 +6408,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         bildTeil("m_flaechen", voll, [=] {
             const ImRect sk = knopf(tr(Str::ModelSkin));
             if (sk.GetWidth() <= 0.0F) { return M{}; }
-            return M{ImRect{sk.Min.x, sk.Max.y + 2.0F, sk.Min.x + ImGui::GetFontSize() * 10.0F, sk.Max.y + ImGui::GetFontSize() * 1.6F}};
+            // AP5: der Zaehler steht rechts in der Zeile von "Skin" (die Haeute zweispaltig darunter)
+            const ImRect feld = hb::fensterRect("mtrollouts");
+            return M{ImRect{sk.Max.x + 2.0F, sk.Min.y - 2.0F, feld.GetWidth() > 0.0F ? feld.Max.x - 2.0F : sk.Max.x + ImGui::GetFontSize() * 10.0F, sk.Max.y + 2.0F}};
         });
         setzenSchritt("zurueck zur Mission", [=] { g_app->leftMode = 1; }, 0.6);
         add(tu("Kurz: Intro zurueck", [=] {
