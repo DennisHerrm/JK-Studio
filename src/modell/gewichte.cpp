@@ -399,10 +399,24 @@ bool gleicheListe(const GewichtListe& a, const GewichtListe& b) {
     return true;
 }
 
-// Auf alle Ecken des Punkts. Rueckgabe: beschriebene Ecken (ohne `immer` nur die, deren Liste anders war).
-int punktSchreiben(Inhalt& in, int stufe, const Schweissnetz& s, int p, const GewichtListe& l, bool immer = false) {
+// FIX612B P2-3: gehoert das Schweissnetz zu dieser Stufe? Seine Nummern gelten den Ecken der Stufe, fuer die es gebaut ist
+// (schweissen): je Teil so viele Eintraege, wie das Netz der Stufe Ecken hat (Tags und Teile ohne die Stufe: keine). Ein
+// Schweissnetz einer anderen Stufe (die Ansicht wechselte sie mitten im Strich) griff hinter das Ende der Ecken und Mallisten.
+bool netzPasst(const Inhalt& in, int stufe, const Schweissnetz& s) noexcept {
+    if (s.punktVon.size() != in.teile.size()) { return false; }
+    for (std::size_t t = 0; t < in.teile.size(); ++t) {
+        const Netz* n = netzDer(in, stufe, static_cast<int>(t));
+        if (s.punktVon[t].size() != (n != nullptr ? n->ecken.size() : 0U)) { return false; }
+    }
+    return true;
+}
+
+// Auf alle Ecken des Punkts. Rueckgabe: beschriebene Ecken (ohne `immer` nur die, deren Liste anders war). FIX612B P2-1: mit
+// `nurTeile` nur die Ecken in diesen Teilen.
+int punktSchreiben(Inhalt& in, int stufe, const Schweissnetz& s, int p, const GewichtListe& l, bool immer = false, const std::vector<char>* nurTeile = nullptr) {
     int z = 0;
     for (const EckOrt& o : s.ecken[uz(p)]) {
+        if (nurTeile != nullptr && (uz(o.teil) >= nurTeile->size() || (*nurTeile)[uz(o.teil)] == 0)) { continue; }
         Netz& n = in.teile[uz(o.teil)].stufen[uz(stufe)];
         if (!immer && gleicheListe(leseListe(n, uz(o.ecke)), l)) { continue; }
         malAnlegen(n);
@@ -1141,7 +1155,8 @@ GewichtListe gespiegelteListe(GewichtListe l, const std::vector<std::string>& na
 }  // namespace
 
 int spiegelnSeite(Inhalt& in, int stufe, const std::vector<std::string>& namen, const Schweissnetz& s, const std::vector<int>& partner, int quelle,
-                  float mitte, const EckenMaske* wahl) {
+                  float mitte, const EckenMaske* wahl, const std::vector<char>* nurTeile) {
+    if (!netzPasst(in, stufe, s)) { return 0; }   // FIX612B P2-3
     const std::size_t np = std::min(uz(s.zahl()), partner.size());
     const std::vector<char> gewaehlt = zielPunkte(s, wahl);
     const auto seite = [&](int p) {
@@ -1169,6 +1184,7 @@ SpiegelZahl spiegelnBlender(Inhalt& in, int stufe, const std::vector<std::string
                             const BlenderSpiegel& o, const EckenMaske* wahl) {
     SpiegelZahl zahl;
     if ((!o.gewichte && !o.namenTauschen) || (!o.alleGruppen && o.aktiv < 0)) { return zahl; }
+    if (!netzPasst(in, stufe, s)) { return zahl; }   // FIX612B P2-3
     const std::size_t np = std::min(uz(s.zahl()), partner.size());
     const std::vector<char> gewaehlt = zielPunkte(s, wahl);
     // BKE_object_defgroup_flip_map (alle) bzw. _flip_map_single (nur der aktive Knochen und sein Partner); -1: bleibt
@@ -1241,6 +1257,9 @@ int spiegelMalen(Inhalt& in, int stufe, const Schweissnetz& s, const std::vector
                  int knochen, int spiegelKn, const MalRegeln& regeln) {
     const int zielKnochen = spiegelKn >= 0 ? spiegelKn : knochen;
     if (knochen < 0 || regeln.sperrt(zielKnochen)) { return 0; }   // "Mirror group is locked, aborting"
+    // FIX612B P2-3: das Schweissnetz vom Strichbeginn gilt nur seiner Stufe - mit dem einer anderen Stufe griffen punktListe
+    // und punktSchreiben hinter das Ende der Ecken und Mallisten (Absturz) oder schrieben an fremde Ecken
+    if (!netzPasst(in, stufe, s)) { return 0; }
     std::vector<char> getupft(uz(s.zahl()), 0);
     std::vector<int> folge;
     for (std::size_t t = 0; t < jeTeil.size() && t < s.punktVon.size(); ++t) {

@@ -261,8 +261,12 @@ struct SpiegelBefund {
 // zu keiner Seite. Jeder Punkt der Zielseite nimmt die Gewichte SEINES Partners (so bekommt jeder Punkt mit Gegenstueck
 // genau eine Zuweisung, auch wenn das Netz nicht genau spiegelgleich ist). Mit `wahl` nur Paare, von denen ein Punkt
 // gewaehlt ist ("Mirror Paste" der Auswahl). Rueckgabe: beschriebene Ecken.
+// FIX612B P2-1: mit `nurTeile` (je Teil != 0) wird nur in Ecken dieser Teile geschrieben - gelesen wird ueberall (Auto-Skin
+// "Nur Auswahl" mit "Spiegeln": die uebrigen Flaechen behalten ihre Gewichte).
+// FIX612B P2-3: `s` und `partner` muessen zur Stufe gehoeren (schweissen(in, stufe)); passt das Schweissnetz nicht zu den
+// Netzen der Stufe (es stammt von einer anderen), geschieht nichts - das gilt auch fuer spiegelnBlender und spiegelMalen.
 int spiegelnSeite(Inhalt& in, int stufe, const std::vector<std::string>& namen, const Schweissnetz& s, const std::vector<int>& partner, int quelle,
-                  float mitte, const EckenMaske* wahl = nullptr);
+                  float mitte, const EckenMaske* wahl = nullptr, const std::vector<char>* nurTeile = nullptr);
 
 // Wie Blender (object.vertex_group_mirror, vgroup_mirror / dvert_mirror_op): je Paar - sind beide gewaehlt (ohne Auswahl:
 // alle), tauschen sie; ist nur einer gewaehlt, bekommt er die Gewichte des anderen. gewichte: "Mirror Weights";

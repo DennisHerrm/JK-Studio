@@ -21,6 +21,8 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <iterator>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -90,6 +92,69 @@ int automatischeStufe(const modell::Inhalt& in) {
     l.abstand = -(vorn[0] * g_app->modelCam.pos[0] + vorn[1] * g_app->modelCam.pos[1] + vorn[2] * g_app->modelCam.pos[2]);
     l.projektion5 = 1.0F / std::tan(g_app->modelCam.fovY * 3.14159265F / 360.0F);
     return modell::lodWieImSpiel(l);
+}
+
+// FIX612B P2-9: die Auswahl von Ecken (ModellTab::eckenWahl) und die des Arbeitsnetzes (ModellMesh::auswahl) sind Nummern in
+// den Netzen EINER Stufe. Wechselt die gezeichnete Stufe (ab Werk automatisch nach dem Abstand der Kamera), gilt die Auswahl
+// der neuen Stufe: die der alten wird gemerkt und steht wieder da, wenn die Ansicht zu ihr zurueckkehrt - solange das
+// Modell dasselbe ist, die Netze dieser Stufe dieselbe Gestalt haben (Ecken, Kanten, Punkte je Flaeche: Gewichte malen aendert
+// sie nicht, Modellieren schon) und die Ebene der Auswahl dieselbe ist. Vorher blieben die Nummern stehen und meinten in der anderen
+// Stufe andere Ecken: G/R/S, Gizmo, "Setzen", Bereinigen, UV- und Modellier-Befehle aenderten die falschen.
+struct StufenWahl {
+    int ladeStand = -1;
+    std::vector<std::size_t> gestalt;   // netzGestalt der Stufe beim Merken
+    AuswahlArt art = AuswahlArt::Objekt;
+    std::vector<modell::EckOrt> ecken;
+    modell::wof::PAuswahl mesh;
+    std::vector<int> punktFolge;
+};
+// Ecken, Kanten (3 je Dreieck) und Punkte jeder Flaeche in der Stufe - die Nummern einer Auswahl gelten, solange das gleich ist
+std::vector<std::size_t> netzGestalt(const modell::Inhalt& in, int stufe) {
+    std::vector<std::size_t> g;
+    g.reserve(in.teile.size() * 3U);
+    for (const modell::Teil& teil : in.teile) {
+        const bool da = stufe >= 0 && static_cast<std::size_t>(stufe) < teil.stufen.size();
+        const modell::Netz* n = da ? &teil.stufen[static_cast<std::size_t>(stufe)] : nullptr;
+        g.push_back(n != nullptr ? n->ecken.size() : 0U);
+        g.push_back(n != nullptr ? n->kanten.size() : 0U);
+        g.push_back(n != nullptr ? static_cast<std::size_t>(n->punktZahl) : 0U);
+    }
+    return g;
+}
+
+std::map<int, StufenWahl>& stufenWahl() {
+    static std::map<int, StufenWahl> merk;
+    return merk;
+}
+
+void stufeGewechselt(int alt, int neu) {
+    ModellTab& t = mt();
+    std::map<int, StufenWahl>& merk = stufenWahl();
+    const modell::Inhalt& in = t.dok.inhalt();
+    for (auto it = merk.begin(); it != merk.end();) {   // was zu einem anderen Modell, einer anderen Gestalt oder Ebene gehoert
+        const StufenWahl& w = it->second;
+        it = (w.ladeStand != t.dok.ladeStand() || w.art != t.auswahlArt || w.gestalt != netzGestalt(in, it->first)) ? merk.erase(it) : std::next(it);
+    }
+    StufenWahl jetzt;
+    jetzt.ladeStand = t.dok.ladeStand();
+    jetzt.gestalt = netzGestalt(in, alt);
+    jetzt.art = t.auswahlArt;
+    jetzt.ecken = std::move(t.eckenWahl);
+    jetzt.mesh = std::move(t.mesh.auswahl);
+    jetzt.punktFolge = std::move(t.mesh.punktFolge);
+    t.eckenWahl.clear();
+    t.mesh.auswahl = modell::wof::PAuswahl{};
+    t.mesh.punktFolge.clear();
+    t.mesh.cutHatVon = false;   // ein begonnener Schnitt und ein Ziel-Verschweissen zeigen auf Punkte der alten Stufe
+    t.mesh.zielQuelle = -1;
+    const auto it = merk.find(neu);
+    if (it != merk.end()) {
+        t.eckenWahl = std::move(it->second.ecken);
+        t.mesh.auswahl = std::move(it->second.mesh);
+        t.mesh.punktFolge = std::move(it->second.punktFolge);
+        merk.erase(it);
+    }
+    if (!jetzt.ecken.empty() || !jetzt.mesh.leer()) { merk[alt] = std::move(jetzt); }
 }
 
 // Das Zielspiel nach dem aktiven Regelwerk (Vorgabe der Pruefung).
@@ -163,7 +228,13 @@ void modellAnzeigeAktualisieren() {
         modell::hautAnwenden(in, t.g2, modell::hautAusModell(in, g_app->model));
         t.hautAus = haut;
     }
-    const int lod = std::clamp(t.lodWahl > 0 ? t.lodWahl - 1 : automatischeStufe(in), 0, std::max(in.stufenZahl - 1, 0));
+    int lod = std::clamp(t.lodWahl > 0 ? t.lodWahl - 1 : automatischeStufe(in), 0, std::max(in.stufenZahl - 1, 0));
+    // FIX612B P2-3 / P2-9: solange ein Strich, ein Zug oder ein Kaestchen offen ist, bleibt die gezeichnete Stufe stehen (das
+    // Rad zoomt auch bei gedrueckter linker Taste, und "automatisch" folgt dem Abstand). Was offen ist, haelt Nummern der
+    // Stufe, in der es begann (Schweissnetz und Partner des Spiegelns, die Mallisten des Verlaufs, der Stand vom Anfassen,
+    // das Arbeitsnetz des Kaestchens); die neue Stufe gilt nach dem Loslassen.
+    const bool gleichesModell = !t.anzeigeSchluessel.empty() && t.anzeigeSchluessel.compare(0, g_app->modelPath.size() + 1U, g_app->modelPath + "|") == 0;
+    if (lod != t.lodJetzt && gleichesModell && t.lodJetzt >= 0 && t.lodJetzt < std::max(in.stufenZahl, 1) && modellStufeGehalten()) { lod = t.lodJetzt; }
     // "Kappen" (_off-Flaechen) der Leiste: G2_SetSurfaceOnOff(..., 0) fuer jede
     // Flaeche mit OFF in der Datei, die der Anwender nicht selbst geschaltet hat.
     const modell::G2Zustand z = g_app->showCaps ? modell::mitKappen(in, t.g2) : t.g2;
@@ -191,7 +262,9 @@ void modellAnzeigeAktualisieren() {
         if (g_app->model.surfaces[i].skinnedOff) { neu.surfaces[i].skinnedOff = true; }
     }
     t.anzeige = std::move(neu);
+    const int alteStufe = t.lodJetzt;
     t.lodJetzt = lod;
+    if (alteStufe != lod && gleichesModell) { stufeGewechselt(alteStufe, lod); }   // FIX612B P2-9
     t.anzeigeSchluessel = schluessel;
     ++t.neuGebaut;
     g_app->modelDirty = true;
@@ -502,7 +575,9 @@ void rolloutLod() {
     if (!ui::rolloutBeginn(tr(Str::MbRLod), {.kurzinfo = info, .reiter = modellReiter(MbReiter::Anzeige, MbReiterBl::Daten)})) { return; }
     // "Auto" wie im Spiel (G2_ComputeLOD) als Haken, darunter LOD 1-10 wie ModView (F1-F10 dort); nur die vorhandenen sind waehlbar.
     bool automatisch = t.lodWahl == 0;
-    if (ui::schalter(tr(Str::MbLodAuto), &automatisch, tr(Str::MbLodAutoHint))) { t.lodWahl = automatisch ? 0 : t.lodJetzt + 1; }
+    // FIX612B (Entscheidungen A14, A15): der Hinweis nennt, dass Malen, Gewichtsbefehle und Auswahl der gezeigten Stufe gelten
+    const std::string lodHinweis = std::string(tr(Str::MbLodAutoHint)) + " " + tr(Str::FxLodGilt);
+    if (ui::schalter(tr(Str::MbLodAuto), &automatisch, lodHinweis.c_str())) { t.lodWahl = automatisch ? 0 : t.lodJetzt + 1; }
     static const char* const kStufen[10] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
     // mit "Auto" ist keine Stufe gewaehlt (die gezeichnete steht in der Kurzinfo und in der Zeile darunter); ein Klick stellt sie fest.
     // AP5 P2: alle zehn waehlbar wie ModView und r_lodbias im Spiel - G2_ComputeLOD: "lodBias >= numLods -> numLods - 1"
