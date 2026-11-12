@@ -1763,18 +1763,10 @@ bool modellTupfer(int ansicht, ImVec2 maus, bool neuerStrich) {
         g_strichSchritt = t.dok.aendern(tr(Str::MbUndoMalen), [](modell::Inhalt&) {});   // FIX612B P2-10: Kennung fuer das Abbrechen
         t.malStrich = true;
         if (t.pinselSpiegeln) { modellGewichteSpiegelStand(); }   // AP8: Punkte und Partner mit der Toleranz des Felds
-    }
-    // AP8: die Bewegung des Pinsels seit dem letzten Tupfer (Verwischen); der erste Tupfer eines Strichs hat keine
-    gw.bewegung[0] = neuerStrich ? 0.0F : maus.x - t.letzterTupfer[0];
-    gw.bewegung[1] = neuerStrich ? 0.0F : maus.y - t.letzterTupfer[1];
-    t.letzterTupfer[0] = maus.x;
-    t.letzterTupfer[1] = maus.y;
-    if (zahl == 0) { return false; }
-    const int spiegelK = modell::spiegelKnochen(knochenNamen(), t.knochenWahl);
-    const int knochen = t.knochenWahl;
-    if (neuerStrich) {
         // MRESTE: wie Blender (km_weight_paint paint.weight_paint): Strg+Linksklick malt umgekehrt (mode INVERT: Hinzufuegen
         // <-> Abziehen), Umschalt+Linksklick glaettet (mode SMOOTH) - fuer den ganzen Strich. Wie 3ds Max: das gewaehlte Werkzeug.
+        // FIX612B P2-6: gesetzt beim Beginn des Strichs, auch wenn der erste Tupfer keine Ecke trifft - vorher stand das hinter
+        // der Rueckkehr bei 0 Ecken, und der Strich malte mit der Art des vorigen
         t.strichArt = t.pinselArt;
         const ImGuiIO& io = ImGui::GetIO();
         if (modellBlender() && io.KeyShift) {
@@ -1784,6 +1776,14 @@ bool modellTupfer(int ansicht, ImVec2 maus, bool neuerStrich) {
             t.strichArt = static_cast<int>(p == modell::PinselArt::Abziehen ? modell::PinselArt::Hinzufuegen : modell::PinselArt::Abziehen);
         }
     }
+    // AP8: die Bewegung des Pinsels seit dem letzten Tupfer (Verwischen); der erste Tupfer eines Strichs hat keine
+    gw.bewegung[0] = neuerStrich ? 0.0F : maus.x - t.letzterTupfer[0];
+    gw.bewegung[1] = neuerStrich ? 0.0F : maus.y - t.letzterTupfer[1];
+    t.letzterTupfer[0] = maus.x;
+    t.letzterTupfer[1] = maus.y;
+    if (zahl == 0) { return false; }
+    const int spiegelK = modell::spiegelKnochen(knochenNamen(), t.knochenWahl);
+    const int knochen = t.knochenWahl;
     const float wert = t.pinselGewicht;
     // AP8: Pinsel bzw. Verwischen mit den Regeln (Sperren, Auto-Normalisieren), danach das Spiegeln beim Malen
     t.dok.vorschau([&](modell::Inhalt& x) { modellGewichteTupferAnwenden(x, a, je, knochen, spiegelK, t.strichArt, wert); });
