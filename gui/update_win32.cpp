@@ -962,8 +962,12 @@ float zeichneLeiste() {
                                [] { installieren(); }, true});
             knoepfe.push_back(wasNeu);
             knoepfe.push_back(spaeterKnopf);
-            knoepfe.push_back({std::string(tr(Str::UpdBarSkip)) + "###updleiste_skip", mitText(Str::UpdBarSkipHint, neu), [tag] {
+            // FIX612 R7: die Version merken UND die Leiste ausblenden (G2C drawUpdateBanner: UpdSkip setzt skippedUpdate und
+            // updateBannerHidden_). Nach einer Suche von Hand zeigte die Leiste sonst auch die uebersprungene Version weiter -
+            // der Knopf schien nichts zu tun. Die naechste Suche von Hand zeigt sie wieder (pruefen leert leisteWegTag).
+            knoepfe.push_back({std::string(tr(Str::UpdBarSkip)) + "###updleiste_skip", mitText(Str::UpdBarSkipHint, neu), [tag, spaeter] {
                                    if (g_app != nullptr) { g_app->settings.updateUebersprungen = tag; }
+                                   spaeter();
                                }});
             break;
         case Stand::Laedt:
