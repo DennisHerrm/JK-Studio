@@ -115,7 +115,12 @@ void grenzeMelden(std::string meldung) {
 // --- Sperren wie Blender (object.vertex_group_lock, vgroup_lock_all) -----------------------------------------------------
 void sperrListeAnpassen() {
     ModellGewichte& g = gw();
-    if (g.gesperrt.size() != g_app->anim.bones.size()) { g.gesperrt.assign(g_app->anim.bones.size(), 0); }
+    // FIX612B P2-7: die Sperren gelten dem geladenen Modell - ein anderes (auch mit gleicher Knochenzahl) beginnt ohne. Vorher
+    // blieben sie stehen, wenn nur die Laenge gleich war.
+    static int geladen = -1;
+    const int stand = mt().dok.ladeStand();
+    if (g.gesperrt.size() != g_app->anim.bones.size() || stand != geladen) { g.gesperrt.assign(g_app->anim.bones.size(), 0); }
+    geladen = stand;
 }
 
 int gesperrteZahl() {
@@ -677,6 +682,7 @@ modell::MalRegeln modellGewichteRegeln() {
 }
 
 bool modellGewichtGesperrt(int knochen) {
+    sperrListeAnpassen();   // FIX612B P2-7: nach dem Laden eines anderen Modells schon beim ersten Tupfer
     const ModellGewichte& g = gw();
     return knochen >= 0 && uz(knochen) < g.gesperrt.size() && g.gesperrt[uz(knochen)] != 0;
 }
