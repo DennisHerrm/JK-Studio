@@ -129,24 +129,29 @@ X = {
         "celou sekvenci. Nabídka časové osy je členěná jako záhlaví časové osy v Blenderu: **{{MzMenuePlayback}}**, **{{MzKeying}}**, **{{MzMenueView}}**, **{{MzMenueMarker}}**."),
     "h_autokey": ("Auto Key and Set Key", "Auto Key und Set Key", "Auto Key 和 Set Key", "Auto Key と Set Key", "Auto Key y Set Key", "Auto Key a Set Key"),
     "autokey": (
-        "**{{MzAutoKey}}** (like Blender **{{MzAutoKeying}}**) is on from the start: every change at a control - the gizmo, G/R, the sliders of IK/FK and of the foot roll - sets a key at the current frame, as before. "
-        "Switched off, you pose first: the pose stays without a key, the line under the timeline says so, and **{{MzSetKey}}** (K, like Blender I) keeps it. If you change the frame or the sequence before that, the "
-        "pose is discarded - as in the Set Key mode of 3ds Max and in Blender without auto keying. Commands such as paste pose, bind pose and the hand poses always set their keys.",
-        "**{{MzAutoKey}}** (wie Blender **{{MzAutoKeying}}**) ist ab Werk an: jede Änderung an einem Griff - das Gizmo, G/R, die Regler von IK/FK und der Fußrolle - setzt einen Schlüssel am aktuellen Bild, wie "
-        "bisher. Ausgeschaltet stellt man erst die Pose: sie bleibt ohne Schlüssel, die Zeile unter der Zeitleiste sagt es, und **{{MzSetKey}}** (K, wie Blender I) behält sie. Wechselt man vorher das Bild oder die "
-        "Sequenz, wird die Pose verworfen - wie im Set-Key-Modus von 3ds Max und in Blender ohne Auto-Keying. Befehle wie Pose einfügen, Bindepose und die Handposen setzen ihre Schlüssel immer.",
-        "**{{MzAutoKey}}** (像 Blender 时为 **{{MzAutoKeying}}**) 默认开启: 对控制器的每次更改 - 变换控件、G/R、IK/FK 和脚部滚动的滑块 - 都会在当前帧设置关键帧, 与以前相同。关闭后先摆姿势: 姿势没有关键帧, "
-        "时间轴下方的行会提示, **{{MzSetKey}}** (K, 像 Blender 时为 I) 将其保留。如果在此之前更改帧或序列, 姿势会被丢弃 - 与 3ds Max 的 Set Key 模式以及未开启自动关键帧的 Blender 相同。粘贴姿势、绑定姿势和手部姿势"
-        "等命令始终设置关键帧。",
-        "**{{MzAutoKey}}** (Blender 風では **{{MzAutoKeying}}**) は最初からオンです: コントロールの変更 - ギズモ、G/R、IK/FK とフットロールのスライダー - はそのたびに現在のフレームにキーを設定します (従来どおり)。"
-        "オフにすると先にポーズを作ります: ポーズはキーなしのまま、タイムライン下の行がそれを示し、**{{MzSetKey}}** (K、Blender 風では I) で保持します。その前にフレームやシーケンスを変えるとポーズは破棄されます - "
-        "3ds Max の Set Key モードや自動キー挿入なしの Blender と同じです。ポーズの貼り付け、バインドポーズ、手のポーズなどのコマンドは常にキーを設定します。",
-        "**{{MzAutoKey}}** (como Blender **{{MzAutoKeying}}**) viene activado: cada cambio en un control - el gizmo, G/R, los reguladores de IK/FK y del balanceo del pie - fija una clave en el fotograma actual, como "
-        "hasta ahora. Desactivado, primero se hace la pose: queda sin clave, la línea bajo la línea de tiempo lo indica y **{{MzSetKey}}** (K, como Blender I) la conserva. Si antes cambias de fotograma o de "
-        "secuencia, la pose se descarta, como en el modo Set Key de 3ds Max y en Blender sin claves automáticas. Órdenes como pegar pose, pose de enlace y las poses de mano siempre fijan sus claves.",
-        "**{{MzAutoKey}}** (jako Blender **{{MzAutoKeying}}**) je od začátku zapnutý: každá změna ovladače - gizmo, G/R, posuvníky IK/FK a odvalu chodidla - nastaví klíč na aktuálním snímku jako dosud. Vypnutý "
-        "znamená nejdřív pózu: zůstane bez klíče, řádek pod časovou osou to říká a **{{MzSetKey}}** (K, jako Blender I) ji zachová. Změníte-li předtím snímek nebo sekvenci, póza se zahodí - jako v režimu Set Key "
-        "ve 3ds Max a v Blenderu bez automatického klíčování. Příkazy jako vložit pózu, vazební póza a pózy rukou své klíče nastavují vždy."),
+        "**{{MzAutoKey}}** (like Blender **{{MzAutoKeying}}**) is off from the start, as in 3ds Max and Blender: you pose first - the pose stays without a key, the line under the timeline says so, and "
+        "**{{MzSetKey}}** (K, like Blender I) keeps it. If you change the frame or the sequence before that, the pose is discarded - as in the Set Key mode of 3ds Max and in Blender without auto keying. "
+        "Switched on (the button, N like 3ds Max, the record button like Blender), every change at a control - the gizmo, G/R, the sliders of IK/FK and of the foot roll - sets a key at the current frame. "
+        "The program remembers your choice for the next start. Commands such as paste pose, bind pose and the hand poses always set their keys.",
+        "**{{MzAutoKey}}** (wie Blender **{{MzAutoKeying}}**) ist ab Werk aus, wie in 3ds Max und Blender: man stellt erst die Pose - sie bleibt ohne Schlüssel, die Zeile unter der Zeitleiste sagt es, und "
+        "**{{MzSetKey}}** (K, wie Blender I) behält sie. Wechselt man vorher das Bild oder die Sequenz, wird die Pose verworfen - wie im Set-Key-Modus von 3ds Max und in Blender ohne Auto-Keying. "
+        "Eingeschaltet (der Knopf, N wie 3ds Max, der Aufnahme-Knopf wie Blender) setzt jede Änderung an einem Griff - das Gizmo, G/R, die Regler von IK/FK und der Fußrolle - einen Schlüssel am aktuellen Bild. "
+        "Das Programm merkt sich die Wahl für den nächsten Start. Befehle wie Pose einfügen, Bindepose und die Handposen setzen ihre Schlüssel immer.",
+        "**{{MzAutoKey}}** (像 Blender 时为 **{{MzAutoKeying}}**) 默认关闭, 与 3ds Max 和 Blender 相同: 先摆姿势 - 姿势没有关键帧, 时间轴下方的行会提示, **{{MzSetKey}}** (K, 像 Blender 时为 I) 将其保留。"
+        "如果在此之前更改帧或序列, 姿势会被丢弃 - 与 3ds Max 的 Set Key 模式以及未开启自动关键帧的 Blender 相同。开启后 (按钮、像 3ds Max 时按 N、像 Blender 时为录制按钮), 对控制器的每次更改 - 变换控件、G/R、"
+        "IK/FK 和脚部滚动的滑块 - 都会在当前帧设置关键帧。程序会为下次启动记住此选择。粘贴姿势、绑定姿势和手部姿势等命令始终设置关键帧。",
+        "**{{MzAutoKey}}** (Blender 風では **{{MzAutoKeying}}**) は 3ds Max や Blender と同じく最初はオフです: 先にポーズを作ります - ポーズはキーなしのまま、タイムライン下の行がそれを示し、"
+        "**{{MzSetKey}}** (K、Blender 風では I) で保持します。その前にフレームやシーケンスを変えるとポーズは破棄されます - 3ds Max の Set Key モードや自動キー挿入なしの Blender と同じです。"
+        "オンにすると (ボタン、3ds Max 風では N、Blender 風では録画ボタン)、コントロールの変更 - ギズモ、G/R、IK/FK とフットロールのスライダー - はそのたびに現在のフレームにキーを設定します。"
+        "選択は次回の起動のために記憶されます。ポーズの貼り付け、バインドポーズ、手のポーズなどのコマンドは常にキーを設定します。",
+        "**{{MzAutoKey}}** (como Blender **{{MzAutoKeying}}**) viene desactivado, como en 3ds Max y Blender: primero se hace la pose - queda sin clave, la línea bajo la línea de tiempo lo indica y "
+        "**{{MzSetKey}}** (K, como Blender I) la conserva. Si antes cambias de fotograma o de secuencia, la pose se descarta, como en el modo Set Key de 3ds Max y en Blender sin claves automáticas. "
+        "Activado (el botón, N como 3ds Max, el botón de grabación como Blender), cada cambio en un control - el gizmo, G/R, los reguladores de IK/FK y del balanceo del pie - fija una clave en el fotograma actual. "
+        "El programa recuerda tu elección para el próximo inicio. Órdenes como pegar pose, pose de enlace y las poses de mano siempre fijan sus claves.",
+        "**{{MzAutoKey}}** (jako Blender **{{MzAutoKeying}}**) je od začátku vypnutý jako ve 3ds Max a v Blenderu: nejdřív se dělá póza - zůstane bez klíče, řádek pod časovou osou to říká a "
+        "**{{MzSetKey}}** (K, jako Blender I) ji zachová. Změníte-li předtím snímek nebo sekvenci, póza se zahodí - jako v režimu Set Key ve 3ds Max a v Blenderu bez automatického klíčování. "
+        "Zapnutý (tlačítko, N jako 3ds Max, nahrávací tlačítko jako Blender) nastaví každá změna ovladače - gizmo, G/R, posuvníky IK/FK a odvalu chodidla - klíč na aktuálním snímku. "
+        "Program si volbu zapamatuje pro příští spuštění. Příkazy jako vložit pózu, vazební póza a pózy rukou své klíče nastavují vždy."),
     "h_zeitkonfig": ("Time configuration", "Zeitkonfiguration", "时间配置", "時間設定", "Configuración de tiempo", "Nastavení času"),
     "zeitkonfig": (
         "The **{{MzZeitKonfig}}** shows the frame rate, switches the time display between **{{MzFrames}}** and **{{MzSekunden}}** (scale and playhead), holds the speed, **{{MzSchleife}}**, **{{MbInterpolation}}** and "
