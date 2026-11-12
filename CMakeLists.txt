@@ -2204,3 +2204,13 @@ if(TARGET behaved)
     message(STATUS "Karten-Editor: kein dxc - ohne Raytracing-Schatten (DXR)")
   endif()
 endif()
+
+# KLEIN (rc612): src/modell/rig_vorlagen.inc ist genau das, was tools/modell/rig_vorlagen_gen.py erzeugt. Bis rc612 standen zwei
+# Vorlagen (Unreal Mannequin, 100STYLE) nur in der erzeugten Datei - der naechste Lauf des Generators haette sie geloescht.
+if(BEHAVED_TESTS)
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME rig_vorlagen_aktuell
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/modell/rig_vorlagen_gen.py --pruefen)
+  endif()
+endif()
