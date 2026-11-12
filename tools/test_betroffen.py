@@ -39,6 +39,7 @@ SELBSTTEST = (
     ("ap9", "modell"),
     ("ap7", "modell"),
     ("ap6", "modell"),
+    ("ap8", "modell"),
     ("numpad", "karteneditor"),
     ("uiform", "programm"),
     ("gdpfad", "programm"),   # GDPFAD: das Programm ohne den eingerichteten Spielordner (Lauf spielordnerfehlt)

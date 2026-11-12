@@ -40,10 +40,10 @@ std::string nurAuswahlText() {
 }
 
 // Die Bedienelemente der Gruppe (Entwurf W7: drei Verfahren, Aufloesung, Steifigkeit, Glaetten, Naehte schliessen, Drehknochen
-// nutzen, Danach spiegeln, Hauptknopf; dazu Gesicht/Anhaenge und nur die Auswahl). Die Regler tragen ihre Beschriftung
-// links daneben und heissen selbst nur ##as...
+// nutzen, Danach spiegeln, Hauptknopf; dazu Gesicht/Anhaenge und nur die Auswahl). AP8: die Gruppe zeichnet ueber den
+// Rollout-Baustein - die Regler melden sich mit ihrer Beschriftung (bis dahin ##asaufloesung, ##assteifigkeit, ##asglaetten).
 std::vector<std::string> bedienelemente() {
-    return {tr(Str::AsVerfUebertragen), tr(Str::AsVerfVoxel), tr(Str::AsVerfHuelle), "##asaufloesung", "##assteifigkeit", "##asglaetten",
+    return {tr(Str::AsVerfUebertragen), tr(Str::AsVerfVoxel), tr(Str::AsVerfHuelle), tr(Str::AsAufloesung), tr(Str::AsSteifigkeit), tr(Str::AsGlaetten),
             tr(Str::AsNaehte),          tr(Str::AsDreh),      tr(Str::AsDetail),     tr(Str::AsSpiegeln), nurAuswahlText(),  tr(Str::AsAusfuehren)};
 }
 

@@ -429,7 +429,13 @@ void gewichtSchritte(std::vector<Schritt>& s) {
         }
         return h;
     };
-    add(tu("MR Blender Weights: Gewichte vor den Strichen merken", [anfang] { *anfang = gewichtsListe(); }));
+    // Die Striche pruefen die Rechnung des Pinsels wie rc611, ohne Auto-Normalisieren (seit AP8 ab Werk an, geprueft in
+    // selbsttest_ap8.inc W4): mit Auto-Normalisieren zieht rhand die bemalten Ecken des Kopfs in der Pose aus dem Pinsel
+    // (gemessen: head_face Ecke 21 lag beim Strich mit Umschalt 54,8 Bildpunkte von der Mitte, Radius 40).
+    add(tu("MR Blender Weights: Gewichte vor den Strichen merken, ohne Auto-Normalisieren", [anfang] {
+        *anfang = gewichtsListe();
+        modellGewichte().autoNormalisieren = false;
+    }));
     const auto strich = [&](const char* name, ImGuiKey mod) {
         add(tu(std::string("MR Blender Weights: vor dem Strich ") + name, [summe] {
             g_app->mtab.pinselGewicht = 1.0F;
@@ -463,6 +469,7 @@ void gewichtSchritte(std::vector<Schritt>& s) {
     }));
     // Umschalt+X: das Gewicht unter der Maus wird das des Pinsels
     add(tu("MR Blender Weights: Pinselgewicht 0,123, Maus in die Mitte", [] {
+        modellGewichte().autoNormalisieren = true;
         g_app->mtab.pinselGewicht = 0.123F;
         setzeMaus(ansichtMitte());
         g_app->mtab.fokus = true;

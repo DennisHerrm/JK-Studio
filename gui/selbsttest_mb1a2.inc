@@ -308,6 +308,8 @@ std::vector<Schritt> mb2Schritte() {
     // Abziehen, Setzen, Glaetten, mehr als 4, Uebernehmen
     add(tu("MB2 Weights: Bereich Weights, Setzen 0.5 auf die Ecke", [rhand, ecke, ort] {
         g_app->mtab.bereich = ModellBereich::Weights;
+        // die Rechnung des Pinsels wie rc611: ohne Auto-Normalisieren (seit AP8 ab Werk an, geprueft in selbsttest_ap8.inc W4)
+        modellGewichte().autoNormalisieren = false;
         g_app->mtab.knochenWahl = *rhand;
         g_app->mtab.pinselArt = static_cast<int>(modell::PinselArt::Setzen);
         g_app->mtab.pinselGewicht = 0.5F;
@@ -625,6 +627,7 @@ std::vector<Schritt> mb2Schritte() {
         g_app->modelDirty = true;
     }));
     add(tu("MB2: zurueck", [] {
+        modellGewichte().autoNormalisieren = true;
         g_app->mtab.bereich = ModellBereich::Ansehen;
         g_app->leftMode = 1;
         g_app->doc.markSaved();

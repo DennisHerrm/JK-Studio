@@ -538,9 +538,10 @@ void uvSchritte(std::vector<Schritt>& s) {
         }));
         add(klick(tr(Str::A7NahtDick), "mtrollouts"));
         add(pause(0.3));
-        add(pruefe(zeile("U6", modus, "Pruefen: Naehte dick zeichnet die Naehte im UV-Editor mit mindestens doppelter Strichstaerke"), [] {
-            melde("U6 Naehte dick: " + std::to_string(modellUvNahtDicke()) + " Bildpunkte bei Schrift " + std::to_string(em()));
-            return modellUvFeld().nahtDick && modellUvNahtDicke() >= 4.0F;
+        add(pruefe(zeile("U6", modus, "Pruefen: Naehte dick zeichnet die Naehte im UV-Editor und in der 3D-Ansicht mit mindestens doppelter Strichstaerke"), [] {
+            melde("U6 Naehte dick: " + std::to_string(modellUvNahtDicke()) + " Bildpunkte bei Schrift " + std::to_string(em()) + ", 3D-Ansicht " +
+                  std::to_string(g_app->mtab.uv.nahtStriche3d) + " Striche mit " + std::to_string(g_app->mtab.uv.nahtDicke3d));
+            return modellUvFeld().nahtDick && modellUvNahtDicke() >= 4.0F && g_app->mtab.uv.nahtStriche3d > 0 && g_app->mtab.uv.nahtDicke3d == modellUvNahtDicke();
         }));
         add(klick(tr(Str::A7NahtDick), "mtrollouts"));
         add(pause(0.2));
@@ -548,7 +549,7 @@ void uvSchritte(std::vector<Schritt>& s) {
         add(pause(0.3));
         add(pruefe(zeile("U6", modus, "Pruefen: der Schalter Schachbrett legt das Schachbrett unter die UV (wie der Knopf im UV-Editor)"), [] {
             const Element* e = imRoll(tr(Str::UvSchachbrett));
-            return !modellUvFeld().nahtDick && modellUvNahtDicke() == 2.0F && g_app->mtab.uv.hintergrund == 1 && e != nullptr && (e->flags & ImGuiItemStatusFlags_Checked) != 0;
+            return !modellUvFeld().nahtDick && modellUvNahtDicke() == 2.0F && g_app->mtab.uv.nahtDicke3d == 2.0F && g_app->mtab.uv.hintergrund == 1 && e != nullptr && (e->flags & ImGuiItemStatusFlags_Checked) != 0;
         }));
         add(klick(tr(Str::UvSchachbrett), "mtrollouts"));
         add(pause(0.2));
