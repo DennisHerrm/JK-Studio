@@ -74,7 +74,7 @@ struct BauLaufZeiten {
 //   "BehavEd: light cache: a of b lightmaps and ... taken from the cache, grid ...; m MB written" (alle Durchgaenge)
 struct BauLichtCache {
     enum class Zustand { Unbekannt, Gefunden, Aus };
-    enum class Grund { Keiner, KeinCache, AltesFormat, Beschaedigt, Schalter, Welt };
+    enum class Grund { Keiner, KeinCache, AltesFormat, Beschaedigt, Schalter, Welt, Rechenweg };   // Rechenweg: lcfix B4
     Zustand zustand = Zustand::Unbekannt;
     Grund grund = Grund::Keiner;
     bool nachInhalt = false; // lcb2: Geometrie geaendert, die Lightmaps werden ueber ihren Inhalt zugeordnet
@@ -113,7 +113,7 @@ bool bauLichtCacheZeile(const std::string& zeile, BauLichtCache& c);
 // beginnt nach "resumed" bei x %.
 struct BauVisStand {
     enum class Zustand { Unbekannt, NichtGenutzt, Fortgesetzt, Angehalten };
-    enum class Grund { Keiner, KeinStand, Beschaedigt, Schalter, Portale };
+    enum class Grund { Keiner, KeinStand, Beschaedigt, Schalter, Portale, Fassung };   // Fassung: lcfix B5
     Zustand zustand = Zustand::Unbekannt;
     Grund grund = Grund::Keiner;
     int fertig = 0;          // Portale aus dem Zwischenstand bzw. beim Anhalten gesichert (-1: nicht gesichert)

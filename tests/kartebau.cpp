@@ -284,6 +284,11 @@ void fortschrittPruefen(const std::string& q3) {
         const bool z7 = bauLichtCacheZeile("BehavEd: light cache not usable: older cache format (made by rc611, this is rc612) - everything is traced", f) &&
                         f.zustand == BauLichtCache::Zustand::Aus && f.grund == BauLichtCache::Grund::AltesFormat;
         pruefe(z1 && z2 && z3 && z4 && z5 && z5b && z6 && z7, "lcb1: Zeilen des Licht-Caches gelesen (gefunden, Durchgang, Flaechen, Summe, Gruende)");
+        // lcfix (B4): ein Cache von einem anderen Rechenweg (Grafikkarte ohne double gegen Prozessor) - eigener Grund, nicht "beschaedigt"
+        BauLichtCache w;
+        pruefe(bauLichtCacheZeile("BehavEd: light cache not usable: other computing path (cache: GPU without double, this build: exact) - everything is traced", w) &&
+                   w.zustand == BauLichtCache::Zustand::Aus && w.grund == BauLichtCache::Grund::Rechenweg,
+               "lcfix B4: Licht-Cache von einem anderen Rechenweg - eigener Grund");
 
         // der letzte Bau: voll, ohne Cache (Gitter 10 s, Licht 100 s, Radiosity 10 s, Bounce-Licht 100 s)
         const std::string bef = q + "-light -fast -bounce 1 -bhedlightcache \"C:/m/a.map\"";
@@ -417,6 +422,11 @@ void fortschrittPruefen(const std::string& q3) {
         const bool halt = bauVisStandZeile("BehavEd: vis paused, -1 of 2084 portals done, state saved in C:/m/a.bhedvisstate", v) &&
                           v.zustand == BauVisStand::Zustand::Angehalten && v.fertig == -1 && v.alle == 2084;
         pruefe(keine && exakt && nicht && fort && halt, "vis2c: Zeilen des VIS-Zwischenstands (Regel, nicht genutzt mit Grund, fortgesetzt, angehalten)");
+        // lcfix (B5): ein Zwischenstand einer anderen Programmversion - eigener Grund, nicht "die Datei ist beschaedigt"
+        BauVisStand f;
+        pruefe(bauVisStandZeile("BehavEd: vis state not used (state of another version): C:/m/a.bhedvisstate", f) &&
+                   f.zustand == BauVisStand::Zustand::NichtGenutzt && f.grund == BauVisStand::Grund::Fassung,
+               "lcfix B5: VIS-Zwischenstand einer anderen Programmversion - eigener Grund");
         // erster Bau, fortgesetzt bei 32,5 %: nach 10 s steht der Pacifier bei 21/40 = 52,5 % - gerechnet sind 20 %, es fehlen 47,5 %
         BauSchrittBeobachter b;
         b.text("--- PassagePortalFlow (2084) ---\nBehavEd: vis resumed from C:/m/a.bhedvisstate: 1200 of 2084 portals done (32.5 % of the work)\n"

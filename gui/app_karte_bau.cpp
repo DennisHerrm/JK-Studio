@@ -2309,6 +2309,7 @@ std::string bauVisStandText(const BauFortschrittStand& st, bool* warnung) {
     if (v.zustand == karte::BauVisStand::Zustand::NichtGenutzt && v.grund != karte::BauVisStand::Grund::KeinStand) {
         const Str g = v.grund == karte::BauVisStand::Grund::Schalter   ? Str::KeBpGrundSchalter
                       : v.grund == karte::BauVisStand::Grund::Portale ? Str::KeBpGrundPortale
+                      : v.grund == karte::BauVisStand::Grund::Fassung ? Str::KeBpGrundFassung   // lcfix B5
                                                                       : Str::KeBpGrundDefekt;
         std::snprintf(z, sizeof(z), trK(Str::KeBpVisNicht), trK(g));
         if (warnung != nullptr) { *warnung = true; }
@@ -2338,6 +2339,9 @@ std::string bauLichtCacheText(const BauFortschrittStand& st, bool* warnung) {
             break;
         case karte::BauLichtCache::Grund::Welt:
             g = Str::KeLcGrundWelt;
+            break;
+        case karte::BauLichtCache::Grund::Rechenweg:   // lcfix B4
+            g = Str::KeLcGrundWeg;
             break;
         case karte::BauLichtCache::Grund::Keiner:
         case karte::BauLichtCache::Grund::Beschaedigt:

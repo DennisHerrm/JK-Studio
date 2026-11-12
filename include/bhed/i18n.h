@@ -6628,6 +6628,8 @@ enum class Str {
     KdTippMax,
     KdTippBl,
     KdOrt,
+    KeLcGrundWeg,
+    KeBpGrundFassung,
     Count,
 };
 

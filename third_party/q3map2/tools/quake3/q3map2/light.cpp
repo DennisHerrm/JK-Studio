@@ -3571,6 +3571,8 @@ int LightMain( Args& args ){
 			Sys_Printf( "BehavEd GPU bake: no usable GPU - the CPU computes everything\n" );
 		}
 	}
+	/* BehavEd lcfix (B4): the light cache, once the computing path is known (GPU without double: other bytes) */
+	BhedLichtCacheOeffnen( g_bhedBakeAn && !BhedBakeDoppelt() );
 
 	/* light the world */
 	LightWorld( fastAllocate, bounceStore );

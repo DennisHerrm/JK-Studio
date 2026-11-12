@@ -183,6 +183,7 @@ bool bauLichtCacheZeile(const std::string& zeile, BauLichtCache& c) {
                   : g.rfind("older cache format", 0) == 0  ? BauLichtCache::Grund::AltesFormat
                   : g.rfind("light switches", 0) == 0      ? BauLichtCache::Grund::Schalter
                   : g.rfind("worldspawn keys", 0) == 0     ? BauLichtCache::Grund::Welt
+                  : g.rfind("other computing path", 0) == 0 ? BauLichtCache::Grund::Rechenweg   // lcfix B4
                                                           : BauLichtCache::Grund::Beschaedigt;
     }
     return true;
@@ -206,6 +207,7 @@ bool bauVisStandZeile(const std::string& zeile, BauVisStand& v) {
         v.grund = g.rfind("no state", 0) == 0              ? BauVisStand::Grund::KeinStand
                   : g.rfind("other vis switches", 0) == 0  ? BauVisStand::Grund::Schalter
                   : g.rfind("other portals", 0) == 0       ? BauVisStand::Grund::Portale
+                  : g.rfind("state of another version", 0) == 0 ? BauVisStand::Grund::Fassung   // lcfix B5
                                                            : BauVisStand::Grund::Beschaedigt;
         return true;
     }

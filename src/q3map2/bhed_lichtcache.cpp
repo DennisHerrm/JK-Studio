@@ -719,9 +719,29 @@ void altVergessen(){
 
 /* 3: one section per pass (lcb1), 4: by content, 5: packed (lcb2), 6: the hash keeps the last byte of a 7 byte tail (lcfix P4-2),
    7: vertex lit surfaces and the grid with the whole trace tree, the patch subdivisions in the switches (lcfix P4-1),
-   8: the version of the compiler after the mark (lcfix P4-3) */
-constexpr char kKopf[8] = { 'B', 'H', 'L', 'I', 'C', 'H', 'T', '8' };
+   8: the version of the compiler after the mark (lcfix P4-3), 9: the computing path after the version (lcfix B4) */
+constexpr char kKopf[8] = { 'B', 'H', 'L', 'I', 'C', 'H', 'T', '9' };
 constexpr std::size_t kFassungLaenge = 32;   // the version, padded with zeros
+constexpr std::size_t kWegLaenge = 32;       // the computing path, padded with zeros
+
+/* lcfix (B4, shank 12.11.): a GPU without double computes the light with float approximations - not byte for byte the
+   processor's (NOTIZEN_karte8g.md). A cache is valid only for the computing path that made it: "exact" (the processor,
+   or a GPU with double: the same bytes) or "GPU without double" */
+std::array<char, kWegLaenge> wegFeld( bool gpuOhneDouble ){
+	std::array<char, kWegLaenge> f{};
+	const char* v = gpuOhneDouble ? "GPU without double" : "exact";
+	for ( std::size_t i = 0; i + 1 < kWegLaenge && v[i] != '\0'; ++i )
+		f[i] = v[i];
+	return f;
+}
+
+std::array<char, kFassungLaenge> druckbar( std::array<char, kFassungLaenge> f ){   // a field of the old header for a message
+	f[kFassungLaenge - 1] = '\0';
+	for ( char& c : f )
+		if ( c != '\0' && ( c < ' ' || c > '~' ) )
+			c = '?';
+	return f;
+}
 
 /* lcfix (P4-3): a cache of another version of bhed_q3map2 is not used - a later version may light differently (a fix
    too) and the mark only tells changes of the format */
@@ -854,6 +874,12 @@ void BhedLichtCacheGeometrie(){
 		}
 	}
 	g_geo = h.ende();
+}
+
+/* lcfix (B4): the old cache is read and the new one begun once the computing path is known (after the GPU choice) */
+void BhedLichtCacheOeffnen( bool gpuOhneDouble ){
+	if ( !g_an )
+		return;
 	// the old cache: its header and where its passes are (each is loaded when its pass begins)
 	char pfad[1024];
 	strcpy( pfad, g_bspName.c_str() );
@@ -870,6 +896,7 @@ void BhedLichtCacheGeometrie(){
 	if ( g_altDatei != nullptr ) {
 		char kopf[8] = {};
 		std::array<char, kFassungLaenge> fassung{};
+		std::array<char, kWegLaenge> weg{};
 		Sig opt, welt, geo;
 		if ( fread( kopf, 1, 8, g_altDatei ) != 8 || memcmp( kopf, kKopf, 8 ) != 0 ) {
 			grund = "older cache format";
@@ -878,11 +905,15 @@ void BhedLichtCacheGeometrie(){
 			grund = "cache file damaged";
 		}
 		else if ( fassung != fassungFeld() ) {
-			fassung[kFassungLaenge - 1] = '\0';
-			for ( char& c : fassung )   // printable only (a damaged file)
-				if ( c != '\0' && ( c < ' ' || c > '~' ) )
-					c = '?';
-			snprintf( grundText, sizeof( grundText ), "older cache format (made by %s, this is %s)", fassung.data(), fassungFeld().data() );
+			snprintf( grundText, sizeof( grundText ), "older cache format (made by %s, this is %s)", druckbar( fassung ).data(), fassungFeld().data() );
+			grund = grundText;
+		}
+		else if ( fread( weg.data(), 1, kWegLaenge, g_altDatei ) != kWegLaenge ) {
+			grund = "cache file damaged";
+		}
+		else if ( weg != wegFeld( gpuOhneDouble ) ) {
+			snprintf( grundText, sizeof( grundText ), "other computing path (cache: %s, this build: %s)", druckbar( weg ).data(),
+			          wegFeld( gpuOhneDouble ).data() );
 			grund = grundText;
 		}
 		else if ( fread( &opt, sizeof( opt ), 1, g_altDatei ) != 1 || fread( &welt, sizeof( welt ), 1, g_altDatei ) != 1 ||
@@ -936,6 +967,7 @@ void BhedLichtCacheGeometrie(){
 	if ( g_neu != nullptr ) {
 		fwrite( kKopf, 1, 8, g_neu );
 		fwrite( fassungFeld().data(), 1, kFassungLaenge, g_neu );
+		fwrite( wegFeld( gpuOhneDouble ).data(), 1, kWegLaenge, g_neu );
 		fwrite( &g_opt, sizeof( g_opt ), 1, g_neu );
 		fwrite( &g_welt, sizeof( g_welt ), 1, g_neu );
 		fwrite( &g_geo, sizeof( g_geo ), 1, g_neu );

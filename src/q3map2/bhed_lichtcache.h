@@ -143,8 +143,11 @@ void BhedSpurHashesAnlegen( BhedSig ( *flaeche )( int surfaceNum ), BhedSig ( *s
 // LightMain: the switch was given; args = the light switches (argsToInject) and the map
 void BhedLichtCacheSchalter( bool an, const std::vector<const char*>& args, const char* bspName );
 [[nodiscard]] bool BhedLichtCacheAn();
-// LightMain after LoadBSPFile, ParseEntities, LoadMapFile, SetEntityOrigins: keys, read the old cache's passes
+// LightMain after LoadBSPFile, ParseEntities, LoadMapFile, SetEntityOrigins: the keys of the traced input
 void BhedLichtCacheGeometrie();
+// lcfix (B4): LightMain before LightWorld, once the GPU choice is made: read the old cache's header and passes (a cache is
+// valid only for the computing path that made it: GPU without double, or exact), begin the new cache
+void BhedLichtCacheOeffnen( bool gpuOhneDouble );
 // a hash for the callers' own inputs (the grid origins)
 [[nodiscard]] std::uint64_t BhedLichtCacheHash( const void* daten, std::size_t n, std::uint64_t start );
 // LightWorld: pass b begins (0 = the first, b = bounce b) - loads the cached pass b

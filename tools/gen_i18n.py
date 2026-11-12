@@ -2370,6 +2370,8 @@ from i18n_ap13s import zeilen_vier as _ap13s  # noqa: E402  (AP13S: Modifier-Sta
 S += _ap13s()
 from i18n_ap13k import zeilen_vier as _ap13k  # noqa: E402  (AP13K: Knochen-Darstellung, Rig-Stile, Durchsicht)
 S += _ap13k()
+from i18n_lcfix import zeilen_vier as _lcfix  # noqa: E402  (LCFIX: Gruende Rechenweg des Licht-Caches, VIS-Zwischenstand anderer Fassung)
+S += _lcfix()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

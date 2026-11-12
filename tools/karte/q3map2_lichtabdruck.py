@@ -28,6 +28,12 @@ Faelle (BHED_LICHTABDRUCK_NUR=<name>[,<name>...] waehlt aus):
   Fund P4-3 (die Fassung des Compilers stand in keinem Schluessel):
     fassung       derselbe Bau mit anderer Fassung (BHED_Q3_FASSUNG): der Cache wird mit Meldung verworfen
     altformat     ein Cache mit der Kennung des alten Formats: mit Meldung verworfen, kein Absturz
+  Entscheidung B3 (shank 12.11.): "q3map_alphashadow" (53 JKA-Shader, aus Ravens q3map) wirkt wie "surfaceparm alphashadow":
+    q3mapalpha    wie alpha, der Shader schreibt q3map_alphashadow
+  Entscheidung B4 (shank 12.11.): ein Cache gilt nur fuer den Rechenweg, der ihn erzeugt hat (Grafikkarte ohne double
+  rechnet mit float-Naeherungen, NOTIZEN_karte8g.md). Beide Faelle brauchen eine Grafikkarte; ohne werden sie uebersprungen:
+    gpuweg        erster Bau -bhedgpubake ohne double (BHED_GPUBAKE_OHNE_DOUBLE), Teilbau auf dem Prozessor: verworfen
+    gpudouble     erster Bau -bhedgpubake mit double (gleiche Bytes), Teilbau auf dem Prozessor: alles aus dem Cache
 Nur die Standardbibliothek.
 """
 import os
@@ -180,10 +186,11 @@ def cachezeilen(ausgabe):
 
 
 def fall(kurz, was, alt, neu, wirksam=(10,), s_alt=None, s_neu=None, davor=None, danach=None, env_neu=None, vor_alt=(), vor_neu=(),
-         cache_aendern=None, erwartet=None):
+         cache_aendern=None, erwartet=None, env_alt=None, nur_wenn=None):
     """alt/neu: Kartentext; davor/danach(spiel): Spieldaten vor dem ersten Bau bzw. vor Teilbau und vollem Bau;
     wirksam: Lumps, in denen sich der volle Bau der geaenderten Karte vom ersten Bau unterscheiden muss;
-    erwartet(ausgabe des Teilbaus) -> (ok, text): eine zusaetzliche Pruefung der Meldungen."""
+    erwartet(ausgabe des Teilbaus) -> (ok, text): eine zusaetzliche Pruefung der Meldungen;
+    nur_wenn(ausgabe des ersten Baus) -> Grund zum Ueberspringen oder None (z. B. keine Grafikkarte)."""
     if NUR and kurz not in NUR:
         return
     s_alt = s_alt or LICHT
@@ -198,7 +205,12 @@ def fall(kurz, was, alt, neu, wirksam=(10,), s_alt=None, s_neu=None, davor=None,
     grunddaten(spiel)
     if davor:
         davor(spiel)
-    a0 = bauen(erst, spiel, alt, s_alt, True, vorlauf=vor_alt)
+    a0 = bauen(erst, spiel, alt, s_alt, True, env=env_alt, vorlauf=vor_alt)
+    if nur_wenn and nur_wenn(a0):
+        with open(os.path.join(ARBEIT, kurz + '_ausgabe0.txt'), 'w', encoding='utf-8', errors='replace') as f:
+            f.write(a0)
+        print('SKIP  %s (%s): %s' % (kurz, was, nur_wenn(a0)))
+        return
     cache = os.path.exists(os.path.join(erst, NAME + '.bhedlight'))
     shutil.copytree(erst, teil)
     if cache_aendern:
@@ -249,6 +261,15 @@ def alpha_davor(spiel):
 
 karte = raum(welt=quader(*WERFER, 'test/gitter', True))
 fall('alpha', 'Alphakanal der alphashadow-Textur 255 -> 0', karte, karte, wirksam=(10, 15), davor=alpha_davor,
+     danach=lambda spiel: tga(os.path.join(spiel, 'base', 'textures', 'test', 'gitter.tga'), (200, 200, 200, 0)))
+
+
+def q3mapalpha_davor(spiel):   # B3: wie die JKA-Shader (z. B. textures/kejim/grate02_broke in imperial.shader)
+    schreibe(os.path.join(spiel, 'base', 'shaders', 'test_gitter.shader'), GITTER_SHADER.replace('surfaceparm alphashadow', 'q3map_alphashadow'))
+    tga(os.path.join(spiel, 'base', 'textures', 'test', 'gitter.tga'), (200, 200, 200, 255))
+
+
+fall('q3mapalpha', 'Alphakanal einer Textur mit q3map_alphashadow 255 -> 0', karte, karte, wirksam=(10, 15), davor=q3mapalpha_davor,
      danach=lambda spiel: tga(os.path.join(spiel, 'base', 'textures', 'test', 'gitter.tga'), (200, 200, 200, 0)))
 
 
@@ -362,6 +383,33 @@ karte = raum(welt=quader(*WERFER, 'test/wand', True))
 fall('fassung', 'derselbe Bau mit einer anderen Fassung des Compilers', karte, karte, wirksam=(), env_neu={'BHED_Q3_FASSUNG': 'lcfix-andere-fassung'},
      erwartet=verworfen)
 fall('altformat', 'Cache mit der Kennung BHLICHT5 (rc611)', karte, karte, wirksam=(), cache_aendern=altes_format, erwartet=verworfen)
+
+# --- Entscheidung B4 ---------------------------------------------------------------------------------------------------
+GPU = ['-bhedgpubake', '-bhedgpubakecheck', '0']
+
+
+def ohne_gpu(ausgabe):
+    if 'BehavEd GPU bake: ' not in ausgabe or 'no usable GPU' in ausgabe or 'the CPU computes everything' in ausgabe:
+        return 'keine nutzbare Grafikkarte'
+    return None
+
+
+def mit_double(ausgabe):
+    return ohne_gpu(ausgabe) or (None if 'double precision' in ausgabe and 'no double precision' not in ausgabe else 'Grafikkarte ohne double')
+
+
+def anderer_weg(ausgabe):
+    kopf, _ = cachezeilen(ausgabe)
+    z = aus_cache(ausgabe)
+    return (kopf.startswith('light cache not usable: other computing path') and z is not None and z[0] == 0 and z[2] == 0 and z[4] == 'traced',
+            'der Cache des anderen Rechenwegs wird mit Meldung verworfen ("%s", %s)' % (kopf, z))
+
+
+karte = raum(welt=quader(*WERFER, 'test/wand', True))
+fall('gpuweg', 'erster Bau auf der Grafikkarte ohne double, Teilbau auf dem Prozessor', karte, karte, wirksam=(), s_alt=LICHT + GPU, s_neu=LICHT,
+     env_alt={'BHED_GPUBAKE_OHNE_DOUBLE': '1'}, nur_wenn=ohne_gpu, erwartet=anderer_weg)
+fall('gpudouble', 'erster Bau auf der Grafikkarte mit double, Teilbau auf dem Prozessor', karte, karte, wirksam=(), s_alt=LICHT + GPU, s_neu=LICHT,
+     nur_wenn=mit_double, erwartet=alles_aus_cache)
 
 print('q3map2_lichtabdruck: %d Fehlschlaege' % fehler)
 sys.exit(1 if fehler else 0)
