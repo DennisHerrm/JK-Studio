@@ -96,12 +96,6 @@ const char* knochenName(int k) {
     return k >= 0 && static_cast<std::size_t>(k) < g_app->anim.bones.size() ? g_app->anim.bones[static_cast<std::size_t>(k)].name.c_str() : "-";
 }
 
-// Der naechste Knopf daneben, wenn er Platz hat, sonst darunter (nichts abschneiden, auch nicht in langen Sprachen)
-void daneben(Str naechster) {
-    const float b = ImGui::CalcTextSize(tr(naechster)).x + ImGui::GetStyle().FramePadding.x * 2.0F;
-    ImGui::SameLine();
-    if (ImGui::GetContentRegionAvail().x < b) { ImGui::NewLine(); }
-}
 
 int gewaehlterKnochen() {
     const ModellTab& t = mt();
@@ -291,152 +285,124 @@ void modellPhysikUeberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     }
 }
 
-// --- Rollout ---------------------------------------------------------------------------------------------------------
+// --- Gruppe Auto-Physik (AP10: ueber den Baustein gui/ui_rollout.h; mehr als der Entwurf zeigt, ab Werk zugeklappt) ----------
 
 void drawModellPhysikBereich() {
     ModellTab& t = mt();
     if (!modellRigDa()) { return; }
     modellPhysikAktualisieren();
     if (t.physikOeffnen) {
-        ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+        modellFeldReiter(MbReiter::Bewegung, MbReiterBl::Knochen);
+        ui::rolloutZeigen(tr(Str::PhRollout));   // aufklappen und ins Bild rollen (Menue, Rechtsklick, Suche)
         t.physikOeffnen = false;
     }
-    const bool offen = ImGui::CollapsingHeader(tr(Str::PhRollout));
-    ImGui::SetItemTooltip("%s", tr(Str::PhRolloutHint));
-    if (!offen) { return; }
+    if (!ui::rolloutBeginn(tr(Str::PhRollout), {.zu = true, .hinweis = tr(Str::PhRolloutHint)})) { return; }
     t.physikRolloutBild = ImGui::GetFrameCount();
     const modell::PhysikEinstellung* ep = modellPhysikEinstellung();
     const modell::PhysikEinstellung e = ep != nullptr ? *ep : modell::PhysikEinstellung{};
+    ui::rasterBeginn(2);
     bool an = e.an;
-    if (ImGui::Checkbox(tr(Str::PhAn), &an)) { (void)modellPhysikAn(an); }
-    ImGui::SetItemTooltip("%s", tr(Str::PhAnHint));
+    if (ui::schalter(tr(Str::PhAn), &an, tr(Str::PhAnHint))) { (void)modellPhysikAn(an); }
     bool zeigen = t.physikZeigen;
-    if (ImGui::Checkbox(tr(Str::PhZeigen), &zeigen)) {
+    if (ui::schalter(tr(Str::PhZeigen), &zeigen, tr(Str::PhZeigenHint))) {
         t.physikZeigen = zeigen;
         g_app->modelDirty = true;
     }
-    ImGui::SetItemTooltip("%s", tr(Str::PhZeigenHint));
+    ui::rasterEnde();
     if (!t.physikMassen.gueltig()) {
-        ImGui::PushTextWrapPos(0.0F);
-        cjkTextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram), "%s", format(Str::PhFehler, modellFehlerText(t.physikMassen.fehler).c_str()).c_str());
-        ImGui::PopTextWrapPos();
+        ui::absatz(format(Str::PhFehler, modellFehlerText(t.physikMassen.fehler).c_str()).c_str(), ui::Ton::Warnung);
+        ui::rolloutEnde();
         return;
     }
     ImGui::BeginDisabled(!e.an);
     float staerke = e.staerke;
-    ImGui::SetNextItemWidth(-ImGui::CalcTextSize(tr(Str::PhStaerke)).x - ImGui::GetStyle().ItemInnerSpacing.x);
-    if (ImGui::SliderFloat(tr(Str::PhStaerke), &staerke, 0.0F, 1.0F, "%.2f")) {
+    if (ui::regler(tr(Str::PhStaerke), &staerke, 0.0F, 1.0F, "%.2f", tr(Str::PhStaerkeHint))) {
         (void)einstellen(tr(Str::PhUndoEinstellung), [&](modell::PhysikEinstellung& x) { x.staerke = staerke; }, true);
     }
     if (ImGui::IsItemDeactivated()) { t.physikZug = false; }
-    ImGui::SetItemTooltip("%s", tr(Str::PhStaerkeHint));
     const auto schalter = [&](Str text, Str hinweis, bool wert, const std::function<void(modell::PhysikEinstellung&, bool)>& setzen) {
         bool v = wert;
-        if (ImGui::Checkbox(tr(text), &v)) { (void)einstellen(tr(Str::PhUndoEinstellung), [&](modell::PhysikEinstellung& x) { setzen(x, v); }); }
-        ImGui::SetItemTooltip("%s", tr(hinweis));
+        if (ui::schalter(tr(text), &v, tr(hinweis))) { (void)einstellen(tr(Str::PhUndoEinstellung), [&](modell::PhysikEinstellung& x) { setzen(x, v); }); }
     };
     schalter(Str::PhSprung, Str::PhSprungHint, e.sprung, [](modell::PhysikEinstellung& x, bool v) { x.sprung = v; });
     schalter(Str::PhKontakte, Str::PhKontakteHint, e.kontakte, [](modell::PhysikEinstellung& x, bool v) { x.kontakte = v; });
     // Flug
-    ImGui::PushTextWrapPos(0.0F);
     if (t.physik.fluege.empty()) {
-        cjkTextDisabled("%s", tr(Str::PhKeinFlug));
+        ui::absatz(tr(Str::PhKeinFlug));
     } else {
         // Bilder wie die Zeitleiste des Model-Tabs: ab dem ersten der Sequenz gezaehlt
         for (const auto& [a, l] : t.physik.fluege) {
-            cjkTextUnformatted((format(Str::PhFlug, a - t.physik.erstes + abEins(), l - t.physik.erstes + abEins()) + " (" + tr(e.absprung >= 0 ? Str::PhFlugHand : Str::PhFlugAuto) +
-                                    ")").c_str());
+            ui::absatz((format(Str::PhFlug, a - t.physik.erstes + abEins(), l - t.physik.erstes + abEins()) + " (" + tr(e.absprung >= 0 ? Str::PhFlugHand : Str::PhFlugAuto) + ")").c_str(),
+                       ui::Ton::Normal);
         }
     }
-    ImGui::PopTextWrapPos();
-    if (ImGui::SmallButton(tr(Str::PhAbsprungHier))) { (void)modellPhysikFlugHier(false); }
-    ImGui::SetItemTooltip("%s", tr(Str::PhAbsprungHint));
-    daneben(Str::PhLandungHier);
-    if (ImGui::SmallButton(tr(Str::PhLandungHier))) { (void)modellPhysikFlugHier(true); }
-    ImGui::SetItemTooltip("%s", tr(Str::PhLandungHint));
-    daneben(Str::PhFlugAutomatisch);
-    ImGui::BeginDisabled(e.absprung < 0);
-    if (ImGui::SmallButton(tr(Str::PhFlugAutomatisch))) { (void)modellPhysikFlugAutomatisch(); }
-    ImGui::SetItemTooltip("%s", tr(Str::PhFlugAutomatischHint));
-    ImGui::EndDisabled();
-    const float breit = ImGui::GetFontSize() * 5.0F;
-    float g = e.schwerkraft;
-    ImGui::SetNextItemWidth(breit);
-    if (ImGui::DragFloat(tr(Str::PhSchwerkraft), &g, 5.0F, 0.0F, 4000.0F, "%.0f")) {
-        (void)einstellen(tr(Str::PhUndoEinstellung), [&](modell::PhysikEinstellung& x) { x.schwerkraft = g; }, true);
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(tr(Str::PhAbsprungHier), {.icon = UiIcon::Hinfliegen, .hinweis = tr(Str::PhAbsprungHint)})) { (void)modellPhysikFlugHier(false); }
+    if (ui::werkzeugKnopf(tr(Str::PhLandungHier), {.icon = UiIcon::Boden, .hinweis = tr(Str::PhLandungHint)})) { (void)modellPhysikFlugHier(true); }
+    if (ui::werkzeugKnopf(tr(Str::PhFlugAutomatisch), {.icon = UiIcon::Neuladen, .hinweis = tr(Str::PhFlugAutomatischHint), .aktiv = e.absprung >= 0})) {
+        (void)modellPhysikFlugAutomatisch();
+    }
+    ui::rasterEnde();
+    float schwerkraft = e.schwerkraft;
+    ui::zeile(tr(Str::PhSchwerkraft), tr(Str::PhSchwerkraftHint));
+    if (ImGui::DragFloat("##phschwerkraft", &schwerkraft, 5.0F, 0.0F, 4000.0F, "%.0f")) {
+        (void)einstellen(tr(Str::PhUndoEinstellung), [&](modell::PhysikEinstellung& x) { x.schwerkraft = schwerkraft; }, true);
     }
     if (ImGui::IsItemDeactivated()) { t.physikZug = false; }
     ImGui::SetItemTooltip("%s", tr(Str::PhSchwerkraftHint));
-    float k = e.kontaktAbstand;
-    ImGui::SetNextItemWidth(breit);
-    if (ImGui::DragFloat(tr(Str::PhKontaktAbstand), &k, 0.1F, 0.0F, 32.0F, "%.1f")) {
-        (void)einstellen(tr(Str::PhUndoEinstellung), [&](modell::PhysikEinstellung& x) { x.kontaktAbstand = k; }, true);
+    float kontakt = e.kontaktAbstand;
+    ui::zeile(tr(Str::PhKontaktAbstand), tr(Str::PhKontaktAbstandHint));
+    if (ImGui::DragFloat("##phkontakt", &kontakt, 0.1F, 0.0F, 32.0F, "%.1f")) {
+        (void)einstellen(tr(Str::PhUndoEinstellung), [&](modell::PhysikEinstellung& x) { x.kontaktAbstand = kontakt; }, true);
     }
     if (ImGui::IsItemDeactivated()) { t.physikZug = false; }
     ImGui::SetItemTooltip("%s", tr(Str::PhKontaktAbstandHint));
     // Federketten
-    ImGui::Separator();
     schalter(Str::PhFedern, Str::PhFedernHint, e.federn, [](modell::PhysikEinstellung& x, bool v) { x.federn = v; });
-    if (ImGui::SmallButton(tr(Str::PhKetteHier))) { (void)modellPhysikKetteHier(); }
-    ImGui::SetItemTooltip("%s", tr(Str::PhKetteHierHint));
-    daneben(Str::PhKettenVorschlag);
-    if (ImGui::SmallButton(tr(Str::PhKettenVorschlag))) { (void)modellPhysikKettenVorschlag(); }
-    ImGui::SetItemTooltip("%s", tr(Str::PhKettenVorschlagHint));
-    if (e.ketten.empty()) {
-        ImGui::PushTextWrapPos(0.0F);
-        cjkTextDisabled("%s", tr(Str::PhKeineKette));
-        ImGui::PopTextWrapPos();
-    }
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(tr(Str::PhKetteHier), {.icon = UiIcon::Plus, .hinweis = tr(Str::PhKetteHierHint)})) { (void)modellPhysikKetteHier(); }
+    if (ui::werkzeugKnopf(tr(Str::PhKettenVorschlag), {.icon = UiIcon::Erzeugen, .hinweis = tr(Str::PhKettenVorschlagHint)})) { (void)modellPhysikKettenVorschlag(); }
+    ui::rasterEnde();
+    if (e.ketten.empty()) { ui::absatz(tr(Str::PhKeineKette)); }
     for (std::size_t i = 0; i < e.ketten.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
         const modell::PhysikKette c = e.ketten[i];
-        ImGui::AlignTextToFramePadding();
-        cjkTextUnformatted(knochenName(c.knochen));
-        ImGui::SameLine();
-        if (ImGui::SmallButton("x")) {
+        if (ui::eintrag(knochenName(c.knochen), tr(Str::PhKetteEntfernen))) {
             (void)einstellen(tr(Str::PhUndoKette), [&](modell::PhysikEinstellung& x) {
                 if (i < x.ketten.size()) { x.ketten.erase(x.ketten.begin() + static_cast<std::ptrdiff_t>(i)); }
             });
         }
-        ImGui::SetItemTooltip("%s", tr(Str::PhKetteEntfernen));
         float f = c.frequenz;
         float d = c.daempfung;
-        ImGui::SetNextItemWidth(breit);
-        if (ImGui::SliderFloat(tr(Str::PhFrequenz), &f, 0.2F, 10.0F, "%.1f Hz")) {
+        if (ui::regler(tr(Str::PhFrequenz), &f, 0.2F, 10.0F, "%.1f Hz", tr(Str::PhFrequenzHint))) {
             (void)einstellen(tr(Str::PhUndoKette), [&](modell::PhysikEinstellung& x) {
                 if (i < x.ketten.size()) { x.ketten[i].frequenz = f; }
             }, true);
         }
         if (ImGui::IsItemDeactivated()) { t.physikZug = false; }
-        ImGui::SetItemTooltip("%s", tr(Str::PhFrequenzHint));
-        ImGui::SetNextItemWidth(breit);
-        if (ImGui::SliderFloat(tr(Str::PhDaempfung), &d, 0.0F, 1.0F, "%.2f")) {
+        if (ui::regler(tr(Str::PhDaempfung), &d, 0.0F, 1.0F, "%.2f", tr(Str::PhDaempfungHint))) {
             (void)einstellen(tr(Str::PhUndoKette), [&](modell::PhysikEinstellung& x) {
                 if (i < x.ketten.size()) { x.ketten[i].daempfung = d; }
             }, true);
         }
         if (ImGui::IsItemDeactivated()) { t.physikZug = false; }
-        ImGui::SetItemTooltip("%s", tr(Str::PhDaempfungHint));
         ImGui::PopID();
     }
     ImGui::EndDisabled();
     // Befund
-    ImGui::Separator();
-    ImGui::PushTextWrapPos(0.0F);
     if (t.physik.warnungen > 0) {
         float weit = 0.0F;
         for (const modell::PhysikBild& pb : t.physik.bilder) { weit = std::max(weit, pb.abstand); }
-        cjkTextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s",
-                           format(Str::PhWarnung, t.physik.warnBild - t.physik.erstes + abEins(), t.physik.warnungen, static_cast<double>(weit)).c_str());
+        ui::absatz(format(Str::PhWarnung, t.physik.warnBild - t.physik.erstes + abEins(), t.physik.warnungen, static_cast<double>(weit)).c_str(), ui::Ton::Fehler);
     } else if (std::any_of(t.physik.bilder.begin(), t.physik.bilder.end(), [](const modell::PhysikBild& pb) { return pb.imStand; })) {
-        cjkTextDisabled("%s", tr(Str::PhImStand));
+        ui::absatz(tr(Str::PhImStand));
     }
     if (e.an && !t.physik.fluege.empty() && e.sprung) {
-        cjkTextDisabled("%s", format(Str::PhErgebnis, static_cast<double>(t.physik.parabelAbw), static_cast<double>(t.physik.drehimpulsVorher * 100.0F),
-                                         static_cast<double>(t.physik.drehimpulsNachher * 100.0F))
-                                      .c_str());
+        ui::absatz(format(Str::PhErgebnis, static_cast<double>(t.physik.parabelAbw), static_cast<double>(t.physik.drehimpulsVorher * 100.0F),
+                          static_cast<double>(t.physik.drehimpulsNachher * 100.0F))
+                       .c_str());
     }
-    ImGui::PopTextWrapPos();
+    ui::rolloutEnde();
 }
 
 }  // namespace bhed::gui

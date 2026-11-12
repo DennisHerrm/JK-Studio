@@ -708,154 +708,179 @@ void modellSequenzZiehen(int anim) {
     }
 }
 
-void drawModellAnimationBereich() {
+// --- Befehlsfeld (AP10: ueber den Baustein gui/ui_rollout.h) ---------------------------------------------------------------
+
+// Entwurf A1: "Animation" - die Sequenz, an der gearbeitet wird, die Ziel-GLA und ihre Plaetze (belegt / alle) als Tabelle.
+// Die ausfuehrliche Platzliste steht weiter unten in "Ziel-GLA und Plaetze".
+void modellAnimGruppeAnimation() {
     ModellTab& t = mt();
     cfgAbgleich();
     plaetzeAnpassen();
-    const float fs = ImGui::GetFontSize();
-    const ImVec4 warn = ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram);
+    const AnimEntry* e = g_app->animIndex >= 0 && static_cast<std::size_t>(g_app->animIndex) < g_app->animList.size() ? &g_app->animList[static_cast<std::size_t>(g_app->animIndex)]
+                                                                                                                      : nullptr;
+    if (!ui::rolloutBeginn(tr(Str::AzRAnimation), {.kurzinfo = e != nullptr ? e->name.c_str() : nullptr})) { return; }
+    int belegt = 0;
+    for (const modell::Platz& p : t.plaetze) { belegt += p.belegt ? 1 : 0; }
+    char plaetze[48];
+    std::snprintf(plaetze, sizeof plaetze, "%d / %d", belegt, static_cast<int>(t.plaetze.size()));
+    // eine volle Karten-GLA nimmt nichts mehr auf; die eigene GLA waechst mit jeder Sequenz
+    const bool voll = t.glaZiel == 0 && !t.plaetze.empty() && belegt == static_cast<int>(t.plaetze.size());
+    ui::wertTabelle({{tr(Str::AzName), e != nullptr ? e->name : std::string(tr(Str::AzKeineSequenz)), e != nullptr ? ui::Ton::Normal : ui::Ton::Leise, {}},
+                     {tr(Str::AzZielGla), fileName(zielKopf()), ui::Ton::Normal, zielKopf() + ".gla"},
+                     {tr(Str::AzPlaetze), plaetze, voll ? ui::Ton::Warnung : ui::Ton::Normal, tr(Str::AzPlaetzeHint)}});
+    ui::rolloutEnde();
+}
+
+// Entwurf A9: "Fuer das Spiel bauen" - der Wurzelweg der Sequenz, der Hauptknopf (baut die Ziel-GLA mit ihrer animation.cfg) und
+// der Hinweis auf SET_ORIGIN (Stufenplan: das Spiel verschiebt den Ursprung nicht mit der Wurzel).
+void modellAnimGruppeBauen() {
+    if (!ui::rolloutBeginn(tr(Str::AzRBauen), {.reiter = modellReiter(MbReiter::Dienste, MbReiterBl::Objekt)})) { return; }
+    float weg = 0.0F;
+    const bool da = modellAnimWurzelweg(weg);
+    ui::wertTabelle({{tr(Str::AzWurzelweg), da ? format(Str::AzEinheiten, static_cast<double>(weg)) : std::string("-"), da ? ui::Ton::Normal : ui::Ton::Leise, tr(Str::AzWurzelwegHint)},
+                     {tr(Str::AzZielGla), fileName(zielKopf()), ui::Ton::Normal, zielKopf() + ".gla"}});
+    if (ui::werkzeugKnopf(tr(Str::MbKgBauen), {.icon = UiIcon::Paket, .hinweis = tr(Str::MbKgBauenHint), .haupt = true, .aktiv = !g_app->anim.empty()})) { modellKartenGlaBauenFrage(); }
+    ui::tipp(tr(Str::AzBauenTipp));
+    ui::rolloutEnde();
+}
+
+namespace {
+
+void gruppeGla() {
     const GlaAnimation& a = g_app->anim;
-    if (ImGui::CollapsingHeader(tr(Str::MbRGla), ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::PushTextWrapPos(0.0F);
-        cjkTextDisabled("%s", format(Str::MbGlaInfo, a.skeletonName.empty() ? "-" : a.skeletonName.c_str(), a.numFrames,
-                                         static_cast<int>(a.bones.size()), static_cast<int>(a.bonePool.size() / 14U))
-                                      .c_str());
-        ImGui::PopTextWrapPos();
-        ImGui::BeginDisabled(a.empty());
-        if (ImGui::Button(tr(Str::MbGlaSpeichern))) { modellGlaSpeichernFrage(); }
-        ImGui::EndDisabled();
-        ImGui::SetItemTooltip("%s", tr(Str::MbGlaSpeichernHint));
+    if (!ui::rolloutBeginn(tr(Str::MbRGla), {.reiter = modellReiter(MbReiter::Dienste, MbReiterBl::Daten)})) { return; }
+    ui::absatz(format(Str::MbGlaInfo, a.skeletonName.empty() ? "-" : a.skeletonName.c_str(), a.numFrames, static_cast<int>(a.bones.size()), static_cast<int>(a.bonePool.size() / 14U)).c_str());
+    if (ui::werkzeugKnopf(tr(Str::MbGlaSpeichern), {.icon = UiIcon::SpeichernUnter, .hinweis = tr(Str::MbGlaSpeichernHint), .aktiv = !a.empty()})) { modellGlaSpeichernFrage(); }
+    ui::rolloutEnde();
+}
+
+void gruppeCfg() {
+    ModellTab& t = mt();
+    const GlaAnimation& a = g_app->anim;
+    if (!ui::rolloutBeginn(tr(Str::MbRCfg), {.reiter = modellReiter(MbReiter::Dienste, MbReiterBl::Daten)})) { return; }
+    const modell::Inhalt& in = t.dok.inhalt();
+    if (in.cfgPfad.empty()) {
+        ui::absatz(tr(Str::MbCfgKeine));
+    } else {
+        const std::string text = modell::animCfgSchreiben(in.cfg);
+        const std::vector<AnimEntry> e = in.cfg.eintraege();
+        ui::absatz(format(Str::MbCfgInfo, in.cfgPfad.c_str(), static_cast<int>(e.size()), static_cast<int>(text.size())).c_str());
+        const std::vector<modell::CfgBefund> b = modell::cfgPruefen(e, a.numFrames, text.size(), zielspiel());
+        t.cfgBefunde = static_cast<int>(b.size());
+        if (b.empty()) { ui::absatz(format(Str::MbCfgOk, modell::grenzen(zielspiel()).name).c_str(), ui::Ton::Gut); }
+        for (std::size_t i = 0; i < b.size() && i < 40U; ++i) { ui::absatz(cfgBefundText(b[i]).c_str(), ui::Ton::Warnung); }
+        if (b.size() > 40U) { ui::absatz(("... " + std::to_string(b.size() - 40U)).c_str()); }
     }
-    if (ImGui::CollapsingHeader(tr(Str::MbRCfg), ImGuiTreeNodeFlags_DefaultOpen)) {
-        const modell::Inhalt& in = t.dok.inhalt();
-        ImGui::PushTextWrapPos(0.0F);
-        if (in.cfgPfad.empty()) {
-            cjkTextDisabled("%s", tr(Str::MbCfgKeine));
-        } else {
-            const std::string text = modell::animCfgSchreiben(in.cfg);
-            const std::vector<AnimEntry> e = in.cfg.eintraege();
-            cjkTextDisabled("%s", format(Str::MbCfgInfo, in.cfgPfad.c_str(), static_cast<int>(e.size()), static_cast<int>(text.size())).c_str());
-            const std::vector<modell::CfgBefund> b = modell::cfgPruefen(e, a.numFrames, text.size(), zielspiel());
-            t.cfgBefunde = static_cast<int>(b.size());
-            if (b.empty()) { cjkTextDisabled(tr(Str::MbCfgOk), modell::grenzen(zielspiel()).name); }
-            for (std::size_t i = 0; i < b.size() && i < 40U; ++i) { cjkTextColored(warn, "%s", cfgBefundText(b[i]).c_str()); }
-            if (b.size() > 40U) { cjkTextDisabled("... %d", static_cast<int>(b.size() - 40U)); }
+    if (ui::werkzeugKnopf(tr(Str::MbCfgSpeichern), {.icon = UiIcon::SpeichernUnter, .hinweis = tr(Str::MbCfgSpeichernHint), .aktiv = !in.cfgPfad.empty()})) { modellCfgSpeichernFrage(); }
+    ui::rolloutEnde();
+}
+
+void gruppePlaetze() {
+    ModellTab& t = mt();
+    const float fs = ImGui::GetFontSize();
+    int belegt = 0;
+    for (const modell::Platz& p : t.plaetze) { belegt += p.belegt ? 1 : 0; }
+    char info[48];
+    std::snprintf(info, sizeof info, "%d / %d", belegt, static_cast<int>(t.plaetze.size()));
+    if (!ui::rolloutBeginn(tr(Str::MbRKartenGla), {.kurzinfo = t.plaetze.empty() ? nullptr : info, .reiter = modellReiter(MbReiter::Dienste, MbReiterBl::Daten)})) { return; }
+    // Nachtrag shank 06.11.: das Ziel erst beim Bauen waehlen, jederzeit wechselbar - ein klares Feld mit Erklaerung.
+    static const Str kZiele[3] = {Str::MbZielKarte, Str::MbZielHumanoid, Str::MbZielEigen};
+    static const Str kZielHinweise[3] = {Str::MbZielKarteHint, Str::MbZielHumanoidHint, Str::MbZielEigenHint};
+    ui::zeile(tr(Str::MbZiel));
+    if (ImGui::BeginCombo("##glaziel", tr(kZiele[t.glaZiel]))) {
+        for (int z = 0; z < 3; ++z) {
+            if (ImGui::Selectable(tr(kZiele[z]), z == t.glaZiel)) { modellGlaZielSetzen(z); }
+            ImGui::SetItemTooltip("%s", tr(kZielHinweise[z]));
         }
-        ImGui::PopTextWrapPos();
-        ImGui::BeginDisabled(in.cfgPfad.empty());
-        if (ImGui::Button(tr(Str::MbCfgSpeichern))) { modellCfgSpeichernFrage(); }
-        ImGui::EndDisabled();
-        ImGui::SetItemTooltip("%s", tr(Str::MbCfgSpeichernHint));
+        ImGui::EndCombo();
     }
-    if (ImGui::CollapsingHeader(tr(Str::MbRKartenGla), ImGuiTreeNodeFlags_DefaultOpen)) {
-        // Nachtrag shank 06.11.: das Ziel erst beim Bauen waehlen, jederzeit wechselbar - ein klares Feld mit Erklaerung.
-        static const Str kZiele[3] = {Str::MbZielKarte, Str::MbZielHumanoid, Str::MbZielEigen};
-        static const Str kZielHinweise[3] = {Str::MbZielKarteHint, Str::MbZielHumanoidHint, Str::MbZielEigenHint};
-        // AP3: Formularzeilen des Bausteins - eine Beschriftungsspalte, alle Felder an derselben Kante (UIFORM: hier stand das
-        // Fehlerbild von "Into script": Beschriftung, SameLine ohne feste Spalte, Feld bis zum Rand)
-        ui::zeile(tr(Str::MbZiel));
-        if (ImGui::BeginCombo("##glaziel", tr(kZiele[t.glaZiel]))) {
-            for (int z = 0; z < 3; ++z) {
-                if (ImGui::Selectable(tr(kZiele[z]), z == t.glaZiel)) { modellGlaZielSetzen(z); }
-                ImGui::SetItemTooltip("%s", tr(kZielHinweise[z]));
-            }
-            ImGui::EndCombo();
-        }
-        ImGui::SetItemTooltip("%s", tr(kZielHinweise[t.glaZiel]));
-        ImGui::PushTextWrapPos(0.0F);
-        cjkTextDisabled("%s", tr(kZielHinweise[t.glaZiel]));
-        ImGui::PopTextWrapPos();
-        if (t.glaZiel == 0) {
-            ui::zeile(tr(Str::MbKgKarte));
-            ImGui::InputText("##kgkarte", t.kgKarte, sizeof t.kgKarte);
-            ImGui::SetItemTooltip("%s", tr(Str::MbKgKarteHint));
-        }
-        if (t.glaZiel == 2) {
-            ui::zeile(tr(Str::MbZielEigenName));
-            ImGui::InputText("##kgeigen", t.eigenName, sizeof t.eigenName);
-            ImGui::SetItemTooltip("%s", tr(Str::MbZielEigenHint));
-        }
-        ImGui::PushTextWrapPos(0.0F);
-        cjkTextDisabled("%s", format(Str::MbKgPfad, zielKopf().c_str()).c_str());
-        if (t.plaetze.empty() && t.glaZiel == 0) {
-            cjkTextColored(warn, "%s", format(Str::MbKgKeinePlaetze, modell::grenzen(zielspiel()).name).c_str());
-            ImGui::PopTextWrapPos();
-            return;
-        }
-        int belegt = 0;
-        for (const modell::Platz& p : t.plaetze) { belegt += p.belegt ? 1 : 0; }
-        cjkTextDisabled("%s", format(Str::MbKgPlaetze, static_cast<int>(t.plaetze.size()), belegt, static_cast<int>(t.plaetze.size()) - belegt).c_str());
-        cjkTextDisabled("%s", tr(Str::MbKgZiehen));
-        ImGui::PopTextWrapPos();
-        // Die Knoepfe nebeneinander, solange sie passen (es: "Crear para el juego..." ragte ueber den Rand, Handbuchfoto mb3_hb4_es).
-        const auto daneben = [](const char* text) {
-            const float b = ImGui::CalcTextSize(text).x + ImGui::GetStyle().FramePadding.x * 2.0F;
-            ImGui::SameLine();
-            if (ImGui::GetContentRegionAvail().x < b) { ImGui::NewLine(); }
-        };
-        bool erster = true;
-        if (t.glaZiel == 0) {
-            if (ImGui::Button(tr(Str::MbKgVorhanden))) { (void)modellVorhandeneKartenGla(); }
-            ImGui::SetItemTooltip("%s", tr(Str::MbKgVorhandenHint));
-            erster = false;
-        }
-        if (!erster) { daneben(tr(Str::MbKgBauen)); }
-        if (ImGui::Button(tr(Str::MbKgBauen))) { modellKartenGlaBauenFrage(); }
-        ImGui::SetItemTooltip("%s", tr(Str::MbKgBauenHint));
-        daneben(tr(Str::MbXsiAufnehmen));
-        if (ImGui::Button(tr(Str::MbXsiAufnehmen))) { modellXsiAufnehmenFrage(); }
-        ImGui::SetItemTooltip("%s", tr(Str::MbXsiAufnehmenHint));
-        ImGui::BeginChild("##kgplaetze", ImVec2{-1.0F, fs * 14.0F}, ImGuiChildFlags_Borders | ImGuiChildFlags_ResizeY);
-        ImGuiListClipper clip;
-        clip.Begin(static_cast<int>(t.plaetze.size()));
-        while (clip.Step()) {
-            for (int i = clip.DisplayStart; i < clip.DisplayEnd; ++i) {
-                modell::Platz& p = t.plaetze[static_cast<std::size_t>(i)];
-                ImGui::PushID(i);
-                std::string zeile = p.name + "   ";
-                zeile += p.belegt ? p.quelle.sequenz.name + "  (" +
-                                        format(Str::MbKgQuelle, fileName(p.quelle.glaName).c_str(), p.quelle.sequenz.firstFrame,
-                                               p.quelle.sequenz.firstFrame + p.quelle.sequenz.numFrames - 1) +
-                                        ")"
-                                  : std::string(tr(Str::MbKgFrei));
-                if (!p.belegt) { ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled)); }
-                ImGui::Selectable((zeile + "###platz").c_str(), t.platzWahl == i);
-                if (!p.belegt) { ImGui::PopStyleColor(); }
-                if (ImGui::IsItemClicked()) { t.platzWahl = i; }
-                ImGui::SetItemTooltip("%s", tr(Str::MbKgZiehen));
-                if (ImGui::BeginDragDropTarget()) {
-                    if (const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("MB_SEQ"); pl != nullptr && pl->DataSize == sizeof(int)) {
-                        int anim = 0;
-                        std::memcpy(&anim, pl->Data, sizeof anim);
-                        (void)modellPlatzSetzen(i, anim);
-                    }
-                    ImGui::EndDragDropTarget();
-                }
-                if (ImGui::BeginPopupContextItem("##platzkontext")) {
-                    if (ImGui::MenuItem(tr(Str::MbKgHierher), nullptr, false, g_app->animIndex >= 0)) { (void)modellPlatzSetzen(i, g_app->animIndex); }
-                    if (ImGui::MenuItem(tr(Str::MbKgLeeren), nullptr, false, p.belegt)) { modellPlatzLeeren(i); }
-                    ImGui::EndPopup();
-                }
-                ImGui::PopID();
-            }
-        }
-        if (t.glaZiel == 2) {
-            // eigene GLA: neue Plaetze heissen wie die gezogene Sequenz
-            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-            ImGui::Selectable((std::string(tr(Str::MbZielEigenNeu)) + "###platzneu").c_str());
-            ImGui::PopStyleColor();
+    ImGui::SetItemTooltip("%s", tr(kZielHinweise[t.glaZiel]));
+    ui::absatz(tr(kZielHinweise[t.glaZiel]));
+    if (t.glaZiel == 0) {
+        ui::zeile(tr(Str::MbKgKarte));
+        ImGui::InputText("##kgkarte", t.kgKarte, sizeof t.kgKarte);
+        ImGui::SetItemTooltip("%s", tr(Str::MbKgKarteHint));
+    }
+    if (t.glaZiel == 2) {
+        ui::zeile(tr(Str::MbZielEigenName));
+        ImGui::InputText("##kgeigen", t.eigenName, sizeof t.eigenName);
+        ImGui::SetItemTooltip("%s", tr(Str::MbZielEigenHint));
+    }
+    ui::absatz(format(Str::MbKgPfad, zielKopf().c_str()).c_str());
+    if (t.plaetze.empty() && t.glaZiel == 0) {
+        ui::absatz(format(Str::MbKgKeinePlaetze, modell::grenzen(zielspiel()).name).c_str(), ui::Ton::Warnung);
+        ui::rolloutEnde();
+        return;
+    }
+    ui::absatz(format(Str::MbKgPlaetze, static_cast<int>(t.plaetze.size()), belegt, static_cast<int>(t.plaetze.size()) - belegt).c_str());
+    ui::absatz(tr(Str::MbKgZiehen));
+    // "Fuer das Spiel bauen..." steht als Hauptknopf in seiner eigenen Gruppe (Entwurf)
+    ui::rasterBeginn(2);
+    if (t.glaZiel == 0 && ui::werkzeugKnopf(tr(Str::MbKgVorhanden), {.icon = UiIcon::Oeffnen, .hinweis = tr(Str::MbKgVorhandenHint)})) { (void)modellVorhandeneKartenGla(); }
+    if (ui::werkzeugKnopf(tr(Str::MbXsiAufnehmen), {.icon = UiIcon::Plus, .hinweis = tr(Str::MbXsiAufnehmenHint)})) { modellXsiAufnehmenFrage(); }
+    ui::rasterEnde();
+    ImGui::BeginChild("##kgplaetze", ImVec2{-1.0F, fs * 14.0F}, ImGuiChildFlags_Borders | ImGuiChildFlags_ResizeY);
+    ImGuiListClipper clip;
+    clip.Begin(static_cast<int>(t.plaetze.size()));
+    while (clip.Step()) {
+        for (int i = clip.DisplayStart; i < clip.DisplayEnd; ++i) {
+            modell::Platz& p = t.plaetze[static_cast<std::size_t>(i)];
+            ImGui::PushID(i);
+            std::string zeile = p.name + "   ";
+            zeile += p.belegt ? p.quelle.sequenz.name + "  (" +
+                                    format(Str::MbKgQuelle, fileName(p.quelle.glaName).c_str(), p.quelle.sequenz.firstFrame,
+                                           p.quelle.sequenz.firstFrame + p.quelle.sequenz.numFrames - 1) +
+                                    ")"
+                              : std::string(tr(Str::MbKgFrei));
+            if (!p.belegt) { ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled)); }
+            ImGui::Selectable((zeile + "###platz").c_str(), t.platzWahl == i);
+            if (!p.belegt) { ImGui::PopStyleColor(); }
+            if (ImGui::IsItemClicked()) { t.platzWahl = i; }
             ImGui::SetItemTooltip("%s", tr(Str::MbKgZiehen));
             if (ImGui::BeginDragDropTarget()) {
                 if (const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("MB_SEQ"); pl != nullptr && pl->DataSize == sizeof(int)) {
                     int anim = 0;
                     std::memcpy(&anim, pl->Data, sizeof anim);
-                    (void)modellAufFreienPlatz(anim);
+                    (void)modellPlatzSetzen(i, anim);
                 }
                 ImGui::EndDragDropTarget();
             }
+            if (ImGui::BeginPopupContextItem("##platzkontext")) {
+                if (ImGui::MenuItem(tr(Str::MbKgHierher), nullptr, false, g_app->animIndex >= 0)) { (void)modellPlatzSetzen(i, g_app->animIndex); }
+                if (ImGui::MenuItem(tr(Str::MbKgLeeren), nullptr, false, p.belegt)) { modellPlatzLeeren(i); }
+                ImGui::EndPopup();
+            }
+            ImGui::PopID();
         }
-        ImGui::EndChild();
     }
+    if (t.glaZiel == 2) {
+        // eigene GLA: neue Plaetze heissen wie die gezogene Sequenz
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::Selectable((std::string(tr(Str::MbZielEigenNeu)) + "###platzneu").c_str());
+        ImGui::PopStyleColor();
+        ImGui::SetItemTooltip("%s", tr(Str::MbKgZiehen));
+        if (ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("MB_SEQ"); pl != nullptr && pl->DataSize == sizeof(int)) {
+                int anim = 0;
+                std::memcpy(&anim, pl->Data, sizeof anim);
+                (void)modellAufFreienPlatz(anim);
+            }
+            ImGui::EndDragDropTarget();
+        }
+    }
+    ImGui::EndChild();
+    ui::rolloutEnde();
+}
+
+}  // namespace
+
+// GLA, animation.cfg, Ziel-GLA und Plaetze: mehr als der Entwurf zeigt (Zeile A14), hinter seinen Gruppen.
+void drawModellAnimationBereich() {
+    cfgAbgleich();
+    plaetzeAnpassen();
+    gruppeGla();
+    gruppeCfg();
+    gruppePlaetze();
 }
 
 // --- Marker in der Zeitleiste --------------------------------------------------------------------------------------

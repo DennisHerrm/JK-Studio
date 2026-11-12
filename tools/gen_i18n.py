@@ -2354,6 +2354,8 @@ from i18n_ap6 import zeilen_vier as _ap6  # noqa: E402  (AP6: Bereich Modelliere
 S += _ap6()
 from i18n_ap8 import zeilen_vier as _ap8  # noqa: E402  (AP8: Bereich Weights nach dem Entwurf - Gruppen, Werkzeuge, Spiegeln, Sperren)
 S += _ap8()
+from i18n_ap10 import zeilen_vier as _ap10  # noqa: E402  (AP10: rechtes Feld des Model-Tabs im Bereich Animation nach dem Entwurf)
+S += _ap10()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

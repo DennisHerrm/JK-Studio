@@ -2068,3 +2068,9 @@ if(BEHAVED_TESTS)
   target_link_libraries(modellgewichte2test PRIVATE bhed_core)
   add_test(NAME modell_gewichte2 COMMAND modellgewichte2test ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm "${BEHAVED_KARTE_JA}")
 endif()
+
+# AP10 (MBENTWURF Teil B): das rechte Feld des Model-Tabs im Bereich Animation nach dem Entwurf - Reihenfolge der Gruppen,
+# Rig-Vorlagen, Wurzelweg, Anbauten und Vorschau
+if(TARGET behaved)
+  target_sources(behaved PRIVATE gui/app_modelltab_anim.cpp)
+endif()

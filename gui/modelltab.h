@@ -1471,6 +1471,71 @@ void modellGewichteAktionAusloesen(int i);
 bool modellGewichteAktionenSuche(const std::string& such);
 void modellGewichteKontextMenue();
 void modellEckenBild(const ModellAnsicht& a, ModellEckenBild& aus);
+// --- AP10 (MBENTWURF Teil B, 11.11.): das rechte Feld im Bereich Animation nach dem freigegebenen Entwurf -------------------
+// Die Gruppen in der Reihenfolge des Entwurfs (Animation, Rig erstellen, Presets, Vorhandene Animation bearbeiten, Uebertragen,
+// IK/FK, Anbauten und Vorschau, Fuer das Spiel bauen), dahinter, was das Programm mehr kann (Auto-Physik, Pose, Ghosts,
+// Bewegungspfade, Kurven und Animationswerkzeuge, Posen-Bibliothek, GLA, animation.cfg, Ziel-GLA und Plaetze) - alle ueber den
+// Baustein gui/ui_rollout.h. gui/app_modelltab_anim.cpp haelt die Reihenfolge, die Rig-Vorlagen, den Wurzelweg und die Gruppe
+// Anbauten und Vorschau; jede andere Gruppe steht in der Datei ihrer Funktion (rig, ik, physik, retarget, kurven, mb3).
+struct ModellAnim {
+    int vorlage = -2;             // Rig-Vorlage: -2 automatisch (modell::rtVorlageFuer), -1 eigenes Skelett (Ketten vorgeschlagen), sonst Index in modell::rtVorlagen()
+    std::string vorlageFuer;      // das Skelett, fuer das die Wahl gilt (ein anderes Skelett: wieder automatisch)
+    int erkannt = -1;             // die erkannte Vorlage dieses Skeletts (-1 keine)
+    bool nurFk = false;           // "Animation-Rig (nur FK)": das Rig ohne Pol-Ziele und Fussrolle, Hand und Fuss greifen ohne IK
+    bool generatorOffen = false;  // Presets: der Generator ist aufgeklappt
+    std::string wegFuer;          // Wurzelweg: wofuer er gerechnet ist (GLA, Sequenz, Stand des Dokuments)
+    float weg = 0.0F;
+    bool wegDa = false;
+};
+[[nodiscard]] ModellAnim& modellAnim();
+// Die Gruppen des Bereichs Animation, die drawModellRigBereich zeichnet (Entwurf und Auto-Physik, Pose, Ghosts, Bewegungspfade).
+void drawModellAnimFeld();
+// Rig-Vorlage: die Wahl fuer modell::rtCharakter (-2 suchen, -1 keine, sonst der Index), die wirksame Vorlage (-1 keine) und
+// die erkannte; Setzen legt ein vorhandenes Rig neu an. Die Rollen der Vorlage fuer Knochen, die die Erkennung offen laesst
+// oder unklar nennt (modellRigAnlegen stellt sie vor die Zuordnungen von Hand).
+[[nodiscard]] int modellAnimVorlageWahl();
+[[nodiscard]] int modellAnimVorlage();
+[[nodiscard]] int modellAnimVorlageErkannt();
+void modellAnimVorlageSetzen(int wahl);
+[[nodiscard]] std::vector<modell::Zuordnung> modellAnimVorlageZuordnung();
+// Tabelle (Skelett, Massstab, Erkannt als) und Auswahl der Vorlage (Gruppen als Segment, darunter die Vorlagen der Gruppe) -
+// der Kopf der Gruppe "Rig erstellen" (app_modelltab_rig.cpp).
+void drawModellAnimVorlage();
+// "Control Rig erstellen" (nurFk = false) bzw. "Animation-Rig (nur FK)"; "Auf Rig legen": die Bilder der Sequenz als
+// Schluessel an den Griffen, die IK-Ziele der Glieder folgen der Bewegung (Anteil 0 - die Pose bleibt).
+bool modellAnimRigErstellen(bool nurFk);
+bool modellAnimAufRigLegen();
+// Frames zu Schluesseln reduzieren / Animation spiegeln (app_modelltab_kurven.cpp) - fuer die Gruppen und die Werkzeugleiste.
+bool modellAnimReduzieren();
+bool modellAnimSpiegeln();
+// Der Wurzelweg der gewaehlten Sequenz: waagrechter Weg des Beckens vom ersten zum letzten Bild (mit der Schicht), wie Stufe 7
+// im Mission-Tab (FaWurzelWeg). false: keine Sequenz oder kein Becken erkannt.
+[[nodiscard]] bool modellAnimWurzelweg(float& weg);
+// Die Gruppen (jede ein ui::rolloutBeginn): Entwurf A1, A2, A4, A8, A9 und die weiteren des Programms.
+void modellAnimGruppeAnimation();        // app_modelltab_mb3.cpp: Name, Ziel-GLA, Plaetze
+void modellAnimGruppeRig();              // app_modelltab_rig.cpp: Rig erstellen (Vorlagen)
+void modellAnimGruppeBearbeiten();       // app_modelltab_kurven.cpp: Vorhandene Animation bearbeiten
+void modellAnimGruppeAnbauten();         // app_modelltab_anim.cpp: Anbauten und Vorschau
+void modellAnimGruppeBauen();            // app_modelltab_mb3.cpp: Fuer das Spiel bauen
+void modellAnimGruppePose();             // app_modelltab_rig.cpp
+void modellAnimGruppeGeister();
+void modellAnimGruppePfade();
+void modellAnimGruppeKurven();           // app_modelltab_kurven.cpp
+void modellAnimGruppePosenBibliothek();
+// Die Werkzeuge des Bereichs Animation fuer die Werkzeugleiste wie Blender (Entwurf A11: Pose kopieren, Spiegeln,
+// Ausduennen) - AP4 zeichnet die Leiste, hier stehen Symbol, Text, Hinweis und Aktion.
+struct ModellAnimWerkzeug {
+    UiIcon icon;
+    const char* text = "";
+    const char* hinweis = "";
+    const char* taste = "";      // die Taste im laufenden Bedienmodus (leer: keine)
+    bool aktiv = true;
+};
+[[nodiscard]] int modellAnimWerkzeugZahl();
+[[nodiscard]] ModellAnimWerkzeug modellAnimWerkzeug(int i);
+bool modellAnimWerkzeugAusloesen(int i);
+// Selbsttest: wo in der Gruppe Presets die Wahl des Ziel-Platzes steht (Bildschirm; leer: nicht gezeichnet)
+[[nodiscard]] ImRect modellPresetPlatzKasten();
 
 }  // namespace bhed::gui
 #endif

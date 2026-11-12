@@ -1915,75 +1915,153 @@ std::vector<int> modellKvSchluesselBilder() {
     return {bilder.begin(), bilder.end()};
 }
 
-void drawModellKurvenBereich() {
+// --- Befehlsfeld (AP10: ueber den Baustein gui/ui_rollout.h) ---------------------------------------------------------------
+
+bool modellAnimReduzieren() { return reduzieren(); }
+
+bool modellAnimSpiegeln() { return animationSpiegeln(); }
+
+// Entwurf, Gruppe "Rig erstellen": "Auf Rig legen" - die Bilder der Sequenz werden Schluessel an den Griffen (rigReduzieren ueber
+// die ganze Sequenz, alle Knochen), und die IK-Ziele der Glieder des Rigs folgen an jedem Bild der Bewegung (ikAufFkBereich mit
+// Anteil 0: das Ziel liegt auf der Hand bzw. dem Fuss, die Pose bleibt FK und damit gleich). Danach laesst sich jeder Griff
+// bearbeiten; wer eine Hand oder einen Fuss greift, wechselt ohne Sprung auf IK. Ein Rueckgaengig-Schritt.
+bool modellAnimAufRigLegen() {
     ModellTab& t = mt();
-    if (!ImGui::CollapsingHeader(tr(Str::MbKvRollout))) { return; }
-    const auto knopf = [](Str text, Str hinweis, bool an) {
-        const bool k = ImGui::Button(tr(text));
-        ImGui::SetItemTooltip("%s", tr(hinweis));
-        (void)an;
-        return k;
-    };
-    if (knopf(Str::MbKvDsOeffnen, Str::MbKvOeffnenHint, t.kvOffen && t.kvArt == 0)) { editorOeffnen(0); }
-    ImGui::SameLine();
-    if (knopf(Str::MbKvKeOeffnen, Str::MbKvOeffnenHint, t.kvOffen && t.kvArt == 1)) { editorOeffnen(1); }
-    if (knopf(Str::MbKvReduzieren, Str::MbKvReduzierenHint, false)) { (void)reduzieren(); }
-    // Stufe 4: nur gewaehlte Knochen / eine Spanne
-    ImGui::Checkbox(tr(Str::MbIkRedNurGewaehlte), &t.kvRedNurGewaehlte);
-    ImGui::SetItemTooltip("%s", tr(Str::MbIkRedNurGewaehlteHint));
-    if (ImGui::Checkbox(tr(Str::MbIkRedSpanne), &t.kvRedSpanne) && t.kvRedSpanne) { spanneAusWahl(); }
-    ImGui::SetItemTooltip("%s", tr(Str::MbIkRedSpanneHint));
-    if (t.kvRedSpanne) {
-        ImGui::SetNextItemWidth(-1.0F);
-        // MRESTE: die Spanne in der Zaehlung der Zeitleiste (wie Max ab 0 in der Sequenz, wie Blender ab 1); intern GLA-Frames
-        int erstes = 0;
-        int anzahl = 0;
-        bereich(erstes, anzahl);
-        const int versatz = (modellBlender() ? 1 : 0) - erstes;
-        int von = t.kvRedVon + versatz;
-        int bis = t.kvRedBis + versatz;
-        if (ImGui::DragIntRange2("##redspanne", &von, &bis, 1.0F, versatz, std::max(g_app->anim.bildZahl() - 1, 0) + versatz, tr(Str::MbIkRedVon), tr(Str::MbIkRedBis))) {
-            t.kvRedVon = von - versatz;
-            t.kvRedBis = bis - versatz;
-        }
-        ImGui::SetItemTooltip("%s", tr(Str::MbIkRedSpanneHint));
+    const AnimEntry* e = sequenz();
+    if (g_app->anim.empty() || e == nullptr) {
+        melden(tr(Str::MbRgKeineSequenz));
+        return false;
     }
-    if (knopf(Str::MbKvAnimSpiegeln, Str::MbKvAnimSpiegelnHint, false)) { (void)animationSpiegeln(); }
-    if (ImGui::Checkbox(tr(Str::MbKvAnimOffset), &t.kvAnimOffset)) { g_app->modelDirty = true; }
-    ImGui::SetItemTooltip("%s", tr(Str::MbKvAnimOffsetHint));
-    ImGui::SeparatorText(tr(Str::MbKvGruppeBibliothek));
+    if (!modellRigDa() && !modellRigAnlegen()) { return false; }
+    int erstes = 0;
+    int anzahl = 0;
+    bereich(erstes, anzahl);
+    modell::RigSchicht neu;
+    modell::ReduzierBericht br;
+    if (!modell::rigReduzieren(g_app->anim, schicht(), erstes, anzahl, neu, &br, nullptr)) {
+        melden(format(Str::MbSpFehler, modellFehlerText(br.fehler).c_str()));
+        return false;
+    }
+    int glieder = 0;
+    if (!modellAnim().nurFk) {
+        for (int art = 0; art < modell::kIkArten; ++art) {
+            const int spur = modellIkSpur(art, neu);
+            if (spur < 0) { continue; }
+            modell::ikAufFkBereich(g_app->anim, neu, spur, erstes, erstes + anzahl - 1, 0.0F);
+            ++glieder;
+        }
+    }
+    const std::string name = e->name;
+    t.dok.aendern(tr(Str::AzAufRig), [&](modell::Inhalt& in) { in.rig.schichten[name] = neu; }, false);
+    t.kvBericht = br;
+    t.kvWahl.clear();
+    ++t.kvAenderungen;
+    g_app->modelDirty = true;
+    melden(format(Str::AzAufRigMeldung, name.c_str(), static_cast<int>(br.nachher), static_cast<int>(br.vorher), glieder));
+    return true;
+}
+
+// Entwurf A4: "Vorhandene Animation bearbeiten" - woher die Bilder kommen (Sequenz, GLA, Bereich in GLA-Frames), "In Schluessel
+// umwandeln" (Frames zu Schluesseln reduzieren) und "Zurueck in die GLA backen" im Raster; die Optionen des Umwandelns (nur
+// gewaehlte Knochen, nur eine Spanne) eingeklappt. Bis rc611 standen die beiden Knoepfe in den Gruppen "Kurven und
+// Animationswerkzeuge" und "Backen".
+void modellAnimGruppeBearbeiten() {
+    ModellTab& t = mt();
+    const AnimEntry* e = sequenz();
+    if (!ui::rolloutBeginn(tr(Str::AzRBearbeiten))) { return; }
+    const modell::RigSchicht* s = modellRigSchichtJetzt();
+    const std::string gla = fileName(g_app->anim.skeletonName) + ".gla";
+    char bilder[64] = "-";
+    if (e != nullptr) { std::snprintf(bilder, sizeof bilder, "%d \xe2\x80\x93 %d (%d)", e->firstFrame, e->firstFrame + std::max(e->numFrames, 1) - 1, std::max(e->numFrames, 1)); }
+    ui::wertTabelle({{tr(Str::AzQuelle), e != nullptr ? e->name + " \xc2\xb7 " + gla : gla, ui::Ton::Normal, g_app->anim.skeletonName + ".gla"},
+                     {tr(Str::AzBilder), bilder, e != nullptr ? ui::Ton::Normal : ui::Ton::Leise, {}},
+                     {tr(Str::AzSchluessel), std::to_string(s != nullptr ? s->schluesselZahl() : 0), ui::Ton::Normal, {}}});
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(tr(Str::MbKvReduzieren), {.icon = UiIcon::Ruhig, .hinweis = tr(Str::MbKvReduzierenHint), .aktiv = e != nullptr})) { (void)reduzieren(); }
+    if (ui::werkzeugKnopf(tr(Str::MbRgBacken), {.icon = UiIcon::Erzeugen, .hinweis = tr(Str::MbRgBackenHint), .aktiv = e != nullptr})) { (void)modellRigBacken(); }
+    ui::rasterEnde();
+    if (ui::mehrBeginn(tr(Str::AzOptionen))) {
+        // Stufe 4: nur gewaehlte Knochen / eine Spanne
+        (void)ui::schalter(tr(Str::MbIkRedNurGewaehlte), &t.kvRedNurGewaehlte, tr(Str::MbIkRedNurGewaehlteHint));
+        if (ui::schalter(tr(Str::MbIkRedSpanne), &t.kvRedSpanne, tr(Str::MbIkRedSpanneHint)) && t.kvRedSpanne) { spanneAusWahl(); }
+        if (t.kvRedSpanne) {
+            ImGui::SetNextItemWidth(-1.0F);
+            // MRESTE: die Spanne in der Zaehlung der Zeitleiste (wie Max ab 0 in der Sequenz, wie Blender ab 1); intern GLA-Frames
+            int erstes = 0;
+            int anzahl = 0;
+            bereich(erstes, anzahl);
+            const int versatz = (modellBlender() ? 1 : 0) - erstes;
+            int von = t.kvRedVon + versatz;
+            int bis = t.kvRedBis + versatz;
+            if (ImGui::DragIntRange2("##redspanne", &von, &bis, 1.0F, versatz, std::max(g_app->anim.bildZahl() - 1, 0) + versatz, tr(Str::MbIkRedVon), tr(Str::MbIkRedBis))) {
+                t.kvRedVon = von - versatz;
+                t.kvRedBis = bis - versatz;
+            }
+            ImGui::SetItemTooltip("%s", tr(Str::MbIkRedSpanneHint));
+        }
+        ui::absatz(tr(Str::MbRgBackenInfo));
+        ui::mehrEnde();
+    }
+    ui::tipp(tr(Str::AzBearbTipp));
+    ui::rolloutEnde();
+}
+
+// Kurven und Animationswerkzeuge: Animation spiegeln, Anim Offset. Dopesheet und Kurveneditor oeffnet die Zeitleiste (AP1: Knopf
+// "Spuren" und die Umschaltung daneben; dazu Menue Animation und die Suche) - hier steht kein zweiter Knopf dafuer.
+void modellAnimGruppeKurven() {
+    ModellTab& t = mt();
+    if (!ui::rolloutBeginn(tr(Str::MbKvRollout), {.zu = true, .reiter = modellReiter(MbReiter::Bewegung, MbReiterBl::Werkzeug)})) { return; }
+    if (ui::werkzeugKnopf(tr(Str::MbKvAnimSpiegeln), {.icon = UiIcon::Tauschen, .hinweis = tr(Str::MbKvAnimSpiegelnHint), .aktiv = sequenz() != nullptr})) {
+        (void)animationSpiegeln();
+    }
+    if (ui::schalter(tr(Str::MbKvAnimOffset), &t.kvAnimOffset, tr(Str::MbKvAnimOffsetHint))) { g_app->modelDirty = true; }
+    ui::rolloutEnde();
+}
+
+void modellAnimGruppePosenBibliothek() {
+    ModellTab& t = mt();
+    const auto& posen = t.dok.inhalt().rig.posen;
+    char info[16];
+    std::snprintf(info, sizeof info, "%d", static_cast<int>(posen.size()));
+    if (!ui::rolloutBeginn(tr(Str::MbKvGruppeBibliothek), {.kurzinfo = posen.empty() ? nullptr : info, .zu = true, .reiter = modellReiter(MbReiter::Dienste, MbReiterBl::Daten)})) {
+        return;
+    }
     ImGui::SetNextItemWidth(-1.0F);
     ImGui::InputTextWithHint("##kvposename", tr(Str::MbKvPoseName), t.kvPoseName, sizeof t.kvPoseName);
-    if (knopf(Str::MbKvPoseSpeichern, Str::MbKvPoseSpeichernHint, false)) { (void)poseSpeichern(); }
-    const auto& posen = t.dok.inhalt().rig.posen;
-    if (posen.empty()) { cjkTextDisabled("%s", tr(Str::MbKvPoseLeer)); }
+    if (ui::werkzeugKnopf(tr(Str::MbKvPoseSpeichern), {.icon = UiIcon::Speichern, .hinweis = tr(Str::MbKvPoseSpeichernHint)})) { (void)poseSpeichern(); }
+    if (posen.empty()) { ui::absatz(tr(Str::MbKvPoseLeer)); }
     for (std::size_t i = 0; i < posen.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
         if (ImGui::Selectable(posen[i].name.c_str(), t.kvPoseWahl == static_cast<int>(i))) { t.kvPoseWahl = static_cast<int>(i); }
         ImGui::SetItemTooltip("%s", tr(Str::MbKvPoseAnwendenHint));
         ImGui::PopID();
     }
-    ImGui::BeginDisabled(t.kvPoseWahl < 0);
-    if (knopf(Str::MbKvPoseAnwenden, Str::MbKvPoseAnwendenHint, false)) { (void)poseAnwenden(false); }
-    ImGui::SameLine();
-    if (knopf(Str::MbKvPoseGespiegelt, Str::MbKvPoseAnwendenHint, false)) { (void)poseAnwenden(true); }
-    ImGui::SameLine();
-    if (ImGui::Button(tr(Str::MbKvPoseLoeschen))) { poseLoeschen(); }
-    ImGui::EndDisabled();
+    const bool gewaehlt = t.kvPoseWahl >= 0;
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(tr(Str::MbKvPoseAnwenden), {.icon = UiIcon::Abspielen, .hinweis = tr(Str::MbKvPoseAnwendenHint), .aktiv = gewaehlt})) { (void)poseAnwenden(false); }
+    if (ui::werkzeugKnopf(tr(Str::MbKvPoseGespiegelt), {.icon = UiIcon::Tauschen, .hinweis = tr(Str::MbKvPoseAnwendenHint), .aktiv = gewaehlt})) { (void)poseAnwenden(true); }
+    if (ui::werkzeugKnopf(tr(Str::MbKvPoseLoeschen), {.icon = UiIcon::Loeschen, .aktiv = gewaehlt})) { poseLoeschen(); }
+    ui::rasterEnde();
     // Stufe 4: die Bibliothek als Datei (Dokumente\behaved\posen)
     ImGui::SetNextItemWidth(-1.0F);
     ImGui::InputTextWithHint("##posendatei", tr(Str::MbIkPosenDatei), t.posenDatei, sizeof t.posenDatei);
     ImGui::SetItemTooltip("%s", tr(Str::MbIkPosenSpeichernHint));
-    ImGui::BeginDisabled(posen.empty());
-    if (knopf(Str::MbIkPosenSpeichern, Str::MbIkPosenSpeichernHint, false)) { (void)modellPosenSpeichern(); }
-    ImGui::EndDisabled();
-    ImGui::SameLine();
-    if (ImGui::Button(tr(Str::MbIkPosenLaden))) { ImGui::OpenPopup("##posenladen"); }
-    ImGui::SetItemTooltip("%s", tr(Str::MbIkPosenLadenHint));
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(tr(Str::MbIkPosenSpeichern), {.icon = UiIcon::SpeichernUnter, .hinweis = tr(Str::MbIkPosenSpeichernHint), .aktiv = !posen.empty()})) {
+        (void)modellPosenSpeichern();
+    }
+    if (ui::werkzeugKnopf(tr(Str::MbIkPosenLaden), {.icon = UiIcon::Oeffnen, .hinweis = tr(Str::MbIkPosenLadenHint)})) { ImGui::OpenPopup("##posenladen"); }
+    ui::rasterEnde();
     if (ImGui::BeginPopup("##posenladen")) {
         posenLadenMenue();
         ImGui::EndPopup();
     }
+    ui::rolloutEnde();
+}
+
+void drawModellKurvenBereich() {
+    modellAnimGruppeKurven();
+    modellAnimGruppePosenBibliothek();
 }
 
 // Anim Offset (Griff gezogen): die Aenderung am Zugbild auf die anderen Schluessel der betroffenen Knochen.

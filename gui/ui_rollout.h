@@ -189,8 +189,11 @@ bool schalter(const char* text, bool* wert, const char* hinweis = nullptr);
 // einer Reihe, solange die Texte passen, sonst gleichmaessig umbrochen. gesperrtAb: Eintraege ab diesem Index sind gesperrt
 // (-1: keiner). hinweise: je Eintrag ein Tooltip oder nullptr. breite: so breit statt der ganzen Breite (0: ganz).
 // true: *wahl geaendert.
+// umbrechen (AP10, nur mit spalten > 0): ein Text bricht in seiner Zelle um (Entwurf Animation: "Mensch (_humanoid +
+// 32 Karten-GLAs)" zweizeilig in der Vorlagen-Wahl), die Reihe wird so hoch wie ihr laengster Text; die Spalten bleiben, solange
+// das breiteste Wort (CJK: Zeichenpaar) in die Zelle passt. Ohne (Vorgabe): wie bisher eine Zeile je Eintrag.
 bool segment(const char* id, const char* const* texte, int zahl, int* wahl, int spalten = 0, int gesperrtAb = -1,
-             const char* const* hinweise = nullptr, float breite = 0.0F);
+             const char* const* hinweise = nullptr, float breite = 0.0F, bool umbrechen = false);
 
 // --- Werte ------------------------------------------------------------------------------------------------
 struct WertZeile {

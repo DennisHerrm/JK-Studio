@@ -115,7 +115,7 @@ ZEILEN = [
      "Vuelve a emparejar cada cadena por su nombre, también las que cambiaste.", "Znovu přiřadí každý řetěz podle názvu, i ty změněné."),
     ("RtZugeordnet", "%d of %d chains mapped (%d new).", "%d von %d Ketten zugeordnet (%d neu).", "已映射 %d / %d 条链 (%d 条新)。",
      "%d / %d チェーンを対応付け (新規 %d)。", "%d de %d cadenas emparejadas (%d nuevas).", "Přiřazeno %d z %d řetězů (%d nových)."),
-    ("RtPoseMax", "Characterization pose", "Charakterisierungs-Pose", "特征化姿势", "キャラクタライズのポーズ", "Pose de caracterización", "Póza charakterizace"),
+    ("RtPoseMax", "Characterization pose", "Pose zur Charakterisierung", "特征化姿势", "キャラクタライズのポーズ", "Pose de caracterización", "Póza charakterizace"),
     ("RtPoseBlender", "Rest pose", "Ruhepose", "静止姿势", "レストポーズ", "Pose de reposo", "Klidová póza"),
     ("RtPoseHint",
      "Source and figure must stand in the same pose before the animation is transferred, or limbs come out twisted. 'T pose' and 'A pose' turn spine and neck upright, arms sideways (T) or 45° down (A) and legs straight down - each limb with the smallest rotation (bind pose compensation).",

@@ -156,6 +156,33 @@ struct Vorlage {
 
 #include "rig_vorlagen.inc"
 
+// AP10: die Gruppe einer Vorlage fuer die Auswahl im Model-Tab - von Hand durchgesehen wie die Vorlagen selbst. "human", "droid",
+// "vehicle", "object" und "sand" uebersetzt die Oberflaeche, alles andere ist ein Eigenname des Spiels. Eine Vorlage ohne Eintrag
+// steht unter "object" (Geschuetze, Kartenobjekte, Gegenstaende).
+struct VorlageGruppe {
+    const char* vorlage;
+    const char* gruppe;
+};
+const VorlageGruppe kVorlageGruppe[] = {
+    {"_humanoid (JKA)", "human"}, {"_humanoid (JK2)", "human"}, {"HumanIK / Mixamo", "human"}, {"3ds Max Biped", "human"},
+    {"3ds Max CAT (Base Human)", "human"}, {"Unreal Mannequin", "human"}, {"100STYLE (BVH)", "human"},
+    {"hazardtrooper", "human"}, {"rockettrooper", "human"}, {"marka_ragnos", "human"},
+    {"rancor", "Rancor"}, {"wampa", "Wampa"}, {"tauntaun", "Tauntaun"}, {"howler", "Howler"}, {"sand_creature", "sand"}, {"atst", "AT-ST"},
+    {"assassin_droid", "droid"}, {"gonk", "droid"}, {"interrogator", "droid"}, {"probe", "droid"}, {"protocol", "droid"},
+    {"r2d2", "droid"}, {"saber_droid", "droid"}, {"sentry", "droid"},
+    {"lambdashuttle", "vehicle"}, {"swoop", "vehicle"}, {"tie_bomber", "vehicle"}, {"tie_fighter", "vehicle"}, {"x-wing", "vehicle"},
+    {"z-95", "vehicle"},
+};
+// die Reihenfolge der Gruppen in der Auswahl
+const char* const kGruppenFolge[] = {"human", "Rancor", "Wampa", "Tauntaun", "Howler", "sand", "AT-ST", "droid", "vehicle", "object"};
+
+const char* gruppeVon(const Vorlage& v) {
+    for (const VorlageGruppe& x : kVorlageGruppe) {
+        if (std::strcmp(x.vorlage, v.name) == 0) { return x.gruppe; }
+    }
+    return "object";
+}
+
 bool passt(const Vorlage& v, const std::string& kn, const char* muster) {
     const std::string m = klein(muster);
     if (!v.endung) { return kn == m; }
@@ -412,7 +439,58 @@ std::vector<RtVorlageInfo> rtVorlagen() {
         }
         std::sort(k.begin(), k.end());
         i.ketten = static_cast<int>(std::unique(k.begin(), k.end()) - k.begin());
+        i.gruppe = gruppeVon(v);
         aus.push_back(std::move(i));
+    }
+    return aus;
+}
+
+std::vector<std::string> rtVorlagenGruppen() {
+    std::vector<std::string> aus;
+    for (const char* g : kGruppenFolge) {
+        for (const Vorlage& v : kVorlagen) {
+            if (std::strcmp(gruppeVon(v), g) == 0) {
+                aus.emplace_back(g);
+                break;
+            }
+        }
+    }
+    return aus;
+}
+
+std::vector<Zuordnung> rtVorlageRollen(const GlaAnimation& g, int vorlage) {
+    std::vector<Zuordnung> aus;
+    const int n = static_cast<int>(sizeof kVorlagen / sizeof kVorlagen[0]);
+    if (vorlage < 0 || vorlage >= n || g.bones.empty()) { return aus; }
+    const RtCharakter c = ausVorlage(g, kVorlagen[vorlage]);
+    if (c.becken >= 0) { aus.push_back(Zuordnung{c.becken, Rolle::Becken, Seite::Mitte}); }
+    if (c.wurzel >= 0) { aus.push_back(Zuordnung{c.wurzel, Rolle::Wurzel, Seite::Mitte}); }
+    if (c.bewegung >= 0) { aus.push_back(Zuordnung{c.bewegung, Rolle::Bewegung, Seite::Mitte}); }
+    // die Glieder einer Arm- bzw. Beinkette vom Ansatz zur Spitze (eine laengere Kette endet in Fingern bzw. Zehen)
+    static const Rolle kArm[4] = {Rolle::Oberarm, Rolle::Unterarm, Rolle::Hand, Rolle::Finger};
+    static const Rolle kBein[4] = {Rolle::Oberschenkel, Rolle::Unterschenkel, Rolle::Fuss, Rolle::Zehen};
+    for (const RtKette& k : c.ketten) {
+        for (std::size_t i = 0; i < k.knochen.size(); ++i) {
+            Rolle r = Rolle::Keine;
+            switch (k.art) {
+                case KettenArt::Wirbel: r = Rolle::Wirbel; break;
+                case KettenArt::Hals: r = Rolle::Hals; break;
+                case KettenArt::Kopf: r = Rolle::Kopf; break;
+                case KettenArt::Schluessel: r = Rolle::Schluessel; break;
+                case KettenArt::Arm: r = kArm[std::min<std::size_t>(i, 3)]; break;
+                case KettenArt::Bein: r = kBein[std::min<std::size_t>(i, 3)]; break;
+                case KettenArt::Finger: r = Rolle::Finger; break;
+                case KettenArt::Anhang: r = Rolle::Anhang; break;
+            }
+            aus.push_back(Zuordnung{k.knochen[i], r, k.seite});
+        }
+        // Drehknochen: die Rolle nach dem Segment, auf dem er liegt (twistAnfang ist das erste oder zweite Glied der Kette)
+        for (const int t : k.twist) {
+            const int anfang = c.twistAnfang[uz(t)];
+            const bool erstes = !k.knochen.empty() && anfang == k.knochen[0];
+            if (k.art == KettenArt::Arm) { aus.push_back(Zuordnung{t, erstes ? Rolle::OberarmTwist : Rolle::UnterarmTwist, k.seite}); }
+            if (k.art == KettenArt::Bein && erstes) { aus.push_back(Zuordnung{t, Rolle::OberschenkelTwist, k.seite}); }
+        }
     }
     return aus;
 }

@@ -209,7 +209,10 @@ int artJetztRig() {
 
 const std::vector<RigAktion>& rigAktionen() {
     static const std::vector<RigAktion> kListe = {
-        {Str::MbRgAnlegen, Str::MbRgAnlegenHint, "", "", 0, 0, "", [] { (void)modellRigAnlegen(); }, {}, 0},
+        {Str::MbRgAnlegen, Str::MbRgAnlegenHint, "", "", 0, 0, "", [] { (void)modellAnimRigErstellen(false); }, {}, 0},
+        // AP10 (Entwurf, Gruppe "Rig erstellen"): das Rig nur mit FK und die Animation der Sequenz auf das Rig
+        {Str::AzRigFk, Str::AzRigFkHint, "", "", 0, 0, "", [] { (void)modellAnimRigErstellen(true); }, [] { return modellRigDa() && modellAnim().nurFk; }, 0},
+        {Str::AzAufRig, Str::AzAufRigHint, "", "", 0, 0, "", [] { (void)modellAnimAufRigLegen(); }, {}, 0},
         {Str::MbRgUebersicht, Str::MbRgUebersichtHint, "", "", 0, 0, "", [] { mt().uebersichtOffen = !mt().uebersichtOffen; },
          [] { return mt().uebersichtOffen; }, 0},
         {Str::MbRgGriffeZeigen, Str::MbRgGriffeZeigenHint, "", "", 0, 0, "", [] {
@@ -322,9 +325,20 @@ const std::vector<RigAktion>& rigAktionen() {
         {Str::RtBackenMax, Str::RtBackenHint, "", "", 0, 0, "", [] { (void)modellRtBacken(); }, {}, 7},
         {Str::RtRolloutOeffnen, Str::RtRolloutHint, "", "", 0, 0, "", [] { mt().rt.oeffnen = true; }, {}, 7},
         // Stufe 5b: Presets
-        {Str::PrRolloutOeffnen, Str::PrRolloutHint, "", "", 0, 0, "", [] { mt().rt.presetOeffnen = true; }, {}, 8},
+        {Str::PrRolloutOeffnen, Str::PrRolloutHint, "", "", 0, 0, "", [] {
+             mt().rt.presetOeffnen = true;
+             modellAnim().generatorOffen = true;
+             modellFeldReiter(MbReiter::Bewegung, MbReiterBl::Knochen);
+             ui::rolloutZeigen(tr(Str::PrRollout));
+         },
+         {}, 8},
         {Str::PrAuflegen, Str::PrAuflegenHint, "", "", 0, 0, "", [] { (void)modellPresetAuflegen(); }, {}, 8},
-        {Str::AiBibliothekOeffnen, Str::AiBibliothekHint, "", "", 0, 0, "", [] { mt().rt.presetOeffnen = true; }, {}, 8},
+        {Str::AiBibliothekOeffnen, Str::AiBibliothekHint, "", "", 0, 0, "", [] {
+             mt().rt.presetOeffnen = true;
+             modellFeldReiter(MbReiter::Bewegung, MbReiterBl::Knochen);
+             ui::rolloutZeigen(tr(Str::PrRollout));
+         },
+         {}, 8},
         {Str::PrMessenAktion, Str::PrMessenHint, "", "", 0, 0, "", [] { (void)modellPresetMessen(); }, {}, 8},
     };
     return kListe;
@@ -448,14 +462,27 @@ bool modellRigAnlegen() {
         return false;
     }
     const modell::Inhalt& in = t.dok.inhalt();
-    t.rig = modell::rigAnlegen(g_app->anim, in, 0, in.rig.zuordnung);
+    // AP10: was die Erkennung offen laesst oder unklar nennt, weiss die Vorlage des Skeletts; Zuordnungen von Hand gelten zuletzt
+    std::vector<modell::Zuordnung> zuordnung = modellAnimVorlageZuordnung();
+    zuordnung.insert(zuordnung.end(), in.rig.zuordnung.begin(), in.rig.zuordnung.end());
+    t.rig = modell::rigAnlegen(g_app->anim, in, 0, zuordnung);
+    // AP10 "Animation-Rig (nur FK)": ohne die Griffe, die erst mit IK wirken (Pol-Ziele, Ferse, Ballen, Zehe)
+    const bool nurFk = modellAnim().nurFk;
+    if (nurFk) {
+        auto& gr = t.rig.griffe;
+        gr.erase(std::remove_if(gr.begin(), gr.end(), [](const modell::Griff& x) { return x.ik; }), gr.end());
+    }
     t.rigFuer = rigSchluessel();
     t.griffVersteckt.assign(t.rig.griffe.size(), 0);
     if (t.griffWahl >= static_cast<int>(t.rig.griffe.size())) { t.griffWahl = -1; }
     int ik = 0;
     for (const modell::Griff& g : t.rig.griffe) { ik += g.ik ? 1 : 0; }
-    melden(format(Str::MbRgAngelegt, static_cast<int>(t.rig.griffe.size()) - ik, ik, t.rig.erkennung.erkannt, static_cast<int>(g_app->anim.bones.size()),
-                  t.rig.erkennung.unklar));
+    if (nurFk) {
+        melden(format(Str::AzNurFkMeldung, static_cast<int>(t.rig.griffe.size()), t.rig.erkennung.erkannt, static_cast<int>(g_app->anim.bones.size()), t.rig.erkennung.unklar));
+    } else {
+        melden(format(Str::MbRgAngelegt, static_cast<int>(t.rig.griffe.size()) - ik, ik, t.rig.erkennung.erkannt, static_cast<int>(g_app->anim.bones.size()),
+                      t.rig.erkennung.unklar));
+    }
     g_app->modelDirty = true;
     return !t.rig.leer();
 }
@@ -1138,173 +1165,195 @@ void modellRigExplorerGriffMenue(int griff) {
 }
 
 // --- Befehlsfeld ----------------------------------------------------------------------------------------------------
+// AP10: die Gruppen des Bereichs Animation stehen in der Reihenfolge des freigegebenen Entwurfs (app_modelltab_anim.cpp,
+// drawModellAnimFeld) und zeichnen ueber den Baustein gui/ui_rollout.h.
 
 namespace {
 
-bool knopf(Str text, Str hinweis, bool aktiv = true) {
-    ImGui::BeginDisabled(!aktiv);
-    const bool k = ImGui::Button(tr(text));
-    ImGui::EndDisabled();
-    ImGui::SetItemTooltip("%s", tr(hinweis));
-    return k;
-}
-
-void daneben(Str naechster) {
-    const float b = ImGui::CalcTextSize(tr(naechster)).x + ImGui::GetStyle().FramePadding.x * 2.0F;
-    ImGui::SameLine();
-    if (ImGui::GetContentRegionAvail().x < b) { ImGui::NewLine(); }
+// Die Taste einer Aktion im laufenden Bedienmodus fuer das Tastenfeld des Knopfs (nullptr: keine).
+const char* tasteVon(Str text) {
+    for (const RigAktion& a : rigAktionen()) {
+        if (a.text != text) { continue; }
+        const char* k = modellBlender() ? a.blenderTaste : a.maxTaste;
+        return k[0] != '\0' ? k : nullptr;
+    }
+    return nullptr;
 }
 
 }  // namespace
 
 void drawModellRigBereich() {
-    ModellTab& t = mt();
     modellRigAktualisieren();
+    drawModellAnimFeld();
+}
+
+// Entwurf A2: "Rig erstellen" - Skelett, Massstab und erkannte Vorlage als Tabelle, die Auswahl der Vorlage, der Hauptknopf
+// "Control Rig erstellen", daneben "Animation-Rig (nur FK)" und "Auf Rig legen"; darunter, was die Gruppe bis rc611 zeigte
+// (Rig-Uebersicht, Stand der Erkennung, Griffe zeigen, der gewaehlte Griff, Schluessel).
+void modellAnimGruppeRig() {
+    ModellTab& t = mt();
     const bool rig = modellRigDa();
-    if (ImGui::CollapsingHeader(tr(Str::MbRgGruppeRig), ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (knopf(rig ? Str::MbRgNeu : Str::MbRgAnlegen, Str::MbRgAnlegenHint, !g_app->anim.bones.empty())) { (void)modellRigAnlegen(); }
-        daneben(Str::MbRgUebersicht);
-        if (knopf(Str::MbRgUebersicht, Str::MbRgUebersichtHint, rig)) { t.uebersichtOffen = !t.uebersichtOffen; }
-        ImGui::PushTextWrapPos(0.0F);
-        if (rig) {
-            int ik = 0;
-            for (const modell::Griff& g : t.rig.griffe) { ik += g.ik ? 1 : 0; }
-            cjkTextDisabled("%s", format(Str::MbRgStand, static_cast<int>(t.rig.griffe.size()) - ik, ik, t.rig.erkennung.erkannt,
-                                             static_cast<int>(g_app->anim.bones.size()), t.rig.erkennung.unklar)
-                                          .c_str());
-            if (t.rig.erkennung.unklar > 0) {
-                cjkTextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram), "%s", format(Str::MbRgUnklarHinweis, t.rig.erkennung.unklar).c_str());
+    const bool nurFk = modellAnim().nurFk;
+    static const int kVorlagenZahl = static_cast<int>(modell::rtVorlagen().size());
+    char info[64];
+    std::snprintf(info, sizeof info, trN(Str::AzVorlagenInfo, kVorlagenZahl), kVorlagenZahl);
+    if (!ui::rolloutBeginn(tr(Str::AzRRig), {.kurzinfo = info, .reiter = modellReiter(MbReiter::Hierarchie, MbReiterBl::Knochen)})) { return; }
+    drawModellAnimVorlage();
+    const bool gla = !g_app->anim.bones.empty();
+    // steht das Control Rig schon, erkennt der Hauptknopf neu (wie "Re-Generate Rig")
+    if (ui::werkzeugKnopf(tr(rig && !nurFk ? Str::MbRgNeu : Str::AzRigErstellen),
+                          {.icon = UiIcon::MbRig, .hinweis = tr(Str::AzRigErstellenHint), .haupt = true, .aktiv = gla})) {
+        (void)modellAnimRigErstellen(false);
+    }
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(tr(Str::AzRigFk), {.icon = UiIcon::MbKnochen, .hinweis = tr(Str::AzRigFkHint), .an = rig && nurFk, .aktiv = gla})) {
+        (void)modellAnimRigErstellen(true);
+    }
+    if (ui::werkzeugKnopf(tr(Str::AzAufRig), {.icon = UiIcon::Folgen, .hinweis = tr(Str::AzAufRigHint), .aktiv = gla && sequenz() != nullptr})) {
+        (void)modellAnimAufRigLegen();
+    }
+    if (ui::werkzeugKnopf(tr(Str::MbRgUebersicht), {.icon = UiIcon::Figur, .hinweis = tr(Str::MbRgUebersichtHint), .an = t.uebersichtOffen, .aktiv = rig})) {
+        t.uebersichtOffen = !t.uebersichtOffen;
+    }
+    if (ui::werkzeugKnopf(tr(Str::MbRgSchluesselLoeschen), {.icon = UiIcon::Loeschen, .hinweis = tr(Str::MbRgSchluesselLoeschenHint), .aktiv = rig})) {
+        (void)modellRigSchluesselLoeschen();
+    }
+    ui::rasterEnde();
+    if (rig) {
+        int ik = 0;
+        for (const modell::Griff& g : t.rig.griffe) { ik += g.ik ? 1 : 0; }
+        ui::absatz(format(Str::MbRgStand, static_cast<int>(t.rig.griffe.size()) - ik, ik, t.rig.erkennung.erkannt, static_cast<int>(g_app->anim.bones.size()),
+                          t.rig.erkennung.unklar)
+                       .c_str());
+        if (t.rig.erkennung.unklar > 0) { ui::absatz(format(Str::MbRgUnklarHinweis, t.rig.erkennung.unklar).c_str(), ui::Ton::Warnung); }
+        if (ui::schalter(tr(Str::MbRgGriffeZeigen), &t.rigZeigen, tr(Str::MbRgGriffeZeigenHint))) { g_app->modelDirty = true; }
+        if (t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size()) {
+            const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(t.griffWahl)];
+            ui::absatz(griffName(t.griffWahl).c_str(), ui::Ton::Normal);
+            ui::absatz(tr(griffHinweis(g)));
+            if (g.twist >= 0) {
+                ui::absatz(format(Str::MbRgTwistInfo, g_app->anim.bones[static_cast<std::size_t>(g.twist)].name.c_str(), static_cast<double>(g.twistAnteil * 100.0F)).c_str());
             }
-            if (ImGui::Checkbox(tr(Str::MbRgGriffeZeigen), &t.rigZeigen)) { g_app->modelDirty = true; }
-            ImGui::SetItemTooltip("%s", tr(Str::MbRgGriffeZeigenHint));
-            if (t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size()) {
-                const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(t.griffWahl)];
-                cjkText("%s", griffName(t.griffWahl).c_str());
-                ImGui::PushTextWrapPos(0.0F);
-                cjkTextDisabled("%s", tr(griffHinweis(g)));
-                ImGui::PopTextWrapPos();
-                if (g.twist >= 0) {
-                    cjkTextDisabled("%s", format(Str::MbRgTwistInfo, g_app->anim.bones[static_cast<std::size_t>(g.twist)].name.c_str(),
-                                                     static_cast<double>(g.twistAnteil * 100.0F))
-                                                  .c_str());
-                }
-            } else {
-                cjkTextDisabled("%s", tr(Str::MbRgGriffWaehlen));
-            }
-            const modell::RigSchicht* s = modellRigSchichtJetzt();
-            cjkTextDisabled("%s", format(Str::MbRgSchluesselZahl, s != nullptr ? s->schluesselZahl() : 0).c_str());
         } else {
-            cjkTextDisabled("%s", tr(Str::MbRgNochKeins));
+            ui::absatz(tr(Str::MbRgGriffWaehlen));
         }
-        ImGui::PopTextWrapPos();
-        if (knopf(Str::MbRgSchluesselLoeschen, Str::MbRgSchluesselLoeschenHint, rig)) { (void)modellRigSchluesselLoeschen(); }
+        const modell::RigSchicht* s = modellRigSchichtJetzt();
+        ui::absatz(format(Str::MbRgSchluesselZahl, s != nullptr ? s->schluesselZahl() : 0).c_str());
+    } else {
+        ui::absatz(tr(Str::MbRgNochKeins));
     }
-    drawModellIkBereich();   // Stufe 4: IK/FK (wie 3ds Max Bewegung > IK-Solver, wie Rigify IK-FK)
-    drawModellPhysikBereich();   // Stufe 6: Auto-Physik (wie die Rollouts von Bewegung in 3ds Max)
-    drawModellRetargetBereich();   // Stufe 5: Retargeting (wie MotionBuilder Character Controls / Retarget in Blender)
-    drawModellPresetBereich();     // Stufe 5b: Presets (Generator fuer Geh-/Laufzyklen)
-    // Pose, Ghosts, Pfade und Backen ab Werk zu: Platz nur, wenn gebraucht - darunter folgen GLA, animation.cfg und die
-    // Plaetze aus Stufe 2 (mb4e_mb3: offen schoben sie die Plaetze aus dem Bild).
-    if (ImGui::CollapsingHeader(tr(Str::MbRgGruppePose))) {
-        const bool anim = !g_app->anim.bones.empty();
-        if (knopf(Str::MbRgKopieren, Str::MbRgKopierenHint, anim)) { (void)modellPoseKopieren(); }
-        daneben(Str::MbRgEinfuegen);
-        if (knopf(Str::MbRgEinfuegen, Str::MbRgEinfuegenHint, t.kopieDa)) { (void)modellPoseEinfuegen(false); }
-        daneben(Str::MbRgGespiegelt);
-        if (knopf(Str::MbRgGespiegelt, Str::MbRgGespiegeltHint, t.kopieDa)) { (void)modellPoseEinfuegen(true); }
-        if (knopf(Str::MbRgBindeAuswahl, Str::MbRgBindeAuswahlHint, anim)) { (void)modellBindepose(false); }
-        daneben(Str::MbRgBindeAlle);
-        if (knopf(Str::MbRgBindeAlle, Str::MbRgBindeAlleHint, anim)) { (void)modellBindepose(true); }
-        cjkTextDisabled("%s", tr(Str::MbRgHandposen));
-        ImGui::SetItemTooltip("%s", tr(Str::MbRgHandHint));
-        static const Str kArten[3] = {Str::MbRgOffen, Str::MbRgFaust, Str::MbRgSaebel};
-        for (const modell::Seite se : {modell::Seite::Links, modell::Seite::Rechts}) {
-            ImGui::PushID(static_cast<int>(se));
-            ImGui::AlignTextToFramePadding();
-            cjkTextUnformatted(tr(se == modell::Seite::Links ? Str::MbRgL : Str::MbRgR));
-            for (int a = 0; a < 3; ++a) {
-                ImGui::SameLine();
-                ImGui::PushID(a);
-                if (knopf(kArten[a], Str::MbRgHandHint, anim)) { (void)modellHandpose(se, a); }
-                ImGui::PopID();
-            }
-            ImGui::PopID();
-        }
-        cjkTextDisabled("%s", tr(Str::MbRgGruppeAuswahl));
-        if (knopf(Str::MbRgGegenseite, Str::MbRgGegenseiteHint, anim)) { (void)modellAuswahlGegenseite(); }
-        daneben(Str::MbRgEltern);
-        if (knopf(Str::MbRgEltern, Str::MbRgElternHint, anim)) { (void)modellAuswahlEltern(); }
-        daneben(Str::MbRgKinder);
-        if (knopf(Str::MbRgKinder, Str::MbRgKinderHint, anim)) { (void)modellAuswahlKinder(); }
+    ui::tipp(tr(Str::AzRigTipp));
+    ui::rolloutEnde();
+}
+
+// Pose, Ghosts und Bewegungspfade: mehr als der Entwurf zeigt (Zeile A14) - ab Werk zugeklappt, Platz nur, wenn gebraucht.
+void modellAnimGruppePose() {
+    ModellTab& t = mt();
+    if (!ui::rolloutBeginn(tr(Str::MbRgGruppePose), {.zu = true})) { return; }
+    const bool anim = !g_app->anim.bones.empty();
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(tr(Str::MbRgKopieren), {.icon = UiIcon::Duplizieren, .taste = tasteVon(Str::MbRgKopieren), .hinweis = tr(Str::MbRgKopierenHint), .aktiv = anim})) {
+        (void)modellPoseKopieren();
     }
-    if (ImGui::CollapsingHeader(tr(Str::MbRgGhosts))) {
-        ModellGeisterEinst& g = t.geister;
-        bool neu = ImGui::Checkbox(tr(Str::MbRgGhostsAn), &g.an);
-        ImGui::SetItemTooltip("%s", tr(Str::MbRgGhostsHint));
+    if (ui::werkzeugKnopf(tr(Str::MbRgEinfuegen), {.icon = UiIcon::Plus, .taste = tasteVon(Str::MbRgEinfuegen), .hinweis = tr(Str::MbRgEinfuegenHint), .aktiv = t.kopieDa})) {
+        (void)modellPoseEinfuegen(false);
+    }
+    if (ui::werkzeugKnopf(tr(Str::MbRgGespiegelt), {.icon = UiIcon::Tauschen, .taste = tasteVon(Str::MbRgGespiegelt), .hinweis = tr(Str::MbRgGespiegeltHint), .aktiv = t.kopieDa})) {
+        (void)modellPoseEinfuegen(true);
+    }
+    if (ui::werkzeugKnopf(tr(Str::MbRgBindeAuswahl), {.icon = UiIcon::Rueckgaengig, .taste = tasteVon(Str::MbRgBindeAuswahl), .hinweis = tr(Str::MbRgBindeAuswahlHint), .aktiv = anim})) {
+        (void)modellBindepose(false);
+    }
+    if (ui::werkzeugKnopf(tr(Str::MbRgBindeAlle), {.icon = UiIcon::Figur, .hinweis = tr(Str::MbRgBindeAlleHint), .aktiv = anim})) { (void)modellBindepose(true); }
+    ui::rasterEnde();
+    // Handposen: je Seite eine Reihe Offen / Faust / Saebel (aus den Animationen des Spiels)
+    ui::absatz(tr(Str::MbRgHandposen));
+    static const Str kArten[3] = {Str::MbRgOffen, Str::MbRgFaust, Str::MbRgSaebel};
+    ImGui::BeginDisabled(!anim);
+    for (const modell::Seite se : {modell::Seite::Links, modell::Seite::Rechts}) {
+        const bool links = se == modell::Seite::Links;
+        const std::string texte[3] = {std::string(tr(kArten[0])) + (links ? "##hl" : "##hr"), std::string(tr(kArten[1])) + (links ? "##hl" : "##hr"),
+                                      std::string(tr(kArten[2])) + (links ? "##hl" : "##hr")};
+        const char* const zeiger[3] = {texte[0].c_str(), texte[1].c_str(), texte[2].c_str()};
+        const char* const hinweise[3] = {tr(Str::MbRgHandHint), tr(Str::MbRgHandHint), tr(Str::MbRgHandHint)};
+        ui::zeile(tr(links ? Str::MbRgL : Str::MbRgR), tr(Str::MbRgHandHint));
+        int art = -1;   // drei Ausloeser, keine Wahl: nichts ist gedrueckt
+        if (ui::segment(links ? "##handl" : "##handr", zeiger, 3, &art, 3, -1, hinweise, ui::feldBreite()) && art >= 0) { (void)modellHandpose(se, art); }
+    }
+    ImGui::EndDisabled();
+    ui::absatz(tr(Str::MbRgGruppeAuswahl));
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(tr(Str::MbRgGegenseite), {.icon = UiIcon::Tauschen, .taste = tasteVon(Str::MbRgGegenseite), .hinweis = tr(Str::MbRgGegenseiteHint), .aktiv = anim})) {
+        (void)modellAuswahlGegenseite();
+    }
+    if (ui::werkzeugKnopf(tr(Str::MbRgEltern), {.icon = UiIcon::Zurueck, .taste = tasteVon(Str::MbRgEltern), .hinweis = tr(Str::MbRgElternHint), .aktiv = anim})) {
+        (void)modellAuswahlEltern();
+    }
+    if (ui::werkzeugKnopf(tr(Str::MbRgKinder), {.icon = UiIcon::Vor, .taste = tasteVon(Str::MbRgKinder), .hinweis = tr(Str::MbRgKinderHint), .aktiv = anim})) {
+        (void)modellAuswahlKinder();
+    }
+    ui::rasterEnde();
+    ui::rolloutEnde();
+}
+
+void modellAnimGruppeGeister() {
+    ModellTab& t = mt();
+    if (!ui::rolloutBeginn(tr(Str::MbRgGhosts), {.zu = true, .reiter = modellReiter(MbReiter::Anzeige, MbReiterBl::Daten)})) { return; }
+    ModellGeisterEinst& ge = t.geister;
+    ui::rasterBeginn(2);
+    bool neu = ui::schalter(tr(Str::MbRgGhostsAn), &ge.an, tr(Str::MbRgGhostsHint));
+    neu = ui::schalter(tr(Str::MbRgSilhouette), &t.silhouette, tr(Str::MbRgSilhouetteHint)) || neu;
+    ui::rasterEnde();
+    ImGui::BeginDisabled(!ge.an);
+    neu = ui::reglerInt(tr(Str::MbRgDavor), &ge.davor, 0, 10, "%d", tr(Str::MbRgDavorHint)) || neu;
+    neu = ui::reglerInt(tr(Str::MbRgDanach), &ge.danach, 0, 10, "%d", tr(Str::MbRgDavorHint)) || neu;
+    neu = ui::reglerInt(tr(Str::MbRgAbstand), &ge.abstand, 1, 20, "%d", tr(Str::MbRgAbstandHint)) || neu;
+    ui::zeile(tr(Str::MbRgFarbeDavor), tr(Str::MbRgFarbeHint));
+    neu = ImGui::ColorEdit4("##geistdavor", ge.farbeDavor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar) || neu;
+    ImGui::SetItemTooltip("%s", tr(Str::MbRgFarbeHint));
+    ui::zeile(tr(Str::MbRgFarbeDanach), tr(Str::MbRgFarbeHint));
+    neu = ImGui::ColorEdit4("##geistdanach", ge.farbeDanach, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar) || neu;
+    ImGui::SetItemTooltip("%s", tr(Str::MbRgFarbeHint));
+    ImGui::EndDisabled();
+    if (neu) { g_app->modelDirty = true; }
+    ui::rolloutEnde();
+}
+
+void modellAnimGruppePfade() {
+    ModellTab& t = mt();
+    char info[16];
+    std::snprintf(info, sizeof info, "%d", static_cast<int>(t.pfade.size()));
+    if (!ui::rolloutBeginn(tr(Str::MbRgPfade), {.kurzinfo = t.pfade.empty() ? nullptr : info, .zu = true, .reiter = modellReiter(MbReiter::Bewegung, MbReiterBl::Daten)})) {
+        return;
+    }
+    const bool anim = !g_app->anim.bones.empty();
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(tr(Str::MbRgPfadHinzu), {.icon = UiIcon::Pfad, .hinweis = tr(Str::MbRgPfadHinzuHint), .aktiv = anim})) { (void)modellPfadHinzu(); }
+    if (ui::werkzeugKnopf(tr(Str::MbIkPfadSpitze), {.icon = UiIcon::Zielen, .hinweis = tr(Str::MbIkPfadSpitzeHint), .aktiv = anim})) { (void)modellPfadSpitzeHinzu(); }
+    if (ui::werkzeugKnopf(tr(Str::MbRgPfadeLeeren), {.icon = UiIcon::Loeschen, .hinweis = tr(Str::MbRgPfadeLeerenHint), .aktiv = !t.pfade.empty()})) { modellPfadeLeeren(); }
+    ui::rasterEnde();
+    bool neu = ui::reglerInt(tr(Str::MbRgPfadDavor), &t.pfadDavor, 0, 120, "%d", tr(Str::MbRgPfadBereichHint));
+    neu = ui::reglerInt(tr(Str::MbRgPfadDanach), &t.pfadDanach, 0, 120, "%d", tr(Str::MbRgPfadBereichHint)) || neu;
+    int weg = -1;
+    for (std::size_t i = 0; i < t.pfade.size(); ++i) {
+        ModellPfad& p = t.pfade[i];
+        ImGui::PushID(static_cast<int>(i));
+        neu = ImGui::ColorEdit4("##farbe", p.farbe, ImGuiColorEditFlags_NoInputs) || neu;
         ImGui::SameLine();
-        neu |= ImGui::Checkbox(tr(Str::MbRgSilhouette), &t.silhouette);
-        ImGui::SetItemTooltip("%s", tr(Str::MbRgSilhouetteHint));
-        ImGui::BeginDisabled(!g.an);
-        const float b = ImGui::GetContentRegionAvail().x * 0.45F;
-        ImGui::SetNextItemWidth(b);
-        neu |= ImGui::SliderInt(tr(Str::MbRgDavor), &g.davor, 0, 10);
-        ImGui::SetItemTooltip("%s", tr(Str::MbRgDavorHint));
-        ImGui::SetNextItemWidth(b);
-        neu |= ImGui::SliderInt(tr(Str::MbRgDanach), &g.danach, 0, 10);
-        ImGui::SetItemTooltip("%s", tr(Str::MbRgDavorHint));
-        ImGui::SetNextItemWidth(b);
-        neu |= ImGui::SliderInt(tr(Str::MbRgAbstand), &g.abstand, 1, 20);
-        ImGui::SetItemTooltip("%s", tr(Str::MbRgAbstandHint));
-        neu |= ImGui::ColorEdit4(tr(Str::MbRgFarbeDavor), g.farbeDavor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-        ImGui::SetItemTooltip("%s", tr(Str::MbRgFarbeHint));
-        ImGui::SameLine();
-        neu |= ImGui::ColorEdit4(tr(Str::MbRgFarbeDanach), g.farbeDanach, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-        ImGui::SetItemTooltip("%s", tr(Str::MbRgFarbeHint));
-        ImGui::EndDisabled();
-        if (neu) { g_app->modelDirty = true; }
+        const modell::Inhalt& in = t.dok.inhalt();
+        const std::string name = p.tag >= 0 && static_cast<std::size_t>(p.tag) < in.teile.size() ? in.teile[static_cast<std::size_t>(p.tag)].name + (p.spitze ? std::string(" ") + tr(Str::MbIkSpitzeName) : std::string())
+                                 : p.knochen >= 0 && static_cast<std::size_t>(p.knochen) < g_app->anim.bones.size()
+                                     ? g_app->anim.bones[static_cast<std::size_t>(p.knochen)].name
+                                     : std::string("-");
+        if (ui::eintrag(name.c_str(), tr(Str::MbRgPfadWeg))) { weg = static_cast<int>(i); }
+        ImGui::PopID();
     }
-    if (ImGui::CollapsingHeader(tr(Str::MbRgPfade))) {
-        if (knopf(Str::MbRgPfadHinzu, Str::MbRgPfadHinzuHint, !g_app->anim.bones.empty())) { (void)modellPfadHinzu(); }
-        daneben(Str::MbIkPfadSpitze);
-        if (knopf(Str::MbIkPfadSpitze, Str::MbIkPfadSpitzeHint, !g_app->anim.bones.empty())) { (void)modellPfadSpitzeHinzu(); }
-        daneben(Str::MbRgPfadeLeeren);
-        if (knopf(Str::MbRgPfadeLeeren, Str::MbRgPfadeLeerenHint, !t.pfade.empty())) { modellPfadeLeeren(); }
-        const float b = ImGui::GetContentRegionAvail().x * 0.45F;
-        ImGui::SetNextItemWidth(b);
-        bool neu = ImGui::SliderInt(tr(Str::MbRgPfadDavor), &t.pfadDavor, 0, 120);
-        ImGui::SetItemTooltip("%s", tr(Str::MbRgPfadBereichHint));
-        ImGui::SetNextItemWidth(b);
-        neu |= ImGui::SliderInt(tr(Str::MbRgPfadDanach), &t.pfadDanach, 0, 120);
-        ImGui::SetItemTooltip("%s", tr(Str::MbRgPfadBereichHint));
-        int weg = -1;
-        for (std::size_t i = 0; i < t.pfade.size(); ++i) {
-            ModellPfad& p = t.pfade[i];
-            ImGui::PushID(static_cast<int>(i));
-            neu |= ImGui::ColorEdit4("##farbe", p.farbe, ImGuiColorEditFlags_NoInputs);
-            ImGui::SameLine();
-            const modell::Inhalt& in = t.dok.inhalt();
-            const std::string name = p.tag >= 0 && static_cast<std::size_t>(p.tag) < in.teile.size() ? in.teile[static_cast<std::size_t>(p.tag)].name + (p.spitze ? std::string(" ") + tr(Str::MbIkSpitzeName) : std::string())
-                                     : p.knochen >= 0 && static_cast<std::size_t>(p.knochen) < g_app->anim.bones.size()
-                                         ? g_app->anim.bones[static_cast<std::size_t>(p.knochen)].name
-                                         : std::string("-");
-            cjkTextUnformatted(name.c_str());
-            ImGui::SameLine();
-            if (ImGui::SmallButton("x")) { weg = static_cast<int>(i); }
-            ImGui::SetItemTooltip("%s", tr(Str::MbRgPfadWeg));
-            ImGui::PopID();
-        }
-        if (weg >= 0) {
-            t.pfade.erase(t.pfade.begin() + weg);
-            neu = true;
-        }
-        if (neu) { g_app->modelDirty = true; }
+    if (weg >= 0) {
+        t.pfade.erase(t.pfade.begin() + weg);
+        neu = true;
     }
-    if (ImGui::CollapsingHeader(tr(Str::MbRgGruppeBacken))) {
-        ImGui::PushTextWrapPos(0.0F);
-        cjkTextDisabled("%s", tr(Str::MbRgBackenInfo));
-        ImGui::PopTextWrapPos();
-        if (knopf(Str::MbRgBacken, Str::MbRgBackenHint, sequenz() != nullptr)) { (void)modellRigBacken(); }
-    }
+    if (neu) { g_app->modelDirty = true; }
+    ui::rolloutEnde();
 }
 
 // --- Uebersicht: die Figur zum Anklicken ------------------------------------------------------------------------------
@@ -1382,7 +1431,10 @@ void drawModellRigUebersicht() {
     modellRigAktualisieren();
     if (!modellRigDa()) {
         cjkTextDisabled("%s", tr(Str::MbRgNochKeins));
-        if (knopf(Str::MbRgAnlegen, Str::MbRgAnlegenHint, !g_app->anim.bones.empty())) { (void)modellRigAnlegen(); }
+        ImGui::BeginDisabled(g_app->anim.bones.empty());
+        if (ImGui::Button(tr(Str::MbRgAnlegen))) { (void)modellRigAnlegen(); }
+        ImGui::EndDisabled();
+        ImGui::SetItemTooltip("%s", tr(Str::MbRgAnlegenHint));
         ImGui::End();
         return;
     }

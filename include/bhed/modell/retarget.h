@@ -77,8 +77,17 @@ struct RtVorlageInfo {
     int knochen = 0;
     float massstab = 0.0F;
     int ketten = 0;
+    std::string gruppe;    // AP10: Gruppe fuer die Auswahl ("human", "droid", "vehicle", "object", "sand" oder ein Eigenname wie "Rancor")
 };
 [[nodiscard]] std::vector<RtVorlageInfo> rtVorlagen();
+// AP10: die Gruppen der Vorlagen in der Reihenfolge der Auswahl im Model-Tab (Entwurf: Mensch, Rancor, Wampa, Tauntaun, Howler,
+// AT-ST, Droiden, Fahrzeuge/Schiffe); nur Gruppen, die eine Vorlage haben.
+[[nodiscard]] std::vector<std::string> rtVorlagenGruppen();
+// AP10: die Rollen, die eine Vorlage den Knochen des Skeletts gibt (ueber die Namen, wie rtCharakter): Becken, Wurzel, Bewegung,
+// je Kette Wirbel / Hals / Kopf / Schluesselbein / Oberarm, Unterarm, Hand / Oberschenkel, Unterschenkel, Fuss, Zehen / Finger /
+// Anhang und die Drehknochen von Oberarm, Unterarm und Oberschenkel. Fuer "Control Rig erstellen": was die Erkennung (rig.h)
+// offen laesst, weiss die Vorlage. Leer: keine solche Vorlage oder kein Knochen des Skeletts traegt einen ihrer Namen.
+[[nodiscard]] std::vector<Zuordnung> rtVorlageRollen(const GlaAnimation& g, int vorlage);
 // Die passende Vorlage (-1 keine): erst Dateiname + Knochenzahl, sonst die meisten gleichen Namen (mindestens 80 %).
 [[nodiscard]] int rtVorlageFuer(const GlaAnimation& g, const std::string& datei = {});
 // Charakter: aus der Vorlage (vorlage >= 0; -2 = suchen) oder vorgeschlagen aus der Erkennung (Stufe 3) und der Hierarchie.

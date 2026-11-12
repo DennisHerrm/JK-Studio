@@ -31,7 +31,6 @@ ZEILEN = [
     ("AiImportGeladen", "Imported %s: %d bones, %d animations, %s (%s)", "%s importiert: %d Knochen, %d Animationen, %s (%s)",
      "已导入 %s: %d 根骨骼, %d 个动画, %s (%s)", "%s を読み込みました: ボーン %d、アニメーション %d、%s (%s)",
      "%s importado: %d huesos, %d animaciones, %s (%s)", "%s importováno: %d kostí, %d animací, %s (%s)"),
-    ("AiBibliothek", "Library", "Bibliothek", "动画库", "ライブラリ", "Biblioteca", "Knihovna"),
     ("AiBibliothekHint",
      "Free animations from other authors, transferred to the figure with the retargeting: pick a category and an animation, put it on the "
      "figure (live preview), choose the slot and bake. Source and licence are shown for every entry.",
@@ -44,8 +43,6 @@ ZEILEN = [
      "previa en vivo), elige el hueco y hornea. Cada entrada muestra origen y licencia.",
      "Volné animace jiných autorů přenesené na postavu retargetingem: vyberte kategorii a animaci, položte ji na postavu (živý náhled), "
      "zvolte pozici a zapečte. U každé položky je uveden zdroj a licence."),
-    ("AiKategorie", "Category", "Kategorie", "类别", "カテゴリ", "Categoría", "Kategorie"),
-    ("AiAuflegen", "Put on figure", "Auf Figur legen", "放到角色上", "フィギュアに載せる", "Poner en la figura", "Položit na postavu"),
     ("AiAuflegenHint",
      "Transfers the selected library animation to the figure and plays it (nothing is changed yet; bake to a slot to keep it).",
      "Überträgt die gewählte Animation der Bibliothek auf die Figur und spielt sie ab (noch ändert sich nichts; zum Behalten auf einen Platz backen).",

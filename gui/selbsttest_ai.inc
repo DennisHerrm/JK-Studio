@@ -82,9 +82,9 @@ std::vector<Schritt> schritte(const std::string& n) {
     add(pruefe("AI: X > Preset-Bibliothek oeffnen klappt das Rollout Presets auf, die Gruppe Bibliothek steht darin", [] {
         if (g_app->mtab.rt.presetRolloutBild < ImGui::GetFrameCount() - 3) { return false; }
         for (const Element& e : g_elemente) {
-            if (e.label == tr(Str::AiAuflegen)) { return true; }
+            if (e.label == tr(Str::AzPresetVorschau)) { return true; }   // AP10: bis rc611 "Put on figure" (AiAuflegen)
         }
-        meldeFehler("AI: Knopf " + std::string(tr(Str::AiAuflegen)) + " fehlt: " + woIst(tr(Str::AiAuflegen)));
+        meldeFehler("AI: Knopf " + std::string(tr(Str::AzPresetVorschau)) + " fehlt: " + woIst(tr(Str::AzPresetVorschau)));
         return false;
     }));
     add(taste(ImGuiKey_Escape, "Esc"));

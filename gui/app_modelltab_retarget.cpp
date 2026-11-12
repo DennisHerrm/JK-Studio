@@ -117,9 +117,10 @@ float zyklusNaht(const std::vector<std::vector<BoneMatrix>>& w) {
 
 void zielCharakter() {
     ModellRetarget& r = rt();
-    const std::string fuer = g_app->anim.skeletonName + "|" + std::to_string(g_app->anim.bones.size());
+    const int vorlage = modellAnimVorlageWahl();   // AP10: -2 suchen, -1 eigenes Skelett (Ketten vorgeschlagen), sonst die gewaehlte
+    const std::string fuer = g_app->anim.skeletonName + "|" + std::to_string(g_app->anim.bones.size()) + "|" + std::to_string(vorlage);
     if (r.czFuer == fuer) { return; }
-    r.cz = modell::rtCharakter(g_app->anim, glaPfad());
+    r.cz = modell::rtCharakter(g_app->anim, glaPfad(), vorlage);
     r.czFuer = fuer;
     r.stand = -1;
 }
@@ -582,7 +583,220 @@ void drawModellRtQuelleFenster() {
     ImGui::EndPopup();
 }
 
-// --- Rollout -----------------------------------------------------------------------------------------------------------
+// --- Gruppe "Uebertragen (Retargeting)" (AP10, Entwurf A5) -----------------------------------------------------------------
+// Form des Entwurfs: Quelle und Ziel als Tabelle, die Teile "Grundpose ausrichten" und "Ketten zuordnen" als Knoepfe im Raster
+// (sie klappen ihren Teil auf), die Ketten als Uebersicht, die Schritte als Schalterliste, der Hauptknopf, das Fussrutschen als
+// Wert. Der Inhalt ist der von rc611 (Quelle waehlen, Import, Sequenz, Vorschau, Zuordnung, Pose, Schritte, Pruefen, Platz).
+
+namespace {
+
+// Die Ketten des Ziels in den Gruppen des Entwurfs (Wirbelsaeule und Kopf, Arme, Beine, Finger, Anhaenge): wie viele zugeordnet sind.
+void kettenUebersicht(const ModellRetarget& r, const modell::RetargetDaten& d) {
+    struct Gruppe {
+        Str name;
+        int alle = 0;
+        int zugeordnet = 0;
+    };
+    Gruppe gruppen[5] = {{Str::AzKetteWirbel}, {Str::AzKetteArme}, {Str::AzKetteBeine}, {Str::AzKetteFinger}, {Str::AzKetteAnhang}};
+    for (std::size_t i = 0; i < r.cz.ketten.size(); ++i) {
+        int wo = 0;
+        switch (r.cz.ketten[i].art) {
+            case modell::KettenArt::Wirbel: case modell::KettenArt::Hals: case modell::KettenArt::Kopf: wo = 0; break;
+            case modell::KettenArt::Schluessel: case modell::KettenArt::Arm: wo = 1; break;
+            case modell::KettenArt::Bein: wo = 2; break;
+            case modell::KettenArt::Finger: wo = 3; break;
+            case modell::KettenArt::Anhang: wo = 4; break;
+        }
+        ++gruppen[wo].alle;
+        if (i < d.zu.quelle.size() && d.zu.quelle[i] >= 0) { ++gruppen[wo].zugeordnet; }
+    }
+    std::vector<ui::WertZeile> zeilen;
+    for (const Gruppe& x : gruppen) {
+        if (x.alle == 0) { continue; }
+        zeilen.push_back({tr(x.name), format(Str::AzKettenWert, x.zugeordnet, x.alle), x.zugeordnet == x.alle ? ui::Ton::Gut : ui::Ton::Warnung, tr(Str::RtKettenHint)});
+    }
+    ui::wertTabelle(zeilen.data(), static_cast<int>(zeilen.size()));
+}
+
+// Ein Teil der Gruppe, den ein Knopf des Rasters auf- und zuklappt (der Zustand steht wie bei den Gruppen im Fenster).
+bool teilOffen(const char* kennung, bool oeffnen) {
+    ImGuiStorage* speicher = ImGui::GetStateStorage();
+    const ImGuiID id = ImGui::GetID(kennung);
+    if (oeffnen) { speicher->SetBool(id, true); }
+    return speicher->GetBool(id, false);
+}
+
+void teilUmschalten(const char* kennung) {
+    ImGuiStorage* speicher = ImGui::GetStateStorage();
+    const ImGuiID id = ImGui::GetID(kennung);
+    speicher->SetBool(id, !speicher->GetBool(id, false));
+}
+
+// Ketten-Zuordnung: je Kette des Ziels die Kette der Quelle
+void teilKetten(ModellRetarget& r, const modell::RetargetDaten& d) {
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(tr(Str::RtAutoLeer), {.icon = UiIcon::Erzeugen, .hinweis = tr(Str::RtAutoLeerHint)})) { (void)modellRtZuordnen(false); }
+    if (ui::werkzeugKnopf(tr(Str::RtAutoAlle), {.icon = UiIcon::Neuladen, .hinweis = tr(Str::RtAutoAlleHint)})) { (void)modellRtZuordnen(true); }
+    ui::rasterEnde();
+    if (!ImGui::BeginTable("##rtketten", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame)) { return; }
+    ImGui::TableSetupColumn(tr(Str::RtSpalteZiel));
+    ImGui::TableSetupColumn(tr(Str::RtSpalteQuelle));
+    ImGui::TableHeadersRow();
+    for (std::size_t i = 0; i < r.cz.ketten.size(); ++i) {
+        ImGui::PushID(static_cast<int>(i));
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        const std::string zn = ketteName(r.cz, static_cast<int>(i), g_app->anim);
+        cjkTextUnformatted(zn.c_str());
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", zn.c_str()); }
+        ImGui::TableNextColumn();
+        const int j = i < d.zu.quelle.size() ? d.zu.quelle[i] : -1;
+        const bool hand = i < d.zu.vonHand.size() && d.zu.vonHand[i] != 0;
+        ImGui::SetNextItemWidth(-1.0F);
+        const std::string kurz = j >= 0 && static_cast<std::size_t>(j) < r.cq.ketten.size() ? r.cq.ketten[static_cast<std::size_t>(j)].schluessel() : "-";
+        if (ImGui::BeginCombo("##q", (kurz + (hand ? " *" : "")).c_str())) {
+            for (int k = -1; k < static_cast<int>(r.cq.ketten.size()); ++k) {
+                if (ImGui::Selectable(ketteName(r.cq, k, r.quelle).c_str(), k == j)) {
+                    (void)modellRtEinstellen(tr(Str::RtUndoZuordnung), [&](modell::RetargetDaten& x) {
+                        x.zu.quelle.resize(r.cz.ketten.size(), -1);
+                        x.zu.vonHand.resize(r.cz.ketten.size(), 0);
+                        x.zu.quelle[i] = k;
+                        x.zu.vonHand[i] = 1;
+                    });
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::SetItemTooltip("%s\n%s", ketteName(r.cq, j, r.quelle).c_str(), tr(Str::RtKetteHint));
+        ImGui::PopID();
+    }
+    ImGui::EndTable();
+}
+
+// Retarget-Pose: Haltung von Quelle und Ziel, Abweichung, der gewaehlte Knochen von Hand, benannte Posen
+void teilPose(ModellRetarget& r, const modell::RetargetDaten& d) {
+    const char* haltungen[3] = {tr(Str::RtHaltungBinde), tr(Str::RtHaltungT), tr(Str::RtHaltungA)};
+    for (const bool ziel : {false, true}) {
+        int h = static_cast<int>(ziel ? d.e.poseZiel.haltung : d.e.poseQuelle.haltung);
+        ui::zeile(tr(ziel ? Str::RtPoseZiel : Str::RtPoseQuelle), tr(Str::RtHaltungHint));
+        if (ImGui::Combo(ziel ? "##rthaltungziel" : "##rthaltungquelle", &h, haltungen, 3)) { (void)modellRtHaltung(ziel, static_cast<modell::RtHaltung>(h)); }
+        ImGui::SetItemTooltip("%s", tr(Str::RtHaltungHint));
+    }
+    const float ab = r.bericht.poseAbweichung;
+    ui::absatz(format(Str::RtPoseAbweichung, static_cast<double>(ab)).c_str(), ab > 5.0F ? ui::Ton::Warnung : ui::Ton::Leise);
+    // von Hand: der gewaehlte Knochen des Ziels um seine Achsen
+    const int k = gewaehlterKnochen();
+    if (k >= 0 && static_cast<std::size_t>(k) < g_app->anim.bones.size()) {
+        ui::absatz(format(Str::RtPoseKnochen, g_app->anim.bones[static_cast<std::size_t>(k)].name.c_str()).c_str(), ui::Ton::Normal);
+        static const char* const kAchsen[3] = {"X", "Y", "Z"};
+        for (int ach = 0; ach < 3; ++ach) {
+            for (const float grad : {-5.0F, 5.0F}) {
+                ImGui::PushID(ach * 2 + (grad > 0.0F ? 1 : 0));
+                char b[16];
+                std::snprintf(b, sizeof b, "%s%s5", kAchsen[ach], grad > 0.0F ? "+" : "-");
+                if (ach > 0 || grad > 0.0F) { ImGui::SameLine(); }
+                if (ImGui::SmallButton(b)) {
+                    (void)modellRtEinstellen(tr(Str::RtUndoPose), [&](modell::RetargetDaten& x) {
+                        std::vector<std::array<float, 4>>& v = x.e.poseZiel.vonHand;
+                        if (v.size() != g_app->anim.bones.size()) { v.assign(g_app->anim.bones.size(), {1.0F, 0.0F, 0.0F, 0.0F}); }
+                        float achse[3] = {0.0F, 0.0F, 0.0F};
+                        achse[ach] = 1.0F;
+                        const BoneMatrix m = modell::matrixAusQuat(v[static_cast<std::size_t>(k)].data()) * modell::drehungUm(achse, grad);
+                        float q[4];
+                        modell::quatAusMatrix(m, q);
+                        v[static_cast<std::size_t>(k)] = {q[0], q[1], q[2], q[3]};
+                    });
+                }
+                ImGui::SetItemTooltip("%s", tr(Str::RtPoseDrehenHint));
+                ImGui::PopID();
+            }
+        }
+    } else {
+        ui::absatz(tr(Str::RtKnochenWahl));
+    }
+    if (ui::werkzeugKnopf(tr(Str::RtPoseZurueck), {.icon = UiIcon::Rueckgaengig, .hinweis = tr(Str::RtPoseZurueckHint)})) {
+        (void)modellRtEinstellen(tr(Str::RtUndoPose), [](modell::RetargetDaten& x) {
+            x.e.poseZiel.vonHand.clear();
+            x.e.poseQuelle.vonHand.clear();
+        });
+    }
+    // benannte Posen
+    ui::zeile(tr(Str::RtPoseName));
+    ImGui::InputText("##rtpname", r.poseName, sizeof r.poseName);
+    if (ui::werkzeugKnopf(tr(Str::RtPoseSpeichern), {.icon = UiIcon::Speichern, .hinweis = tr(Str::RtPoseSpeichernHint)})) { (void)modellRtPoseSpeichern(r.poseName); }
+    bool erste = true;
+    for (std::size_t i = 0; i < d.posen.size(); ++i) {
+        if (!d.posen[i].ziel) { continue; }
+        ImGui::PushID(static_cast<int>(i));
+        if (!erste) { daneben(d.posen[i].name.c_str()); }
+        erste = false;
+        if (ImGui::SmallButton(d.posen[i].name.c_str())) {
+            const std::string n = d.posen[i].name;
+            (void)modellRtEinstellen(tr(Str::RtUndoPose), [&](modell::RetargetDaten& x) {
+                for (const modell::RtBenanntePose& p : x.posen) {
+                    if (p.name == n) { (p.ziel ? x.e.poseZiel : x.e.poseQuelle) = p.pose; }
+                }
+            });
+        }
+        ImGui::SetItemTooltip("%s", tr(Str::RtPoseLadenHint));
+        ImGui::PopID();
+    }
+}
+
+// Reihenfolge der Schritte, Reach, Laenge von Hand
+void teilSchritte(ModellRetarget& r, const modell::RetargetDaten& d) {
+    static const Str kName[4] = {Str::RtSchrittBecken, Str::RtSchrittFk, Str::RtSchrittIk, Str::RtSchrittWurzel};
+    static const Str kHint[4] = {Str::RtSchrittBeckenHint, Str::RtSchrittFkHint, Str::RtSchrittIkHint, Str::RtSchrittWurzelHint};
+    for (std::size_t i = 0; i < 4; ++i) {
+        ImGui::PushID(static_cast<int>(i));
+        const int si = static_cast<int>(d.e.reihenfolge[i]);
+        ImGui::BeginDisabled(i == 0);
+        if (ImGui::ArrowButton("##hoch", ImGuiDir_Up)) {
+            (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { std::swap(x.e.reihenfolge[i], x.e.reihenfolge[i - 1]); });
+        }
+        ImGui::SetItemTooltip("%s", tr(Str::RtHochHint));
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::BeginDisabled(i == 3);
+        if (ImGui::ArrowButton("##runter", ImGuiDir_Down)) {
+            (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { std::swap(x.e.reihenfolge[i], x.e.reihenfolge[i + 1]); });
+        }
+        ImGui::SetItemTooltip("%s", tr(Str::RtRunterHint));
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::AlignTextToFramePadding();
+        cjkTextUnformatted(tr(kName[si]));
+        ImGui::SetItemTooltip("%s", tr(kHint[si]));
+        ImGui::PopID();
+    }
+    const auto regler = [&](Str text, Str hinweis, float wert, const std::function<void(modell::RtEinstellung&, float)>& setzen) {
+        float v = wert;
+        if (ui::regler(tr(text), &v, 0.0F, 1.0F, "%.2f", tr(hinweis))) {
+            (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { setzen(x.e, v); }, true);
+        }
+        if (ImGui::IsItemDeactivated()) { r.reglerZug = false; }
+    };
+    regler(Str::RtReachFuss, Str::RtReachHint, d.e.reachFuss, [](modell::RtEinstellung& x, float v) { x.reachFuss = v; });
+    regler(Str::RtReachHand, Str::RtReachHint, d.e.reachHand, [](modell::RtEinstellung& x, float v) { x.reachHand = v; });
+    bool vonHand = d.e.laengeVonHand > 0.0F;
+    if (ui::schalter(tr(Str::RtLaengeVonHand), &vonHand, tr(Str::RtLaengeHint))) {
+        const float k = r.bericht.k;
+        (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { x.e.laengeVonHand = vonHand ? std::max(k, 0.01F) : 0.0F; });
+    }
+    if (vonHand) {
+        float k = d.e.laengeVonHand;
+        ui::zeileOhne();
+        if (ImGui::DragFloat("##rtk", &k, 0.005F, 0.05F, 20.0F, "%.3f")) {
+            (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { x.e.laengeVonHand = k; }, true);
+        }
+        if (ImGui::IsItemDeactivated()) { r.reglerZug = false; }
+        ImGui::SetItemTooltip("%s", tr(Str::RtLaengeHint));
+    } else {
+        ui::absatz(format(Str::RtLaengeWert, static_cast<double>(r.bericht.k)).c_str());
+    }
+}
+
+}  // namespace
 
 void drawModellRetargetBereich() {
     ModellRetarget& r = rt();
@@ -590,46 +804,40 @@ void drawModellRetargetBereich() {
     modellRtAktualisieren();
     drawModellRtQuelleFenster();
     if (r.oeffnen) {
-        ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+        modellFeldReiter(MbReiter::Bewegung, MbReiterBl::Knochen);
+        ui::rolloutZeigen(tr(Str::AzRUebertragen));   // aufklappen und ins Bild rollen (Menue, Rechtsklick, Suche)
         r.oeffnen = false;
     }
-    const bool offen = ImGui::CollapsingHeader(tr(Str::RtRollout));
-    ImGui::SetItemTooltip("%s", tr(Str::RtRolloutHint));
-    if (!offen) { return; }
+    const std::string kurz = r.quelle.bones.empty() ? std::string(tr(Str::AzRtInfoKeine)) : fileName(r.quelleFuer);
+    if (!ui::rolloutBeginn(tr(Str::AzRUebertragen), {.kurzinfo = kurz.c_str(), .hinweis = tr(Str::RtRolloutHint)})) { return; }
     r.rolloutBild = ImGui::GetFrameCount();
     zielCharakter();
     const modell::RetargetDaten d = *modellRtDaten();
     const float fs = ImGui::GetFontSize();
-    ImGui::PushTextWrapPos(0.0F);
     // Quelle und Ziel
-    if (ImGui::Button(tr(Str::RtQuelleWaehlen))) { r.quelleWaehlen = true; }
-    ImGui::SetItemTooltip("%s", tr(Str::RtQuelleWaehlenHint));
-    daneben(tr(Str::AiImport));
-    if (ImGui::Button(tr(Str::AiImport))) { (void)modellRtImportWaehlen(); }
-    ImGui::SetItemTooltip("%s", tr(Str::AiImportHint));
-    if (!r.importInfo.empty() && modell::istAnimImportEndung(r.quelleFuer)) { cjkTextDisabled("%s", r.importInfo.c_str()); }
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(tr(Str::RtQuelleWaehlen), {.icon = UiIcon::Oeffnen, .hinweis = tr(Str::RtQuelleWaehlenHint)})) { r.quelleWaehlen = true; }
+    if (ui::werkzeugKnopf(tr(Str::AiImport), {.icon = UiIcon::Paket, .hinweis = tr(Str::AiImportHint)})) { (void)modellRtImportWaehlen(); }
+    ui::rasterEnde();
+    if (!r.importInfo.empty() && modell::istAnimImportEndung(r.quelleFuer)) { ui::absatz(r.importInfo.c_str()); }
     if (r.quelle.bones.empty()) {
-        cjkTextDisabled("%s", tr(Str::RtQuelleKeine));
-        ImGui::PopTextWrapPos();
+        ui::tipp(tr(Str::RtQuelleKeine));
+        ui::rolloutEnde();
+        r.baeumeOeffnen = false;
         return;
     }
-    std::string quellText = r.quelleFuer;
-    if (std::filesystem::path(quellText).is_absolute()) {
-        // nur die letzten vier Teile (models/players/<skelett>/<datei>), der ganze Pfad im Tooltip
-        std::string kurz;
-        int teile = 0;
-        for (auto it = std::filesystem::path(quellText).end(); it != std::filesystem::path(quellText).begin() && teile < 4; ++teile) {
-            --it;
-            kurz = it->generic_string() + (kurz.empty() ? "" : "/" + kurz);
-        }
-        quellText = ".../" + kurz;
-    }
-    cjkTextUnformatted(format(Str::RtQuelle, quellText.c_str(), static_cast<int>(r.quelle.bones.size()), charakterText(r.cq).c_str()).c_str());
-    ImGui::SetItemTooltip("%s", r.quelleFuer.c_str());
-    cjkTextUnformatted(format(Str::RtZiel, glaPfad().c_str(), static_cast<int>(g_app->anim.bones.size()), charakterText(r.cz).c_str()).c_str());
+    const auto skelett = [](const std::string& datei, std::size_t knochen, const modell::RtCharakter& c) {
+        char b[400];
+        std::snprintf(b, sizeof b, trN(Str::AzSkelettWert, static_cast<int>(knochen)), datei.c_str(), static_cast<int>(knochen));
+        return std::string(b) + " \xc2\xb7 " + charakterText(c);
+    };
+    ui::wertTabelle({{tr(Str::AzQuelle), skelett(fileName(r.quelleFuer), r.quelle.bones.size(), r.cq), ui::Ton::Normal,
+                      format(Str::RtQuelle, r.quelleFuer.c_str(), static_cast<int>(r.quelle.bones.size()), charakterText(r.cq).c_str())},
+                     {tr(Str::AzZiel), skelett(fileName(glaPfad()), g_app->anim.bones.size(), r.cz), ui::Ton::Normal,
+                      format(Str::RtZiel, glaPfad().c_str(), static_cast<int>(g_app->anim.bones.size()), charakterText(r.cz).c_str())}});
     // Sequenz der Quelle
-    ImGui::SetNextItemWidth(-ImGui::CalcTextSize(tr(Str::RtSequenz)).x - ImGui::GetStyle().ItemInnerSpacing.x);
-    if (ImGui::BeginCombo(tr(Str::RtSequenz), d.sequenz.empty() ? tr(Str::RtSequenzAlle) : d.sequenz.c_str(), ImGuiComboFlags_HeightLarge)) {
+    ui::zeile(tr(Str::RtSequenz), tr(Str::RtSequenzHint));
+    if (ImGui::BeginCombo("##rtsequenz", d.sequenz.empty() ? tr(Str::RtSequenzAlle) : d.sequenz.c_str(), ImGuiComboFlags_HeightLarge)) {
         if (ImGui::Selectable(tr(Str::RtSequenzAlle), d.sequenz.empty())) {
             (void)modellRtEinstellen(tr(Str::RtUndoQuelle), [](modell::RetargetDaten& x) { x.sequenz.clear(); });
         }
@@ -644,235 +852,72 @@ void drawModellRetargetBereich() {
     }
     ImGui::SetItemTooltip("%s", tr(Str::RtSequenzHint));
     // Vorschau
+    ui::rasterBeginn(2);
     bool vorschau = r.vorschau;
-    if (ImGui::Checkbox(tr(Str::RtVorschau), &vorschau)) { (void)modellRtVorschau(vorschau); }
-    ImGui::SetItemTooltip("%s", tr(Str::RtVorschauHint));
-    daneben(tr(Str::RtQuelleZeigen));
-    if (ImGui::Checkbox(tr(Str::RtQuelleZeigen), &r.quelleZeigen)) { g_app->modelDirty = true; }
-    ImGui::SetItemTooltip("%s", tr(Str::RtQuelleZeigenHint));
+    if (ui::schalter(tr(Str::RtVorschau), &vorschau, tr(Str::RtVorschauHint))) { (void)modellRtVorschau(vorschau); }
+    if (ui::schalter(tr(Str::RtQuelleZeigen), &r.quelleZeigen, tr(Str::RtQuelleZeigenHint))) { g_app->modelDirty = true; }
+    ui::rasterEnde();
     if (r.vorschau && !r.welt.empty()) {
-        if (ImGui::SmallButton(r.spielt ? tr(Str::RtAnhalten) : tr(Str::RtAbspielen))) { r.spielt = !r.spielt; }
+        if (ImGui::Button(r.spielt ? tr(Str::RtAnhalten) : tr(Str::RtAbspielen))) { r.spielt = !r.spielt; }
         ImGui::SetItemTooltip("%s", tr(Str::RtAbspielenHint));
         ImGui::SameLine();
         ImGui::SetNextItemWidth(-1.0F);
         if (ImGui::SliderFloat("##rtbild", &r.bild, 0.0F, static_cast<float>(r.welt.size() - 1), "%.0f")) { g_app->modelDirty = true; }
         ImGui::SetItemTooltip("%s", tr(Str::RtBildHint));
     }
-    // Ketten-Zuordnung
-    if (r.baeumeOeffnen) { ImGui::SetNextItemOpen(true, ImGuiCond_Always); }
-    if (ImGui::TreeNodeEx(begriff(Str::RtKettenMax, Str::RtKettenBlender), ImGuiTreeNodeFlags_None)) {
-        ImGui::SetItemTooltip("%s", tr(Str::RtKettenHint));
-        if (ImGui::SmallButton(tr(Str::RtAutoLeer))) { (void)modellRtZuordnen(false); }
-        ImGui::SetItemTooltip("%s", tr(Str::RtAutoLeerHint));
-        daneben(tr(Str::RtAutoAlle));
-        if (ImGui::SmallButton(tr(Str::RtAutoAlle))) { (void)modellRtZuordnen(true); }
-        ImGui::SetItemTooltip("%s", tr(Str::RtAutoAlleHint));
-        if (ImGui::BeginTable("##rtketten", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame)) {
-            ImGui::TableSetupColumn(tr(Str::RtSpalteZiel));
-            ImGui::TableSetupColumn(tr(Str::RtSpalteQuelle));
-            ImGui::TableHeadersRow();
-            for (std::size_t i = 0; i < r.cz.ketten.size(); ++i) {
-                ImGui::PushID(static_cast<int>(i));
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
-                const std::string zn = ketteName(r.cz, static_cast<int>(i), g_app->anim);
-                cjkTextUnformatted(zn.c_str());
-                if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", zn.c_str()); }
-                ImGui::TableNextColumn();
-                const int j = i < d.zu.quelle.size() ? d.zu.quelle[i] : -1;
-                const bool hand = i < d.zu.vonHand.size() && d.zu.vonHand[i] != 0;
-                ImGui::SetNextItemWidth(-1.0F);
-                const std::string kurz = j >= 0 && static_cast<std::size_t>(j) < r.cq.ketten.size() ? r.cq.ketten[static_cast<std::size_t>(j)].schluessel() : "-";
-                if (ImGui::BeginCombo("##q", (kurz + (hand ? " *" : "")).c_str())) {
-                    for (int k = -1; k < static_cast<int>(r.cq.ketten.size()); ++k) {
-                        if (ImGui::Selectable(ketteName(r.cq, k, r.quelle).c_str(), k == j)) {
-                            (void)modellRtEinstellen(tr(Str::RtUndoZuordnung), [&](modell::RetargetDaten& x) {
-                                x.zu.quelle.resize(r.cz.ketten.size(), -1);
-                                x.zu.vonHand.resize(r.cz.ketten.size(), 0);
-                                x.zu.quelle[i] = k;
-                                x.zu.vonHand[i] = 1;
-                            });
-                        }
-                    }
-                    ImGui::EndCombo();
-                }
-                ImGui::SetItemTooltip("%s\n%s", ketteName(r.cq, j, r.quelle).c_str(), tr(Str::RtKetteHint));
-                ImGui::PopID();
-            }
-            ImGui::EndTable();
-        }
-        ImGui::TreePop();
-    } else {
-        ImGui::SetItemTooltip("%s", tr(Str::RtKettenHint));
+    // Grundpose ausrichten, Ketten zuordnen, Schritte: Knoepfe im Raster, die ihren Teil aufklappen
+    const bool poseOffen = teilOffen("##rtteilpose", r.baeumeOeffnen);
+    const bool kettenOffen = teilOffen("##rtteilketten", r.baeumeOeffnen);
+    const bool schritteOffen = teilOffen("##rtteilschritte", r.baeumeOeffnen);
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(begriff(Str::RtPoseMax, Str::RtPoseBlender), {.icon = UiIcon::Figur, .hinweis = tr(Str::RtPoseHint), .an = poseOffen})) { teilUmschalten("##rtteilpose"); }
+    if (ui::werkzeugKnopf(begriff(Str::RtKettenMax, Str::RtKettenBlender), {.icon = UiIcon::FeldConstraints, .hinweis = tr(Str::RtKettenHint), .an = kettenOffen})) {
+        teilUmschalten("##rtteilketten");
     }
-    // Retarget-Pose
-    if (r.baeumeOeffnen) { ImGui::SetNextItemOpen(true, ImGuiCond_Always); }
-    if (ImGui::TreeNodeEx(begriff(Str::RtPoseMax, Str::RtPoseBlender), ImGuiTreeNodeFlags_None)) {
-        ImGui::SetItemTooltip("%s", tr(Str::RtPoseHint));
-        const char* haltungen[3] = {tr(Str::RtHaltungBinde), tr(Str::RtHaltungT), tr(Str::RtHaltungA)};
-        for (const bool ziel : {false, true}) {
-            int h = static_cast<int>(ziel ? d.e.poseZiel.haltung : d.e.poseQuelle.haltung);
-            ImGui::SetNextItemWidth(-ImGui::CalcTextSize(tr(ziel ? Str::RtPoseZiel : Str::RtPoseQuelle)).x - ImGui::GetStyle().ItemInnerSpacing.x);
-            if (ImGui::Combo(tr(ziel ? Str::RtPoseZiel : Str::RtPoseQuelle), &h, haltungen, 3)) { (void)modellRtHaltung(ziel, static_cast<modell::RtHaltung>(h)); }
-            ImGui::SetItemTooltip("%s", tr(Str::RtHaltungHint));
-        }
-        const float ab = r.bericht.poseAbweichung;
-        if (ab > 5.0F) {
-            cjkTextColored(ImVec4{1.0F, 0.6F, 0.25F, 1.0F}, "%s", format(Str::RtPoseAbweichung, static_cast<double>(ab)).c_str());
-        } else {
-            cjkTextDisabled("%s", format(Str::RtPoseAbweichung, static_cast<double>(ab)).c_str());
-        }
-        // von Hand: der gewaehlte Knochen des Ziels um seine Achsen
-        const int k = gewaehlterKnochen();
-        if (k >= 0 && static_cast<std::size_t>(k) < g_app->anim.bones.size()) {
-            cjkTextUnformatted(format(Str::RtPoseKnochen, g_app->anim.bones[static_cast<std::size_t>(k)].name.c_str()).c_str());
-            static const char* const kAchsen[3] = {"X", "Y", "Z"};
-            for (int ach = 0; ach < 3; ++ach) {
-                for (const float grad : {-5.0F, 5.0F}) {
-                    ImGui::PushID(ach * 2 + (grad > 0.0F ? 1 : 0));
-                    char b[16];
-                    std::snprintf(b, sizeof b, "%s%s5", kAchsen[ach], grad > 0.0F ? "+" : "-");
-                    if (ach > 0 || grad > 0.0F) { ImGui::SameLine(); }
-                    if (ImGui::SmallButton(b)) {
-                        (void)modellRtEinstellen(tr(Str::RtUndoPose), [&](modell::RetargetDaten& x) {
-                            std::vector<std::array<float, 4>>& v = x.e.poseZiel.vonHand;
-                            if (v.size() != g_app->anim.bones.size()) { v.assign(g_app->anim.bones.size(), {1.0F, 0.0F, 0.0F, 0.0F}); }
-                            float achse[3] = {0.0F, 0.0F, 0.0F};
-                            achse[ach] = 1.0F;
-                            const BoneMatrix m = modell::matrixAusQuat(v[static_cast<std::size_t>(k)].data()) * modell::drehungUm(achse, grad);
-                            float q[4];
-                            modell::quatAusMatrix(m, q);
-                            v[static_cast<std::size_t>(k)] = {q[0], q[1], q[2], q[3]};
-                        });
-                    }
-                    ImGui::SetItemTooltip("%s", tr(Str::RtPoseDrehenHint));
-                    ImGui::PopID();
-                }
-            }
-        } else {
-            cjkTextDisabled("%s", tr(Str::RtKnochenWahl));
-        }
-        if (ImGui::SmallButton(tr(Str::RtPoseZurueck))) {
-            (void)modellRtEinstellen(tr(Str::RtUndoPose), [](modell::RetargetDaten& x) {
-                x.e.poseZiel.vonHand.clear();
-                x.e.poseQuelle.vonHand.clear();
+    if (ui::werkzeugKnopf(tr(Str::RtSchritte), {.icon = UiIcon::Liste, .hinweis = tr(Str::RtSchritteHint), .an = schritteOffen})) { teilUmschalten("##rtteilschritte"); }
+    ui::rasterEnde();
+    kettenUebersicht(r, d);
+    if (poseOffen) { teilPose(r, d); }
+    if (kettenOffen) { teilKetten(r, d); }
+    // die Schritte als Schalterliste (ihre Reihenfolge im Teil "Schritte"), dazu die Fusskontakte
+    static const Str kSchritt[4] = {Str::RtSchrittBecken, Str::RtSchrittFk, Str::RtSchrittIk, Str::RtSchrittWurzel};
+    static const Str kSchrittHint[4] = {Str::RtSchrittBeckenHint, Str::RtSchrittFkHint, Str::RtSchrittIkHint, Str::RtSchrittWurzelHint};
+    ui::rasterBeginn(2);
+    for (std::size_t i = 0; i < 4; ++i) {
+        const modell::RtSchritt s = d.e.reihenfolge[i];
+        const int si = static_cast<int>(s);
+        bool an = s == modell::RtSchritt::Becken ? d.e.becken : (s == modell::RtSchritt::Fk ? d.e.fk : (s == modell::RtSchritt::Ik ? d.e.ik : d.e.wurzel));
+        if (ui::schalter(tr(kSchritt[si]), &an, tr(kSchrittHint[si]))) {
+            (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) {
+                (s == modell::RtSchritt::Becken ? x.e.becken : (s == modell::RtSchritt::Fk ? x.e.fk : (s == modell::RtSchritt::Ik ? x.e.ik : x.e.wurzel))) = an;
             });
         }
-        ImGui::SetItemTooltip("%s", tr(Str::RtPoseZurueckHint));
-        // benannte Posen
-        ImGui::SetNextItemWidth(fs * 9.0F);
-        ImGui::InputTextWithHint("##rtpname", tr(Str::RtPoseName), r.poseName, sizeof r.poseName);
-        ImGui::SameLine();
-        if (ImGui::SmallButton(tr(Str::RtPoseSpeichern))) { (void)modellRtPoseSpeichern(r.poseName); }
-        ImGui::SetItemTooltip("%s", tr(Str::RtPoseSpeichernHint));
-        for (std::size_t i = 0; i < d.posen.size(); ++i) {
-            if (!d.posen[i].ziel) { continue; }
-            ImGui::PushID(static_cast<int>(i));
-            if (ImGui::SmallButton(d.posen[i].name.c_str())) {
-                const std::string n = d.posen[i].name;
-                (void)modellRtEinstellen(tr(Str::RtUndoPose), [&](modell::RetargetDaten& x) {
-                    for (const modell::RtBenanntePose& p : x.posen) {
-                        if (p.name == n) { (p.ziel ? x.e.poseZiel : x.e.poseQuelle) = p.pose; }
-                    }
-                });
-            }
-            ImGui::SetItemTooltip("%s", tr(Str::RtPoseLadenHint));
-            ImGui::SameLine();
-            ImGui::PopID();
-        }
-        ImGui::NewLine();
-        ImGui::TreePop();
-    } else {
-        ImGui::SetItemTooltip("%s", tr(Str::RtPoseHint));
     }
-    // Schritte in ihrer Reihenfolge
-    if (r.baeumeOeffnen) { ImGui::SetNextItemOpen(true, ImGuiCond_Always); }
-    if (ImGui::TreeNodeEx(tr(Str::RtSchritte), ImGuiTreeNodeFlags_None)) {
-        ImGui::SetItemTooltip("%s", tr(Str::RtSchritteHint));
-        static const Str kName[4] = {Str::RtSchrittBecken, Str::RtSchrittFk, Str::RtSchrittIk, Str::RtSchrittWurzel};
-        static const Str kHint[4] = {Str::RtSchrittBeckenHint, Str::RtSchrittFkHint, Str::RtSchrittIkHint, Str::RtSchrittWurzelHint};
-        for (std::size_t i = 0; i < 4; ++i) {
-            ImGui::PushID(static_cast<int>(i));
-            const modell::RtSchritt s = d.e.reihenfolge[i];
-            const int si = static_cast<int>(s);
-            bool an = s == modell::RtSchritt::Becken ? d.e.becken : (s == modell::RtSchritt::Fk ? d.e.fk : (s == modell::RtSchritt::Ik ? d.e.ik : d.e.wurzel));
-            ImGui::BeginDisabled(i == 0);
-            if (ImGui::ArrowButton("##hoch", ImGuiDir_Up)) {
-                (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { std::swap(x.e.reihenfolge[i], x.e.reihenfolge[i - 1]); });
-            }
-            ImGui::SetItemTooltip("%s", tr(Str::RtHochHint));
-            ImGui::EndDisabled();
-            ImGui::SameLine();
-            ImGui::BeginDisabled(i == 3);
-            if (ImGui::ArrowButton("##runter", ImGuiDir_Down)) {
-                (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { std::swap(x.e.reihenfolge[i], x.e.reihenfolge[i + 1]); });
-            }
-            ImGui::SetItemTooltip("%s", tr(Str::RtRunterHint));
-            ImGui::EndDisabled();
-            ImGui::SameLine();
-            if (ImGui::Checkbox(tr(kName[si]), &an)) {
-                (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) {
-                    (s == modell::RtSchritt::Becken ? x.e.becken : (s == modell::RtSchritt::Fk ? x.e.fk : (s == modell::RtSchritt::Ik ? x.e.ik : x.e.wurzel))) = an;
-                });
-            }
-            ImGui::SetItemTooltip("%s", tr(kHint[si]));
-            ImGui::PopID();
-        }
-        const auto regler = [&](Str text, Str hinweis, float wert, const std::function<void(modell::RtEinstellung&, float)>& setzen) {
-            float v = wert;
-            ImGui::SetNextItemWidth(-ImGui::CalcTextSize(tr(text)).x - ImGui::GetStyle().ItemInnerSpacing.x);
-            if (ImGui::SliderFloat(tr(text), &v, 0.0F, 1.0F, "%.2f")) {
-                (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { setzen(x.e, v); }, true);
-            }
-            if (ImGui::IsItemDeactivated()) { r.reglerZug = false; }
-            ImGui::SetItemTooltip("%s", tr(hinweis));
-        };
-        regler(Str::RtReachFuss, Str::RtReachHint, d.e.reachFuss, [](modell::RtEinstellung& x, float v) { x.reachFuss = v; });
-        regler(Str::RtReachHand, Str::RtReachHint, d.e.reachHand, [](modell::RtEinstellung& x, float v) { x.reachHand = v; });
-        bool kon = d.e.kontakte;
-        if (ImGui::Checkbox(tr(Str::RtKontakte), &kon)) {
-            (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { x.e.kontakte = kon; });
-        }
-        ImGui::SetItemTooltip("%s", tr(Str::RtKontakteHint));
-        bool vonHand = d.e.laengeVonHand > 0.0F;
-        if (ImGui::Checkbox(tr(Str::RtLaengeVonHand), &vonHand)) {
-            const float k = r.bericht.k;
-            (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { x.e.laengeVonHand = vonHand ? std::max(k, 0.01F) : 0.0F; });
-        }
-        ImGui::SetItemTooltip("%s", tr(Str::RtLaengeHint));
-        if (vonHand) {
-            float k = d.e.laengeVonHand;
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(fs * 5.0F);
-            if (ImGui::DragFloat("##rtk", &k, 0.005F, 0.05F, 20.0F, "%.3f")) {
-                (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { x.e.laengeVonHand = k; }, true);
-            }
-            if (ImGui::IsItemDeactivated()) { r.reglerZug = false; }
-            ImGui::SetItemTooltip("%s", tr(Str::RtLaengeHint));
-        } else {
-            ImGui::SameLine();
-            cjkTextDisabled("%s", format(Str::RtLaengeWert, static_cast<double>(r.bericht.k)).c_str());
-        }
-        ImGui::TreePop();
-    } else {
-        ImGui::SetItemTooltip("%s", tr(Str::RtSchritteHint));
+    bool kon = d.e.kontakte;
+    if (ui::schalter(tr(Str::RtKontakte), &kon, tr(Str::RtKontakteHint))) {
+        (void)modellRtEinstellen(tr(Str::RtUndoSchritte), [&](modell::RetargetDaten& x) { x.e.kontakte = kon; });
     }
+    ui::rasterEnde();
+    if (schritteOffen) { teilSchritte(r, d); }
+    // Platz und Hauptknopf
+    static char platz[48] = {};
+    if (d.platz != platz) { std::snprintf(platz, sizeof platz, "%s", d.platz.c_str()); }
+    ui::zeile(tr(Str::RtPlatz), tr(Str::RtPlatzHint));
+    if (ImGui::InputTextWithHint("##rtplatz", d.sequenz.empty() ? "retarget" : d.sequenz.c_str(), platz, sizeof platz, ImGuiInputTextFlags_EnterReturnsTrue) ||
+        ImGui::IsItemDeactivatedAfterEdit()) {
+        const std::string p = platz;
+        (void)modellRtEinstellen(tr(Str::RtUndoQuelle), [&](modell::RetargetDaten& x) { x.platz = p; });
+    }
+    ImGui::SetItemTooltip("%s", tr(Str::RtPlatzHint));
+    if (ui::werkzeugKnopf(begriff(Str::RtBackenMax, Str::RtBackenBlender), {.icon = UiIcon::Abspielen, .hinweis = tr(Str::RtBackenHint), .haupt = true})) { (void)modellRtBacken(); }
     // Pruefen
-    ImGui::Separator();
     if (!r.bericht.fehler.empty()) {
-        cjkTextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s", format(Str::RtQuelleFehler, modellFehlerText(r.bericht.fehler).c_str()).c_str());
+        ui::absatz(format(Str::RtQuelleFehler, modellFehlerText(r.bericht.fehler).c_str()).c_str(), ui::Ton::Fehler);
     } else if (!r.welt.empty()) {
-        cjkTextDisabled("%s", format(Str::RtErgebnis, r.bericht.knochenMitQuelle, static_cast<int>(g_app->anim.bones.size()), r.bericht.kettenZugeordnet,
-                                         static_cast<double>(r.bericht.k), r.ms)
-                                      .c_str());
         const bool rutscht = r.bericht.rutschenMax > std::max(0.5F, r.bericht.rutschenQuelle * 1.5F);
-        const std::string rt_ = format(Str::RtRutschen, static_cast<double>(r.bericht.rutschenMax), static_cast<double>(r.bericht.rutschenQuelle));
-        if (rutscht) {
-            cjkTextColored(ImVec4{1.0F, 0.6F, 0.25F, 1.0F}, "%s", rt_.c_str());
-        } else {
-            cjkTextUnformatted(rt_.c_str());
-        }
-        ImGui::SetItemTooltip("%s", tr(Str::RtRutschenHint));
+        const std::string genau = format(Str::RtRutschen, static_cast<double>(r.bericht.rutschenMax), static_cast<double>(r.bericht.rutschenQuelle)) + "\n" + tr(Str::RtRutschenHint);
+        ui::wertTabelle({{tr(Str::AzFussrutschen), format(Str::AzEinheiten, static_cast<double>(r.bericht.rutschenMax)), rutscht ? ui::Ton::Warnung : ui::Ton::Gut, genau}});
+        ui::absatz(format(Str::RtErgebnis, r.bericht.knochenMitQuelle, static_cast<int>(g_app->anim.bones.size()), r.bericht.kettenZugeordnet, static_cast<double>(r.bericht.k), r.ms).c_str());
         // Fussrutsch-Messer je Bild (links + rechts), Spruenge rot darunter
         std::vector<float> v(r.bericht.bilder.size());
         for (std::size_t i = 0; i < v.size(); ++i) { v[i] = std::max(r.bericht.bilder[i].rutschen[0], r.bericht.bilder[i].rutschen[1]); }
@@ -891,9 +936,9 @@ void drawModellRetargetBereich() {
             dl->AddLine(ImVec2{x, lo.y}, ImVec2{x, lo.y + h}, IM_COL32(250, 230, 80, 230), 1.0F);
         }
         if (r.bericht.spruenge.empty()) {
-            cjkTextDisabled("%s", tr(Str::RtKeineSpruenge));
+            ui::absatz(tr(Str::RtKeineSpruenge));
         } else {
-            cjkTextColored(ImVec4{1.0F, 0.35F, 0.3F, 1.0F}, "%s", format(Str::RtSpruenge, static_cast<int>(r.bericht.spruenge.size())).c_str());
+            ui::absatz(format(Str::RtSpruenge, static_cast<int>(r.bericht.spruenge.size())).c_str(), ui::Ton::Fehler);
             for (std::size_t i = 0; i < r.bericht.spruenge.size() && i < 12; ++i) {
                 ImGui::PushID(static_cast<int>(i));
                 if (i > 0) { daneben("0000"); }
@@ -910,21 +955,8 @@ void drawModellRetargetBereich() {
             }
         }
     }
-    // Backen auf einen Platz
-    ImGui::Separator();
-    static char platz[48] = {};
-    if (d.platz != platz) { std::snprintf(platz, sizeof platz, "%s", d.platz.c_str()); }
-    ImGui::SetNextItemWidth(fs * 9.0F);
-    if (ImGui::InputTextWithHint(tr(Str::RtPlatz), d.sequenz.empty() ? "retarget" : d.sequenz.c_str(), platz, sizeof platz, ImGuiInputTextFlags_EnterReturnsTrue) ||
-        ImGui::IsItemDeactivatedAfterEdit()) {
-        const std::string p = platz;
-        (void)modellRtEinstellen(tr(Str::RtUndoQuelle), [&](modell::RetargetDaten& x) { x.platz = p; });
-    }
-    ImGui::SetItemTooltip("%s", tr(Str::RtPlatzHint));
-    if (ImGui::Button(begriff(Str::RtBackenMax, Str::RtBackenBlender))) { (void)modellRtBacken(); }
-    ImGui::SetItemTooltip("%s", tr(Str::RtBackenHint));
-    ImGui::PopTextWrapPos();
     r.baeumeOeffnen = false;
+    ui::rolloutEnde();
 }
 
 // --- Stufe 5b: Presets (Generator) ---------------------------------------------------------------------------------------
@@ -980,14 +1012,6 @@ const std::vector<PresetEintrag>& modellPresetBibliothek() {
     return r.bibliothek;
 }
 
-const char* presetKategorieText(const std::string& k) {
-    if (k == "idle") { return tr(Str::AiKatStehen); }
-    if (k == "walk") { return tr(Str::PrGehen); }
-    if (k == "run") { return tr(Str::PrLaufen); }
-    if (k == "combat") { return tr(Str::AiKatKampf); }
-    return tr(Str::AiKatSonst);
-}
-
 bool modellPresetBibliothekAuflegen(int i) {
     const std::vector<PresetEintrag>& b = modellPresetBibliothek();
     if (i < 0 || static_cast<std::size_t>(i) >= b.size()) {
@@ -1033,112 +1057,65 @@ bool modellPresetAuflegen() {
     return true;
 }
 
-void drawModellPresetBibliothekInhalt(ModellRetarget& r, const std::vector<PresetEintrag>& b);
+// --- Gruppe "Presets" (AP10, Entwurf A3) -------------------------------------------------------------------------------------
+// Form des Entwurfs: die Kategorien als Segment, die Presets der Kategorie als Liste mit Quelle und Lizenz, der Ziel-Platz,
+// "Vorschau auf Figur" und "Generator ..." im Raster, der Hauptknopf "Auf Figur legen (Retarget)", der Tipp. Die Bibliothek
+// steht oben, der Generator (eigene Geh- und Laufzyklen aus Reglern) klappt ueber seinen Knopf auf.
 
-// Gruppe Bibliothek: Kategorie -> Animation (Vorschau beim Auflegen) -> Platz -> Auf Figur legen -> Backen
-void drawModellPresetBibliothek() {
-    ModellRetarget& r = rt();
-    const std::vector<PresetEintrag>& b = modellPresetBibliothek();
-    // eigene Kennungen: Platz und Backen heissen wie im Rollout Retargeting (ImGui-Kennung sonst doppelt)
-    ImGui::PushID("aibibliothek");
-    drawModellPresetBibliothekInhalt(r, b);
-    ImGui::PopID();
-}
+namespace {
 
-void drawModellPresetBibliothekInhalt(ModellRetarget& r, const std::vector<PresetEintrag>& b) {
-    r.bibliothekY = ImGui::GetCursorPosY();
-    ImGui::SeparatorText(tr(Str::AiBibliothek));
-    ImGui::SetItemTooltip("%s", tr(Str::AiBibliothekHint));
-    if (b.empty()) {
-        ImGui::TextDisabled("%s", tr(Str::AiKeineBibliothek));
-        return;
-    }
+// Der Platz, den der Nutzer fuer das gewaehlte Preset wuenscht, bevor es geladen ist (danach steht er im Dokument: rt.platz).
+char g_presetPlatz[64] = {};
+int g_presetPlatzFuer = -1;
+ImRect g_presetPlatzKasten;   // Selbsttest: wo die Wahl des Ziel-Platzes steht
+
+// Die Kategorien der Bibliothek in der Reihenfolge der Datei.
+std::vector<std::string> presetKategorien(const std::vector<PresetEintrag>& b) {
     std::vector<std::string> kat;
     for (const PresetEintrag& e : b) {
         if (std::find(kat.begin(), kat.end(), e.kategorie) == kat.end()) { kat.push_back(e.kategorie); }
     }
-    r.bibliothekKategorie = std::clamp(r.bibliothekKategorie, 0, static_cast<int>(kat.size()) - 1);
-    ImGui::SetNextItemWidth(-ImGui::CalcTextSize(tr(Str::AiKategorie)).x - ImGui::GetStyle().ItemInnerSpacing.x);
-    if (ImGui::BeginCombo(tr(Str::AiKategorie), presetKategorieText(kat[static_cast<std::size_t>(r.bibliothekKategorie)]))) {
-        for (std::size_t k = 0; k < kat.size(); ++k) {
-            if (ImGui::Selectable(presetKategorieText(kat[k]), static_cast<int>(k) == r.bibliothekKategorie)) { r.bibliothekKategorie = static_cast<int>(k); }
-        }
-        ImGui::EndCombo();
-    }
-    ImGui::SetItemTooltip("%s", tr(Str::AiBibliothekHint));
-    const std::string& wk = kat[static_cast<std::size_t>(r.bibliothekKategorie)];
-    const float fs = ImGui::GetFontSize();
-    int zeilen = 0;
-    for (const PresetEintrag& e : b) { zeilen += e.kategorie == wk ? 1 : 0; }
-    ImGui::BeginChild("##aibib", ImVec2{-1.0F, std::min(static_cast<float>(zeilen), 6.0F) * ImGui::GetTextLineHeightWithSpacing() + fs * 0.6F},
-                      ImGuiChildFlags_Borders);
-    for (std::size_t i = 0; i < b.size(); ++i) {
-        if (b[i].kategorie != wk) { continue; }
-        ImGui::PushID(static_cast<int>(i));
-        // ein Klick waehlt, ein Doppelklick legt auf die Figur
-        if (ImGui::Selectable(b[i].name.c_str(), r.bibliothekWahl == static_cast<int>(i), ImGuiSelectableFlags_AllowDoubleClick)) {
-            r.bibliothekWahl = static_cast<int>(i);
-            if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { (void)modellPresetBibliothekAuflegen(static_cast<int>(i)); }
-        }
-        ImGui::SetItemTooltip("%s", format(Str::AiQuelle, b[i].quelle.c_str(), b[i].lizenz.c_str()).c_str());
-        ImGui::PopID();
-    }
-    ImGui::EndChild();
-    const bool gewaehlt = r.bibliothekWahl >= 0 && static_cast<std::size_t>(r.bibliothekWahl) < b.size();
-    if (gewaehlt) {
-        const PresetEintrag& e = b[static_cast<std::size_t>(r.bibliothekWahl)];
-        ImGui::TextDisabled("%s", format(Str::AiQuelle, e.quelle.c_str(), e.lizenz.c_str()).c_str());
-    }
-    ImGui::BeginDisabled(!gewaehlt);
-    if (ImGui::Button(tr(Str::AiAuflegen))) { (void)modellPresetBibliothekAuflegen(r.bibliothekWahl); }
-    ImGui::SetItemTooltip("%s", tr(Str::AiAuflegenHint));
-    ImGui::EndDisabled();
-    const modell::RetargetDaten& d = *modellRtDaten();
-    const bool vonBibliothek = gewaehlt && r.quelleFuer == b[static_cast<std::size_t>(r.bibliothekWahl)].datei && !d.vonPreset;
-    if (vonBibliothek) {
-        // Platz (wie im Rollout Retargeting) und Backen
-        char platz[64];
-        std::snprintf(platz, sizeof platz, "%s", d.platz.c_str());
-        // daneben nur, wenn Feld und Beschriftung ganz passen (sonst stand "Slot" in langen Sprachen hinter dem Rand)
-        ImGui::SameLine();
-        if (ImGui::GetContentRegionAvail().x < fs * 8.0F + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(tr(Str::RtPlatz)).x) { ImGui::NewLine(); }
-        ImGui::SetNextItemWidth(fs * 8.0F);
-        if (ImGui::InputText(tr(Str::RtPlatz), platz, sizeof platz, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CharsUppercase)) {
-            const std::string p = platz;
-            (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { x.platz = p; });
-        }
-        ImGui::SetItemTooltip("%s", tr(Str::RtPlatzHint));
-        daneben(tr(Str::RtBackenMax));
-        if (ImGui::Button(tr(Str::RtBackenMax))) { (void)modellRtBacken(); }
-        ImGui::SetItemTooltip("%s", tr(Str::RtBackenHint));
-        if (!r.welt.empty() && r.weltNaht >= 0.0F) {
-            ImGui::TextDisabled("%s", format(Str::AiNahtlos, static_cast<int>(r.welt.size()), r.quelleCfg.empty() ? 0 : r.quelleCfg.front().fps,
-                                             static_cast<double>(r.weltNaht)).c_str());
-        }
-    }
+    return kat;
 }
 
-void drawModellPresetBereich() {
-    ModellRetarget& r = rt();
-    if (g_app->anim.bones.empty()) { return; }
-    if (r.presetOeffnen) {
-        ImGui::SetNextItemOpen(true, ImGuiCond_Always);
-        r.presetOeffnen = false;
+// Die Kategorien des Entwurfs (Stehen, Gehen, Laufen, Rueckwaerts, Ducken, Springen, Kampf, Gesten); was presets.txt sonst nennt: Sonstiges
+const char* presetKategorieName(const std::string& k) {
+    if (k == "idle") { return tr(Str::AiKatStehen); }
+    if (k == "walk") { return tr(Str::AzKatGehen); }
+    if (k == "run") { return tr(Str::AzKatLaufen); }
+    if (k == "back") { return tr(Str::AzKatRueck); }
+    if (k == "crouch") { return tr(Str::AzKatDucken); }
+    if (k == "jump") { return tr(Str::AzKatSpringen); }
+    if (k == "combat") { return tr(Str::AiKatKampf); }
+    if (k == "gesture") { return tr(Str::AzKatGesten); }
+    return tr(Str::AiKatSonst);
+}
+
+// Die Quelle kurz fuer die Liste (der Teil vor " - "), dahinter die Lizenz: "Quaternius · CC0 1.0"
+std::string quelleKurz(const PresetEintrag& e) {
+    const std::size_t p = e.quelle.find(" - ");
+    return (p == std::string::npos ? e.quelle : e.quelle.substr(0, p)) + " \xc2\xb7 " + e.lizenz;
+}
+
+// Das gewaehlte Preset laden, uebertragen und als Vorschau abspielen; der gewuenschte Platz gilt.
+bool presetVorschau(int wahl) {
+    if (!modellPresetBibliothekAuflegen(wahl)) { return false; }
+    if (g_presetPlatzFuer == wahl && g_presetPlatz[0] != '\0') {
+        const std::string p = g_presetPlatz;
+        (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { x.platz = p; });
     }
-    const bool offen = ImGui::CollapsingHeader(tr(Str::PrRollout));
-    ImGui::SetItemTooltip("%s", tr(Str::PrRolloutHint));
-    if (!offen) { return; }
-    r.presetRolloutBild = ImGui::GetFrameCount();
-    const modell::RetargetDaten d = *modellRtDaten();
-    ImGui::PushTextWrapPos(0.0F);
+    return true;
+}
+
+// Der Generator: Kategorie, Haltung, Regler, Messen, auf die Figur legen, Befund
+void presetGenerator(ModellRetarget& r, const modell::RetargetDaten& d) {
     const auto setze = [&](const std::function<void(modell::GangRegler&)>& f) {
         (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { f(x.gang); });
     };
-    // Kategorie und Haltung
     const char* kategorien[2] = {tr(Str::PrGehen), tr(Str::PrLaufen)};
     int k = static_cast<int>(d.gang.art);
-    ImGui::SetNextItemWidth(-ImGui::CalcTextSize(tr(Str::PrKategorie)).x - ImGui::GetStyle().ItemInnerSpacing.x);
-    if (ImGui::Combo(tr(Str::PrKategorie), &k, kategorien, 2)) {
+    ui::zeile(tr(Str::PrKategorie), tr(Str::PrKategorieHint));
+    if (ImGui::Combo("##prkategorie", &k, kategorien, 2)) {
         setze([&](modell::GangRegler& g) {
             g.art = static_cast<modell::GangArt>(k);
             g.tempo = k == 1 ? 300.0F : 90.0F;   // runSpeed / walkSpeed der NPCs (NPC_stats.cpp:1996-1997)
@@ -1149,14 +1126,13 @@ void drawModellPresetBereich() {
     const char* haltungen[modell::kGangHaltungen] = {tr(Str::PrHaltNormal), tr(Str::PrHaltSchwer), tr(Str::PrHaltSchleichend), tr(Str::PrHaltVerletzt),
                                                      tr(Str::PrHaltSaebel)};
     int h = static_cast<int>(d.gang.haltung);
-    ImGui::SetNextItemWidth(-ImGui::CalcTextSize(tr(Str::PrHaltung)).x - ImGui::GetStyle().ItemInnerSpacing.x);
-    if (ImGui::Combo(tr(Str::PrHaltung), &h, haltungen, modell::kGangHaltungen)) { setze([&](modell::GangRegler& g) { g.haltung = static_cast<modell::GangHaltung>(h); }); }
+    ui::zeile(tr(Str::PrHaltung), tr(Str::PrHaltungHint));
+    if (ImGui::Combo("##prhaltung", &h, haltungen, modell::kGangHaltungen)) { setze([&](modell::GangRegler& g) { g.haltung = static_cast<modell::GangHaltung>(h); }); }
     ImGui::SetItemTooltip("%s", tr(Str::PrHaltungHint));
     // Regler (ein Rueckgaengig-Schritt je Zug)
     const auto regler = [&](Str text, Str hinweis, float wert, float lo, float hi, const char* fmt, const std::function<void(modell::GangRegler&, float)>& f) {
         float v = wert;
-        ImGui::SetNextItemWidth(-ImGui::CalcTextSize(tr(text)).x - ImGui::GetStyle().ItemInnerSpacing.x);
-        if (ImGui::SliderFloat(tr(text), &v, lo, hi, fmt)) {
+        if (ui::regler(tr(text), &v, lo, hi, fmt, tr(hinweis))) {
             if (r.presetZug) {
                 mt().dok.vorschau([&](modell::Inhalt& in) { f(in.rig.rt.gang, v); }, false);
             } else {
@@ -1166,7 +1142,6 @@ void drawModellPresetBereich() {
             g_app->modelDirty = true;
         }
         if (ImGui::IsItemDeactivated()) { r.presetZug = false; }
-        ImGui::SetItemTooltip("%s", tr(hinweis));
     };
     regler(Str::PrTempo, Str::PrTempoHint, d.gang.tempo, 10.0F, 600.0F, "%.0f", [](modell::GangRegler& g, float v) { g.tempo = v; });
     regler(Str::PrSchritt, Str::PrSchrittHint, d.gang.schritt, 2.0F, 120.0F, "%.1f", [](modell::GangRegler& g, float v) { g.schritt = v; });
@@ -1174,20 +1149,151 @@ void drawModellPresetBereich() {
     regler(Str::PrHuefte, Str::PrFaktorHint, d.gang.hueftschwung, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.hueftschwung = v; });
     regler(Str::PrHub, Str::PrFaktorHint, d.gang.hub, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.hub = v; });
     const std::string messen = format(Str::PrMessen, kategorieZeile(d.gang.art));
-    if (ImGui::SmallButton(messen.c_str())) { (void)modellPresetMessen(); }
-    ImGui::SetItemTooltip("%s", tr(Str::PrMessenHint));
-    // Auf die Figur legen, Befund
-    if (ImGui::Button(tr(Str::PrAuflegen))) { (void)modellPresetAuflegen(); }
-    ImGui::SetItemTooltip("%s", tr(Str::PrAuflegenHint));
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(messen.c_str(), {.icon = UiIcon::Zielen, .hinweis = tr(Str::PrMessenHint)})) { (void)modellPresetMessen(); }
+    if (ui::werkzeugKnopf(tr(Str::PrAuflegen), {.icon = UiIcon::Abspielen, .hinweis = tr(Str::PrAuflegenHint)})) { (void)modellPresetAuflegen(); }
+    ui::rasterEnde();
     if (d.vonPreset && !r.welt.empty()) {
-        const modell::GangBefund& b = r.gang;
-        cjkTextDisabled("%s", format(Str::PrBefund, static_cast<double>(modell::gangZyklus(d.gang)), static_cast<int>(r.welt.size()), presetFps(d.gang),
-                                         static_cast<double>(b.bodenAbw), static_cast<double>(b.gleitAbw), static_cast<double>(b.naht))
-                                      .c_str());
-        cjkTextDisabled("%s", tr(Str::PrLizenz));
+        const modell::GangBefund& bf = r.gang;
+        ui::absatz(format(Str::PrBefund, static_cast<double>(modell::gangZyklus(d.gang)), static_cast<int>(r.welt.size()), presetFps(d.gang), static_cast<double>(bf.bodenAbw),
+                          static_cast<double>(bf.gleitAbw), static_cast<double>(bf.naht))
+                       .c_str());
+        ui::absatz(tr(Str::PrLizenz));
     }
-    drawModellPresetBibliothek();
-    ImGui::PopTextWrapPos();
+}
+
+}  // namespace
+
+ImRect modellPresetPlatzKasten() { return g_presetPlatzKasten; }
+
+void drawModellPresetBereich() {
+    ModellRetarget& r = rt();
+    if (g_app->anim.bones.empty()) { return; }
+    const modell::RetargetDaten d = *modellRtDaten();
+    if (r.presetOeffnen) {
+        ui::rolloutSetzen(tr(Str::PrRollout), true);   // aufklappen (ins Bild rollen die Aktionen "... oeffnen" selbst)
+        if (d.vonPreset) { modellAnim().generatorOffen = true; }   // ein Gang aus dem Generator liegt auf der Figur
+        r.presetOeffnen = false;
+    }
+    const std::vector<PresetEintrag>& b = modellPresetBibliothek();
+    const std::vector<std::string> kat = presetKategorien(b);
+    if (!kat.empty()) { r.bibliothekKategorie = std::clamp(r.bibliothekKategorie, 0, static_cast<int>(kat.size()) - 1); }
+    int zeilen = 0;
+    for (const PresetEintrag& e : b) { zeilen += !kat.empty() && e.kategorie == kat[static_cast<std::size_t>(r.bibliothekKategorie)] ? 1 : 0; }
+    char info[96] = {};
+    if (!kat.empty()) { std::snprintf(info, sizeof info, "%s \xc2\xb7 %d", presetKategorieName(kat[static_cast<std::size_t>(r.bibliothekKategorie)]), zeilen); }
+    if (!ui::rolloutBeginn(tr(Str::PrRollout), {.kurzinfo = kat.empty() ? nullptr : info, .hinweis = tr(Str::PrRolloutHint)})) { return; }
+    r.presetRolloutBild = ImGui::GetFrameCount();
+    r.bibliothekY = ImGui::GetCursorPosY();
+    const float fs = ImGui::GetFontSize();
+    const bool gewaehlt = r.bibliothekWahl >= 0 && static_cast<std::size_t>(r.bibliothekWahl) < b.size();
+    if (kat.empty()) {
+        ui::absatz(tr(Str::AiKeineBibliothek));
+    } else {
+        // die Kategorien als eine Wahl in zwei Spalten
+        std::vector<const char*> texte;
+        for (const std::string& k : kat) { texte.push_back(presetKategorieName(k)); }
+        (void)ui::segment("##aikategorie", texte.data(), static_cast<int>(texte.size()), &r.bibliothekKategorie, 2, -1, nullptr, 0.0F, true);
+        const std::string& wk = kat[static_cast<std::size_t>(r.bibliothekKategorie)];
+        // die Presets der Kategorie: ein Klick waehlt, ein Doppelklick legt als Vorschau auf die Figur; rechts Quelle und Lizenz
+        ImGui::BeginChild("##aibib", ImVec2{-1.0F, std::min(static_cast<float>(zeilen), 6.0F) * ImGui::GetTextLineHeightWithSpacing() + fs * 0.6F}, ImGuiChildFlags_Borders);
+        // die gewaehlte Zeile: Schrift hell oder dunkel nach der Auswahlfarbe (wie ui::segment; das erste helle Thema waehlt
+        // dunkelblau, die dunkle Schrift stand darauf kaum lesbar)
+        const ImVec4 kopf = ImGui::GetStyleColorVec4(ImGuiCol_Header);
+        const bool kopfHell = kopf.x * 0.299F + kopf.y * 0.587F + kopf.z * 0.114F > 0.6F;
+        const ImVec4 wahlText = kopfHell ? ImVec4{0.0F, 0.0F, 0.0F, 1.0F} : ImVec4{1.0F, 1.0F, 1.0F, 1.0F};
+        bool wahlQuellePasst = false;
+        for (std::size_t i = 0; i < b.size(); ++i) {
+            if (b[i].kategorie != wk) { continue; }
+            ImGui::PushID(static_cast<int>(i));
+            const bool istWahl = r.bibliothekWahl == static_cast<int>(i);
+            if (istWahl) { ImGui::PushStyleColor(ImGuiCol_Text, wahlText); }
+            const bool geklickt = ImGui::Selectable(b[i].name.c_str(), istWahl, ImGuiSelectableFlags_AllowDoubleClick);
+            if (istWahl) { ImGui::PopStyleColor(); }
+            if (geklickt) {
+                r.bibliothekWahl = static_cast<int>(i);
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { (void)presetVorschau(static_cast<int>(i)); }
+            }
+            ImGui::SetItemTooltip("%s", format(Str::AiQuelle, b[i].quelle.c_str(), b[i].lizenz.c_str()).c_str());
+            // Quelle und Lizenz rechtsbuendig in der Zeile, wenn sie neben den Namen passen (sonst im Tooltip und unter der Liste)
+            const std::string ql = quelleKurz(b[i]);
+            const ImVec2 lo = ImGui::GetItemRectMin();
+            const ImVec2 hi = ImGui::GetItemRectMax();
+            const float qlB = ImGui::CalcTextSize(ql.c_str()).x;
+            if (lo.x + ImGui::CalcTextSize(b[i].name.c_str()).x + fs + qlB <= hi.x) {
+                const ImU32 farbe = istWahl ? ImGui::GetColorU32(ImVec4{wahlText.x, wahlText.y, wahlText.z, 0.7F}) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
+                ImGui::GetWindowDrawList()->AddText(ImVec2{std::floor(hi.x - qlB), lo.y}, farbe, ql.c_str());
+                wahlQuellePasst = wahlQuellePasst || istWahl;
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndChild();
+        // Quelle und Lizenz des gewaehlten Presets darunter nur, wenn sie nicht in seine Zeile passten
+        if (gewaehlt && !wahlQuellePasst) { ui::absatz(format(Str::AiQuelle, b[static_cast<std::size_t>(r.bibliothekWahl)].quelle.c_str(), b[static_cast<std::size_t>(r.bibliothekWahl)].lizenz.c_str()).c_str()); }
+        // Ziel-Platz: vor dem Laden der Platz der Bibliothek (aenderbar), danach der des Uebertragens
+        const bool geladen = gewaehlt && r.quelleFuer == b[static_cast<std::size_t>(r.bibliothekWahl)].datei && !d.vonPreset;
+        if (g_presetPlatzFuer != r.bibliothekWahl) {
+            g_presetPlatzFuer = r.bibliothekWahl;
+            std::snprintf(g_presetPlatz, sizeof g_presetPlatz, "%s", gewaehlt ? b[static_cast<std::size_t>(r.bibliothekWahl)].platz.c_str() : "");
+        }
+        if (geladen && d.platz != g_presetPlatz && !ImGui::IsAnyItemActive()) { std::snprintf(g_presetPlatz, sizeof g_presetPlatz, "%s", d.platz.c_str()); }
+        // Ziel-Platz wie im Entwurf als Wahl: der Platz des Presets, die Plaetze der anderen Presets der Kategorie, der erste freie
+        // Kino-Platz der Ziel-GLA (BOTH_CIN_n) und ein Name, den das Feld Platz von "Uebertragen" gesetzt hat
+        std::vector<std::string> plaetze;
+        const auto dazu = [&](const std::string& p) {
+            if (!p.empty() && std::find(plaetze.begin(), plaetze.end(), p) == plaetze.end()) { plaetze.push_back(p); }
+        };
+        if (gewaehlt) { dazu(b[static_cast<std::size_t>(r.bibliothekWahl)].platz); }
+        for (const PresetEintrag& e : b) {
+            if (e.kategorie == wk && plaetze.size() < 2U) { dazu(e.platz); }
+        }
+        for (const modell::Platz& p : mt().plaetze) {
+            if (!p.belegt && p.name.rfind("BOTH_CIN_", 0) == 0) {
+                dazu(p.name);
+                break;
+            }
+        }
+        if (g_presetPlatz[0] != '\0' && std::find(plaetze.begin(), plaetze.end(), std::string(g_presetPlatz)) == plaetze.end()) {
+            plaetze.insert(plaetze.begin(), g_presetPlatz);
+        }
+        std::vector<const char*> platzTexte;
+        std::vector<const char*> platzHinweise;
+        int platzWahl = -1;
+        for (std::size_t i = 0; i < plaetze.size(); ++i) {
+            platzTexte.push_back(plaetze[i].c_str());
+            platzHinweise.push_back(tr(Str::AzZielPlatzHint));
+            if (plaetze[i] == g_presetPlatz) { platzWahl = static_cast<int>(i); }
+        }
+        ImGui::BeginDisabled(!gewaehlt);
+        ui::absatz(tr(Str::AzZielPlatz), ui::Ton::Leise);
+        const ImVec2 platzOben = ImGui::GetCursorScreenPos();
+        if (!platzTexte.empty() &&
+            ui::segment("##aiplatz", platzTexte.data(), static_cast<int>(platzTexte.size()), &platzWahl, 0, -1, platzHinweise.data()) && platzWahl >= 0) {
+            std::snprintf(g_presetPlatz, sizeof g_presetPlatz, "%s", plaetze[static_cast<std::size_t>(platzWahl)].c_str());
+            if (geladen) {
+                const std::string p = g_presetPlatz;
+                (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { x.platz = p; });
+            }
+        }
+        g_presetPlatzKasten = platzTexte.empty() ? ImRect{} : ImRect{platzOben, ImGui::GetItemRectMax()};
+        ImGui::EndDisabled();
+        ui::rasterBeginn(2);
+        if (ui::werkzeugKnopf(tr(Str::AzPresetVorschau), {.icon = UiIcon::Sichtbar, .hinweis = tr(Str::AiAuflegenHint), .aktiv = gewaehlt})) { (void)presetVorschau(r.bibliothekWahl); }
+        if (ui::werkzeugKnopf(tr(Str::AzGenerator), {.icon = UiIcon::Einstellungen, .hinweis = tr(Str::AzGeneratorHint), .an = modellAnim().generatorOffen})) {
+            modellAnim().generatorOffen = !modellAnim().generatorOffen;
+        }
+        ui::rasterEnde();
+        if (ui::werkzeugKnopf(tr(Str::AzPresetAuflegen), {.icon = UiIcon::Abspielen, .hinweis = tr(Str::AzPresetAuflegenHint), .haupt = true, .aktiv = gewaehlt})) {
+            // noch nicht geladen: erst laden und uebertragen, dann auf den Platz
+            if (geladen || presetVorschau(r.bibliothekWahl)) { (void)modellRtBacken(); }
+        }
+        if (geladen && !r.welt.empty() && r.weltNaht >= 0.0F) {
+            ui::absatz(format(Str::AiNahtlos, static_cast<int>(r.welt.size()), r.quelleCfg.empty() ? 0 : r.quelleCfg.front().fps, static_cast<double>(r.weltNaht)).c_str());
+        }
+    }
+    if (kat.empty() || modellAnim().generatorOffen) { presetGenerator(r, d); }
+    ui::tipp(tr(Str::AzPresetTipp));
+    ui::rolloutEnde();
 }
 
 }  // namespace bhed::gui

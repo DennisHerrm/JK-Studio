@@ -156,23 +156,13 @@ int raumKnochen(int art, int wahl) {
     }
 }
 
-// Der naechste Knopf in derselben Zeile, wenn er noch ganz hineinpasst (sonst in die naechste, eingerueckt) - kein
-// abgeschnittener Text in langen Sprachen
-void daneben(const char* naechster) {
-    const float b = ImGui::CalcTextSize(naechster).x + ImGui::GetStyle().FramePadding.x * 2.0F + ImGui::GetStyle().ItemSpacing.x;
-    ImGui::SameLine();
-    if (ImGui::GetContentRegionAvail().x < b) {
-        ImGui::NewLine();
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetFontSize() * 4.2F);   // unter die Spalte der Glieder
-    }
-}
-
 }  // namespace
 
 // --- Glied, Spur ---------------------------------------------------------------------------------------------------
 
 int modellIkArtFuerGriff(int griff) {
     const ModellTab& t = mt();
+    if (modellAnim().nurFk) { return -1; }   // AP10: "Animation-Rig (nur FK)" - Hand und Fuss greifen ohne IK
     if (griff < 0 || static_cast<std::size_t>(griff) >= t.rig.griffe.size()) { return -1; }
     const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(griff)];
     if (g.seite == modell::Seite::Mitte) { return -1; }
@@ -556,77 +546,115 @@ bool modellPfadSpitzeHinzu() {
     return false;
 }
 
-// --- Befehlsfeld: Rollout IK/FK -----------------------------------------------------------------------------------------
+// --- Befehlsfeld: Gruppe IK/FK (AP10: Entwurf A6 wie 3ds Max, A7 wie Blender) ---------------------------------------------
 
-void drawModellIkBereich() {
+namespace {
+
+// Eine Zeile je Glied. Wie 3ds Max: der Name (waehlt das Glied), der Zustand in Worten ("IK, zuletzt gegriffen" / "FK, zuletzt
+// gedreht") und rechts ein Knopf, der den Zustand zeigt und wechselt. Wie Blender: Name, Regler IK-FK (0 = IK, 1 = FK wie
+// Rigify) und die beiden Knoepfe zum Einrasten - in einer Zeile, solange der Regler dabei fuenf Zeichenhoehen behaelt.
+void gliedZeilen(bool blender, int jetzt) {
     ModellTab& t = mt();
-    if (!modellRigDa()) { return; }
-    // wie 3ds Max: das IK-Rollout geht auf, sobald ein Glied gewaehlt wird (Bewegung > IK-Solver)
-    const int vonGriff = modellIkArtFuerGriff(t.griffWahl);
-    if (t.griffWahl != t.ikZuletztGriff) {
-        t.ikZuletztGriff = t.griffWahl;
-        if (vonGriff >= 0) {
-            ImGui::SetNextItemOpen(true, ImGuiCond_Always);
-            t.ikWahl = -1;
-        }
-    }
-    const bool offen = ImGui::CollapsingHeader(tr(Str::MbIkRollout));
-    ImGui::SetItemTooltip("%s", tr(Str::MbIkRolloutHint));
-    if (!offen) { return; }
-    t.ikRolloutBild = ImGui::GetFrameCount();
-    const bool blender = modellBlender();
-    const int jetzt = artJetzt();
-    const modell::RigSchicht& s = schicht();
-    if (!blender) {
-        ImGui::Checkbox(tr(Str::MbIkAuto), &t.ikAutoEinrasten);
-        ImGui::SetItemTooltip("%s", tr(Str::MbIkAutoHint));
-    }
-    // je Glied eine Zeile: Name (waehlt), IK aktiviert (Max) bzw. Regler IK-FK (Blender), Einrasten
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float fs = ImGui::GetFontSize();
+    float nameB = 0.0F;
+    for (int art = 0; art < modell::kIkArten; ++art) { nameB = std::max(nameB, ImGui::CalcTextSize(artName(art)).x); }
+    nameB = std::ceil(nameB + st.FramePadding.x * 2.0F);
+    const float frei = ImGui::GetContentRegionAvail().x;
+    const float knopfIkFk = ImGui::CalcTextSize(tr(Str::MbIkKnopfIkFk)).x + st.FramePadding.x * 2.0F;
+    const float knopfFkIk = ImGui::CalcTextSize(tr(Str::MbIkKnopfFkIk)).x + st.FramePadding.x * 2.0F;
+    const bool knoepfeDarunter = frei < nameB + fs * 5.0F + knopfIkFk + knopfFkIk + st.ItemSpacing.x * 3.0F;
+    const float zustandB = std::max(ImGui::CalcTextSize(tr(Str::AzIkZuletztIk)).x, ImGui::CalcTextSize(tr(Str::AzIkZuletztFk)).x);
+    const float wechselB = std::ceil(std::max(ImGui::CalcTextSize("IK").x, ImGui::CalcTextSize("FK").x) + st.FramePadding.x * 2.0F + fs * 0.8F);
+    // passt der Zustand in Worten nicht zwischen Name und Knopf, steht er im Tooltip des Knopfs
+    const bool mitZustand = frei >= nameB + zustandB + wechselB + st.ItemSpacing.x * 2.0F;
     for (int art = 0; art < modell::kIkArten; ++art) {
         ImGui::PushID(art);
         modell::IkSpur probe;
         const bool da = modell::ikSpurAnlegen(g_app->anim, t.rig, static_cast<modell::IkArt>(art), probe);
         ImGui::BeginDisabled(!da);
         const float anteil = modellIkAnteil(art);
-        if (ImGui::Selectable(artName(art), jetzt == art, ImGuiSelectableFlags_AllowOverlap, ImVec2{ImGui::GetFontSize() * 4.2F, 0.0F})) { t.ikWahl = art; }
+        ImGui::AlignTextToFramePadding();
+        if (ImGui::Selectable(artName(art), jetzt == art, ImGuiSelectableFlags_AllowOverlap, ImVec2{nameB, 0.0F})) { t.ikWahl = art; }
         ImGui::SetItemTooltip("%s", tr(Str::MbIkGliedHint));
         ImGui::SameLine();
         if (blender) {
-            // Rigify: IK-FK, 0 = IK, 1 = FK
             float regler = 1.0F - anteil;
-            ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5.0F);
+            ImGui::SetNextItemWidth(knoepfeDarunter ? -1.0F : std::max(ImGui::GetContentRegionAvail().x - knopfIkFk - knopfFkIk - st.ItemSpacing.x * 2.0F, fs * 3.0F));
             if (ImGui::SliderFloat("##ikfk", &regler, 0.0F, 1.0F, "%.2f")) { (void)modellIkReglerSetzen(art, regler, true); }
             if (ImGui::IsItemDeactivated()) { t.ikZug = false; }
             ImGui::SetItemTooltip("%s", tr(Str::MbIkReglerHint));
-            daneben(tr(Str::MbIkKnopfIkFk));
-            if (ImGui::SmallButton(tr(Str::MbIkKnopfIkFk))) { (void)modellIkEinrasten(art, true); }
+            if (knoepfeDarunter) {
+                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + nameB + st.ItemSpacing.x);   // unter den Regler
+            } else {
+                ImGui::SameLine();
+            }
+            if (ImGui::Button(tr(Str::MbIkKnopfIkFk))) { (void)modellIkEinrasten(art, true); }
             ImGui::SetItemTooltip("%s", tr(Str::MbIkZielAufFkHint));
-            daneben(tr(Str::MbIkKnopfFkIk));
-            if (ImGui::SmallButton(tr(Str::MbIkKnopfFkIk))) { (void)modellIkEinrasten(art, false); }
+            ImGui::SameLine();
+            if (ImGui::Button(tr(Str::MbIkKnopfFkIk))) { (void)modellIkEinrasten(art, false); }
             ImGui::SetItemTooltip("%s", tr(Str::MbIkFkAufIkHint));
         } else {
-            bool an = anteil >= 0.5F;
-            if (ImGui::Checkbox(tr(Str::MbIkAn), &an)) { (void)modellIkWechseln(art, an); }
-            ImGui::SetItemTooltip("%s", tr(Str::MbIkAnHint));
-            daneben(tr(Str::MbIkKnopfEinrasten));
-            if (ImGui::SmallButton(tr(Str::MbIkKnopfEinrasten))) { (void)modellIkEinrasten(art, an ? false : true); }
-            ImGui::SetItemTooltip("%s", tr(Str::MbIkEinrastenMaxHint));
+            const bool an = anteil >= 0.5F;
+            const char* zustand = tr(an ? Str::AzIkZuletztIk : Str::AzIkZuletztFk);
+            if (mitZustand) {
+                cjkTextDisabled("%s", zustand);
+                ImGui::SameLine();
+            }
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(ImGui::GetContentRegionAvail().x - wechselB, 0.0F));   // rechtsbuendig
+            if (ImGui::Button(an ? "IK##azik" : "FK##azik", ImVec2{wechselB, 0.0F})) { (void)modellIkWechseln(art, !an); }
+            if (mitZustand) {
+                ImGui::SetItemTooltip("%s", tr(Str::MbIkAnHint));
+            } else {
+                ImGui::SetItemTooltip("%s\n%s", zustand, tr(Str::MbIkAnHint));
+            }
         }
         ImGui::EndDisabled();
         ImGui::PopID();
     }
-    ImGui::Separator();
-    if (jetzt < 0) {
-        ImGui::PushTextWrapPos(0.0F);
-        cjkTextDisabled("%s", tr(Str::MbIkGliedWaehlen));
-        ImGui::PopTextWrapPos();
+}
+
+}  // namespace
+
+void drawModellIkBereich() {
+    ModellTab& t = mt();
+    // wie 3ds Max: das IK-Rollout geht auf, sobald ein Glied gewaehlt wird (Bewegung > IK-Solver)
+    const int vonGriff = modellIkArtFuerGriff(t.griffWahl);
+    if (t.griffWahl != t.ikZuletztGriff) {
+        t.ikZuletztGriff = t.griffWahl;
+        if (vonGriff >= 0) {
+            ui::rolloutSetzen(tr(Str::MbIkRollout), true);
+            t.ikWahl = -1;
+        }
+    }
+    if (!ui::rolloutBeginn(tr(Str::MbIkRollout), {.reiter = modellReiter(MbReiter::Hierarchie, MbReiterBl::Constraints), .hinweis = tr(Str::MbIkRolloutHint)})) { return; }
+    if (!modellRigDa()) {
+        ui::tipp(tr(Str::MbRgNochKeins));
+        ui::rolloutEnde();
         return;
     }
-    cjkTextUnformatted(artName(jetzt));
+    if (modellAnim().nurFk) {
+        ui::tipp(tr(Str::AzIkNurFk));
+        ui::rolloutEnde();
+        return;
+    }
+    t.ikRolloutBild = ImGui::GetFrameCount();
+    const bool blender = modellBlender();
+    const int jetzt = artJetzt();
+    const modell::RigSchicht& s = schicht();
+    if (!blender) { (void)ui::schalter(tr(Str::MbIkAuto), &t.ikAutoEinrasten, tr(Str::MbIkAutoHint)); }
+    gliedZeilen(blender, jetzt);
+    ui::tipp(tr(blender ? Str::AzIkTippBlender : Str::AzIkTippMax));
+    // das gewaehlte Glied: Stand, Raum, Fussrolle, Schluessel
+    if (jetzt < 0) {
+        ui::absatz(tr(Str::MbIkGliedWaehlen));
+        ui::rolloutEnde();
+        return;
+    }
     const int i = modell::ikSpurIndex(s, static_cast<modell::IkArt>(jetzt));
     const modell::IkZiel z = i >= 0 ? modell::ikZielAm(s.ik[static_cast<std::size_t>(i)], static_cast<float>(bildJetzt()), g_app->modellWelt) : modell::IkZiel{};
-    ImGui::SameLine();
-    cjkTextDisabled("%s", format(Str::MbIkStand, z.da && z.ik >= 0.5F ? "IK" : "FK", i >= 0 ? static_cast<int>(s.ik[static_cast<std::size_t>(i)].ziel.size()) : 0).c_str());
+    ui::wertTabelle({{artName(jetzt), format(Str::MbIkStand, z.da && z.ik >= 0.5F ? "IK" : "FK", i >= 0 ? static_cast<int>(s.ik[static_cast<std::size_t>(i)].ziel.size()) : 0),
+                      ui::Ton::Normal, {}}});
     // Raum (Child Of / Space Switching)
     static const Str kRaum[5] = {Str::MbIkRaumWelt, Str::MbIkRaumBecken, Str::MbIkRaumBrust, Str::MbIkRaumKopf, Str::MbIkRaumHand};
     int raumJetzt = 0;
@@ -644,23 +672,21 @@ void drawModellIkBereich() {
     if (!modell::ikArm(static_cast<modell::IkArt>(jetzt))) {
         float rolle = z.da ? z.rolle : 0.0F;
         float spitze = z.da ? z.spitze : 0.0F;
-        const float b = ImGui::GetContentRegionAvail().x * 0.5F;
-        ImGui::SetNextItemWidth(b);
-        const bool r1 = ImGui::SliderFloat(tr(Str::MbIkRolle), &rolle, -60.0F, 60.0F, "%.1f");
+        const bool r1 = ui::regler(tr(Str::MbIkRolle), &rolle, -60.0F, 60.0F, "%.1f", tr(Str::MbIkRolleHint));
         const bool los1 = ImGui::IsItemDeactivated();
-        ImGui::SetItemTooltip("%s", tr(Str::MbIkRolleHint));
-        ImGui::SetNextItemWidth(b);
-        const bool r2 = ImGui::SliderFloat(tr(Str::MbIkSpitze), &spitze, 0.0F, 1.0F, "%.2f");
+        const bool r2 = ui::regler(tr(Str::MbIkSpitze), &spitze, 0.0F, 1.0F, "%.2f", tr(Str::MbIkSpitzeHint));
         const bool los2 = ImGui::IsItemDeactivated();
-        ImGui::SetItemTooltip("%s", tr(Str::MbIkSpitzeHint));
         if (r1 || r2) { (void)modellIkRolle(jetzt, rolle, spitze, true); }
         if (los1 || los2) { t.ikZug = false; }
     }
-    if (ImGui::Button(tr(Str::MbIkLoeschen))) { (void)modellIkSchluesselLoeschen(jetzt); }
-    ImGui::SetItemTooltip("%s", tr(Str::MbIkLoeschenHint));
-    ImGui::SameLine();
-    if (ImGui::Button(tr(Str::MbIkBacken))) { (void)modellIkBacken(jetzt); }
-    ImGui::SetItemTooltip("%s", tr(Str::MbIkBackenHint));
+    ui::rasterBeginn(2);
+    if (!blender && ui::werkzeugKnopf(tr(Str::MbIkKnopfEinrasten), {.icon = UiIcon::Zielen, .hinweis = tr(Str::MbIkEinrastenMaxHint)})) {
+        (void)modellIkEinrasten(jetzt, modellIkAnteil(jetzt) < 0.5F);
+    }
+    if (ui::werkzeugKnopf(tr(Str::MbIkLoeschen), {.icon = UiIcon::Loeschen, .hinweis = tr(Str::MbIkLoeschenHint)})) { (void)modellIkSchluesselLoeschen(jetzt); }
+    if (ui::werkzeugKnopf(tr(Str::MbIkBacken), {.icon = UiIcon::Erzeugen, .hinweis = tr(Str::MbIkBackenHint)})) { (void)modellIkBacken(jetzt); }
+    ui::rasterEnde();
+    ui::rolloutEnde();
 }
 
 }  // namespace bhed::gui

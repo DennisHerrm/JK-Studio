@@ -982,7 +982,42 @@ bool schalter(const char* text, bool* wert, const char* hinweis) {
     return geklickt;
 }
 
-bool segment(const char* id, const char* const* texte, int zahl, int* wahl, int spalten, int gesperrtAb, const char* const* hinweise, float breite) {
+namespace {
+
+// Der Text eines Segments, in seiner Zelle umbrochen und senkrecht mittig: jede Zeile waagrecht mittig (CJK als Block mittig,
+// umbrochen wie cjkTextWrapped).
+void segmentText(ImDrawList* dl, const ImRect& bb, ImU32 farbe, const char* text, const char* ende, float breite) {
+    const ImVec2 block = cjkTextSize(text, ende, false, breite);
+    float y = std::floor(bb.Min.y + (bb.GetHeight() - block.y) * 0.5F);
+    bool cjk = false;
+    for (const char* c = text; c < ende && !cjk;) {
+        unsigned int z = 0;
+        c += std::max(ImTextCharFromUtf8(&z, c, ende), 1);
+        cjk = z >= 0x2E80U;
+    }
+    if (cjk) {
+        cjkAddText(dl, nullptr, 0.0F, ImVec2{std::floor(bb.Min.x + (bb.GetWidth() - block.x) * 0.5F), y}, farbe, text, ende, breite);
+        return;
+    }
+    ImFont* f = ImGui::GetFont();
+    const float fs = ImGui::GetFontSize();
+    for (const char* s = text; s < ende;) {
+        const char* e = f->CalcWordWrapPosition(fs, s, ende, breite);
+        if (e <= s) { e = s + 1; }
+        const char* z = e;
+        while (z > s && (z[-1] == ' ' || z[-1] == '\n')) { --z; }
+        const float b = ImGui::CalcTextSize(s, z).x;
+        dl->AddText(ImVec2{std::floor(bb.Min.x + (bb.GetWidth() - b) * 0.5F), y}, farbe, s, z);
+        y += fs;
+        s = e;
+        while (s < ende && (*s == ' ' || *s == '\n')) { ++s; }
+    }
+}
+
+}  // namespace
+
+bool segment(const char* id, const char* const* texte, int zahl, int* wahl, int spalten, int gesperrtAb, const char* const* hinweise, float breite,
+             bool umbrechen) {
     ImGuiWindow* w = ImGui::GetCurrentWindow();
     if (w->SkipItems || zahl <= 0) { return false; }
     ImGuiContext& g = *GImGui;
@@ -991,8 +1026,12 @@ bool segment(const char* id, const char* const* texte, int zahl, int* wahl, int 
     Platz p = naechsterPlatz();
     if (breite > 0.0F) { p.breite = std::min(p.breite, std::floor(breite)); }
     const float randX = std::floor(fs * 0.3F);
+    umbrechen = umbrechen && spalten > 0;
+    // umbrechen: ein Text darf in seiner Zelle umbrechen, es zaehlt sein breitestes Wort (CJK: Zeichenpaar)
     float breitester = 0.0F;
-    for (int i = 0; i < zahl; ++i) { breitester = std::max(breitester, ImGui::CalcTextSize(texte[i], sichtEnde(texte[i])).x); }
+    for (int i = 0; i < zahl; ++i) {
+        breitester = std::max(breitester, umbrechen ? breitestesWort(texte[i], sichtEnde(texte[i])) : ImGui::CalcTextSize(texte[i], sichtEnde(texte[i])).x);
+    }
     // so viele Spalten, wie die Texte nebeneinander passen
     int n = spalten > 0 ? std::min(spalten, zahl) : zahl;
     while (n > 1 && std::floor(p.breite / static_cast<float>(n)) < breitester + randX * 2.0F) { --n; }
@@ -1003,7 +1042,31 @@ bool segment(const char* id, const char* const* texte, int zahl, int* wahl, int 
     }
     const int reihen = (zahl + n - 1) / n;
     const float zeileH = std::floor(fs + st.FramePadding.y * 2.0F);
-    const float hoehe = zeileH * static_cast<float>(reihen);
+    // die Zellen einer Reihe: Breite der Zelle, Hoehe der Reihe (umgebrochen: die meisten Zeilen der Reihe)
+    const auto zelle = [&](int i, float& x0, float& x1) {
+        const int reihe = i / n;
+        const int spalte = i % n;
+        const int inReihe = reihe == reihen - 1 ? zahl - reihe * n : n;   // die letzte Reihe teilt die Breite unter ihren Eintraegen auf
+        x0 = std::floor(p.ort.x + p.breite * static_cast<float>(spalte) / static_cast<float>(inReihe));
+        x1 = spalte == inReihe - 1 ? p.ort.x + p.breite : std::floor(p.ort.x + p.breite * static_cast<float>(spalte + 1) / static_cast<float>(inReihe));
+    };
+    const auto textBreite = [&](int i) {
+        float x0 = 0.0F;
+        float x1 = 0.0F;
+        zelle(i, x0, x1);
+        return std::max(x1 - x0 - randX * 2.0F, 1.0F);
+    };
+    std::vector<float> reiheY(static_cast<std::size_t>(reihen) + 1U, 0.0F);
+    for (int r = 0; r < reihen; ++r) {
+        float h = zeileH;
+        if (umbrechen) {
+            for (int i = r * n; i < std::min(zahl, (r + 1) * n); ++i) {
+                h = std::max(h, std::floor(cjkTextSize(texte[i], sichtEnde(texte[i]), false, textBreite(i)).y + st.FramePadding.y * 2.0F));
+            }
+        }
+        reiheY[static_cast<std::size_t>(r) + 1U] = reiheY[static_cast<std::size_t>(r)] + h;
+    }
+    const float hoehe = reiheY.back();
     const ImRect ganz{p.ort, ImVec2{p.ort.x + p.breite, p.ort.y + hoehe}};
     ImGui::ItemSize(ganz.GetSize(), st.FramePadding.y);
     platzBelegt(p, hoehe, hoehe);
@@ -1018,9 +1081,10 @@ bool segment(const char* id, const char* const* texte, int zahl, int* wahl, int 
         const int spalte = i % n;
         // die letzte Reihe teilt die Breite unter ihren Eintraegen auf
         const int inReihe = reihe == reihen - 1 ? zahl - reihe * n : n;
-        const float x0 = std::floor(ganz.Min.x + p.breite * static_cast<float>(spalte) / static_cast<float>(inReihe));
-        const float x1 = spalte == inReihe - 1 ? ganz.Max.x : std::floor(ganz.Min.x + p.breite * static_cast<float>(spalte + 1) / static_cast<float>(inReihe));
-        const ImRect bb{ImVec2{x0, ganz.Min.y + zeileH * static_cast<float>(reihe)}, ImVec2{x1, ganz.Min.y + zeileH * static_cast<float>(reihe + 1)}};
+        float x0 = 0.0F;
+        float x1 = 0.0F;
+        zelle(i, x0, x1);
+        const ImRect bb{ImVec2{x0, ganz.Min.y + reiheY[static_cast<std::size_t>(reihe)]}, ImVec2{x1, ganz.Min.y + reiheY[static_cast<std::size_t>(reihe) + 1U]}};
         const bool gesperrt = gesperrtAb >= 0 && i >= gesperrtAb;
         const ImGuiID kid = w->GetID(texte[i]);
         if (gesperrt) { ImGui::BeginDisabled(); }
@@ -1046,8 +1110,12 @@ bool segment(const char* id, const char* const* texte, int zahl, int* wahl, int 
             if (spalte > 0) { dl->AddLine(ImVec2{bb.Min.x, bb.Min.y + 1.0F}, ImVec2{bb.Min.x, bb.Max.y - 1.0F}, ImGui::GetColorU32(ImGuiCol_Border)); }
             if (reihe > 0) { dl->AddLine(ImVec2{bb.Min.x, bb.Min.y}, ImVec2{bb.Max.x, bb.Min.y}, ImGui::GetColorU32(ImGuiCol_Border)); }
             const char* ende = sichtEnde(texte[i]);
-            const ImVec2 tg = ImGui::CalcTextSize(texte[i], ende);
-            dl->AddText(ImVec2{std::floor(bb.Min.x + (bb.GetWidth() - tg.x) * 0.5F), std::floor(bb.Min.y + (zeileH - tg.y) * 0.5F)}, textFarbe, texte[i], ende);
+            if (umbrechen) {
+                segmentText(dl, bb, textFarbe, texte[i], ende, textBreite(i));
+            } else {
+                const ImVec2 tg = ImGui::CalcTextSize(texte[i], ende);
+                dl->AddText(ImVec2{std::floor(bb.Min.x + (bb.GetWidth() - tg.x) * 0.5F), std::floor(bb.Min.y + (zeileH - tg.y) * 0.5F)}, textFarbe, texte[i], ende);
+            }
             ImGui::RenderNavCursor(bb, kid);
             if (geklickt && !gesperrt && wahl != nullptr && *wahl != i) {
                 *wahl = i;

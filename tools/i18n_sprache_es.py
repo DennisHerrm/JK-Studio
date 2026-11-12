@@ -3122,6 +3122,8 @@ from i18n_ap6 import texte as _ap6  # noqa: E402
 TEXTE.update(_ap6("es"))
 from i18n_ap8 import texte as _ap8  # noqa: E402
 TEXTE.update(_ap8("es"))
+from i18n_ap10 import texte as _ap10  # noqa: E402
+TEXTE.update(_ap10("es"))
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch
 # wie in NRC (das nur Englisch kennt) - so passen die JKHub-Tutorials auch auf
