@@ -466,6 +466,11 @@ void Belegung::setzen(std::string_view name, Taste t) {
     if (i >= 0) { m_tasten[static_cast<std::size_t>(i)] = t; }
 }
 
+void Belegung::setzenZweit(std::string_view name, Taste t) {
+    const std::ptrdiff_t i = index(name);
+    if (i >= 0) { m_zweit[static_cast<std::size_t>(i)] = t; }
+}
+
 void Belegung::leeren(std::string_view name) {
     const std::ptrdiff_t i = index(name);
     if (i < 0) { return; }

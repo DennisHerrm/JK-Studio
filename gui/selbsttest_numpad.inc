@@ -333,6 +333,97 @@ std::vector<Schritt> schritte() {
     }));
     add(tu("Numpad: Dialog zu", [] { ke::editor().tastenDialogOffen = false; }));
     add(pause(0.2));
+    // KLEIN (rc612): die zweite Taste eines Befehls einzeln belegen - Knopf "Edit 2nd" unter Reset All. Bis rc612 setzte Edit nur
+    // die erste Taste; die zweite wich nur ueber Yes (einem anderen Befehl gegeben), Clear (beide leer) und Reset (beide Vorgaben).
+    const auto zweitDialog = [&](const char* befehl) {
+        add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P, "Strg+Umschalt+P"));
+        add(pause(0.3));
+        add(klick("##suchname", "###kartetasten"));
+        add(tippe(befehl));
+        add(pause(0.3));
+        add(klick(std::string(befehl) + "##tz", "###kartetasten", 0, false, "", 0, 0.15F));
+    };
+    zweitDialog("SetGrid16");
+    add(klick(ke::trK(Str::KeEditZweit), "###kartetasten"));
+    add(pause(0.2));
+    add(pruefe("Numpad 2. Taste: der Knopf Edit 2nd nimmt eine Taste fuer SetGrid16 auf", [] { return ke::editor().tastenDialogBearbeitet == "SetGrid16"; }));
+    add(foto("numpad_zweite_taste"));
+    add(tasteKombi(ImGuiKey_Keypad8, "Num 8"));
+    add(pause(0.3));
+    add(pruefe("Numpad 2. Taste: Num 8 ist bei SetGrid128 - Rueckfrage \"Key already used\", noch nichts geaendert", [] {
+        return finde(ke::trK(Str::KeNo), "", 0, false) != nullptr && finde(ke::trK(Str::KeYes), "", 0, false) != nullptr &&
+               ke::editor().belegung.text("SetGrid16") == "5 / Num+5" && ke::editor().belegung.text("SetGrid128") == "8 / Num+8";
+    }));
+    add(klick(ke::trK(Str::KeYes)));
+    add(pause(0.2));
+    add(pruefe("Numpad 2. Taste: Yes - SetGrid16 \"5 / Num+8\" (die erste Taste bleibt), SetGrid128 behaelt \"8\"; gespeichert nur die zweiten "
+               "(SetGrid16#Num=Num+8, SetGrid128#Num=)", [] {
+        const auto& b = ke::editor().belegung;
+        diag::detail("Knopftest: Numpad 2. Taste - SetGrid16 \"" + b.text("SetGrid16") + "\", SetGrid128 \"" + b.text("SetGrid128") + "\", gespeichert SetGrid16#Num=" +
+                     gespeicherteTaste("SetGrid16#Num") + ", " + std::to_string(g_app->settings.karteTasten.size()) + " Eintraege");
+        return b.text("SetGrid16") == "5 / Num+8" && b.text("SetGrid128") == "8" && gespeicherteTaste("SetGrid16#Num") == "Num+8" &&
+               gespeicherteTaste("SetGrid128#Num").empty() && g_app->settings.karteTasten.size() == 2;
+    }));
+    add(tu("Numpad 2. Taste: Raster 4", [] {
+        ke::editor().raster.setzePotenz(2);
+        ke::editor().tastenDialogOffen = false;
+    }));
+    add(pause(0.2));
+    add(tasteKombi(ImGuiKey_Keypad8, "Num 8"));
+    add(pruefe("Numpad 2. Taste: Num 8 setzt jetzt das Raster 16, die 8 der oberen Reihe weiter 128", [] { return ke::editor().raster.groesse() == 16.0F; }));
+    // eine freie Taste braucht keine Rueckfrage; ein Befehl ohne Taste bekommt nur eine zweite
+    zweitDialog("Zoom100");
+    add(klick(ke::trK(Str::KeEditZweit), "###kartetasten"));
+    add(pause(0.2));
+    add(tasteKombi(ImGuiKey_Keypad5, "Num 5"));
+    add(pause(0.3));
+    add(pruefe("Numpad 2. Taste: Zoom100 (ohne Taste) bekommt Num 5 als zweite, ohne Rueckfrage (Num 5 ist frei); gespeichert Zoom100#Num=Num+5", [] {
+        const auto& b = ke::editor().belegung;
+        diag::detail("Knopftest: Numpad 2. Taste - Zoom100 \"" + b.text("Zoom100") + "\", erste " + karte::befehle::tasteAlsText(b.taste("Zoom100")) + ", zweite " +
+                     karte::befehle::tasteAlsText(b.zweitTaste("Zoom100")));
+        return finde(ke::trK(Str::KeYes), "", 0, false) == nullptr && b.taste("Zoom100") == 0 && b.text("Zoom100") == "Num+5" &&
+               gespeicherteTaste("Zoom100#Num") == "Num+5" && gespeicherteTaste("Zoom100") == "-";   // die erste weicht nicht ab (Vorgabe leer)
+    }));
+    // die eigene erste Taste als zweite: nichts aendert sich, keine Rueckfrage
+    add(tu("Numpad 2. Taste: Dialog zu", [] { ke::editor().tastenDialogOffen = false; }));
+    add(pause(0.2));
+    zweitDialog("SetGrid16");
+    // diesmal ueber den Rechtsklick auf die Zeile: ihr Menue traegt dieselben Knoepfe
+    add(klick("SetGrid16##tz", "###kartetasten", 0, false, "", 1, 0.15F));
+    add(pause(0.3));
+    add(pruefe("Numpad 2. Taste: Rechtsklick auf die Zeile - Menue mit Edit, Edit 2nd, Clear und Reset", [] {
+        return finde(ke::trK(Str::KeEditZweit), "##Popup", 0, false) != nullptr && finde(ke::trK(Str::KeEdit), "##Popup", 0, false) != nullptr &&
+               finde(ke::trK(Str::KeClear), "##Popup", 0, false) != nullptr && finde(ke::trK(Str::KeReset), "##Popup", 0, false) != nullptr;
+    }));
+    add(foto("numpad_zweite_taste_menue"));
+    add(klick(ke::trK(Str::KeEditZweit), "##Popup", 0, false));
+    add(pause(0.2));
+    add(pruefe("Numpad 2. Taste: Edit 2nd im Menue nimmt die zweite Taste von SetGrid16 auf", [] { return ke::editor().tastenDialogBearbeitet == "SetGrid16"; }));
+    add(tasteKombi(ImGuiKey_5, "5"));
+    add(pause(0.3));
+    add(pruefe("Numpad 2. Taste: die eigene erste Taste (5) als zweite aendert nichts und fragt nicht", [] {
+        return finde(ke::trK(Str::KeYes), "", 0, false) == nullptr && ke::editor().tastenDialogBearbeitet.empty() &&
+               ke::editor().belegung.text("SetGrid16") == "5 / Num+8";
+    }));
+    // Reset holt beide Vorgaben von SetGrid16 zurueck und fragt, weil Num+5 jetzt die zweite Taste von Zoom100 ist
+    add(klick(ke::trK(Str::KeReset), "###kartetasten"));
+    add(pause(0.3));
+    add(klick(ke::trK(Str::KeYes)));
+    add(pause(0.2));
+    add(pruefe("Numpad 2. Taste: Reset mit Yes - SetGrid16 wieder \"5 / Num+5\", Zoom100 ohne Taste", [] {
+        const auto& b = ke::editor().belegung;
+        return b.text("SetGrid16") == "5 / Num+5" && b.text("Zoom100").empty();
+    }));
+    add(klick(ke::trK(Str::KeResetAll), "###kartetasten"));
+    add(pause(0.2));
+    add(klick(ke::trK(Str::KeYes)));
+    add(pause(0.2));
+    add(pruefe("Numpad 2. Taste: Reset All - alles wie ab Werk, nichts gespeichert", [] {
+        const auto& b = ke::editor().belegung;
+        return b.text("SetGrid128") == "8 / Num+8" && b.abweichende().empty() && g_app->settings.karteTasten.empty();
+    }));
+    add(tu("Numpad: Dialog zu", [] { ke::editor().tastenDialogOffen = false; }));
+    add(pause(0.2));
 
     // --- Punkt 3: die Anzeige im Menue (Grid mit den Num-Tasten, die Ansichten ohne) und die Ansichten ohne Ziffernblock
     add(pruefe("Numpad Vorgabe: Grid zeigt beide Tasten (Grid1 \"1 / Num+1\", Grid256 \"9 / Num+9\", Show Grid \"0 / Num+0\"), "

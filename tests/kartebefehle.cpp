@@ -335,6 +335,21 @@ void tasten() {
         pruefe(allein(f, 5, "Zoom100") && f.zweitTaste("Zoom100") == (kNum | '5') && f.taste("Zoom100") == 0 && m.size() == 1 &&
                    m[0].find("ZoomIn#Num") != std::string::npos,
                "laden: \"<Befehl>#Num\" setzt die Zweittaste, unlesbar wird gemeldet, unbekannt uebergangen");
+        // KLEIN (rc612): die Zweittaste einzeln setzen (Edit > Shortcuts, "Edit 2nd") - die erste bleibt, gesichert wird nur "#Num"
+        Belegung g;
+        g.setzenZweit("SetGrid16", kNum | '8');
+        const auto abw = g.abweichende();
+        pruefe(g.text("SetGrid16") == "5 / Num+8" && g.taste("SetGrid16") == '5' && g.zweitTaste("SetGrid16") == (kNum | '8') && abw.size() == 1 &&
+                   abw[0].first == "SetGrid16#Num" && abw[0].second == "Num+8" && g.belegtVon(kNum | '8', "SetGrid16") == "SetGrid128",
+               "setzenZweit: nur die Zweittaste aendert sich, gesichert als \"SetGrid16#Num=Num+8\"; SetGrid128 hat Num+8 noch (Rueckfrage im Dialog)");
+        g.setzenZweit("Zoom100", kNum | '5');
+        Belegung h;
+        (void)h.laden(g.abweichende());
+        pruefe(h.text("SetGrid16") == "5 / Num+8" && h.text("Zoom100") == "Num+5" && h.taste("Zoom100") == 0 && h.abweichende() == g.abweichende(),
+               "setzenZweit: ein Befehl ohne Taste bekommt nur eine zweite; nach Sichern und Laden dieselbe Belegung");
+        g.zuruecksetzen("SetGrid16");
+        g.setzenZweit("Gibts", 'X');
+        pruefe(g.text("SetGrid16") == "5 / Num+5" && g.abweichende().size() == 1, "setzenZweit: Reset holt die Vorgabe zurueck, ein unbekannter Befehl aendert nichts");
     }
     // Mehrdeutig: zwei Befehle auf derselben Taste
     Belegung zwei;

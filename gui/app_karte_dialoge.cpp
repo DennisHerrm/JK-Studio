@@ -1898,6 +1898,9 @@ struct TastenDialog {
     std::string frageAnderer;    // der, der die Taste schon hat
     befehle::Taste frageTaste = 0;
     bool frageReset = false;     // rc612 NUMPAD: die Rueckfrage kam von Reset (beide Vorgaben des Befehls)
+    // KLEIN (rc612): die aufgenommene Taste gilt der ZWEITEN des Befehls (Knopf "Edit 2nd"); ebenso die Rueckfrage
+    bool zweit = false;
+    bool frageZweit = false;
     bool frageAlle = false;      // "Boo!" - Reset All
     int sortSpalte = 0;          // sortByColumn( 0, AscendingOrder )
     bool absteigend = false;
@@ -1957,6 +1960,7 @@ void tasteAendern(const std::string& befehl, befehle::Taste neu) {
         g_td.frage = true;
         g_td.frageAlle = false;
         g_td.frageReset = reset;
+        g_td.frageZweit = false;
         g_td.frageBefehl = befehl;
         g_td.frageAnderer = anderer;
         g_td.frageTaste = t;
@@ -1967,6 +1971,27 @@ void tasteAendern(const std::string& befehl, befehle::Taste neu) {
     } else {
         ed.belegung.setzen(befehl, t);
     }
+    einstellungenSpeichern();
+}
+
+// KLEIN (rc612): die zweite Taste des Befehls einzeln belegen (bis rc612 setzte Edit nur die erste; die zweite wich nur ueber Yes,
+// Clear und Reset). Hat sie ein anderer Befehl, fragt der Dialog wie bei der ersten ("Key already used"); die eigene erste Taste
+// als zweite aendert nichts (beide Tasten gleich waeren eine).
+void zweitTasteAendern(const std::string& befehl, befehle::Taste neu) {
+    Editor& ed = editor();
+    if (neu == ed.belegung.taste(befehl)) { return; }
+    const std::string anderer = ed.belegung.belegtVon(neu, befehl);
+    if (!anderer.empty()) {
+        g_td.frage = true;
+        g_td.frageAlle = false;
+        g_td.frageReset = false;
+        g_td.frageZweit = true;
+        g_td.frageBefehl = befehl;
+        g_td.frageAnderer = anderer;
+        g_td.frageTaste = neu;
+        return;
+    }
+    ed.belegung.setzenZweit(befehl, neu);
     einstellungenSpeichern();
 }
 
@@ -2010,6 +2035,8 @@ void frageZeichnen() {
         if (wahl == 0 || wahl == 1) {   // eIDNO : keep duplicate key
             if (g_td.frageReset) {
                 ed.belegung.zuruecksetzen(g_td.frageBefehl);
+            } else if (g_td.frageZweit) {   // KLEIN: die Rueckfrage galt der zweiten Taste
+                ed.belegung.setzenZweit(g_td.frageBefehl, g_td.frageTaste);
             } else {
                 ed.belegung.setzen(g_td.frageBefehl, g_td.frageTaste);
             }
@@ -2061,7 +2088,11 @@ void zeichneTastenDialog() {
             ed.tastenDialogBearbeitet.clear();
             // Single_QKeySequenceEdit::event: "consume ALL key presses"
             ed.tasteVerbrauchtBild = ImGui::GetFrameCount();
-            tasteAendern(b, t);
+            if (g_td.zweit) {   // KLEIN: "Edit 2nd"
+                zweitTasteAendern(b, t);
+            } else {
+                tasteAendern(b, t);
+            }
         }
     }
     // DoCommandListDlg (commands.cpp:332-420) mit Qts Massen, am Foto
@@ -2117,7 +2148,12 @@ void zeichneTastenDialog() {
         };
         std::vector<std::pair<std::string, std::string>> zeilen;
         for (const std::string& n : ed.belegung.namen()) {
-            const std::string tx = ed.tastenDialogBearbeitet == n ? std::string(trK(Str::KePressKey)) : ed.belegung.text(n);
+            std::string tx = ed.belegung.text(n);
+            if (ed.tastenDialogBearbeitet == n) {
+                // KLEIN: waehrend die zweite Taste aufgenommen wird, bleibt die erste stehen ("5 / Press a key ...")
+                const std::string erste = befehle::tasteAlsText(ed.belegung.taste(n));
+                tx = g_td.zweit && !erste.empty() ? erste + " / " + trK(Str::KePressKey) : std::string(trK(Str::KePressKey));
+            }
             if (!enthaelt(n, g_td.suchName) || !enthaelt(tx, g_td.suchTaste)) { continue; }
             zeilen.emplace_back(n, tx);
         }
@@ -2192,6 +2228,7 @@ void zeichneTastenDialog() {
         ImGui::BeginChild("##tastenliste", ImVec2{px(288.0F), px(461.0F)}, ImGuiChildFlags_None);
         ImDrawList* zl = ImGui::GetWindowDrawList();
         const float zeileH = px(16.0F);
+        bool kontext = false;
         for (const auto& [n, tx] : zeilen) {
             const ImVec2 zp = ImGui::GetCursorScreenPos();
             const bool sel = g_td.gewaehlt == n;
@@ -2199,9 +2236,16 @@ void zeichneTastenDialog() {
             if (ImGui::Selectable((n + "##tz").c_str(), sel, ImGuiSelectableFlags_AllowDoubleClick, ImVec2{0.0F, zeileH})) {
                 g_td.gewaehlt = n;
                 // itemActivated (Doppelklick/Enter) -> accelerator_edit
-                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { ed.tastenDialogBearbeitet = n; }
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+                    ed.tastenDialogBearbeitet = n;
+                    g_td.zweit = false;
+                }
             }
             ImGui::PopStyleColor();
+            if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {   // KLEIN: Rechtsklick waehlt die Zeile und oeffnet ihr Menue (unten)
+                g_td.gewaehlt = n;
+                kontext = true;
+            }
             if (!ImGui::IsItemVisible()) { continue; }
             const float ty = std::floor(zp.y + (zeileH - ImGui::GetTextLineHeight()) * 0.5F);
             zl->AddText(ImVec2{zp.x + px(3.0F), ty}, ImGui::GetColorU32(ImGuiCol_Text), n.c_str());
@@ -2227,7 +2271,10 @@ void zeichneTastenDialog() {
         // (tree->selectedItems().isEmpty()).
         const bool hatWahl = !g_td.gewaehlt.empty();
         ImGui::SetCursorScreenPos(bp(308.0F, 39.0F));
-        if (ImGui::Button(trK(Str::KeEdit), kg) && hatWahl) { ed.tastenDialogBearbeitet = g_td.gewaehlt; }
+        if (ImGui::Button(trK(Str::KeEdit), kg) && hatWahl) {
+            ed.tastenDialogBearbeitet = g_td.gewaehlt;
+            g_td.zweit = false;
+        }
         ImGui::SetCursorScreenPos(bp(308.0F, 67.0F));
         if (ImGui::Button(trK(Str::KeClear), kg) && hatWahl) {   // accelerator_clear_button_clicked
             ed.belegung.leeren(g_td.gewaehlt);   // rc612 NUMPAD: auch die Zweittaste
@@ -2240,8 +2287,36 @@ void zeichneTastenDialog() {
             g_td.frage = true;
             g_td.frageAlle = true;
         }
+        // KLEIN (rc612): die zweite Taste des gewaehlten Befehls einzeln belegen (ab Werk die des Ziffernblocks) - unter den vier
+        // Knoepfen von NRC, die an ihrem gemessenen Platz bleiben
+        ImGui::SetCursorScreenPos(bp(308.0F, 151.0F));
+        if (ImGui::Button(trK(Str::KeEditZweit), kg) && hatWahl) {
+            ed.tastenDialogBearbeitet = g_td.gewaehlt;
+            g_td.zweit = true;
+        }
+        ImGui::SetItemTooltip("%s", tr(Str::KeEditZweitHint));
         ImGui::PopStyleVar();
         dialogSchriftAus();
+        // KLEIN (rc612): das Menue einer Zeile (Rechtsklick) - die Knoepfe der rechten Spalte fuer diesen Befehl
+        if (kontext) { ImGui::OpenPopup("##tastenzeile"); }
+        if (ImGui::BeginPopup("##tastenzeile")) {
+            const bool da = !g_td.gewaehlt.empty();
+            if (ImGui::MenuItem(trK(Str::KeEdit), nullptr, false, da)) {
+                ed.tastenDialogBearbeitet = g_td.gewaehlt;
+                g_td.zweit = false;
+            }
+            if (ImGui::MenuItem(trK(Str::KeEditZweit), nullptr, false, da)) {
+                ed.tastenDialogBearbeitet = g_td.gewaehlt;
+                g_td.zweit = true;
+            }
+            ImGui::SetItemTooltip("%s", tr(Str::KeEditZweitHint));
+            if (ImGui::MenuItem(trK(Str::KeClear), nullptr, false, da)) {
+                ed.belegung.leeren(g_td.gewaehlt);
+                einstellungenSpeichern();
+            }
+            if (ImGui::MenuItem(trK(Str::KeReset), nullptr, false, da)) { tasteAendern(g_td.gewaehlt, 0); }
+            ImGui::EndPopup();
+        }
         ImGui::SetCursorScreenPos(bp(0.0F, 533.0F));
         ImGui::Dummy(ImVec2{0.0F, 0.0F});
         frageZeichnen();

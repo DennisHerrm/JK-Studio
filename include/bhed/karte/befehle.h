@@ -191,6 +191,7 @@ public:
     // Ist die Vorgabe des Befehls die von NRC (false: der Ziffernblock hat sie geaendert)?
     [[nodiscard]] bool vorgabeWieNrc(std::string_view name) const;
     void setzen(std::string_view name, Taste t);        // accelerator_alter
+    void setzenZweit(std::string_view name, Taste t);   // KLEIN (rc612): nur die Zweittaste (Edit > Shortcuts, "Edit 2nd")
     void leeren(std::string_view name);                  // Clear: alle Tasten des Befehls
     void loesen(std::string_view name, Taste t);         // "Yes" bei "Key already used": nur die Taste t
     void zuruecksetzen(std::string_view name);           // Reset
