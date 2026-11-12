@@ -33,6 +33,8 @@
 // (Diese Datei ist ein solches Werk: von einer KI nach dem Lesen der genannten Quellen geschrieben.)
 #include "mesh_intern.h"
 
+#include "bhed/modell/gewichte.h"
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -553,6 +555,14 @@ PolyNetz polyAus(const Inhalt& in, int stufe) {
         n.teilPunkte[t] = zi(n.punkte.size());
         if (teil.istTag() || uz(stufe) >= teil.stufen.size()) { continue; }
         const Netz& nz = teil.stufen[uz(stufe)];
+        // FIX612B P2-4: die Ecke mit den Gewichten, die die Ansicht zeigt - eine offene Malliste wie uebernommen
+        // (anzeigeVertex). Vorher kamen die Gewichte von vor dem Malen ins Arbeitsnetz: die Werkzeuge mischten sie, inPose
+        // stellte das Netz anders, als die Ansicht es zeigt, und polyZurueck schrieb sie zurueck.
+        const auto eckeGezeigt = [&nz](int e) {
+            Ecke x = nz.ecken[uz(e)];
+            if (uz(e) < nz.mal.size()) { (void)aufEcke(nz.mal[uz(e)], x); }
+            return x;
+        };
         const int basis = zi(n.punkte.size());
         n.punkte.resize(n.punkte.size() + uz(nz.punktZahl));
         for (std::size_t e = 0; e < nz.ecken.size(); ++e) {
@@ -583,7 +593,7 @@ PolyNetz polyAus(const Inhalt& in, int stufe) {
             for (int k = d * 3; k < d * 3 + 3; ++k) {
                 PEcke c;
                 c.punkt = basis + nz.kanten[uz(k)].punkt;
-                c.e = nz.ecken[uz(nz.kanten[uz(k)].ecke)];
+                c.e = eckeGezeigt(nz.kanten[uz(k)].ecke);
                 f.ecken.push_back(c);
             }
             f.dreiecke.push_back({0, 1, 2});
@@ -602,7 +612,7 @@ PolyNetz polyAus(const Inhalt& in, int stufe) {
             for (const int k : ring) {
                 PEcke c;
                 c.punkt = basis + nz.kanten[uz(k)].punkt;
-                c.e = nz.ecken[uz(nz.kanten[uz(k)].ecke)];
+                c.e = eckeGezeigt(nz.kanten[uz(k)].ecke);
                 eckeVonPunkt[nz.kanten[uz(k)].punkt] = zi(f.ecken.size());
                 f.ecken.push_back(c);
             }
@@ -749,6 +759,48 @@ void polyZurueck(const PolyNetz& n, Inhalt& in) {
         Netz neu;
         neu.aufbauen(std::move(ecken), idx, punktVon);
         neu.polyVon = std::move(polyVon);
+        // FIX612B P2-4: eine Flaeche, die malt, malt weiter. Eine Ecke, die das Werkzeug nicht angefasst hat (derselbe Ort
+        // und die Gewichte, die polyAus aus ihrer Malliste gemacht hat), behaelt ihre Malliste - so traegt sie weiter dieselbe
+        // wie die Ecke gleichen Orts der Nachbarflaeche; jede andere bekommt die Liste ihrer (gemischten) Gewichte. Vorher
+        // fiel `mal` hier weg: die Flaeche zeigte wieder die Gewichte von vor dem Malen, die Nachbarflaeche die gemalten.
+        if (!alt.mal.empty() && alt.mal.size() == alt.ecken.size()) {
+            struct OrtBits {
+                std::uint32_t b[3]{};
+                bool operator==(const OrtBits& o) const noexcept { return b[0] == o.b[0] && b[1] == o.b[1] && b[2] == o.b[2]; }
+            };
+            struct OrtBitsHash {
+                std::size_t operator()(const OrtBits& k) const noexcept {
+                    std::uint64_t h = 1469598103934665603ULL;   // FNV-1a
+                    for (const std::uint32_t v : k.b) { h = (h ^ v) * 1099511628211ULL; }
+                    return static_cast<std::size_t>(h);
+                }
+            };
+            const auto bitsVon = [](const Ecke& e) {
+                OrtBits k;
+                std::memcpy(k.b, e.ort, sizeof k.b);
+                return k;
+            };
+            std::unordered_map<OrtBits, std::vector<int>, OrtBitsHash> amOrt;
+            amOrt.reserve(alt.ecken.size());
+            for (std::size_t e = 0; e < alt.ecken.size(); ++e) { amOrt[bitsVon(alt.ecken[e])].push_back(zi(e)); }
+            neu.mal.resize(neu.ecken.size());
+            for (std::size_t e = 0; e < neu.ecken.size(); ++e) {
+                const Ecke& x = neu.ecken[e];
+                int vorlage = -1;
+                const auto it = amOrt.find(bitsVon(x));
+                if (it != amOrt.end()) {
+                    for (const int q : it->second) {
+                        Ecke probe = alt.ecken[uz(q)];
+                        (void)aufEcke(alt.mal[uz(q)], probe);
+                        if (std::memcmp(probe.knochen, x.knochen, sizeof x.knochen) == 0 && std::memcmp(probe.gewicht, x.gewicht, sizeof x.gewicht) == 0) {
+                            vorlage = q;
+                            break;
+                        }
+                    }
+                }
+                neu.mal[e] = vorlage >= 0 ? alt.mal[uz(vorlage)] : listeAus(x);
+            }
+        }
         // was nicht zur Geometrie gehoert, bleibt (Knochenverweise der Datei; die UV-Marken passen nicht mehr)
         neu.dateiRefs = alt.dateiRefs;
         neu.dateiRefsAufgeloest = alt.dateiRefsAufgeloest;
