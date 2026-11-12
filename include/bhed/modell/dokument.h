@@ -221,6 +221,9 @@ public:
     // pfix H1: nur den Schritt `schritt` verwerfen - liegt er nicht mehr oben (Rueckgaengig, ein anderer Befehl), nichts.
     bool abbrechen(std::uint64_t schritt);
     bool wiederholen();
+    // FIX612C: den obersten Schritt in den darunter legen - ein Befehl, der zwei Aenderungen macht, ist ein Schritt (Rueckgaengig
+    // nimmt beide zusammen). Name des unteren, Kennung des oberen. false: weniger als zwei Schritte.
+    bool zusammenlegen();
     [[nodiscard]] bool kannRueckgaengig() const noexcept { return !zurueck_.empty(); }
     [[nodiscard]] bool kannWiederholen() const noexcept { return !vor_.empty(); }
     [[nodiscard]] std::string rueckgaengigName() const { return zurueck_.empty() ? std::string() : zurueck_.back().first; }

@@ -26,6 +26,7 @@
 #include "app_internal.h"
 #include "textumbruch.h"
 
+#include "bhed/modell/ik.h"
 #include "bhed/modell/retarget.h"
 #include "bhed/modell/rig.h"
 
@@ -101,8 +102,10 @@ int gruppeVon(int vorlage) {
 
 ModellAnim& modellAnim() { return g_anim; }
 
-bool modellRigNurFk() { return g_anim.nurFk; }
-void modellRigNurFkSetzen(bool an) { g_anim.nurFk = an; }
+bool modellRigNurFk() { return mt().dok.inhalt().rig.nurFk; }
+void modellRigNurFkSetzen(bool an) {
+    if (modellRigNurFk() != an) { mt().dok.vorschau([an](modell::Inhalt& in) { in.rig.nurFk = an; }, false); }
+}
 
 int modellAnimVorlageWahl() {
     vorlageAbgleich();
@@ -150,15 +153,63 @@ std::vector<modell::Zuordnung> modellAnimVorlageZuordnung() {
     return aus;
 }
 
+namespace {
+
+// FIX612C (P3-5, Massstab CAT: IK/FK ohne Sprung und ohne tote Spuren): vor "Animation-Rig (nur FK)" die IK jeder Schicht in
+// FK-Schluessel backen - je Spur an jedem Bild ihrer Sequenz (fkAufIkBereich wertet mit ALLEN Spuren aus, darum erst alle backen,
+// dann leeren: so erhaelt es die Pose wie "IK backen" je Glied) - und die Spuren entfernen. Bilder: die Zeile der animation.cfg der
+// Schicht, sonst die ganze GLA.
+void nurFkBacken(modell::RigDaten& rig, int& glieder, int& sequenzen) {
+    const int letztes = std::max(g_app->anim.bildZahl(), 1) - 1;
+    for (auto& [name, s] : rig.schichten) {
+        int von = 0;
+        int bis = letztes;
+        for (const AnimEntry& e : g_app->animList) {
+            if (e.name != name) { continue; }
+            von = std::clamp(e.firstFrame, 0, letztes);
+            bis = std::clamp(e.firstFrame + std::max(e.numFrames, 1) - 1, von, letztes);
+            break;
+        }
+        bool da = false;
+        for (std::size_t sp = 0; sp < s.ik.size(); ++sp) {
+            if (s.ik[sp].ziel.empty() && s.ik[sp].wert.empty()) { continue; }
+            (void)modell::fkAufIkBereich(g_app->anim, s, static_cast<int>(sp), von, bis);
+            ++glieder;
+            da = true;
+        }
+        s.ik.clear();
+        sequenzen += da ? 1 : 0;
+    }
+}
+
+}  // namespace
+
 bool modellAnimRigErstellen(bool nurFk) {
-    g_anim.nurFk = nurFk;
+    ModellTab& t = mt();
+    if (g_app->anim.bones.empty()) { return modellRigAnlegen(); }   // meldet "keine GLA"
+    // FIX612C (P3-5): der Wechsel des Modus ist ein Rueckgaengig-Schritt (nach nur FK mit dem Backen der IK)
+    const bool wechsel = t.dok.inhalt().rig.nurFk != nurFk;
+    int glieder = 0;
+    int sequenzen = 0;
+    if (wechsel) {
+        (void)t.dok.aendern(tr(nurFk ? Str::AzRigFk : Str::MbRgAnlegen), [&](modell::Inhalt& in) {
+            in.rig.nurFk = nurFk;
+            if (nurFk) { nurFkBacken(in.rig, glieder, sequenzen); }
+        }, false);
+        t.ikWahl = -1;
+        t.kvWahl.clear();
+        ++t.kvAenderungen;
+        g_app->animPlaying = false;
+    }
     if (!modellRigAnlegen()) { return false; }
     // ENT2 (shank 12.11.: "bei Control Rig Erstellung von FK auf IK uebertragen ... wie das CAT Rig"): eine Animation der Sequenz
     // geht beim Erstellen des Control Rigs von FK auf IK auf das Rig (wie "Auf Rig legen"), danach arbeitet man an den Griffen.
     // Eine Schicht mit Schluesseln - schon aufgelegt oder bearbeitet - bleibt (Neu erkennen); "Auf Rig legen" legt neu auf.
     const modell::RigSchicht* s = modellRigSchichtJetzt();
     const bool leer = s == nullptr || (s->schluesselZahl() == 0 && std::all_of(s->ik.begin(), s->ik.end(), [](const modell::IkSpur& x) { return x.ziel.empty(); }));
-    if (!nurFk && sequenz() != nullptr && leer) { (void)modellAnimAufRigLegen(); }
+    // FIX612C: zurueck vom Rig nur mit FK und gleich aufgelegt - ein Klick, ein Rueckgaengig-Schritt
+    if (!nurFk && sequenz() != nullptr && leer && modellAnimAufRigLegen() && wechsel) { (void)t.dok.zusammenlegen(); }
+    if (glieder > 0) { melden(format(Str::AzNurFkGebacken, glieder, sequenzen)); }
     return true;
 }
 

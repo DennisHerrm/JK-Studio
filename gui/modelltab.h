@@ -1496,7 +1496,6 @@ struct ModellAnim {
     int vorlage = -2;             // Rig-Vorlage: -2 automatisch (modell::rtVorlageFuer), -1 eigenes Skelett (Ketten vorgeschlagen), sonst Index in modell::rtVorlagen()
     std::string vorlageFuer;      // das Skelett, fuer das die Wahl gilt (ein anderes Skelett: wieder automatisch)
     int erkannt = -1;             // die erkannte Vorlage dieses Skeletts (-1 keine)
-    bool nurFk = false;           // "Animation-Rig (nur FK)": das Rig ohne Pol-Ziele und Fussrolle, Hand und Fuss greifen ohne IK
     bool generatorOffen = false;  // Presets: der Generator ist aufgeklappt
     std::string wegFuer;          // Wurzelweg: wofuer er gerechnet ist (GLA, Sequenz, Stand des Dokuments)
     float weg = 0.0F;
@@ -1756,7 +1755,8 @@ void modellStapelMenue();
 bool modellStapelAktionenSuche(const std::string& such);
 
 // FIX612C (Codepruefung seit rc611, P3-5): "Animation-Rig (nur FK)" - der Modus des Rigs (true: ohne IK-Griffe, Hand und Fuss
-// greifen ohne IK). Setzen ohne Rueckgaengig-Schritt (Selbsttests; die Knoepfe gehen ueber modellAnimRigErstellen).
+// greifen ohne IK). Steht im Dokument (modell::RigDaten::nurFk). Setzen ohne Rueckgaengig-Schritt (Selbsttests; die Knoepfe
+// gehen ueber modellAnimRigErstellen).
 [[nodiscard]] bool modellRigNurFk();
 void modellRigNurFkSetzen(bool an);
 // FIX612C: Proben fuer den Selbsttest (P3-7 Zeilen des Explorers hinter dem Listenende, P3-6 Bild der Anzeige "Knochen waehlen")

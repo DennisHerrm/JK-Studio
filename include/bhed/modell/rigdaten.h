@@ -225,6 +225,9 @@ struct RigDaten {
     std::vector<Zuordnung> zuordnung;
     std::vector<BibliothekPose> posen;             // Stufe 3b
     RetargetDaten rt;                              // Stufe 5
+    // FIX612C (P3-5): "Animation-Rig (nur FK)" - im Dokument, damit Rueckgaengig den Modus zusammen mit den IK-Spuren
+    // zurueckholt, die der Wechsel in FK gebacken hat. Mit nur FK traegt keine Schicht eine IK-Spur.
+    bool nurFk = false;
 };
 
 }  // namespace bhed::modell

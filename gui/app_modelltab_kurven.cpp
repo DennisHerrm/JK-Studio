@@ -1945,7 +1945,9 @@ bool modellAnimAufRigLegen() {
         return false;
     }
     int glieder = 0;
-    if (!modellAnim().nurFk) {
+    if (modellRigNurFk()) {
+        neu.ik.clear();   // FIX612C (P3-5): das Rig nur mit FK hat keine IK (rigReduzieren uebernimmt die Spuren der Schicht)
+    } else {
         for (int art = 0; art < modell::kIkArten; ++art) {
             const int spur = modellIkSpur(art, neu);
             if (spur < 0) { continue; }
@@ -1974,7 +1976,7 @@ bool modellAnimAufRigLegen() {
     t.kvWahl.clear();
     ++t.kvAenderungen;
     g_app->modelDirty = true;
-    if (modellAnim().nurFk) {
+    if (modellRigNurFk()) {
         melden(format(Str::EnAufRigNurFk, name.c_str(), neu.schluesselZahl(), static_cast<int>(br.vorher), static_cast<double>(abweichung)));
     } else {
         melden(format(Str::EnAufRigMeldung, name.c_str(), neu.schluesselZahl(), static_cast<int>(br.vorher), glieder, static_cast<double>(abweichung)));

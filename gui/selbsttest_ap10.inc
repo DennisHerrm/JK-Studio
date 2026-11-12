@@ -149,7 +149,7 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
         g_app->mtab.rigFuer.clear();
         g_app->mtab.griffWahl = -1;
         g_app->mtab.rt = ModellRetarget{};
-        modellAnim().nurFk = false;
+        modellRigNurFkSetzen(false);
         modellAnim().generatorOffen = false;
         std::snprintf(g_app->mtab.kgKarte, sizeof g_app->mtab.kgKarte, "%s", "ap10test");
         if (ImGuiWindow* w = kindFenster("mtrollouts")) { ImGui::SetScrollY(w, 0.0F); }
@@ -249,7 +249,7 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
     }));
     add(pruefe(zeile("A2", modus, "ein blauer Hauptknopf Control Rig erstellen ueber die Breite, darunter Animation-Rig (nur FK) und Auf Rig legen im Raster mit Symbol, am Ende der Tipp als Kasten"), [] {
         const ui::RolloutProbe* g = gruppe(Str::AzRRig);
-        const Element* haupt = imRoll(tr(modellRigDa() && !modellAnim().nurFk ? Str::MbRgNeu : Str::AzRigErstellen));
+        const Element* haupt = imRoll(tr(modellRigDa() && !modellRigNurFk() ? Str::MbRgNeu : Str::AzRigErstellen));
         const Element* fk = imRoll(tr(Str::AzRigFk));
         const Element* auf = imRoll(tr(Str::AzAufRig));
         const Element* tipp = imRoll(tr(Str::AzRigTipp));
@@ -392,7 +392,7 @@ void rigSchritte(std::vector<Schritt>& s, int modus) {
     add(pruefe(zeile("A2", modus, "Klick auf Control Rig erstellen legt das Rig mit IK-Zielen an; der Hauptknopf heisst danach Neu erkennen"), [] {
         melde("A2 Control Rig: " + std::to_string(g_app->mtab.rig.griffe.size()) + " Griffe, davon " + std::to_string(ikGriffe()) + " IK, erkannt " + std::to_string(g_app->mtab.rig.erkennung.erkannt) +
               ", unklar " + std::to_string(g_app->mtab.rig.erkennung.unklar));
-        return modellRigDa() && ikGriffe() > 0 && !modellAnim().nurFk && imRoll(tr(Str::MbRgNeu)) != nullptr && imRoll(tr(Str::AzRigErstellen)) == nullptr;
+        return modellRigDa() && ikGriffe() > 0 && !modellRigNurFk() && imRoll(tr(Str::MbRgNeu)) != nullptr && imRoll(tr(Str::AzRigErstellen)) == nullptr;
     }));
     // --- A10: die Griffe in der Ansicht ---
     add(pruefe(zeile("A10", modus, "die Ansicht zeigt die Griffe des Rigs (FK, IK-Ziele, Pole)"), [] {
@@ -484,7 +484,7 @@ void bedienSchritte(std::vector<Schritt>& s) {
         }
         const Element* fk = imRoll(tr(Str::AzRigFk));
         melde("A2 nur FK: " + std::to_string(g_app->mtab.rig.griffe.size()) + " Griffe, davon " + std::to_string(ikGriffe()) + " IK, Hand-Griff " + std::to_string(hand));
-        return modellRigDa() && modellAnim().nurFk && ikGriffe() == 0 && hand >= 0 && modellIkArtFuerGriff(hand) == -1 && fk != nullptr && (fk->flags & ImGuiItemStatusFlags_Checked) != 0 &&
+        return modellRigDa() && modellRigNurFk() && ikGriffe() == 0 && hand >= 0 && modellIkArtFuerGriff(hand) == -1 && fk != nullptr && (fk->flags & ImGuiItemStatusFlags_Checked) != 0 &&
                imRoll(tr(Str::AzRigErstellen)) != nullptr;
     }));
     add(zeige(Str::MbIkRollout));
@@ -498,7 +498,7 @@ void bedienSchritte(std::vector<Schritt>& s) {
     add(pause(0.3));
     add(klick(tr(Str::AzRigErstellen), "mtrollouts"));
     add(pause(0.6));
-    add(pruefe(zeile("A2", modus, "Control Rig erstellen stellt die IK-Griffe wieder her"), [] { return modellRigDa() && !modellAnim().nurFk && ikGriffe() > 0; }));
+    add(pruefe(zeile("A2", modus, "Control Rig erstellen stellt die IK-Griffe wieder her"), [] { return modellRigDa() && !modellRigNurFk() && ikGriffe() > 0; }));
     // --- A2: Vorlage waehlen ---
     add(klick(tr(Str::AzVorEigen), "mtrollouts"));
     add(pause(0.6));
@@ -1047,7 +1047,7 @@ std::vector<Schritt> schritte(const char* nur) {
         g_app->settings.modellFeldBreite = *feldBreite;
         g_app->mtab.bereich = ModellBereich::Ansehen;
         g_app->mtab.vierAnsichten = false;
-        modellAnim().nurFk = false;
+        modellRigNurFkSetzen(false);
         modellAnbautenLoesen();
     }));
     add(tu("AP10: zurueck", [=] {

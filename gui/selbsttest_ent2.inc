@@ -71,7 +71,7 @@ void rigSchritte(std::vector<Schritt>& s) {
         g_app->mtab.rigFuer.clear();
         g_app->mtab.griffWahl = -1;
         g_app->mtab.rt = ModellRetarget{};
-        modellAnim().nurFk = false;
+        modellRigNurFkSetzen(false);
         modellAnim().generatorOffen = false;
         g_app->mtab.dok.aendern("ENT2 leer", [](modell::Inhalt& in) { in.rig.schichten.clear(); }, false);
         g_app->animFrame = f0();
@@ -646,7 +646,7 @@ std::vector<Schritt> schritte(const char* nur) {
         g_app->settings.splitModel = *teiler;
         g_app->settings.modellFeldBreite = *feldBreite;
         g_app->mtab.bereich = ModellBereich::Ansehen;
-        modellAnim().nurFk = false;
+        modellRigNurFkSetzen(false);
         g_app->uiScale = *skala;
         g_app->leftMode = 1;
         g_app->doc.markSaved();

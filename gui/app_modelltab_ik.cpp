@@ -96,6 +96,10 @@ int artJetzt() {
 bool ikAendern(Str undo, int art, const std::function<bool(modell::RigSchicht&, int)>& f, bool zug = false) {
     ModellTab& t = mt();
     if (!modellRigDa() && !modellRigAnlegen()) { return false; }
+    if (modellRigNurFk()) {   // FIX612C (P3-5): im Rig nur mit FK entsteht keine IK-Spur (sie haette keine Griffe)
+        melden(tr(Str::AzIkNurFk));
+        return false;
+    }
     if (art < 0) {
         melden(tr(Str::MbIkGliedWaehlen));
         return false;
@@ -162,7 +166,7 @@ int raumKnochen(int art, int wahl) {
 
 int modellIkArtFuerGriff(int griff) {
     const ModellTab& t = mt();
-    if (modellAnim().nurFk) { return -1; }   // AP10: "Animation-Rig (nur FK)" - Hand und Fuss greifen ohne IK
+    if (modellRigNurFk()) { return -1; }   // AP10: "Animation-Rig (nur FK)" - Hand und Fuss greifen ohne IK
     if (griff < 0 || static_cast<std::size_t>(griff) >= t.rig.griffe.size()) { return -1; }
     const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(griff)];
     if (g.seite == modell::Seite::Mitte) { return -1; }
@@ -178,7 +182,7 @@ int modellIkArtFuerGriff(int griff) {
 }
 
 int modellIkSpur(int art, modell::RigSchicht& s) {
-    if (art < 0 || art >= modell::kIkArten) { return -1; }
+    if (art < 0 || art >= modell::kIkArten || modellRigNurFk()) { return -1; }   // FIX612C: nur FK - keine IK-Spur (Pfad ziehen am Saebel)
     const int da = modell::ikSpurIndex(s, static_cast<modell::IkArt>(art));
     if (da >= 0) { return da; }
     modell::IkSpur sp;
@@ -644,7 +648,7 @@ void drawModellIkBereich() {
         ui::rolloutEnde();
         return;
     }
-    if (modellAnim().nurFk) {
+    if (modellRigNurFk()) {
         ui::tipp(tr(Str::AzIkNurFk));
         ui::rolloutEnde();
         return;

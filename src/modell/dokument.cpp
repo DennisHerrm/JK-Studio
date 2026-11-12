@@ -404,6 +404,15 @@ bool Dokument::abbrechen(std::uint64_t schritt) {
     return abbrechen();
 }
 
+bool Dokument::zusammenlegen() {
+    if (zurueck_.size() < 2) { return false; }
+    const std::uint64_t kennung = zurueck_.back().kennung;
+    zurueck_.pop_back();
+    zurueck_.back().kennung = kennung;
+    ++stand_;
+    return true;
+}
+
 bool Dokument::wiederholen() {
     if (vor_.empty()) { return false; }
     zurueck_.push_back(Schritt{vor_.back().first, std::move(jetzt_), vor_.back().kennung});

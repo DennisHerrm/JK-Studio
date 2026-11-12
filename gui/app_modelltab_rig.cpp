@@ -73,6 +73,7 @@ std::string rigSchluessel() {
     for (const modell::Zuordnung& z : in.rig.zuordnung) {
         k += std::to_string(z.knochen) + ":" + std::to_string(static_cast<int>(z.rolle)) + ":" + std::to_string(static_cast<int>(z.seite)) + ",";
     }
+    k += in.rig.nurFk ? "|fk" : "|ik";   // FIX612C: Rueckgaengig/Wiederholen des Modus baut die Griffe neu
     return k;
 }
 
@@ -212,7 +213,7 @@ const std::vector<RigAktion>& rigAktionen() {
     static const std::vector<RigAktion> kListe = {
         {Str::MbRgAnlegen, Str::MbRgAnlegenHint, "", "", 0, 0, "", [] { (void)modellAnimRigErstellen(false); }, {}, 0},
         // AP10 (Entwurf, Gruppe "Rig erstellen"): das Rig nur mit FK und die Animation der Sequenz auf das Rig
-        {Str::AzRigFk, Str::AzRigFkHint, "", "", 0, 0, "", [] { (void)modellAnimRigErstellen(true); }, [] { return modellRigDa() && modellAnim().nurFk; }, 0},
+        {Str::AzRigFk, Str::AzRigFkHint, "", "", 0, 0, "", [] { (void)modellAnimRigErstellen(true); }, [] { return modellRigDa() && modellRigNurFk(); }, 0},
         {Str::AzAufRig, Str::AzAufRigHint, "", "", 0, 0, "", [] { (void)modellAnimAufRigLegen(); }, {}, 0},
         {Str::MbRgUebersicht, Str::MbRgUebersichtHint, "", "", 0, 0, "", [] { mt().uebersichtOffen = !mt().uebersichtOffen; },
          [] { return mt().uebersichtOffen; }, 0},
@@ -475,16 +476,27 @@ bool modellRigAnlegen() {
     // AP10: was die Erkennung offen laesst oder unklar nennt, weiss die Vorlage des Skeletts; Zuordnungen von Hand gelten zuletzt
     std::vector<modell::Zuordnung> zuordnung = modellAnimVorlageZuordnung();
     zuordnung.insert(zuordnung.end(), in.rig.zuordnung.begin(), in.rig.zuordnung.end());
+    // FIX612C (P3-5): der gewaehlte Griff, um ihn im neuen Rig wiederzufinden - der Index allein traefe nach dem Wechsel nur FK <->
+    // Control Rig einen anderen Griff (die IK-Griffe stehen zwischen den FK- und den Saebelgriffen)
+    const bool hatteWahl = t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size();
+    const modell::Griff alt = hatteWahl ? t.rig.griffe[static_cast<std::size_t>(t.griffWahl)] : modell::Griff{};
     t.rig = modell::rigAnlegen(g_app->anim, in, 0, zuordnung);
     // AP10 "Animation-Rig (nur FK)": ohne die Griffe, die erst mit IK wirken (Pol-Ziele, Ferse, Ballen, Zehe)
-    const bool nurFk = modellAnim().nurFk;
+    const bool nurFk = in.rig.nurFk;
     if (nurFk) {
         auto& gr = t.rig.griffe;
         gr.erase(std::remove_if(gr.begin(), gr.end(), [](const modell::Griff& x) { return x.ik; }), gr.end());
     }
     t.rigFuer = rigSchluessel();
     t.griffVersteckt.assign(t.rig.griffe.size(), 0);
-    if (t.griffWahl >= static_cast<int>(t.rig.griffe.size())) { t.griffWahl = -1; }
+    t.griffWahl = -1;
+    for (std::size_t i = 0; hatteWahl && i < t.rig.griffe.size(); ++i) {
+        const modell::Griff& g = t.rig.griffe[i];
+        if (g.art == alt.art && g.seite == alt.seite && g.knochen == alt.knochen && g.nummer == alt.nummer && g.tag == alt.tag) {
+            t.griffWahl = static_cast<int>(i);
+            break;
+        }
+    }
     int ik = 0;
     for (const modell::Griff& g : t.rig.griffe) { ik += g.ik ? 1 : 0; }
     if (nurFk) {
@@ -511,9 +523,7 @@ void modellRigAktualisieren() {
         t.griffWahl = -1;
         return;
     }
-    const int wahl = t.griffWahl;
-    (void)modellRigAnlegen();
-    t.griffWahl = wahl < static_cast<int>(t.rig.griffe.size()) ? wahl : -1;
+    (void)modellRigAnlegen();   // FIX612C: findet den gewaehlten Griff selbst wieder
 }
 
 void modellRigZuordnen(int knochen, modell::Rolle rolle, modell::Seite seite) {
@@ -1265,7 +1275,7 @@ void drawModellRigBereich() {
 void modellAnimGruppeRig() {
     ModellTab& t = mt();
     const bool rig = modellRigDa();
-    const bool nurFk = modellAnim().nurFk;
+    const bool nurFk = modellRigNurFk();
     static const int kVorlagenZahl = static_cast<int>(modell::rtVorlagen().size());
     char info[64];
     std::snprintf(info, sizeof info, trN(Str::AzVorlagenInfo, kVorlagenZahl), kVorlagenZahl);
