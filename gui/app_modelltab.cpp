@@ -217,6 +217,8 @@ void modellWurzelSetzen(int flaeche) {
 bool modellOffenesAbbrechen() {
     ModellTab& t = mt();
     bool war = false;
+    // FIX612C (P3-10): auch der Gang-Regler der Presets - der Rest des Zugs legt danach einen eigenen Schritt an
+    t.rt.presetZug = false;
     // pfix M7: ein gezogener Regler (Physik, IK, Retarget) hat seinen Schritt schon - Strg+Z nimmt ihn, das Ziehen endet
     t.physikZug = false;
     t.ikZug = false;
