@@ -2604,6 +2604,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_ap3.inc: AP3 rechtes Fe
 namespace ap9 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_ap9.inc: AP9 rechtes Feld des Bereichs Painting, BHED_HB_NUR=ap9
 }  // namespace ap9
+namespace ap7 {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_ap7.inc: AP7 rechtes Feld des Bereichs UV, BHED_HB_NUR=ap7
+}  // namespace ap7
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2679,6 +2682,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap9") == 0) {
         return ap9::handbuchSchritte();   // AP9: das rechte Feld des Bereichs Painting (wie 3ds Max, wie Blender)
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap7") == 0) {
+        return ap7::handbuchSchritte();   // AP7: das rechte Feld des Bereichs UV - Schritte 1 bis 3 (wie 3ds Max, wie Blender)
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste
