@@ -3294,6 +3294,15 @@ void animWaehlen(int i, bool abspielen);
 // rc612: der letzte Start mit Direct3D 12 stuerzte ab (Startmarke, main_win32.cpp) - Einstellung auf Direct3D 11, Hinweis im Menue
 void grafikRueckfallMelden();
 [[nodiscard]] bool grafikRueckfallGemeldet();
+// B1: ein Rueckfall nach einem abgestuerzten Start mit Direct3D 12 ist offen (Einstellung Direct3D 11, Fassung gemerkt)
+[[nodiscard]] bool grafikRueckfallOffen();
+// B1: "Direct3D 12 wieder versuchen" - Direct3D 12 ab dem naechsten Start, der Rueckfall ist erledigt
+void grafikWiederVersuchen();
+// B1: beim Start - stammt ein offener Rueckfall aus einer anderen Programmfassung, wird Direct3D 12 einmal wieder versucht (true)
+bool grafikNachUpdateVersuchen();
+// Was der Start gewaehlt hat (main_win32.cpp): 1 Direct3D 12, 0 Direct3D 11, -1 noch nicht (Selbsttest grafik)
+void grafikStartWahlMerken(bool d3d12);
+[[nodiscard]] int grafikStartWahl();
 void modellAnsichtEinpassen();
 bool npcLaden(const std::string& typ);
 const std::vector<std::string>& npcTypenListe();

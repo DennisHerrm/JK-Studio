@@ -107,6 +107,8 @@ std::string gemerkteFensterlage();
 void merkeFensterlage(const std::string& wert);
 bool grafikD3d12Gewuenscht();
 void grafikRueckfallMelden();
+bool grafikNachUpdateVersuchen();
+void grafikStartWahlMerken(bool d3d12);
 bool loadModel(App* a, const std::string& dataDir, std::string* error);
 const theme::Theme* currentTheme(App* a);
 void setThemeById(App* a, const char* id);
@@ -1525,6 +1527,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     // der Schnittstelle kostete 292-310 ms gegen 174-179 ms unter Direct3D 11). Die Startmarke MUSS davor geprueft und
     // angelegt sein - ein Treiber, der beim Anlegen des Geraets abstuerzt, liesse das Programm sonst bei jedem Start abstuerzen.
     const char* d3d12Wahl = std::getenv("BHED_D3D12");
+    // B1: ein Rueckfall aus einer frueheren Programmfassung - Direct3D 12 einmal wieder versuchen (die Startmarke unten faengt es,
+    // wenn es wieder nicht fertig wird)
+    if (d3d12Wahl == nullptr) { (void)bhed::gui::grafikNachUpdateVersuchen(); }
     bool d3d12Wunsch = d3d12Wahl != nullptr ? d3d12Wahl[0] == '1' : bhed::gui::grafikD3d12Gewuenscht();
     if (d3d12Wunsch && d3d12Wahl == nullptr && !startmarkePfad().empty()) {
         std::error_code ec;
@@ -1547,6 +1552,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         }
     }
     if (d3d12Wunsch && std::getenv("BHED_OPENGL") == nullptr) { bhed::render::grafikVorwaermen(); }
+    bhed::gui::grafikStartWahlMerken(d3d12Wunsch);
 #endif
 
     std::string error;

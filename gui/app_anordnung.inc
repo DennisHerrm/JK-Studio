@@ -5427,9 +5427,29 @@ void drawMenu() {
                 ImGui::EndTooltip();
             };
             if (ImGui::BeginMenu(tr(Str::GrafikMenu))) {
-                if (ImGui::MenuItem(tr(Str::GrafikD3d11), nullptr, !g_app->settings.grafikD3d12)) { g_app->settings.grafikD3d12 = false; }
+                // B1 (Entscheidung 12.11.): nach einem abgestuerzten Start mit Direct3D 12 der Hinweis und "Direct3D 12 wieder versuchen"
+                if (grafikRueckfallOffen()) {
+                    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 24.0F);
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+                    cjkTextUnformatted(tr(Str::GrafikRueckfallKurz));
+                    ImGui::PopStyleColor();
+                    ImGui::PopTextWrapPos();
+                    if (ImGui::MenuItem(tr(Str::GrafikWiederVersuchen))) { grafikWiederVersuchen(); }
+                    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
+                        ImGui::BeginTooltip();
+                        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 36.0F);
+                        cjkTextUnformatted(tr(Str::GrafikWiederVersuchenHint));
+                        ImGui::PopTextWrapPos();
+                        ImGui::EndTooltip();
+                    }
+                    ImGui::Separator();
+                }
+                if (ImGui::MenuItem(tr(Str::GrafikD3d11), nullptr, !g_app->settings.grafikD3d12)) {
+                    g_app->settings.grafikD3d12 = false;
+                    g_app->settings.grafikRueckfallFassung.clear();   // die eigene Wahl: kein Wiederversuch nach einem Update
+                }
                 hinweis();
-                if (ImGui::MenuItem(tr(Str::GrafikD3d12), nullptr, g_app->settings.grafikD3d12)) { g_app->settings.grafikD3d12 = true; }
+                if (ImGui::MenuItem(tr(Str::GrafikD3d12), nullptr, g_app->settings.grafikD3d12)) { grafikWiederVersuchen(); }
                 hinweis();
                 ImGui::EndMenu();
             }

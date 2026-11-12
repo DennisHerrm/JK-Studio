@@ -4205,15 +4205,38 @@ std::string gemerkteFensterlage() {
 bool grafikD3d12Gewuenscht() { return g_app != nullptr && g_app->settings.grafikD3d12; }
 
 // rc612: die Startmarke meldet einen abgestuerzten Start mit Direct3D 12 - die Einstellung geht auf Direct3D 11, das Menue
-// Ansicht > Grafikschnittstelle sagt es im Tooltip (main_win32.cpp).
+// Ansicht > Grafikschnittstelle sagt es (main_win32.cpp).
+// B1 (Entscheidung 12.11.): dazu merkt die Einstellung die Programmfassung (grafikRueckfallFassung); das Menue bietet "Direct3D 12
+// wieder versuchen", und eine neue Programmfassung versucht Direct3D 12 einmal von selbst (grafikNachUpdateVersuchen).
 namespace {
 bool g_grafikRueckfall = false;
+int g_grafikStartWahl = -1;   // was der Start gewaehlt hat (1 Direct3D 12, 0 Direct3D 11; -1: noch nicht)
 }  // namespace
 void grafikRueckfallMelden() {
     g_grafikRueckfall = true;
-    if (g_app != nullptr) { g_app->settings.grafikD3d12 = false; }
+    if (g_app != nullptr) {
+        g_app->settings.grafikD3d12 = false;
+        g_app->settings.grafikRueckfallFassung = kFassung;
+        // gleich sichern: endet auch dieser Start nicht geordnet, versucht der naechste nicht schon wieder Direct3D 12
+        if (!g_app->settingsFile.empty()) { (void)saveSettingsFile(g_app->settingsFile, g_app->settings); }
+    }
 }
 bool grafikRueckfallGemeldet() { return g_grafikRueckfall; }
+bool grafikRueckfallOffen() { return g_app != nullptr && !g_app->settings.grafikD3d12 && !g_app->settings.grafikRueckfallFassung.empty(); }
+void grafikWiederVersuchen() {
+    if (g_app == nullptr) { return; }
+    g_app->settings.grafikD3d12 = true;
+    g_app->settings.grafikRueckfallFassung.clear();
+}
+bool grafikNachUpdateVersuchen() {
+    if (!grafikRueckfallOffen() || g_app->settings.grafikRueckfallFassung == kFassung) { return false; }
+    diag::info("Grafik: der Rueckfall auf Direct3D 11 stammt aus " + g_app->settings.grafikRueckfallFassung + ", jetzt laeuft " + kFassung +
+               " - Direct3D 12 wird einmal wieder versucht");
+    grafikWiederVersuchen();
+    return true;
+}
+void grafikStartWahlMerken(bool d3d12) { g_grafikStartWahl = d3d12 ? 1 : 0; }
+int grafikStartWahl() { return g_grafikStartWahl; }
 
 void merkeFensterlage(const std::string& wert) {
     if (g_app != nullptr) {

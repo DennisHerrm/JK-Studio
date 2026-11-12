@@ -139,6 +139,11 @@ struct Settings {
     // D3D12-Geraet, wenn der Start scheitert, wenn der letzte Start mit Direct3D 12 abstuerzte (Startmarke, main_win32.cpp)
     // und wenn nach einem Geraeteverlust kein neues D3D12-Geraet kommt.
     bool grafikD3d12 = true;
+    // B1 (Entscheidung 12.11.): die Programmfassung (kFassung), unter der zuletzt ein Start mit Direct3D 12 nicht fertig wurde
+    // (Startmarke); leer, wenn kein solcher Rueckfall offen ist. Solange sie gesetzt und grafikD3d12 aus ist, zeigt Ansicht >
+    // Grafikschnittstelle den Hinweis und "Direct3D 12 wieder versuchen"; startet eine neue Programmfassung, versucht sie
+    // Direct3D 12 einmal von selbst. Waehlt der Nutzer selbst Direct3D 11 oder 12, ist sie leer.
+    std::string grafikRueckfallFassung;
     // REST9: "Diese Fassung ueberspringen" in der Update-Leiste - der Tag dieses
     // Releases ("v1.0.0-rc612"). Die Leiste meldet erst wieder eine neuere Fassung.
     std::string updateUebersprungen;

@@ -21,7 +21,8 @@ inline std::string fehlerStelle() {
 inline bool startD3d12() {
     const char* w = std::getenv("BHED_D3D12");
     const std::string f = fehlerStelle();
-    const bool gewuenscht = w != nullptr ? w[0] == '1' : Settings{}.grafikD3d12;
+    // ohne BHED_D3D12: was der Start gewaehlt hat (Einstellung, B1-Wiederversuch); vor dem Merken die Vorgabe
+    const bool gewuenscht = w != nullptr ? w[0] == '1' : (grafikStartWahl() >= 0 ? grafikStartWahl() == 1 || f == "absturz" : Settings{}.grafikD3d12);
     if (!gewuenscht) { return false; }
     if (f == "absturz") { return w != nullptr; }
     return f.empty() || f == "neuaufbau";
@@ -201,9 +202,22 @@ std::vector<Schritt> grafikSchritte() {
     add(pruefe("Grafikschnittstelle: abgestuerzter Start mit Direct3D 12 (Startmarke) - Rueckfall gemeldet, Einstellung Direct3D 11", [] {
         const bool absturz = grafik::fehlerStelle() == "absturz" && std::getenv("BHED_D3D12") == nullptr;
         diag::detail(std::string("Knopftest: Startmarke - Rueckfall gemeldet ") + (grafikRueckfallGemeldet() ? "ja" : "nein") + ", Einstellung " +
-                     (g_app->settings.grafikD3d12 ? "Direct3D 12" : "Direct3D 11"));
+                     (g_app->settings.grafikD3d12 ? "Direct3D 12" : "Direct3D 11") + ", Rueckfall offen " + (grafikRueckfallOffen() ? "ja" : "nein") +
+                     ", Fassung des Rueckfalls \"" + g_app->settings.grafikRueckfallFassung + "\"");
         return absturz ? grafikRueckfallGemeldet() && !g_app->settings.grafikD3d12 : !grafikRueckfallGemeldet();
     }));
+    const bool absturzSpiel = grafik::fehlerStelle() == "absturz" && std::getenv("BHED_D3D12") == nullptr;
+    if (absturzSpiel) {
+        add(pruefe("B1: der Rueckfall merkt die Programmfassung, sofort in der Einstellungsdatei (grafikRueckfallFassung)", [] {
+            std::ifstream f(::bhed::utf8Pfad(g_app->settingsFile));
+            std::stringstream inhalt;
+            inhalt << f.rdbuf();
+            const bool inDatei = inhalt.str().find(std::string("grafikRueckfallFassung=") + kFassung) != std::string::npos;
+            diag::detail(std::string("Knopftest: B1 Rueckfall offen ") + (grafikRueckfallOffen() ? "ja" : "nein") + ", Fassung " +
+                         g_app->settings.grafikRueckfallFassung + ", in der Datei " + (inDatei ? "ja" : "nein"));
+            return grafikRueckfallOffen() && g_app->settings.grafikRueckfallFassung == kFassung && inDatei;
+        }));
+    }
     if (grafikNur != nullptr && std::strcmp(grafikNur, "kurz") == 0) { return s; }   // nur: was laeuft, Startmarke (zweiter Start von R5)
     add(warteBis("Grafikschnittstelle: mehr als 60 Bilder gezeigt (dann loescht der Start die Marke)", [] { return ImGui::GetFrameCount() > 60; }, 600));
     add(pruefe("Grafikschnittstelle: nach dem Start liegt keine Startmarke mehr (d3d12_start.marke)", [] {
@@ -243,6 +257,21 @@ std::vector<Schritt> grafikSchritte() {
     // Hier steht der Tooltip mit "laeuft jetzt: Direct3D 11/12" im Bild - dieses Foto unterscheidet sich je Schnittstelle um
     // genau diese Ziffer (Bildvergleich: grafik_start, grafik_ansicht und grafik_about muessen gleich sein).
     add(foto("grafik_menue"));
+    if (absturzSpiel) {
+        // B1: Hinweis und "Direct3D 12 wieder versuchen" stehen im Menue; der Eintrag stellt Direct3D 12 fuer den naechsten Start
+        add(numpad::schweben("B1: Maus auf \"" + std::string(tr(Str::GrafikWiederVersuchen)) + "\" (Tooltip)", tr(Str::GrafikWiederVersuchen), "##Menu", false));
+        add(foto("grafik_menue_wiederversuchen"));   // Hinweis, Eintrag und sein Tooltip
+        add(klick(tr(Str::GrafikWiederVersuchen), "##Menu"));
+        add(pause(0.3));
+        add(pruefe("B1: \"" + std::string(tr(Str::GrafikWiederVersuchen)) + "\" stellt Direct3D 12 fuer den naechsten Start, der Rueckfall ist erledigt", [] {
+            return g_app->settings.grafikD3d12 && g_app->settings.grafikRueckfallFassung.empty() && !grafikRueckfallOffen();
+        }));
+        add(klick(tr(Str::MenuView), "###main"));
+        add(pause(0.3));
+        add(klick(tr(Str::GrafikMenu), "##Menu"));
+        add(pause(0.3));
+        add(pruefe("B1: danach steht kein Hinweis mehr im Menue", [] { return !grafikRueckfallOffen(); }));
+    }
     add(klick(tr(Str::GrafikD3d12), "##Menu"));
     add(pause(0.3));
     add(pruefe("Ansicht > Grafikschnittstelle: Direct3D 12 gewaehlt (Einstellung fuer den naechsten Start)", [] { return g_app->settings.grafikD3d12; }));

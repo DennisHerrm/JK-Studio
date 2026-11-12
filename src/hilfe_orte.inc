@@ -49,6 +49,7 @@
 {"einstellungen", "menue:MenuView>ViewChangeHistory", "MenuView>ViewChangeHistory", "", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},
 {"einstellungen", "menue:MenuView>ViewHighlightSame", "MenuView>ViewHighlightSame", "ViewHighlightSameHint", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},
 {"einstellungen", "menue:MenuView>GrafikMenu", "MenuView>GrafikMenu", "", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},
+{"einstellungen", "menue:MenuView>GrafikMenu>GrafikWiederVersuchen", "MenuView>GrafikMenu>GrafikWiederVersuchen", "", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},
 {"einstellungen", "menue:MenuView>GrafikMenu>GrafikD3d11", "MenuView>GrafikMenu>GrafikD3d11", "", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},
 {"einstellungen", "menue:MenuView>GrafikMenu>GrafikD3d12", "MenuView>GrafikMenu>GrafikD3d12", "", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},
 {"modell", "menue:MenuView>ModelTextures", "MenuView>ModelTextures", "", "zahl:programm.hauptmenue < knopf:ViewEvents@modebar", ""},
