@@ -213,9 +213,9 @@ bool modellIkWechselnRoh(int art, bool ik, bool einrasten) {
         return true;
     });
     if (ok && einrasten) {
-        melden(format(ik ? Str::EnIkAbIk : Str::EnIkAbFk, artName(art), bild, bis));
+        melden(format(ik ? Str::EnIkAbIk : Str::EnIkAbFk, artName(art), modellZeitBildZahl(bild), modellZeitBildZahl(bis)));
     } else if (ok) {
-        melden(format(ik ? Str::MbIkGewechseltIk : Str::MbIkGewechseltFk, artName(art), bild));
+        melden(format(ik ? Str::MbIkGewechseltIk : Str::MbIkGewechseltFk, artName(art), modellZeitBildZahl(bild)));
     }
     return ok;
 }
@@ -247,7 +247,10 @@ bool modellIkEinrasten(int art, bool zielAufFk) {
         }
         return true;
     });
-    if (ok) { melden(zielAufFk ? format(Str::MbIkEingerastetZiel, artName(art), bild) : format(Str::MbIkEingerastetFk, artName(art), n, bild)); }
+    if (ok) {
+        const int zahl = modellZeitBildZahl(bild);   // KLEIN: wie die Zeitleiste zaehlt
+        melden(zielAufFk ? format(Str::MbIkEingerastetZiel, artName(art), zahl) : format(Str::MbIkEingerastetFk, artName(art), n, zahl));
+    }
     return ok;
 }
 
@@ -266,7 +269,7 @@ bool modellIkRaum(int art, int wahl) {
         return true;
     });
     static const Str kRaum[5] = {Str::MbIkRaumWelt, Str::MbIkRaumBecken, Str::MbIkRaumBrust, Str::MbIkRaumKopf, Str::MbIkRaumHand};
-    if (ok) { melden(format(Str::MbIkRaumOk, artName(art), tr(kRaum[std::clamp(wahl, 0, 4)]), bild)); }
+    if (ok) { melden(format(Str::MbIkRaumOk, artName(art), tr(kRaum[std::clamp(wahl, 0, 4)]), modellZeitBildZahl(bild))); }
     return ok;
 }
 
@@ -290,7 +293,7 @@ bool modellIkRolle(int art, float rolle, float spitze, bool zug) {
         modell::ikRolleSetzen(g_app->anim, s, sp, bild, rolle, spitze);
         return true;
     }, zug);
-    if (ok) { melden(format(Str::MbIkRolleOk, artName(art), static_cast<double>(rolle), bild)); }
+    if (ok) { melden(format(Str::MbIkRolleOk, artName(art), static_cast<double>(rolle), modellZeitBildZahl(bild))); }
     return ok;
 }
 
@@ -303,7 +306,7 @@ bool modellIkSchluesselLoeschen(int art) {
         modell::ikSchluesselLoeschen(x, bild);
         return true;
     });
-    if (ok) { melden(format(da ? Str::MbIkGeloescht : Str::MbIkKeinSchluessel, artName(art), bild)); }
+    if (ok) { melden(format(da ? Str::MbIkGeloescht : Str::MbIkKeinSchluessel, artName(art), modellZeitBildZahl(bild))); }
     return ok && da;
 }
 

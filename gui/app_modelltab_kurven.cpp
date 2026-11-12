@@ -2239,7 +2239,9 @@ void modellPfadZiehenWeiter(const ModellAnsicht& a) {
     ModellTab& t = mt();
     if (t.kvPfadZug < 0) { return; }
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        if (t.kvPfadAngelegt) { melden(format(Str::MbKvPfadGezogen, pfadName(t.pfade[static_cast<std::size_t>(t.kvPfadZug)]).c_str(), t.kvPfadBild)); }
+        if (t.kvPfadAngelegt) {
+            melden(format(Str::MbKvPfadGezogen, pfadName(t.pfade[static_cast<std::size_t>(t.kvPfadZug)]).c_str(), modellZeitBildZahl(t.kvPfadBild)));
+        }
         t.kvPfadZug = -1;
         return;
     }
@@ -2314,7 +2316,8 @@ void modellPfadZiehenWeiter(const ModellAnsicht& a) {
     }
     const std::string name = sequenzName();
     if (!t.kvPfadAngelegt) {
-        t.dok.aendern(format(Str::MbKvPfadGezogen, pfadName(pf).c_str(), t.kvPfadBild), [&](modell::Inhalt& in) { in.rig.schichten[name] = neu; }, false);
+        t.dok.aendern(format(Str::MbKvPfadGezogen, pfadName(pf).c_str(), modellZeitBildZahl(t.kvPfadBild)), [&](modell::Inhalt& in) { in.rig.schichten[name] = neu; },
+                      false);
         t.kvPfadAngelegt = true;
     } else {
         t.dok.vorschau([&](modell::Inhalt& in) { in.rig.schichten[name] = neu; }, false);

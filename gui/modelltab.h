@@ -1814,6 +1814,9 @@ void modellMeshArtMerken(MeshWerkzeug wz, int art);
 // Wie modellDreieckUnter, aber fuer die Auswahl: eingefrorene Flaechen nehmen nicht teil (der Klick geht hindurch); liegt an der
 // Stelle nur Eingefrorenes, nennt die Statuszeile die Flaeche, false.
 [[nodiscard]] bool modellDreieckUnterWaehlbar(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck);
+// Ein Frame der GLA als das Bild, das die Zeitleiste dafuer zeigt (Bild der gewaehlten Sequenz; wie Max ab 0, wie Blender ab 1) -
+// fuer jede Meldung, die ein Bild nennt (gui/app_modelltab_zeit.cpp).
+[[nodiscard]] int modellZeitBildZahl(int glaBild);
 // Home ist wieder die Startansicht, der Eintrag der Figur in den Einstellungen ist weg (gui/app_modelltab_ansicht.cpp;
 // modellHomeSetzen merkt das Home je Figur in Settings::modellHome). Rechtsklick des ViewCube "Home zuruecksetzen" (A12).
 void modellHomeZuruecksetzen();

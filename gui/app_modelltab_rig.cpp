@@ -830,7 +830,7 @@ bool modellPoseKopieren() {
     }
     t.kopie = modell::poseAus(g_app->anim, g_app->modellWelt);
     t.kopieDa = true;
-    melden(format(Str::MbRgKopiert, static_cast<int>(t.kopie.namen.size()), bildJetzt()));
+    melden(format(Str::MbRgKopiert, static_cast<int>(t.kopie.namen.size()), modellZeitBildZahl(bildJetzt())));
     return true;
 }
 
@@ -848,7 +848,7 @@ bool modellPoseEinfuegen(bool gespiegelt) {
                        n = modell::poseEinfuegen(g_app->anim, t.rig, t.kopie, gespiegelt, bild, {}, s);
                        ikFolgtFk(s, bild);
                    });
-    melden(format(gespiegelt ? Str::MbRgGespiegeltOk : Str::MbRgEingefuegt, n, bild));
+    melden(format(gespiegelt ? Str::MbRgGespiegeltOk : Str::MbRgEingefuegt, n, modellZeitBildZahl(bild)));
     return n > 0;
 }
 
@@ -868,7 +868,7 @@ bool modellBindepose(bool alle) {
         n = modell::bindePose(g_app->anim, bild, nur, s);
         ikFolgtFk(s, bild);
     });
-    melden(format(Str::MbRgBindeOk, n, bild));
+    melden(format(Str::MbRgBindeOk, n, modellZeitBildZahl(bild)));
     return true;
 }
 
@@ -898,7 +898,7 @@ bool modellHandpose(modell::Seite seite, int art) {
         melden(tr(Str::MbRgKeineHand));
         return false;
     }
-    melden(format(Str::MbRgHandOk, n, bild));
+    melden(format(Str::MbRgHandOk, n, modellZeitBildZahl(bild)));
     return true;
 }
 
@@ -912,7 +912,7 @@ bool modellRigSchluesselLoeschen() {
     schichtAendern(Str::MbRgSchluesselLoeschen, [&](modell::RigSchicht& s) {
         for (const int b : k) { modell::rigSchluesselLoeschen(s, b, bild); }
     });
-    melden(format(Str::MbRgGeloescht, static_cast<int>(k.size()), bild));
+    melden(format(Str::MbRgGeloescht, static_cast<int>(k.size()), modellZeitBildZahl(bild)));
     return true;
 }
 

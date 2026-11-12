@@ -1341,14 +1341,21 @@ void modellZeitZugGemeldet(std::uint64_t schritt) {
     z.zugBild = ImGui::GetFrameCount();
 }
 
+// KLEIN (rc612): ein Frame der GLA als das Bild, das die Zeitleiste dafuer zeigt - das Bild der gewaehlten Sequenz, wie Max ab 0,
+// wie Blender ab 1 (die Zahl im Feld "Bild", ModellTab::zaehlungText). Jede Meldung, die ein Bild nennt, zaehlt so; bis rc611
+// nannten die Meldungen des Rigs und der IK den Frame der GLA ("IK ab Frame 30300", waehrend die Zeitleiste 7 zeigt).
+int modellZeitBildZahl(int glaBild) {
+    const AnimEntry* e = sequenz();
+    return glaBild - (e != nullptr ? e->firstFrame : 0) + versatz();
+}
+
 bool modellZeitOffenUebernehmen() {
     ModellZeit& z = g_zeit;
     offenPruefen();
     if (z.offen.empty()) { return false; }
     z.offen.clear();
     ++z.uebernommen;
-    const AnimEntry* e = sequenz();
-    melden(format(Str::MzOffenGesetzt, g_app->animFrame - (e != nullptr ? e->firstFrame : 0) + versatz()));
+    melden(format(Str::MzOffenGesetzt, modellZeitBildZahl(g_app->animFrame)));
     return true;
 }
 
