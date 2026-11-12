@@ -244,6 +244,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _gdpfad()})
             from i18n_ap3 import zeilen_vier as _ap3   # AP3: rechtes Feld des Model-Tabs (Befehlsfeld / Eigenschaften mit Reitern)
             texte.update({e[0]: e[1:] for e in _ap3()})
+            from i18n_ap10 import zeilen_vier as _ap10   # AP10: Feld im Bereich Animation (auch die Seite der Preset-Bibliothek)
+            texte.update({e[0]: e[1:] for e in _ap10()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

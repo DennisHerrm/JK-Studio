@@ -71,41 +71,43 @@ X = {
         "délkou nohou."),
     "h_bibliothek": ("The preset library", "Die Preset-Bibliothek", "预设库", "プリセットライブラリ", "La biblioteca de presets", "Knihovna předvoleb"),
     "bibliothek": (
-        "The rollout **{{PrRollout}}** has the group **{{AiBibliothek}}** below the generator: choose a **{{AiKategorie}}**, click an animation (double-click puts it on "
-        "at once), **{{AiAuflegen}}** shows it on your figure, set the **{{RtPlatz}}** (a game name such as BOTH_WALK1 is suggested) and **{{RtBackenMax}}**. Loops are cut "
+        "The group **{{PrRollout}}** starts with the library: choose a category, click an animation (a double-click shows it on your figure at once, like "
+        "**{{AzPresetVorschau}}**), check the **{{AzZielPlatz}}** (a game name such as BOTH_WALK1 is suggested) and click **{{AzPresetAuflegen}}**. **{{AzGenerator}}** "
+        "opens the generator below the library. Loops are cut "
         "to one seamless cycle and play in place like the walks of the game. The animations come from Quaternius (Universal Animation Library, CC0) and from "
         "\"The 100STYLE Dataset - Ian Mason\" (CC BY 4.0, motion capture); every entry names its source and licence, all of it is listed in data/presets/CREDITS.txt "
         "and in the About window. JK Studio ships them on their own skeletons, never with a file of the game.",
-        "Das Rollout **{{PrRollout}}** hat unter dem Generator die Gruppe **{{AiBibliothek}}**: **{{AiKategorie}}** wählen, eine Animation anklicken (Doppelklick legt sie "
-        "gleich auf), **{{AiAuflegen}}** zeigt sie auf deiner Figur, **{{RtPlatz}}** setzen (ein Name des Spiels wie BOTH_WALK1 ist vorgeschlagen) und "
-        "**{{RtBackenMax}}**. Schleifen sind auf einen nahtlosen Zyklus geschnitten und spielen auf der Stelle wie die Gänge des Spiels. Die Animationen stammen von "
+        "Die Gruppe **{{PrRollout}}** beginnt mit der Bibliothek: eine Kategorie wählen, eine Animation anklicken (ein Doppelklick zeigt sie sofort auf deiner Figur, wie "
+        "**{{AzPresetVorschau}}**), den **{{AzZielPlatz}}** prüfen (ein Name des Spiels wie BOTH_WALK1 ist vorgeschlagen) und **{{AzPresetAuflegen}}** klicken. "
+        "**{{AzGenerator}}** öffnet den Generator unter der Bibliothek. Schleifen sind auf einen nahtlosen Zyklus geschnitten und spielen auf der Stelle wie die Gänge des Spiels. Die Animationen stammen von "
         "Quaternius (Universal Animation Library, CC0) und aus \"The 100STYLE Dataset - Ian Mason\" (CC BY 4.0, Motion-Capture); jeder Eintrag nennt Quelle und Lizenz, "
         "alles steht in data/presets/CREDITS.txt und im Über-Fenster. JK Studio liefert sie auf ihren eigenen Skeletten aus, nie mit einer Datei des Spiels.",
-        "**{{PrRollout}}** 卷展栏在生成器下方有 **{{AiBibliothek}}** 组: 选择 **{{AiKategorie}}**, 点击一个动画 (双击立即应用), **{{AiAuflegen}}** 在角色上显示, 设置 "
-        "**{{RtPlatz}}** (会建议游戏中的名称如 BOTH_WALK1) 并 **{{RtBackenMax}}**。循环被剪成一个无缝周期, 像游戏中的步行一样原地播放。动画来自 Quaternius (Universal "
+        "**{{PrRollout}}** 组以动画库开头: 选择一个类别, 点击一个动画 (双击会立即在角色上显示, 与 **{{AzPresetVorschau}}** 相同), 检查 **{{AzZielPlatz}}** "
+        "(会建议游戏中的名称如 BOTH_WALK1), 然后点击 **{{AzPresetAuflegen}}**。**{{AzGenerator}}** 在动画库下方打开生成器。循环被剪成一个无缝周期, 像游戏中的步行一样原地播放。动画来自 Quaternius (Universal "
         "Animation Library, CC0) 和 \"The 100STYLE Dataset - Ian Mason\" (CC BY 4.0, 动作捕捉); 每个条目都标明来源和许可, 全部列在 data/presets/CREDITS.txt 和关于窗口中。"
         "JK Studio 以它们自己的骨架提供, 从不附带游戏文件。",
-        "ロールアウト **{{PrRollout}}** にはジェネレーターの下に **{{AiBibliothek}}** のグループがあります: **{{AiKategorie}}** を選び、アニメーションをクリック (ダブル"
-        "クリックですぐ載せる)、**{{AiAuflegen}}** でフィギュアに表示、**{{RtPlatz}}** を設定 (BOTH_WALK1 などゲームの名前を提案) して **{{RtBackenMax}}**。ループは継ぎ目"
+        "グループ **{{PrRollout}}** はライブラリから始まります: カテゴリを選び、アニメーションをクリック (ダブルクリックで **{{AzPresetVorschau}}** と同じくすぐフィギュアに表示)、"
+        "**{{AzZielPlatz}}** を確認 (BOTH_WALK1 などゲームの名前を提案) して **{{AzPresetAuflegen}}** をクリックします。**{{AzGenerator}}** はライブラリの下にジェネレーターを開きます。ループは継ぎ目"
         "のない 1 サイクルに切られ、ゲームの歩きのようにその場で再生します。アニメーションは Quaternius (Universal Animation Library、CC0) と \"The 100STYLE Dataset - Ian "
         "Mason\" (CC BY 4.0、モーションキャプチャ) のものです。各項目に出典とライセンスがあり、すべて data/presets/CREDITS.txt と「バージョン情報」にあります。JK Studio "
         "は元の骨格のまま同梱し、ゲームのファイルは含みません。",
-        "El panel **{{PrRollout}}** tiene bajo el generador el grupo **{{AiBibliothek}}**: elige una **{{AiKategorie}}**, haz clic en una animación (doble clic la pone "
-        "enseguida), **{{AiAuflegen}}** la muestra en tu figura, fija el **{{RtPlatz}}** (se sugiere un nombre del juego como BOTH_WALK1) y **{{RtBackenMax}}**. Los bucles "
+        "El grupo **{{PrRollout}}** empieza con la biblioteca: elige una categoría, haz clic en una animación (un doble clic la muestra al instante en tu figura, como "
+        "**{{AzPresetVorschau}}**), revisa el **{{AzZielPlatz}}** (se sugiere un nombre del juego como BOTH_WALK1) y pulsa **{{AzPresetAuflegen}}**. **{{AzGenerator}}** "
+        "abre el generador bajo la biblioteca. Los bucles "
         "están cortados a un ciclo sin costura y se reproducen en el sitio como los pasos del juego. Las animaciones son de Quaternius (Universal Animation Library, CC0) y "
         "de \"The 100STYLE Dataset - Ian Mason\" (CC BY 4.0, captura de movimiento); cada entrada indica origen y licencia, todo figura en data/presets/CREDITS.txt y en la "
         "ventana Acerca de. JK Studio las incluye en sus propios esqueletos, nunca con un archivo del juego.",
-        "Rollout **{{PrRollout}}** má pod generátorem skupinu **{{AiBibliothek}}**: zvolte **{{AiKategorie}}**, klikněte na animaci (dvojklik ji hned položí), "
-        "**{{AiAuflegen}}** ji ukáže na postavě, nastavte **{{RtPlatz}}** (navrhne se název hry jako BOTH_WALK1) a **{{RtBackenMax}}**. Smyčky jsou střiženy na jeden "
+        "Skupina **{{PrRollout}}** začíná knihovnou: zvolte kategorii, klikněte na animaci (dvojklik ji hned ukáže na postavě, stejně jako **{{AzPresetVorschau}}**), "
+        "zkontrolujte **{{AzZielPlatz}}** (navrhne se název hry jako BOTH_WALK1) a klikněte na **{{AzPresetAuflegen}}**. **{{AzGenerator}}** otevře generátor pod knihovnou. Smyčky jsou střiženy na jeden "
         "plynulý cyklus a hrají na místě jako chůze ve hře. Animace pocházejí od Quaterniuse (Universal Animation Library, CC0) a z \"The 100STYLE Dataset - Ian Mason\" "
         "(CC BY 4.0, motion capture); každá položka uvádí zdroj a licenci, vše je v data/presets/CREDITS.txt a v okně O programu. JK Studio je dodává na jejich vlastních "
         "kostrách, nikdy se souborem hry."),
-    "bild_bibliothek": ("A motion capture walk from the library (100STYLE) on the stormtrooper, rollout Presets with the group Library.",
-                        "Ein Motion-Capture-Gang aus der Bibliothek (100STYLE) auf dem Sturmtruppler, Rollout Presets mit der Gruppe Bibliothek.",
-                        "库中的动作捕捉步行 (100STYLE) 应用在冲锋队员上, 预设卷展栏中的动画库组。",
-                        "ライブラリのモーションキャプチャの歩き (100STYLE) をストームトルーパーに、ロールアウト「プリセット」のライブラリグループ。",
-                        "Un paso de captura de movimiento de la biblioteca (100STYLE) en el soldado de asalto, panel Presets con el grupo Biblioteca.",
-                        "Chůze z motion capture z knihovny (100STYLE) na stormtrooperovi, rollout Předvolby se skupinou Knihovna."),
+    "bild_bibliothek": ("A motion capture walk from the library (100STYLE) on the stormtrooper, group Presets with the library at the top.",
+                        "Ein Motion-Capture-Gang aus der Bibliothek (100STYLE) auf dem Sturmtruppler, Gruppe Presets mit der Bibliothek oben.",
+                        "库中的动作捕捉步行 (100STYLE) 应用在冲锋队员上, 预设组顶部是动画库。",
+                        "ライブラリのモーションキャプチャの歩き (100STYLE) をストームトルーパーに、グループ「プリセット」の上部にライブラリ。",
+                        "Un paso de captura de movimiento de la biblioteca (100STYLE) en el soldado de asalto, grupo Presets con la biblioteca arriba.",
+                        "Chůze z motion capture z knihovny (100STYLE) na stormtrooperovi, skupina Předvolby s knihovnou nahoře."),
 }
 
 
