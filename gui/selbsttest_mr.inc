@@ -253,10 +253,11 @@ void uvSchritte(std::vector<Schritt>& s) {
     uv1b::figurLaden(s, "blender");
     add(pruefe("MR Blender UV: jede Max-Taste hat eine Blender-Taste (oder Blender hat keine)", [] {
         // ohne Blender-Taste (blender_default.py km_uv_editor, Blender 5.0 ohne Legacy): die Tasten von WhiteoutFlakes und
-        // 3ds Max fuer Raster, Einpassen, Naht loeschen, Neu loesen, Entspannen, Stapeln, Dichte, Sperren, Packen, das
-        // Auswahl-Werkzeug; Abwickeln liegt im Menue U, Begradigen im Menue Umschalt+W
+        // 3ds Max fuer Raster, Einpassen, Naht loeschen, Neu loesen, Entspannen, Stapeln, Sperren, das Auswahl-Werkzeug;
+        // Abwickeln liegt im Menue U, Begradigen im Menue Umschalt+W. AP7: Dichte (Strg+A) und Packen (Strg+P) haben nach
+        // dem freigegebenen Entwurf die Tasten der Blender-Belegung "legacy" und stehen nicht mehr in dieser Liste.
         const std::vector<Str> ohne = {Str::UvWerkzeugAuswahl, Str::UvRaster, Str::UvEinpassen, Str::UvNahtLoeschen, Str::UvAbwickeln, Str::UvNeuLoesen,
-                                       Str::UvEntspannen, Str::UvBegradigen, Str::UvStapeln, Str::UvDichte, Str::UvSperren, Str::UvPacken};
+                                       Str::UvEntspannen, Str::UvBegradigen, Str::UvStapeln, Str::UvSperren};
         bool ok = true;
         for (int i = 0; i < modellUvAktionZahl(); ++i) {
             if (modellUvAktionTaste(i, false)[0] == '\0' || modellUvAktionTaste(i, true)[0] != '\0') { continue; }

@@ -244,6 +244,8 @@ lauf("uiform", "uiform", 3600, bereich="programm")
 # AP9: das rechte Feld des Bereichs Painting nach dem Entwurf (Gruppen Ziel, Werkzeuge, Pinsel, Ebenen, Fuer das Spiel; Tasten [ ]).
 # Nicht im Pool: der Bildlauf ap9foto.
 lauf("mb_ap9", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap9", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
+# AP7: das rechte Feld des Bereichs UV nach dem Entwurf (Auswahl, Schritte 1-3, Pruefen; nicht im Pool: der Bildlauf ap7foto)
+lauf("mb_ap7", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap7", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 
 # Nicht im Pool: eigene Vorbereitung, Messungen (allein und mit BHED_D3D_DEBUG=0), Bildlaeufe fuer das Handbuch
 lauf("update", "update", 1500, allein="braucht den lokalen Update-Server (tools/karte/updater_uebergang.py, ctest updater_uebergang)", bereich="update")

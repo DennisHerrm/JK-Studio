@@ -263,7 +263,7 @@ std::vector<Schritt> modellSchritte() {
     menueAlle(s, true);
     ueberSuche(s, Str::UvPacken);
     add(pruefe("UV Suche: Packen ausgeloest", [] { return g_app->mtab.uv.letzterBefehl == tr(Str::UvPacken); }));
-    add(pruefe("UV Tasten je Modus wie die Tabellen (Max 1/2/4/5 Q W E R S G Z, Blender 1/2/3/4 G R S U; WF-Tasten nur wie Max, MRESTE: Blender Strg+E uv.mark_seam)", [] {
+    add(pruefe("UV Tasten je Modus wie die Tabellen (Max 1/2/4/5 Q W E R S G Z, Blender 1/2/3/4 G R S U; WF-Tasten nur wie Max, MRESTE: Blender Strg+E uv.mark_seam; AP7: Blender Strg+A, Strg+P, L, A)", [] {
         struct Soll {
             Str s;
             const char* max;
@@ -273,7 +273,9 @@ std::vector<Schritt> modellSchritte() {
                              {Str::UvEbeneInsel, "5", "4"},          {Str::UvWerkzeugAuswahl, "Q", ""},    {Str::UvWerkzeugVerschieben, "W", "G"},
                              {Str::UvWerkzeugDrehen, "E", "R"},      {Str::UvWerkzeugSkalieren, "R", "S"}, {Str::UvPixelFang, "S", "Shift+Tab"},
                              {Str::UvRaster, "G", ""},               {Str::UvEinpassen, "Z", ""},          {Str::UvMenueAbwickeln, "", "U"},
-                             {Str::UvNahtMarkieren, "C", "Ctrl+E"},        {Str::UvAbwickeln, "U", ""},          {Str::UvPacken, "Shift+P", ""}};
+                             {Str::UvNahtMarkieren, "C", "Ctrl+E"},        {Str::UvAbwickeln, "U", ""},          {Str::UvPacken, "Shift+P", "Ctrl+P"},
+                             // AP7 (Entwurf): Blender Strg+A Dichte, Strg+P Packen (Belegung "legacy"), L Insel, A alles; 3ds Max Strg+A alles
+                             {Str::UvDichte, "D", "Ctrl+A"},         {Str::A7InselWaehlen, "", "L"},       {Str::A7AllesWaehlen, "Ctrl+A", "A"}};
         for (const Soll& x : soll) {
             const int i = aktion(x.s);
             if (i < 0 || std::string(modellUvAktionTaste(i, false)) != x.max || std::string(modellUvAktionTaste(i, true)) != x.bl) {
