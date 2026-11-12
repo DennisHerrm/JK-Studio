@@ -4155,6 +4155,22 @@ void drawAbout() {
     ImGui::TextUnformatted(tr(Str::AboutOriginal));
     ImGui::Separator();
 
+    // KLEIN (rc612): bei Schrift 24 war das Fenster 1060 Punkte hoch - hoeher als ein 1920x1080-Fenster, die Knoepfe Close,
+    // Changelog und Guide lagen unter dem Rand. Die Liste (Belege und Lizenzen) steht jetzt in einem eigenen Feld: so hoch wie ihr
+    // Inhalt, solange das Fenster ins Programmfenster passt (dann sieht es aus wie bisher), sonst so hoch, wie Platz ist - sie
+    // rollt, die Knoepfe darunter bleiben stehen. Beide Hoehen sind die des letzten Bildes (ein neues Fenster misst zuerst).
+    static float listeInhalt = 0.0F;   // Hoehe des Inhalts der Liste
+    static float ohneListe = 0.0F;     // Hoehe des Fensters ohne die Liste
+    const ImGuiViewport* bild = ImGui::GetMainViewport();
+    const float platz = bild->WorkSize.y - ImGui::GetFontSize();
+    float listeHoch = 0.0F;            // 0: so hoch wie der Inhalt
+    if (listeInhalt > 0.0F && ohneListe > 0.0F && ohneListe + listeInhalt > platz) {
+        listeHoch = std::max(platz - ohneListe, ImGui::GetTextLineHeightWithSpacing() * 3.0F);
+    }
+    const float umbruchBei = ImGui::GetWindowPos().x + ImGui::GetFontSize() * 40.0F;   // wie bisher: 40 Zeichenhoehen ab dem Fensterrand
+    ImGui::BeginChild("##aboutliste", ImVec2{0.0F, listeHoch},
+                      ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AlwaysAutoResize | (listeHoch > 0.0F ? ImGuiChildFlags_None : ImGuiChildFlags_AutoResizeY),
+                      listeHoch > 0.0F ? ImGuiWindowFlags_None : ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     // Woran das Modell gemessen ist. Das gehoert hierher, weil es die
     // Frage beantwortet, der man einem Nachbau sonst nicht ansieht:
     // stimmt er ueberhaupt?
@@ -4166,7 +4182,7 @@ void drawAbout() {
     ImGui::BulletText("%s", tr(Str::AboutResources));
     ImGui::BulletText("%s", tr(Str::AboutIbi));
     ImGui::BulletText("%s", tr(Str::AboutIcarus));
-    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 40.0F);
+    ImGui::PushTextWrapPos(umbruchBei - ImGui::GetWindowPos().x);
     // MBKOPF: Punkt und umbrochener Text - BulletText bricht nicht um, die langen Lizenzzeilen machten das Fenster 2290 Punkte
     // breit (breiter als das Programmfenster auf einem 1920er Schirm, der Rest abgeschnitten)
     const auto punkt = [](Str s) {
@@ -4179,6 +4195,9 @@ void drawAbout() {
     punkt(Str::AboutBlenderLizenz);    // FIX2 P10: aus Blender portierte Teile (GPL-2.0-or-later)
     punkt(Str::AboutAnimLizenz);       // Preset-Bibliothek: Quaternius (CC0), 100STYLE (CC BY 4.0 verlangt die Nennung)
     ImGui::PopTextWrapPos();
+    listeInhalt = ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y;   // die Zeigerlage zaehlt das Rollen schon mit
+    const float listeGezeigt = ImGui::GetWindowSize().y;
+    ImGui::EndChild();
 
     ImGui::Separator();
     ImGui::TextDisabled("%s", tr(Str::AboutNotAffiliated));
@@ -4195,6 +4214,16 @@ void drawAbout() {
     ImGui::SameLine();
     if (ImGui::Button(tr(Str::AboutGuide))) { handbuchOeffnen(); }
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::GuideHint)); }
+    // KLEIN: was das Fenster ausser der Liste braucht (Titel, Logos, Zeilen, Knoepfe, Raender), und das Fenster im Programmfenster
+    // halten - eine mit kleinerer Schrift gemerkte Lage laege mit groesserer sonst unten heraus
+    ohneListe = ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y + ImGui::GetStyle().WindowPadding.y - listeGezeigt;
+    {
+        const ImVec2 ort = ImGui::GetWindowPos();
+        const ImVec2 gross = ImGui::GetWindowSize();
+        const ImVec2 neu{std::clamp(ort.x, bild->WorkPos.x, std::max(bild->WorkPos.x, bild->WorkPos.x + bild->WorkSize.x - gross.x)),
+                         std::clamp(ort.y, bild->WorkPos.y, std::max(bild->WorkPos.y, bild->WorkPos.y + bild->WorkSize.y - gross.y))};
+        if (neu.x != ort.x || neu.y != ort.y) { ImGui::SetWindowPos(neu); }
+    }
     ImGui::EndPopup();
 }
 
