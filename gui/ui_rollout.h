@@ -176,6 +176,10 @@ struct KnopfOpt {
     bool haupt = false;                // Hauptknopf der Gruppe: Betonungsfarbe des Themas, etwas hoeher (hoechstens einer je Gruppe)
     bool an = false;                   // gedrueckt dargestellt (Umschalter, gewaehltes Werkzeug)
     bool aktiv = true;                 // false: gesperrt (der Tooltip erscheint trotzdem)
+    // Ergaenzung AP7: die Taste behalten, solange jedes Wort des Texts in die Zeile neben ihr passt - der Text bricht dann um
+    // (Entwurf UV: "Dichte angleichen" zweizeilig mit Strg+A). Ohne: die Taste faellt weg, sobald dem Text weniger als
+    // min(Textbreite, 4 Zeichenhoehen) bleibt. CJK bricht zwischen den Zeichen: dort muss das breiteste Zeichenpaar passen.
+    bool tasteHalten = false;
 };
 // Ein Knopf mit Symbol, Text und Taste. Im Raster so breit wie die Zelle, sonst ueber die ganze Breite. true: geklickt.
 bool werkzeugKnopf(const char* text, const KnopfOpt& opt = {});

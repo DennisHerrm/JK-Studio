@@ -121,6 +121,36 @@ float polster() { return std::floor(ImGui::GetFontSize() * 0.45F); }
 
 const char* sichtEnde(const char* text) { return ImGui::FindRenderedTextEnd(text); }
 
+// Die Breite des breitesten Worts (getrennt an Leerzeichen und Zeilenwechseln) in der laufenden Schrift (KnopfOpt::tasteHalten).
+// Ein Wort mit CJK-Zeichen (ab U+2E80) bricht der Umbruch (textumbruch.h) zwischen den Zeichen; die Sperrregeln (kein Satzzeichen
+// am Zeilenanfang, keine oeffnende Klammer am Ende) halten hoechstens zwei Zeichen zusammen - dort zaehlt das breiteste Paar.
+float breitestesWort(const char* text, const char* ende) {
+    const auto cjkPaar = [](const char* a, const char* e) {
+        float b = 0.0F;
+        const char* vor = nullptr;
+        bool cjk = false;
+        for (const char* c = a; c < e;) {
+            unsigned int z = 0;
+            const int n = ImTextCharFromUtf8(&z, c, e);
+            cjk = cjk || z >= 0x2E80U;
+            const char* naechst = c + std::max(n, 1);
+            b = std::max(b, ImGui::CalcTextSize(vor != nullptr ? vor : c, naechst).x);
+            vor = c;
+            c = naechst;
+        }
+        return cjk ? b : ImGui::CalcTextSize(a, e).x;
+    };
+    float b = 0.0F;
+    const char* wort = text;
+    for (const char* c = text;; ++c) {
+        if (c == ende || *c == ' ' || *c == '\n') {
+            if (c > wort) { b = std::max(b, cjkPaar(wort, c)); }
+            if (c == ende) { return b; }
+            wort = c + 1;
+        }
+    }
+}
+
 Lauf* laufJetzt() {
     Zustand& s = z();
     return s.tiefe > 0 ? &s.lauf[s.tiefe - 1] : nullptr;
@@ -836,7 +866,7 @@ bool werkzeugKnopf(const char* text, const KnopfOpt& o) {
     const float tastePol = std::floor(fs * 0.28F);
     const float tasteB = hatTaste ? std::ceil(tasteG.x + tastePol * 2.0F) : 0.0F;
     float textB = p.breite - randX * 2.0F - (hatIcon ? iconG + luecke : 0.0F) - (hatTaste ? tasteB + luecke : 0.0F);
-    if (hatTaste && textB < std::min(cjkTextSize(text, ende).x, fs * 4.0F)) {
+    if (hatTaste && textB < std::min(cjkTextSize(text, ende).x, fs * 4.0F) && !(o.tasteHalten && textB >= breitestesWort(text, ende))) {
         hatTaste = false;
         textB = p.breite - randX * 2.0F - (hatIcon ? iconG + luecke : 0.0F);
     }
