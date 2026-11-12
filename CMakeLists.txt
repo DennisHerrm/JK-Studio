@@ -2223,4 +2223,9 @@ if(BEHAVED_TESTS)
   add_executable(stabilsorttest tests/stabilsort.cpp)
   target_link_libraries(stabilsorttest PRIVATE bhed_core)
   add_test(NAME stabilsort COMMAND stabilsorttest)
+  # Speicher nach Platz als Feld statt als Baum fuer die Bilder und Lightmaps des Kartenzeichners (bhed/nachplatz.h,
+  # nur Kopfdatei) - der Test vergleicht mit std::map
+  add_executable(nachplatztest tests/nachplatz.cpp)
+  target_link_libraries(nachplatztest PRIVATE bhed_core)
+  add_test(NAME nachplatz COMMAND nachplatztest)
 endif()

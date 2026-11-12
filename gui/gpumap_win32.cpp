@@ -66,6 +66,7 @@
 #include "backend.h"
 #include "bemalt.h"   // rc609 T1: was bemalt wurde (Leerlauf je Fenster)
 #include "bhed/gpuconst.h"
+#include "bhed/nachplatz.h"
 #include "bhed/gpudraw.h"
 #include "bhed/gpushader.h"
 #include "bhed/cblagen_win32.h"
@@ -436,7 +437,9 @@ float g_clip[4] = {0.0F, 0.0F, 0.0F, 1.0F};
 // Ohne diesen Zwischenspeicher wuerde jede Textur JE BILD neu hochgeladen -
 // bei 102 Texturen und 60 Bildern je Sekunde waere das mehr Arbeit als der
 // Rasterer je hatte.
-std::map<int, ID3D11ShaderResourceView*> g_bilder;
+// TEMPO (12.11.2026): als Feld nach Platz (bhed/nachplatz.h) statt als Baum - holeBild und holeLightmap fragen je
+// Zeichenaufruf zwei- bis dreimal nach ihrem Platz, im Baum waren das rund 10 bis 15 % des Hauptfadens im Spielbild.
+NachPlatz<ID3D11ShaderResourceView*> g_bilder;
 // Woraus jedes Bild hochgeladen wurde (Zeiger auf die Pixel, Breite, Hoehe).
 // Zweite Sicherung neben vergissKarte(): passt die Quelle nicht mehr,
 // wird neu hochgeladen statt das alte Bild zu zeigen.
@@ -446,8 +449,8 @@ struct BildQuelle {
     int h = 0;
     bool operator==(const BildQuelle& o) const { return px == o.px && w == o.w && h == o.h; }
 };
-std::map<int, BildQuelle> g_bildQuelle;
-std::map<int, BildQuelle> g_lightmapQuelle;
+NachPlatz<BildQuelle> g_bildQuelle;
+NachPlatz<BildQuelle> g_lightmapQuelle;
 int g_veraltet = 0;
 
 // Die Lightmaps, getrennt.
@@ -460,9 +463,9 @@ int g_veraltet = 0;
 //
 // Ein Bild, auf dem genau ein Ding stimmt, ist der beste Hinweis: es zeigt,
 // welche Eigenschaft die schwarzen Flaechen von der richtigen unterscheidet.
-std::map<int, ID3D11ShaderResourceView*> g_lightmaps;
+NachPlatz<ID3D11ShaderResourceView*> g_lightmaps;
 // Der Inhaltsstand je hochgeladener Lightmap (BspGeometry::lightmapStand).
-std::map<int, std::uint32_t> g_lightmapStandGpu;
+NachPlatz<std::uint32_t> g_lightmapStandGpu;
 
 ID3D11Device* dev() {
     return static_cast<ID3D11Device*>(render::d3dDevice());
@@ -7490,8 +7493,8 @@ BilderDxt himmelProbe(bool keinTc) {
 }
 
 void kartenPlaetze(int& bild, int& lightmap) {
-    bild = g_bilder.empty() ? -1 : g_bilder.rbegin()->first;
-    lightmap = g_lightmaps.empty() ? -1 : g_lightmaps.rbegin()->first;
+    bild = g_bilder.groessterPlatz();
+    lightmap = g_lightmaps.groessterPlatz();
 }
 
 bool lightmapAbtasterWieImSpiel() {
@@ -8116,11 +8119,11 @@ namespace {
 struct SzenenSpeicher {
     Netzpuffer netz[3];
     std::map<const BspMesh*, Netzpuffer> moverNetze;
-    std::map<int, ID3D11ShaderResourceView*> bilder;
-    std::map<int, BildQuelle> bildQuelle;
-    std::map<int, BildQuelle> lightmapQuelle;
-    std::map<int, ID3D11ShaderResourceView*> lightmaps;
-    std::map<int, std::uint32_t> lightmapStandGpu;
+    NachPlatz<ID3D11ShaderResourceView*> bilder;
+    NachPlatz<BildQuelle> bildQuelle;
+    NachPlatz<BildQuelle> lightmapQuelle;
+    NachPlatz<ID3D11ShaderResourceView*> lightmaps;
+    NachPlatz<std::uint32_t> lightmapStandGpu;
     std::vector<HimmelEintrag> himmelListe;
     HimmelBox himmelBox;
     const void* himmelBoxNetz = nullptr;
