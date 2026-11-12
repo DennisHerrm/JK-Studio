@@ -3122,6 +3122,12 @@ enum class UiIcon : int {
     // Pin, Pins loesen, Begradigen, Naehte nach Winkel, Ring aufschneiden, Naehte spiegeln, Entspannen (Welle)
     UvInsel, UvAlles, UvSchere, UvNahtWeg, UvProjektion, UvDichte, UvPacken, UvPin, UvPinWeg, UvGerade, UvWinkel, UvRing, UvSpiegel,
     UvEntspannen,
+    // AP6: Bereich Modellieren - Auswahl (Ring, Schleife, alles, nichts), die Werkzeuge des Netzes und die Grundkoerper
+    MdRing, MdLoop, MdAlle, MdKeine,
+    MdExtrude, MdInset, MdChamfer, MdLoopCut, MdCut, MdMerge,
+    MdBevel, MdHinge, MdBridge, MdRemove, MdRemoveSauber, MdConnect, MdWeld, MdTargetWeld,
+    MdDetach, MdSymmetrie, MdToQuads, MdCollapse, MdEben, MdSlice, MdQuickSlice,
+    MdKasten, MdEbene, MdZylinder, MdKugel, MdKegel, MdRohr, MdTorus,
 };
 void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe);
 // Quadratischer Icon-Knopf; der Text ist Kennung und Tooltip-Titel.

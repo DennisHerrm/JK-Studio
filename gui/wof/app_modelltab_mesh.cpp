@@ -10,10 +10,14 @@
 // Scheitelpunkte/Kanten/Raender/Polygone bearbeiten; Tasten laut Autodesk-Hilfe "Editable Poly"-Tastaturbefehle:
 // Umschalt+E Extrude, Strg+Umschalt+E Connect, Strg+Umschalt+C Chamfer, Alt+C Cut, Strg+Umschalt+W Target Weld,
 // Ruecktaste Remove, Strg+Ruecktaste Remove mit Aufraeumen, Entf Delete) und wie Blender (Edit Mode, Tasten aus
-// plaene/modellblock_stufe0/belege/blender_keys.txt, Keymap "Mesh": Alt+E Extrude, I Inset, Strg+B Bevel, Strg+Umschalt+B
+// plaene/modellblock_stufe0/belege/blender_keys.txt, Keymap "Mesh": E Extrude (Alt+E: dort das Menue Extrudieren), I Inset, Strg+B Bevel, Strg+Umschalt+B
 // Bevel Punkte, Strg+R Loop Cut, K Knife, M Merge, Alt+M Split, Umschalt+A Add, X/Entf Delete, W Kontextmenue,
 // Strg+F Flaechen, Strg+E Kanten, Strg+V Punkte, A alles, Alt+A nichts). Die Requisite mit einem Klick in die Karte:
 // plaene/modell_in_karte.md (Ablage models/map_objects/<karte>/, misc_model ueber das Einsetzen des Karten-Editors).
+// AP6 (MBENTWURF Teil B, rc612): das rechte Feld des Bereichs nach dem freigegebenen Entwurf - die Gruppen Auswahl,
+// Werkzeuge und JKA-Grenzen aus dem Rollout-Baustein (gui/ui_rollout.h), Grundkoerper und Requisit im Reiter Erstellen
+// (3ds Max) bzw. Objekt (Blender); Strg+Enter uebernimmt und macht weiter, wie Blender E Extrudieren und Umschalt+A das
+// Menue Hinzufuegen.
 //
 // Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
 // following conditions are met:
@@ -41,6 +45,7 @@
 #include "../app_internal.h"
 #include "../karteneditor.h"
 #include "../platform.h"
+#include "../textumbruch.h"
 
 #include "bhed/md3.h"
 #include "bhed/modell/g2.h"
@@ -110,6 +115,25 @@ void ebeneSetzen(AuswahlArt a) {
 // --- Arbeitsnetz und Auswahl ---------------------------------------------------------------------------------------
 
 std::string netzSchluessel() { return std::to_string(mt().dok.stand()) + "|" + std::to_string(mt().lodJetzt) + "|" + std::to_string(mt().dok.inhalt().teile.size()); }
+
+// AP6: die Masse je Teil fuer die Gruppe "JKA-Grenzen" (Ecken, Knochen, Gewichte, wie die Datei geschrieben wuerde) - einmal je
+// Stand des Arbeitsnetzes statt in jedem Bild; modellMeshNetzAktualisieren verwirft sie zusammen mit dem Netz
+struct GrenzStand {
+    bool gueltig = false;
+    std::vector<w::TeilGrenze> liste;
+};
+GrenzStand& grenzStand() {
+    static GrenzStand s;
+    return s;
+}
+const std::vector<w::TeilGrenze>& grenzListe() {
+    GrenzStand& s = grenzStand();
+    if (!s.gueltig) {
+        s.liste = w::grenzenPruefen(mt().dok.inhalt(), mt().lodJetzt);
+        s.gueltig = true;
+    }
+    return s.liste;
+}
 
 // Die Auswahl als Ecken des Model-Tabs (Gizmo, G/R/S und die orangen Ecken der Ansicht nehmen sie): jede Ecke jedes
 // gewaehlten Punkts, damit ein Punkt nie auseinandergezogen wird
@@ -498,6 +522,7 @@ void modellMeshNetzAktualisieren() {
     const std::string k = netzSchluessel();
     if (k == z.fuer) { return; }
     z.fuer = k;
+    grenzStand().gueltig = false;
     md3TexturenAbgleichen();
     z.netz = w::polyAus(mt().dok.inhalt(), mt().lodJetzt);
     // Auswahl, die es nicht mehr gibt, faellt weg
@@ -823,7 +848,11 @@ const std::vector<MeshAktion>& aktionen() {
         {Str::MdRemoveSauber, Str::MdRemoveSauberHint, "Ctrl+Backspace", "", ImGuiMod_Ctrl | ImGuiKey_Backspace, 0, [] { entfernenBefehl(true); }, {}, 3},
         // Raender und Vielecke (Extrude handelt je Ebene: am Rand ein Streifen, an Vielecken die Region)
         {Str::MdBridge, Str::MdBridgeHint, "", "", 0, 0, st(MW::Bridge), {}, 4},
-        {Str::MdExtrude, Str::MdExtrudeHint, "Shift+E", "Alt+E", ImGuiMod_Shift | ImGuiKey_E, ImGuiMod_Alt | ImGuiKey_E, st(MW::Extrude), {}, 5},
+        // AP6 M9: wie Blender E (blender_default.py km_edit_mesh: view3d.edit_mesh_extrude_move_normal, E PRESS; Blender-Handbuch
+        // "Extrude Faces - Shortcut: E"). Alt+E oeffnet in Blender das Menue Extrudieren (belege/blender_keys.txt: Mesh |
+        // wm.call_menu | Alt+E name=VIEW3D_MT_edit_mesh_extrude) - hier startet es weiter Extrudieren (modellMeshTasten), die
+        // Arten des Menues stehen im Kaestchen
+        {Str::MdExtrude, Str::MdExtrudeHint, "Shift+E", "E", ImGuiMod_Shift | ImGuiKey_E, ImGuiKey_E, st(MW::Extrude), {}, 5},
         {Str::MdInset, Str::MdInsetHint, "", "I", 0, ImGuiKey_I, st(MW::Inset), {}, 5},
         {Str::MdBevel, Str::MdBevelHint, "Ctrl+Shift+B", "", ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_B, 0, st(MW::Bevel), {}, 5},
         {Str::MdHinge, Str::MdHingeHint, "", "", 0, 0, st(MW::Hinge), {}, 5},
@@ -896,35 +925,56 @@ void alsMenue(int nurGruppe) {
     if (unter) { ImGui::EndMenu(); }
 }
 
-bool knopf(Str text, float breite = 0.0F) {
-    const auto& liste = aktionen();
-    const auto it = std::find_if(liste.begin(), liste.end(), [&](const MeshAktion& a) { return a.text == text; });
-    const bool an = it != liste.end() && it->an && it->an();
-    if (an) { ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)); }
-    const bool k = ImGui::Button(tr(text), ImVec2{breite, 0.0F});
-    if (an) { ImGui::PopStyleColor(); }
-    if (it != liste.end()) {
-        ImGui::SetItemTooltip("%s", tooltip(*it).c_str());
-        if (k) { ausloesen(*it); }
+const MeshAktion* aktionVon(Str text) {
+    for (const MeshAktion& a : aktionen()) {
+        if (a.text == text) { return &a; }
     }
-    return k;
+    return nullptr;
 }
 
-// Knoepfe einer Zeile, umbrechend wenn der Platz endet (keine abgeschnittenen Texte in langen Sprachen)
-void knopfZeile(std::initializer_list<Str> texte) {
-    const float frei = ImGui::GetContentRegionAvail().x;
-    float x = 0.0F;
-    bool erster = true;
-    for (const Str s : texte) {
-        const float b = ImGui::CalcTextSize(tr(s)).x + ImGui::GetStyle().FramePadding.x * 2.0F;
-        if (!erster && x + 2.0F + b <= frei) {
-            ImGui::SameLine(0.0F, 2.0F);
-            x += 2.0F + b;
-        } else {
-            x = b;
-        }
-        erster = false;
-        (void)knopf(s);
+// --- AP6: Grundkoerper als eigene Knoepfe (wie 3ds Max der Reiter Erstellen) und als Menue (wie Blender Umschalt+A) -----
+
+struct GrundForm {
+    w::Grundform form;
+    Str name;
+    UiIcon icon;
+};
+const GrundForm kGrundFormen[7] = {
+    {w::Grundform::Kasten, Str::MdFormKasten, UiIcon::MdKasten},     {w::Grundform::Ebene, Str::MdFormEbene, UiIcon::MdEbene},
+    {w::Grundform::Zylinder, Str::MdFormZylinder, UiIcon::MdZylinder}, {w::Grundform::Kugel, Str::MdFormKugel, UiIcon::MdKugel},
+    {w::Grundform::Kegel, Str::MdFormKegel, UiIcon::MdKegel},         {w::Grundform::Rohr, Str::MdFormRohr, UiIcon::MdRohr},
+    {w::Grundform::Torus, Str::MdFormTorus, UiIcon::MdTorus},
+};
+
+// Das Werkzeug Grundkoerper mit dieser Form: ein offenes Kaestchen wechselt nur die Form (kein zweiter Schritt)
+void grundkoerperStarten(w::Grundform form) {
+    ModellMesh& z = mz();
+    const bool offen = z.kaestchenOffen && z.werkzeug == MeshWerkzeug::Create;
+    z.grund.form = form;
+    if (offen) {
+        z.neuPlanen = true;
+        modellMeshVorschau();
+        return;
+    }
+    if (const MeshAktion* a = aktionVon(Str::MdCreate)) { ausloesen(*a); }
+}
+
+// menueArt des Popups "###meshmenue": statt der Aktionen einer Gruppe das Menue Hinzufuegen
+constexpr int kMenueHinzufuegen = -2;
+
+// Blender Umschalt+A im Edit Mode (belege/blender_keys.txt: Mesh | wm.call_menu | Umschalt+A name=VIEW3D_MT_mesh_add): die
+// Grundkoerper als Menue, dazu ein neues Requisit
+void hinzufuegenMenue() {
+    cjkTextDisabled("%s", tr(Str::Ap6Hinzufuegen));
+    ImGui::Separator();
+    for (const GrundForm& f : kGrundFormen) {
+        if (ImGui::MenuItem(tr(f.name))) { grundkoerperStarten(f.form); }
+        ImGui::SetItemTooltip("%s", tr(Str::MdCreateHint));
+    }
+    ImGui::Separator();
+    if (const MeshAktion* a = aktionVon(Str::MdNeuesRequisit)) {
+        if (ImGui::MenuItem(tr(a->text))) { ausloesen(*a); }
+        ImGui::SetItemTooltip("%s", tooltip(*a).c_str());
     }
 }
 
@@ -963,7 +1013,8 @@ bool modellMeshAktionenSuche(const std::string& such) {
     return false;
 }
 
-// Die Tasten im Bereich Modellieren: das Kaestchen (Enter uebernimmt, Esc bricht ab), Cut/Target Weld (Esc endet), dann
+// Die Tasten im Bereich Modellieren: das Kaestchen (Enter uebernimmt, Strg+Enter uebernimmt und macht weiter, Esc bricht ab),
+// Cut/Target Weld (Esc endet), wie Blender Umschalt+A (Menue Hinzufuegen) und Alt+E, dann
 // die Tabelle des Bedienmodus; Blender W = Kontextmenue
 bool modellMeshTasten() {
     ModellTab& t = mt();
@@ -972,7 +1023,8 @@ bool modellMeshTasten() {
     if (z.kaestchenOffen) {
         // wie G/R/S (modellModalTasten): IsKeyPressed - Enter gehoert sonst der Navigation (IsKeyChordPressed fragt den Besitzer)
         if (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false)) {
-            modellMeshUebernehmen(false);
+            // AP6 M5: Strg+Enter ist der Knopf "+" (uebernehmen und dasselbe Werkzeug noch einmal)
+            modellMeshUebernehmen(ImGui::GetIO().KeyCtrl);
             return true;
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
@@ -991,6 +1043,15 @@ bool modellMeshTasten() {
     if (blender && ImGui::IsKeyChordPressed(ImGuiKey_W)) {   // VIEW3D_MT_edit_mesh_context_menu
         z.menueOeffnen = true;
         z.menueArt = -1;
+        return true;
+    }
+    if (blender && ImGui::IsKeyChordPressed(ImGuiMod_Shift | ImGuiKey_A)) {   // AP6 M11: VIEW3D_MT_mesh_add
+        z.menueOeffnen = true;
+        z.menueArt = kMenueHinzufuegen;
+        return true;
+    }
+    if (blender && ImGui::IsKeyChordPressed(ImGuiMod_Alt | ImGuiKey_E)) {   // bis rc611 die Taste von Extrudieren (siehe aktionen())
+        if (const MeshAktion* a = aktionVon(Str::MdExtrude)) { ausloesen(*a); }
         return true;
     }
     for (const MeshAktion& a : aktionen()) {
@@ -1343,7 +1404,11 @@ void drawModellMeshPopups() {
         z.menueOeffnen = false;
     }
     if (ImGui::BeginPopup("###meshmenue")) {
-        alsMenue(z.menueArt);
+        if (z.menueArt == kMenueHinzufuegen) {
+            hinzufuegenMenue();
+        } else {
+            alsMenue(z.menueArt);
+        }
         ImGui::EndPopup();
     }
     if (!z.kaestchenOffen || t.bereich != ModellBereich::Modellieren) {
@@ -1471,7 +1536,7 @@ void drawModellMeshPopups() {
         ImGui::SetItemTooltip("%s", tr(Str::MdUebernehmenHint));
         ImGui::SameLine(0.0F, 2.0F);
         if (ImGui::Button("+")) { modellMeshUebernehmen(true); }
-        ImGui::SetItemTooltip("%s", tr(Str::MdWeiterHint));
+        ImGui::SetItemTooltip("%s\n%s", tr(Str::MdWeiterHint), format(Str::UvTasteHint, "Ctrl+Enter").c_str());
         ImGui::SameLine(0.0F, 2.0F);
         if (ImGui::Button(tr(Str::MdAbbrechen))) { modellMeshAbbrechen(); }
         ImGui::SetItemTooltip("%s", tr(Str::MdAbbrechenHint));
@@ -1484,86 +1549,384 @@ void drawModellMeshPopups() {
     ImGui::End();
 }
 
-// --- Rollouts im Befehlsfeld ---------------------------------------------------------------------------------------
+// --- Das rechte Feld im Bereich Modellieren (AP6, MBENTWURF Teil B) -------------------------------------------------------
+//
+// Massstab: der freigegebene Entwurf plaene/modellblock_stufe0/entwurf_modelltab.html (Bereich Modellieren) und die Zeilen
+// M0a-M11 des Abgleichs. Die Gruppen des Entwurfs aus dem Rollout-Baustein (gui/ui_rollout.h):
+//   Auswahl      die Ebenen als Segment mit ihrer Taste (wie 3ds Max 1 Ecke ... 5 Element, wie Blender 1 Ecke, 2 Kante,
+//                3 Flaeche), darunter Ring, Schleife, Alles, Nichts und der Zaehler der Ebene als Wertzeile
+//   Werkzeuge    die sechs Hauptwerkzeuge im Raster mit Symbol und Taste, dahinter die weiteren der Ebene (ihr Name aus
+//                3ds Max - "Scheitelpunkte / Kanten / Raender / Polygone bearbeiten" - steht als Untertitel in der
+//                Ueberschrift); der Rest zugeklappt unter "Geometrie bearbeiten"; Tipp zur Vorschau
+//   JKA-Grenzen  Balken fuer die gewaehlte Flaeche, die Liste aller Flaechen eingeklappt (bei 83 Flaechen sonst acht Seiten)
+// Grundkoerper und Requisit stehen wie in 3ds Max im Reiter Erstellen, wie in Blender im Reiter Objekt - und im Reiter des
+// Bereichs nur, solange man sie dort braucht (leeres Netz bzw. ein Requisit: "In die Karte" bleibt ein Klick).
 
-void drawModellMeshBereich() {
-    ModellTab& t = mt();
-    ModellMesh& z = mz();
+namespace {
+
+// Auf welchen Ebenen ein Werkzeug arbeitet (siehe planen()): ein Bit je w::PEbene, 0 = auf allen
+constexpr unsigned kEPunkt = 1U;
+constexpr unsigned kEKante = 2U;
+constexpr unsigned kERand = 4U;
+constexpr unsigned kEVieleck = 8U;
+constexpr unsigned kEElement = 16U;
+constexpr unsigned kEAlle = 0U;
+constexpr unsigned kEKanten = kEKante | kERand;
+constexpr unsigned kEFlaechen = kEVieleck | kEElement;
+
+unsigned ebeneBit() { return 1U << static_cast<unsigned>(ebene()); }
+
+std::string ebenenNamen(unsigned bits) {
+    static const Str kNamen[5] = {Str::MdEbenePunkt, Str::MdEbeneKante, Str::MdEbeneRand, Str::MdEbeneVieleck, Str::MdEbeneElement};
+    std::string s;
+    for (unsigned i = 0; i < 5U; ++i) {
+        if ((bits & (1U << i)) != 0U) { s += (s.empty() ? "" : ", ") + std::string(tr(kNamen[i])); }
+    }
+    return s;
+}
+
+// Ein Knopf des Felds fuer eine Aktion der Tabelle: Symbol, Text, Taste des Bedienmodus, Tooltip; gedrueckt gezeichnet, solange
+// ihr Modus laeuft (Messer, Zielschweissen, Schnellschnitt); gesperrt auf einer Ebene, auf der das Werkzeug nicht arbeitet -
+// der Tooltip nennt dann die Ebenen.
+void feldKnopf(Str text, UiIcon icon, unsigned ebenen = kEAlle, bool haupt = false) {
+    const MeshAktion* a = aktionVon(text);
+    if (a == nullptr) { return; }
+    const bool passt = ebenen == kEAlle || (ebenen & ebeneBit()) != 0U;
+    const char* taste = tasteVon(*a);
+    // mit Taste: der Baustein setzt sie unter den Hinweis; ohne: der Weg ueber das Menue
+    std::string hinweis = taste[0] != '\0' ? std::string(tr(a->hinweis)) : tooltip(*a);
+    if (!passt) { hinweis += "\n" + format(Str::Ap6NichtHier, ebenenNamen(ebenen).c_str()); }
+    // die Taste bleibt am Knopf, solange jedes Wort neben ihr Platz hat (wie im Bereich UV; Entwurf: Werkzeuge mit E, I, Strg+B ...)
+    if (ui::werkzeugKnopf(tr(text), {.icon = icon, .taste = taste[0] != '\0' ? taste : nullptr, .hinweis = hinweis.c_str(), .haupt = haupt, .an = a->an && a->an(), .aktiv = passt,
+                                     .tasteHalten = true})) {
+        ausloesen(*a);
+    }
+}
+
+void gruppeAuswahl() {
+    const ModellTab& t = mt();
+    const ModellMesh& z = mz();
     const bool blender = blenderModus();
-    ImGui::PushTextWrapPos(0.0F);
-    if (t.dok.inhalt().leer() || g_app->model.empty()) {
-        ImGui::TextDisabled("%s", tr(Str::MdLeerHinweis));
-        knopf(Str::MdNeuesRequisit);
-        ImGui::PopTextWrapPos();
-        return;
+    // die Namen von 3ds Max und Blender fuer das, worin man arbeitet, als Untertitel
+    if (!ui::rolloutBeginn(tr(Str::MdGrAuswahl), {.kurzinfo = tr(blender ? Str::MdRolloutBlender : Str::MdRolloutMax), .reiter = modellReiter(MbReiter::Aendern, MbReiterBl::Werkzeug)})) { return; }
+    struct Ebene {
+        AuswahlArt art;
+        Str aktion;
+        Str name;
+    };
+    static const Ebene kMax[5] = {{AuswahlArt::Ecke, Str::MdEbenePunkt, Str::Ap6SegEcke},
+                                  {AuswahlArt::Kante, Str::MdEbeneKante, Str::MdEbeneKante},
+                                  {AuswahlArt::Rand, Str::MdEbeneRand, Str::MdEbeneRand},
+                                  {AuswahlArt::Dreieck, Str::MdEbeneVieleck, Str::MdEbeneVieleck},
+                                  {AuswahlArt::Element, Str::MdEbeneElement, Str::MdEbeneElement}};
+    static const Ebene kBlender[3] = {{AuswahlArt::Ecke, Str::MdEbenePunkt, Str::Ap6SegEcke},
+                                      {AuswahlArt::Kante, Str::MdEbeneKante, Str::MdEbeneKante},
+                                      {AuswahlArt::Dreieck, Str::MdEbeneVieleck, Str::Ap6SegFlaeche}};
+    const Ebene* liste = blender ? kBlender : kMax;
+    const int zahl = blender ? 3 : 5;
+    std::string texte[5];
+    std::string hinweise[5];
+    const char* textZeiger[5] = {};
+    const char* hinweisZeiger[5] = {};
+    int wahl = -1;   // Objektebene (3ds Max 6, Blender Tab): keine gewaehlt
+    for (int i = 0; i < zahl; ++i) {
+        const MeshAktion* a = aktionVon(liste[i].aktion);
+        const char* taste = a != nullptr ? tasteVon(*a) : "";
+        // die Taste der Ebene steht wie im Entwurf vor dem Namen ("1 Ecke")
+        texte[uz(i)] = (taste[0] != '\0' ? std::string(taste) + " " : std::string()) + tr(liste[i].name);
+        hinweise[uz(i)] = a != nullptr ? tr(a->hinweis) : "";
+        textZeiger[i] = texte[uz(i)].c_str();
+        hinweisZeiger[i] = hinweise[uz(i)].c_str();
+        if (t.auswahlArt == liste[i].art) { wahl = i; }
     }
-    modellMeshNetzAktualisieren();
-    if (ImGui::CollapsingHeader(tr(blender ? Str::MdRolloutBlender : Str::MdRolloutMax), ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{2.0F, ImGui::GetStyle().ItemSpacing.y});
-        if (blender) {
-            knopfZeile({Str::MdEbenePunkt, Str::MdEbeneKante, Str::MdEbeneVieleck});
-        } else {
-            knopfZeile({Str::MdEbenePunkt, Str::MdEbeneKante, Str::MdEbeneRand, Str::MdEbeneVieleck, Str::MdEbeneElement});
-        }
-        knopfZeile({Str::MdRing, Str::MdLoop, Str::MdAlles});
-        ImGui::PopStyleVar();
-        const w::PolyNetz& n = z.netz;
-        ImGui::TextDisabled(tr(Str::MdZaehler), n.lebendePunkte(), n.kantenZahl(), n.lebendeFlaechen(), zi(z.auswahl.punkte.size()), zi(z.auswahl.kanten.size()),
-                            zi(z.auswahl.flaechen.size()));
+    if (ui::segment("##mdebenen", textZeiger, zahl, &wahl, 0, -1, hinweisZeiger) && wahl >= 0) {
+        if (const MeshAktion* a = aktionVon(liste[wahl].aktion)) { ausloesen(*a); }
     }
-    if (ImGui::CollapsingHeader(tr(Str::MdGrGeometrie), ImGuiTreeNodeFlags_DefaultOpen)) {
-        knopfZeile({Str::MdCreate, Str::MdCut, Str::MdDetach, Str::MdSymmetrize, Str::MdToQuads, Str::MdMerge, Str::MdCollapse, Str::MdEben, Str::MdSlice, Str::MdQuickSlice, Str::MdDelete});
-        if (t.dok.inhalt().stufenZahl > 1) { knopfZeile({Str::MdLods}); }
-    }
-    // die Werkzeuge der Ebene (Max: Scheitelpunkte / Kanten / Raender / Polygone bearbeiten)
-    switch (ebene()) {
+    ui::rasterBeginn(2);
+    feldKnopf(Str::MdRing, UiIcon::MdRing, kEKanten);
+    feldKnopf(Str::MdLoop, UiIcon::MdLoop, kEKanten);
+    feldKnopf(Str::MdAlles, UiIcon::MdAlle);
+    feldKnopf(Str::MdNichts, UiIcon::MdKeine);
+    ui::rasterEnde();
+    // der Zaehler der laufenden Ebene als Wertzeile ("Polygone ... 7490 · gewaehlt 4"); alle drei Zahlen im Tooltip
+    const w::PolyNetz& n = z.netz;
+    const w::PEbene e = ebene();
+    const bool punkte = e == w::PEbene::Punkt;
+    const bool kanten = e == w::PEbene::Kante || e == w::PEbene::Rand;
+    const int alle = punkte ? n.lebendePunkte() : kanten ? n.kantenZahl() : n.lebendeFlaechen();
+    const std::size_t gewaehlt = punkte ? z.auswahl.punkte.size() : kanten ? z.auswahl.kanten.size() : z.auswahl.flaechen.size();
+    const Str name = punkte ? Str::Ap6ZPunkte : kanten ? Str::Ap6ZKanten : blender ? Str::Ap6ZFlaechen : Str::Ap6ZVielecke;
+    ui::wertTabelle({ui::WertZeile{tr(name), gewaehlt == 0U ? std::to_string(alle) : format(Str::Ap6ZWert, alle, zi(gewaehlt)), ui::Ton::Normal,
+                                   format(Str::MdZaehler, n.lebendePunkte(), n.kantenZahl(), n.lebendeFlaechen(), zi(z.auswahl.punkte.size()), zi(z.auswahl.kanten.size()),
+                                          zi(z.auswahl.flaechen.size()))}});
+    ui::rolloutEnde();
+}
+
+void gruppeWerkzeuge() {
+    // Untertitel: wessen Werkzeuge hier stehen - wie 3ds Max der Name des Rollouts der Ebene (Scheitelpunkte / Kanten / Raender /
+    // Polygone bearbeiten), wie Blender die Ebene selbst (dort heissen die Menues Vertex, Edge, Face)
+    const w::PEbene e = ebene();
+    const Str maxName = e == w::PEbene::Punkt ? Str::MdGrPunkte : e == w::PEbene::Kante ? Str::MdGrKanten : e == w::PEbene::Rand ? Str::MdGrRaender : Str::MdGrVielecke;
+    const Str blenderName = e == w::PEbene::Punkt ? Str::Ap6SegEcke : kantenEbene() ? Str::MdEbeneKante : Str::Ap6SegFlaeche;
+    if (!ui::rolloutBeginn(tr(Str::Ap6Werkzeuge), {.kurzinfo = tr(blenderModus() ? blenderName : maxName), .reiter = modellReiter(MbReiter::Aendern, MbReiterBl::Werkzeug)})) { return; }
+    ui::rasterBeginn(2);
+    // die sechs Hauptwerkzeuge des Entwurfs (Extrudieren, Einfuegen, Fase, Schleifenschnitt, Messer, Verschmelzen) ...
+    feldKnopf(Str::MdExtrude, UiIcon::MdExtrude, kEKanten | kEFlaechen);
+    feldKnopf(Str::MdInset, UiIcon::MdInset, kEFlaechen);
+    feldKnopf(Str::MdChamfer, UiIcon::MdChamfer, kEPunkt | kEKanten);
+    feldKnopf(Str::MdLoopCut, UiIcon::MdLoopCut, kEKanten);
+    feldKnopf(Str::MdCut, UiIcon::MdCut);
+    feldKnopf(Str::MdMerge, UiIcon::MdMerge);
+    // ... und dahinter die weiteren Werkzeuge der Ebene
+    switch (e) {
         case w::PEbene::Punkt:
-            if (ImGui::CollapsingHeader(tr(Str::MdGrPunkte), ImGuiTreeNodeFlags_DefaultOpen)) {
-                knopfZeile({Str::MdRemove, Str::MdWeld, Str::MdTargetWeld, Str::MdChamferPunkt, Str::MdConnect});
-            }
+            feldKnopf(Str::MdRemove, UiIcon::MdRemove);
+            feldKnopf(Str::MdWeld, UiIcon::MdWeld);
+            feldKnopf(Str::MdTargetWeld, UiIcon::MdTargetWeld);
+            feldKnopf(Str::MdConnect, UiIcon::MdConnect);
             break;
         case w::PEbene::Kante:
-            if (ImGui::CollapsingHeader(tr(Str::MdGrKanten), ImGuiTreeNodeFlags_DefaultOpen)) {
-                knopfZeile({Str::MdRemove, Str::MdRemoveSauber, Str::MdChamfer, Str::MdConnect, Str::MdLoopCut, Str::MdExtrude, Str::MdBridge});
-            }
+            feldKnopf(Str::MdRemove, UiIcon::MdRemove);
+            feldKnopf(Str::MdRemoveSauber, UiIcon::MdRemoveSauber);
+            feldKnopf(Str::MdConnect, UiIcon::MdConnect);
+            feldKnopf(Str::MdBridge, UiIcon::MdBridge);
             break;
         case w::PEbene::Rand:
-            if (ImGui::CollapsingHeader(tr(Str::MdGrRaender), ImGuiTreeNodeFlags_DefaultOpen)) { knopfZeile({Str::MdExtrude, Str::MdBridge, Str::MdChamfer, Str::MdConnect}); }
+            feldKnopf(Str::MdBridge, UiIcon::MdBridge);
+            feldKnopf(Str::MdConnect, UiIcon::MdConnect);
             break;
         case w::PEbene::Vieleck:
         case w::PEbene::Element:
-            if (ImGui::CollapsingHeader(tr(Str::MdGrVielecke), ImGuiTreeNodeFlags_DefaultOpen)) { knopfZeile({Str::MdExtrude, Str::MdInset, Str::MdBevel, Str::MdHinge, Str::MdBridge}); }
+            feldKnopf(Str::MdBevel, UiIcon::MdBevel);
+            feldKnopf(Str::MdHinge, UiIcon::MdHinge);
+            feldKnopf(Str::MdBridge, UiIcon::MdBridge);
             break;
     }
-    // JKA-Grenzen live (je Teil der gezeichneten Stufe)
-    if (ImGui::CollapsingHeader(tr(Str::MdGrGrenzen), ImGuiTreeNodeFlags_DefaultOpen)) {
-        const modell::Grenzen& g = modell::grenzen(static_cast<modell::Zielspiel>(t.zielspiel));
-        const modell::Inhalt& in = t.dok.inhalt();
-        bool alleGut = true;
-        for (const w::TeilGrenze& x : w::grenzenPruefen(in, t.lodJetzt)) {
-            const modell::Teil& teil = in.teile[uz(x.teil)];
-            const bool schlecht = x.mass.ecken >= g.eckenJeFlaeche || x.mass.knochen > g.knochenJeFlaeche || x.mass.gewichteMax > g.gewichteJeEcke || x.nameZuLang ||
-                                  x.shaderZuLang || x.tagKeinDreieck;
-            alleGut = alleGut && !schlecht;
-            if (teil.istTag() && !x.tagKeinDreieck) { continue; }
-            const ImVec4 farbe = schlecht ? ImVec4{1.0F, 0.6F, 0.35F, 1.0F} : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
-            ImGui::TextColored(farbe, tr(Str::MdGrenzeZeile), teil.name.c_str(), x.mass.ecken, g.eckenJeFlaeche, x.mass.knochen, g.knochenJeFlaeche, x.mass.gewichteMax,
-                               g.gewichteJeEcke);
-            if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MdGrenzeHint)); }
-            if (x.nameZuLang || x.shaderZuLang) { ImGui::TextColored(farbe, tr(Str::MdGrenzeName), teil.name.c_str()); }
-            if (x.tagKeinDreieck) { ImGui::TextColored(farbe, tr(Str::MdGrenzeTag), teil.name.c_str()); }
+    ui::rasterEnde();
+    // der Rest fuer jede Ebene, zugeklappt
+    if (ui::mehrBeginn(tr(Str::MdGrGeometrie))) {
+        ui::rasterBeginn(2);
+        feldKnopf(Str::MdCreate, UiIcon::Plus);
+        feldKnopf(Str::MdDetach, UiIcon::MdDetach);
+        feldKnopf(Str::MdSymmetrize, UiIcon::MdSymmetrie);
+        feldKnopf(Str::MdToQuads, UiIcon::MdToQuads);
+        feldKnopf(Str::MdCollapse, UiIcon::MdCollapse);
+        feldKnopf(Str::MdEben, UiIcon::MdEben);
+        feldKnopf(Str::MdSlice, UiIcon::MdSlice);
+        feldKnopf(Str::MdQuickSlice, UiIcon::MdQuickSlice);
+        feldKnopf(Str::MdDelete, UiIcon::Loeschen);
+        if (mt().dok.inhalt().stufenZahl > 1) { feldKnopf(Str::MdLods, UiIcon::MbLod); }
+        ui::rasterEnde();
+        ui::mehrEnde();
+    }
+    ui::tipp(tr(Str::Ap6WerkzeugTipp));
+    ui::rolloutEnde();
+}
+
+// Die Farbe einer Auslastung wie ui::grenzBalken: rot ueber der Grenze, gelb ab 90 % darunter, sonst gruen. Bei den Ecken ist
+// schon die Grenze selbst zu viel (das Spiel nimmt weniger als SHADER_MAX_VERTEXES je Flaeche).
+ui::Ton grenzTon(int ist, int grenze, bool grenzeZuViel) {
+    if (grenzeZuViel ? ist >= grenze : ist > grenze) { return ui::Ton::Fehler; }
+    if (ist < grenze && static_cast<float>(ist) >= static_cast<float>(grenze) * 0.9F) { return ui::Ton::Warnung; }
+    return ui::Ton::Gut;
+}
+
+float anteil(int ist, int grenze) { return grenze > 0 ? static_cast<float>(ist) / static_cast<float>(grenze) : 1.0F; }
+
+bool grenzeVerletzt(const w::TeilGrenze& x, const modell::Grenzen& g) {
+    return x.mass.ecken >= g.eckenJeFlaeche || x.mass.knochen > g.knochenJeFlaeche || x.mass.gewichteMax > g.gewichteJeEcke || x.nameZuLang || x.shaderZuLang || x.tagKeinDreieck;
+}
+
+void grenzBalkenZeile(const std::string& name, int ist, int grenze, bool grenzeZuViel) {
+    char wert[48];
+    std::snprintf(wert, sizeof wert, "%d / %d", ist, grenze);
+    ui::balken(name.c_str(), wert, anteil(ist, grenze), grenzTon(ist, grenze, grenzeZuViel), tr(Str::MdGrenzeHint));
+}
+
+// Die Flaeche, deren Auslastung die Balken zeigen: die der Auswahl im Netz (Polygon, Kante, Punkt), sonst die im Szenen-Explorer
+// gewaehlte; ohne Auswahl die, die mit Ecken oder Knochen einer Grenze am naechsten kommt. -1: das Modell hat keine Flaeche.
+int grenzTeil(const std::vector<w::TeilGrenze>& liste, const modell::Grenzen& g, bool& gewaehlt) {
+    const ModellMesh& z = mz();
+    const modell::Inhalt& in = mt().dok.inhalt();
+    const w::PolyNetz& n = z.netz;
+    const auto teilVonPunkt = [&](int p) { return p >= 0 && uz(p) < n.punkte.size() ? n.punkte[uz(p)].teil : -1; };
+    int teil = -1;
+    if (!z.auswahl.flaechen.empty() && z.auswahl.flaechen[0] >= 0 && uz(z.auswahl.flaechen[0]) < n.flaechen.size()) {
+        teil = n.flaechen[uz(z.auswahl.flaechen[0])].teil;
+    } else if (!z.auswahl.kanten.empty()) {
+        teil = teilVonPunkt(z.auswahl.kanten[0].first);
+    } else if (!z.auswahl.punkte.empty()) {
+        teil = teilVonPunkt(z.auswahl.punkte[0]);
+    } else if (!mt().auswahl.empty()) {
+        teil = mt().auswahl[0];
+    }
+    gewaehlt = teil >= 0 && uz(teil) < in.teile.size() && !in.teile[uz(teil)].istTag();
+    if (gewaehlt) { return teil; }
+    teil = -1;
+    float hoechste = -1.0F;
+    for (const w::TeilGrenze& x : liste) {
+        if (x.teil < 0 || uz(x.teil) >= in.teile.size() || in.teile[uz(x.teil)].istTag()) { continue; }
+        const float a = std::max(anteil(x.mass.ecken, g.eckenJeFlaeche), anteil(x.mass.knochen, g.knochenJeFlaeche));
+        if (a > hoechste) {
+            hoechste = a;
+            teil = x.teil;
         }
-        if (alleGut) { ImGui::TextDisabled("%s", tr(Str::MdGrenzenOk)); }
     }
-    if (ImGui::CollapsingHeader(tr(Str::MdGrRequisit), ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::SetNextItemWidth(-1.0F);
-        ImGui::InputText("##mdname", z.requisitName, sizeof z.requisitName);
-        ImGui::SetItemTooltip("%s", tr(Str::MdRequisitNameHint));
-        knopfZeile({Str::MdNeuesRequisit, Str::MdInDieKarte});
-        if (!z.requisitVfs.empty()) { ImGui::TextDisabled(tr(Str::MdRequisitLive), z.requisitVfs.c_str()); }
+    return teil;
+}
+
+void gruppeGrenzen() {
+    const ModellTab& t = mt();
+    const modell::Grenzen& g = modell::grenzen(static_cast<modell::Zielspiel>(t.zielspiel));
+    const modell::Inhalt& in = t.dok.inhalt();
+    const std::vector<w::TeilGrenze>& liste = grenzListe();
+    int flaechen = 0;
+    int befunde = 0;
+    for (const w::TeilGrenze& x : liste) {
+        if (x.teil < 0 || uz(x.teil) >= in.teile.size()) { continue; }
+        flaechen += in.teile[uz(x.teil)].istTag() ? 0 : 1;
+        befunde += grenzeVerletzt(x, g) ? 1 : 0;
     }
-    if (!z.meldung.empty()) { ImGui::TextDisabled("%s", z.meldung.c_str()); }
-    ImGui::PopTextWrapPos();
+    bool gewaehlt = false;
+    const int teil = grenzTeil(liste, g, gewaehlt);
+    const w::TeilGrenze* gezeigt = nullptr;
+    for (const w::TeilGrenze& x : liste) {
+        if (x.teil == teil) { gezeigt = &x; }
+    }
+    // eine .md3 (Requisit) hat kein Skelett: dort zaehlen nur die Ecken
+    const bool skelett = in.herkunft != modell::Herkunft::Md3;
+    // Kurzinfo: Befunde im Modell (rot), sonst die Grenze, der die gezeigte Flaeche nahe kommt (gelb), sonst "alles gut"
+    char info[96];
+    ui::Ton infoTon = ui::Ton::Gut;
+    std::snprintf(info, sizeof info, "%s", tr(Str::MfInfoGut));
+    if (befunde > 0) {
+        std::snprintf(info, sizeof info, trN(Str::MfInfoFehler, befunde), befunde);
+        infoTon = ui::Ton::Fehler;
+    } else if (gezeigt != nullptr) {
+        const bool eckenNah = grenzTon(gezeigt->mass.ecken, g.eckenJeFlaeche, true) == ui::Ton::Warnung;
+        const bool knochenNah = skelett && grenzTon(gezeigt->mass.knochen, g.knochenJeFlaeche, false) == ui::Ton::Warnung;
+        if (knochenNah && (!eckenNah || anteil(gezeigt->mass.knochen, g.knochenJeFlaeche) >= anteil(gezeigt->mass.ecken, g.eckenJeFlaeche))) {
+            std::snprintf(info, sizeof info, tr(Str::Ap6InfoKnochen), gezeigt->mass.knochen, g.knochenJeFlaeche);
+            infoTon = ui::Ton::Warnung;
+        } else if (eckenNah) {
+            std::snprintf(info, sizeof info, tr(Str::Ap6InfoEcken), gezeigt->mass.ecken, g.eckenJeFlaeche);
+            infoTon = ui::Ton::Warnung;
+        }
+    }
+    if (!ui::rolloutBeginn(tr(Str::MdGrGrenzen), {.kurzinfo = info, .ton = infoTon, .reiter = modellReiter(MbReiter::Dienste, MbReiterBl::Daten)})) { return; }
+    if (gezeigt != nullptr) {
+        const std::string name = " (" + in.teile[uz(teil)].name + ")";
+        grenzBalkenZeile(tr(Str::MfPrEcken) + name, gezeigt->mass.ecken, g.eckenJeFlaeche, true);
+        if (skelett) {
+            grenzBalkenZeile(tr(Str::MfPrKnochen) + name, gezeigt->mass.knochen, g.knochenJeFlaeche, false);
+            grenzBalkenZeile(tr(Str::MfPrGewichte) + name, gezeigt->mass.gewichteMax, g.gewichteJeEcke, false);
+        }
+    }
+    ui::wertTabelle({ui::WertZeile{tr(Str::Ap6FlaechenImModell), std::to_string(flaechen), ui::Ton::Normal, {}}});
+    // jeder Befund als eigene Zeile - auch der einer Flaeche, die die Balken gerade nicht zeigen
+    constexpr int kBefundeHoechstens = 6;
+    int genannt = 0;
+    for (const w::TeilGrenze& x : liste) {
+        if (x.teil < 0 || uz(x.teil) >= in.teile.size() || !grenzeVerletzt(x, g)) { continue; }
+        if (genannt == kBefundeHoechstens) {
+            ui::absatz(format(Str::Ap6WeitereBefunde, befunde - genannt).c_str(), ui::Ton::Fehler);
+            break;
+        }
+        ++genannt;
+        const char* name = in.teile[uz(x.teil)].name.c_str();
+        if (x.mass.ecken >= g.eckenJeFlaeche) { ui::absatz(format(Str::MdGrenzeEcken, name, x.mass.ecken, g.eckenJeFlaeche).c_str(), ui::Ton::Fehler); }
+        if (x.mass.knochen > g.knochenJeFlaeche) { ui::absatz(format(Str::MdGrenzeKnochen, name, x.mass.knochen, g.knochenJeFlaeche).c_str(), ui::Ton::Fehler); }
+        if (x.mass.gewichteMax > g.gewichteJeEcke) { ui::absatz(format(Str::MdGrenzeGewichte, name, x.mass.gewichteMax, g.gewichteJeEcke).c_str(), ui::Ton::Fehler); }
+        if (x.nameZuLang || x.shaderZuLang) { ui::absatz(format(Str::MdGrenzeName, name).c_str(), ui::Ton::Fehler); }
+        if (x.tagKeinDreieck) { ui::absatz(format(Str::MdGrenzeTag, name).c_str(), ui::Ton::Fehler); }
+    }
+    if (befunde == 0) { ui::absatz(tr(Str::MdGrenzenOk), ui::Ton::Gut); }
+    if (gezeigt != nullptr && !gewaehlt) { ui::tipp(tr(Str::Ap6VolleFlaeche)); }
+    // alle Flaechen als Tabelle, eingeklappt: Ecken, Knochen, Gewichte je Flaeche
+    const std::string alle = format(Str::Ap6AlleFlaechen, flaechen) + "###mdalleflaechen";
+    if (ui::mehrBeginn(alle.c_str())) {
+        ui::absatz(tr(skelett ? Str::Ap6AlleLegende : Str::MfPrEcken));
+        std::vector<ui::WertZeile> zeilen;
+        zeilen.reserve(liste.size());
+        for (const w::TeilGrenze& x : liste) {
+            if (x.teil < 0 || uz(x.teil) >= in.teile.size() || in.teile[uz(x.teil)].istTag()) { continue; }
+            const modell::Teil& fl = in.teile[uz(x.teil)];
+            char wert[64];
+            if (skelett) {
+                std::snprintf(wert, sizeof wert, "%d \xc2\xb7 %d \xc2\xb7 %d", x.mass.ecken, x.mass.knochen, x.mass.gewichteMax);
+            } else {
+                std::snprintf(wert, sizeof wert, "%d", x.mass.ecken);
+            }
+            ui::Ton ton = grenzeVerletzt(x, g) ? ui::Ton::Fehler : ui::Ton::Normal;
+            if (ton == ui::Ton::Normal && (grenzTon(x.mass.ecken, g.eckenJeFlaeche, true) == ui::Ton::Warnung || grenzTon(x.mass.knochen, g.knochenJeFlaeche, false) == ui::Ton::Warnung)) {
+                ton = ui::Ton::Warnung;
+            }
+            std::string hinweis = tr(Str::MdGrenzeHint);
+            if (skelett) {
+                hinweis = format(Str::MdGrenzeZeile, fl.name.c_str(), x.mass.ecken, g.eckenJeFlaeche, x.mass.knochen, g.knochenJeFlaeche, x.mass.gewichteMax, g.gewichteJeEcke) + "\n" + hinweis;
+            }
+            zeilen.push_back(ui::WertZeile{fl.name, wert, ton, hinweis});
+        }
+        ui::wertTabelle(zeilen.data(), zi(zeilen.size()));
+        ui::mehrEnde();
+    }
+    ui::rolloutEnde();
+}
+
+// Die Grundkoerper als Raster (wie 3ds Max: Erstellen > Objekttyp). netzLeer: das Netz hat noch kein Polygon - dann steht die
+// Gruppe auch im Reiter des Bereichs, mit dem Hinweis, damit zu beginnen.
+void gruppeGrundkoerper(bool netzLeer) {
+    const ModellMesh& z = mz();
+    if (!ui::rolloutBeginn(tr(Str::Ap6Grundkoerper), {.reiter = modellReiter(MbReiter::Erstellen, MbReiterBl::Objekt, netzLeer)})) { return; }
+    const bool offen = z.kaestchenOffen && z.werkzeug == MeshWerkzeug::Create;
+    ui::rasterBeginn(2);
+    for (const GrundForm& f : kGrundFormen) {
+        if (ui::werkzeugKnopf(tr(f.name), {.icon = f.icon, .hinweis = tr(Str::MdCreateHint), .an = offen && z.grund.form == f.form})) { grundkoerperStarten(f.form); }
+    }
+    ui::rasterEnde();
+    if (netzLeer) { ui::tipp(tr(Str::Ap6ErstellenLeer)); }
+    ui::rolloutEnde();
+}
+
+// Requisit in die Karte (plaene/modell_in_karte.md). leer: kein Modell offen - dann nur der Anfang (Neues Requisit).
+void gruppeRequisit(bool leer) {
+    ModellMesh& z = mz();
+    const bool requisit = !leer && mt().dok.inhalt().herkunft == modell::Herkunft::Md3;
+    // im Reiter des Bereichs, solange es um ein Requisit geht: "In die Karte" bleibt ein Klick
+    if (!ui::rolloutBeginn(tr(Str::MdGrRequisit), {.reiter = modellReiter(MbReiter::Erstellen, MbReiterBl::Objekt, leer || requisit)})) { return; }
+    ui::zeile(tr(Str::Ap6Name), tr(Str::MdRequisitNameHint));
+    ImGui::InputText("##mdname", z.requisitName, sizeof z.requisitName);
+    ImGui::SetItemTooltip("%s", tr(Str::MdRequisitNameHint));
+    if (leer) {
+        feldKnopf(Str::MdNeuesRequisit, UiIcon::Neu, kEAlle, true);
+        ui::tipp(tr(Str::MdLeerHinweis));
+    } else {
+        feldKnopf(Str::MdInDieKarte, UiIcon::Karte, kEAlle, requisit);
+        feldKnopf(Str::MdNeuesRequisit, UiIcon::Neu);
+        if (!z.requisitVfs.empty()) { ui::absatz(format(Str::MdRequisitLive, z.requisitVfs.c_str()).c_str()); }
+    }
+    ui::rolloutEnde();
+}
+
+}  // namespace
+
+void drawModellMeshBereich() {
+    const ModellTab& t = mt();
+    if (t.dok.inhalt().leer() || g_app->model.empty()) {
+        gruppeRequisit(true);
+        return;
+    }
+    modellMeshNetzAktualisieren();
+    // leer: noch kein Polygon - waehrend der Vorschau eines Werkzeugs zaehlt das Netz davor (die Gruppe bleibt stehen, solange der
+    // erste Grundkoerper im Kaestchen offen ist)
+    const ModellMesh& z = mz();
+    const bool netzLeer = (z.kaestchenOffen ? z.basisNetz.lebendeFlaechen() : z.netz.lebendeFlaechen()) == 0;
+    if (netzLeer) { gruppeGrundkoerper(true); }   // ein leeres Requisit beginnt mit einem Grundkoerper: ganz oben
+    gruppeAuswahl();
+    gruppeWerkzeuge();
+    gruppeGrenzen();
+    if (!netzLeer) { gruppeGrundkoerper(false); }
+    gruppeRequisit(false);
 }
 
 // --- Requisit: neu, in die Karte, zurueck ----------------------------------------------------------------------------

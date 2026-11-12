@@ -2350,6 +2350,8 @@ from i18n_ap9 import zeilen_vier as _ap9  # noqa: E402  (AP9: rechtes Feld des B
 S += _ap9()
 from i18n_ap7 import zeilen_vier as _ap7  # noqa: E402  (AP7: rechtes Feld des Bereichs UV nach dem Entwurf)
 S += _ap7()
+from i18n_ap6 import zeilen_vier as _ap6  # noqa: E402  (AP6: Bereich Modellieren - Auswahl, Werkzeuge, JKA-Grenzen, Grundkoerper)
+S += _ap6()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

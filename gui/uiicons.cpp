@@ -48,6 +48,12 @@ struct Stift {
         dl->PathArcTo(p(x, y), r * s, a0, a1);
         dl->PathStroke(c, ImDrawFlags_None, w);
     }
+    // AP6: Ellipse und Ellipsenbogen (Grundkoerper: Zylinder, Kegel, Rohr, Torus)
+    void ellipse(float x, float y, float rx, float ry) const { dl->AddEllipse(p(x, y), ImVec2{rx * s, ry * s}, c, 0.0F, 0, w); }
+    void ellipsenBogen(float x, float y, float rx, float ry, float a0, float a1) const {
+        dl->PathEllipticalArcTo(p(x, y), ImVec2{rx * s, ry * s}, 0.0F, a0, a1);
+        dl->PathStroke(c, ImDrawFlags_None, w);
+    }
     // Pfeilspitze an (x, y) in Richtung (dx, dy).
     void spitze(float x, float y, float dx, float dy, float l = 2.6F) const {
         const float n = std::sqrt(dx * dx + dy * dy);
@@ -181,6 +187,40 @@ ImVec4 uiIconFarbe(UiIcon icon) {
         case UiIcon::UvRing: c = ImVec4{1.00F, 0.62F, 0.30F, 1.0F}; break;
         case UiIcon::UvSpiegel: c = ImVec4{0.72F, 0.60F, 1.00F, 1.0F}; break;
         case UiIcon::UvEntspannen: c = ImVec4{0.36F, 0.82F, 0.95F, 1.0F}; break;
+        // AP6: Modellieren - Auswahl cyan, Flaechen bauen blau, schneiden orange, zusammenlegen violett, entfernen rot,
+        // Grundkoerper gold
+        case UiIcon::MdRing:
+        case UiIcon::MdLoop:
+        case UiIcon::MdAlle:
+        case UiIcon::MdKeine: c = ImVec4{0.36F, 0.82F, 0.95F, 1.0F}; break;
+        case UiIcon::MdExtrude:
+        case UiIcon::MdInset:
+        case UiIcon::MdBevel:
+        case UiIcon::MdHinge:
+        case UiIcon::MdBridge: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;
+        case UiIcon::MdChamfer: c = ImVec4{0.98F, 0.75F, 0.30F, 1.0F}; break;
+        case UiIcon::MdLoopCut:
+        case UiIcon::MdCut:
+        case UiIcon::MdConnect:
+        case UiIcon::MdSlice:
+        case UiIcon::MdQuickSlice: c = ImVec4{1.00F, 0.62F, 0.30F, 1.0F}; break;
+        case UiIcon::MdMerge:
+        case UiIcon::MdWeld:
+        case UiIcon::MdTargetWeld:
+        case UiIcon::MdCollapse: c = ImVec4{0.72F, 0.60F, 1.00F, 1.0F}; break;
+        case UiIcon::MdRemove:
+        case UiIcon::MdRemoveSauber: c = ImVec4{1.00F, 0.55F, 0.45F, 1.0F}; break;
+        case UiIcon::MdDetach: c = ImVec4{0.35F, 0.85F, 0.78F, 1.0F}; break;
+        case UiIcon::MdSymmetrie: c = ImVec4{0.80F, 0.66F, 1.00F, 1.0F}; break;
+        case UiIcon::MdToQuads: c = ImVec4{0.50F, 0.88F, 0.55F, 1.0F}; break;
+        case UiIcon::MdEben: c = ImVec4{0.55F, 0.80F, 1.00F, 1.0F}; break;
+        case UiIcon::MdKasten:
+        case UiIcon::MdEbene:
+        case UiIcon::MdZylinder:
+        case UiIcon::MdKugel:
+        case UiIcon::MdKegel:
+        case UiIcon::MdRohr:
+        case UiIcon::MdTorus: c = ImVec4{1.00F, 0.80F, 0.30F, 1.0F}; break;
 
         default: break;
     }
@@ -834,6 +874,191 @@ void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe)
         case UiIcon::UvEntspannen:   // Entspannen: eine hohe Welle, darunter eine flache - die Dehnung glaettet sich
             z.zug({ImVec2{1.5F, 6.0F}, ImVec2{3.5F, 3.0F}, ImVec2{6.0F, 3.0F}, ImVec2{8.0F, 6.0F}, ImVec2{10.0F, 9.0F}, ImVec2{12.5F, 9.0F}, ImVec2{14.5F, 6.0F}});
             z.zug({ImVec2{1.5F, 12.5F}, ImVec2{4.0F, 11.5F}, ImVec2{6.5F, 11.5F}, ImVec2{9.5F, 13.0F}, ImVec2{12.0F, 13.0F}, ImVec2{14.5F, 12.0F}});
+            break;
+        // --- AP6: Bereich Modellieren (eigene Zeichnung; keine Symbole von Autodesk oder Blender) --------------
+        case UiIcon::MdRing:   // Ring: die parallelen Kanten quer ueber einen Streifen aus Vierecken
+            z.linie(1.5F, 4.0F, 14.5F, 4.0F);
+            z.linie(1.5F, 12.0F, 14.5F, 12.0F);
+            z.linie(4.0F, 4.0F, 4.0F, 12.0F);
+            z.linie(8.0F, 4.0F, 8.0F, 12.0F);
+            z.linie(12.0F, 4.0F, 12.0F, 12.0F);
+            break;
+        case UiIcon::MdLoop:   // Schleife: Kanten, die von Punkt zu Punkt rundherum laufen
+            z.kreis(8.0F, 8.0F, 5.5F);
+            z.punkt(8.0F, 2.5F, 1.5F);
+            z.punkt(13.5F, 8.0F, 1.5F);
+            z.punkt(8.0F, 13.5F, 1.5F);
+            z.punkt(2.5F, 8.0F, 1.5F);
+            break;
+        case UiIcon::MdAlle:   // alles waehlen: Rahmen, innen gefuellt
+            z.rahmen(2.0F, 2.0F, 14.0F, 14.0F, 1.0F);
+            z.flaeche({ImVec2{5.0F, 5.0F}, ImVec2{11.0F, 5.0F}, ImVec2{11.0F, 11.0F}, ImVec2{5.0F, 11.0F}});
+            break;
+        case UiIcon::MdKeine:   // nichts waehlen: nur die vier Ecken eines Rahmens
+            z.zug({ImVec2{2.0F, 5.5F}, ImVec2{2.0F, 2.0F}, ImVec2{5.5F, 2.0F}});
+            z.zug({ImVec2{10.5F, 2.0F}, ImVec2{14.0F, 2.0F}, ImVec2{14.0F, 5.5F}});
+            z.zug({ImVec2{14.0F, 10.5F}, ImVec2{14.0F, 14.0F}, ImVec2{10.5F, 14.0F}});
+            z.zug({ImVec2{5.5F, 14.0F}, ImVec2{2.0F, 14.0F}, ImVec2{2.0F, 10.5F}});
+            break;
+        case UiIcon::MdExtrude:   // Extrudieren: ein Kasten waechst aus der Flaeche, Pfeil nach oben
+            z.linie(1.5F, 13.5F, 14.5F, 13.5F);
+            z.zug({ImVec2{5.0F, 13.5F}, ImVec2{5.0F, 8.5F}, ImVec2{11.0F, 8.5F}, ImVec2{11.0F, 13.5F}});
+            z.linie(8.0F, 6.5F, 8.0F, 1.5F);
+            z.spitze(8.0F, 1.5F, 0.0F, -1.0F, 2.4F);
+            break;
+        case UiIcon::MdInset:   // Einfuegen: ein kleineres Polygon im Polygon, Ecken verbunden
+            z.rahmen(2.0F, 2.0F, 14.0F, 14.0F, 0.4F);
+            z.rahmen(5.5F, 5.5F, 10.5F, 10.5F, 0.2F);
+            z.linie(2.0F, 2.0F, 5.5F, 5.5F);
+            z.linie(14.0F, 2.0F, 10.5F, 5.5F);
+            z.linie(14.0F, 14.0F, 10.5F, 10.5F);
+            z.linie(2.0F, 14.0F, 5.5F, 10.5F);
+            break;
+        case UiIcon::MdChamfer:   // Fase: die Ecke einer Kante schraeg abgeschnitten (zwei gleichlaufende Zuege)
+            z.zug({ImVec2{2.0F, 14.5F}, ImVec2{2.0F, 6.5F}, ImVec2{6.5F, 2.0F}, ImVec2{14.5F, 2.0F}});
+            z.zug({ImVec2{7.0F, 14.5F}, ImVec2{7.0F, 9.0F}, ImVec2{9.0F, 7.0F}, ImVec2{14.5F, 7.0F}});
+            break;
+        case UiIcon::MdLoopCut:   // Schleifenschnitt: eine neue Kante quer durch den Streifen
+            z.rahmen(1.5F, 4.5F, 14.5F, 11.5F, 0.4F);
+            z.linie(8.0F, 1.5F, 8.0F, 14.5F);
+            break;
+        case UiIcon::MdCut:   // Messer: Klinge mit Griff
+            z.zug({ImVec2{2.0F, 14.0F}, ImVec2{9.5F, 4.5F}, ImVec2{11.5F, 6.5F}, ImVec2{5.5F, 13.5F}}, true);
+            z.linie(10.5F, 5.5F, 14.0F, 2.0F);
+            z.linie(11.3F, 6.3F, 9.7F, 4.7F);
+            break;
+        case UiIcon::MdMerge:   // Verschmelzen: zwei Pfeile auf einen Punkt
+            z.linie(1.5F, 8.0F, 5.3F, 8.0F);
+            z.spitze(5.5F, 8.0F, 1.0F, 0.0F, 2.2F);
+            z.linie(14.5F, 8.0F, 10.7F, 8.0F);
+            z.spitze(10.5F, 8.0F, -1.0F, 0.0F, 2.2F);
+            z.punkt(8.0F, 8.0F, 1.7F);
+            break;
+        case UiIcon::MdBevel:   // Abschraegen: angehoben und oben schmaler
+            z.linie(1.5F, 13.5F, 14.5F, 13.5F);
+            z.zug({ImVec2{3.5F, 13.5F}, ImVec2{6.0F, 7.0F}, ImVec2{10.0F, 7.0F}, ImVec2{12.5F, 13.5F}});
+            z.linie(8.0F, 5.0F, 8.0F, 1.5F);
+            z.spitze(8.0F, 1.5F, 0.0F, -1.0F, 2.0F);
+            break;
+        case UiIcon::MdHinge:   // Scharnier: eine Flaeche klappt um ihre Kante
+            z.linie(2.0F, 13.5F, 14.5F, 13.5F);
+            z.linie(3.0F, 13.5F, 10.5F, 5.0F);
+            z.bogen(3.0F, 13.5F, 9.0F, -0.72F, -0.10F);
+            z.punkt(3.0F, 13.5F, 1.6F);
+            break;
+        case UiIcon::MdBridge:   // Bruecke: zwei Raender, mit einem Band verbunden
+            z.rahmen(1.5F, 2.0F, 4.5F, 14.0F, 0.4F);
+            z.rahmen(11.5F, 2.0F, 14.5F, 14.0F, 0.4F);
+            z.linie(4.5F, 5.5F, 11.5F, 5.5F);
+            z.linie(4.5F, 10.5F, 11.5F, 10.5F);
+            break;
+        case UiIcon::MdRemove:   // Entfernen: die Kante zwischen zwei Polygonen loest sich auf
+            z.rahmen(2.0F, 3.0F, 14.0F, 13.0F, 0.4F);
+            z.linie(8.0F, 3.0F, 8.0F, 5.0F);
+            z.linie(8.0F, 11.0F, 8.0F, 13.0F);
+            z.linie(6.3F, 6.3F, 9.7F, 9.7F);
+            z.linie(9.7F, 6.3F, 6.3F, 9.7F);
+            break;
+        case UiIcon::MdRemoveSauber:   // Entfernen und aufraeumen: dazu die Endpunkte der Kante
+            z.rahmen(2.0F, 3.0F, 14.0F, 13.0F, 0.4F);
+            z.punkt(8.0F, 3.0F, 1.5F);
+            z.punkt(8.0F, 13.0F, 1.5F);
+            z.linie(6.3F, 6.3F, 9.7F, 9.7F);
+            z.linie(9.7F, 6.3F, 6.3F, 9.7F);
+            break;
+        case UiIcon::MdConnect:   // Verbinden: eine neue Kante zwischen zwei Kanten
+            z.linie(3.5F, 2.0F, 3.5F, 14.0F);
+            z.linie(12.5F, 2.0F, 12.5F, 14.0F);
+            z.linie(3.5F, 8.0F, 12.5F, 8.0F);
+            z.punkt(3.5F, 8.0F, 1.6F);
+            z.punkt(12.5F, 8.0F, 1.6F);
+            break;
+        case UiIcon::MdWeld:   // Verschweissen: zwei Punkte innerhalb der Schwelle werden einer
+            z.kreis(5.8F, 8.0F, 3.6F);
+            z.kreis(10.2F, 8.0F, 3.6F);
+            z.punkt(8.0F, 8.0F, 1.4F);
+            break;
+        case UiIcon::MdTargetWeld:   // Zielschweissen: ein Punkt wandert auf den Zielpunkt
+            z.punkt(3.5F, 12.5F, 1.8F);
+            z.linie(5.0F, 11.0F, 9.6F, 6.4F);
+            z.spitze(9.8F, 6.2F, 1.0F, -1.0F, 2.4F);
+            z.kreis(12.0F, 4.0F, 2.6F);
+            break;
+        case UiIcon::MdDetach:   // Abtrennen: ein Stueck loest sich aus der Flaeche
+            z.zug({ImVec2{1.5F, 4.0F}, ImVec2{8.0F, 4.0F}, ImVec2{8.0F, 8.5F}, ImVec2{12.5F, 8.5F}, ImVec2{12.5F, 14.5F}, ImVec2{1.5F, 14.5F}}, true);
+            z.rahmen(10.0F, 1.5F, 14.5F, 6.0F, 0.3F);
+            break;
+        case UiIcon::MdSymmetrie:   // Symmetrisieren: Spiegelachse, eine Haelfte als Umriss, die andere gefuellt
+            z.linie(8.0F, 1.5F, 8.0F, 14.5F);
+            z.zug({ImVec2{6.0F, 3.5F}, ImVec2{2.0F, 8.0F}, ImVec2{6.0F, 12.5F}}, true);
+            z.flaeche({ImVec2{10.0F, 3.5F}, ImVec2{14.0F, 8.0F}, ImVec2{10.0F, 12.5F}});
+            break;
+        case UiIcon::MdToQuads:   // zu Vierecken: Raster aus Vierecken, in einem steht noch die Diagonale
+            z.rahmen(2.0F, 2.0F, 14.0F, 14.0F, 0.4F);
+            z.linie(8.0F, 2.0F, 8.0F, 14.0F);
+            z.linie(2.0F, 8.0F, 14.0F, 8.0F);
+            z.linie(2.0F, 8.0F, 8.0F, 2.0F);
+            break;
+        case UiIcon::MdCollapse:   // Kollabieren: vier Pfeile auf die Mitte
+            z.linie(2.0F, 2.0F, 5.4F, 5.4F);
+            z.spitze(5.6F, 5.6F, 1.0F, 1.0F, 2.0F);
+            z.linie(14.0F, 2.0F, 10.6F, 5.4F);
+            z.spitze(10.4F, 5.6F, -1.0F, 1.0F, 2.0F);
+            z.linie(14.0F, 14.0F, 10.6F, 10.6F);
+            z.spitze(10.4F, 10.4F, -1.0F, -1.0F, 2.0F);
+            z.linie(2.0F, 14.0F, 5.4F, 10.6F);
+            z.spitze(5.6F, 10.4F, 1.0F, -1.0F, 2.0F);
+            z.punkt(8.0F, 8.0F, 1.5F);
+            break;
+        case UiIcon::MdEben:   // eben machen: eine ebene Flaeche mit ihrer Normale
+            z.zug({ImVec2{1.5F, 13.0F}, ImVec2{5.5F, 8.0F}, ImVec2{14.5F, 8.0F}, ImVec2{10.5F, 13.0F}}, true);
+            z.linie(8.0F, 10.5F, 8.0F, 2.0F);
+            z.spitze(8.0F, 2.0F, 0.0F, -1.0F, 2.2F);
+            break;
+        case UiIcon::MdSlice:   // Schneiden mit einer Ebene: Linie quer durch den Koerper
+            z.rahmen(3.5F, 3.5F, 12.5F, 12.5F, 0.4F);
+            z.linie(1.0F, 11.0F, 15.0F, 5.0F);
+            break;
+        case UiIcon::MdQuickSlice:   // Schnellschnitt: dieselbe Linie zwischen zwei Klicks
+            z.rahmen(3.5F, 3.5F, 12.5F, 12.5F, 0.4F);
+            z.linie(1.8F, 10.7F, 14.2F, 5.3F);
+            z.punkt(1.8F, 10.7F, 1.6F);
+            z.punkt(14.2F, 5.3F, 1.6F);
+            break;
+        case UiIcon::MdKasten:   // Kasten: Wuerfel von schraeg oben
+            z.zug({ImVec2{8.0F, 1.5F}, ImVec2{14.0F, 4.8F}, ImVec2{14.0F, 11.2F}, ImVec2{8.0F, 14.5F}, ImVec2{2.0F, 11.2F}, ImVec2{2.0F, 4.8F}}, true);
+            z.zug({ImVec2{2.0F, 4.8F}, ImVec2{8.0F, 8.0F}, ImVec2{14.0F, 4.8F}});
+            z.linie(8.0F, 8.0F, 8.0F, 14.5F);
+            break;
+        case UiIcon::MdEbene:   // Ebene: ein liegendes Viereck mit einer Teilung
+            z.zug({ImVec2{1.5F, 11.5F}, ImVec2{5.5F, 4.5F}, ImVec2{14.5F, 4.5F}, ImVec2{10.5F, 11.5F}}, true);
+            z.linie(6.0F, 11.5F, 10.0F, 4.5F);
+            break;
+        case UiIcon::MdZylinder:   // Zylinder: Deckel, Mantel, Bodenbogen
+            z.ellipse(8.0F, 4.0F, 5.0F, 2.2F);
+            z.linie(3.0F, 4.0F, 3.0F, 12.0F);
+            z.linie(13.0F, 4.0F, 13.0F, 12.0F);
+            z.ellipsenBogen(8.0F, 12.0F, 5.0F, 2.2F, 0.0F, kPi);
+            break;
+        case UiIcon::MdKugel:   // Kugel: Kreis mit Aequator
+            z.kreis(8.0F, 8.0F, 6.0F);
+            z.ellipsenBogen(8.0F, 8.0F, 6.0F, 2.3F, 0.0F, kPi);
+            break;
+        case UiIcon::MdKegel:   // Kegel: Spitze, Mantel, Bodenbogen
+            z.zug({ImVec2{3.0F, 12.0F}, ImVec2{8.0F, 1.5F}, ImVec2{13.0F, 12.0F}});
+            z.ellipsenBogen(8.0F, 12.0F, 5.0F, 2.2F, 0.0F, kPi);
+            break;
+        case UiIcon::MdRohr:   // Rohr: Zylinder mit Loch im Deckel
+            z.ellipse(8.0F, 4.0F, 5.0F, 2.2F);
+            z.ellipse(8.0F, 4.0F, 2.4F, 1.0F);
+            z.linie(3.0F, 4.0F, 3.0F, 12.0F);
+            z.linie(13.0F, 4.0F, 13.0F, 12.0F);
+            z.ellipsenBogen(8.0F, 12.0F, 5.0F, 2.2F, 0.0F, kPi);
+            break;
+        case UiIcon::MdTorus:   // Torus: Ring von schraeg oben mit Loch
+            z.ellipse(8.0F, 8.0F, 6.5F, 4.2F);
+            z.ellipsenBogen(8.0F, 7.3F, 2.8F, 1.4F, 0.0F, kPi);
+            z.ellipsenBogen(8.0F, 8.6F, 2.3F, 1.0F, kPi, 2.0F * kPi);
             break;
     }
 }
