@@ -12,6 +12,7 @@
 #include "platform.h"
 
 #include "bhed/modell/animcfg.h"
+#include "bhed/modell/gewichte.h"
 #include "bhed/modell/glmdatei.h"
 #include "bhed/modell/md3datei.h"
 #include "bhed/modell/xsiaufnahme.h"
@@ -119,7 +120,11 @@ bool schreibenNach(const std::string& ziel) {
         melden(format(Str::UvMd3Gespeichert, ziel.c_str(), static_cast<int>(bytes.size()), mb.flaechenRoh, mb.flaechenNeu));
         return true;
     }
-    if (!modell::glmSchreiben(datei, bytes, &br)) {
+    // FIX612B P2-2: geschrieben wird, was die Ansicht zeigt - offene Mallisten (Malen und alle Befehle des Bereichs Weights)
+    // in einer Kopie uebernommen, wie das Spiel sie liest (hoechstens 4 Gewichte je Ecke, 10 Bit, Summe 1). Das Dokument
+    // behaelt seine Mallisten. Vorher schrieb Speichern die Ecken von vor dem Malen und meldete "gespeichert".
+    const bool malListen = modell::malt(t.dok.inhalt());
+    if (!modell::glmSchreiben(modellInhaltGezeigt(), bytes, &br)) {   // mit dem Modifier-Stapel (AP13S) wie `datei`
         melden(format(Str::MbSpFehler, modellFehlerText(br.fehlerArt).c_str()));
         return false;
     }
@@ -132,6 +137,7 @@ bool schreibenNach(const std::string& ziel) {
     t.gespeichertStand = t.dok.stand();
     std::string m = format(Str::MbSpGespeichert, ziel.c_str(), static_cast<int>(bytes.size()), br.flaechenRoh, br.flaechenNeu);
     if (br.umgelegt) { m += " " + format(Str::MbSpUmgelegt, br.knochen); }
+    if (malListen) { m += " " + std::string(tr(Str::FxSpMalListen)); }   // FIX612B P2-2
     melden(m);
     diag::detail("Model-Tab: .glm geschrieben " + ziel + ", " + std::to_string(bytes.size()) + " Bytes, roh " + std::to_string(br.flaechenRoh) +
                  ", neu " + std::to_string(br.flaechenNeu) + " (" + std::to_string(br.eckenNeu) + " Ecken)");

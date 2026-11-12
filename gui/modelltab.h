@@ -1766,5 +1766,12 @@ struct Fix612cProbe {
 };
 [[nodiscard]] Fix612cProbe& fix612cProbe();
 
+// FIX612B (Funde der Code-Pruefung P2): der Inhalt, wie die Ansicht ihn zeigt und Speichern ihn schreibt (offene Mallisten in
+// einer Kopie uebernommen); haelt ein offener Strich, Zug oder ein Kaestchen die gezeichnete Stufe; einen offenen Pinselstrich,
+// Verlauf oder Gizmo-Zug beenden (Strg+Y im Zug) und mit `zuruecknehmen` auch zuruecknehmen (Strg+Z; true: es war etwas offen).
+[[nodiscard]] const modell::Inhalt& modellInhaltGezeigt();
+[[nodiscard]] bool modellStufeGehalten();
+bool modellAnsichtOffenesAbbrechen(bool zuruecknehmen);
+
 }  // namespace bhed::gui
 #endif

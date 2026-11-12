@@ -345,6 +345,21 @@ int uebernehmen(Inhalt& in) {
     return z;
 }
 
+bool malt(const Inhalt& in) noexcept {
+    for (const Teil& t : in.teile) {
+        for (const Netz& n : t.stufen) {
+            if (!n.mal.empty()) { return true; }
+        }
+    }
+    return false;
+}
+
+Inhalt wieGezeigt(const Inhalt& in) {
+    Inhalt kopie = in;
+    (void)uebernehmen(kopie);
+    return kopie;
+}
+
 // =====================================================================================================================
 // AP8: Werkzeuge des Bereichs Weights wie 3ds Max und wie Blender (siehe bhed/modell/gewichte.h)
 

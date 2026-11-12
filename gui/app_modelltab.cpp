@@ -347,11 +347,41 @@ bool modellGlaLaden(const std::string& pfad) {
 
 // --- Pruefen -------------------------------------------------------------------------------------
 
+// FIX612B P2-2: der Inhalt, wie die Ansicht ihn zeigt und wie die Datei ihn traegt - mit offenen Mallisten eine Kopie, in der
+// sie uebernommen sind (gemerkt je Stand des Dokuments), sonst das Dokument selbst.
+const modell::Inhalt& modellInhaltGezeigt() {
+    const ModellTab& t = mt();
+    // AP13S: der Inhalt mit den Eintraegen des Modifier-Stapels, die in die Datei gehen (ohne: das Dokument selbst); dessen
+    // Flaechen mit Stapel tragen keine Mallisten mehr (stapelNetz uebernimmt sie)
+    const modell::Inhalt& in = modellStapelDateiInhalt();
+    if (!modell::malt(in)) { return in; }
+    struct Merk {
+        int ladeStand = -1;
+        int stand = -1;
+        modell::Inhalt inhalt;
+    };
+    static Merk m;
+    if (m.ladeStand != t.dok.ladeStand() || m.stand != t.dok.stand()) {
+        m.inhalt = modell::wieGezeigt(in);
+        m.ladeStand = t.dok.ladeStand();
+        m.stand = t.dok.stand();
+    }
+    return m.inhalt;
+}
+
+// FIX612B P2-3 / P2-9: haelt etwas Offenes die gezeichnete Stufe? (Strich und Verlauf im Bereich Weights, Zug am Gizmo,
+// G/R/S, Werkzeugkaestchen, Zug im UV-Editor)
+bool modellStufeGehalten() {
+    const ModellTab& t = mt();
+    return t.malStrich || modellGewichte().verlaufZieht || (t.griff != 0 && !t.ziehVorher.empty()) || t.modal.art != 0 || t.mesh.kaestchenOffen || t.uv.zug != 0;
+}
+
 std::vector<modell::Befund> modellBefunde() {
     const ModellTab& t = mt();
-    // AP13S: geprueft wird, was die Datei bekommt - mit den Eintraegen des Modifier-Stapels, die in die Datei gehen (ohne: das
-    // Dokument selbst)
-    const modell::Inhalt& in = modellStapelDateiInhalt();
+    // AP13S: geprueft wird, was die Datei bekommt - mit den Eintraegen des Modifier-Stapels, die in die Datei gehen.
+    // FIX612B P2-2: und mit offenen Mallisten das, was das Spiel aus ihnen bekommt (vorher die Ecken von vor dem Malen: die
+    // Frage vor dem Speichern kannte die gemalten Gewichte nicht)
+    const modell::Inhalt& in = modellInhaltGezeigt();
     std::vector<char> hatBild(in.teile.size(), 0);
     for (std::size_t i = 0; i < hatBild.size(); ++i) {
         const bool bild = i < g_app->modelTextures.bySurface.size() && !g_app->modelTextures.bySurface[i].rgba.empty() &&

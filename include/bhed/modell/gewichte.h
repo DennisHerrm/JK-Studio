@@ -128,6 +128,13 @@ int spiegeln(Inhalt& in, int stufe, const std::vector<std::string>& knochenNamen
 // Ecken, die Mallisten verschwinden. Rueckgabe: Ecken.
 int uebernehmen(Inhalt& in);
 
+// FIX612B P2-2: traegt irgendeine Flaeche irgendeiner Stufe eine Malliste?
+[[nodiscard]] bool malt(const Inhalt& in) noexcept;
+// FIX612B P2-2: der Inhalt, wie die Ansicht ihn zeichnet (anzeigeVertex) und wie eine Datei ihn tragen kann - eine Kopie,
+// in der jede Malliste uebernommen ist. Wer speichert oder die Grenzen des Spiels misst, nimmt diese Kopie: die Datei
+// enthaelt dann, was man sieht, und das Dokument behaelt seine Mallisten.
+[[nodiscard]] Inhalt wieGezeigt(const Inhalt& in);
+
 // =====================================================================================================================
 // AP8 (MBENTWURF Teil B, Abgleich W2-W6, W12): die Werkzeuge des Bereichs Weights wie 3ds Max (Skin: Weight Tool, Mirror
 // Parameters; Autodesk-Hilfe "Weight Tool Dialog (Skin Modifier)", "Parameters Rollout (Skin Modifier)", "Mirror Parameters

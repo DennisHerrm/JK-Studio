@@ -129,8 +129,9 @@ GrenzStand& grenzStand() {
 const std::vector<w::TeilGrenze>& grenzListe() {
     GrenzStand& s = grenzStand();
     if (!s.gueltig) {
-        // AP13S: mit den Eintraegen des Modifier-Stapels, die in die Datei gehen (ohne: das Dokument selbst)
-        s.liste = w::grenzenPruefen(modellStapelDateiInhalt(), mt().lodJetzt);
+        // AP13S: mit den Eintraegen des Modifier-Stapels, die in die Datei gehen (ohne: das Dokument selbst); FIX612B P2-2: mit
+        // offenen Mallisten, was gespeichert wuerde
+        s.liste = w::grenzenPruefen(modellInhaltGezeigt(), mt().lodJetzt);
         s.gueltig = true;
     }
     return s.liste;

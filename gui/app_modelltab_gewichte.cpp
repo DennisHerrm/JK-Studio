@@ -602,7 +602,9 @@ void rolloutGrenzen() {
     if (ueber4 > 0) { ui::absatz(text(Str::MbGwUeber4, ueber4).c_str(), ui::Ton::Warnung); }
     for (const std::string& n : ueber32) { ui::absatz(text(Str::MbGwUeber32, n.c_str(), gr.knochenJeFlaeche).c_str(), ui::Ton::Fehler); }
     if (!fehler) { ui::absatz(tr(Str::MbGwPruefOk), ui::Ton::Gut); }
-    if (ui::werkzeugKnopf(tr(Str::MbGwUebernehmen), {.icon = UiIcon::Haken, .hinweis = tr(Str::MbGwUebernehmenHint), .aktiv = malend > 0})) { (void)modellUebernehmen(); }
+    // FIX612B P2-2: der Hinweis sagt, dass Speichern das Ergebnis auch ohne Uebernehmen schreibt
+    const std::string uebernehmenHinweis = std::string(tr(Str::MbGwUebernehmenHint)) + " " + tr(Str::FxUebernehmenSpeichern);
+    if (ui::werkzeugKnopf(tr(Str::MbGwUebernehmen), {.icon = UiIcon::Haken, .hinweis = uebernehmenHinweis.c_str(), .aktiv = malend > 0})) { (void)modellUebernehmen(); }
     ui::rolloutEnde();
 }
 
