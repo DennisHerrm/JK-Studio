@@ -1,6 +1,8 @@
 """Nachschlagen: Einstellungen, Tastenkuerzel, Begriffe."""
 from inhalt_basis import T
 
+import inhalt_d3d12
+
 EINSTELLUNGEN = {
     "id": "einstellungen",
     "gruppe": "ref",
@@ -100,6 +102,7 @@ EINSTELLUNGEN = {
             "Der Vorschau-Teil der Einstellungen: Lautstärken, Spielregeln und Schwierigkeit.",
             "首选项中的预览部分:音量、游戏规则和难度。",
             "設定のプレビュー部分:音量、ゲームのルール、難易度。")),
+        *inhalt_d3d12.bloecke(),   # D3D12 Stufe 1: Ansicht > Grafikschnittstelle
         ("h2", "tasten", T("Changing keys", "Tasten ändern", "修改快捷键", "キーの変更")),
         ("p", T(
             "**{{MenuEdit}} → {{KeysTitle}}** lists every action that has a key. Click a shortcut and press the new key; <kbd>Esc</kbd> cancels, <kbd>Backspace</kbd> clears. A key that is already taken is named. The defaults are in [[tasten]].",

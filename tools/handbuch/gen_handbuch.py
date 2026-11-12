@@ -250,6 +250,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _ent1()})
             from i18n_ent2 import zeilen_vier as _ent2   # ENTSCHEID2: Control Rig wie CAT, Preset-Kategorien, Generator-Gaenge
             texte.update({e[0]: e[1:] for e in _ent2()})
+            from i18n_p_dx12 import zeilen_vier as _p_dx12   # D3D12 Stufe 1: Grafikschnittstelle im Menue Ansicht
+            texte.update({e[0]: e[1:] for e in _p_dx12()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)
