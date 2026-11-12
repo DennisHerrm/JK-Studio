@@ -1362,5 +1362,21 @@ void modellFeldTrenner(float breite, float hoehe, float frei);
 // drawModellBereiche() (oben deklariert) zeichnet seit AP3 die Kopfzeile des Model-Tabs ueber Explorer, Ansichten und rechtem
 // Feld: die Bereiche als Reihe gleich breiter Felder und der Hinweis des Bedienmodus fuer den Bereich (app.cpp bereichZeichnen).
 
+// --- AP7 (MBENTWURF Teil B, 11.11.): das rechte Feld des Bereichs UV nach dem freigegebenen Entwurf - Gruppen Auswahl,
+// 1 Naehte festlegen, 2 Abwickeln, 3 Aufraeumen, Pruefen ueber den Baustein gui/ui_rollout.h (gui/wof/app_modelltab_uv.cpp).
+// Der Zustand des Felds, der nicht zum Arbeitsnetz gehoert (ModellUv oben):
+struct ModellUvFeld {
+    int schnell = -1;        // Vorlage des Knopfs "Quick unwrap": 0 Figur, 1 Requisit, 2 harte Flaeche; -1 = nach dem Modell
+    int projektion = 0;      // Form des Knopfs "Project" in der Reihenfolge des Entwurfs: 0 eben, 1 Zylinder, 2 Kugel, 3 Kasten
+    bool nahtDick = false;   // Gruppe Pruefen: die Naehte mit dickem Strich
+};
+[[nodiscard]] ModellUvFeld& modellUvFeld();
+// Die Vorlage, die "Quick unwrap" jetzt nimmt (0 Figur, 1 Requisit, 2 harte Flaeche): die gewaehlte, sonst mit Skelett die
+// Figur und ohne das Requisit.
+[[nodiscard]] int modellUvSchnellVorlage();
+// Die Strichstaerke der Naehte in Bildpunkten: 2, mit "Naehte dick" ein Sechstel der Zeichenhoehe (mindestens 4) - im
+// UV-Editor; gedacht auch fuer die Naht-Striche der 3D-Ansicht (app_modelltab_ansicht.cpp, ueberlagerung).
+[[nodiscard]] float modellUvNahtDicke();
+
 }  // namespace bhed::gui
 #endif

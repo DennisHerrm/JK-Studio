@@ -2348,6 +2348,8 @@ from i18n_ap3 import zeilen_vier as _ap3  # noqa: E402  (AP3: rechtes Feld des M
 S += _ap3()
 from i18n_ap9 import zeilen_vier as _ap9  # noqa: E402  (AP9: rechtes Feld des Bereichs Painting nach dem Entwurf)
 S += _ap9()
+from i18n_ap7 import zeilen_vier as _ap7  # noqa: E402  (AP7: rechtes Feld des Bereichs UV nach dem Entwurf)
+S += _ap7()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

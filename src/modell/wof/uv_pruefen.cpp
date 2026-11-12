@@ -83,6 +83,9 @@ UvBefunde pruefen(const UvNetz& n, const UvInseln& in, const PruefOptionen& o) {
         }
     }
     aus.ueberlappTexel = sortiert(std::move(aus.ueberlappTexel));
+    // AP7 (neu fuer JK Studio): die Ausnutzung der Textur - der Anteil der Texel des Rasters, die eine Insel bedeckt
+    aus.ausnutzung = static_cast<float>(static_cast<double>(std::count_if(besitzer.begin(), besitzer.end(), [](int insel) { return insel >= 0; })) /
+                                        static_cast<double>(besitzer.size()));
     std::vector<long long> geordnet(paare.begin(), paare.end());
     std::sort(geordnet.begin(), geordnet.end());
     for (const long long p : geordnet) { aus.ueberlappPaare.emplace_back(static_cast<int>(p >> 32), static_cast<int>(p & 0xFFFFFFFFLL)); }

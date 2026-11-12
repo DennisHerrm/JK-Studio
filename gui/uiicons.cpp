@@ -166,6 +166,21 @@ ImVec4 uiIconFarbe(UiIcon icon) {
         case UiIcon::MalPipette: c = ImVec4{0.42F, 0.85F, 0.45F, 1.0F}; break;        // gruen
         case UiIcon::MalMaskeLeer: c = ImVec4{1.00F, 0.50F, 0.48F, 1.0F}; break;
         case UiIcon::MalMaskeUmkehr: c = ImVec4{1.00F, 0.50F, 0.48F, 1.0F}; break;
+        // AP7: Bereich UV - Auswahl orange wie die gewaehlten UV, Naehte und Pins rot wie im UV-Editor
+        case UiIcon::UvInsel: c = ImVec4{1.00F, 0.66F, 0.25F, 1.0F}; break;
+        case UiIcon::UvAlles: c = ImVec4{1.00F, 0.66F, 0.25F, 1.0F}; break;
+        case UiIcon::UvSchere: c = ImVec4{1.00F, 0.42F, 0.40F, 1.0F}; break;
+        case UiIcon::UvNahtWeg: c = ImVec4{0.62F, 0.66F, 0.75F, 1.0F}; break;
+        case UiIcon::UvProjektion: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;
+        case UiIcon::UvDichte: c = ImVec4{0.36F, 0.82F, 0.95F, 1.0F}; break;
+        case UiIcon::UvPacken: c = ImVec4{0.98F, 0.75F, 0.30F, 1.0F}; break;
+        case UiIcon::UvPin: c = ImVec4{1.00F, 0.42F, 0.40F, 1.0F}; break;
+        case UiIcon::UvPinWeg: c = ImVec4{0.62F, 0.66F, 0.75F, 1.0F}; break;
+        case UiIcon::UvGerade: c = ImVec4{0.42F, 0.85F, 0.45F, 1.0F}; break;
+        case UiIcon::UvWinkel: c = ImVec4{0.98F, 0.86F, 0.38F, 1.0F}; break;
+        case UiIcon::UvRing: c = ImVec4{1.00F, 0.62F, 0.30F, 1.0F}; break;
+        case UiIcon::UvSpiegel: c = ImVec4{0.72F, 0.60F, 1.00F, 1.0F}; break;
+        case UiIcon::UvEntspannen: c = ImVec4{0.36F, 0.82F, 0.95F, 1.0F}; break;
 
         default: break;
     }
@@ -744,6 +759,81 @@ void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe)
         case UiIcon::MalMaskeUmkehr:   // Maske umkehren: die andere Haelfte geschuetzt
             z.flaeche({ImVec2{13.5F, 2.5F}, ImVec2{13.5F, 13.5F}, ImVec2{2.5F, 13.5F}});
             z.rahmen(2.5F, 2.5F, 13.5F, 13.5F, 0.8F);
+            break;
+        // --- AP7: Bereich UV ---------------------------------------------------------------------------
+        case UiIcon::UvInsel:   // Insel waehlen: gestrichelter Auswahlrahmen um ein Stueck
+            for (int k = 0; k < 3; ++k) {
+                const float a = 2.5F + 4.0F * static_cast<float>(k);
+                z.linie(a, 2.5F, a + 3.0F, 2.5F);
+                z.linie(a, 13.5F, a + 3.0F, 13.5F);
+                z.linie(2.5F, a, 2.5F, a + 3.0F);
+                z.linie(13.5F, a, 13.5F, a + 3.0F);
+            }
+            z.flaeche({ImVec2{5.5F, 10.5F}, ImVec2{6.5F, 6.0F}, ImVec2{10.5F, 5.5F}, ImVec2{10.5F, 10.5F}});
+            break;
+        case UiIcon::UvAlles:   // alles waehlen: neun gewaehlte Ecken
+            for (int reihe = 0; reihe < 3; ++reihe) {
+                for (int spalte = 0; spalte < 3; ++spalte) { z.punkt(4.0F + 4.0F * static_cast<float>(spalte), 4.0F + 4.0F * static_cast<float>(reihe), 1.4F); }
+            }
+            break;
+        case UiIcon::UvSchere:   // Naht setzen: Schere
+            z.kreis(4.6F, 12.2F, 2.1F);
+            z.kreis(11.4F, 12.2F, 2.1F);
+            z.linie(5.9F, 10.6F, 12.0F, 2.0F);
+            z.linie(10.1F, 10.6F, 4.0F, 2.0F);
+            break;
+        case UiIcon::UvNahtWeg:   // Naht loeschen: Loeschtaste mit Kreuz
+            z.zug({ImVec2{5.5F, 3.5F}, ImVec2{14.0F, 3.5F}, ImVec2{14.0F, 12.5F}, ImVec2{5.5F, 12.5F}, ImVec2{1.5F, 8.0F}}, true);
+            z.linie(7.6F, 6.0F, 11.6F, 10.0F);
+            z.linie(11.6F, 6.0F, 7.6F, 10.0F);
+            break;
+        case UiIcon::UvProjektion:   // Projektion: Bildfeld mit Achsenkreuz
+            z.rahmen(2.5F, 2.5F, 13.5F, 13.5F, 1.0F);
+            z.linie(8.0F, 2.5F, 8.0F, 13.5F);
+            z.linie(2.5F, 8.0F, 13.5F, 8.0F);
+            break;
+        case UiIcon::UvDichte:   // Dichte angleichen: Doppelpfeil zwischen zwei Marken
+            z.linie(2.0F, 3.5F, 2.0F, 12.5F);
+            z.linie(14.0F, 3.5F, 14.0F, 12.5F);
+            z.linie(4.0F, 8.0F, 12.0F, 8.0F);
+            z.spitze(12.0F, 8.0F, 1.0F, 0.0F, 2.4F);
+            z.spitze(4.0F, 8.0F, -1.0F, 0.0F, 2.4F);
+            break;
+        case UiIcon::UvPacken:   // Packen: Stuecke dicht in der Kachel
+            z.rahmen(2.0F, 2.0F, 14.0F, 14.0F, 1.0F);
+            z.rahmen(4.2F, 4.2F, 8.2F, 9.2F, 0.3F);
+            z.rahmen(9.8F, 4.2F, 11.8F, 7.0F, 0.3F);
+            z.rahmen(9.8F, 8.6F, 11.8F, 11.8F, 0.3F);
+            z.linie(4.2F, 11.3F, 8.2F, 11.3F);
+            break;
+        case UiIcon::UvPin:
+        case UiIcon::UvPinWeg:   // Pin: Nadel mit rundem Kopf; geloest: durchgestrichen
+            z.punkt(8.0F, 4.8F, 2.8F);
+            z.linie(8.0F, 7.0F, 8.0F, 14.2F);
+            if (icon == UiIcon::UvPinWeg) { z.linie(3.0F, 13.0F, 13.0F, 3.0F); }
+            break;
+        case UiIcon::UvGerade:   // Begradigen: aus der gezackten Kante wird eine Gerade
+            z.zug({ImVec2{2.5F, 5.5F}, ImVec2{5.5F, 3.0F}, ImVec2{8.0F, 6.2F}, ImVec2{10.5F, 3.2F}, ImVec2{13.5F, 5.5F}});
+            z.linie(2.5F, 11.5F, 13.5F, 11.5F);
+            z.punkt(2.5F, 11.5F, 1.4F);
+            z.punkt(13.5F, 11.5F, 1.4F);
+            break;
+        case UiIcon::UvWinkel:   // Naehte nach Winkel: zwei Schenkel mit Bogen
+            z.zug({ImVec2{13.5F, 13.0F}, ImVec2{2.5F, 13.0F}, ImVec2{11.5F, 3.5F}});
+            z.bogen(2.5F, 13.0F, 6.5F, -0.81F, 0.0F);
+            break;
+        case UiIcon::UvRing:   // Ring aufschneiden: offener Ring mit Schnitt
+            z.bogen(8.0F, 8.0F, 5.5F, 0.45F, kPi * 2.0F - 0.45F);
+            z.linie(10.5F, 8.0F, 15.0F, 8.0F);
+            break;
+        case UiIcon::UvSpiegel:   // Naehte spiegeln: zwei Haelften an der Mittellinie
+            z.linie(8.0F, 1.5F, 8.0F, 14.5F);
+            z.zug({ImVec2{6.0F, 4.0F}, ImVec2{2.0F, 8.0F}, ImVec2{6.0F, 12.0F}}, true);
+            z.zug({ImVec2{10.0F, 4.0F}, ImVec2{14.0F, 8.0F}, ImVec2{10.0F, 12.0F}}, true);
+            break;
+        case UiIcon::UvEntspannen:   // Entspannen: eine hohe Welle, darunter eine flache - die Dehnung glaettet sich
+            z.zug({ImVec2{1.5F, 6.0F}, ImVec2{3.5F, 3.0F}, ImVec2{6.0F, 3.0F}, ImVec2{8.0F, 6.0F}, ImVec2{10.0F, 9.0F}, ImVec2{12.5F, 9.0F}, ImVec2{14.5F, 6.0F}});
+            z.zug({ImVec2{1.5F, 12.5F}, ImVec2{4.0F, 11.5F}, ImVec2{6.5F, 11.5F}, ImVec2{9.5F, 13.0F}, ImVec2{12.0F, 13.0F}, ImVec2{14.5F, 12.0F}});
             break;
     }
 }

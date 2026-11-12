@@ -3118,6 +3118,10 @@ enum class UiIcon : int {
     // AP9: Bereich Painting - die Werkzeuge (Pinsel, Fuellen, Klonen, Verwischen, Maske, Weichzeichnen, Radierer), Farbe aufnehmen,
     // Ebene hoch/runter, Maske leeren/umkehren
     MalPinsel, MalFuellen, MalKlonen, MalWischen, MalMaske, MalWeich, MalRadierer, MalPipette, MalHoch, MalRunter, MalMaskeLeer, MalMaskeUmkehr,
+    // AP7: Bereich UV - Insel waehlen, alles waehlen, Naht setzen (Schere), Naht loeschen, Projektion, Dichte angleichen, Packen,
+    // Pin, Pins loesen, Begradigen, Naehte nach Winkel, Ring aufschneiden, Naehte spiegeln, Entspannen (Welle)
+    UvInsel, UvAlles, UvSchere, UvNahtWeg, UvProjektion, UvDichte, UvPacken, UvPin, UvPinWeg, UvGerade, UvWinkel, UvRing, UvSpiegel,
+    UvEntspannen,
 };
 void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe);
 // Quadratischer Icon-Knopf; der Text ist Kennung und Tooltip-Titel.

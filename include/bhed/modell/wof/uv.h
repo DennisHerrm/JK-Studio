@@ -304,6 +304,10 @@ struct UvBefunde {
     std::vector<int> ringe;
     std::vector<int> dichte;
     int stapel = 0;
+    // AP7 (neu fuer JK Studio, nicht aus WL): der Anteil der Texel der Kachel 0..1, den mindestens eine Insel bedeckt
+    // (0..1), im selben Raster wie die Ueberlappung (aufloesung x aufloesung; UV ausserhalb der Kachel zaehlen nicht,
+    // gestapelte Inseln einmal) - "Ausnutzung der Textur" im Bereich UV
+    float ausnutzung = 0.0F;
     [[nodiscard]] int probleme() const noexcept {
         return static_cast<int>(ueberlappt.size() + gekippt.size() + gedehnt.size() + aussen.size() + ohneKarte.size());
     }

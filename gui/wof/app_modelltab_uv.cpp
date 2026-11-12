@@ -10,6 +10,8 @@
 // Vorschau, Gruppen je Textur (die Flaechen einer .glm, die ein Bild zeichnen), Rueckgaengig ueber das Modelldokument,
 // Tasten je Bedienmodus aus den Tabellen (3ds Max: max_hotkeys_de.txt; Blender: blender_keys.txt "UV Editor"/"Mesh"),
 // wo die Tabellen keine haben, die Tasten von WhiteoutFlakes (guide/markdown/uv.md) im Modus wie 3ds Max.
+// AP7 (rc612): das rechte Feld nach dem freigegebenen Entwurf des Model-Tabs - Auswahl, 1 Naehte festlegen, 2 Abwickeln,
+// 3 Aufraeumen, Pruefen ueber den Baustein gui/ui_rollout.h (siehe "Rollouts im Befehlsfeld").
 //
 // Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
 // following conditions are met:
@@ -357,6 +359,9 @@ struct UvAktion {
     int gruppe;                // 0 Auswahl, 1 Naehte, 2 Abwickeln, 3 Anordnen, 4 Quick unwrap, 5 Anzeige
 };
 
+void inselWaehlen();   // unten, beim UV-Editor
+void allesWaehlen();
+
 const std::vector<UvAktion>& aktionen() {
     using w::Form;
     static const std::vector<UvAktion> kListe = {
@@ -404,6 +409,12 @@ const std::vector<UvAktion>& aktionen() {
              uvz().mitte[0] = uvz().mitte[1] = 0.5F;
          },
          {}, 0},
+        // AP7 (Entwurf, Gruppe Auswahl): Insel waehlen - Blender L (blender_default.py km_uv_editor: uv.select_linked_pick mit
+        // extend, die Insel unter der Maus kommt dazu; ohne Maus ueber dem Editor wie uv.select_linked), wie 3ds Max ohne Taste;
+        // Alles waehlen - 3ds Max Strg+A (max_hotkeys_de.txt: Strg, A Alles auswaehlen), Blender A (uv.select_all SELECT)
+        {Str::A7InselWaehlen, Str::A7InselWaehlenHint, "", "L", 0, ImGuiKey_L, "blender_default.py km_uv_editor uv.select_linked_pick", [] { inselWaehlen(); }, {}, 0},
+        {Str::A7AllesWaehlen, Str::A7AllesWaehlenHint, "Ctrl+A", "A", ImGuiMod_Ctrl | ImGuiKey_A, ImGuiKey_A, "max_hotkeys_de.txt | blender_default.py km_uv_editor uv.select_all",
+         [] { allesWaehlen(); }, {}, 0},
         // Naehte (WF uv.md: C, Umschalt+C; die Tabellen haben fuer den UV-Editor keine)
         {Str::UvNahtMarkieren, Str::UvNahtMarkierenHint, "C", "Ctrl+E", ImGuiKey_C, ImGuiMod_Ctrl | ImGuiKey_E, "WF guide/markdown/uv.md | blender_default.py km_uv_editor uv.mark_seam",
          [] { (void)befehl(Str::UvNahtMarkieren, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext& k) { return w::befehlNaehte(n, a, true, k); }); }, {}, 1},
@@ -443,20 +454,23 @@ const std::vector<UvAktion>& aktionen() {
         {Str::UvRechteck, Str::UvRechteckHint, "", "", 0, 0, "",
          [] { (void)befehl(Str::UvRechteck, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext&) { return w::befehlRechteck(n, a); }); }, {}, 2},
         // MRESTE: Blender Umschalt+W (blender_default.py km_uv_editor op_menu IMAGE_MT_uvs_align): das Menue Ausrichten mit
-        // Begradigen und Ausrichten. Ohne Blender-Taste (Blender 5.0 nur im Menue UV; Strg+V/P/A nur in der Legacy-Belegung):
-        // Entspannen, Stapeln, Dichte, Sperren, Packen, Raster, Einpassen (Blender Pos1 view_all gilt im Bild, nicht im UV-Werkzeug)
+        // Begradigen und Ausrichten. Ohne Blender-Taste (Blender 5.0 nur im Menue UV): Entspannen, Stapeln, Sperren, Raster,
+        // Einpassen (Blender Pos1 view_all gilt im Bild, nicht im UV-Werkzeug).
+        // AP7: Dichte angleichen Strg+A und Packen Strg+P wie im freigegebenen Entwurf - in Blender sind das die Tasten der
+        // Belegung "legacy" (blender_default.py km_uv_editor, params.legacy: uv.average_islands_scale, uv.pack_islands); die
+        // heutige Belegung hat dort keine andere Bedeutung.
         {Str::MrUvAusrichten, Str::MrUvAusrichtenHint, "", "Shift+W", 0, ImGuiMod_Shift | ImGuiKey_W, "blender_default.py km_uv_editor IMAGE_MT_uvs_align",
          [] { uvz().ausrichtenOeffnen = true; }, {}, 3},
         // Anordnen (WF Umschalt+S, D, Strg+L, Umschalt+P)
         {Str::UvStapeln, Str::UvStapelnHint, "Shift+S", "", ImGuiMod_Shift | ImGuiKey_S, 0, "WF guide/markdown/uv.md",
          [] { (void)befehl(Str::UvStapeln, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext& k) { return w::befehlStapelnGespiegelt(n, a, k); }); }, {}, 3},
-        {Str::UvDichte, Str::UvDichteHint, "D", "", ImGuiKey_D, 0, "WF guide/markdown/uv.md",
+        {Str::UvDichte, Str::UvDichteHint, "D", "Ctrl+A", ImGuiKey_D, ImGuiMod_Ctrl | ImGuiKey_A, "WF guide/markdown/uv.md | blender_default.py km_uv_editor (legacy) uv.average_islands_scale",
          [] { (void)befehl(Str::UvDichte, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext& k) { return w::befehlDichteAngleichen(n, a, k); }); }, {}, 3},
         {Str::UvAusrichten, Str::UvAusrichtenHint, "", "", 0, 0, "",
          [] { (void)befehl(Str::UvAusrichten, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext&) { return w::befehlAusrichten(n, a); }); }, {}, 3},
         {Str::UvSperren, Str::UvSperrenHint, "Ctrl+L", "", ImGuiMod_Ctrl | ImGuiKey_L, 0, "WF guide/markdown/uv.md",
          [] { (void)befehl(Str::UvSperren, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext&) { return w::befehlSperren(n, a); }); }, {}, 3},
-        {Str::UvPacken, Str::UvPackenHint, "Shift+P", "", ImGuiMod_Shift | ImGuiKey_P, 0, "WF guide/markdown/uv.md",
+        {Str::UvPacken, Str::UvPackenHint, "Shift+P", "Ctrl+P", ImGuiMod_Shift | ImGuiKey_P, ImGuiMod_Ctrl | ImGuiKey_P, "WF guide/markdown/uv.md | blender_default.py km_uv_editor (legacy) uv.pack_islands",
          [] {
              (void)befehl(Str::UvPacken, [](w::UvNetz& n, const w::UvAuswahl& a, const w::UvKontext& k) { return w::befehlPacken(n, a, static_cast<w::PackUmfang>(std::clamp(uvz().packUmfang, 0, 2)), k); });
          },
@@ -473,6 +487,7 @@ const std::vector<UvAktion>& aktionen() {
         {Str::UvDehnungZeigen, Str::UvDehnungZeigenHint, "", "", 0, 0, "", [] { uvz().dehnungZeigen = !uvz().dehnungZeigen; }, [] { return uvz().dehnungZeigen; }, 5},
         {Str::UvUeberlappZeigen, Str::UvUeberlappZeigenHint, "", "", 0, 0, "", [] { uvz().ueberlappZeigen = !uvz().ueberlappZeigen; }, [] { return uvz().ueberlappZeigen; }, 5},
         {Str::UvSchachbrett, Str::UvSchachbrettHint, "", "", 0, 0, "", [] { uvz().hintergrund = uvz().hintergrund == 1 ? 0 : 1; }, [] { return uvz().hintergrund == 1; }, 5},
+        {Str::A7NahtDick, Str::A7NahtDickHint, "", "", 0, 0, "", [] { modellUvFeld().nahtDick = !modellUvFeld().nahtDick; }, [] { return modellUvFeld().nahtDick; }, 5},
     };
     return kListe;
 }
@@ -553,6 +568,24 @@ bool knopf(Str text, float breite = 0.0F) {
 std::array<float, 3> modellUvVorn() {
     const w::UvKontext k = kontext(w::UvNetz{});
     return {k.vorn.x, k.vorn.y, k.vorn.z};
+}
+
+// --- AP7: Zustand des rechten Felds --------------------------------------------------------------------------------
+
+ModellUvFeld& modellUvFeld() {
+    static ModellUvFeld feld;
+    return feld;
+}
+
+int modellUvSchnellVorlage() {
+    const int v = modellUvFeld().schnell;
+    if (v >= 0 && v <= 2) { return v; }
+    return g_app->anim.bones.empty() ? 1 : 0;   // ohne Skelett weist die Vorlage Figur ab (UvMeldung::KeineGlieder)
+}
+
+float modellUvNahtDicke() {
+    // wie bisher 2 Bildpunkte; dick: doppelt so stark bei der Grundschrift (24 Punkte hoch) und mit der Schrift groesser
+    return modellUvFeld().nahtDick ? std::max(4.0F, std::round(ImGui::GetFontSize() / 6.0F)) : 2.0F;
 }
 
 int modellUvAktionZahl() { return static_cast<int>(aktionen().size()); }
@@ -675,155 +708,344 @@ const std::vector<std::array<int, 3>>& modellUvNahtStriche() {
 }
 
 // --- Rollouts im Befehlsfeld ---------------------------------------------------------------------------------------
+//
+// AP7 (MBENTWURF Teil B): das Feld nach dem freigegebenen Entwurf (plaene/modellblock_stufe0/entwurf_modelltab.html, Bereich UV;
+// shank 04.11. Bild 1: "kann man das noch schoener machen? einfach benutzerfreundlicher und uebersichtlicher") ueber den
+// Baustein gui/ui_rollout.h: Auswahl mit Kurzinfo, die Arbeitsschritte 1 Naehte festlegen -> 2 Abwickeln -> 3 Aufraeumen mit
+// gleich breiten Knoepfen in zwei Spalten (Symbol und Taste des Bedienmodus), der Hauptknopf Abwickeln, Pruefen mit Schaltern
+// in zwei Spalten und den Werten als Tabelle, Tipps als Kasten. Was das Programm mehr kann als der Entwurf, steht in jedem
+// Schritt eingeklappt unter "Weitere" (Abgleichtabelle Abschnitt 13, +13). Die Gruppen stehen im Reiter, den der Bereich
+// vorgibt (wie 3ds Max: Aendern, wie Blender: Daten).
 
-void drawModellUvBereich() {
+namespace {
+
+const UvAktion* aktionVon(Str text) {
+    const auto& liste = aktionen();
+    const auto it = std::find_if(liste.begin(), liste.end(), [&](const UvAktion& a) { return a.text == text; });
+    return it != liste.end() ? &*it : nullptr;
+}
+
+// Ein Knopf des Bausteins fuer eine Aktion: Symbol, Name, die Taste des Bedienmodus, Tooltip; ein Schalter gedrueckt. Die Taste
+// bleibt am Knopf, solange jedes Wort neben ihr Platz hat (der Text bricht um; Entwurf: "Dichte angleichen" zweizeilig + Strg+A).
+// beschriftung, hinweis und taste ersetzen, wo angegeben, die der Aktion.
+bool feldKnopf(Str text, UiIcon icon, bool haupt = false, const char* beschriftung = nullptr, const char* hinweis = nullptr, const char* taste = nullptr) {
+    const UvAktion* a = aktionVon(text);
+    if (a == nullptr) { return false; }
+    const char* k = taste != nullptr ? taste : tasteVon(*a);
+    const bool geklickt = ui::werkzeugKnopf(beschriftung != nullptr ? beschriftung : tr(text), {.icon = icon,
+                                                                                               .taste = k[0] != '\0' ? k : nullptr,
+                                                                                               .hinweis = hinweis != nullptr ? hinweis : tr(a->hinweis),
+                                                                                               .haupt = haupt,
+                                                                                               .an = a->an && a->an(),
+                                                                                               .tasteHalten = true});
+    if (geklickt) { ausloesen(*a); }
+    return geklickt;
+}
+
+// Ein Haken des Bausteins fuer eine Aktion mit Zustand (Menue, Suche und Feld schalten dasselbe).
+void feldSchalter(Str text) {
+    const UvAktion* a = aktionVon(text);
+    if (a == nullptr || !a->an) { return; }
+    bool an = a->an();
+    if (ui::schalter(tr(text), &an, tooltip(*a).c_str())) { ausloesen(*a); }
+}
+
+// Der Titel einer Gruppe bzw. eines Unterteils mit fester Kennung: der sichtbare Text darf einem Knopf gleichen ("Unwrap"),
+// und der Zustand (auf/zu) bleibt beim Wechsel der Sprache.
+std::string titel(Str s, const char* kennung) { return std::string(tr(s)) + "###" + kennung; }
+
+void rolloutAuswahl(const std::vector<Gruppe>& g, int gi) {
     ModellTab& t = mt();
     ModellUv& u = uvz();
+    // Kurzinfo: was bearbeitet wird (die eine Flaeche, sonst die Textur) und die Zahl der Inseln
+    std::string name = "-";
+    if (gi >= 0) {
+        const Gruppe& gr = g[uz(gi)];
+        if (gr.teile.size() == 1U) {
+            name = t.dok.inhalt().teile[uz(gr.teile.front())].name;
+        } else if (!gr.shader.empty()) {
+            name = fileName(gr.shader);
+        }
+    }
+    char info[200];
+    std::snprintf(info, sizeof info, trN(Str::A7InfoInseln, u.inseln.zahl), name.c_str(), u.inseln.zahl);
+    const std::string kopf = titel(Str::A7RAuswahl, "uvrwahl");
+    if (!ui::rolloutBeginn(kopf.c_str(), {.kurzinfo = info, .hinweis = tr(Str::A7RAuswahlHint)})) { return; }
+    // die Textur (Gruppe): welche Flaechen gerade bearbeitet werden
+    ui::zeile(tr(Str::UvBild), tr(Str::UvBildHint));
+    const std::string jetzt = gi >= 0 ? (g[uz(gi)].shader.empty() ? std::string("-") : fileName(g[uz(gi)].shader)) : std::string("-");
+    if (ImGui::BeginCombo("##uvgruppe", jetzt.c_str())) {
+        if (ImGui::Selectable(tr(Str::UvBildAuswahl), u.gruppe < 0)) { u.gruppe = -1; }
+        for (std::size_t i = 0; i < g.size(); ++i) {
+            std::string n = fileName(g[i].shader.empty() ? std::string("-") : g[i].shader) + " (";
+            for (std::size_t k = 0; k < g[i].teile.size(); ++k) { n += (k > 0 ? ", " : "") + t.dok.inhalt().teile[uz(g[i].teile[k])].name; }
+            n += ")##" + std::to_string(i);
+            if (ImGui::Selectable(n.c_str(), u.gruppe == static_cast<int>(i))) { u.gruppe = static_cast<int>(i); }
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::SetItemTooltip("%s", tr(Str::UvBildHint));
+    if (gi >= 0) {
+        char z[200];
+        std::snprintf(z, sizeof z, tr(Str::UvBildInfo), static_cast<int>(g[uz(gi)].teile.size()), g[uz(gi)].dreiecke, t.lodJetzt + 1);
+        ui::absatz(z);
+    }
+    // die Ebene als Segment, vor jedem Namen die Taste des Bedienmodus (wie 3ds Max 1 2 4 5, wie Blender 1 2 3 4)
+    static const Str kEbenen[4] = {Str::UvEbeneEcke, Str::UvEbeneKante, Str::UvEbeneFlaeche, Str::UvEbeneInsel};
+    std::string namen[4];
+    std::string hinweise[4];
+    const char* namenZ[4]{};
+    const char* hinweiseZ[4]{};
+    for (int i = 0; i < 4; ++i) {
+        const UvAktion* a = aktionVon(kEbenen[i]);
+        if (a == nullptr) { continue; }
+        namen[i] = std::string(tasteVon(*a)) + " " + tr(a->text);
+        hinweise[i] = tooltip(*a);
+        namenZ[i] = namen[i].c_str();
+        hinweiseZ[i] = hinweise[i].c_str();
+    }
+    int ebene = std::clamp(u.ebene, 0, 3);
+    if (ui::segment("##uvebene", namenZ, 4, &ebene, 0, -1, hinweiseZ)) {
+        if (const UvAktion* a = aktionVon(kEbenen[ebene])) { ausloesen(*a); }
+    }
+    ui::rasterBeginn(2);
+    feldKnopf(Str::A7InselWaehlen, UiIcon::UvInsel);
+    feldKnopf(Str::A7AllesWaehlen, UiIcon::UvAlles);
+    ui::rasterEnde();
+    feldSchalter(Str::UvEditorZeigen);
+    ui::rolloutEnde();
+}
+
+void rolloutNaehte() {
+    ModellUv& u = uvz();
+    const std::string kopf = titel(Str::A7RNaehte, "uvrnaht");
+    if (!ui::rolloutBeginn(kopf.c_str(), {.schritt = 1, .hinweis = tr(Str::A7RNaehteHint)})) { return; }
+    ui::rasterBeginn(2);
+    feldKnopf(Str::UvNahtMarkieren, UiIcon::UvSchere);
+    feldKnopf(Str::UvNahtLoeschen, UiIcon::UvNahtWeg);
+    ui::rasterEnde();
+    feldKnopf(Str::UvNaehteSkelett, UiIcon::MbKnochen);
+    const std::string mehr = titel(Str::A7Mehr, "uvmehrnaht");
+    if (ui::mehrBeginn(mehr.c_str())) {
+        ui::rasterBeginn(2);
+        feldKnopf(Str::UvNaehteForm, UiIcon::Erzeugen);
+        feldKnopf(Str::UvNaehteWinkel, UiIcon::UvWinkel);
+        feldKnopf(Str::UvRingSchneiden, UiIcon::UvRing);
+        feldKnopf(Str::UvSpiegeln, UiIcon::UvSpiegel);
+        ui::rasterEnde();
+        (void)ui::regler(tr(Str::MdWinkel), &u.winkel, 5.0F, 120.0F, "%.0f\xc2\xb0", tr(Str::UvNaehteWinkelHint));
+        ui::mehrEnde();
+    }
+    ui::tipp(tr(Str::A7TippNaehte));
+    ui::rolloutEnde();
+}
+
+void rolloutAbwickeln() {
+    ModellUv& u = uvz();
+    ModellUvFeld& f = modellUvFeld();
     const bool blender = blenderModus();
-    const float fs = ImGui::GetFontSize();
+    const std::string kopf = titel(Str::UvGrAbwickeln, "uvrabw");
+    if (!ui::rolloutBeginn(kopf.c_str(), {.schritt = 2, .hinweis = tr(Str::A7RAbwickelnHint)})) { return; }
+    // der Hauptknopf: wie Blender liegt Abwickeln im Menue U - die Taste steht wie im Entwurf am Knopf, der Tooltip sagt es
+    if (blender) {
+        const std::string hinweis = std::string(tr(Str::UvAbwickelnHint)) + "\n" + tr(Str::UvMenueAbwickelnHint);
+        feldKnopf(Str::UvAbwickeln, UiIcon::Abspielen, true, nullptr, hinweis.c_str(), "U");
+    } else {
+        feldKnopf(Str::UvAbwickeln, UiIcon::Abspielen, true);
+    }
+    // Schnell abwickeln und Projizieren fuehren die darunter gewaehlte Vorlage bzw. Projektion aus (die Aktionen von rc611)
+    static const Str kVorlagen[3] = {Str::UvSchnellFigur, Str::UvSchnellRequisit, Str::UvSchnellHart};
+    static const Str kProjektionen[4] = {Str::UvProjEben, Str::UvProjZylinder, Str::UvProjKugel, Str::UvProjKasten};   // Reihenfolge des Entwurfs
+    const int vorlage = modellUvSchnellVorlage();
+    f.projektion = std::clamp(f.projektion, 0, 3);
+    ui::rasterBeginn(2);
+    {
+        const std::string hinweis = std::string(tr(Str::A7SchnellHint)) + "\n" + tr(kVorlagen[vorlage]) + ": " + tr(aktionVon(kVorlagen[vorlage])->hinweis);
+        feldKnopf(kVorlagen[vorlage], UiIcon::Blitz, false, tr(Str::UvGrSchnell), hinweis.c_str());
+    }
+    {
+        const std::string hinweis = std::string(tr(Str::A7ProjizierenHint)) + "\n" + tr(kProjektionen[f.projektion]) + ": " + tr(aktionVon(kProjektionen[f.projektion])->hinweis);
+        feldKnopf(kProjektionen[f.projektion], UiIcon::UvProjektion, false, tr(Str::A7Projizieren), hinweis.c_str());
+    }
+    ui::rasterEnde();
+    {
+        const char* namen[3]{};
+        const char* hinweise[3]{};
+        for (int i = 0; i < 3; ++i) {
+            namen[i] = tr(kVorlagen[i]);
+            hinweise[i] = tr(aktionVon(kVorlagen[i])->hinweis);
+        }
+        int wahl = vorlage;
+        ui::zeile(tr(Str::A7Vorlage));
+        if (ui::segment("##uvvorlage", namen, 3, &wahl, 0, -1, hinweise, ui::feldBreite())) { f.schnell = wahl; }
+    }
+    {
+        const char* namen[4]{};
+        const char* hinweise[4]{};
+        for (int i = 0; i < 4; ++i) {
+            namen[i] = tr(kProjektionen[i]);
+            hinweise[i] = tr(aktionVon(kProjektionen[i])->hinweis);
+        }
+        ui::zeile(tr(Str::A7Projektion));
+        (void)ui::segment("##uvprojektion", namen, 4, &f.projektion, 0, -1, hinweise, ui::feldBreite());
+    }
+    const std::string mehr = titel(Str::A7Mehr, "uvmehrabw");
+    if (ui::mehrBeginn(mehr.c_str())) {
+        ui::rasterBeginn(2);
+        feldKnopf(Str::UvNeuLoesen, UiIcon::Neuladen);
+        feldKnopf(Str::UvPin, UiIcon::UvPin);
+        feldKnopf(Str::UvPinsLoesen, UiIcon::UvPinWeg);
+        ui::rasterEnde();
+        {
+            const char* namen[2] = {tr(Str::UvMethodeLscm), tr(Str::UvMethodeDehnung)};
+            const char* hinweise[2] = {tr(Str::UvMethodeHint), tr(Str::UvMethodeHint)};
+            u.methode = std::clamp(u.methode, 0, 1);
+            ui::zeile(tr(Str::AsVerfahren), tr(Str::UvMethodeHint));
+            (void)ui::segment("##uvmethode", namen, 2, &u.methode, 0, -1, hinweise, ui::feldBreite());
+        }
+        {
+            const char* namen[4] = {"X", "Y", "Z", tr(Str::UvProjPassend)};
+            const char* hinweise[4] = {tr(Str::UvProjAchseHint), tr(Str::UvProjAchseHint), tr(Str::UvProjAchseHint), tr(Str::UvProjAchseHint)};
+            u.projAchse = std::clamp(u.projAchse, 0, 3);
+            ui::zeile(tr(Str::UvProjAchse), tr(Str::UvProjAchseHint));
+            (void)ui::segment("##uvachse", namen, 4, &u.projAchse, 0, -1, hinweise, ui::feldBreite());
+        }
+        ui::mehrEnde();
+    }
+    ui::rolloutEnde();
+}
+
+void rolloutAufraeumen() {
+    ModellUv& u = uvz();
+    const std::string kopf = titel(Str::A7RAufraeumen, "uvrauf");
+    if (!ui::rolloutBeginn(kopf.c_str(), {.schritt = 3, .hinweis = tr(Str::A7RAufraeumenHint)})) { return; }
+    ui::rasterBeginn(2);
+    feldKnopf(Str::UvEntspannen, UiIcon::UvEntspannen);
+    feldKnopf(Str::UvDichte, UiIcon::UvDichte);
+    ui::rasterEnde();
+    feldKnopf(Str::UvPacken, UiIcon::UvPacken);
+    (void)ui::reglerInt(tr(Str::A7Abstand), &u.abstand, 0, 16, tr(Str::UvAbstandFmt), tr(Str::UvAbstandHint));
+    ui::zeile(tr(Str::A7Drehen), tr(Str::UvDrehenHint));
+    (void)ui::schalter(tr(Str::A7Erlaubt), &u.drehen, tr(Str::UvDrehenHint));   // derselbe Haken wie in der Gruppe Pruefen
+    const std::string mehr = titel(Str::A7Mehr, "uvmehrauf");
+    if (ui::mehrBeginn(mehr.c_str())) {
+        ui::rasterBeginn(2);
+        feldKnopf(Str::UvBegradigen, UiIcon::UvGerade);
+        feldKnopf(Str::UvRechteck, UiIcon::FeldObjekt);
+        feldKnopf(Str::UvStapeln, UiIcon::Duplizieren);
+        feldKnopf(Str::UvAusrichten, UiIcon::Drehen);
+        feldKnopf(Str::UvSperren, UiIcon::Schloss);
+        ui::rasterEnde();
+        const char* namen[3] = {tr(Str::UvPackAuto), tr(Str::UvPackAuswahl), tr(Str::UvPackAlles)};
+        const char* hinweise[3] = {tr(Str::UvPackUmfangHint), tr(Str::UvPackUmfangHint), tr(Str::UvPackUmfangHint)};
+        u.packUmfang = std::clamp(u.packUmfang, 0, 2);
+        ui::zeile(tr(Str::A7Umfang), tr(Str::UvPackUmfangHint));
+        (void)ui::segment("##uvpackumfang", namen, 3, &u.packUmfang, 0, -1, hinweise, ui::feldBreite());
+        ui::mehrEnde();
+    }
+    ui::rolloutEnde();
+}
+
+void rolloutPruefen() {
+    const ModellUv& u = uvz();
+    const w::UvBefunde& b = u.befunde;
+    // Befunde: was rc611 farbig meldete - ueberlappte Inseln, umgeklappte Dreiecke, ueber 1,5 gedehnt (WF stretchThreshold)
+    const int ueberlappt = static_cast<int>(b.ueberlappt.size());
+    const int gekippt = static_cast<int>(b.gekippt.size());
+    const int gedehnt = static_cast<int>(b.gedehnt.size());
+    const int befunde = ueberlappt + gekippt + gedehnt;
+    char info[96];
+    if (befunde == 0) {
+        std::snprintf(info, sizeof info, "%s", tr(Str::MfInfoGut));
+    } else {
+        std::snprintf(info, sizeof info, trN(Str::MfInfoFehler, befunde), befunde);
+    }
+    if (!ui::rolloutBeginn(tr(Str::UvGrPruefen), {.kurzinfo = info, .ton = befunde == 0 ? ui::Ton::Gut : ui::Ton::Warnung, .hinweis = tr(Str::A7RPruefenHint)})) { return; }
+    ui::rasterBeginn(2);
+    feldSchalter(Str::UvSchachbrett);
+    feldSchalter(Str::UvDehnungZeigen);
+    feldSchalter(Str::UvUeberlappZeigen);
+    feldSchalter(Str::A7NahtDick);
+    ui::rasterEnde();
+    if (u.netz.kanten() == 0) {
+        ui::absatz(tr(Str::UvKeineFlaeche));
+        ui::rolloutEnde();
+        return;
+    }
+    const auto inseln = [](int n) {
+        char z[96];
+        std::snprintf(z, sizeof z, trN(Str::A7InselnN, n), n);
+        return std::string(z);
+    };
+    const auto zahl = [](const char* form, double wert) {
+        char z[96];
+        std::snprintf(z, sizeof z, form, wert);
+        return std::string(z);
+    };
+    std::vector<ui::WertZeile> werte;
+    // Dehnung: in Worten, in Klammern die mittlere Flaechenabweichung
+    if (gedehnt == 0) {
+        werte.push_back({tr(Str::A7Dehnung), zahl(tr(Str::A7Gering), static_cast<double>(u.mass.flaeche)), ui::Ton::Gut, tr(Str::A7DehnungHint)});
+    } else {
+        char z[96];
+        std::snprintf(z, sizeof z, trN(Str::A7InselnUeber, gedehnt), gedehnt);
+        werte.push_back({tr(Str::A7Dehnung), z, ui::Ton::Warnung, tr(Str::A7DehnungHint)});
+    }
+    werte.push_back({tr(Str::A7Ueberlappungen), ueberlappt == 0 ? std::string(tr(Str::A7Keine)) : inseln(ueberlappt), ueberlappt == 0 ? ui::Ton::Gut : ui::Ton::Warnung, tr(Str::A7UeberlappungenHint)});
+    if (gekippt > 0) { werte.push_back({tr(Str::A7Gekippt), inseln(gekippt), ui::Ton::Warnung, tr(Str::A7GekipptHint)}); }
+    {
+        char z[32];
+        std::snprintf(z, sizeof z, "%.0f %%", static_cast<double>(b.ausnutzung) * 100.0);
+        werte.push_back({tr(Str::A7Ausnutzung), z, ui::Ton::Normal, tr(Str::A7AusnutzungHint)});
+    }
+    {
+        // Texel-Dichte: die groesste Abweichung einer Insel vom Median in Prozent; "ab" = halbe oder doppelte Dichte (WL checks)
+        const float median = u.mass.dichteMedian;
+        const int spanne = median > 0.0F ? static_cast<int>(std::lround(std::max(u.mass.dichteMax / median - 1.0F, 1.0F - u.mass.dichteMin / median) * 100.0F)) : 0;
+        char hinweis[400];
+        std::snprintf(hinweis, sizeof hinweis, tr(Str::A7DichteHint), static_cast<double>(u.mass.dichteMin), static_cast<double>(median), static_cast<double>(u.mass.dichteMax));
+        char z[160];
+        if (b.dichte.empty()) {
+            std::snprintf(z, sizeof z, tr(Str::A7Gleich), spanne);
+        } else {
+            const int n = static_cast<int>(b.dichte.size());
+            char ab[96];
+            std::snprintf(ab, sizeof ab, trN(Str::A7InselnAb, n), n);
+            std::snprintf(z, sizeof z, "%s (\xc2\xb1 %d %%)", ab, spanne);
+        }
+        werte.push_back({tr(Str::A7Dichte), z, b.dichte.empty() ? ui::Ton::Gut : ui::Ton::Warnung, hinweis});
+    }
+    ui::wertTabelle(werte.data(), static_cast<int>(werte.size()));
+    const std::string mehr = titel(Str::A7Mehr, "uvmehrpruef");
+    if (ui::mehrBeginn(mehr.c_str())) {
+        char dichte[96];
+        std::snprintf(dichte, sizeof dichte, "%.1f / %.1f / %.1f", static_cast<double>(u.mass.dichteMin), static_cast<double>(u.mass.dichteMedian), static_cast<double>(u.mass.dichteMax));
+        ui::wertTabelle({{tr(Str::A7Inseln), std::to_string(u.inseln.zahl), ui::Ton::Normal, {}},
+                         {tr(Str::A7Stapel), std::to_string(b.stapel), ui::Ton::Normal, {}},
+                         {tr(Str::A7Gekippt), gekippt == 0 ? std::string(tr(Str::A7Keine)) : inseln(gekippt), gekippt == 0 ? ui::Ton::Normal : ui::Ton::Warnung, tr(Str::A7GekipptHint)},
+                         {tr(Str::A7Ringe), std::to_string(b.ringe.size()), ui::Ton::Normal, tr(Str::A7RingeHint)},
+                         {tr(Str::A7WinkelFehler), zahl("%.2f\xc2\xb0", static_cast<double>(u.mass.winkelGrad)), ui::Ton::Normal, tr(Str::UvMassHint)},
+                         {tr(Str::A7Konform), zahl("%.3f", static_cast<double>(u.mass.konform)), ui::Ton::Normal, tr(Str::UvMassHint)},
+                         {tr(Str::A7FlaecheAbw), zahl("%.3f", static_cast<double>(u.mass.flaeche)), ui::Ton::Normal, tr(Str::UvMassHint)},
+                         {tr(Str::A7DichteWerte), dichte, ui::Ton::Normal, tr(Str::UvMassHint)}});
+        ui::mehrEnde();
+    }
+    ui::rolloutEnde();
+}
+
+}  // namespace
+
+void drawModellUvBereich() {
     modellUvNetzAktualisieren();
     const std::vector<Gruppe> g = gruppen();
     const int gi = gruppeJetzt(g);
-    ImGui::PushTextWrapPos(0.0F);
-    if (ImGui::CollapsingHeader(tr(blender ? Str::UvRolloutBlender : Str::UvRolloutMax), ImGuiTreeNodeFlags_DefaultOpen)) {
-        // die Textur (Gruppe): welche Flaechen gerade bearbeitet werden
-        ImGui::TextDisabled("%s", tr(Str::UvBild));
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(-1.0F);
-        const std::string jetzt = gi >= 0 ? (g[uz(gi)].shader.empty() ? std::string("-") : fileName(g[uz(gi)].shader)) : std::string("-");
-        if (ImGui::BeginCombo("##uvgruppe", jetzt.c_str())) {
-            if (ImGui::Selectable(tr(Str::UvBildAuswahl), u.gruppe < 0)) { u.gruppe = -1; }
-            for (std::size_t i = 0; i < g.size(); ++i) {
-                std::string n = fileName(g[i].shader.empty() ? std::string("-") : g[i].shader) + " (";
-                for (std::size_t k = 0; k < g[i].teile.size(); ++k) { n += (k > 0 ? ", " : "") + t.dok.inhalt().teile[uz(g[i].teile[k])].name; }
-                n += ")##" + std::to_string(i);
-                if (ImGui::Selectable(n.c_str(), u.gruppe == static_cast<int>(i))) { u.gruppe = static_cast<int>(i); }
-            }
-            ImGui::EndCombo();
-        }
-        ImGui::SetItemTooltip("%s", tr(Str::UvBildHint));
-        if (gi >= 0) { ImGui::TextDisabled(tr(Str::UvBildInfo), static_cast<int>(g[uz(gi)].teile.size()), g[uz(gi)].dreiecke, t.lodJetzt + 1); }
-        knopf(Str::UvEditorZeigen);
-        // Ebene
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{2.0F, ImGui::GetStyle().ItemSpacing.y});
-        for (const Str s : {Str::UvEbeneEcke, Str::UvEbeneKante, Str::UvEbeneFlaeche, Str::UvEbeneInsel}) {
-            if (s != Str::UvEbeneEcke) { ImGui::SameLine(); }
-            knopf(s);
-        }
-        ImGui::PopStyleVar();
-        ImGui::TextDisabled("%s", tr(Str::UvGrSchnell));
-        knopf(Str::UvSchnellFigur);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvSchnellRequisit);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvSchnellHart);
-    }
-    if (ImGui::CollapsingHeader(tr(Str::UvGrNaehte), ImGuiTreeNodeFlags_DefaultOpen)) {
-        knopf(Str::UvNahtMarkieren);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvNahtLoeschen);
-        knopf(Str::UvNaehteSkelett);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvNaehteForm);
-        knopf(Str::UvNaehteWinkel);
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(fs * 5.0F);
-        ImGui::SliderFloat("##uvwinkel", &u.winkel, 5.0F, 120.0F, "%.0f\xc2\xb0");
-        ImGui::SetItemTooltip("%s", tr(Str::UvNaehteWinkelHint));
-        knopf(Str::UvRingSchneiden);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvSpiegeln);
-    }
-    if (ImGui::CollapsingHeader(tr(Str::UvGrAbwickeln), ImGuiTreeNodeFlags_DefaultOpen)) {
-        knopf(Str::UvAbwickeln);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvNeuLoesen);
-        static const Str kMethoden[2] = {Str::UvMethodeLscm, Str::UvMethodeDehnung};
-        ImGui::SetNextItemWidth(-1.0F);
-        if (ImGui::BeginCombo("##uvmethode", tr(kMethoden[uz(std::clamp(u.methode, 0, 1))]))) {
-            for (int i = 0; i < 2; ++i) {
-                if (ImGui::Selectable(tr(kMethoden[i]), u.methode == i)) { u.methode = i; }
-            }
-            ImGui::EndCombo();
-        }
-        ImGui::SetItemTooltip("%s", tr(Str::UvMethodeHint));
-        knopf(Str::UvProjEben);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvProjKasten);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvProjZylinder);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvProjKugel);
-        static const char* kAchsen[4] = {"X", "Y", "Z", nullptr};
-        ImGui::TextDisabled("%s", tr(Str::UvProjAchse));
-        for (int i = 0; i < 4; ++i) {
-            ImGui::SameLine(0.0F, 2.0F);
-            const bool an = u.projAchse == i;
-            if (an) { ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)); }
-            if (ImGui::SmallButton(i < 3 ? kAchsen[i] : tr(Str::UvProjPassend))) { u.projAchse = i; }
-            if (an) { ImGui::PopStyleColor(); }
-            ImGui::SetItemTooltip("%s", tr(Str::UvProjAchseHint));
-        }
-        knopf(Str::UvEntspannen);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvBegradigen);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvRechteck);
-        knopf(Str::UvPin);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvPinsLoesen);
-    }
-    if (ImGui::CollapsingHeader(tr(Str::UvGrAnordnen), ImGuiTreeNodeFlags_DefaultOpen)) {
-        knopf(Str::UvStapeln);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvDichte);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvAusrichten);
-        knopf(Str::UvSperren);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvPacken);
-        static const Str kUmfang[3] = {Str::UvPackAuto, Str::UvPackAuswahl, Str::UvPackAlles};
-        ImGui::SetNextItemWidth(fs * 8.0F);
-        if (ImGui::BeginCombo("##uvpackumfang", tr(kUmfang[uz(std::clamp(u.packUmfang, 0, 2))]))) {
-            for (int i = 0; i < 3; ++i) {
-                if (ImGui::Selectable(tr(kUmfang[i]), u.packUmfang == i)) { u.packUmfang = i; }
-            }
-            ImGui::EndCombo();
-        }
-        ImGui::SetItemTooltip("%s", tr(Str::UvPackUmfangHint));
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(fs * 4.0F);
-        ImGui::SliderInt("##uvabstand", &u.abstand, 0, 16, tr(Str::UvAbstandFmt));
-        ImGui::SetItemTooltip("%s", tr(Str::UvAbstandHint));
-        ImGui::Checkbox(tr(Str::UvDrehen), &u.drehen);
-        ImGui::SetItemTooltip("%s", tr(Str::UvDrehenHint));
-    }
-    if (ImGui::CollapsingHeader(tr(Str::UvGrPruefen), ImGuiTreeNodeFlags_DefaultOpen)) {
-        const w::UvBefunde& b = u.befunde;
-        const ImVec4 warn = ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram);
-        const auto zeile = [&](Str s, std::size_t n, bool problem) {
-            if (problem && n > 0) {
-                ImGui::TextColored(warn, tr(s), static_cast<int>(n));
-            } else {
-                ImGui::TextDisabled(tr(s), static_cast<int>(n));
-            }
-        };
-        ImGui::TextDisabled(tr(Str::UvInselnZahl), u.inseln.zahl, b.stapel);
-        zeile(Str::UvPrUeberlappt, b.ueberlappt.size(), true);
-        zeile(Str::UvPrGekippt, b.gekippt.size(), true);
-        zeile(Str::UvPrGedehnt, b.gedehnt.size(), true);
-        zeile(Str::UvPrRinge, b.ringe.size(), false);
-        zeile(Str::UvPrDichte, b.dichte.size(), false);
-        ImGui::TextDisabled(tr(Str::UvMass), static_cast<double>(u.mass.winkelGrad), static_cast<double>(u.mass.konform), static_cast<double>(u.mass.flaeche));
-        ImGui::SetItemTooltip("%s", tr(Str::UvMassHint));
-        ImGui::TextDisabled(tr(Str::UvMassDichte), static_cast<double>(u.mass.dichteMin), static_cast<double>(u.mass.dichteMedian), static_cast<double>(u.mass.dichteMax));
-        knopf(Str::UvDehnungZeigen);
-        ImGui::SameLine(0.0F, 2.0F);
-        knopf(Str::UvUeberlappZeigen);
-    }
-    if (!u.meldung.empty()) { ImGui::TextDisabled("%s", u.meldung.c_str()); }
-    ImGui::TextDisabled("%s", tr(blender ? Str::UvTastenBlender : Str::UvTastenMax));
-    ImGui::PopTextWrapPos();
+    rolloutAuswahl(g, gi);
+    rolloutNaehte();
+    rolloutAbwickeln();
+    rolloutAufraeumen();
+    rolloutPruefen();
+    // der Tipp am Ende des Felds (Entwurf) - nur im Reiter, den der Bereich vorgibt (dort stehen die Gruppen)
+    if (ui::feldReiterStandard()) { ui::tipp(tr(Str::A7TippSatz)); }
 }
 
 // --- Der UV-Editor ---------------------------------------------------------------------------------------------------
@@ -953,6 +1175,16 @@ bool imDreieck(w::V2 p, w::V2 a, w::V2 b, w::V2 c) {
     return !(neg && pos);
 }
 
+// Das Dreieck unter der Maus (das zuletzt gezeichnete liegt oben), -1 keins
+int dreieckUnter(const Bildschirm& s, ImVec2 maus) {
+    const w::UvNetz& n = uvz().netz;
+    const w::V2 p = s.nachUv(maus);
+    for (int d = n.dreiecke() - 1; d >= 0; --d) {
+        if (imDreieck(p, n.uv[uz(d * 3)], n.uv[uz(d * 3 + 1)], n.uv[uz(d * 3 + 2)])) { return d; }
+    }
+    return -1;
+}
+
 // Klick in den Editor: die getroffenen Halbkanten nach der Ebene (WF uv_pick: Ecke am naechsten, Kante am naechsten,
 // Dreieck unter der Maus, dessen Insel)
 std::vector<int> treffer(const Bildschirm& s, ImVec2 maus) {
@@ -993,11 +1225,7 @@ std::vector<int> treffer(const Bildschirm& s, ImVec2 maus) {
         }
         return aus;
     }
-    const w::V2 p = s.nachUv(maus);
-    int dreieck = -1;
-    for (int d = n.dreiecke() - 1; d >= 0 && dreieck < 0; --d) {
-        if (imDreieck(p, n.uv[uz(d * 3)], n.uv[uz(d * 3 + 1)], n.uv[uz(d * 3 + 2)])) { dreieck = d; }
-    }
+    const int dreieck = dreieckUnter(s, maus);
     if (dreieck < 0) { return aus; }
     if (u.ebene == 2) {
         for (int k = 0; k < 3; ++k) { aus.push_back(dreieck * 3 + k); }
@@ -1007,6 +1235,86 @@ std::vector<int> treffer(const Bildschirm& s, ImVec2 maus) {
         for (int k = 0; k < 3; ++k) { aus.push_back(d * 3 + k); }
     }
     return aus;
+}
+
+// AP7: Insel waehlen. Steht die Maus im Editor ueber einem Dreieck (Taste L wie Blender: uv.select_linked_pick mit extend),
+// kommt dessen Insel zur Auswahl dazu. Sonst (Knopf, Menue, Suche) wird die Auswahl auf ihre ganzen Inseln erweitert (Blender
+// uv.select_linked; 3ds Max: Element waehlen): die Inseln der ganz gewaehlten Dreiecke; gibt es keins, die der gewaehlten
+// Kanten, sonst der Ecken (so waechst die Auswahl nicht ueber eine markierte, noch nicht abgewickelte Naht in die Nachbarinsel).
+void inselWaehlen() {
+    ModellTab& t = mt();
+    ModellUv& u = uvz();
+    modellUvNetzAktualisieren();
+    const w::UvNetz& n = u.netz;
+    if (n.kanten() == 0) {
+        melden(tr(Str::UvKeineFlaeche));
+        return;
+    }
+    const w::UvAuswahl a = auswahlAus(n);
+    std::vector<int> kanten;
+    if (u.hover) {
+        Bildschirm s;
+        s.lo = ImVec2{u.leinwand[0], u.leinwand[1]};
+        s.groesse = ImVec2{u.leinwand[2], u.leinwand[3]};
+        s.massstab = std::min(s.groesse.x, s.groesse.y) * u.zoom;
+        if (const int unter = dreieckUnter(s, ImGui::GetIO().MousePos); unter >= 0) {
+            // wie Blender L: die Auswahl bleibt, die Insel unter der Maus kommt dazu
+            for (int h = 0; h < n.kanten(); ++h) {
+                if (a.ecke[uz(h)] != 0) { kanten.push_back(h); }
+            }
+            for (const int d : u.inseln.dreieckeVon(u.inseln.inselVonDreieck(unter))) {
+                for (int k = 0; k < 3; ++k) { kanten.push_back(d * 3 + k); }
+            }
+            t.auswahl.clear();
+            t.eckenWahl = eckenVonHalbkanten(n, kanten);
+            g_app->modelDirty = true;
+            return;
+        }
+    }
+    std::set<int> inseln;
+    for (int d = 0; d < n.dreiecke(); ++d) {
+        if (a.ecke[uz(d * 3)] != 0 && a.ecke[uz(d * 3 + 1)] != 0 && a.ecke[uz(d * 3 + 2)] != 0) { inseln.insert(u.inseln.inselVonDreieck(d)); }
+    }
+    if (inseln.empty()) {
+        for (int h = 0; h < n.kanten(); ++h) {
+            if (a.ecke[uz(h)] != 0 && a.ecke[uz(w::UvNetz::naechste(h))] != 0) { inseln.insert(u.inseln.inselVonDreieck(h / 3)); }
+        }
+    }
+    if (inseln.empty()) {
+        for (int h = 0; h < n.kanten(); ++h) {
+            if (a.ecke[uz(h)] != 0) { inseln.insert(u.inseln.inselVonDreieck(h / 3)); }
+        }
+    }
+    inseln.erase(-1);
+    if (inseln.empty()) {
+        melden(tr(Str::UvMNichtsGewaehlt));
+        return;
+    }
+    for (const int i : inseln) {
+        for (const int d : u.inseln.dreieckeVon(i)) {
+            for (int k = 0; k < 3; ++k) { kanten.push_back(d * 3 + k); }
+        }
+    }
+    t.auswahl.clear();
+    t.eckenWahl = eckenVonHalbkanten(n, kanten);
+    g_app->modelDirty = true;
+}
+
+// AP7: Alles waehlen - jede UV-Ecke der Flaechen dieser Textur (3ds Max Strg+A, Blender A)
+void allesWaehlen() {
+    ModellTab& t = mt();
+    ModellUv& u = uvz();
+    modellUvNetzAktualisieren();
+    const w::UvNetz& n = u.netz;
+    if (n.kanten() == 0) {
+        melden(tr(Str::UvKeineFlaeche));
+        return;
+    }
+    std::vector<int> kanten(uz(n.kanten()));
+    for (int h = 0; h < n.kanten(); ++h) { kanten[uz(h)] = h; }
+    t.auswahl.clear();
+    t.eckenWahl = eckenVonHalbkanten(n, kanten);
+    g_app->modelDirty = true;
 }
 
 std::vector<int> imRahmen(const Bildschirm& s, ImVec2 a, ImVec2 b) {
@@ -1270,6 +1578,7 @@ void drawModellUvEditor(ImVec2 groesse) {
         ++u.dreieckeGezeichnet;
     }
     // Kanten: Naht rot, Rand grau, innen weiss; gewaehlt orange
+    const float nahtDicke = modellUvNahtDicke();   // AP7: mit "Naehte dick" (Gruppe Pruefen) staerker
     for (int h = 0; h < n.kanten(); ++h) {
         const int g = n.gegen[uz(h)];
         const int nx = w::UvNetz::naechste(h);
@@ -1281,11 +1590,11 @@ void drawModellUvEditor(ImVec2 groesse) {
         if (g < 0) { c = IM_COL32(150, 150, 150, 200); }
         if (naht) {
             c = IM_COL32(230, 50, 40, 255);
-            dicke = 2.0F;
+            dicke = nahtDicke;
         }
         if (sel && u.ebene == 1) {
             c = IM_COL32(255, 160, 40, 255);
-            dicke = 2.0F;
+            dicke = std::max(dicke, 2.0F);
         }
         dl->AddLine(s.nachSchirm(n.uv[uz(h)]), s.nachSchirm(n.uv[uz(nx)]), c, dicke);
     }

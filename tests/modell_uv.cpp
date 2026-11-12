@@ -423,6 +423,35 @@ void testPruefen() {
     expect("mit Wiederholen (JKA ohne clampMap) kein Befund", pruefen(a, inselnBauen(a), po).aussen.empty());
 }
 
+// AP7: Ausnutzung der Textur - der Anteil der Texel der Kachel 0..1, den mindestens eine Insel bedeckt. Die Faelle sind so
+// gewaehlt, dass kein Texelmittelpunkt in die Naehe einer Dreieckskante faellt (Kanten bei Vielfachen von 3,2 Texeln,
+// Mittelpunkte bei x,5) ausser genau auf der Diagonalen der Quadrate mit u = v - dort rechnet das Raster beide Seiten zu 0
+// und zaehlt den Texel einmal. Deshalb gilt die Zahl genau.
+void testAusnutzung() {
+    std::printf("Ausnutzung\n");
+    PruefOptionen po;
+    po.aufloesung = 64;
+    // Gitter 4 x 4 mit UV = Ort * 0,05: die UV fuellen [0, 0,2] x [0, 0,2] = 12,8 x 12,8 Texel - 13 x 13 Mittelpunkte von 64 x 64
+    const UvNetz klein = netzVon(gitter(4));
+    const UvBefunde b = pruefen(klein, inselnBauen(klein), po);
+    expect("Gitter ueber 12,8 x 12,8 von 64 x 64 Texeln: Ausnutzung 169/4096 (" + z(b.ausnutzung) + ")", b.ausnutzung == 169.0F / 4096.0F);
+    // zwei Flaechen mit denselben UV uebereinander zaehlen einmal
+    Inhalt zwei = gitter(4);
+    zwei.teile.push_back(gitter(4, 20.0F).teile[0]);
+    zwei.teile[1].name = "zweite";
+    const UvNetz doppelt = netzVon(zwei);
+    const UvBefunde bd = pruefen(doppelt, inselnBauen(doppelt), po);
+    expect("zwei Inseln uebereinander zaehlen einmal: Ausnutzung 169/4096 (" + z(bd.ausnutzung) + ")", bd.ausnutzung == 169.0F / 4096.0F);
+    // ausserhalb der Kachel zaehlt nichts (das Raster der Pruefung ist die Kachel 0..1)
+    UvNetz aussen = klein;
+    for (V2& w : aussen.uv) { w.x += 2.0F; }
+    expect("UV ausserhalb der Kachel: Ausnutzung 0", pruefen(aussen, inselnBauen(aussen), po).ausnutzung == 0.0F);
+    // ein Quadrat aus zwei Dreiecken ueber die ganze Kachel
+    const UvNetz ganz = netzVon(inhaltAus({ecke(0.0F, 0.0F, 0.0F, 0.0F, 0.0F), ecke(1.0F, 0.0F, 0.0F, 1.0F, 0.0F), ecke(1.0F, 1.0F, 0.0F, 1.0F, 1.0F), ecke(0.0F, 1.0F, 0.0F, 0.0F, 1.0F)}, {0, 1, 2, 0, 2, 3}));
+    const UvBefunde bg = pruefen(ganz, inselnBauen(ganz), po);
+    expect("die ganze Kachel bedeckt: Ausnutzung 1 (" + z(bg.ausnutzung) + ")", bg.ausnutzung == 1.0F);
+}
+
 // --- JKA-Modell --------------------------------------------------------------------------------------------------
 
 std::vector<int> teileOhneTags(const Inhalt& in, int stufe) {
@@ -713,6 +742,7 @@ int main(int argc, char** argv) {
     testAnordnen();
     testNaehte();
     testPruefen();
+    testAusnutzung();
     if (argc > 1) { testJka(argv[1]); }
     testMd3Rundlauf();
     std::printf("%s (%d Fehler)\n", fails == 0 ? "ALLES OK" : "FEHLER", fails);
