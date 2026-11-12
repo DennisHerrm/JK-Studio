@@ -6028,6 +6028,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_ap7.inc"        // AP7: rechtes Feld des Bereichs UV nach dem Entwurf (modellblock, BHED_MODELL_NUR=ap7 / ap7foto)
 #include "selbsttest_ap6.inc"        // AP6: rechtes Feld im Bereich Modellieren nach dem Entwurf (modellblock, BHED_MODELL_NUR=ap6 / ap6foto / ap6hb)
 #include "selbsttest_ap8.inc"        // AP8: Bereich Weights nach dem Entwurf (modellblock, BHED_MODELL_NUR=ap8 / ap8foto; Handbuch BHED_HB_NUR=ap8)
+#include "selbsttest_ap10.inc"       // AP10: rechtes Feld im Bereich Animation nach dem Entwurf (modellblock, BHED_MODELL_NUR=ap10 / ap10foto)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
@@ -7044,6 +7045,7 @@ void selbsttest() {
                     for (Schritt& x : ap7::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP7 (Bereich UV)
                     for (Schritt& x : ap6::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP6 (Modellieren)
                     for (Schritt& x : ap8::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP8 (Bereich Weights)
+                    for (Schritt& x : ap10::schritte(nur)) { a.schritte.push_back(std::move(x)); }      // AP10 (Bereich Animation)
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

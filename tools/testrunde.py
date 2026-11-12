@@ -241,6 +241,8 @@ lauf("updateleiste2", "updateleiste2", 600, behalten="updateleiste", bereich="up
 # ap8: der Bereich Weights nach dem Entwurf (AP8; Bildlauf ap8foto nicht im Pool).
 for g in "kopfrot kopf raster nav mbv ap2 ap12 ap1 ap3 ap6 ap8".split():
     lauf("mb_" + g, "modellblock", 2400, MB + ["BHED_MODELL_NUR=" + g, "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
+# AP10: das rechte Feld im Bereich Animation nach dem Entwurf (nicht im Pool: der Bildlauf ap10foto)
+lauf("mb_ap10", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap10", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 lauf("uiform", "uiform", 3600, bereich="programm")
 # AP9: das rechte Feld des Bereichs Painting nach dem Entwurf (Gruppen Ziel, Werkzeuge, Pinsel, Ebenen, Fuer das Spiel; Tasten [ ]).
 # Nicht im Pool: der Bildlauf ap9foto.

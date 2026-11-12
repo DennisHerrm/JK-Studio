@@ -576,7 +576,7 @@ std::vector<Schritt> handbuchSchritte() {
         g_app->modelDirty = true;
     }));
     add(pause(0.5));
-    add(rig3::rollenZu(tr(Str::RtRollout), "mtrollouts"));
+    add(rig3::rollenZu(tr(Str::AzRUebertragen), "mtrollouts"));   // AP10: die Gruppe heisst wie im Entwurf (bis rc611 "Retargeting")
     add(tu("RT Handbuch: Maus in die Ansicht (kein Tooltip im Bild)", [] { setzeMaus(kv5::fokusPunkt()); }));
     add(pause(0.8));
     add(hilfe2::schrittFoto("h_rt_uebertragen"));

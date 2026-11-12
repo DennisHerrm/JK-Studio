@@ -2610,6 +2610,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_ap7.inc: AP7 rechtes Fe
 namespace ap8 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_ap8.inc: AP8 Bereich Weights, BHED_HB_NUR=ap8
 }  // namespace ap8
+namespace ap10 {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_ap10.inc: AP10 rechtes Feld im Bereich Animation, BHED_HB_NUR=ap10
+}  // namespace ap10
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2691,6 +2694,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap8") == 0) {
         return ap8::handbuchSchritte();   // AP8: der Bereich Weights wie 3ds Max und wie Blender, Spiegelmodus
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap10") == 0) {
+        return ap10::handbuchSchritte();   // AP10: das rechte Feld im Bereich Animation - die Gruppen des Entwurfs in beiden Bedienmodi
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste

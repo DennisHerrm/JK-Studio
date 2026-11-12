@@ -246,12 +246,24 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
         }
     }));
     add(pause(0.4));
-    add(rig3::rollenZu(tr(Str::MbIkRollout), "mtrollouts"));
+    // AP10: die Kopfzeile der Gruppe im rechten Feld (rig3::rollenZu nimmt die erste Beschriftung "IK/FK" im Programm - auch das
+    // gleichnamige Menue Animation > IK/FK)
+    add(tu("MB6: Gruppe IK/FK im rechten Feld ins Bild rollen", [] {
+        const Element* e = finde(tr(Str::MbIkRollout), "mtrollouts", 0, false);
+        for (ImGuiWindow* w : GImGui->Windows) {
+            if (e != nullptr && std::strstr(w->Name, "mtrollouts") != nullptr) {
+                ImGui::SetScrollY(w, std::clamp(w->Scroll.y + e->rect.Min.y - w->InnerRect.Min.y - ImGui::GetFontSize() * 2.0F, 0.0F, w->ScrollMax.y));
+            }
+        }
+    }));
     add(pause(0.4));
-    add(pruefe("MB6 Rollout IK/FK: geht mit dem Glied auf (wie das IK-Solver-Rollout von 3ds Max), mit IK aktiviert / IK/FK einrasten", [] {
-        diag::detail("Knopftest: MB6 Rollout - offen im Bild " + std::to_string(g_app->mtab.ikRolloutBild) + " (jetzt " + std::to_string(ImGui::GetFrameCount()) + "), " +
-                     tr(Str::MbIkAn) + " " + woIst(tr(Str::MbIkAn)));
-        return g_app->mtab.ikRolloutBild >= ImGui::GetFrameCount() - 2 && finde(tr(Str::MbIkAn), "", 0, false) != nullptr;
+    // AP10 (Entwurf A6): je Glied zeigt und wechselt ein Knopf den Zustand (bis rc611 der Haken "IK aktiviert"); "IK/FK einrasten"
+    // steht beim gewaehlten Glied
+    add(pruefe("MB6 Rollout IK/FK: geht mit dem Glied auf (wie das IK-Solver-Rollout von 3ds Max), mit dem Knopf IK/FK je Glied und IK/FK einrasten", [] {
+        const bool knopf = finde("FK##azik", "", 0, false) != nullptr || finde("IK##azik", "", 0, false) != nullptr;
+        diag::detail("Knopftest: MB6 Rollout - offen im Bild " + std::to_string(g_app->mtab.ikRolloutBild) + " (jetzt " + std::to_string(ImGui::GetFrameCount()) + "), Knopf IK/FK " +
+                     std::to_string(knopf ? 1 : 0) + " " + woIst("FK##azik") + ", " + tr(Str::MbIkKnopfEinrasten) + " " + woIst(tr(Str::MbIkKnopfEinrasten)));
+        return g_app->mtab.ikRolloutBild >= ImGui::GetFrameCount() - 2 && knopf && finde(tr(Str::MbIkKnopfEinrasten), "", 0, false) != nullptr;
     }));
     // Rechtsklick am Griff im Explorer: die IK/FK-Aktionen
     add(rig3::rollenZu(std::string(tr(Str::MbRgHand)) + " " + tr(Str::MbRgR), "mtbaum"));
