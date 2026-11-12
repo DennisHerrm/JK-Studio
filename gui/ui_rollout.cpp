@@ -866,7 +866,10 @@ bool werkzeugKnopf(const char* text, const KnopfOpt& o) {
     const float tastePol = std::floor(fs * 0.28F);
     const float tasteB = hatTaste ? std::ceil(tasteG.x + tastePol * 2.0F) : 0.0F;
     float textB = p.breite - randX * 2.0F - (hatIcon ? iconG + luecke : 0.0F) - (hatTaste ? tasteB + luecke : 0.0F);
-    if (hatTaste && textB < std::min(cjkTextSize(text, ende).x, fs * 4.0F) && !(o.tasteHalten && textB >= breitestesWort(text, ende))) {
+    // tasteHalten: die Taste bleibt genau dann, wenn jedes Wort neben ihr Platz hat - sonst braeche ein langes Wort mitten im Wort um
+    // (AP6, deutsch "Zusammenfuehren" im Blender-Feld: die alte Bedingung hielt die Taste, weil dem Text 4 Zeichenhoehen blieben)
+    const bool zuEng = o.tasteHalten ? textB < breitestesWort(text, ende) : textB < std::min(cjkTextSize(text, ende).x, fs * 4.0F);
+    if (hatTaste && zuEng) {
         hatTaste = false;
         textB = p.breite - randX * 2.0F - (hatIcon ? iconG + luecke : 0.0F);
     }
