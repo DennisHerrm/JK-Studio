@@ -37,7 +37,10 @@ namespace bhed::render::d3d12::abgeber {
 
 std::atomic<std::uint64_t> g_lebend{0};
 long long g_teilAbgabe = 0;
+int g_teilAbgabenMax = 4;
 std::uint32_t g_naechsteKennung = 0;
+std::uint32_t g_generation = 0;
+double g_msJeTakt = 0.0;
 
 namespace {
 
@@ -101,6 +104,11 @@ std::uint64_t g_pruefZeit = 0;      // letzte Pruefung (auslagernPruefen)
 std::uint64_t g_ausgelagertMal = 0;
 std::uint64_t g_eingelagertMal = 0;
 double g_eingelagertMs = 0.0;   // Summe der Zeit in MakeResident
+bool g_srvKopie = true;         // vom Shader gelesene dynamische Puffer in den Grafikspeicher (BHED_D3D12_SRVKOPIE=0: nicht)
+Zeiten g_zeitenBild;            // seit dem Anfang des Bildes
+long long g_bildTakt = 0;       // QueryPerformanceCounter am Anfang des Bildes
+double g_langBildMs = 100.0;    // ab dieser Dauer schreibt ein Bild seine Posten ins Protokoll (BHED_D3D12_LANGBILD)
+rahmen::Statistik g_statistikBild;   // Stand des Rahmens am Anfang des Bildes
 
 // Zustandsobjekte nach Beschreibung
 std::map<std::string, Mischung*> g_mischungen;
@@ -683,6 +691,14 @@ HRESULT fehlt(const char* methode) {
     return E_NOTIMPL;
 }
 
+void altesObjekt(const char* wo) {
+    ++g_zaehler.fehlt;
+    const std::string k = std::string("alt:") + wo;
+    if (g_fehltGemeldet.insert(k).second) {
+        diag::error(std::string("D3D12-Abgeber: ein Objekt des frueheren Grafikgeraets wurde benutzt (") + wo + ") - uebergangen");
+    }
+}
+
 ID3D11Device* geraetZeiger() { return g_geraet; }
 Kontext* kontextZeiger() { return g_kontext; }
 ID3D12RootSignature* wurzelSignatur() { return g_wurzel; }
@@ -780,6 +796,9 @@ void einlagern(Textur* t) {
     QueryPerformanceFrequency(&takt);
     const double ms = takt.QuadPart > 0 ? static_cast<double>(nachher.QuadPart - vorher.QuadPart) * 1000.0 / static_cast<double>(takt.QuadPart) : 0.0;
     g_eingelagertMs += ms;
+    g_zeitenBild.einlagernMs += ms;
+    ++g_zeitenBild.einlagern;
+    g_zeitenBild.einlagernBytes += t->bytes;
     if (ms >= 2.0) {   // das Zurueckholen haelt den Hauptfaden an - was laenger dauert, steht im Protokoll
         char z[160];
         std::snprintf(z, sizeof(z), "D3D12-Abgeber: Textur %ux%u zurueckgeholt in %.1f ms", t->art.Width, t->art.Height, ms);
@@ -860,8 +879,10 @@ void pufferRuhe(ID3D12GraphicsCommandList* cl, Puffer* p) {
     // Die Kopie steht in COMMON (seit dem letzten Map ist sie in keiner Liste gebraucht worden, und jede Ausfuehrung liegt
     // mindestens kRuheBilder Bilder zurueck): das Kopieren stellt sie von selbst auf COPY_DEST, danach ausdruecklich lesbar.
     if (protokoll::g_an) { protokoll::eintrag(cl, "Ruhender Puffer in den Grafikspeicher: " + std::to_string(p->art.ByteWidth) + " Bytes"); }
+    if (p->ruheSerie == rahmen::ausfuehrung()) { barriere(cl, p->ruhe, p->lesen, D3D12_RESOURCE_STATE_COPY_DEST); }
     cl->CopyBufferRegion(p->ruhe, 0, p->block.res, p->block.versatz, p->art.ByteWidth);
     barriere(cl, p->ruhe, D3D12_RESOURCE_STATE_COPY_DEST, p->lesen);
+    p->ruheSerie = rahmen::ausfuehrung();
     p->va = p->ruhe->GetGPUVirtualAddress();
     p->ruheGilt = true;
     ++g_zaehler.ruhend;
@@ -872,6 +893,40 @@ bool pufferGeweckt(Puffer* p) {
     if (!p->ruheGilt) { return false; }
     p->ruheGilt = false;
     p->va = p->block.va;
+    return true;
+}
+
+bool pufferInGrafik(ID3D12GraphicsCommandList* cl, Puffer* p) {
+    if (!g_srvKopie || (p->art.BindFlags & D3D11_BIND_SHADER_RESOURCE) == 0U) { return false; }
+    if (p->ruheGilt) { return true; }   // seit der letzten Kopie nicht beschrieben
+    if (p->ruhe == nullptr) {
+        D3D12_HEAP_PROPERTIES hp{};
+        hp.Type = D3D12_HEAP_TYPE_DEFAULT;
+        D3D12_RESOURCE_DESC rd{};
+        rd.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        rd.Width = p->art.ByteWidth;
+        rd.Height = 1;
+        rd.DepthOrArraySize = 1;
+        rd.MipLevels = 1;
+        rd.SampleDesc.Count = 1;
+        rd.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+        if (FAILED(rahmen::geraet()->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &rd, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&p->ruhe)))) {
+            p->ruhe = nullptr;
+            return false;
+        }
+        ++g_zaehler.angelegt;
+    }
+    // Die Kopie ist EINE Ressource fuer alle Fassungen des Puffers: die Befehle laufen in ihrer Reihenfolge, fruehere
+    // Zeichenbefehle haben sie gelesen, bevor dieses Kopieren sie ueberschreibt. In einer neuen Ausfuehrung steht sie in COMMON
+    // (das Kopieren stellt sie von selbst auf COPY_DEST); wurde sie in dieser schon lesbar gestellt, ausdruecklich zurueck.
+    const std::uint64_t jetzt = rahmen::ausfuehrung();
+    if (p->ruheSerie == jetzt) { barriere(cl, p->ruhe, p->lesen, D3D12_RESOURCE_STATE_COPY_DEST); }
+    if (protokoll::g_an) { protokoll::eintrag(cl, "Vom Shader gelesener Puffer in den Grafikspeicher: " + std::to_string(p->art.ByteWidth) + " Bytes"); }
+    cl->CopyBufferRegion(p->ruhe, 0, p->block.res, p->block.versatz, p->art.ByteWidth);
+    barriere(cl, p->ruhe, D3D12_RESOURCE_STATE_COPY_DEST, p->lesen);
+    p->ruheSerie = jetzt;
+    p->ruheGilt = true;
+    ++g_zaehler.inGrafik;
     return true;
 }
 
@@ -891,12 +946,24 @@ void sichtAufPufferErneuern(Sicht* s) {
     D3D12_SHADER_RESOURCE_VIEW_DESC d = s->art12;
     ID3D12Resource* r = p->res;
     if (p->dynamisch) {
-        r = p->block.res;
-        d.Buffer.FirstElement += eb != 0U ? p->block.versatz / eb : 0U;
-        if (s->fassung != p->fassung || s->index == rahmen::srvKeiner()) {
+        // Liegt der Inhalt als Kopie im Grafikspeicher (pufferInGrafik), zeigt der Deskriptor dorthin und bleibt ueber alle
+        // Fassungen derselbe; sonst auf den Block der Fassung (ein neuer Platz: fruehere Zeichenbefehle lesen noch den alten).
+        const bool kopie = p->ruheGilt && p->ruhe != nullptr && (p->art.BindFlags & D3D11_BIND_SHADER_RESOURCE) != 0U;
+        if (kopie && s->aufKopie && s->index != rahmen::srvKeiner()) {
+            s->fassung = p->fassung;
+            return;
+        }
+        if (kopie) {
+            r = p->ruhe;
+        } else {
+            r = p->block.res;
+            d.Buffer.FirstElement += eb != 0U ? p->block.versatz / eb : 0U;
+        }
+        if (s->fassung != p->fassung || s->index == rahmen::srvKeiner() || kopie != s->aufKopie) {
             if (s->index != rahmen::srvKeiner()) { rahmen::srvSpaeterFrei(s->index); }
             s->index = rahmen::srvNehmen();
         }
+        s->aufKopie = kopie;
     }
     s->fassung = p->fassung;
     if (s->index != rahmen::srvKeiner() && r != nullptr) { rahmen::geraet()->CreateShaderResourceView(r, &d, rahmen::srvCpu(s->index)); }
@@ -920,6 +987,17 @@ bool markeLesen(int platz, std::uint64_t& wert) {
 
 Puffer::~Puffer() {
     g_pufferLebend.erase(this);
+    if (!g_aktiv || generation != g_generation) {
+        // Ein Puffer eines frueheren Geraets (oder nach dem Abbau): nichts davon in Bloecke und Vorrat. Kleine Bloecke liegen in
+        // Seiten, die abbauen() freigegeben hat; ein grosser Block und die Ressourcen gehoeren dem Puffer allein.
+        if (dynamisch) {
+            if (block.klasse >= kKlassen && block.res != nullptr) { block.res->Release(); }
+            if (ruhe != nullptr) { ruhe->Release(); }
+        } else if (res != nullptr) {
+            res->Release();
+        }
+        return;
+    }
     if (dynamisch) {
         blockSpaeterFrei(block);
         if (ruhe != nullptr) { rahmen::spaeterFrei(ruhe); }
@@ -936,6 +1014,13 @@ Puffer::~Puffer() {
 
 Textur::~Textur() {
     g_texturenLebend.erase(this);
+    if (!g_aktiv || generation != g_generation) {   // frueheres Geraet: keine Liste des jetzigen nennt sie
+        if (res != nullptr) { res->Release(); }
+        for (ID3D12Heap* h : schichtHeap) {
+            if (h != nullptr) { h->Release(); }
+        }
+        return;
+    }
     if (res != nullptr) { rahmen::spaeterFrei(res); }
     for (ID3D12Heap* h : schichtHeap) {
         if (h != nullptr) { rahmen::spaeterFrei(h); }   // nach der Ressource: die Liste gibt in dieser Reihenfolge frei
@@ -976,8 +1061,9 @@ void schichtBelegen(Textur* t, UINT erste, UINT anzahl) {
 
 Sicht::~Sicht() {
     sichtMelden(this, false);
-    if (g_aktiv && index != rahmen::srvKeiner()) { rahmen::srvSpaeterFrei(index); }
-    if (g_aktiv && indexOben != ~0U && indexOben != index) { rahmen::srvSpaeterFrei(indexOben); }
+    const bool eigen = g_aktiv && generation == g_generation;   // ein Platz des frueheren Stapels gehoert im jetzigen jemand anderem
+    if (eigen && index != rahmen::srvKeiner()) { rahmen::srvSpaeterFrei(index); }
+    if (eigen && indexOben != ~0U && indexOben != index) { rahmen::srvSpaeterFrei(indexOben); }
     if (textur != nullptr) { textur->Release(); }
     if (puffer != nullptr) { puffer->Release(); }
 }
@@ -992,7 +1078,7 @@ void STDMETHODCALLTYPE Sicht::GetResource(ID3D11Resource** r) {
 }
 
 ZielSicht::~ZielSicht() {
-    if (g_aktiv && index < kZielSichten) { g_zielFrei.push_back(index); }
+    if (g_aktiv && generation == g_generation && index < kZielSichten) { g_zielFrei.push_back(index); }
     if (textur != nullptr) { textur->Release(); }
 }
 
@@ -1002,7 +1088,7 @@ void STDMETHODCALLTYPE ZielSicht::GetResource(ID3D11Resource** r) {
 }
 
 TiefeSicht::~TiefeSicht() {
-    if (g_aktiv && index < kTiefeSichten) { g_tiefeFrei.push_back(index); }
+    if (g_aktiv && generation == g_generation && index < kTiefeSichten) { g_tiefeFrei.push_back(index); }
     if (textur != nullptr) { textur->Release(); }
 }
 
@@ -1072,6 +1158,8 @@ HRESULT STDMETHODCALLTYPE Geraet::CreateBuffer(const D3D11_BUFFER_DESC* pDesc, c
         p->Release();
         return fehlt("CreateBuffer(D3D11_USAGE_STAGING)");
     }
+    const Stoppuhr uhr(g_zeitenBild.pufferMs);
+    ++g_zeitenBild.puffer;
     // aus dem Vorrat (dieselbe gerundete Groesse), sonst neu - mit der gerundeten Groesse, damit er spaeter wieder passt
     const std::uint64_t gross = (static_cast<std::uint64_t>(pDesc->ByteWidth) + kGrossSchritt - 1U) / kGrossSchritt * kGrossSchritt;
     for (std::size_t i = 0; i < g_vorrat.size(); ++i) {
@@ -1128,6 +1216,8 @@ HRESULT STDMETHODCALLTYPE Geraet::CreateTexture2D(const D3D11_TEXTURE2D_DESC* pD
     if (pDesc == nullptr || pDesc->Width == 0U || pDesc->Height == 0U || pDesc->ArraySize == 0U) { return E_INVALIDARG; }
     if (ppTexture2D == nullptr) { return S_FALSE; }
     *ppTexture2D = nullptr;
+    const Stoppuhr uhr(g_zeitenBild.texturMs);
+    ++g_zeitenBild.textur;
     auto* t = new Textur;
     t->art = *pDesc;
     if (t->art.MipLevels == 0U) {   // die ganze Pyramide
@@ -1231,6 +1321,7 @@ HRESULT STDMETHODCALLTYPE Geraet::CreateTexture2D(const D3D11_TEXTURE2D_DESC* pD
     t->bytes = rahmen::geraet()->GetResourceAllocationInfo(0, 1, &rd).SizeInBytes;
     t->gebrauchtBild = g_gebrauchBild;
     if (pInitialData != nullptr) {
+        g_zeitenBild.texturBytes += t->bytes;
         if (!texturFuellen(t, pInitialData)) {
             t->Release();
             return E_OUTOFMEMORY;
@@ -1254,6 +1345,10 @@ HRESULT STDMETHODCALLTYPE Geraet::CreateShaderResourceView(ID3D11Resource* pReso
     auto* s = new Sicht;
     s->index = rahmen::srvKeiner();
     if (dim == D3D11_RESOURCE_DIMENSION_BUFFER) {
+        if (jetzig(static_cast<Puffer*>(static_cast<ID3D11Buffer*>(pResource)), "CreateShaderResourceView") == nullptr) {
+            s->Release();
+            return E_INVALIDARG;
+        }
         s->puffer = static_cast<Puffer*>(static_cast<ID3D11Buffer*>(pResource));
         s->puffer->AddRef();
         if (pDesc == nullptr || pDesc->ViewDimension != D3D11_SRV_DIMENSION_BUFFER || !sicht12(*pDesc, s->art12)) {
@@ -1266,6 +1361,10 @@ HRESULT STDMETHODCALLTYPE Geraet::CreateShaderResourceView(ID3D11Resource* pReso
         sichtAufPufferErneuern(s);
     } else {
         Textur* t = static_cast<Textur*>(static_cast<ID3D11Texture2D*>(pResource));
+        if (jetzig(t, "CreateShaderResourceView") == nullptr) {
+            s->Release();
+            return E_INVALIDARG;
+        }
         s->textur = t;
         t->AddRef();
         if (pDesc != nullptr) {
@@ -1310,6 +1409,7 @@ HRESULT STDMETHODCALLTYPE Geraet::CreateRenderTargetView(ID3D11Resource* pResour
     if (ppRTView == nullptr) { return S_FALSE; }
     *ppRTView = nullptr;
     Textur* t = static_cast<Textur*>(static_cast<ID3D11Texture2D*>(pResource));
+    if (jetzig(t, "CreateRenderTargetView") == nullptr) { return E_INVALIDARG; }
     auto* s = new ZielSicht;
     s->textur = t;
     t->AddRef();
@@ -1359,6 +1459,7 @@ HRESULT STDMETHODCALLTYPE Geraet::CreateDepthStencilView(ID3D11Resource* pResour
     if (ppDepthStencilView == nullptr) { return S_FALSE; }
     *ppDepthStencilView = nullptr;
     Textur* t = static_cast<Textur*>(static_cast<ID3D11Texture2D*>(pResource));
+    if (jetzig(t, "CreateDepthStencilView") == nullptr) { return E_INVALIDARG; }
     auto* s = new TiefeSicht;
     s->textur = t;
     t->AddRef();
@@ -1431,6 +1532,7 @@ HRESULT shaderAnlegen(const void* code, SIZE_T laenge, S** aus) {
     if (aus == nullptr) { return S_FALSE; }
     auto* s = new Shader<S>;
     s->code.assign(static_cast<const unsigned char*>(code), static_cast<const unsigned char*>(code) + laenge);
+    mische(s->pruef, s->code.data(), s->code.size());
     *aus = s;
     return S_OK;
 }
@@ -1584,6 +1686,7 @@ HRESULT STDMETHODCALLTYPE Geraet::CheckCounter(const D3D11_COUNTER_DESC *, D3D11
 bool anlegen() {
     ID3D12Device* dev = rahmen::geraet();
     if (dev == nullptr) { return false; }
+    ++g_generation;   // was die Zeichenschichten vom frueheren Geraet noch halten, gehoert nicht zu diesem Abgeber
     g_faden = GetCurrentThreadId();
     g_wurzel = wurzelAnlegen();
     g_zielStapel = stapel(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, kZielSichten + 1U, false);   // der letzte: hilfsZiel
@@ -1610,7 +1713,22 @@ bool anlegen() {
         LARGE_INTEGER f{};
         QueryPerformanceFrequency(&f);
         g_teilAbgabe = mikro * f.QuadPart / 1000000LL;
+        if (const char* v = std::getenv("BHED_D3D12_TEILABGABEN"); v != nullptr && v[0] != '\0') { g_teilAbgabenMax = std::atoi(v); }
     }
+    {
+        LARGE_INTEGER f{};
+        QueryPerformanceFrequency(&f);
+        g_msJeTakt = f.QuadPart > 0 ? 1000.0 / static_cast<double>(f.QuadPart) : 0.0;
+        LARGE_INTEGER jetzt{};
+        QueryPerformanceCounter(&jetzt);
+        g_bildTakt = jetzt.QuadPart;
+    }
+    g_zeitenBild = Zeiten{};
+    g_statistikBild = rahmen::statistik();
+    g_srvKopie = true;
+    if (const char* v = std::getenv("BHED_D3D12_SRVKOPIE"); v != nullptr && v[0] == '0') { g_srvKopie = false; }   // zum Vergleichsmessen
+    g_langBildMs = 100.0;
+    if (const char* v = std::getenv("BHED_D3D12_LANGBILD"); v != nullptr && v[0] != 0) { g_langBildMs = std::strtod(v, nullptr); }
     g_auslagern = 2;
     if (const char* v = std::getenv("BHED_D3D12_AUSLAGERN"); v != nullptr && v[0] != '\0') { g_auslagern = v[0] == '0' ? 0 : v[0] == 'b' ? 1 : 2; }
     g_budgetVorgabe = 0;
@@ -1861,7 +1979,11 @@ void auslagernPruefen() {
         }
         bytes += anwaerter[n].bytes;
     }
-    if (weg.empty() || FAILED(rahmen::geraet()->Evict(static_cast<UINT>(weg.size()), weg.data()))) { return; }
+    if (weg.empty()) { return; }
+    {
+        const Stoppuhr uhr(g_zeitenBild.auslagernMs);
+        if (FAILED(rahmen::geraet()->Evict(static_cast<UINT>(weg.size()), weg.data()))) { return; }
+    }
     for (std::size_t i = 0; i < n; ++i) { anwaerter[i].t->ausgelagert = true; }
     g_ausgelagertMal += n;
     char z[200];
@@ -1872,7 +1994,40 @@ void auslagernPruefen() {
 }
 }  // namespace
 
+namespace {
+// Ein Bild ueber der Grenze schreibt auf, was der Abgeber an Wartezeit hineingebracht hat.
+void langesBildMelden() {
+    LARGE_INTEGER jetzt{};
+    QueryPerformanceCounter(&jetzt);
+    const double ms = static_cast<double>(jetzt.QuadPart - g_bildTakt) * g_msJeTakt;
+    g_bildTakt = jetzt.QuadPart;
+    const rahmen::Statistik st = rahmen::statistik();
+    const Zeiten& z = g_zeitenBild;
+    g_zaehler.psoMikro += static_cast<std::uint64_t>(z.psoMs * 1000.0);
+    g_zaehler.psoAusSpeicher += z.psoAusSpeicher;
+    if (ms >= g_langBildMs && g_langBildMs > 0.0) {
+        ++g_zaehler.langeBilder;
+        char t[560];
+        std::snprintf(t, sizeof(t),
+                      "D3D12: langes Bild %.0f ms - im Abgeber: Pipeline-Zustaende %u (%u aus dem Zwischenspeicher) %.1f ms, Texturen %u / %.1f MB %.1f ms, "
+                      "Puffer %u %.1f ms, zurueckgeholt %u / %.1f MB %.1f ms, ausgelagert %.1f ms, auf die Grafikkarte gewartet %llu-mal %.1f ms, "
+                      "%llu Hochladepuffer angelegt, %llu-mal abgeschickt",
+                      ms, z.pso, z.psoAusSpeicher, z.psoMs, z.textur, static_cast<double>(z.texturBytes) / 1048576.0, z.texturMs, z.puffer, z.pufferMs,
+                      z.einlagern, static_cast<double>(z.einlagernBytes) / 1048576.0, z.einlagernMs, z.auslagernMs,
+                      static_cast<unsigned long long>(st.gewartet - g_statistikBild.gewartet), st.warteMs - g_statistikBild.warteMs,
+                      static_cast<unsigned long long>(st.hochladePuffer - g_statistikBild.hochladePuffer),
+                      static_cast<unsigned long long>(st.abgeschickt - g_statistikBild.abgeschickt));
+        diag::detail(t);
+    }
+    g_statistikBild = st;
+    g_zeitenBild = Zeiten{};
+}
+}  // namespace
+
+Zeiten& zeitenBild() { return g_zeitenBild; }
+
 void bildAnfang() {
+    langesBildMelden();
     bloeckeEinsammeln();
     ++g_bild;
     g_gebrauchBild = static_cast<std::uint32_t>(g_bild);
@@ -1943,7 +2098,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE zielFuerOberflaeche(ID3D11Resource* textur, ID3D12Gr
     D3D12_CPU_DESCRIPTOR_HANDLE h{};
     if (textur == nullptr || !g_aktiv) { return h; }
     Textur* t = static_cast<Textur*>(static_cast<ID3D11Texture2D*>(textur));
-    if (t->lesepuffer || (t->art.BindFlags & D3D11_BIND_RENDER_TARGET) == 0U || t->art.Format != DXGI_FORMAT_R8G8B8A8_UNORM || t->art.SampleDesc.Count != 1U) {
+    if (t->generation != g_generation || t->lesepuffer || (t->art.BindFlags & D3D11_BIND_RENDER_TARGET) == 0U || t->art.Format != DXGI_FORMAT_R8G8B8A8_UNORM || t->art.SampleDesc.Count != 1U) {
         return h;
     }
     h = hilfsZiel();
@@ -1960,6 +2115,7 @@ ID3D12Resource* ressource(ID3D11Resource* r, std::uint64_t* versatz) {
     r->GetType(&dim);
     if (dim == D3D11_RESOURCE_DIMENSION_BUFFER) {
         const Puffer* p = static_cast<Puffer*>(static_cast<ID3D11Buffer*>(r));
+        if (p->generation != g_generation) { return nullptr; }   // vom frueheren Geraet
         if (p->dynamisch) {
             if (versatz != nullptr) { *versatz = p->block.versatz; }
             return p->block.res;
@@ -1967,6 +2123,7 @@ ID3D12Resource* ressource(ID3D11Resource* r, std::uint64_t* versatz) {
         return p->res;
     }
     Textur* t = static_cast<Textur*>(static_cast<ID3D11Texture2D*>(r));
+    if (t->generation != g_generation) { return nullptr; }   // vom frueheren Geraet
     gebraucht(t);   // wer die Ressource selbst in eine Liste bringt, fragt in jedem Bild neu (Auslagern)
     return t->res;
 }
@@ -2078,6 +2235,11 @@ std::vector<std::string> speicherBericht(std::uint64_t& summe) {
         aus.emplace_back(z);
     }
     return aus;
+}
+
+std::vector<std::string> speicherZeilen() {
+    std::uint64_t summe = 0;
+    return g_aktiv ? speicherBericht(summe) : std::vector<std::string>();
 }
 
 Zaehler zaehler() {

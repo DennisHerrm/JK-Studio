@@ -17,6 +17,8 @@
 #define BHED_GUI_ABGEBER12_H
 
 #include <cstdint>
+#include <string>
+#include <vector>
 
 #include <d3d11_1.h>
 #include <d3d12.h>
@@ -125,8 +127,14 @@ struct Zaehler {
     std::uint64_t ruhend = 0;         // dynamische Puffer, deren ruhender Inhalt in den Grafikspeicher kopiert wurde
     std::uint64_t ausVorrat = 0;      // CreateBuffer aus dem Vorrat freigegebener Puffer bedient (ohne neue Ressource)
     std::uint64_t teilAbgaben = 0;    // Teilabgaben mitten im Bild (BHED_D3D12_TEILABGABE)
+    std::uint64_t psoAusSpeicher = 0; // davon aus dem Zwischenspeicher auf der Platte geholt (ID3D12PipelineLibrary)
+    std::uint64_t psoMikro = 0;       // Zeit fuer alle Pipeline-Zustaende, Mikrosekunden
+    std::uint64_t inGrafik = 0;       // Kopien vom Shader gelesener dynamischer Puffer in den Grafikspeicher
+    std::uint64_t langeBilder = 0;    // Bilder ueber der Grenze (BHED_D3D12_LANGBILD)
 };
 [[nodiscard]] Zaehler zaehler();
+// Was der Abgeber belegt, als Zeilen fuer das Protokoll (Grafikspeicher und Arbeitsspeicher nach Art, die groessten Texturen).
+[[nodiscard]] std::vector<std::string> speicherZeilen();
 
 }  // namespace abgeber
 

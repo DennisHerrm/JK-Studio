@@ -899,12 +899,69 @@ Statistik statistik() {
 
 // ===================================================================================
 
+namespace {
+std::thread g_vorFaden;
+ID3D12Device* g_vorGeraet = nullptr;   // haelt das vorgewaermte Geraet, bis init() seines hat
+bool g_vorDebug = false;               // der Faden hat die Debugschicht eingeschaltet
+double g_vorMs = 0.0;
+}  // namespace
+
+void vorwaermen(IDXGIAdapter1* (*karteHolen)(), bool debug) {
+    if (g_dev != nullptr || g_vorGeraet != nullptr || g_vorFaden.joinable()) { return; }
+    g_vorFaden = std::thread([karteHolen, debug] {
+        LARGE_INTEGER t0{};
+        LARGE_INTEGER t1{};
+        LARGE_INTEGER takt{};
+        QueryPerformanceFrequency(&takt);
+        QueryPerformanceCounter(&t0);
+        if (!einstiegeDa()) { return; }
+        if (debug) {   // die Debugschicht muss vor dem Geraet stehen
+            ID3D12Debug* dbg = nullptr;
+            if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&dbg))) && dbg != nullptr) {
+                dbg->EnableDebugLayer();
+                dbg->Release();
+                g_vorDebug = true;
+            }
+        }
+        IDXGIAdapter1* karte = karteHolen != nullptr ? karteHolen() : nullptr;
+        if (FAILED(D3D12CreateDevice(karte, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&g_vorGeraet)))) { g_vorGeraet = nullptr; }
+        if (karte != nullptr) { karte->Release(); }
+        QueryPerformanceCounter(&t1);
+        g_vorMs = static_cast<double>(t1.QuadPart - t0.QuadPart) * 1000.0 / static_cast<double>(takt.QuadPart);
+    });
+}
+
 bool init(HWND hwnd, IDXGIAdapter1* karte, bool debug) {
+    // Vorgewaermt (vorwaermen): auf den Faden warten. Sein Geraet bleibt gehalten, bis das eigene D3D12CreateDevice unten es
+    // bekommen hat (dasselbe Einzelstueck), und geht am Ende von init() in jedem Fall zurueck.
+    if (g_vorFaden.joinable()) { g_vorFaden.join(); }
+    struct VorHalter {
+        ~VorHalter() { frei(g_vorGeraet); }
+    } vorHalter;
+    const double vorMs = g_vorMs;
+    g_vorMs = 0.0;
+    if (debug != g_vorDebug) { frei(g_vorGeraet); }   // andere Wahl der Debugschicht: nicht dieses Geraet
+    // Zeiten des Starts (Messhilfe): je Schritt die Millisekunden seit dem vorigen, am Ende eine Zeile im Protokoll.
+    LARGE_INTEGER startTakt{};
+    LARGE_INTEGER startZuletzt{};
+    QueryPerformanceFrequency(&startTakt);
+    QueryPerformanceCounter(&startZuletzt);
+    const LARGE_INTEGER startAnfang = startZuletzt;
+    std::string startZeiten;
+    const auto schritt = [&](const char* was) {
+        LARGE_INTEGER jetzt{};
+        QueryPerformanceCounter(&jetzt);
+        char z[64];
+        std::snprintf(z, sizeof(z), "%s%s %.1f", startZeiten.empty() ? "" : ", ", was,
+                      static_cast<double>(jetzt.QuadPart - startZuletzt.QuadPart) * 1000.0 / static_cast<double>(startTakt.QuadPart));
+        startZeiten += z;
+        startZuletzt = jetzt;
+    };
     if (fehlerSpielen("dll") || !einstiegeDa()) {
         diag::detail("D3D12: d3d12.dll oder DXGI 1.3 fehlen");
         return false;
     }
-    if (debug) {
+    if (debug && !g_vorDebug) {   // (vorgewaermt: die Debugschicht steht schon - ein zweites Einschalten naehme das Geraet weg)
         ID3D12Debug* dbg = nullptr;
         if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&dbg))) && dbg != nullptr) {
             dbg->EnableDebugLayer();
@@ -913,10 +970,12 @@ bool init(HWND hwnd, IDXGIAdapter1* karte, bool debug) {
             debug = false;
         }
     }
+    g_vorDebug = false;
     if (fehlerSpielen("geraet") || FAILED(D3D12CreateDevice(karte, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&g_dev))) || g_dev == nullptr) {
         diag::detail("D3D12: kein Geraet mit Merkmalsstufe 11_0");
         return false;
     }
+    schritt("Geraet");
     g_luid = g_dev->GetAdapterLuid();
     if (debug && SUCCEEDED(g_dev->QueryInterface(IID_PPV_ARGS(&g_info))) && g_info != nullptr) {
         diag::detail("D3D12-Debugschicht AN");
@@ -959,6 +1018,7 @@ bool init(HWND hwnd, IDXGIAdapter1* karte, bool debug) {
     g_swapFlags = sd.Flags;
     g_swap->SetMaximumFrameLatency(2);
     g_bildFrei = g_swap->GetFrameLatencyWaitableObject();
+    schritt("Warteschlange und Swapchain");
 
     D3D12_DESCRIPTOR_HEAP_DESC hd{};
     hd.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -991,6 +1051,7 @@ bool init(HWND hwnd, IDXGIAdapter1* karte, bool debug) {
         g_listenFrei.push_back(l);
     }
 
+    schritt("Stapel und Listen");
     // Der Abgeber fuer die 3D-Ansichten: bedient ID3D11Device/ID3D11DeviceContext auf diesem Geraet (abgeber12.h).
     if (fehlerSpielen("abgeber") || !abgeber::anlegen()) {
         diag::detail("D3D12: der Abgeber der 3D-Ansichten liess sich nicht anlegen");
@@ -1010,7 +1071,9 @@ bool init(HWND hwnd, IDXGIAdapter1* karte, bool debug) {
     ii.SrvDescriptorHeap = g_srvHeap;
     ii.SrvDescriptorAllocFn = imguiSrvNehmen;
     ii.SrvDescriptorFreeFn = imguiSrvFrei;
+    schritt("Abgeber");
     if (!ImGui_ImplDX12_Init(&ii) || fehlerSpielen("imgui")) { return false; }
+    schritt("Oberflaeche");
     // BHED_D3D12_ABSCHICKEN=direkt: ohne den Abschickfaden (zum Vergleichsmessen)
     const char* direkt = std::getenv("BHED_D3D12_ABSCHICKEN");
     if (direkt == nullptr || std::strcmp(direkt, "direkt") != 0) {
@@ -1019,6 +1082,15 @@ bool init(HWND hwnd, IDXGIAdapter1* karte, bool debug) {
         g_abschickEigen = true;
     }
     diag::detail("Grafikkarte: " + g_kartenName + " (Direct3D 12, Flip-Modell)");
+    {
+        LARGE_INTEGER jetzt{};
+        QueryPerformanceCounter(&jetzt);
+        char z[64];
+        std::snprintf(z, sizeof(z), "D3D12-Start %.1f ms: ", static_cast<double>(jetzt.QuadPart - startAnfang.QuadPart) * 1000.0 / static_cast<double>(startTakt.QuadPart));
+        char v[80] = "";
+        if (vorMs > 0.0) { std::snprintf(v, sizeof(v), " (Geraet vorgewaermt in einem eigenen Faden: %.1f ms)", vorMs); }
+        diag::detail(z + startZeiten + v);
+    }
     return true;
 }
 
@@ -1031,6 +1103,9 @@ void imguiAbbauen() {
 }
 
 void shutdown() {
+    if (g_vorFaden.joinable()) { g_vorFaden.join(); }
+    frei(g_vorGeraet);
+    g_vorDebug = false;
     imguiAbbauen();
     texturenLoesen();
     abgeber::abbauen();
@@ -1121,7 +1196,20 @@ void newFrame() {
     // am Ende des vorigen Bildes war dessen Befehlsliste eben erst abgeschickt. So ist der Speicher ein Bild frueher frei.
     einsammeln();
     abgeber::einsammeln();
+    static bool erstes = true;   // das erste Bild legt die Shader und den Pipeline-Zustand der Oberflaeche an (Messhilfe)
+    LARGE_INTEGER t0{};
+    if (erstes) { QueryPerformanceCounter(&t0); }
     ImGui_ImplDX12_NewFrame();
+    if (erstes) {
+        erstes = false;
+        LARGE_INTEGER t1{};
+        LARGE_INTEGER takt{};
+        QueryPerformanceCounter(&t1);
+        QueryPerformanceFrequency(&takt);
+        char z[96];
+        std::snprintf(z, sizeof(z), "D3D12-Start: Shader und Zustand der Oberflaeche %.1f ms", static_cast<double>(t1.QuadPart - t0.QuadPart) * 1000.0 / static_cast<double>(takt.QuadPart));
+        diag::detail(z);
+    }
 }
 
 void vorbereiten(const std::vector<const void*>& bemalt) {
@@ -1273,19 +1361,24 @@ std::string karte() { return g_kartenName; }
 bool befund(std::string& text) {
     debugMeldungen();
     const abgeber::Zaehler z = abgeber::zaehler();
-    char t[480];
+    char t[640];
     std::snprintf(t, sizeof(t),
-                  "Direct3D 12: Abgeber %llu Zeichenbefehle, %llu Pipeline-Zustaende (%llu Wechsel), %llu frische Bloecke, %llu Zustandswechsel, "
+                  "Direct3D 12: Abgeber %llu Zeichenbefehle, %llu Pipeline-Zustaende in %.0f ms (%llu aus dem Zwischenspeicher, %llu Wechsel), "
+                  "%llu frische Bloecke, %llu Kopien gelesener Puffer, %llu lange Bilder, %llu Zustandswechsel, "
                   "Hochladespeicher %llu MB, %llu Objekte, %llu Ressourcen angelegt, %llu Teilabgaben, %llu-mal auf die Grafikkarte gewartet "
                   "(%.0f ms); nicht umgesetzte Aufrufe %llu, Fehler der Debugschicht %u",
-                  static_cast<unsigned long long>(z.zeichnen), static_cast<unsigned long long>(z.pso), static_cast<unsigned long long>(z.psoWechsel),
-                  static_cast<unsigned long long>(z.umbenannt), static_cast<unsigned long long>(z.barrieren),
+                  static_cast<unsigned long long>(z.zeichnen), static_cast<unsigned long long>(z.pso), static_cast<double>(z.psoMikro) / 1000.0,
+                  static_cast<unsigned long long>(z.psoAusSpeicher), static_cast<unsigned long long>(z.psoWechsel),
+                  static_cast<unsigned long long>(z.umbenannt), static_cast<unsigned long long>(z.inGrafik), static_cast<unsigned long long>(z.langeBilder),
+                  static_cast<unsigned long long>(z.barrieren),
                   static_cast<unsigned long long>(z.hochladeBytes >> 20U), static_cast<unsigned long long>(z.lebend),
                   static_cast<unsigned long long>(z.angelegt), static_cast<unsigned long long>(z.teilAbgaben),
                   static_cast<unsigned long long>(g_statistik.gewartet), g_statistik.warteMs, static_cast<unsigned long long>(z.fehlt), g_debugFehler);
     text = t;
     return z.fehlt == 0U && g_debugFehler == 0U;
 }
+
+std::vector<std::string> speicherZeilen() { return abgeber::speicherZeilen(); }
 
 void info(std::string& hersteller, std::string& version, std::string& kartenName, std::vector<std::string>& merkmale) {
     if (g_dev == nullptr) { return; }

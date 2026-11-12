@@ -20,11 +20,14 @@
 #include <map>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <d3dcompiler.h>
 #include <intrin.h>
 
 #include "bhed/diag.h"
+#include "bhed/utf8pfad.h"
+#include "platform.h"
 
 namespace bhed::render::d3d12::abgeber {
 
@@ -90,6 +93,148 @@ ID3DBlob* g_mipVs = nullptr;
 ID3DBlob* g_mipPs = nullptr;
 std::map<int, ID3D12PipelineState*> g_mipPso;
 UINT64 g_markenFrequenz = 0;   // Schritte der Zeitmarken je Sekunde (fest je Warteschlange; die Frage ist ein Kernaufruf)
+
+// --- Zwischenspeicher der Pipeline-Zustaende auf der Platte ------------------------------------------
+// Ein Pipeline-Zustand entsteht beim ersten Gebrauch (CreateGraphicsPipelineState: der Treiber uebersetzt die Shader fuer die
+// Grafikkarte; Messwerte in docs/intern/NOTIZEN_dx12c_1211.md). ID3D12PipelineLibrary haelt die
+// uebersetzten Zustaende; die Datei <Einstellungen>\shader\pso12.bin traegt davor die Namen, die sie enthaelt (das Lager selbst
+// laesst sich nicht fragen, und ein vergeblicher Ladeversuch ist fuer die Debugschicht ein Fehler). Der Name ist eine Pruefsumme
+// ueber alles, was den Zustand bestimmt (Shader-Code, Eingabe, Misch-, Tiefen-, Rasterzustand, Formate, Proben, Topologie) -
+// unabhaengig vom Lauf. Anderer Treiber oder andere Karte: das Lager lehnt die Datei ab und beginnt leer.
+// BHED_D3D12_PSOLAGER=0: ohne (zum Vergleichsmessen).
+struct PsoName {
+    std::uint64_t h[2];
+    bool operator==(const PsoName& o) const noexcept { return h[0] == o.h[0] && h[1] == o.h[1]; }
+};
+struct PsoNameHash {
+    std::size_t operator()(const PsoName& n) const noexcept { return static_cast<std::size_t>(n.h[0] ^ (n.h[1] * 0x9E3779B97F4A7C15ULL)); }
+};
+constexpr std::uint32_t kLagerMarke = 0x31504842U;   // "BHP1"
+ID3D12PipelineLibrary* g_psoLager = nullptr;
+std::vector<unsigned char> g_psoLagerDatei;   // die geladene Datei: das Lager liest daraus, solange es lebt
+std::unordered_set<PsoName, PsoNameHash> g_psoLagerNamen;
+std::wstring g_psoLagerPfad;
+bool g_psoLagerVersucht = false;
+unsigned g_psoLagerNeu = 0;   // seit dem Laden dazugekommen
+
+void psoLagerOeffnen() {
+    g_psoLagerVersucht = true;
+    if (const char* v = std::getenv("BHED_D3D12_PSOLAGER"); v != nullptr && v[0] == '0') { return; }
+    ID3D12Device1* d1 = nullptr;
+    if (FAILED(rahmen::geraet()->QueryInterface(IID_PPV_ARGS(&d1))) || d1 == nullptr) { return; }
+    std::string ordner = platform::settingsDirectory();
+    if (!ordner.empty()) {
+        ordner += "\\shader";
+        CreateDirectoryW(::bhed::utf8Pfad(ordner).wstring().c_str(), nullptr);
+        g_psoLagerPfad = ::bhed::utf8Pfad(ordner + "\\pso12.bin").wstring();
+        FILE* f = nullptr;
+        if (_wfopen_s(&f, g_psoLagerPfad.c_str(), L"rb") == 0 && f != nullptr) {
+            std::fseek(f, 0, SEEK_END);
+            const long n = std::ftell(f);
+            std::fseek(f, 0, SEEK_SET);
+            if (n > 8 && n < (512L << 20)) {
+                g_psoLagerDatei.resize(static_cast<std::size_t>(n));
+                if (std::fread(g_psoLagerDatei.data(), 1, g_psoLagerDatei.size(), f) != g_psoLagerDatei.size()) { g_psoLagerDatei.clear(); }
+            }
+            std::fclose(f);
+        }
+    }
+    // Kopf: Marke, Zahl der Namen, die Namen; danach das Lager
+    std::size_t kopf = 0;
+    if (g_psoLagerDatei.size() >= 8U) {
+        std::uint32_t marke = 0;
+        std::uint32_t zahl = 0;
+        std::memcpy(&marke, g_psoLagerDatei.data(), 4);
+        std::memcpy(&zahl, g_psoLagerDatei.data() + 4, 4);
+        kopf = 8U + static_cast<std::size_t>(zahl) * sizeof(PsoName);
+        if (marke == kLagerMarke && kopf < g_psoLagerDatei.size()) {
+            for (std::uint32_t i = 0; i < zahl; ++i) {
+                PsoName n{};
+                std::memcpy(&n, g_psoLagerDatei.data() + 8U + static_cast<std::size_t>(i) * sizeof(PsoName), sizeof(PsoName));
+                g_psoLagerNamen.insert(n);
+            }
+        } else {
+            kopf = 0;
+        }
+    }
+    HRESULT hr = E_FAIL;
+    if (kopf != 0U) { hr = d1->CreatePipelineLibrary(g_psoLagerDatei.data() + kopf, g_psoLagerDatei.size() - kopf, IID_PPV_ARGS(&g_psoLager)); }
+    if (FAILED(hr) || g_psoLager == nullptr) {   // keine Datei, anderer Treiber, andere Karte, beschaedigt: leer beginnen
+        g_psoLager = nullptr;
+        const bool gab = !g_psoLagerNamen.empty();
+        g_psoLagerNamen.clear();
+        g_psoLagerDatei.clear();
+        g_psoLagerDatei.shrink_to_fit();
+        if (FAILED(d1->CreatePipelineLibrary(nullptr, 0, IID_PPV_ARGS(&g_psoLager)))) { g_psoLager = nullptr; }
+        if (gab) { diag::detail("D3D12-Abgeber: der Zwischenspeicher der Pipeline-Zustaende passt nicht zu Treiber oder Karte - neu begonnen"); }
+    }
+    d1->Release();
+    if (g_psoLager != nullptr) {
+        diag::detail("D3D12-Abgeber: Zwischenspeicher der Pipeline-Zustaende: " + std::to_string(g_psoLagerNamen.size()) + " Zustaende von der Platte");
+    }
+}
+
+// Beim Abbau: kam etwas dazu, die Datei neu schreiben (erst daneben, dann umbenennen).
+void psoLagerSchliessen() {
+    if (g_psoLager != nullptr && g_psoLagerNeu != 0U && !g_psoLagerPfad.empty()) {
+        const SIZE_T n = g_psoLager->GetSerializedSize();
+        std::vector<unsigned char> aus(8U + g_psoLagerNamen.size() * sizeof(PsoName) + n);
+        const std::uint32_t zahl = static_cast<std::uint32_t>(g_psoLagerNamen.size());
+        std::memcpy(aus.data(), &kLagerMarke, 4);
+        std::memcpy(aus.data() + 4, &zahl, 4);
+        std::size_t o = 8;
+        for (const PsoName& name : g_psoLagerNamen) {
+            std::memcpy(aus.data() + o, &name, sizeof(PsoName));
+            o += sizeof(PsoName);
+        }
+        if (n != 0U && SUCCEEDED(g_psoLager->Serialize(aus.data() + o, n))) {
+            const std::wstring neben = g_psoLagerPfad + L".neu";
+            FILE* f = nullptr;
+            if (_wfopen_s(&f, neben.c_str(), L"wb") == 0 && f != nullptr) {
+                const bool ganz = std::fwrite(aus.data(), 1, aus.size(), f) == aus.size();
+                std::fclose(f);
+                if (ganz) {
+                    MoveFileExW(neben.c_str(), g_psoLagerPfad.c_str(), MOVEFILE_REPLACE_EXISTING);
+                } else {
+                    DeleteFileW(neben.c_str());
+                }
+            }
+        }
+    }
+    if (g_psoLager != nullptr) {
+        g_psoLager->Release();
+        g_psoLager = nullptr;
+    }
+    g_psoLagerDatei.clear();
+    g_psoLagerDatei.shrink_to_fit();
+    g_psoLagerNamen.clear();
+    g_psoLagerPfad.clear();
+    g_psoLagerVersucht = false;
+    g_psoLagerNeu = 0;
+}
+
+PsoName psoNameVon(const D3D12_GRAPHICS_PIPELINE_STATE_DESC& d, const Kontext& c) {
+    PsoName n{{0x452821E638D01377ULL, 0xBE5466CF34E90C6CULL}};
+    const std::uint64_t leer[2] = {0, 0};
+    mische(n.h, c.vs->pruef, sizeof(leer));
+    mische(n.h, c.ps != nullptr ? c.ps->pruef : leer, sizeof(leer));
+    mische(n.h, c.gs != nullptr ? c.gs->pruef : leer, sizeof(leer));
+    mische(n.h, &d.BlendState, sizeof(d.BlendState));
+    mische(n.h, &d.SampleMask, sizeof(d.SampleMask));
+    mische(n.h, &d.RasterizerState, sizeof(d.RasterizerState));
+    mische(n.h, &d.DepthStencilState, sizeof(d.DepthStencilState));
+    for (UINT i = 0; i < d.InputLayout.NumElements; ++i) {
+        const D3D12_INPUT_ELEMENT_DESC& e = d.InputLayout.pInputElementDescs[i];
+        const std::uint32_t felder[6] = {e.SemanticIndex, static_cast<std::uint32_t>(e.Format), e.InputSlot, e.AlignedByteOffset,
+                                         static_cast<std::uint32_t>(e.InputSlotClass), e.InstanceDataStepRate};
+        mische(n.h, e.SemanticName, std::strlen(e.SemanticName));
+        mische(n.h, felder, sizeof(felder));
+    }
+    const std::uint32_t rest[4] = {static_cast<std::uint32_t>(d.PrimitiveTopologyType), d.NumRenderTargets, static_cast<std::uint32_t>(d.DSVFormat), d.SampleDesc.Count};
+    mische(n.h, rest, sizeof(rest));
+    mische(n.h, d.RTVFormats, sizeof(d.RTVFormats));
+    return n;
+}
 
 D3D12_PRIMITIVE_TOPOLOGY_TYPE topologieTyp(D3D11_PRIMITIVE_TOPOLOGY t) {
     switch (t) {
@@ -205,8 +350,29 @@ ID3D12PipelineState* psoAnlegen(const PsoSchluessel& k, const Kontext& c) {
     for (UINT i = 0; i < k.ziele; ++i) { d.RTVFormats[i] = static_cast<DXGI_FORMAT>(k.zielFormat[i]); }
     d.DSVFormat = static_cast<DXGI_FORMAT>(k.tiefeFormat);
     d.SampleDesc.Count = k.proben;
+    const Stoppuhr uhr(zeitenBild().psoMs);
+    ++zeitenBild().pso;
+    if (!g_psoLagerVersucht) { psoLagerOeffnen(); }
     ID3D12PipelineState* p = nullptr;
+    PsoName name{};
+    wchar_t nameText[36] = L"";
+    bool imLager = false;
+    if (g_psoLager != nullptr) {
+        name = psoNameVon(d, c);
+        swprintf_s(nameText, L"%016llx%016llx", static_cast<unsigned long long>(name.h[0]), static_cast<unsigned long long>(name.h[1]));
+        imLager = g_psoLagerNamen.count(name) != 0U;
+        if (imLager && SUCCEEDED(g_psoLager->LoadGraphicsPipeline(nameText, &d, IID_PPV_ARGS(&p))) && p != nullptr) {
+            ++zeitenBild().psoAusSpeicher;
+            ++zaehlerIntern().pso;
+            return p;
+        }
+        p = nullptr;
+    }
     const HRESULT hr = rahmen::geraet()->CreateGraphicsPipelineState(&d, IID_PPV_ARGS(&p));
+    if (SUCCEEDED(hr) && p != nullptr && g_psoLager != nullptr && !imLager && SUCCEEDED(g_psoLager->StorePipeline(nameText, p))) {
+        g_psoLagerNamen.insert(name);
+        ++g_psoLagerNeu;
+    }
     if (FAILED(hr) || p == nullptr) {
         char z[200];
         std::snprintf(z, sizeof(z), "D3D12-Abgeber: Pipeline-Zustand abgelehnt (0x%08lX): vs %u ps %u gs %u Eingabe %u Mischung %u Tiefe %u Raster %u Ziele %u Proben %u",
@@ -234,14 +400,14 @@ Textur* alsTextur(ID3D11Resource* r) {
     if (r == nullptr) { return nullptr; }
     D3D11_RESOURCE_DIMENSION dim = D3D11_RESOURCE_DIMENSION_UNKNOWN;
     r->GetType(&dim);
-    return dim == D3D11_RESOURCE_DIMENSION_TEXTURE2D ? static_cast<Textur*>(static_cast<ID3D11Texture2D*>(r)) : nullptr;
+    return dim == D3D11_RESOURCE_DIMENSION_TEXTURE2D ? jetzig(static_cast<Textur*>(static_cast<ID3D11Texture2D*>(r)), "Textur") : nullptr;
 }
 
 Puffer* alsPuffer(ID3D11Resource* r) {
     if (r == nullptr) { return nullptr; }
     D3D11_RESOURCE_DIMENSION dim = D3D11_RESOURCE_DIMENSION_UNKNOWN;
     r->GetType(&dim);
-    return dim == D3D11_RESOURCE_DIMENSION_BUFFER ? static_cast<Puffer*>(static_cast<ID3D11Buffer*>(r)) : nullptr;
+    return dim == D3D11_RESOURCE_DIMENSION_BUFFER ? jetzig(static_cast<Puffer*>(static_cast<ID3D11Buffer*>(r)), "Puffer") : nullptr;
 }
 
 // Der Zaunwert der Liste, in der die Ausfuehrung `serie` lief; false: sie ist noch nicht abgeschickt.
@@ -330,6 +496,7 @@ void nachAbschicken(std::uint64_t zaun) {
 }
 
 void psoAbbauen() {
+    psoLagerSchliessen();
     for (auto& [k, p] : g_pso) {
         (void)k;
         if (p != nullptr) { p->Release(); }
@@ -676,7 +843,10 @@ bool Kontext::vorZeichnen() {
         if (s != nullptr) {
             if (s->puffer != nullptr) {
                 if (s->puffer->dynamisch) {
-                    if (s->fassung != s->puffer->fassung) { sichtAufPufferErneuern(s); }
+                    // Der Pixel-Shader liest diesen Puffer je Bildpunkt (Lichtliste und Kacheln des Echtzeit-Lichts): aus einer
+                    // Kopie im Grafikspeicher statt ueber den Bus aus dem Arbeitsspeicher (einmal je Map kopiert).
+                    const bool kopie = pufferInGrafik(cl, s->puffer);
+                    if (kopie != s->aufKopie || s->fassung != s->puffer->fassung) { sichtAufPufferErneuern(s); }
                 } else {
                     pufferLesbar(cl, s->puffer);
                 }
@@ -703,7 +873,7 @@ void Kontext::setzeCb(UINT stufe, UINT anfang, UINT anzahl, ID3D11Buffer* const*
             if (puffer != nullptr && puffer[i] != nullptr) { (void)fehlt("SetConstantBuffers(Platz ausserhalb der Wurzelsignatur)"); }
             continue;
         }
-        Puffer* neu = puffer != nullptr ? static_cast<Puffer*>(puffer[i]) : nullptr;
+        Puffer* neu = puffer != nullptr ? jetzig(static_cast<Puffer*>(puffer[i]), "SetConstantBuffers") : nullptr;
         const UINT e = (erste != nullptr && neu != nullptr) ? erste[i] : 0U;
         if (cb[stufe][platz] == neu && cbErste[stufe][platz] == e) { continue; }
         if (cb[stufe][platz] != neu) { bindeCb(stufe, platz, neu); }
@@ -738,7 +908,7 @@ void STDMETHODCALLTYPE Kontext::PSSetShaderResources(UINT StartSlot, UINT NumVie
             if (ppShaderResourceViews != nullptr && ppShaderResourceViews[i] != nullptr) { (void)fehlt("PSSetShaderResources(Platz ueber 15)"); }
             continue;
         }
-        Sicht* neu = ppShaderResourceViews != nullptr ? static_cast<Sicht*>(ppShaderResourceViews[i]) : nullptr;
+        Sicht* neu = ppShaderResourceViews != nullptr ? jetzig(static_cast<Sicht*>(ppShaderResourceViews[i]), "PSSetShaderResources") : nullptr;
         if (neu != nullptr && neu->textur != nullptr) {
             gebraucht(neu->textur);
             if (istZiel(neu->textur)) {
@@ -760,7 +930,7 @@ void STDMETHODCALLTYPE Kontext::PSSetSamplers(UINT StartSlot, UINT NumSamplers, 
             if (ppSamplers != nullptr && ppSamplers[i] != nullptr) { (void)fehlt("PSSetSamplers(Platz ueber 3)"); }
             continue;
         }
-        Abtaster* neu = ppSamplers != nullptr ? static_cast<Abtaster*>(ppSamplers[i]) : nullptr;
+        Abtaster* neu = ppSamplers != nullptr ? jetzig(static_cast<Abtaster*>(ppSamplers[i]), "PSSetSamplers") : nullptr;
         if (abtaster[platz] == neu) { continue; }
         binde(abtaster[platz], neu);
         abtasterSchmutz |= 1U << platz;
@@ -802,7 +972,7 @@ void STDMETHODCALLTYPE Kontext::IASetVertexBuffers(UINT StartSlot, UINT NumBuffe
             if (ppVertexBuffers != nullptr && ppVertexBuffers[i] != nullptr) { (void)fehlt("IASetVertexBuffers(Platz ueber 3)"); }
             continue;
         }
-        Puffer* neu = ppVertexBuffers != nullptr ? static_cast<Puffer*>(ppVertexBuffers[i]) : nullptr;
+        Puffer* neu = ppVertexBuffers != nullptr ? jetzig(static_cast<Puffer*>(ppVertexBuffers[i]), "IASetVertexBuffers") : nullptr;
         const UINT schritt = pStrides != nullptr ? pStrides[i] : 0U;
         const UINT versatz = pOffsets != nullptr ? pOffsets[i] : 0U;
         if (vb[platz] == neu && vbSchritt[platz] == schritt && vbVersatz[platz] == versatz) { continue; }
@@ -814,7 +984,7 @@ void STDMETHODCALLTYPE Kontext::IASetVertexBuffers(UINT StartSlot, UINT NumBuffe
 }
 
 void STDMETHODCALLTYPE Kontext::IASetIndexBuffer(ID3D11Buffer* pIndexBuffer, DXGI_FORMAT Format, UINT Offset) {
-    auto* neu = static_cast<Puffer*>(pIndexBuffer);
+    auto* neu = jetzig(static_cast<Puffer*>(pIndexBuffer), "IASetIndexBuffer");
     if (ib == neu && ibFormat == Format && ibVersatz == Offset) { return; }
     if (ib != neu) { bindeIb(neu); }
     ibFormat = Format;
@@ -856,6 +1026,12 @@ void STDMETHODCALLTYPE Kontext::DrawInstanced(UINT VertexCountPerInstance, UINT 
 
 HRESULT STDMETHODCALLTYPE Kontext::Map(ID3D11Resource* pResource, UINT Subresource, D3D11_MAP MapType, UINT, D3D11_MAPPED_SUBRESOURCE* pMappedResource) {
     if (pResource == nullptr || pMappedResource == nullptr) { return E_INVALIDARG; }
+    {
+        // Ein Objekt des frueheren Geraets: sein Block liegt in freigegebenem Speicher - ablehnen (alsPuffer/alsTextur melden es)
+        D3D11_RESOURCE_DIMENSION dim = D3D11_RESOURCE_DIMENSION_UNKNOWN;
+        pResource->GetType(&dim);
+        if (dim == D3D11_RESOURCE_DIMENSION_BUFFER ? alsPuffer(pResource) == nullptr : alsTextur(pResource) == nullptr) { return DXGI_ERROR_DEVICE_REMOVED; }
+    }
     if (Puffer* p = alsPuffer(pResource); p != nullptr) {
         if (!p->dynamisch) { return fehlt("Map(Puffer ohne D3D11_USAGE_DYNAMIC)"); }
         if (MapType == D3D11_MAP_WRITE_DISCARD) {
@@ -982,12 +1158,18 @@ void STDMETHODCALLTYPE Kontext::OMSetRenderTargets(UINT NumViews, ID3D11RenderTa
     // Teilabgabe: zeichnet die offene Liste schon g_teilAbgabe Takte lang auf, geht der bisherige Teil des Bildes an der Grenze
     // zum naechsten Ziel an die Grafikkarte - sie arbeitet dann schon, waehrend der Hauptfaden weiter aufzeichnet (so schickt
     // auch der D3D11-Treiber in Teilen ab). Die neue Liste setzt alle Zustaende neu (listeNeu).
+    // Hoechstens g_teilAbgabenMax je Bild: unter fremder Last laeuft die Uhr weiter, waehrend der Hauptfaden wartet.
     if (offeneListe != nullptr && g_teilAbgabe != 0) {
+        if (teilBild != g_gebrauchBild) {
+            teilBild = g_gebrauchBild;
+            teilImBild = 0;
+        }
         LARGE_INTEGER t{};
         QueryPerformanceCounter(&t);
-        if (t.QuadPart - listeSeit >= g_teilAbgabe) {
+        if (teilImBild < g_teilAbgabenMax && t.QuadPart - listeSeit >= g_teilAbgabe) {
             (void)rahmen::abschicken();
             ++zaehlerIntern().teilAbgaben;
+            ++teilImBild;
         }
     }
     if (NumViews > kZiele) {
@@ -996,7 +1178,7 @@ void STDMETHODCALLTYPE Kontext::OMSetRenderTargets(UINT NumViews, ID3D11RenderTa
     }
     bool anders = NumViews != ziele;
     for (UINT i = 0; i < kZiele; ++i) {
-        ZielSicht* neu = (i < NumViews && ppRenderTargetViews != nullptr) ? static_cast<ZielSicht*>(ppRenderTargetViews[i]) : nullptr;
+        ZielSicht* neu = (i < NumViews && ppRenderTargetViews != nullptr) ? jetzig(static_cast<ZielSicht*>(ppRenderTargetViews[i]), "OMSetRenderTargets") : nullptr;
         if (ziel[i] == neu) { continue; }
         binde(ziel[i], neu);
         anders = true;
@@ -1004,7 +1186,7 @@ void STDMETHODCALLTYPE Kontext::OMSetRenderTargets(UINT NumViews, ID3D11RenderTa
     // wie Direct3D 11: leere Ziele am Ende zaehlen nicht
     while (NumViews > 0U && ziel[NumViews - 1U] == nullptr) { --NumViews; }
     ziele = NumViews;
-    auto* neuTiefe = static_cast<TiefeSicht*>(pDepthStencilView);
+    auto* neuTiefe = jetzig(static_cast<TiefeSicht*>(pDepthStencilView), "OMSetRenderTargets");
     if (tiefeZiel != neuTiefe) {
         binde(tiefeZiel, neuTiefe);
         anders = true;
@@ -1236,7 +1418,7 @@ void STDMETHODCALLTYPE Kontext::UpdateSubresource(ID3D11Resource* pDstResource, 
 }
 
 void STDMETHODCALLTYPE Kontext::ClearRenderTargetView(ID3D11RenderTargetView* pRenderTargetView, const FLOAT ColorRGBA[4]) {
-    if (pRenderTargetView == nullptr) { return; }
+    if (jetzig(static_cast<ZielSicht*>(pRenderTargetView), "ClearRenderTargetView") == nullptr) { return; }
     auto* s = static_cast<ZielSicht*>(pRenderTargetView);
     ID3D12GraphicsCommandList* cl = liste();
     zielSchichtenBelegen(s);
@@ -1250,7 +1432,7 @@ void STDMETHODCALLTYPE Kontext::ClearRenderTargetView(ID3D11RenderTargetView* pR
 }
 
 void STDMETHODCALLTYPE Kontext::ClearDepthStencilView(ID3D11DepthStencilView* pDepthStencilView, UINT ClearFlags, FLOAT Depth, UINT8 Stencil) {
-    if (pDepthStencilView == nullptr || ClearFlags == 0U) { return; }
+    if (jetzig(static_cast<TiefeSicht*>(pDepthStencilView), "ClearDepthStencilView") == nullptr || ClearFlags == 0U) { return; }
     auto* s = static_cast<TiefeSicht*>(pDepthStencilView);
     ID3D12GraphicsCommandList* cl = liste();
     stelle(*this, cl, s->textur, D3D12_RESOURCE_STATE_DEPTH_WRITE);
@@ -1266,7 +1448,7 @@ void STDMETHODCALLTYPE Kontext::ClearDepthStencilView(ID3D11DepthStencilView* pD
 }
 
 void STDMETHODCALLTYPE Kontext::GenerateMips(ID3D11ShaderResourceView* pShaderResourceView) {
-    if (pShaderResourceView == nullptr) { return; }
+    if (jetzig(static_cast<Sicht*>(pShaderResourceView), "GenerateMips") == nullptr) { return; }
     if (protokoll::g_an) { protokoll::eintrag(liste(), "Mip-Stufen " + protokoll::nenne(static_cast<Sicht*>(pShaderResourceView)->textur)); }
     mipsErzeugen(liste(), static_cast<Sicht*>(pShaderResourceView));
 }

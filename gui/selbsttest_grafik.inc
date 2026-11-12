@@ -26,11 +26,169 @@ inline bool startD3d12() {
     if (f == "absturz") { return w != nullptr; }
     return f.empty() || f == "neuaufbau";
 }
+// Codepruefung seit rc611, R1: Geraeteverlust, waehrend der Karten-Editor (Spielbild, Kamera, 2D, Echtzeit-Licht), der Model-Tab
+// und der Menue-Editor zeichnen. Danach muss jede Ansicht weiterzeichnen, ohne Fehler des Abgebers und der Debugschicht, und
+// jede Ansicht (Kamera und 2D des Karten-Editors, die aktive Ansicht des Model-Tabs) dasselbe Bild zeigen wie vorher (leere Ansichten
+// und vertauschte Texturen fielen dort auf).
+namespace ke = karteneditor;
+inline void verlustSchritte(std::vector<Schritt>& s) {
+    const auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    struct Bild {
+        std::vector<unsigned char> rgba;
+        int w = 0;
+        int h = 0;
+    };
+    // Je Ansicht ein Leser ihres Bildes (Ziel im Grafikspeicher): vor dem Verlust und danach verglichen.
+    using Leser = std::pair<std::string, std::function<bool(Bild&)>>;
+    const auto verlust = [&](const std::string& was, std::function<bool()> wiederDa, std::vector<Leser> leser) {
+        auto vorher = std::make_shared<int>(0);
+        auto bilderVorher = std::make_shared<std::vector<Bild>>(leser.size());
+        add(tu("Grafikschnittstelle: Geraeteverlust mit " + was, [vorher, bilderVorher, leser] {
+            for (std::size_t i = 0; i < leser.size(); ++i) { (void)leser[i].second((*bilderVorher)[i]); }
+            *vorher = g_app->grafikNeuAufbauten;
+            render::geraetVerlorenSpielen();
+        }));
+        add(warteBis("Grafikschnittstelle: Grafik neu aufgebaut (" + was + ")", [vorher] { return g_app->grafikNeuAufbauten > *vorher; }, 300));
+        add(pause(0.5));
+        if (wiederDa) { add(warteBis("Grafikschnittstelle: " + was + " zeichnet wieder", wiederDa, 20000)); }
+        add(pause(1.5));
+        add(pruefe("Grafikschnittstelle: nach dem Geraeteverlust mit " + was + " laeuft die Schnittstelle weiter, der Abgeber meldet keinen Fehler" +
+                       (leser.empty() ? std::string() : ", jede Ansicht zeigt dasselbe Bild"),
+                   [was, bilderVorher, leser] {
+                       std::string text;
+                       bool ok = render::grafikBefund(text);
+                       std::string zeile = "Knopftest: Geraeteverlust mit " + was + ": " + render::backendName(render::current());
+                       for (std::size_t k = 0; k < leser.size(); ++k) {
+                           const Bild& b = (*bilderVorher)[k];
+                           Bild nach;
+                           long long anders = -1;
+                           if (!b.rgba.empty() && leser[k].second(nach) && nach.w == b.w && nach.h == b.h && nach.rgba.size() == b.rgba.size()) {
+                               anders = 0;
+                               for (std::size_t i = 0; i + 3U < nach.rgba.size(); i += 4U) {
+                                   const int d0 = std::abs(static_cast<int>(nach.rgba[i]) - static_cast<int>(b.rgba[i]));
+                                   const int d1 = std::abs(static_cast<int>(nach.rgba[i + 1U]) - static_cast<int>(b.rgba[i + 1U]));
+                                   const int d2 = std::abs(static_cast<int>(nach.rgba[i + 2U]) - static_cast<int>(b.rgba[i + 2U]));
+                                   if (d0 > 8 || d1 > 8 || d2 > 8) { ++anders; }
+                               }
+                           }
+                           const long long punkte = static_cast<long long>(b.w) * b.h;
+                           zeile += ", " + leser[k].first + " " + std::to_string(b.w) + " x " + std::to_string(b.h) + ": " + std::to_string(anders) +
+                                    " Bildpunkte anders (ueber 8/255)";
+                           // hoechstens 1 % der Bildpunkte anders (bewegte Texturen der Karte); -1: kein Bild
+                           ok = ok && anders >= 0 && anders * 100 <= punkte;
+                       }
+                       diag::detail(zeile + (text.empty() ? std::string() : " | " + text));
+                       return ok && render::d3dDevice() != nullptr;
+                   }));
+    };
+    const Leser kamera{"Kamera", [](Bild& b) { return ke::kameraBild(b.rgba, b.w, b.h); }};
+    const Leser zweiD{"2D-Ansicht", [](Bild& b) { return kartegpu::bildLesen(100, b.rgba, b.w, b.h); }};
+    const Leser modell{"Modellansicht", [](Bild& b) {
+                           std::vector<std::uint8_t> v;
+                           gpu::modellZielWaehlen(g_app->mtab.aktiv);   // die aktive 3D-Ansicht (wie selbsttest_pt ansichtBild)
+                           const bool ok = gpu::leseModellZiel(v, b.w, b.h);
+                           b.rgba.assign(v.begin(), v.end());
+                           return ok;
+                       }};
+    // 1. Karten-Editor: Built map as in the game (Spielbild ueber gpumap), Kamera und 2D-Ansichten (kartegpu)
+    for (Schritt& x : stufe9c::einrichten()) { s.push_back(std::move(x)); }
+    add(tu("Grafikschnittstelle: Karten-Editor, duel_jeditemple als Vorlage (Spielbild)", [] {
+        karteDialogeZu();
+        ke::Editor& ed = ke::editor();
+        ed.echtLicht.an = false;
+        ed.echtLicht.backen = false;
+        ed.echtLicht.spielbild = true;
+        ed.karte.undo.alsGespeichertMarkieren();
+        ke::neueKarte();
+        std::string daten;
+        if (!ed.karteSpiel || !ed.karteSpiel->fs.dateiLesen("maps/duel_jeditemple.bsp", daten)) {
+            meldeFehler("Grafikschnittstelle: maps/duel_jeditemple.bsp nicht in den Spieldaten");
+            return;
+        }
+        std::string f;
+        if (!ke::vorlageLaden(daten, "duel_jeditemple.bsp", &f)) { meldeFehler("Grafikschnittstelle: Vorlage: " + f); }
+        teil11::Paar p;
+        const float kam[5] = {-1250.0F, -20.0F, -1113.75F, 0.0F, 90.0F};
+        std::copy(kam, kam + 5, p.kam);
+        teil11::kameraWieImSpiel(p);
+    }));
+    add(warteBis("Grafikschnittstelle: Texturen duel_jeditemple", [] { return ke::kameraBilderFertig(); }, 20000));
+    add(pause(1.0));
+    add(foto("grafik_verlust_editor_vorher"));
+    verlust("offenem Karten-Editor (Spielbild, Kamera, 2D)", [] { return ke::kameraBilderFertig(); }, {kamera, zweiD});
+    add(foto("grafik_verlust_editor"));
+    add(tu("Grafikschnittstelle: Vorlage weg", [] { ke::vorlageEntfernen(); }));
+    // 2. Echtzeit-Licht auf einer .map mit Lichtern (wie der Selbsttest leistung: BHED_LEISTUNG_MAP)
+    if (const char* m = std::getenv("BHED_LEISTUNG_MAP"); m != nullptr && m[0] != '\0') {
+        const std::string karte = m;
+        add(tu("Grafikschnittstelle: Karten-Editor " + karte + " mit Echtzeit-Licht", [karte] {
+            karteDialogeZu();
+            if (!ke::karteOeffnen(karte)) { meldeFehler("Grafikschnittstelle: " + karte + " nicht geoeffnet"); }
+            ke::Editor& e = ke::editor();
+            e.kameraE.modus = karte::KameraModus::Textur;
+            e.echtLicht.an = true;
+            e.echtLicht.backen = false;
+            const std::vector<stufe9c::Punkt> punkte = stufe9c::kameraPunkte();
+            if (!punkte.empty()) { stufe9c::kameraAuf(punkte.front()); }
+        }));
+        add(warteBis("Grafikschnittstelle: Texturen der .map", [] { return ke::kameraBilderFertig(); }, 20000));
+        add(pause(1.5));
+        add(foto("grafik_verlust_echtlicht_vorher"));
+        verlust("Echtzeit-Licht im Karten-Editor", [] { return ke::kameraBilderFertig(); }, {kamera, zweiD});
+        add(foto("grafik_verlust_echtlicht"));
+    }
+    // 3. Model-Tab
+    add(tu("Grafikschnittstelle: Model-Tab, stormtrooper", [] {
+        g_app->leftMode = 2;
+        std::string fehler;
+        if (!oeffneModellAusArchiv("models/players/stormtrooper/model.glm", &fehler)) { meldeFehler("Grafikschnittstelle: stormtrooper: " + fehler); }
+        m1Grundlage();
+    }));
+    add(pause(1.0));
+    add(foto("grafik_verlust_modell_vorher"));
+    verlust("offenem Model-Tab", nullptr, {modell});
+    add(foto("grafik_verlust_modell"));
+    // 4. Menue-Editor
+    add(tu("Grafikschnittstelle: Menue-Editor, ui/main.menu", [] {
+        g_app->leftMode = 4;
+        if (!menueeditor::oeffneAusSpiel("ui/main.menu")) { meldeFehler("Grafikschnittstelle: ui/main.menu nicht geoeffnet"); }
+    }));
+    add(pause(2.0));
+    add(foto("grafik_verlust_menue_vorher"));
+    verlust("offenem Menue-Editor", nullptr, {});
+    add(foto("grafik_verlust_menue"));
+    add(tu("Grafikschnittstelle: Menue-Editor zu", [] {
+        menueeditor::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 0;
+    }));
+}
+
 }  // namespace grafik
 
 std::vector<Schritt> grafikSchritte() {
     std::vector<Schritt> s;
     const auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    // BHED_GRAFIK_NUR=abmelden (Codepruefung seit rc611, R5): Windows meldet den Nutzer ab oder faehrt herunter, waehrend das
+    // Programm startet - WM_QUERYENDSESSION und WM_ENDSESSION an das Hauptfenster, danach beendet Windows den Prozess ohne
+    // Aufraeumen. Der naechste Start (derselbe Einstellungsordner, ohne BHED_GRAFIK_NUR) darf das nicht fuer einen
+    // abgestuerzten Start mit Direct3D 12 halten.
+    // BHED_GRAFIK_NUR=verlust: nur der Geraeteverlust mit offenen Ansichten (R1).
+    const char* grafikNur = std::getenv("BHED_GRAFIK_NUR");
+    if (grafikNur != nullptr && std::strcmp(grafikNur, "abmelden") == 0) {
+        add(tu("Grafikschnittstelle: Windows meldet ab (WM_QUERYENDSESSION, WM_ENDSESSION), der Prozess endet ohne Aufraeumen", [] {
+            std::error_code ec;
+            const std::string einst = platform::settingsDirectory();
+            const std::filesystem::path marke = std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(einst.data()), einst.size())) / "d3d12_start.marke";
+            diag::detail(std::string("Knopftest: Abmelden im Bild ") + std::to_string(ImGui::GetFrameCount()) + ", Startmarke vorher " +
+                         (std::filesystem::exists(marke, ec) ? "da" : "nicht da"));
+            render::abmeldenSpielen();   // kehrt nicht zurueck
+        }));
+        return s;
+    }
+    if (grafikNur != nullptr && std::strcmp(grafikNur, "verlust") == 0) {
+        grafik::verlustSchritte(s);
+        return s;
+    }
     add(pruefe("Grafikschnittstelle: ab Werk ist Direct3D 12 eingestellt (rc612), Direct3D 11 der Rueckfall", [] { return Settings{}.grafikD3d12; }));
     add(pruefe("Grafikschnittstelle: es laeuft, was verlangt ist", [] {
         const std::string f = grafik::fehlerStelle();
@@ -46,6 +204,7 @@ std::vector<Schritt> grafikSchritte() {
                      (g_app->settings.grafikD3d12 ? "Direct3D 12" : "Direct3D 11"));
         return absturz ? grafikRueckfallGemeldet() && !g_app->settings.grafikD3d12 : !grafikRueckfallGemeldet();
     }));
+    if (grafikNur != nullptr && std::strcmp(grafikNur, "kurz") == 0) { return s; }   // nur: was laeuft, Startmarke (zweiter Start von R5)
     add(warteBis("Grafikschnittstelle: mehr als 60 Bilder gezeigt (dann loescht der Start die Marke)", [] { return ImGui::GetFrameCount() > 60; }, 600));
     add(pruefe("Grafikschnittstelle: nach dem Start liegt keine Startmarke mehr (d3d12_start.marke)", [] {
         const std::string einst = platform::settingsDirectory();
@@ -298,5 +457,6 @@ std::vector<Schritt> grafikSchritte() {
     }));
     add(pause(0.3));
     add(foto("grafik_neuaufbau"));
+    grafik::verlustSchritte(s);   // R1: dasselbe mit offenem Karten-Editor, Model-Tab und Menue-Editor
     return s;
 }

@@ -362,6 +362,9 @@ int g_msaaWunsch = 1;
 int g_zielProben = 1;
 ID3D11Texture2D* g_zielAufTex = nullptr;
 bool g_zielVeraendert = false;
+// Der Zielsatz, in dessen aufgeloestem Bild das Spielgamma schon steht (spielGammaAnwenden mit Mehrfachabtastung; -1: keiner).
+// Wer danach noch in das Ziel mit Proben zeichnete, verloere das Gamma beim naechsten Aufloesen - loeseAuf meldet es.
+int g_gammaAufSatz = -1;
 ID3D11ShaderResourceView* g_tiefeMsSrv = nullptr;
 // Der ANDERE Zielsatz (rc592, siehe waehleZiel): solange Satz 0 gewaehlt
 // ist, liegt hier die Vorschau, sonst die Kartenansicht. Umgeschaltet wird
@@ -411,6 +414,9 @@ std::uint64_t g_bildNummer = 1;
 // Himmelsportal (rc593): >= 0 heisst, das Bild dieses Satzes steht zu Beginn im
 // Ziel und die Karte zeichnet keinen Himmel.
 int g_himmelPortalSatz = -1;
+// Mit Mehrfachabtastung tauscht die Hauptszene ihr Ziel mit dem des Portalsatzes, statt dessen Bild zu kopieren (zeichneKarte,
+// erster Durchgang) - danach steht das Portalbild nur noch im Ziel der Hauptszene. Gilt bis zum naechsten setzeHimmelPortal.
+bool g_portalGetauscht = false;
 // GL_State(0) und die Rechtecke innen an der Box: ohne Keule, auch im gespiegelten Bild.
 std::uint32_t himmelMerkmale(std::uint32_t f) { return (f & ~static_cast<std::uint32_t>(kCullBack)) | kCullNone; }
 // Die Himmelsbox: bhed/himmelbox.h. Eine Liste je Netz der Karte.
@@ -3328,7 +3334,17 @@ void loeseAuf(ID3D11Texture2D* auf, ID3D11Texture2D* mitProben, bool& veraendert
     ::bhed::render::aufloesen(c, auf, 0, mitProben, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
     veraendert = false;
 }
-void zielAufloesen() { loeseAuf(g_zielAufTex, g_zielTex, g_zielVeraendert); }
+void zielAufloesen() {
+    if (g_zielVeraendert && g_gammaAufSatz >= 0 && g_gammaAufSatz == g_zielSatz) {
+        g_gammaAufSatz = -1;
+        static bool gemeldet = false;
+        if (!gemeldet) {
+            gemeldet = true;
+            diag::error("gpumap: nach dem Spielgamma wurde noch in das Ziel mit Proben gezeichnet - das aufgeloeste Bild verliert das Gamma");
+        }
+    }
+    loeseAuf(g_zielAufTex, g_zielTex, g_zielVeraendert);
+}
 
 // --- Die Tiefe mit Proben lesbar machen (tiefeProbePixelShaderHlsl) ------
 ID3D11PixelShader* g_tiefeEinzelPs = nullptr;
@@ -3408,6 +3424,7 @@ bool bereiteZiel(int breite, int hoehe) {
         return false;
     }
     const int proben = moeglicheProben(d, g_msaaWunsch);
+    if (g_gammaAufSatz == g_zielSatz) { g_gammaAufSatz = -1; }   // ein neues Bild dieses Satzes beginnt
     if (g_zielRtv != nullptr && g_zielW == breite && g_zielH == hoehe && g_zielProben == proben) {
         return true;
     }
@@ -3444,7 +3461,8 @@ bool bereiteZiel(int breite, int hoehe) {
     if (proben > 1) {
         D3D11_TEXTURE2D_DESC ad = td;
         ad.SampleDesc.Count = 1;
-        ad.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        // auch Ziel: das Spielgamma zeichnet gleich in das aufgeloeste Bild (spielGammaAnwenden)
+        ad.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
         if (FAILED(d->CreateTexture2D(&ad, nullptr, &g_zielAufTex))) {
             return false;
         }
@@ -3562,6 +3580,7 @@ const std::vector<HimmelRechteck>& himmelRechteckeZuletzt() { return g_himmelRec
 
 void setzeHimmelPortal(int satz) {
     g_himmelPortalSatz = (satz >= 0 && satz < kZielSaetze) ? satz : -1;
+    g_portalGetauscht = false;
     if (g_himmelPortalSatz < 0) {
         // Das Portalbild nicht gebunden lassen - der Satz wird im naechsten
         // Bild wieder Ziel, und ein Ziel, das zugleich Eingang ist, meldet
@@ -8026,6 +8045,13 @@ void spielGammaAnwenden() {
         g_gammaH = g_zielH;
     }
     setzeSchritt("Spielgamma");
+    // Mit Mehrfachabtastung zeichnet der Durchgang gleich in das aufgeloeste Bild (g_zielAufTex) statt in das Ziel mit Proben:
+    // das Vollbilddreieck schriebe in jede Probe eines Bildpunkts denselben Wert, und das Aufloesen danach gaebe genau diesen
+    // Wert zurueck - derselbe Inhalt, aber ein Vollbilddurchgang mit Proben und ein Aufloesen weniger je Bild (gemessen
+    // 12.11., 1920 x 1440 mit 8 Proben: 0,14 + 0,10 ms unter Direct3D 12). Das Ziel mit Proben behaelt das Bild VOR dem Gamma;
+    // es ist der letzte Durchgang des Bildes, und der naechste erste Durchgang loescht oder ersetzt es.
+    ID3D11RenderTargetView* aufRtv = nullptr;
+    if (g_zielProben > 1 && g_zielAufTex != nullptr && FAILED(d->CreateRenderTargetView(g_zielAufTex, nullptr, &aufRtv))) { aufRtv = nullptr; }
     ::bhed::render::zielSetzen(c, 0, nullptr, nullptr);
     // Die Tabelle gilt fuer den aufgeloesten Bildpuffer (R_SetColorMappings am Bildschirm).
     if (g_zielProben > 1) {
@@ -8033,8 +8059,14 @@ void spielGammaAnwenden() {
     } else {
         ::bhed::render::kopieren(c, g_gammaTex, g_zielTex);
     }
-    ::bhed::render::zielSetzen(c, 1, &g_zielRtv, nullptr);
-    g_zielVeraendert = true;
+    if (aufRtv != nullptr) {
+        ::bhed::render::zielSetzen(c, 1, &aufRtv, nullptr);
+        g_zielVeraendert = false;   // das aufgeloeste Bild ist das fertige
+        g_gammaAufSatz = g_zielSatz;
+    } else {
+        ::bhed::render::zielSetzen(c, 1, &g_zielRtv, nullptr);
+        g_zielVeraendert = true;
+    }
     c->PSSetShader(g_gammaPs, nullptr, 0);
     c->PSSetShaderResources(0, 1, &g_gammaSrv);
     D3D11_VIEWPORT vp{};
@@ -8045,6 +8077,10 @@ void spielGammaAnwenden() {
     c->Draw(3, 0);
     ID3D11ShaderResourceView* nichts = nullptr;
     c->PSSetShaderResources(0, 1, &nichts);
+    if (aufRtv != nullptr) {
+        c->OMSetRenderTargets(1, &g_zielRtv, nullptr);   // gebunden bleibt wie bisher das Ziel der Ansicht
+        aufRtv->Release();
+    }
 }
 
 void bildFertig() {
@@ -9174,16 +9210,39 @@ int zeichneKarte(const BspMesh& mesh, const TextureSet* textures,
     // sonst Bild und Tiefe wieder auf Null - und alles Deckende, das gerade
     // gezeichnet wurde, waere weg.
     if (netzId == 0 && lage != Lage::Gemischt) {
-        // Mit der Farbe des globalen Nebels (setzeHintergrund), wie das Spiel;
-        // die Maske des Umrisses bleibt leer.
-        ::bhed::render::leeren(c, g_zielRtv, g_umriss ? leer : g_hintergrund);
         g_tiefeEinzelFrisch = false;
         // CG_DrawSkyBoxPortal: Die Portalszene steht zuerst im Bild, die Hauptszene loescht die Farbe nicht
         // (RB_BeginDrawingView), ausser mit r_DynamicGlow und globalem Nebel. Dort, wo die Karte nichts zeichnet, bleibt
         // sie stehen; das ist alles, was die Hauptszene vom Himmel zeigt.
+        ZielFelder* pz = nullptr;
         if (!g_umriss && g_himmelPortalSatz >= 0 && g_himmelPortalSatz != g_zielSatz && !g_himmelVorgabe.szeneLoescht) {
-            const ZielFelder& pz = g_geparkt[g_himmelPortalSatz];
-            if (pz.tex != nullptr && pz.w == g_zielW && pz.h == g_zielH && pz.proben == g_zielProben) { ::bhed::render::kopieren(c, g_zielTex, pz.tex); }
+            ZielFelder& kandidat = g_geparkt[g_himmelPortalSatz];
+            if (kandidat.tex != nullptr && kandidat.w == g_zielW && kandidat.h == g_zielH && kandidat.proben == g_zielProben) { pz = &kandidat; }
+        }
+        if (pz != nullptr && g_zielProben > 1 && pz->rtv != nullptr && g_portalGetauscht) {
+            // Das Portalbild steht schon im Ziel (getauscht) - ein zweiter erster Durchgang derselben Sicht braeuchte es noch einmal.
+            static bool gemeldet = false;
+            if (!gemeldet) {
+                gemeldet = true;
+                diag::error("gpumap: das Bild des Himmelsportals wurde in einer Sicht zweimal verlangt (nach dem Tauschen der Ziele gibt es es nur einmal)");
+            }
+            pz = nullptr;
+        }
+        if (pz != nullptr && g_zielProben > 1 && pz->rtv != nullptr) {
+            g_portalGetauscht = true;
+            // Mit Mehrfachabtastung das Portalbild nicht kopieren (1920 x 1440 mit 8 Proben: 88 MB je Bild, gemessen 12.11. 0,28 ms
+            // unter Direct3D 12 und 0,19 ms unter Direct3D 11), sondern die beiden Ziele tauschen: das Ziel mit Proben ist nur
+            // Ziel (gelesen wird das aufgeloeste Bild, bereiteZiel), und der Portalsatz wird vor seinem naechsten Gebrauch neu
+            // geloescht und gezeichnet - sein altes Bild liest niemand mehr. Der Inhalt des Ziels ist derselbe wie nach dem Kopieren.
+            std::swap(g_zielTex, pz->tex);
+            std::swap(g_zielRtv, pz->rtv);
+            pz->veraendert = false;   // sein aufgeloestes Bild gehoert nicht mehr zu seinem Ziel; neu erst nach dem naechsten Zeichnen
+            ::bhed::render::zielSetzen(c, 1, &g_zielRtv, g_tiefeDsv);
+        } else {
+            // Mit der Farbe des globalen Nebels (setzeHintergrund), wie das Spiel;
+            // die Maske des Umrisses bleibt leer.
+            ::bhed::render::leeren(c, g_zielRtv, g_umriss ? leer : g_hintergrund);
+            if (pz != nullptr) { ::bhed::render::kopieren(c, g_zielTex, pz->tex); }
         }
         c->ClearDepthStencilView(g_tiefeDsv, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0F, 0);
     }

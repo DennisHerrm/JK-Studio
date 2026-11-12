@@ -2413,7 +2413,8 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
                   static_cast<double>(g_app->modelCam.fovY),
                   static_cast<double>(a.mitte[0]), static_cast<double>(a.mitte[1]), static_cast<double>(a.mitte[2]),
                   static_cast<double>(a.halbHoehe), static_cast<double>(g_app->modelOrbit.distance));
-    const std::string standGanz = std::string(stand) + rasterStand(a) + modellPrStand(n) + modellKdStand(a, w, h);   // MBRASTER, AP5, AP13K
+    // MBRASTER, AP5, AP13K; dazu der Geraetestand: nach einem Geraeteverlust ist das Ziel neu und leer (Codepruefung seit rc611, R1)
+    const std::string standGanz = std::string(stand) + rasterStand(a) + modellPrStand(n) + modellKdStand(a, w, h) + "|g" + std::to_string(render::texturStand());
     if (neu || g_sichtStand[static_cast<std::size_t>(n)] != standGanz) {
         gpu::modellZielWaehlen(n);
         if (gpu::bereiteModellZiel(w, h)) {

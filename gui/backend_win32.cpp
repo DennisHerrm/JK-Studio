@@ -922,6 +922,15 @@ void geraetVerlorenSpielen() {
 #endif
 }
 
+void abmeldenSpielen() {
+    if (g_hwnd != nullptr) {
+        (void)SendMessageW(g_hwnd, WM_QUERYENDSESSION, 0, 0);
+        (void)SendMessageW(g_hwnd, WM_ENDSESSION, TRUE, 0);
+    }
+    TerminateProcess(GetCurrentProcess(), 0);
+    for (;;) {}   // TerminateProcess kehrt fuer den eigenen Prozess nicht zurueck
+}
+
 bool flipModell() {
 #ifdef BHED_WITH_D3D11
     if (g_backend == Backend::Direct3D12) { return g_ready; }   // D3D12 kennt nur das Flip-Modell
@@ -1741,6 +1750,23 @@ bool grafikBefund([[maybe_unused]] std::string& text) {
     if (g_ready && g_backend == Backend::Direct3D12) { return d3d12::befund(text); }
 #endif
     return true;
+}
+
+void grafikVorwaermen() {
+#ifdef BHED_WITH_D3D11
+    // Nicht, wenn der Selbsttest einen Fehler des Starts spielt (BHED_D3D12_FEHLER): dort zaehlt der Weg ohne Vorwaermen.
+    if (g_ready || std::getenv("BHED_D3D12_FEHLER") != nullptr) { return; }
+    const char* dbg = std::getenv("BHED_D3D_DEBUG");
+    const bool debug = dbg != nullptr ? dbg[0] == '1' : std::getenv("BHED_EDITORTEST") != nullptr;   // wie initD3D12
+    d3d12::vorwaermen([]() -> IDXGIAdapter1* { return holeKarte(!sparsamGewuenscht()); }, debug);
+#endif
+}
+
+std::vector<std::string> grafikSpeicherZeilen() {
+#ifdef BHED_WITH_D3D11
+    if (g_ready && g_backend == Backend::Direct3D12) { return d3d12::speicherZeilen(); }
+#endif
+    return {};
 }
 
 Backend current() { return g_backend; }

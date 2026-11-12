@@ -852,6 +852,22 @@ void netzUebernehmen(Gebacken& ziel, std::unique_ptr<Ergebnis> r) {
     ziel.geraet = kartegpu::geraetStand();
 }
 
+// Codepruefung seit rc611, R1: nach einem Geraeteverlust ist das Netz einer fertigen .bsp (Vorlage, Schnell-Backen) leer - seine
+// Puffer und Lightmaps gehoerten dem alten Geraet. Aus den Bytes der .bsp wie beim Laden neu hochladen; nur mit einem Geraet
+// (sonst blieben Netz und Bytes leer).
+bool nachVerlustNeuHochladen(Gebacken& g) {
+    if (!g.daten || g.geraet == kartegpu::geraetStand() || !kartegpu::verfuegbar()) { return false; }
+    const std::shared_ptr<const std::string> daten = g.daten;
+    auto r = std::make_unique<Ergebnis>();
+    std::string fehler;
+    if (!readBspGeometry(*daten, r->geo, &fehler)) { return false; }
+    r->netz = buildMesh(r->geo, 4, true);
+    r->daten = *daten;
+    netzUebernehmen(g, std::move(r));
+    neuZeichnen();
+    return true;
+}
+
 void ergebnisUebernehmen() {
     std::unique_ptr<Ergebnis> r;
     {
@@ -2066,6 +2082,7 @@ void echtLichtSchritt(std::size_t kartenStand) {
             ++e.echtLicht.baueAbgebrochen;
         }
     }
+    (void)nachVerlustNeuHochladen(g_gebacken);
     e.echtLicht.gebackenZeigen = e.echtLicht.backen && g_gebackenStand == kartenStand && g_gebacken.netz.gueltig() &&
                                  g_gebacken.geraet == kartegpu::geraetStand();
     if (!e.echtLicht.backen) {
@@ -2151,6 +2168,7 @@ std::size_t vorlageStand() { return g_vorlageStand; }
 
 bool vorlageZeichnen(const float* matrix) {
     if (g_vorlageWartet) { netzUebernehmen(g_vorlage, std::move(g_vorlageWartet)); }
+    (void)nachVerlustNeuHochladen(g_vorlage);
     if (!vorlageAktiv() || !g_vorlage.netz.gueltig()) { return false; }
     for (const Gebacken::Teil& t : g_vorlage.teile) {
         kartegpu::Zustand3 z;
@@ -2174,6 +2192,7 @@ bool vorlageZeichnen(const float* matrix) {
 namespace {
 const Gebacken* spielQuelle() {
     if (g_vorlageWartet) { netzUebernehmen(g_vorlage, std::move(g_vorlageWartet)); }
+    (void)nachVerlustNeuHochladen(g_vorlage);
     if (ed().echtLicht.gebackenZeigen && g_gebacken.netz.gueltig() && g_gebacken.daten) { return &g_gebacken; }
     if (vorlageAktiv() && g_vorlage.netz.gueltig() && g_vorlage.daten) { return &g_vorlage; }
     return nullptr;

@@ -121,6 +121,11 @@ bool ready();
 // Selbsttest: der Befund der Schnittstelle am Ende eines Laufs. Unter Direct3D 12: hat der Abgeber (abgeber12.h) jede gerufene
 // Methode umgesetzt, und meldet die Debugschicht keinen Fehler? text nennt die Zaehler. Sonst true mit leerem Text.
 [[nodiscard]] bool grafikBefund(std::string& text);
+// Programmstart mit Direct3D 12: das Grafikgeraet schon jetzt in einem eigenen Faden anlegen (render::init wartet darauf).
+// Der Aufrufer hat vorher entschieden, dass Direct3D 12 starten soll (Einstellung, Startmarke).
+void grafikVorwaermen();
+// Direct3D 12, Selbsttest leistung: der Speicherbericht des Abgebers als Zeilen (sonst leer).
+[[nodiscard]] std::vector<std::string> grafikSpeicherZeilen();
 
 // --- Welche Grafikkarte (rc596) -------------------------------------------
 //
@@ -149,6 +154,9 @@ struct GeraeteInfo {
 // (schwarzes Bild). Jetzt merkt present() es sich, schreibt den Grund ins
 // Protokoll, und die Hauptschleife baut die Grafik neu auf.
 [[nodiscard]] bool geraetVerloren();
+// Fuer den Selbsttest (grafik, BHED_GRAFIK_NUR=abmelden): Windows meldet den Nutzer ab - WM_QUERYENDSESSION und WM_ENDSESSION an
+// das Hauptfenster, danach endet der Prozess sofort und ohne Aufraeumen (wie nach dem Abmelden). Kehrt nicht zurueck.
+[[noreturn]] void abmeldenSpielen();
 // Fuer den Selbsttest: so tun, als waere das Geraet verloren.
 void geraetVerlorenSpielen();
 // Vor jedem Bild: warten, bis die Swapchain einen Puffer frei hat (wartbare

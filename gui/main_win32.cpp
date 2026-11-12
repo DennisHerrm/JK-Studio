@@ -15,6 +15,7 @@
 #include "backend.h"
 #include "fenster_dock.h"
 #include "gpumap.h"
+#include "karte_gpu.h"
 #include "textumbruch.h"
 
 #include "bhed/gpustate.h"
@@ -118,6 +119,8 @@ void setKartenDialogSchrift(ImFont* normal, ImFont* fett);
 std::string kartenGlSchriftDatei();
 void setKartenGlSchrift(ImFont* schrift, const std::string& datei);
 }  // namespace bhed::gui
+
+void startmarkeBeiAbmeldenLoeschen();   // R5: Startmarke, weiter unten
 
 namespace {
 
@@ -332,6 +335,11 @@ LRESULT WINAPI wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if ((wParam & 0xfff0) == SC_KEYMENU) {
                 return 0;   // Alt-Menue abschalten
             }
+            break;
+        case WM_ENDSESSION:
+            // Windows meldet ab oder faehrt herunter und beendet den Prozess danach ohne Aufraeumen: kein abgestuerzter
+            // Start mit Direct3D 12 (Codepruefung seit rc611, R5).
+            if (wParam != 0) { startmarkeBeiAbmeldenLoeschen(); }
             break;
         case WM_CLOSE:
             // Das Kreuz oben rechts. Vorher schloss es sofort - auch mit
@@ -878,7 +886,12 @@ void imguiWin32Starten(HWND hwnd) {
 // geloescht (auch nach einem gescheiterten Start und beim geordneten Ende). Steht sie beim naechsten Start noch da, ist der
 // letzte Start mit Direct3D 12 abgestuerzt oder haengen geblieben (ein Treiber, der Direct3D 12 nicht traegt) - dann startet
 // das Programm mit Direct3D 11, ohne dass der Nutzer erst ein Menue erreichen muss.
+// Codepruefung seit rc611, R5: geloescht wird sie nach kStartmarkeBilder Bildern ODER kStartmarkeSekunden nach dem ersten
+// gezeigten Bild (im Leerlauf zeichnet das Programm nur vier Bilder je Sekunde - 60 Bilder dauerten bis 15 Sekunden), beim
+// Abmelden oder Herunterfahren von Windows (WM_ENDSESSION) und bei jedem geordneten Prozessende (atexit). Stehen bleibt sie nur,
+// wenn der Prozess vorher abstuerzt, haengt oder hart beendet wird.
 constexpr int kStartmarkeBilder = 60;
+constexpr int kStartmarkeSekunden = 2;
 std::filesystem::path startmarkePfad() {
     const std::string einst = bhed::platform::settingsDirectory();
     if (einst.empty()) { return {}; }
@@ -891,6 +904,9 @@ void startmarkeLoeschen() {
     std::error_code ec;
     std::filesystem::remove(startmarkePfad(), ec);
 }
+}  // namespace
+void startmarkeBeiAbmeldenLoeschen() { startmarkeLoeschen(); }   // fuer die Fensterprozedur weiter oben
+namespace {
 
 bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app) {
     IMGUI_CHECKVERSION();
@@ -1104,7 +1120,12 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
                                                      : bhed::theme::Color{0.2F, 0.2F, 0.2F, 1.0F};
         bhed::render::present(bg.r, bg.g, bg.b);
         BHED_BILD();
-        if (g_startmarke && ImGui::GetFrameCount() >= kStartmarkeBilder) { startmarkeLoeschen(); }
+        if (g_startmarke) {
+            static const auto erstesBild = std::chrono::steady_clock::now();   // das erste gezeigte Bild
+            if (ImGui::GetFrameCount() >= kStartmarkeBilder || std::chrono::steady_clock::now() - erstesBild >= std::chrono::seconds(kStartmarkeSekunden)) {
+                startmarkeLoeschen();
+            }
+        }
         // Stufe 7 (tools/karte/tempo.py): Programmstart bis zum ersten
         // gezeigten Bild - ab der Entstehung des Prozesses (GetProcessTimes),
         // also mit dem Laden der .exe und allem vor wWinMain.
@@ -1150,6 +1171,9 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
             bhed::render::vorPlattformAbbau();   // D3D12 Stufe 1: imgui_impl_dx12 vor dem Win32-Teil
             ImGui_ImplWin32_Shutdown();
             bhed::gpu::shutdown();
+            // Auch der Karten-Editor: er gaebe seine Objekte sonst erst beim naechsten Bild frei - an das NEUE Geraet
+            // (Codepruefung seit rc611, R1).
+            bhed::gui::kartegpu::freigeben();
             bhed::render::shutdown();
             neuaufbauOffen = true;
         }
@@ -1172,6 +1196,7 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
     // dem Geraet. Wer sie danach freigibt, gibt sie an ein Geraet zurueck,
     // das es nicht mehr gibt.
     bhed::gpu::shutdown();
+    bhed::gui::kartegpu::freigeben();
     bhed::render::shutdown();
     ImGui::DestroyContext();
     return true;
@@ -1494,6 +1519,35 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     // Einstellungen zuerst: dort kann eine eigene .bhc stehen, und die soll
     // beim Laden des Modells schon bekannt sein.
     bhed::gui::loadSettings(app);
+#ifdef BHED_WITH_D3D11
+    // Die Wahl der Grafikschnittstelle schon hier (Erklaerung unten, vor runSession): steht Direct3D 12 fest, entsteht sein
+    // Geraet ab jetzt in einem eigenen Faden, waehrend Befehlsmodell und Spielordner geladen werden (gemessen 12.11.: der Start
+    // der Schnittstelle kostete 292-310 ms gegen 174-179 ms unter Direct3D 11). Die Startmarke MUSS davor geprueft und
+    // angelegt sein - ein Treiber, der beim Anlegen des Geraets abstuerzt, liesse das Programm sonst bei jedem Start abstuerzen.
+    const char* d3d12Wahl = std::getenv("BHED_D3D12");
+    bool d3d12Wunsch = d3d12Wahl != nullptr ? d3d12Wahl[0] == '1' : bhed::gui::grafikD3d12Gewuenscht();
+    if (d3d12Wunsch && d3d12Wahl == nullptr && !startmarkePfad().empty()) {
+        std::error_code ec;
+        const char* f = std::getenv("BHED_D3D12_FEHLER");
+        const bool gespielt = f != nullptr && std::strcmp(f, "absturz") == 0;
+        if (gespielt || std::filesystem::exists(startmarkePfad(), ec)) {
+            bhed::diag::error(std::string("Grafik: der letzte Start mit Direct3D 12 wurde nicht fertig (Startmarke") +
+                              (gespielt ? ", gespielt mit BHED_D3D12_FEHLER=absturz" : "") + ") - diesmal Direct3D 11, Einstellung auf Direct3D 11");
+            std::filesystem::remove(startmarkePfad(), ec);
+            bhed::gui::grafikRueckfallMelden();
+            d3d12Wunsch = false;
+        } else {
+            std::FILE* m = _wfopen(startmarkePfad().c_str(), L"wb");
+            if (m != nullptr) {
+                std::fputs("Direct3D 12 start\n", m);
+                std::fclose(m);
+                g_startmarke = true;
+                std::atexit([] { startmarkeLoeschen(); });   // ein geordnetes Prozessende ist kein abgestuerzter Start
+            }
+        }
+    }
+    if (d3d12Wunsch && std::getenv("BHED_OPENGL") == nullptr) { bhed::render::grafikVorwaermen(); }
+#endif
 
     std::string error;
     // rc601 release: data\base neben der .exe oder die eingebauten Daten
@@ -1644,27 +1698,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     // Direct3D 12; ohne D3D12-Geraet (Merkmalsstufe 11_0) weiter wie bisher mit Direct3D 11.
     // rc612: Direct3D 12 ist Vorgabe (Settings::grafikD3d12). Die Startmarke gilt fuer die Wahl aus der Einstellung - mit
     // BHED_D3D12 entscheidet der Aufrufer selbst. BHED_D3D12_FEHLER=absturz spielt eine liegen gebliebene Marke.
-    const char* d3d12Wahl = std::getenv("BHED_D3D12");
-    bool d3d12Wunsch = d3d12Wahl != nullptr ? d3d12Wahl[0] == '1' : bhed::gui::grafikD3d12Gewuenscht();
-    if (d3d12Wunsch && d3d12Wahl == nullptr && !startmarkePfad().empty()) {
-        std::error_code ec;
-        const char* f = std::getenv("BHED_D3D12_FEHLER");
-        const bool gespielt = f != nullptr && std::strcmp(f, "absturz") == 0;
-        if (gespielt || std::filesystem::exists(startmarkePfad(), ec)) {
-            bhed::diag::error(std::string("Grafik: der letzte Start mit Direct3D 12 wurde nicht fertig (Startmarke") +
-                              (gespielt ? ", gespielt mit BHED_D3D12_FEHLER=absturz" : "") + ") - diesmal Direct3D 11, Einstellung auf Direct3D 11");
-            std::filesystem::remove(startmarkePfad(), ec);
-            bhed::gui::grafikRueckfallMelden();
-            d3d12Wunsch = false;
-        } else {
-            std::FILE* m = _wfopen(startmarkePfad().c_str(), L"wb");
-            if (m != nullptr) {
-                std::fputs("Direct3D 12 start\n", m);
-                std::fclose(m);
-                g_startmarke = true;
-            }
-        }
-    }
+    // (Die Wahl - d3d12Wunsch - und die Startmarke stehen seit D3D12-3 weiter oben, gleich nach den Einstellungen: von dort an
+    // entsteht das D3D12-Geraet in einem eigenen Faden, render::grafikVorwaermen.)
     bool first = false;
     if (std::getenv("BHED_OPENGL") == nullptr) {
         first = d3d12Wunsch && runSession(bhed::render::Backend::Direct3D12, hwnd, app);

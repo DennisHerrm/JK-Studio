@@ -45,6 +45,8 @@ inline void speicher(const std::string& wann) {
     // brauchen): danach raeumen der D3D11-Treiber und der D3D12-Abgeber. Eine eigene Zeile - die Auswertung liest die obere.
     std::snprintf(z, sizeof(z), "Leistung: Grafikspeicher-Budget %s | %lld MB", wann.c_str(), static_cast<long long>(kartegpu::grafikBudget() / 1048576U));
     diag::detail(z);
+    // Direct3D 12: woraus der Grafikspeicher an dieser Stelle besteht (Speicherbericht des Abgebers)
+    for (const std::string& zeile : render::grafikSpeicherZeilen()) { diag::detail("Leistung: " + wann + " | " + zeile); }
 }
 
 // 12 Bilder Anlauf, dann `bilder` gemessene. `lage` einmal am Anfang, `bewegen` jedes Bild (Bildnummer ab 0).

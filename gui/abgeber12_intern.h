@@ -39,10 +39,31 @@ extern std::atomic<std::uint64_t> g_lebend;
 // Teilabgabe: zeichnet die offene Liste so viele Takte (QueryPerformanceCounter) auf, geht sie beim naechsten Wechsel der Ziele
 // ab (0: nur am Ende des Bildes). BHED_D3D12_TEILABGABE=<Mikrosekunden>.
 extern long long g_teilAbgabe;
+// Hoechstens so viele Teilabgaben je Bild (BHED_D3D12_TEILABGABEN=<n>). Unter fremder Last zaehlt die Uhr auch die Zeit, in der
+// der Hauptfaden nicht rechnet: dann ging jeder Zielwechsel einzeln ab (bis 364 Abgaben je Bild, Bilder 10- bis 15-mal laenger
+// als unter Direct3D 11, 12.11. abends). Ohne Last sind es im Mittel rund eine je Bild.
+extern int g_teilAbgabenMax;
 extern std::uint32_t g_naechsteKennung;
+// Zaehlt anlegen(): jedes Objekt traegt die Generation des Abgebers, unter dem es entstand. Nach einem Geraeteverlust geben die
+// Zeichenschichten manche Objekte erst frei, wenn der neue Abgeber schon steht (karte_gpu: Stempel render::texturStand) - ein
+// Objekt einer frueheren Generation gibt dann nichts in die Vorraete des neuen zurueck (sein Block liegt in einer freigegebenen
+// Seite, sein Deskriptor im alten Stapel, sein Puffer gehoert dem alten Geraet) und wird beim Gebrauch uebergangen.
+extern std::uint32_t g_generation;
 
 // Eine nicht umgesetzte Methode wurde gerufen: einmal je Methode ins Protokoll (Fehler), zaehlen. Gibt E_NOTIMPL.
 HRESULT fehlt(const char* methode);
+// Ein Objekt eines frueheren Geraets wurde benutzt: einmal je Stelle ins Protokoll (Fehler), zaehlt wie eine nicht umgesetzte
+// Methode (der Befund des Selbsttests wird rot).
+void altesObjekt(const char* wo);
+// Das Objekt, wenn es zum jetzigen Abgeber gehoert; sonst nullptr (gemeldet).
+template <class T>
+[[nodiscard]] inline T* jetzig(T* o, const char* wo) {
+    if (o != nullptr && o->generation != g_generation) {
+        altesObjekt(wo);
+        return nullptr;
+    }
+    return o;
+}
 
 struct Geraet;
 struct Kontext;
@@ -55,8 +76,9 @@ struct Kind : Schnittstelle {
     std::atomic<ULONG> verweise{1};
     ULONG gebunden = 0;
     std::uint32_t kennung;
+    std::uint32_t generation;
 
-    Kind() : kennung(++g_naechsteKennung) { ++g_lebend; }
+    Kind() : kennung(++g_naechsteKennung), generation(g_generation) { ++g_lebend; }
     Kind(const Kind&) = delete;
     Kind& operator=(const Kind&) = delete;
 
@@ -130,8 +152,12 @@ struct Puffer final : Kind<Puffer, ID3D11Buffer> {
     std::uint64_t serie = ~0ULL;   // rahmen::ausfuehrung(), in der res gebraucht wurde und im Lesezustand steht
     // Ruhende dynamische Eck- und Indexpuffer (seit kRuheBilder Bildern kein Map, mindestens kRuheAb Bytes): der Inhalt liegt als
     // Kopie im Grafikspeicher, va zeigt dorthin. Sonst liest die Grafikkarte ihn bei jedem Zeichenbefehl aus dem Arbeitsspeicher.
+    // Puffer, die der Pixel-Shader liest (D3D11_BIND_SHADER_RESOURCE: Lichtliste, Kacheln des Echtzeit-Lichts), bekommen die Kopie
+    // sofort beim ersten Gebrauch nach jedem Map (pufferInGrafik): der Shader liest sie je Bildpunkt, und aus dem Arbeitsspeicher
+    // kostet jeder Zugriff den Weg ueber den Bus.
     ID3D12Resource* ruhe = nullptr;      // die Kopie (bleibt angelegt, solange der Puffer lebt)
     bool ruheGilt = false;
+    std::uint64_t ruheSerie = ~0ULL;     // rahmen::ausfuehrung(), in der die Kopie zuletzt beschrieben und lesbar gestellt wurde
     std::uint64_t geschriebenBild = 0;   // Bild des letzten Map
     // Wo der Kontext ihn gerade gebunden hat - ein Map(WRITE_DISCARD) aendert seine Adresse, und genau diese Plaetze muessen neu
     // in die Liste (Kontext::pufferUmbenannt).
@@ -193,6 +219,7 @@ struct Sicht final : Kind<Sicht, ID3D11ShaderResourceView> {
     UINT index = 0;                    // Deskriptor im gemeinsamen Stapel
     UINT indexOben = ~0U;              // fuer die Oberflaeche: dieselbe Sicht mit nur ihrer obersten Stufe (~0: noch keiner)
     std::uint32_t fassung = 0;         // Puffer: Fassung, fuer die der Deskriptor geschrieben ist
+    bool aufKopie = false;             // Puffer: der Deskriptor zeigt auf die Kopie im Grafikspeicher (Puffer::ruhe) - er bleibt
 
     ~Sicht();
     static bool istSchnittstelle(REFIID iid) { return iid == __uuidof(ID3D11View) || iid == __uuidof(ID3D11ShaderResourceView); }
@@ -227,9 +254,27 @@ struct TiefeSicht final : Kind<TiefeSicht, ID3D11DepthStencilView> {
 };
 
 // --- Shader, Eingabe, Zustaende --------------------------------------------------
+// Pruefsumme ueber Bytes, acht auf einmal (fuer die Namen der Pipeline-Zustaende im Zwischenspeicher auf der Platte).
+inline void mische(std::uint64_t h[2], const void* daten, std::size_t n) {
+    const auto* c = static_cast<const unsigned char*>(daten);
+    while (n != 0U) {
+        std::uint64_t w = 0;
+        const std::size_t m = n < 8U ? n : 8U;
+        for (std::size_t i = 0; i < m; ++i) { w |= static_cast<std::uint64_t>(c[i]) << (8U * i); }
+        if (m < 8U) { w ^= static_cast<std::uint64_t>(m) << 56U; }
+        h[0] = (h[0] ^ w) * 0x9E3779B97F4A7C15ULL;
+        h[0] ^= h[0] >> 32U;
+        h[1] = (h[1] + w) * 0xC2B2AE3D27D4EB4FULL;
+        h[1] ^= h[1] >> 29U;
+        c += m;
+        n -= m;
+    }
+}
+
 template <class S>
 struct Shader final : Kind<Shader<S>, S> {
     std::vector<unsigned char> code;   // DXBC, unveraendert
+    std::uint64_t pruef[2] = {0x243F6A8885A308D3ULL, 0x13198A2E03707344ULL};   // Pruefsumme des Codes (shaderAnlegen)
     static bool istSchnittstelle(REFIID iid) { return iid == __uuidof(S); }
 };
 using VsObjekt = Shader<ID3D11VertexShader>;
@@ -320,6 +365,9 @@ void pufferLesbar(ID3D12GraphicsCommandList* l, Puffer* p);
 void pufferRuhe(ID3D12GraphicsCommandList* l, Puffer* p);
 // Ein Map hebt die Ruhe auf (va zeigt wieder auf den Block); true: va hat sich geaendert.
 bool pufferGeweckt(Puffer* p);
+// Ein dynamischer Puffer, den der Pixel-Shader liest: den Inhalt seines Blocks jetzt in die Kopie im Grafikspeicher (einmal je
+// Map). false: keine Kopie (zu klein, abgeschaltet, kein Speicher) - dann liest der Shader weiter aus dem Block.
+bool pufferInGrafik(ID3D12GraphicsCommandList* l, Puffer* p);
 void zaehleBarriere();
 // Der Kontext vergisst Bindungen nicht von selbst; die Sicht-Kennungen fuer die Oberflaeche.
 void sichtMelden(Sicht* s, bool lebt);
@@ -337,6 +385,38 @@ void psoAbbauen();
 void bloeckeStempeln(std::uint64_t zaun);
 Zaehler& zaehlerIntern();
 [[nodiscard]] bool aktiv();
+
+// --- Zeiten (Messhilfe): was der Abgeber selbst an Wartezeit in ein Bild bringt --------------------
+// Je Bild gesammelt; ein Bild ueber der Grenze (BHED_D3D12_LANGBILD=<ms>, Vorgabe 100) schreibt seine Posten ins Protokoll -
+// so stehen die Ursachen eines langen Bildes (erstes Bild nach dem Laden, Optimierer auf einer grossen Karte) als Zahlen da.
+struct Zeiten {
+    double psoMs = 0.0;          // Pipeline-Zustaende anlegen oder aus dem Zwischenspeicher holen
+    double texturMs = 0.0;       // CreateTexture2D (anlegen und Anfangsdaten kopieren)
+    double pufferMs = 0.0;       // CreateBuffer im Grafikspeicher
+    double einlagernMs = 0.0;    // MakeResident
+    double auslagernMs = 0.0;    // Evict
+    std::uint32_t pso = 0;
+    std::uint32_t psoAusSpeicher = 0;
+    std::uint32_t textur = 0;
+    std::uint32_t puffer = 0;
+    std::uint32_t einlagern = 0;
+    std::uint64_t einlagernBytes = 0;
+    std::uint64_t texturBytes = 0;   // Anfangsdaten
+};
+[[nodiscard]] Zeiten& zeitenBild();
+extern double g_msJeTakt;   // Millisekunden je Takt von QueryPerformanceCounter
+struct Stoppuhr {
+    double& ziel;
+    LARGE_INTEGER t0;
+    explicit Stoppuhr(double& z) : ziel(z) { QueryPerformanceCounter(&t0); }
+    Stoppuhr(const Stoppuhr&) = delete;
+    Stoppuhr& operator=(const Stoppuhr&) = delete;
+    ~Stoppuhr() {
+        LARGE_INTEGER t1;
+        QueryPerformanceCounter(&t1);
+        ziel += static_cast<double>(t1.QuadPart - t0.QuadPart) * g_msJeTakt;
+    }
+};
 
 // --- Bildprotokoll (Messhilfe, abgeber12_protokoll_win32.cpp) ------------------------
 // BHED_D3D12_PROTOKOLL=<n>: jedes n-te Bild schreibt auf, was in die Befehlsliste geht, mit Zeitmarken der Grafikkarte.
@@ -450,6 +530,8 @@ struct Kontext final : ID3D11DeviceContext1 {
     std::uint32_t srvSchmutz = ~0U;
     std::uint32_t abtasterSchmutz = ~0U;
     ID3D12GraphicsCommandList* offeneListe = nullptr;   // nullptr: beim naechsten Befehl vom Rahmen holen
+    std::uint32_t teilBild = ~0U;                      // Teilabgaben: das Bild (g_gebrauchBild) ...
+    int teilImBild = 0;                                // ... und wie viele darin schon abgingen
     long long listeSeit = 0;                           // QueryPerformanceCounter beim Oeffnen der Liste (Teilabgabe)
     ID3D12PipelineState* psoJetzt = nullptr;   // in der Liste gesetzt
     PsoSchluessel schluesselJetzt;

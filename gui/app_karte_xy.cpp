@@ -85,6 +85,7 @@ struct Szene {
     kartegpu::Puffer gpuWelt;
     kartegpu::Puffer gpuWahl;
     bool gpuAktuell = false;
+    unsigned geraet = ~0U;   // Geraetestand der Puffer: nach einem Geraeteverlust neu fuellen (Codepruefung seit rc611, R1)
 };
 std::array<Szene, 3> g_szene;
 
@@ -655,6 +656,11 @@ void xyZeichnen(int index) {
         // Das zuletzt gezeichnete Bild bleibt stehen.
         dl->AddImage(reinterpret_cast<ImTextureID>(kartegpu::textur(100 + index)), o, ImVec2{o.x + groesse.x, o.y + groesse.y});
     } else if (kartegpu::verfuegbar() && kartegpu::beginnen(100 + index, v.breite, v.hoehe, ed.anzeige.msaa, hinten)) {
+        if (s.geraet != kartegpu::geraetStand()) {   // neues Geraet: die Puffer des alten sind leer
+            s.geoGpuAktuell = false;
+            s.gpuAktuell = false;
+            s.geraet = kartegpu::geraetStand();
+        }
         if (!s.geoGpuAktuell) {
             s.gpuGeo.setzen(s.geo);
             s.geoGpuAktuell = true;
@@ -699,9 +705,11 @@ void xyZeichnen(int index) {
         {
             static kartegpu::Puffer vorlagePuffer;
             static std::size_t vorlageGesetzt = static_cast<std::size_t>(-1);
-            if (vorlageGesetzt != vorlageStand()) {
+            static unsigned vorlageGeraet = ~0U;
+            if (vorlageGesetzt != vorlageStand() || vorlageGeraet != kartegpu::geraetStand()) {
                 vorlagePuffer.setzen(vorlageLinien());
                 vorlageGesetzt = vorlageStand();
+                vorlageGeraet = kartegpu::geraetStand();
             }
             if (vorlageAktiv()) { kartegpu::zeichnen(vorlagePuffer, &mvp[0], 1.0F); }
         }

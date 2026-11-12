@@ -76,8 +76,14 @@ void texturenFrei();
 void mischart(ImDrawList* dl, int art, int quelle, int ziel, bool klemmen);
 
 [[nodiscard]] std::string karte();
+// Programmstart: das D3D12-Geraet schon vor init() in einem eigenen Faden anlegen - es entsteht, waehrend das Programm noch
+// anderes laedt (das Geraet ist je Karte ein Einzelstueck: init() bekommt dasselbe sofort). karteHolen liefert im Faden die
+// gewuenschte Karte (oder nullptr: Windows waehlt); debug wie bei init(). init() und shutdown() warten auf den Faden.
+void vorwaermen(IDXGIAdapter1* (*karteHolen)(), bool debug);
 // Selbsttest: hat der Abgeber jede gerufene Methode umgesetzt und die Debugschicht keinen Fehler gemeldet? text: die Zaehler.
 [[nodiscard]] bool befund(std::string& text);
+// Selbsttest leistung: was der Abgeber an Grafikspeicher und Arbeitsspeicher belegt, als Zeilen.
+[[nodiscard]] std::vector<std::string> speicherZeilen();
 void info(std::string& hersteller, std::string& version, std::string& kartenName, std::vector<std::string>& merkmale);
 
 }  // namespace bhed::render::d3d12
