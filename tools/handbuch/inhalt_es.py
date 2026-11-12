@@ -7614,3 +7614,5 @@ from inhalt_vis2c import ES as _VIS2C  # noqa: E402
 TEXTE.update(_VIS2C)
 from inhalt_d3d12 import ES as _D3D12  # noqa: E402
 TEXTE.update(_D3D12)
+from inhalt_lcfix import ES as _LCFIX  # noqa: E402
+TEXTE.update(_LCFIX)
