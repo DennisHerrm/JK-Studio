@@ -73,7 +73,9 @@ struct BhedHash {
 			c += 8;
 			n -= 8;
 		}
-		std::uint64_t rest = 0x80ULL << 56 | std::uint64_t( n ) << 48;   // the tail and its length
+		/* the tail (n <= 7 bytes: bits 0-55), its length in bits 56-58 and a mark in bit 63. lcfix: the length was in
+		   bits 48-50, where the 7th byte of a 7 byte tail lies - its low three bits were lost (P4-2) */
+		std::uint64_t rest = 0x8000000000000000ULL | std::uint64_t( n ) << 56;
 		for ( std::size_t i = 0; i < n; ++i )
 			rest |= std::uint64_t( c[i] ) << ( 8 * i );
 		wort( rest );

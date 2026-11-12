@@ -713,7 +713,8 @@ void altVergessen(){
 	g_altGitterAnzahl = 0;
 }
 
-constexpr char kKopf[8] = { 'B', 'H', 'L', 'I', 'C', 'H', 'T', '5' };   // 3: one section per pass (lcb1), 4: by content, 5: packed (lcb2)
+// 3: one section per pass (lcb1), 4: by content, 5: packed (lcb2), 6: the hash keeps the last byte of a 7 byte tail (lcfix P4-2)
+constexpr char kKopf[8] = { 'B', 'H', 'L', 'I', 'C', 'H', 'T', '6' };
 
 }  // namespace
 

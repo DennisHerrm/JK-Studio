@@ -2127,3 +2127,11 @@ if(BEHAVED_TESTS)
   target_link_libraries(modellrigformentest PRIVATE bhed_core)
   add_test(NAME modell_rigformen COMMAND modellrigformentest)
 endif()
+
+# lcfix (Codepruefung seit rc611, Funde P4-1 bis P4-4): der Hash und die Schluessel des Licht-Caches ohne Karte
+# (q3map2_lichthash); je Eingabe eines Lichtbaus der Teilbau mit Cache gegen den vollen Bau (q3map2_lichtabdruck); die
+# Schluessel von VIS-Wiederverwendung und VIS-Zwischenstand (q3map2_visschluessel)
+if(BEHAVED_TESTS)
+  add_executable(lichthash tests/lichthash.cpp)
+  add_test(NAME q3map2_lichthash COMMAND lichthash)
+endif()
