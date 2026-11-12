@@ -857,7 +857,9 @@ bool modellMalenAnsicht(const ModellAnsicht& a, ImVec2 maus, bool neu) {
     schirmNetzBauen(a, g_schirmNetz);
     // MBMAL Punkt 5: der Abstand der Tupfer gilt am Schirm (Spacing: Anteil des Pinselradius in Bildpunkten) - wie Substance
     // Painter und Blender (Stroke Spacing im Bildraum, je Tupfer eine Projektion auf die sichtbare Flaeche)
-    const float schritt = std::max(z.radiusPx * std::max(z.pinsel.abstand, 0.01F), 1e-4F);
+    // FIX612B P2-8: der Radius mindestens 1 Bildpunkt wie bei den Tasten [ ] und F - mit 0 (getippt) lagen auf 20 Bildpunkten
+    // Mausweg 200 000 Tupferstellen, jede mit einem Strahl gegen alle Dreiecke
+    const float schritt = std::max(std::clamp(z.radiusPx, 1.0F, 500.0F) * std::max(z.pinsel.abstand, 0.01F), 1e-4F);
     const float stelle[3] = {maus.x, maus.y, 0.0F};
     ZugewandtJe zj;
     if (!neu) {
@@ -1683,7 +1685,9 @@ void rolloutPinsel() {
     ImGui::SameLine(0.0F, 2.0F);
     symbolKnopf(Str::PtFarbeAufnehmen, UiIcon::MalPipette);
     const std::string radiusHinweis = tooltipVon(Str::PtRadiusZiehen) + "\n" + tr(Str::PtRadiusTasten);
-    ui::regler(mitKennung(Str::PtRadius, "ptradius").c_str(), &z.radiusPx, 1.0F, 300.0F, "%.0f px", radiusHinweis.c_str(), ImGuiSliderFlags_Logarithmic);
+    if (ui::regler(mitKennung(Str::PtRadius, "ptradius").c_str(), &z.radiusPx, 1.0F, 300.0F, "%.0f px", radiusHinweis.c_str(), ImGuiSliderFlags_Logarithmic)) {
+        z.radiusPx = std::clamp(z.radiusPx, 1.0F, 500.0F);   // FIX612B P2-8: auch getippt (Strg+Klick) die Grenzen der Tasten [ ] und F
+    }
     ui::regler(mitKennung(Str::PtStaerke, "ptstaerke").c_str(), &z.pinsel.staerke, 0.0F, 1.0F, "%.2f", tooltipVon(Str::PtStaerkeZiehen).c_str());
     float abst = z.pinsel.abstand * 100.0F;
     if (ui::regler(mitKennung(Str::PtAbstand, "ptabstand").c_str(), &abst, 1.0F, 200.0F, "%.0f %%", tr(Str::PtAbstandHint))) { z.pinsel.abstand = abst / 100.0F; }
