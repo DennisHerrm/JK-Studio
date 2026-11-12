@@ -2242,3 +2242,15 @@ if(BEHAVED_TESTS)
   target_include_directories(modellent3btest PRIVATE tests)
   add_test(NAME modell_ent3b COMMAND modellent3btest ${CMAKE_CURRENT_SOURCE_DIR}/tests/figuranim/ent3b_figur_alt.txt)
 endif()
+
+# ENTSCHEID3A (12.11., Entscheidungen B7-B13, C4): Drehmodi eines Knochens wie Blender fuer die Seitenleiste (bhed/modell/drehmodus.h),
+# der Modifier-Stapel in einer Begleitdatei neben der .glm (bhed/modell/stapelbegleit.h); Oberflaeche gui/app_modelltab_ent3a.cpp
+target_sources(bhed_core PRIVATE src/modell/drehmodus.cpp src/modell/stapelbegleit.cpp)
+if(TARGET behaved)
+  target_sources(behaved PRIVATE gui/app_modelltab_ent3a.cpp)
+endif()
+if(BEHAVED_TESTS)
+  add_executable(modellent3atest tests/modell_ent3a.cpp)
+  target_link_libraries(modellent3atest PRIVATE bhed_core)
+  add_test(NAME modell_ent3a COMMAND modellent3atest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
+endif()

@@ -228,6 +228,9 @@ struct Settings {
     bool modellZeitAutoKey = false;
     // ENTSCHEID1: Werkzeugleiste wie Blender mit den Namen der Werkzeuge (Rechtsklick "Werkzeugnamen zeigen").
     bool modellBlWerkzeugnamen = false;
+    // ENTSCHEID3A (B8): die Breite der Werkzeugleiste wie Blender in Punkten (Bildpunkte / Oberflaeche), gezogen an ihrer Kante;
+    // ueber 120 zeigt sie die Werkzeugnamen. 0: die schmale Vorgabe.
+    float modellBlLeisteBreite = 0.0F;
     float modellZeitSpurHoeheMax = 8.0F;
     float modellZeitSpurHoeheBlender = 8.0F;
     int modellZeitAnzeige = 0;

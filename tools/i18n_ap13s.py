@@ -199,12 +199,12 @@ ZEILEN = [
      "サーフェスを選択してください - ツリーで、またはビューをクリックして。そのモディファイアがここに表示されます。",
      "Selecciona una superficie, en el árbol o con un clic en la vista. Sus modificadores aparecen aquí.",
      "Vyberte povrch - ve stromu nebo kliknutím v pohledu. Jeho modifikátory jsou zde."),
-    ("StpTipp", "Modifiers stay changeable: the surface underneath keeps its own mesh. Saving writes their result into the file, except for entries marked \"preview only\". The stack itself is not stored in the model file.",
-     "Modifier bleiben änderbar: die Fläche darunter behält ihr eigenes Netz. Speichern schreibt ihr Ergebnis in die Datei, außer bei Einträgen mit „nur Vorschau“. Der Stapel selbst steht nicht in der Modelldatei.",
-     "修改器始终可以修改: 其下的面保留自己的网格。保存时把它们的结果写入文件, 标有“仅预览”的条目除外。堆栈本身不保存在模型文件中。",
-     "モディファイアは変更可能なままです: 下のサーフェスは自分のメッシュを保ちます。保存すると結果がファイルに書き込まれます (「プレビューのみ」の項目を除く)。スタック自体はモデルファイルに保存されません。",
-     "Los modificadores siguen siendo editables: la superficie de debajo conserva su propia malla. Al guardar se escribe su resultado en el archivo, salvo las entradas marcadas «solo vista previa». La pila en sí no se guarda en el archivo del modelo.",
-     "Modifikátory zůstávají měnitelné: povrch pod nimi si ponechává vlastní síť. Uložení zapíše jejich výsledek do souboru, kromě položek označených „jen náhled“. Samotný zásobník se do souboru modelu neukládá."),
+    ("StpTipp", "Modifiers stay changeable: the surface underneath keeps its own mesh. Saving writes their result into the file, except for entries marked \"preview only\". The stack itself is not stored in the model file but next to it (model.glm.stack, the game does not read it) and comes back when the model is opened again.",
+     "Modifier bleiben änderbar: die Fläche darunter behält ihr eigenes Netz. Speichern schreibt ihr Ergebnis in die Datei, außer bei Einträgen mit „nur Vorschau“. Der Stapel selbst steht nicht in der Modelldatei, sondern daneben (model.glm.stack, das Spiel liest sie nicht) und kommt beim nächsten Öffnen wieder.",
+     "修改器始终可以修改: 其下的面保留自己的网格。保存时把它们的结果写入文件, 标有“仅预览”的条目除外。堆栈本身不保存在模型文件中, 而是保存在其旁边 (model.glm.stack, 游戏不读取它), 再次打开模型时会恢复。",
+     "モディファイアは変更可能なままです: 下のサーフェスは自分のメッシュを保ちます。保存すると結果がファイルに書き込まれます (「プレビューのみ」の項目を除く)。スタック自体はモデルファイルではなくその隣 (model.glm.stack、ゲームは読みません) に保存され、次に開いたときに戻ります。",
+     "Los modificadores siguen siendo editables: la superficie de debajo conserva su propia malla. Al guardar se escribe su resultado en el archivo, salvo las entradas marcadas «solo vista previa». La pila en sí no se guarda en el archivo del modelo, sino a su lado (model.glm.stack, el juego no lo lee), y vuelve al abrir el modelo de nuevo.",
+     "Modifikátory zůstávají měnitelné: povrch pod nimi si ponechává vlastní síť. Uložení zapíše jejich výsledek do souboru, kromě položek označených „jen náhled“. Samotný zásobník se neukládá do souboru modelu, ale vedle něj (model.glm.stack, hra ho nečte), a při dalším otevření se vrátí."),
 ]
 
 

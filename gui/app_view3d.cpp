@@ -1905,6 +1905,9 @@ void modellDateiOeffnen(const std::string& p) {
 }
 }  // namespace
 
+// ENTSCHEID3A (B12): fuer den Selbsttest - eine .glm von der Platte oeffnen wie Datei > Oeffnen, ohne Dialog
+void modellVonPlatteOeffnen(const std::string& pfad) { modellDateiOeffnen(pfad); }
+
 // Eine Haut aus der Liste anwenden.
 //
 // Wichtig: das Modell wird VORHER zurueckgesetzt. Eine Haut schaltet Flaechen

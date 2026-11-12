@@ -1820,5 +1820,62 @@ void modellMeshArtMerken(MeshWerkzeug wz, int art);
 // modellHomeSetzen merkt das Home je Figur in Settings::modellHome). Rechtsklick des ViewCube "Home zuruecksetzen" (A12).
 void modellHomeZuruecksetzen();
 
+// ENTSCHEID3A (12.11., Entscheidungen B7-B13 und C4 aus plaene/entscheidungen_1211.md; gui/app_modelltab_ent3a.cpp):
+//   B7  wie 3ds Max (Scene Explorer) ist eine eingefrorene Zeile im Explorer waehlbar, in der Ansicht geht der Klick hindurch
+//   B8  wie Blender zeigt die Werkzeugleiste die Namen, wenn man sie breiter als 120 Punkte zieht
+//   B11 Auge fuer Edit Poly (je Flaeche: die Flaeche wie geladen) und Skin (die Figur in der Bindepose) - nur die Anzeige
+//   B12 der Modifier-Stapel in einer Begleitdatei neben der .glm (bhed/modell/stapelbegleit.h)
+//   C4  Esc schliesst das Rechtsklick-Menue der Ansicht
+struct ModellEnt3a {
+    // B11 (Ansicht, kein Rueckgaengig-Schritt, wie das Auge im Explorer): je Flaeche Edit Poly aus; Skin aus fuer die ganze Figur
+    std::vector<char> polyAus;
+    bool skinAus = false;
+    int ansichtStand = 0;                // zaehlt jedes Umschalten eines Auges (die Ansicht posiert und zeichnet dann neu)
+    // B11: der Inhalt, wie er geladen wurde (nach der Begleitdatei) - "Edit Poly aus" zeigt ihn
+    std::shared_ptr<const modell::Inhalt> geladen;
+    int geladenFuer = -1;                // ModellTab::dok.ladeStand()
+    // B12: die Begleitdatei beim letzten Oeffnen und Speichern
+    std::string begleitPfad;             // gefunden beim Oeffnen (leer: keine)
+    int begleitEintraege = -1;           // so viele Eintraege kamen zurueck (-1: keine gelesen)
+    int begleitFehler = 0;               // modell::BegleitFehler beim Oeffnen
+    int begleitGeschrieben = 0;          // so oft geschrieben
+    int begleitEntfernt = 0;             // so oft eine alte eigene Begleitdatei entfernt (Stapel leer)
+    std::string meldungNachLaden;
+    // B8: die Kante der Werkzeugleiste (Selbsttest) und ob gerade gezogen wird
+    ImRect leisteKante;
+    bool leisteZieht = false;
+    // B9: der Drehmodus je Knochen (Name -> modell::DrehModus; fehlt: Quaternion wie Blenders Vorgabe)
+    std::map<std::string, int> drehModus;
+    // C4: Bild, in dem Esc das Rechtsklick-Menue der Ansicht schloss
+    int kontextEscBild = -1;
+    int kontextEscZahl = 0;
+};
+[[nodiscard]] ModellEnt3a& modellEnt3a();
+// B12: vor Dokument::laden (Begleitdatei lesen und den Stapel auf `in` legen) und danach (Stand merken, Meldung).
+void modellEnt3aVorLaden(const std::string& glmBytes, modell::Inhalt& in);
+void modellEnt3aNachLaden();
+// B12: nach dem Schreiben der .glm `ziel` (Bytes `glmBytes`) die Begleitdatei schreiben (Stapel leer: eine alte eigene entfernen);
+// Rueckgabe: der Zusatz fuer die Meldung (leer: nichts zu sagen).
+[[nodiscard]] std::string modellEnt3aBegleitSchreiben(const std::string& ziel, const std::string& glmBytes);
+// B11
+[[nodiscard]] bool modellEnt3aSkinAus();                    // wirksam: wie 3ds Max, Skin aus, Figur mit Skelett
+[[nodiscard]] bool modellEnt3aPolyAus(int teil);            // wirksam: wie 3ds Max, Edit Poly der Flaeche aus, Flaeche geladen
+[[nodiscard]] const modell::Teil* modellEnt3aGeladen(int teil);   // die Flaeche, wie sie geladen wurde (nullptr: gab es nicht)
+void modellEnt3aPolySchalten(int teil);
+void modellEnt3aSkinSchalten();
+// B7: wie 3ds Max ist eine eingefrorene Zeile im Explorer waehlbar; "Auswahl auftauen" (Rechtsklick der Zeile, Suche)
+[[nodiscard]] bool modellEnt3aFrostInListeWaehlbar();
+void modellEnt3aAuswahlAuftauen();
+void modellEnt3aAuftauenPunkt();   // die Menuezeile (wie 3ds Max, nur wenn Gewaehltes eingefroren ist)
+// B8: die Breite der Werkzeugleiste wie Blender (in Zeichenhoehen; 0: die schmale Vorgabe) und ob sie so breit ist, dass sie die
+// Namen zeigt (ueber 120 Punkte); die Kante zum Ziehen (Aufruf am Ende der Leiste)
+[[nodiscard]] float modellEnt3aLeisteBreite();
+[[nodiscard]] bool modellEnt3aLeisteNamen();
+void modellEnt3aLeisteKante(float schmal);
+// C4: Esc bei offenem Rechtsklick-Menue der Ansicht (true: verbraucht - das Menue schliesst, sonst geschieht nichts)
+bool modellEnt3aKontextEsc();
+// B12 (Selbsttest): eine .glm von der Platte oeffnen wie Datei > Oeffnen, ohne Dialog (gui/app_view3d.cpp)
+void modellVonPlatteOeffnen(const std::string& pfad);
+
 }  // namespace bhed::gui
 #endif

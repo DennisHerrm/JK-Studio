@@ -2384,6 +2384,8 @@ from i18n_klein import zeilen_vier as _klein  # noqa: E402  (KLEIN: Tooltip Home
 S += _klein()
 from i18n_ent3b import zeilen_vier as _ent3b  # noqa: E402  (ENTSCHEID3B: IK/FK-Spur wie CAT, Tempo als Faktor, Griff der Wurzel, Rig-Vorlage)
 S += _ent3b()
+from i18n_ent3a import zeilen_vier as _ent3a  # noqa: E402  (ENTSCHEID3A: Explorer, Werkzeugleiste, Seitenleiste, Strg+Umschalt+Z, Auge, Begleitdatei, Unwrap UVW)
+S += _ent3a()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #
