@@ -1287,6 +1287,7 @@ struct ModellZeit {
     bool skalaZieht = false;
     bool einstellungenGelesen = false;
     float breite = 0.0F;       // Breite der Leiste im letzten Bild (Umbruch der Knopfreihe)
+    int veralteteSequenz = 0;  // Selbsttest: Bilder, in denen die Leiste mit einer Sequenz aus einer schon ersetzten animList zeichnen wollte
     ModellZeitProbe probe;
 };
 [[nodiscard]] ModellZeit& modellZeit();

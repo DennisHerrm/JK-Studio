@@ -1447,6 +1447,15 @@ void drawModellZeitleiste(const AnimEntry* e) {
         z.einstellungenGelesen = true;
     }
     modellCfgAbgleich();   // die animation.cfg zur GLA (bis rc611 in der Marker-Zeile der Leiste)
+    // Nach einer Aenderung des Dokuments setzt der Abgleich die animList neu (cfgAbgleich, app_modelltab_mb3.cpp); der Zeiger des
+    // Aufrufers zeigte dann in die freigegebene alte Liste (Absturz in transport, Lauf ap6k_mb_ap7) - die Sequenz neu holen.
+    e = sequenz();
+    // Selbsttest: zeigt die Sequenz noch in die Liste, die gerade gilt?
+    if (e != nullptr) {
+        const auto p = reinterpret_cast<std::uintptr_t>(e);
+        const auto a = reinterpret_cast<std::uintptr_t>(g_app->animList.data());
+        if (p < a || p >= a + g_app->animList.size() * sizeof(AnimEntry)) { ++z.veralteteSequenz; }
+    }
     offenPruefen();
     g_probe = ModellZeitProbe{};
     g_probe.bild = ImGui::GetFrameCount();
