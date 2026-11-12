@@ -1222,8 +1222,18 @@ void drawModellPresetBereich() {
     r.presetRolloutBild = ImGui::GetFrameCount();
     r.bibliothekY = ImGui::GetCursorPosY();
     const float fs = ImGui::GetFontSize();
-    const bool gewaehlt = r.bibliothekWahl >= 0 && static_cast<std::size_t>(r.bibliothekWahl) < b.size();
-    const bool gang = !gewaehlt && r.gangWahl >= 0;
+    // FIX612 P3-1: die Wahl, wie sie gerade ist. Ein Klick in der Liste aendert sie mitten im Bild (ein erzeugter Gang nimmt die
+    // Wahl der Bibliothek weg und umgekehrt) - nach der Liste wird sie deshalb neu gelesen, und der gewaehlte Eintrag der
+    // Bibliothek kommt nur ueber `wahl` (bis rc612 las der Rest des Bilds mit der alten Wahl b[-1]).
+    bool gewaehlt = false;
+    bool gang = false;
+    const PresetEintrag* wahl = nullptr;   // der gewaehlte Eintrag der Bibliothek, nullptr ohne
+    const auto wahlLesen = [&] {
+        gewaehlt = r.bibliothekWahl >= 0 && static_cast<std::size_t>(r.bibliothekWahl) < b.size();
+        gang = !gewaehlt && r.gangWahl >= 0;
+        wahl = gewaehlt ? &b[static_cast<std::size_t>(r.bibliothekWahl)] : nullptr;
+    };
+    wahlLesen();
     // die Kategorien als eine Wahl in zwei Spalten; ein Wechsel nimmt die Wahl nicht weg (sie steht dann nur nicht in der Liste)
     std::vector<const char*> texte;
     for (const std::string& k : kat) { texte.push_back(presetKategorieName(k)); }
@@ -1301,18 +1311,18 @@ void drawModellPresetBereich() {
             ImGui::PopID();
         }
         ImGui::EndChild();
-        if (gewaehlt && r.bibliothekWahl < 0) { ++fix612Probe().presetWahlVeraltet; }   // Selbsttest (FIX612 P3-1)
+        wahlLesen();   // FIX612 P3-1: ein Klick in der Liste hat die Wahl geaendert
+        if (gewaehlt && r.bibliothekWahl < 0) { ++fix612Probe().presetWahlVeraltet; }   // Selbsttest (FIX612 P3-1): kommt nicht mehr vor
         // Quelle und Lizenz des gewaehlten Presets darunter nur, wenn sie nicht in seine Zeile passten
-        if (gewaehlt && b[static_cast<std::size_t>(r.bibliothekWahl)].kategorie == wk && !wahlQuellePasst) {
-            ui::absatz(format(Str::AiQuelle, b[static_cast<std::size_t>(r.bibliothekWahl)].quelle.c_str(), b[static_cast<std::size_t>(r.bibliothekWahl)].lizenz.c_str()).c_str());
+        if (wahl != nullptr && wahl->kategorie == wk && !wahlQuellePasst) {
+            ui::absatz(format(Str::AiQuelle, wahl->quelle.c_str(), wahl->lizenz.c_str()).c_str());
         }
     }
     // Ziel-Platz: vor dem Laden der Platz der Bibliothek bzw. des Gangs (aenderbar), danach der des Uebertragens
-    const bool geladen = gewaehlt ? r.quelleFuer == b[static_cast<std::size_t>(r.bibliothekWahl)].datei && !d.vonPreset
-                                  : gang && d.vonPreset && static_cast<int>(d.gang.art) == r.gangWahl && !r.welt.empty();
-    const int platzFuer = gewaehlt ? r.bibliothekWahl : (gang ? 100000 + r.gangWahl : -1);
-    const std::string eigenerPlatz = gewaehlt ? b[static_cast<std::size_t>(r.bibliothekWahl)].platz
-                                              : (gang ? std::string(kategorieZeile(static_cast<modell::GangArt>(r.gangWahl))) : std::string());
+    const bool geladen = wahl != nullptr ? r.quelleFuer == wahl->datei && !d.vonPreset
+                                         : gang && d.vonPreset && static_cast<int>(d.gang.art) == r.gangWahl && !r.welt.empty();
+    const int platzFuer = wahl != nullptr ? r.bibliothekWahl : (gang ? 100000 + r.gangWahl : -1);
+    const std::string eigenerPlatz = wahl != nullptr ? wahl->platz : (gang ? std::string(kategorieZeile(static_cast<modell::GangArt>(r.gangWahl))) : std::string());
     if (g_presetPlatzFuer != platzFuer) {
         g_presetPlatzFuer = platzFuer;
         std::snprintf(g_presetPlatz, sizeof g_presetPlatz, "%s", eigenerPlatz.c_str());
