@@ -1732,7 +1732,7 @@ const GlmModel& gewichtsModell() {
         stufe(b, m.rgba);
         rampe.mips.push_back(std::move(m));
     }
-    GlmModel m = t.anzeige;
+    GlmModel m = modellStapelZeichnung();   // AP13S: mit den Eintraegen des Modifier-Stapels, die rechnen (ohne: t.anzeige)
     ModelTextures tex;
     tex.bySurface.resize(m.surfaces.size());
     for (std::size_t i = 0; i < m.surfaces.size(); ++i) {
@@ -1740,8 +1740,14 @@ const GlmModel& gewichtsModell() {
         s.shader.clear();
         s.texture = "*gewicht";
         const modell::Netz* n = netzVon(static_cast<int>(i));
+        const bool ausStapel = modellStapelErsetzt(static_cast<int>(i));   // AP13S: die Ecken tragen ihre Gewichte selbst
         for (std::size_t k = 0; k < s.verts.size(); ++k) {
-            const float w = n != nullptr ? modell::gewichtVon(*n, static_cast<int>(k), t.knochenWahl) : 0.0F;
+            float w = 0.0F;
+            if (ausStapel) {
+                for (int j = 0; j < 4; ++j) { w += s.verts[k].bones[j] == t.knochenWahl ? s.verts[k].weights[j] : 0.0F; }
+            } else if (n != nullptr) {
+                w = modell::gewichtVon(*n, static_cast<int>(k), t.knochenWahl);
+            }
             s.verts[k].st[0] = 0.25F + std::clamp(w, 0.0F, 1.0F) * 0.5F;   // die mittlere Haelfte der Leiste
             s.verts[k].st[1] = 0.5F;
         }
@@ -2450,7 +2456,8 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
             const auto ab = std::chrono::steady_clock::now();
             std::string fehler;
             const bool gw = gewichtsAnsicht();
-            const int aufrufe = gpu::zeichneModellAnsicht(gw ? gewichtsModell() : t.anzeige, gw ? &g_gewTex : texturen(a.sch), g_knochen, a.viewProj,
+            // AP13S: modellStapelZeichnung() ist t.anzeige, solange kein Eintrag des Modifier-Stapels rechnet
+            const int aufrufe = gpu::zeichneModellAnsicht(gw ? gewichtsModell() : modellStapelZeichnung(), gw ? &g_gewTex : texturen(a.sch), g_knochen, a.viewProj,
                                                           true, &fehler, zeichenArt(a, w, h), zusaetze(a.sch));
             if (aufrufe == 0 && !fehler.empty()) { diag::detail("Modellfenster: " + fehler); }
             g_app->modellAufrufe = aufrufe;
@@ -3053,7 +3060,7 @@ bool modellFotoMitUeberlagerung(int breite, std::vector<unsigned char>& rgba, in
     std::string fehler;
     const bool gw = gewichtsAnsicht();
     if (!gpu::bereiteModellZiel(w, h) ||
-        gpu::zeichneModellAnsicht(gw ? gewichtsModell() : t.anzeige, gw ? &g_gewTex : texturen(a.sch), g_knochen, a.viewProj, true, &fehler,
+        gpu::zeichneModellAnsicht(gw ? gewichtsModell() : modellStapelZeichnung(), gw ? &g_gewTex : texturen(a.sch), g_knochen, a.viewProj, true, &fehler,
                                   [&] {
                                       gpu::ModellAnsichtArt art = zeichenArt(a, w, h);
                                       if (!overlays) { art.raster.clear(); }   // AP5 P10
@@ -3125,7 +3132,6 @@ bool modellFotoSpeichern(const std::string& pfad, int breite) {
 }
 
 bool modellFotoPixel(int breite, int hoehe, std::vector<unsigned char>& rgba, bool ueberDokument) {
-    ModellTab& t = mt();
     if (g_app->model.empty()) { return false; }
     float vp[16];
     gpu::baueViewProj(g_app->modelCam, breite, hoehe, 1.0F, 8192.0F, vp);
@@ -3136,7 +3142,7 @@ bool modellFotoPixel(int breite, int hoehe, std::vector<unsigned char>& rgba, bo
     if (ueberDokument) {
         modellAnzeigeAktualisieren();
         posieren();
-        n = gpu::zeichneModellAnsicht(t.anzeige, texturen(ModellSchattierung{}), g_knochen, vp, true, &fehler, gpu::ModellAnsichtArt{}, {});
+        n = gpu::zeichneModellAnsicht(modellStapelZeichnung(), texturen(ModellSchattierung{}), g_knochen, vp, true, &fehler, gpu::ModellAnsichtArt{}, {});
     } else {
         // Der Weg bis rc610 (drawModelView): das gelesene Modell, das Bild der
         // Animation ohne Mischen, Kappen nach der Leiste.

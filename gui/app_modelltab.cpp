@@ -346,7 +346,9 @@ bool modellGlaLaden(const std::string& pfad) {
 
 std::vector<modell::Befund> modellBefunde() {
     const ModellTab& t = mt();
-    const modell::Inhalt& in = t.dok.inhalt();
+    // AP13S: geprueft wird, was die Datei bekommt - mit den Eintraegen des Modifier-Stapels, die in die Datei gehen (ohne: das
+    // Dokument selbst)
+    const modell::Inhalt& in = modellStapelDateiInhalt();
     std::vector<char> hatBild(in.teile.size(), 0);
     for (std::size_t i = 0; i < hatBild.size(); ++i) {
         const bool bild = i < g_app->modelTextures.bySurface.size() && !g_app->modelTextures.bySurface[i].rgba.empty() &&
@@ -1204,6 +1206,7 @@ void drawModellAktionen() {
     if (!rigAusgeloest && modellGewichteAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP8: Werkzeuge des Bereichs Weights
     if (!rigAusgeloest && modellBlAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP4: Werkzeugleiste, Seitenleiste, Messen
     if (!rigAusgeloest && modellPrAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP5: Flaechenliste, Overlays, Gruppen von Ansehen/Pruefen
+    if (!rigAusgeloest && modellStapelAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP13S: Modifier-Stapel
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
 }

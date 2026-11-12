@@ -249,6 +249,9 @@ lauf("mb_ent2", "modellblock", 1800, MB + ["BHED_MODELL_NUR=ent2", "BHED_FOTOS=<
 lauf("mb_ap4", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap4", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 # AP5: der Bereich Ansehen/Pruefen vollstaendig nach dem Entwurf (nicht im Pool: der Bildlauf ap5foto)
 lauf("mb_ap5", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap5", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
+# AP13S: der Modifier-Stapel (wie 3ds Max und wie Blender), Vorschau = angewendet, Speichern mit leerem Stapel (nicht im Pool: die
+# Bildlaeufe ap13sfoto, ap13shb)
+lauf("mb_ap13s", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap13s", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 lauf("uiform", "uiform", 3600, bereich="programm")
 # AP9: das rechte Feld des Bereichs Painting nach dem Entwurf (Gruppen Ziel, Werkzeuge, Pinsel, Ebenen, Fuer das Spiel; Tasten [ ]).
 # Nicht im Pool: der Bildlauf ap9foto.

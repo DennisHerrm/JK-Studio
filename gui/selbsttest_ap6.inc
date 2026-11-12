@@ -130,7 +130,9 @@ void figurSchritte(std::vector<Schritt>& s) {
         }));
         add(pause(0.8));
         // --- M0a / M0b: Aufbau ---
-        const std::string drei = titel({Str::MdGrAuswahl, Str::Ap6Werkzeuge, Str::MdGrGrenzen});
+        // AP13S: zuoberst steht seit rc612 der Modifier-Stapel (wie 3ds Max "Modifier-Stapel", wie Blender "Modifier" - M1, M2 der
+        // Abgleichtabelle, geprueft in selbsttest_ap13s.inc); darunter wie bisher die drei Gruppen des Entwurfs
+        const std::string drei = titel({bl ? Str::StpGruppeBl : Str::MgRStapel, Str::MdGrAuswahl, Str::Ap6Werkzeuge, Str::MdGrGrenzen});
         add(pruefe(zeile(bl ? "M0b" : "M0a", modus, bl ? "im Reiter Modifier stehen die Gruppen Auswahl, Werkzeuge, JKA-Grenzen untereinander"
                                                       : "im Reiter Aendern stehen die Gruppen Auswahl, Werkzeuge, JKA-Grenzen untereinander"), [=] {
             melde("Gruppen: " + gruppen() + ", Reiter " + std::to_string(ui::feldProbe().reiterAktiv));
@@ -488,7 +490,8 @@ void requisitSchritte(std::vector<Schritt>& s) {
             rollenNachOben();
         }));
         add(pause(0.6));
-        const std::string drei = titel({Str::MdGrAuswahl, Str::Ap6Werkzeuge, Str::MdGrGrenzen});
+        // AP13S: der Modifier-Stapel steht ueber den drei Gruppen (auch beim Requisit: seine einzige Flaeche)
+        const std::string drei = titel({modus == 1 ? Str::StpGruppeBl : Str::MgRStapel, Str::MdGrAuswahl, Str::Ap6Werkzeuge, Str::MdGrGrenzen});
         add(pruefe(zeile("M11", modus, "ein leeres Requisit: im Reiter des Bereichs steht ganz oben Grundkoerper (mit dem Hinweis, damit zu beginnen) und am Ende Requisit"), [=] {
             melde("leeres Requisit: " + gruppen());
             return feldFrisch() && gruppen() == std::string(tr(Str::Ap6Grundkoerper)) + "|" + drei + "|" + tr(Str::MdGrRequisit) && imRoll(tr(Str::Ap6ErstellenLeer)) != nullptr;

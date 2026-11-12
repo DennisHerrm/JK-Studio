@@ -6033,6 +6033,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_ent2.inc"       // ENTSCHEID2: Control Rig wie CAT, acht Preset-Kategorien, Generator-Gaenge (modellblock, BHED_MODELL_NUR=ent2)
 #include "selbsttest_ap4.inc"        // AP4: Model-Tab im Bedienmodus wie Blender (modellblock, BHED_MODELL_NUR=ap4 / ap4foto; Handbuch BHED_HB_NUR=ap4)
 #include "selbsttest_ap5.inc"        // AP5: Bereich Ansehen/Pruefen vollstaendig (modellblock, BHED_MODELL_NUR=ap5 / ap5foto; Handbuch BHED_HB_NUR=ap5)
+#include "selbsttest_ap13s.inc"      // AP13S: Modifier-Stapel und Glaetten-Vorschau (modellblock, BHED_MODELL_NUR=ap13s / ap13sfoto / ap13shb)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_grafik.inc"     // grafik: Wahl der Grafikschnittstelle, Rueckfall auf Direct3D 11 (D3D12 Stufe 1)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
@@ -7059,6 +7060,7 @@ void selbsttest() {
                     for (Schritt& x : ent2::schritte(nur)) { a.schritte.push_back(std::move(x)); }      // ENTSCHEID2 (Control Rig wie CAT, Presets)
                     for (Schritt& x : ap4::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP4 (Aufbau wie Blender)
                     for (Schritt& x : ap5::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP5 (Ansehen/Pruefen vollstaendig)
+                    for (Schritt& x : ap13s::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // AP13S (Modifier-Stapel)
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

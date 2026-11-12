@@ -2101,3 +2101,16 @@ if(BEHAVED_TESTS)
   target_link_libraries(modellszenetest PRIVATE bhed_core)
   add_test(NAME modell_szene COMMAND modellszenetest)
 endif()
+
+# AP13S (MBENTWURF Teil B): der Modifier-Stapel einer Flaeche (bhed/modell/stapel.h: Spiegeln, Glaetten nach Catmull-Clark,
+# die Vorschau stimmt mit dem angewendeten Netz ueberein) und die Gruppe "Modifier-Stapel" (wie 3ds Max) bzw. "Modifier"
+# (wie Blender) im rechten Feld des Model-Tabs
+target_sources(bhed_core PRIVATE src/modell/stapel.cpp)
+if(TARGET behaved)
+  target_sources(behaved PRIVATE gui/app_modelltab_stapel.cpp)
+endif()
+if(BEHAVED_TESTS)
+  add_executable(modellstapeltest tests/modell_stapel.cpp)
+  target_link_libraries(modellstapeltest PRIVATE bhed_core)
+  add_test(NAME modell_stapel COMMAND modellstapeltest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
+endif()

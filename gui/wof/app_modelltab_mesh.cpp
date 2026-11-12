@@ -129,7 +129,8 @@ GrenzStand& grenzStand() {
 const std::vector<w::TeilGrenze>& grenzListe() {
     GrenzStand& s = grenzStand();
     if (!s.gueltig) {
-        s.liste = w::grenzenPruefen(mt().dok.inhalt(), mt().lodJetzt);
+        // AP13S: mit den Eintraegen des Modifier-Stapels, die in die Datei gehen (ohne: das Dokument selbst)
+        s.liste = w::grenzenPruefen(modellStapelDateiInhalt(), mt().lodJetzt);
         s.gueltig = true;
     }
     return s.liste;
@@ -246,23 +247,11 @@ bool befehl(Str name, const std::function<w::Plan(w::PolyNetz&)>& f) {
     return true;
 }
 
-// Der Spiegel jedes Knochens nach dem Namen (l_ <-> r_, wie die Spiegelpartner der Weights), -1 keiner
-std::vector<int> knochenSpiegel() {
-    std::vector<int> out;
-    const auto& b = g_app->anim.bones;
-    for (std::size_t i = 0; i < b.size(); ++i) {
-        std::string n = b[i].name;
-        int sp = -1;
-        if (n.rfind("l_", 0) == 0 || n.rfind("r_", 0) == 0) {
-            n[0] = n[0] == 'l' ? 'r' : 'l';
-            for (std::size_t j = 0; j < b.size(); ++j) {
-                if (b[j].name == n) { sp = zi(j); }
-            }
-        }
-        out.push_back(sp);
-    }
-    return out;
-}
+// Der Spiegel jedes Knochens nach dem Namen, -1 keiner. AP13S (Fund): dieselbe Regel wie das Spiegeln der Gewichte und der
+// Modifier Spiegeln (modell::spiegelKnochen: l_/r_, _l/_r und ein einzelnes l/r am Anfang mit Partner im Skelett) - bis rc611
+// galt nur l_ <-> r_, und die Knochen einer Figur des Spiels (lhumerus, rradius, ltibia ...) blieben auf der gespiegelten Seite
+// die der Quellseite.
+std::vector<int> knochenSpiegel() { return modellStapelUmgebung().knochenSpiegel; }
 
 // --- Werkzeugkaestchen -----------------------------------------------------------------------------------------------
 
@@ -989,13 +978,18 @@ ImGuiKeyChord modellMeshAktionChord(int i, bool blender) { return blender ? akti
 std::string modellMeshAktionTooltip(int i) { return tooltip(aktionen()[uz(i)]); }
 void modellMeshAktionAusloesen(int i) { ausloesen(aktionen()[uz(i)]); }
 
-void modellMeshMenue() { alsMenue(-1); }
+void modellMeshMenue() {
+    alsMenue(-1);
+    ImGui::Separator();
+    modellStapelMenue();   // AP13S: der Modifier-Stapel
+}
 
 void modellMeshKontextMenue() {
     if (ImGui::BeginMenu(tr(Str::MdMenue))) {
         alsMenue(-1);
         ImGui::EndMenu();
     }
+    modellStapelMenue();   // AP13S: der Modifier-Stapel
 }
 
 bool modellMeshAktionenSuche(const std::string& such) {
@@ -1922,6 +1916,7 @@ void drawModellMeshBereich() {
     const ModellMesh& z = mz();
     const bool netzLeer = (z.kaestchenOffen ? z.basisNetz.lebendeFlaechen() : z.netz.lebendeFlaechen()) == 0;
     if (netzLeer) { gruppeGrundkoerper(true); }   // ein leeres Requisit beginnt mit einem Grundkoerper: ganz oben
+    drawModellStapelGruppe();   // AP13S (M1, M2): der Modifier-Stapel der gewaehlten Flaeche, wie im Entwurf zuoberst
     gruppeAuswahl();
     gruppeWerkzeuge();
     gruppeGrenzen();
@@ -2031,7 +2026,8 @@ bool modellRequisitInKarte() {
     }
     std::string bytes;
     modell::Md3SchreibBericht br;
-    if (!modell::md3Schreiben(in, bytes, modell::grenzen(static_cast<modell::Zielspiel>(t.zielspiel)).eckenJeFlaeche, &br)) {
+    // AP13S: mit den Eintraegen des Modifier-Stapels, die in die Datei gehen (ohne: das Dokument selbst, dieselben Bytes)
+    if (!modell::md3Schreiben(modellStapelDateiInhalt(), bytes, modell::grenzen(static_cast<modell::Zielspiel>(t.zielspiel)).eckenJeFlaeche, &br)) {
         melden(format(Str::MbSpFehler, modellFehlerText(br.fehlerArt).c_str()));
         return false;
     }

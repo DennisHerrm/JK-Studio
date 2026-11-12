@@ -99,10 +99,13 @@ bool schreibenNach(const std::string& ziel) {
     ModellTab& t = mt();
     std::string bytes;
     modell::GlmSchreibBericht br;
+    // AP13S: geschrieben wird das Dokument - mit den Eintraegen des Modifier-Stapels, die in die Datei gehen. Ohne solchen
+    // Eintrag ist `datei` das Dokument selbst (dieselbe Referenz, dieselben Bytes wie ohne Stapel).
+    const modell::Inhalt& datei = modellStapelDateiInhalt();
     if (t.dok.inhalt().herkunft == modell::Herkunft::Md3) {
         // Modell-Block 1b: eine .md3 (Bilder, Tags und unveraenderte Flaechen wie gelesen, siehe bhed/modell/md3datei.h)
         modell::Md3SchreibBericht mb;
-        if (!modell::md3Schreiben(t.dok.inhalt(), bytes, modell::grenzen(static_cast<modell::Zielspiel>(t.zielspiel)).eckenJeFlaeche, &mb)) {
+        if (!modell::md3Schreiben(datei, bytes, modell::grenzen(static_cast<modell::Zielspiel>(t.zielspiel)).eckenJeFlaeche, &mb)) {
             melden(format(Str::MbSpFehler, modellFehlerText(mb.fehlerArt).c_str()));
             return false;
         }
@@ -116,7 +119,7 @@ bool schreibenNach(const std::string& ziel) {
         melden(format(Str::UvMd3Gespeichert, ziel.c_str(), static_cast<int>(bytes.size()), mb.flaechenRoh, mb.flaechenNeu));
         return true;
     }
-    if (!modell::glmSchreiben(t.dok.inhalt(), bytes, &br)) {
+    if (!modell::glmSchreiben(datei, bytes, &br)) {
         melden(format(Str::MbSpFehler, modellFehlerText(br.fehlerArt).c_str()));
         return false;
     }

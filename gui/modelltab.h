@@ -37,6 +37,7 @@
 #include "bhed/modell/wof/poly.h"
 #include "bhed/modell/wof/uv.h"
 #include "bhed/modell/malen.h"
+#include "bhed/modell/stapel.h"
 
 namespace bhed::gpu {
 struct ModellGeist;
@@ -1690,6 +1691,69 @@ bool modellSzeneLesen(const std::string& pfad);
 bool modellPrAktionenSuche(const std::string& such);
 // Die Werte der Info einer Zeile des Szenen-Explorers (gui/app_modelltab_explorer.cpp) fuer die Gruppe "Auswahl".
 [[nodiscard]] std::string modellExplorerInfo(ExplorerArt art, int index);
+
+// --- AP13S (MBENTWURF Teil B): Modifier-Stapel und Glaetten-Vorschau (gui/app_modelltab_stapel.cpp) -----------------------
+// Abgleich M1, M2, W1: je Flaeche ein Stapel (modell::Teil::stapel, bhed/modell/stapel.h) - wie 3ds Max die Gruppe
+// "Modifier-Stapel" im Reiter Aendern (Bereiche Modellieren und Weights), wie Blender die Gruppe "Modifier" im Reiter Modifier.
+// Jeder Befehl ist ein Rueckgaengig-Schritt des Dokuments.
+struct ModellStapel {
+    std::uint32_t gewaehlt = 0;          // Kennung des gewaehlten Eintrags (0: keiner - gewaehlt ist die Stufe des Bereichs)
+    std::uint32_t kontext = 0;           // der Eintrag des offenen Rechtsklick-Menues
+    int zeigen = 0;                      // "Modifier-Stapel zeigen": so viele Bilder lang Reiter waehlen und ins Bild rollen
+    // die Zeichnung: das Modell der Ansicht mit den Eintraegen, die rechnen (sonst zeichnet die Ansicht ModellTab::anzeige)
+    GlmModel zeichnung;
+    bool zeichnungAn = false;
+    int zeichnungFuer = -1;              // ModellTab::neuGebaut, zu dem die Zeichnung gehoert
+    std::vector<char> ersetzt;           // je Flaeche: ihr Netz kommt aus dem Stapel
+    struct TeilStand {
+        modell::NetzZahlen vor;                  // das Netz des Dokuments (Stufe der Ansicht)
+        std::vector<modell::NetzZahlen> nach;    // je Eintrag: das Netz hinter ihm
+        std::vector<int> status;                 // je Eintrag: 0 gerechnet, sonst modell::wof::Ablehnung
+    };
+    std::vector<TeilStand> stand;        // je Flaeche (leer, solange kein Eintrag rechnet)
+    // ein gezogener Regler haelt EINEN Rueckgaengig-Schritt offen (Dokument::vorschau)
+    ImGuiID reglerAktiv = 0;
+    int reglerStand = -1;
+    // Selbsttest: was das Feld im letzten Bild gezeichnet hat und was gerechnet wurde
+    int probeBild = -1;
+    int probeTeil = -1;
+    std::vector<std::string> probeZeilen;        // die Zeilen von oben nach unten
+    std::vector<ImRect> probeRechtecke;
+    int probeGewaehlt = -1;
+    int befehle = 0;                     // ausgefuehrte Befehle am Stapel
+    int zeichnungen = 0;                 // so oft wurde die Zeichnung neu gerechnet
+    int dateiAuswertungen = 0;           // so oft rechnete der Stapel fuer Speichern oder Export
+    // der Inhalt fuer die Datei (nur wenn ein Eintrag in die Datei geht), fuer den Stand des Dokuments `dateiFuer`
+    modell::Inhalt dateiInhalt;
+    int dateiFuer = -1;
+    const void* dateiVon = nullptr;      // das Dokument, zu dem er gehoert
+};
+[[nodiscard]] ModellStapel& modellStapel();
+// Die Gruppe im rechten Feld (Aufruf in den Bereichen Modellieren und Weights).
+void drawModellStapelGruppe();
+// Die Flaeche, deren Stapel das Feld zeigt: die gewaehlte, sonst die der Auswahl des Modellierens, sonst die einzige, sonst die
+// erste mit einem Eintrag (-1: keine).
+[[nodiscard]] int modellStapelTeil();
+// Was die Ansicht zeichnet: ModellTab::anzeige, solange kein Eintrag rechnet - sonst das Modell mit den ausgerechneten Flaechen.
+[[nodiscard]] const GlmModel& modellStapelZeichnung();
+[[nodiscard]] bool modellStapelErsetzt(int flaeche);
+// Was Speichern und Export schreiben: das Dokument selbst (dieselbe Referenz), solange kein Eintrag in die Datei geht - sonst
+// der Inhalt mit den ausgerechneten Flaechen (einmal je Stand des Dokuments gerechnet; gilt bis zur naechsten Aenderung).
+[[nodiscard]] const modell::Inhalt& modellStapelDateiInhalt();
+// Das Netz, das die Ansicht fuer die Flaeche zeigt (Stufe der Ansicht) - fuer die Pruefung "Vorschau = angewendet".
+[[nodiscard]] modell::Netz modellStapelVorschauNetz(int teil);
+[[nodiscard]] modell::StapelUmgebung modellStapelUmgebung();
+// Befehle (true: ausgefuehrt; sonst steht der Grund in der Meldung). `sichtbar`: -1 in der Liste nach oben, +1 nach unten.
+bool modellStapelHinzufuegen(modell::ModArt art);
+bool modellStapelEntfernen(std::uint32_t kennung);
+bool modellStapelSchalten(std::uint32_t kennung, bool datei);
+bool modellStapelBewegen(std::uint32_t kennung, int sichtbar);
+bool modellStapelAnwenden(std::uint32_t kennung);   // wie Blender "Apply" (nur dieser), wie 3ds Max "Collapse To" (alle bis hierher)
+bool modellStapelAllesAnwenden();
+void modellStapelZeigen();                          // Bereich, Reiter und Gruppe ins Bild
+// Untermenue fuer den Rechtsklick der Ansicht und das Menue; Zeilen in "Alle Aktionen suchen".
+void modellStapelMenue();
+bool modellStapelAktionenSuche(const std::string& such);
 
 }  // namespace bhed::gui
 #endif

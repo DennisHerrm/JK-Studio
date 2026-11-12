@@ -275,17 +275,6 @@ void hauptKnopf(Str name) {
     if (!hatKnochen()) { ui::absatz(tr(Str::MbGwKnochenWaehlen), ui::Ton::Warnung); }
 }
 
-// wie 3ds Max: der Stapel - Skin (dieser Bereich) ueber Edit Poly (Modellieren)
-void rolloutStapel() {
-    if (!ui::rolloutBeginn(tr(Str::MgRStapel), {})) { return; }
-    (void)ui::werkzeugKnopf(tr(Str::MgStapelSkin), {.icon = UiIcon::FeldModifier, .hinweis = tr(Str::MgStapelSkinHint), .an = true});
-    if (ui::werkzeugKnopf(tr(Str::MgStapelPoly), {.icon = UiIcon::FeldDaten, .hinweis = tr(Str::MgStapelPolyHint)})) {
-        mt().bereich = ModellBereich::Modellieren;
-        g_app->modelDirty = true;
-    }
-    ui::rolloutEnde();
-}
-
 // wie 3ds Max: Gewichts-Werkzeug (Paint Weights, Weight Tool)
 void rolloutWerkzeugMax() {
     ModellTab& t = mt();
@@ -1136,13 +1125,15 @@ void modellGewichteKontextMenue() {
 
 void drawModellGewichte() {
     sperrMenue();
+    // AP13S (W1): der gemeinsame Modifier-Stapel - wie 3ds Max zuoberst im Reiter Aendern (Skin gewaehlt, ueber Edit Poly), wie
+    // Blender im Reiter Modifier (gui/app_modelltab_stapel.cpp)
+    drawModellStapelGruppe();
     if (modellBlender()) {
         rolloutPinselBl();
         rolloutOptionenBl();
         rolloutBereinigenBl();
         rolloutSpiegelnBl();
     } else {
-        rolloutStapel();
         rolloutWerkzeugMax();
         rolloutSpiegelnMax();
     }

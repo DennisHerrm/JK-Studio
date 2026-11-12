@@ -34,6 +34,7 @@
 #include "bhed/md3.h"
 #include "bhed/modell/animcfg.h"
 #include "bhed/modell/rigdaten.h"
+#include "bhed/modell/stapeldaten.h"
 
 namespace bhed::modell {
 
@@ -134,6 +135,9 @@ struct Teil {
     int dateiFlaeche = -1;
     std::vector<int> kinder;
     std::vector<Netz> stufen;   // je LOD-Stufe ein Netz
+    // AP13S: der Modifier-Stapel der Flaeche in der Reihenfolge, in der die Eintraege rechnen (bhed/modell/stapel.h). Nicht in
+    // der Datei; leer = die Flaeche ist, was die Stufen fuehren - Zeichnen, Speichern und Export wie ohne Stapel.
+    std::vector<Modifikator> stapel;
 
     // G2SURFACEFLAG_ISBOLT (mdx_format.h): ein Tag - nur ein Dreieck, nie gezeichnet.
     [[nodiscard]] bool istTag() const noexcept { return (flaggen & GlmSurface::kFlagBolt) != 0U; }
