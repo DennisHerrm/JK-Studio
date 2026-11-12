@@ -80,6 +80,7 @@ namespace {
 void gibUmrissFrei();  // Umriss der Auswahl, weiter unten
 void gibGeistFrei();   // Stufe 3: Ghosts im Model-Tab, weiter unten
 void gibRasterFrei();  // MBRASTER: Bodenraster im Model-Tab, weiter unten
+void gibFormenFrei();  // AP13K: Formen (Knochen, Griffe) und Durchsicht im Model-Tab, weiter unten
 bool umrissAnlegen();
 
 // Ein uebersetztes Shaderpaar, nach Merkmalsbits abgelegt.
@@ -7004,6 +7005,8 @@ void gibRasterFrei() {
     }
     g_rasterVersucht = false;
 }
+
+#include "gpumap_formen.inc"   // AP13K: Formen (Knochen, Griffe) und Durchsicht
 }  // namespace
 
 int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, const std::vector<BoneMatrix>& knochen,
@@ -7121,6 +7124,20 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, c
         g_modellRaster = raster;
         c->ClearDepthStencilView(g_modellDsv, D3D11_CLEAR_DEPTH, 1.0F, 0);
     }
+    // AP13K: Formen (Knochen, Griffe) und Durchsicht der Figur (gpumap_formen.inc). Mit Durchsicht kommt zuerst, was hinter der
+    // Figur liegt - das Raster der freien Ansichten und, wenn sie nicht im Vordergrund liegen, die Formen -, dann die Kopie des
+    // Ziels; nur die Figur schreibt danach Tiefe.
+    const bool formenGehen = (!art.formen.empty() || art.durchsicht > 0.0F) && formenAnlegen(d, fehler);
+    const bool durch = art.durchsicht > 0.0F && formenGehen && durchsichtZiel(d);
+    if (durch) {
+        for (const ModellRaster& r : art.raster) {
+            if (rasterGeht && !r.hinten) { n += zeichneRaster(c, r, viewProj); }
+        }
+        if (!art.formenVorn) { n += zeichneFormen(d, c, art.formen, FormTiefe::Vorn); }
+        ::bhed::render::kopieren(c, g_durchTex, g_modellTex);
+        ::bhed::render::zielSetzen(c, 1, &g_modellRtv, g_modellDsv);
+        c->ClearDepthStencilView(g_modellDsv, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0F, 0);   // das Mischen markiert die Figur im Stencil
+    }
     if (silhouette) { geistFarbe(c, art.silhouette, 3); }
     n += zeichneFigurIn(model, textures, knochen, einheit, viewProj, fehler, nullptr, kappen, true);
     for (const ModellZusatz& z : zusatz) {
@@ -7133,10 +7150,14 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, c
         g_modellRaster = kRasterDraht | kRasterVorzug | (art.zweiseitig ? kRasterBeidseitig : 0U);
         n += zeichneFigurIn(model, nullptr, knochen, einheit, viewProj, fehler, nullptr, kappen, true);
     }
+    if (durch) { n += durchsichtMischen(c, art.durchsicht); }   // AP13K: was hinter der Figur lag, scheint durch sie hindurch
     // MBRASTER: Perspektive und freie Orthoansicht - nach der Figur mit Tiefentest, sie verdeckt den Boden (Blender: Floor)
     for (const ModellRaster& r : art.raster) {
-        if (rasterGeht && !r.hinten) { n += zeichneRaster(c, r, viewProj); }
+        if (rasterGeht && !r.hinten && !durch) { n += zeichneRaster(c, r, viewProj); }
     }
+    // AP13K: die Formen - im Vordergrund ohne Tiefentest, sonst verdeckt die Figur sie; mit Durchsicht stehen sie neben der Figur
+    // schon im Ziel (vor der Kopie) und kommen nur noch dort dazu, wo sie vor der Figur liegen
+    if (formenGehen) { n += zeichneFormen(d, c, art.formen, art.formenVorn ? FormTiefe::Vorn : (durch ? FormTiefe::NurAufFigur : FormTiefe::Verdeckt)); }
     g_modellRaster = 0;
     g_modellPunkt = false;
     g_modellOpak = false;
@@ -7554,6 +7575,7 @@ void shutdown() {
     gibUmrissFrei();
     gibGeistFrei();
     gibRasterFrei();
+    gibFormenFrei();   // AP13K
     if (g_ctx1 != nullptr) { g_ctx1->Release(); g_ctx1 = nullptr; }
     g_ringGeht = -1;
     g_ringStand = kRingGroesse;

@@ -289,6 +289,11 @@ struct ModellRaster {
     float achseU[4]{};          // Farbe der Achse entlang u (Alpha 0: aus)
     float achseV[4]{};          // Farbe der Achse entlang v
 };
+// AP13K: eine Ecke der Formen (Knochen, Griffe) - Ort im Clip-Raum (x, y, z, w), Farbe RGBA 0..255 (nicht vormultipliziert)
+struct ModellFormEcke {
+    float pos[4];
+    std::uint8_t farbe[4];
+};
 struct ModellAnsichtArt {
     bool drahtgitter = false;
     bool zweiseitig = false;
@@ -302,6 +307,15 @@ struct ModellAnsichtArt {
     // Bildpunkt statt des Abtasters des Spiels (ModView bBilinear aus: GL_NEAREST)
     bool opak = false;
     bool punktFilter = false;
+    // AP13K (R14): Knochen und Griffe des Rigs als Dreiecke im Clip-Raum (die Linien sind auf dem Prozessor zu Streifen in
+    // Bildpunkten mit weichem Rand gerechnet - gui/app_modelltab_knochen.cpp). `formenVorn`: ohne Tiefentest ueber der Figur
+    // (Blender "In Front"), sonst verdeckt die Figur sie (LESS_EQUAL, schreibt keine Tiefe). `durchsicht` > 0: die Figur mit
+    // dieser Deckkraft ueber dem, was hinter ihr liegt (3ds Max See-Through Alt+X, Blender X-Ray Alt+Z mit xray_alpha 0,5) -
+    // jeder Bildpunkt einmal, die vorderste Schicht; ohne `formenVorn` scheinen die Formen in der Figur durch sie hindurch,
+    // was vor ihr liegt, steht deckend davor.
+    std::vector<ModellFormEcke> formen;
+    bool formenVorn = true;
+    float durchsicht = 0.0F;
 };
 // Eine weitere Figur im Modellfenster (angebautes Modell, Boden): Stellung
 // `welt` 4x4 zeilenweise wie zeichneFigur.

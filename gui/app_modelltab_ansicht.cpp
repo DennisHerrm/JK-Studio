@@ -19,6 +19,7 @@
 //   Blender Authors, GNU General Public License version 2 or later). This file is part of BehavEd-Remake and licensed
 //   under the GNU General Public License version 2 or later (LICENSE).
 #include "app_internal.h"
+#include "app_modelltab_knochen.h"   // AP13K: Knochen und Griffe als Formen, Durchsicht
 #include "textumbruch.h"
 #include "gpumap.h"
 
@@ -533,102 +534,9 @@ void kasten(ImDrawList* dl, const ModellAnsicht& a, const float mn[3], const flo
     }
 }
 
-// Knochen als Bone-Objekte wie 3ds Max: ein Kasten vom Gelenk des Elternteils
-// zum Gelenk des Knochens, zum Ende hin auf 10 % verjuengt (Taper 90 %, wie
-// beim Erstellen ueber die Oberflaeche), Flossen schaltbar. Eigene Zeichnung.
-void knochenZeichnen(ImDrawList* dl, const ModellAnsicht& a) {
-    const ModellTab& t = mt();
-    const std::vector<BoneMatrix>& w = g_app->modellWelt;
-    const GlaAnimation& an = g_app->anim;
-    const std::size_t n = std::min(w.size(), an.bones.size());
-    for (std::size_t b = 0; b < n; ++b) {
-        if (modellKnochenVersteckt(static_cast<int>(b))) { continue; }   // mb1a2: Auge im Explorer
-        const int p = an.bones[b].parent;
-        const float e[3] = {w[b].m[0][3], w[b].m[1][3], w[b].m[2][3]};
-        const bool gewaehlt = t.knochenWahl == static_cast<int>(b);
-        if (modellSpielKnochen(an.bones[b].name)) {
-            ImVec2 s;
-            if (aufSchirm(a, e, s)) { dl->AddCircleFilled(s, 3.0F, IM_COL32(255, 150, 40, 230)); }
-        }
-        if (p < 0 || static_cast<std::size_t>(p) >= n) { continue; }
-        const float o[3] = {w[static_cast<std::size_t>(p)].m[0][3], w[static_cast<std::size_t>(p)].m[1][3], w[static_cast<std::size_t>(p)].m[2][3]};
-        float x[3] = {e[0] - o[0], e[1] - o[1], e[2] - o[2]};
-        const float len = std::sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2]);
-        if (len < 0.05F) { continue; }
-        for (float& c : x) { c /= len; }
-        // Quer: die z-Achse des Elternknochens, senkrecht zur Laenge gemacht.
-        float up[3] = {w[static_cast<std::size_t>(p)].m[0][2], w[static_cast<std::size_t>(p)].m[1][2], w[static_cast<std::size_t>(p)].m[2][2]};
-        float d = up[0] * x[0] + up[1] * x[1] + up[2] * x[2];
-        float y[3] = {up[0] - x[0] * d, up[1] - x[1] * d, up[2] - x[2] * d};
-        float yl = std::sqrt(y[0] * y[0] + y[1] * y[1] + y[2] * y[2]);
-        if (yl < 1e-3F) {
-            const float alt[3] = {0.0F, 0.0F, 1.0F};
-            d = alt[2] * x[2];
-            y[0] = -x[0] * d;
-            y[1] = -x[1] * d;
-            y[2] = 1.0F - x[2] * d;
-            yl = std::sqrt(y[0] * y[0] + y[1] * y[1] + y[2] * y[2]);
-            if (yl < 1e-3F) { continue; }
-        }
-        for (float& c : y) { c /= yl; }
-        const float z[3] = {x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0]};
-        if (g_app->settings.modellBedienung == 1) {
-            // mb1a2, wie Blender: Oktaeder (display_type OCTAHEDRAL, Vorgabe) - der Kopf am Gelenk des Elternteils,
-            // der Ring der vier Ecken bei 10 % der Laenge mit 10 % Abstand von der Achse, die Spitze am Gelenk des
-            // Knochens (Blender draw_armature: bone_octahedral_verts), die Gelenke als Kreise. Eigene Zeichnung.
-            float ring[4][3];
-            static const float kRing[4][2] = {{0.1F, 0.1F}, {0.1F, -0.1F}, {-0.1F, -0.1F}, {-0.1F, 0.1F}};
-            float spitze[3];
-            for (int k = 0; k < 3; ++k) { spitze[k] = o[k] + x[k] * len; }
-            for (int r = 0; r < 4; ++r) {
-                for (int k = 0; k < 3; ++k) { ring[r][k] = o[k] + x[k] * len * 0.1F + y[k] * len * kRing[r][0] + z[k] * len * kRing[r][1]; }
-            }
-            const ImU32 farbe = gewaehlt ? IM_COL32(80, 160, 255, 255) : IM_COL32(170, 170, 170, 220);   // gewaehlt blau wie in Pose
-            for (int r = 0; r < 4; ++r) {
-                linie(dl, a, o, ring[r], farbe, gewaehlt ? 2.0F : 1.0F);
-                linie(dl, a, ring[r], ring[(r + 1) % 4], farbe, gewaehlt ? 2.0F : 1.0F);
-                linie(dl, a, ring[r], spitze, farbe, gewaehlt ? 2.0F : 1.0F);
-            }
-            ImVec2 sk;
-            if (aufSchirm(a, o, sk)) { dl->AddCircle(sk, 2.5F, farbe); }
-            g_app->modellKnochenLinien += 12;
-            mt().ueber[0] += 12;
-            continue;
-        }
-        const float w0 = std::clamp(len * 0.12F, 0.3F, 2.5F) * 0.5F;
-        const float w1 = w0 * 0.1F;
-        float ecken[8][3];
-        for (int i = 0; i < 8; ++i) {
-            const float* basis = i < 4 ? o : e;
-            const float r = i < 4 ? w0 : w1;
-            const float sy = (i & 1) != 0 ? r : -r;
-            const float sz = (i & 2) != 0 ? r : -r;
-            for (int k = 0; k < 3; ++k) { ecken[i][k] = basis[k] + y[k] * sy + z[k] * sz; }
-        }
-        const ImU32 farbe = gewaehlt ? IM_COL32(255, 230, 60, 255) : IM_COL32(200, 205, 120, 210);
-        static const int kKanten[12][2] = {{0, 1}, {1, 3}, {3, 2}, {2, 0}, {4, 5}, {5, 7}, {7, 6}, {6, 4}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
-        for (const auto& k : kKanten) { linie(dl, a, ecken[k[0]], ecken[k[1]], farbe, gewaehlt ? 2.0F : 1.0F); }
-        g_app->modellKnochenLinien += 12;
-        mt().ueber[0] += 12;
-        if (g_app->settings.modellFlossen) {
-            // Seiten-, Vorder- und Hinterflosse: ein Dreieck je Seite, 10 % bis 90 % der Laenge.
-            const float* richtungen[4] = {y, y, z, z};
-            const float vorz[4] = {1.0F, -1.0F, 1.0F, -1.0F};
-            for (int f = 0; f < 4; ++f) {
-                float a0[3];
-                float a1[3];
-                float spitze[3];
-                for (int k = 0; k < 3; ++k) {
-                    a0[k] = o[k] + x[k] * len * 0.1F;
-                    a1[k] = o[k] + x[k] * len * 0.9F;
-                    spitze[k] = o[k] + x[k] * len * 0.3F + richtungen[f][k] * vorz[f] * w0 * 2.5F;
-                }
-                linie(dl, a, a0, spitze, farbe);
-                linie(dl, a, spitze, a1, farbe);
-            }
-        }
-    }
-}
+// AP13K: die Knochen (bis rc611 hier als Linien der Ueberlagerung: knochenZeichnen) stehen jetzt als Formen im Bild der Ansicht -
+// Bone-Kasten, Oktaeder, Stick, B-Bone, Huelle, Draht und die Rig-Stile in gui/app_modelltab_knochen.cpp (modellKdFormen in
+// zeichenArt). Nur so kann die Figur sie verdecken ("Im Vordergrund" aus) und die Durchsicht sie toenen.
 
 // MBKOPF (4a, shank 10.11.: "die sachen scheinen auch keine funktion zu haben"): Ecken-/Dreiecksnummern und der
 // Riss-Finder zeigen sich nur an der gewaehlten Flaeche (ModView: "Show vertex indexes" an der gewaehlten Flaeche) -
@@ -681,7 +589,6 @@ void ueberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     const bool brauchtHaut = z.normalen || z.gewichte || z.huelle || z.risse || z.tags || z.klammer || !t.auswahl.empty() || !t.eckenWahl.empty();
     const auto& h = brauchtHaut ? haut() : g_haut;
     modellGewichteBereichSchritt();   // AP8 (W10): im Bereich Weights sind die Knochen ab Werk an
-    if (g_app->modellKnochen) { knochenZeichnen(dl, a); }
     if (z.ursprung) {
         const float o[3] = {0.0F, 0.0F, 0.0F};
         const float ax[3][3] = {{16, 0, 0}, {0, 16, 0}, {0, 0, 16}};
@@ -2313,6 +2220,7 @@ gpu::ModellAnsichtArt zeichenArt(const ModellAnsicht& a, int w, int h) {
     for (int i = 0; i < 4; ++i) {
         if (&mt().ansichten[i] == &a && modellPr().overlaysAus[i]) { art.raster.clear(); }
     }
+    modellKdFormen(a, w, h, art);   // AP13K: Knochen und Griffe als Formen im Bild, im Vordergrund, Durchsicht
     return art;
 }
 
@@ -2449,7 +2357,7 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
                   static_cast<double>(g_app->modelCam.fovY),
                   static_cast<double>(a.mitte[0]), static_cast<double>(a.mitte[1]), static_cast<double>(a.mitte[2]),
                   static_cast<double>(a.halbHoehe), static_cast<double>(g_app->modelOrbit.distance));
-    const std::string standGanz = std::string(stand) + rasterStand(a) + modellPrStand(n);   // MBRASTER, AP5
+    const std::string standGanz = std::string(stand) + rasterStand(a) + modellPrStand(n) + modellKdStand(a, w, h);   // MBRASTER, AP5, AP13K
     if (neu || g_sichtStand[static_cast<std::size_t>(n)] != standGanz) {
         gpu::modellZielWaehlen(n);
         if (gpu::bereiteModellZiel(w, h)) {

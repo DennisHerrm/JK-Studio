@@ -2114,3 +2114,16 @@ if(BEHAVED_TESTS)
   target_link_libraries(modellstapeltest PRIVATE bhed_core)
   add_test(NAME modell_stapel COMMAND modellstapeltest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
 endif()
+
+# AP13K (MBENTWURF Teil B): Knochen-Darstellung (R14: Bone-Kasten, Oktaeder, Stick, B-Bone, Huelle, Draht), Rig-Stile nach drei
+# Vorbildern (Control Rig mit Ringen, CAT-Kaesten, Blender-Oktaeder - bhed/modell/rigformen.h), Durchsicht (Alt+X / Alt+Z),
+# Knochen im Vordergrund; gezeichnet im Bild der Ansicht (gui/gpumap_formen.inc)
+target_sources(bhed_core PRIVATE src/modell/rigformen.cpp)
+if(TARGET behaved)
+  target_sources(behaved PRIVATE gui/app_modelltab_knochen.cpp)
+endif()
+if(BEHAVED_TESTS)
+  add_executable(modellrigformentest tests/modell_rigformen.cpp)
+  target_link_libraries(modellrigformentest PRIVATE bhed_core)
+  add_test(NAME modell_rigformen COMMAND modellrigformentest)
+endif()

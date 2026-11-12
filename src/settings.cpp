@@ -155,6 +155,9 @@ std::string writeSettings(const Settings& s) {
     put(o, "modelTimelineTracksBlender", std::string(buf));
     put(o, "modelTimelineDisplay", std::to_string(s.modellZeitAnzeige));
     put(o, "modelBoneFins", s.modellFlossen ? "1" : "0");
+    put(o, "modelBoneDisplay", std::to_string(s.modellKnochenArt));   // AP13K
+    put(o, "modelRigStyle", std::to_string(s.modellRigStil));
+    put(o, "modelBonesInFront", s.modellKnochenVorn ? "1" : "0");
     put(o, "r_ext_multisample", std::to_string(s.rExtMultisample));
     put(o, "regelwerk", std::string(regelwerkSchluessel(s.regelwerk)));   // rc601 integ
     put(o, "flussAnsicht", std::to_string(s.flussAnsicht));
@@ -510,6 +513,9 @@ bool readSettings(const std::string& text, Settings& out) {
         else if (key == "modelTimelineTracksBlender") { out.modellZeitSpurHoeheBlender = std::clamp(static_cast<float>(std::atof(value.c_str())), 2.5F, 26.0F); }
         else if (key == "modelTimelineDisplay") { out.modellZeitAnzeige = std::atoi(value.c_str()) == 1 ? 1 : 0; }
         else if (key == "modelBoneFins") { out.modellFlossen = value == "1"; }
+        else if (key == "modelBoneDisplay") { out.modellKnochenArt = std::clamp(std::atoi(value.c_str()), 0, 4); }   // AP13K
+        else if (key == "modelRigStyle") { out.modellRigStil = std::clamp(std::atoi(value.c_str()), 0, 3); }
+        else if (key == "modelBonesInFront") { out.modellKnochenVorn = value != "0"; }
         else if (key == "r_ext_multisample") {
             const int n = std::atoi(value.c_str());
             out.rExtMultisample = (n == 0 || n == 2 || n == 4 || n == 8) ? n : -1;

@@ -7,6 +7,7 @@
 // Gliederung und Funktionen, gezeichnet wird wie im Spiel ueber den
 // Ghoul2-Weg des Mission-Tabs; die Regeln dafuer stehen in bhed/modell/g2.h.
 #include "app_internal.h"
+#include "app_modelltab_knochen.h"   // AP13K: Alt+X / Alt+Z, Suche
 #include "textumbruch.h"
 #include "gpumap.h"
 #include "fenster_dock.h"   // AP4: Fensteranordnung je Bedienmodus
@@ -1093,6 +1094,7 @@ bool modellTasten() {
         mt().modalEndeBild = ImGui::GetFrameCount();
         return true;
     }
+    if (modellKdTasten()) { return true; }     // AP13K: Durchsicht - Alt+X wie 3ds Max, Alt+Z wie Blender
     if (modellZeitTasten()) { return true; }   // AP1: Zeitleiste (N Auto Key, Key-Modus; wie Blender Pfeil hoch/runter, K)
     if (modellKurvenTasten()) { return true; }   // Stufe 3b: Schluessel, Editor-Tasten (Bereich Animation)
     if (modellRigTasten()) { return true; }   // Stufe 3: Pose, Auswahl (Bereich Animation)
@@ -1207,6 +1209,7 @@ void drawModellAktionen() {
     if (!rigAusgeloest && modellBlAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP4: Werkzeugleiste, Seitenleiste, Messen
     if (!rigAusgeloest && modellPrAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP5: Flaechenliste, Overlays, Gruppen von Ansehen/Pruefen
     if (!rigAusgeloest && modellStapelAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP13S: Modifier-Stapel
+    if (!rigAusgeloest && modellKdAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP13K: Durchsicht, Im Vordergrund, Rig-Stil, Anzeigen als
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
 }

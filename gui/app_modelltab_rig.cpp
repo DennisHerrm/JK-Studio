@@ -14,6 +14,7 @@
 //   Backen             die Sequenz mit der Schicht ueber compressBone in eine GLA, auf den naechsten freien Platz des Ziels
 //                      aus Stufe 2 (Karten-GLA, _humanoid.gla, eigene GLA)
 #include "app_internal.h"
+#include "app_modelltab_knochen.h"   // AP13K: Rig-Stile
 #include "textumbruch.h"
 #include "gpumap.h"
 
@@ -1043,6 +1044,7 @@ bool modellRigGriffAufSchirm(int griff, ImVec2& out) {
 int modellRigGriffUnter(const ModellAnsicht& a, ImVec2 maus) {
     const ModellTab& t = mt();
     if (!modellRigDa() || !t.rigZeigen) { return -1; }
+    if (modellKdGriffeAlsFormen()) { return modellKdGriffUnter(a, maus); }   // AP13K: in den Rig-Stilen trifft die sichtbare Form
     const float reich = ImGui::GetFontSize() * 0.7F;
     int best = -1;
     float bd = reich;
@@ -1135,6 +1137,10 @@ void modellRigUeberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     modellPhysikUeberlagerung(a, dl);    // Stufe 6: Schwerpunkt, Weg, Stuetzflaeche
     modellRtUeberlagerung(a, dl);        // Stufe 5: die Quelle des Retargetings neben der Figur
     if (!modellRigDa() || !t.rigZeigen) { return; }
+    if (modellKdGriffeAlsFormen()) {   // AP13K: in den Rig-Stilen stehen Griffe und IK-Ziele als Formen im Bild der Ansicht
+        modellKdUeberlagerung(a, dl);  // ... hier nur IK/FK am Glied (Control Rig)
+        return;
+    }
     modellIkUeberlagerung(a, dl);   // Stufe 4: IK-Ziele, Raum
     const float r = ImGui::GetFontSize() * 0.45F;
     const bool blender = modellBlender();
@@ -1250,6 +1256,7 @@ const char* tasteVon(Str text) {
 void drawModellRigBereich() {
     modellRigAktualisieren();
     drawModellAnimFeld();
+    modellKdRollout();   // AP13K: Knochen- und Rig-Darstellung (ab Werk zugeklappt)
 }
 
 // Entwurf A2: "Rig erstellen" - Skelett, Massstab und erkannte Vorlage als Tabelle, die Auswahl der Vorlage, der Hauptknopf

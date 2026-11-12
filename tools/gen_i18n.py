@@ -2368,6 +2368,8 @@ from i18n_p_dx12 import zeilen_vier as _p_dx12  # noqa: E402  (D3D12 Stufe 1: Gr
 S += _p_dx12()
 from i18n_ap13s import zeilen_vier as _ap13s  # noqa: E402  (AP13S: Modifier-Stapel des Model-Tabs - Spiegeln, Glaetten, Vorschau)
 S += _ap13s()
+from i18n_ap13k import zeilen_vier as _ap13k  # noqa: E402  (AP13K: Knochen-Darstellung, Rig-Stile, Durchsicht)
+S += _ap13k()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

@@ -15,6 +15,7 @@
 // Die Werkzeuge der Bereiche kommen aus deren Aktionstabellen (Modellieren, UV, Malen) bzw. Schnittstellen (Weights:
 // modellGewichte, Animation: modellAnimWerkzeug von AP10) - dieselbe Aktion wie Knopf, Taste, Suche und Rechtsklick.
 #include "app_internal.h"
+#include "app_modelltab_knochen.h"   // AP13K: die Form eines Knochens unter der Maus
 #include "platform.h"
 #include "textumbruch.h"
 
@@ -598,6 +599,8 @@ bool punktUnter(const ModellAnsicht& a, ImVec2 maus, float out[3]) {
 // Der Knochen, dessen Gelenk auf dem Schirm am naechsten an der Maus liegt (hoechstens eine Zeichenhoehe), sichtbar und nicht
 // eingefroren; -1 keiner.
 int knochenUnter(const ModellAnsicht& a, ImVec2 maus) {
+    // AP13K: zuerst die gezeichnete Form des Knochens (Oktaeder, Stick, Kasten ...), sonst wie bisher das naechste Gelenk
+    if (const int form = modellKdKnochenUnter(a, maus); form >= 0) { return form; }
     const std::vector<BoneMatrix>& welt = g_app->modellWelt;
     const std::size_t n = std::min(welt.size(), g_app->anim.bones.size());
     const float grenze = ImGui::GetFontSize();

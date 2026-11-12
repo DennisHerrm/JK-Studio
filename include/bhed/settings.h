@@ -232,6 +232,12 @@ struct Settings {
     float modellZeitSpurHoeheBlender = 8.0F;
     int modellZeitAnzeige = 0;
     bool modellFlossen = false;
+    // AP13K (R14, Wunsch shank 12.11.): Knochen-Darstellung wie Blenders "Display As" (0 Oktaeder, 1 Stick, 2 B-Bone, 3 Huelle, 4 Draht),
+    // der Stil des Rigs (0 Standard nach dem Entwurf, 1 Control Rig mit Ringen, 2 CAT-Kaesten, 3 Blender-Oktaeder - nur das Aussehen)
+    // und Knochen/Griffe im Vordergrund (Blender "In Front"; aus: die Figur verdeckt sie wie in 3ds Max).
+    int modellKnochenArt = 0;
+    int modellRigStil = 0;
+    bool modellKnochenVorn = true;
     // rc608 Teil 9b: r_ext_multisample der Vorschau (MSAA). -1 wie das Spiel (rExtMultisampleVorgabe), sonst 0, 2, 4, 8.
     int rExtMultisample = -1;
     // rc601 integ: das Regelwerk der Vorschau (bhed/regelwerk.h) -

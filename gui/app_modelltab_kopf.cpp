@@ -14,6 +14,7 @@
 // optionen koennen dann oben rein in das aufklappbare menu bei perspective und standard usw"); dieselben Menues hat das
 // Rechtsklick-Menue der Ansicht, und "Alle Aktionen suchen" (X / F3) findet jeden Schalter mit seinem Ort im Tooltip.
 #include "app_internal.h"
+#include "app_modelltab_knochen.h"   // AP13K: Knochen-Darstellung, Rig-Stil, Durchsicht in den Menues
 #include "textumbruch.h"
 #include <algorithm>
 #include <array>
@@ -351,6 +352,7 @@ void menueAllgemein(int n) {
     if (ImGui::BeginMenu(tr(Str::MkKnochenPruefen))) {
         ++t.kopfMenueZaehler;
         schalterDerArt(Ort::Knochen, n);
+        modellKdMenue(n);   // AP13K: Im Vordergrund, Anzeigen als, Rig-Stil
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu(tr(Str::MkViewCube))) {
@@ -438,6 +440,7 @@ void menueSchattierungMax(int n) {
     ImGui::SetItemTooltip("%s", tr(Str::MkDrahtHint));
     ImGui::Separator();
     schalterDerArt(Ort::Schattierung, n);
+    modellKdMenueSchattierung(n);   // AP13K: Durchsicht (Alt+X)
 }
 
 // --- Blender ---------------------------------------------------------------------------------------------------------
@@ -508,6 +511,8 @@ void menueOverlays(int n) {
         if (s.text == Str::MrGrauBoden) { bodenHoehe(); }
         if (s.text == Str::PqSchwelle) { modellPrSchwelleZeile(); }   // AP5: die Zahl zur Schwelle
     }
+    modellKdMenue(n);   // AP13K: Im Vordergrund, Anzeigen als, Rig-Stil
+    ImGui::Separator();
     hintergrundZeile();
     ImGui::Separator();
     navigationZeilen();
@@ -547,6 +552,7 @@ void menueShadingBlender(int n) {
     for (const Schalter& s : schalter()) {
         if (s.blShading && imModus(s) && s.text != Str::MkZweiseitig && s.text != Str::MkWeiss) { schalterZeile(s, n); }
     }
+    modellKdMenueSchattierung(n);   // AP13K: Roentgen (Alt+Z)
 }
 
 // --- Die Kopfzeile ---------------------------------------------------------------------------------------------------
