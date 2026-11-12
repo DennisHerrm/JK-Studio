@@ -228,6 +228,8 @@ public:
     [[nodiscard]] bool kannWiederholen() const noexcept { return !vor_.empty(); }
     [[nodiscard]] std::string rueckgaengigName() const { return zurueck_.empty() ? std::string() : zurueck_.back().first; }
     [[nodiscard]] std::string wiederholenName() const { return vor_.empty() ? std::string() : vor_.back().first; }
+    // FIX612B P2-10: liegt der Schritt `schritt` oben (ein Strich, der mit Strg+Z beendet und zurueckgenommen wird)?
+    [[nodiscard]] bool obenIst(std::uint64_t schritt) const noexcept { return !zurueck_.empty() && zurueck_.back().kennung == schritt; }
 
 private:
     Inhalt jetzt_;

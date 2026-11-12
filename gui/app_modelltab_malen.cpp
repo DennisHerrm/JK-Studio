@@ -1072,6 +1072,11 @@ MalPfadPruefung modellMalenPfadPruefen(const ModellAnsicht& a, const std::vector
 // P4: Strg+Z/Strg+Y gelten dem juengsten Schritt ueber alle Leinwaende (fortlaufende Nummer der Schritte), nicht nur dem
 // gerade gewaehlten Bild - vorher nahm Strg+Z nach den Strichen des gewaehlten Bilds einen Schritt des Modelldokuments zurueck
 bool modellMalenRueckgaengig() {
+    // FIX612B P2-10: Strg+Z mitten im Strich beendet ihn zuerst - dann nimmt Rueckgaengig den ganzen Strich, und die gehaltene
+    // Taste malt nicht weiter. Vorher lief der Strich nach dem Rueckgaengig weiter, ohne dass etwas gesichert wurde: was danach
+    // gemalt wurde, brachte kein Rueckgaengig zurueck.
+    modellMalenEnde();
+    mz().strich2d = false;
     MalBild* m = nullptr;
     for (auto& b : g_bilder) {
         mm::schrittEnde(b->v, b->l);
@@ -1087,6 +1092,8 @@ bool modellMalenRueckgaengig() {
 // mit kleinerer Nummer als der juengste abgelegte wurde vor ihr zurueckgenommen); vorher leerte ein Strich nur `vor` der eigenen
 // Leinwand, und Strg+Y brachte den Strich eines anderen Bilds zurueck.
 bool modellMalenWiederholen() {
+    modellMalenEnde();   // FIX612B P2-10: wie Rueckgaengig - ein laufender Strich endet zuerst
+    mz().strich2d = false;
     long long juengster = 0;
     for (auto& b : g_bilder) {
         mm::schrittEnde(b->v, b->l);

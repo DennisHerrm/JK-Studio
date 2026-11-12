@@ -924,11 +924,15 @@ void gizmoZeichnen(const ModellAnsicht& a, const float m[3]) {
 // der gezeichneten Stufe. `fn` bekommt jede Ecke (aus `vorher` frisch kopiert) mit Teil, Stufe und Nummer (mbvers: in einer
 // Pose rechnet die Umformung mit den Gewichten der Ecke, wie die Ansicht sie zeigt).
 using EckFn = std::function<void(modell::Ecke&, std::size_t, std::size_t, std::size_t)>;
+// FIX612B P2-10: die Rueckgaengig-Schritte eines laufenden Pinselstrichs und eines Zugs am Gizmo (modellAnsichtOffenesAbbrechen)
+std::uint64_t g_strichSchritt = 0;
+std::uint64_t g_ziehSchritt = 0;
 void fuerAuswahl(modell::Inhalt& x, const modell::Inhalt& vorher, const EckFn& fn) {
     const ModellTab& t = mt();
     if (t.auswahlArt == AuswahlArt::Objekt) {
         for (const int i : t.auswahl) {
-            if (i < 0 || static_cast<std::size_t>(i) >= vorher.teile.size()) { continue; }
+            // FIX612B P2-10: `x` kann weniger Teile haben als `vorher` (der Stand vom Anfassen) - vorher wurde dann hinter das Ende geschrieben
+            if (i < 0 || static_cast<std::size_t>(i) >= vorher.teile.size() || static_cast<std::size_t>(i) >= x.teile.size()) { continue; }
             modell::Teil& ziel = x.teile[static_cast<std::size_t>(i)];
             ziel = vorher.teile[static_cast<std::size_t>(i)];
             for (std::size_t s = 0; s < ziel.stufen.size(); ++s) {
@@ -939,7 +943,8 @@ void fuerAuswahl(modell::Inhalt& x, const modell::Inhalt& vorher, const EckFn& f
     }
     const auto st = static_cast<std::size_t>(t.lodJetzt);
     for (const modell::EckOrt& o : t.eckenWahl) {
-        if (o.teil < 0 || static_cast<std::size_t>(o.teil) >= vorher.teile.size() || st >= vorher.teile[static_cast<std::size_t>(o.teil)].stufen.size()) {
+        if (o.teil < 0 || static_cast<std::size_t>(o.teil) >= vorher.teile.size() || st >= vorher.teile[static_cast<std::size_t>(o.teil)].stufen.size() ||
+            static_cast<std::size_t>(o.teil) >= x.teile.size() || st >= x.teile[static_cast<std::size_t>(o.teil)].stufen.size()) {
             continue;
         }
         const modell::Netz& nv = vorher.teile[static_cast<std::size_t>(o.teil)].stufen[st];
@@ -1292,7 +1297,7 @@ void gizmoZiehen(const ModellAnsicht& a, const float m[3]) {
     }
     static const Str kNamen[4] = {Str::MbUndoBewegen, Str::MbUndoBewegen, Str::MbUndoDrehen, Str::MbUndoSkalieren};
     if (t.ziehVorher.empty()) {
-        t.dok.aendern(tr(kNamen[t.gizmo]), [](modell::Inhalt&) {});
+        g_ziehSchritt = t.dok.aendern(tr(kNamen[t.gizmo]), [](modell::Inhalt&) {});
         t.ziehVorher.push_back(t.dok.inhalt());
         std::memcpy(t.ziehWeg, m, sizeof t.ziehWeg);   // Drehpunkt: die Mitte beim Anfassen
     }
@@ -1755,7 +1760,7 @@ bool modellTupfer(int ansicht, ImVec2 maus, bool neuerStrich) {
     }
     t.gemalteEcken = zahl;
     if (neuerStrich) {
-        t.dok.aendern(tr(Str::MbUndoMalen), [](modell::Inhalt&) {});
+        g_strichSchritt = t.dok.aendern(tr(Str::MbUndoMalen), [](modell::Inhalt&) {});   // FIX612B P2-10: Kennung fuer das Abbrechen
         t.malStrich = true;
         if (t.pinselSpiegeln) { modellGewichteSpiegelStand(); }   // AP8: Punkte und Partner mit der Toleranz des Felds
     }
@@ -1790,6 +1795,37 @@ bool modellTupfer(int ansicht, ImVec2 maus, bool neuerStrich) {
 void modellStrichEnde() {
     mt().malStrich = false;
     modellGewichteStrichEnde();   // AP8: ein Verlauf endet mit dem Loslassen
+}
+
+// FIX612B P2-10 (Entscheidung A17): Strg+Z bei gehaltener Taste beendet einen Pinselstrich, einen Verlauf oder einen Zug am
+// Gizmo und nimmt ihn zurueck (Strg+Y bringt ihn wieder); Strg+Y beendet ihn nur. Die gehaltene Taste schreibt danach nicht
+// weiter. Vorher nahm Rueckgaengig den Schritt weg, waehrend das Ziehen ohne eigenen Schritt weiterschrieb (das naechste Strg+Z
+// nahm es mit dem Schritt davor weg). Ein Verlauf ohne Strecke hinterlaesst keinen Schritt (modellGewichteStrichEnde).
+bool modellAnsichtOffenesAbbrechen(bool zuruecknehmen) {
+    ModellTab& t = mt();
+    ModellGewichte& g = modellGewichte();
+    std::uint64_t schritt = 0;
+    bool war = false;
+    if (g.verlaufZieht) {
+        schritt = g.verlaufGeaendert ? g.verlaufSchritt : 0U;
+        modellGewichteStrichEnde();
+        t.malStrich = false;
+        war = true;
+    } else if (t.malStrich) {
+        schritt = g_strichSchritt;
+        t.malStrich = false;
+        war = true;
+    }
+    if (t.griff != 0 && !t.ziehVorher.empty()) {
+        schritt = g_ziehSchritt;
+        t.griff = 0;
+        t.ziehVorher.clear();
+        t.rahmen = false;
+        war = true;
+    }
+    if (war && zuruecknehmen && schritt != 0U && t.dok.obenIst(schritt)) { (void)t.dok.rueckgaengig(); }
+    if (war) { g_app->modelDirty = true; }
+    return war;
 }
 
 // MRESTE: Blender Umschalt+X (paint.weight_sample): das Gewicht des gewaehlten Knochens an der Ecke unter der Maus (die

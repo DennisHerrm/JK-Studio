@@ -324,6 +324,7 @@ bool modellOffenesAbbrechen() {
 
 bool modellRueckgaengig() {
     if (modellOffenesAbbrechen()) { return true; }
+    if (modellAnsichtOffenesAbbrechen(true)) { return true; }   // FIX612B P2-10: Strich, Verlauf, Gizmo-Zug: beenden und zuruecknehmen
     // Modell-Block 1c: im Bereich Painting gilt Strg+Z zuerst dem Bild (Rueckgaengig in Kacheln)
     // P4: im Bereich Painting nie auf das Modelldokument durchfallen (das Netz aenderte sich sonst unter den Leinwaenden)
     if (mt().bereich == ModellBereich::Painting) { return modellMalenRueckgaengig(); }
@@ -334,6 +335,7 @@ bool modellRueckgaengig() {
 
 bool modellWiederholen() {
     if (modellOffenesAbbrechen()) { return true; }
+    if (modellAnsichtOffenesAbbrechen(false)) { return true; }   // FIX612B P2-10: Strich, Verlauf, Gizmo-Zug nur beenden
     if (mt().bereich == ModellBereich::Painting) { return modellMalenWiederholen(); }   // Modell-Block 1c, P4 wie Rueckgaengig
     if (!mt().dok.wiederholen()) { return false; }
     g_app->modelDirty = true;

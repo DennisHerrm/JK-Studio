@@ -271,7 +271,8 @@ void verlaufArtSegment() {
 void hauptKnopf(Str name) {
     ModellGewichte& g = gw();
     // der Hauptknopf traegt die Betonungsfarbe, solange gemalt wird (hoechstens ein Hauptknopf je Gruppe)
-    if (ui::werkzeugKnopf(tr(name), {.icon = UiIcon::GwPinsel, .hinweis = tr(Str::MgMalenHint), .haupt = g.malen, .an = g.malen})) { modellGewichteMalenSetzen(!g.malen); }
+    const std::string hinweis = std::string(tr(Str::MgMalenHint)) + " " + tr(Str::FxStrichStrgZ);   // FIX612B P2-10
+    if (ui::werkzeugKnopf(tr(name), {.icon = UiIcon::GwPinsel, .hinweis = hinweis.c_str(), .haupt = g.malen, .an = g.malen})) { modellGewichteMalenSetzen(!g.malen); }
     if (!hatKnochen()) { ui::absatz(tr(Str::MbGwKnochenWaehlen), ui::Ton::Warnung); }
 }
 
