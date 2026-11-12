@@ -35,27 +35,27 @@ X = {
         "Stejná oblast jako Blender: stejné skupiny v editoru vlastností (karta Objekt) pod Outlinerem, vlevo panel nástrojů s Měřit, Vybrat plochu, Vybrat kost a Fotka."),
     "h_gruppen": ("The groups", "Die Gruppen", "各组", "グループ", "Los grupos", "Skupiny"),
     "gruppen": (
-        "**{{MbRModell}}** shows file and skeleton and opens a model with **{{PqImport}}** (from the disk or from the .pk3 of the game); **{{MbTexNeu}}** has Alt+R in both control modes. "
+        "**{{MbRModell}}** shows file and skeleton and opens a model with **{{PqImport}}** (from the disk or from the .pk3 of the game); **{{MbTexNeu}}** has Alt+R in both control modes - except like 3ds Max in Modelling (Alt+R selects a ring) and like Blender in Animation (Alt+R clears the rotation); there the action search shows it without the key. "
         "**{{PqRAuswahl}}** lists the values of the selected surface, tag or bone (vertices, triangles, bone references, shader, parent, state). "
         "**{{MbRLod}}**: all ten levels can be chosen like r_lodbias in the game - a level above the last one of the model shows the last one, and the sentence below says so; the skins stand in two columns. "
         "**{{PqRBoden}}**: floor at -24 or under the lowest point of the pose, field of view 10°, 80° or 90°, a plain background, the weight threshold, **{{PqAnsichtZurueck}}** and **{{PqFoto}}**.",
-        "**{{MbRModell}}** zeigt Datei und Skelett und öffnet mit **{{PqImport}}** ein Modell (von der Platte oder aus den .pk3 des Spiels); **{{MbTexNeu}}** hat in beiden Bedienmodi Alt+R. "
+        "**{{MbRModell}}** zeigt Datei und Skelett und öffnet mit **{{PqImport}}** ein Modell (von der Platte oder aus den .pk3 des Spiels); **{{MbTexNeu}}** hat in beiden Bedienmodi Alt+R - außer wie 3ds Max im Modellieren (Alt+R wählt einen Ring) und wie Blender in der Animation (Alt+R setzt die Drehung zurück); dort nennt die Aktionssuche es ohne Taste. "
         "**{{PqRAuswahl}}** nennt die Werte der gewählten Fläche, des Tags oder Knochens (Ecken, Dreiecke, Knochenbezüge, Shader, Eltern, Status). "
         "**{{MbRLod}}**: alle zehn Stufen sind wählbar wie r_lodbias im Spiel - eine Stufe über der letzten des Modells zeigt die letzte, und der Satz darunter sagt es; die Skins stehen in zwei Spalten. "
         "**{{PqRBoden}}**: Boden auf -24 oder unter dem tiefsten Punkt der Pose, Sichtfeld 10°, 80° oder 90°, ein einfarbiger Hintergrund, die Gewicht-Schwelle, **{{PqAnsichtZurueck}}** und **{{PqFoto}}**.",
-        "**{{MbRModell}}** 显示文件和骨骼, 并可用 **{{PqImport}}** 打开模型 (从磁盘或游戏的 .pk3); **{{MbTexNeu}}** 在两种操作模式下都可按 Alt+R。"
+        "**{{MbRModell}}** 显示文件和骨骼, 并可用 **{{PqImport}}** 打开模型 (从磁盘或游戏的 .pk3); **{{MbTexNeu}}** 在两种操作模式下都可按 Alt+R——但 3ds Max 方式的建模中(Alt+R 选择环)和 Blender 方式的动画中(Alt+R 清除旋转)除外;那里的动作搜索不显示该按键。"
         "**{{PqRAuswahl}}** 列出所选面、标签或骨骼的数值 (顶点、三角形、骨骼引用、着色器、父级、状态)。"
         "**{{MbRLod}}**: 十个级别都可选择, 与游戏中的 r_lodbias 相同 - 高于模型最后一级的级别显示最后一级, 下方的句子会说明; 皮肤分两列显示。"
         "**{{PqRBoden}}**: 地面位于 -24 或姿势最低点之下, 视野 10°、80° 或 90°, 纯色背景, 权重阈值, **{{PqAnsichtZurueck}}** 和 **{{PqFoto}}**。",
-        "**{{MbRModell}}** はファイルと骨格を表示し、**{{PqImport}}** でモデルを開きます (ディスクから、またはゲームの .pk3 から)。**{{MbTexNeu}}** はどちらの操作モードでも Alt+R です。"
+        "**{{MbRModell}}** はファイルと骨格を表示し、**{{PqImport}}** でモデルを開きます (ディスクから、またはゲームの .pk3 から)。**{{MbTexNeu}}** はどちらの操作モードでも Alt+R です。ただし 3ds Max 方式のモデリング(Alt+R はリングを選択)と Blender 方式のアニメーション(Alt+R は回転をクリア)は除きます。そこではアクション検索にキーなしで表示されます。"
         "**{{PqRAuswahl}}** は選択したサーフェス、タグ、ボーンの値 (頂点、三角形、ボーン参照、シェーダー、親、状態) を示します。"
         "**{{MbRLod}}**: ゲームの r_lodbias と同じく 10 段階すべてを選べます。モデルの最後のレベルより上を選ぶと最後のレベルを表示し、下の文がそれを示します。スキンは 2 列に並びます。"
         "**{{PqRBoden}}**: 床を -24 またはポーズの最低点の下に、視野角 10°/80°/90°、単色の背景、ウェイトしきい値、**{{PqAnsichtZurueck}}** と **{{PqFoto}}**。",
-        "**{{MbRModell}}** muestra el archivo y el esqueleto y abre un modelo con **{{PqImport}}** (desde el disco o desde los .pk3 del juego); **{{MbTexNeu}}** tiene Alt+R en ambos modos de control. "
+        "**{{MbRModell}}** muestra el archivo y el esqueleto y abre un modelo con **{{PqImport}}** (desde el disco o desde los .pk3 del juego); **{{MbTexNeu}}** tiene Alt+R en ambos modos de control, salvo como 3ds Max en Modelado (Alt+R selecciona un anillo) y como Blender en Animación (Alt+R borra la rotación); allí la búsqueda de acciones lo muestra sin la tecla. "
         "**{{PqRAuswahl}}** enumera los valores de la superficie, el tag o el hueso elegido (vértices, triángulos, referencias de huesos, shader, padre, estado). "
         "**{{MbRLod}}**: los diez niveles se pueden elegir como r_lodbias en el juego: un nivel por encima del último del modelo muestra el último, y la frase de abajo lo dice; los skins están en dos columnas. "
         "**{{PqRBoden}}**: suelo a -24 o bajo el punto más bajo de la pose, campo de visión de 10°, 80° o 90°, un fondo liso, el umbral de peso, **{{PqAnsichtZurueck}}** y **{{PqFoto}}**.",
-        "**{{MbRModell}}** ukazuje soubor a kostru a tlačítkem **{{PqImport}}** otevře model (z disku nebo z .pk3 hry); **{{MbTexNeu}}** má v obou režimech ovládání Alt+R. "
+        "**{{MbRModell}}** ukazuje soubor a kostru a tlačítkem **{{PqImport}}** otevře model (z disku nebo z .pk3 hry); **{{MbTexNeu}}** má v obou režimech ovládání Alt+R - kromě režimu jako 3ds Max v modelování (Alt+R vybírá prstenec) a jako Blender v animaci (Alt+R ruší rotaci); tam ho hledání akcí ukazuje bez klávesy. "
         "**{{PqRAuswahl}}** uvádí hodnoty vybrané plochy, tagu nebo kosti (vrcholy, trojúhelníky, odkazy kostí, shader, rodič, stav). "
         "**{{MbRLod}}**: všech deset úrovní lze zvolit jako r_lodbias ve hře - úroveň nad poslední úrovní modelu ukazuje tu poslední a věta pod tím to říká; skiny jsou ve dvou sloupcích. "
         "**{{PqRBoden}}**: podlaha na -24 nebo pod nejnižším bodem pózy, zorné pole 10°, 80° nebo 90°, jednobarevné pozadí, práh váhy, **{{PqAnsichtZurueck}}** a **{{PqFoto}}**."),

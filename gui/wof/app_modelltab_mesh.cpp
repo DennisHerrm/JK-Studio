@@ -1011,6 +1011,17 @@ bool modellMeshAktionenSuche(const std::string& such) {
 // Die Tasten im Bereich Modellieren: das Kaestchen (Enter uebernimmt, Strg+Enter uebernimmt und macht weiter, Esc bricht ab),
 // Cut/Target Weld (Esc endet), wie Blender Umschalt+A (Menue Hinzufuegen) und Alt+E, dann
 // die Tabelle des Bedienmodus; Blender W = Kontextmenue
+bool modellMeshHatTaste(ImGuiKeyChord c) {
+    if (c == 0 || mt().bereich != ModellBereich::Modellieren) { return false; }
+    const bool blender = blenderModus();
+    // wie Blender vor der Tabelle: W (Kontextmenue), Umschalt+A (Hinzufuegen), Alt+E (Extrudieren)
+    if (blender && (c == ImGuiKey_W || c == (ImGuiMod_Shift | ImGuiKey_A) || c == (ImGuiMod_Alt | ImGuiKey_E))) { return true; }
+    for (const MeshAktion& a : aktionen()) {
+        if ((blender ? a.blenderChord : a.maxChord) == c) { return true; }
+    }
+    return false;
+}
+
 bool modellMeshTasten() {
     ModellTab& t = mt();
     ModellMesh& z = mz();

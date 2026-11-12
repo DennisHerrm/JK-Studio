@@ -1186,10 +1186,23 @@ void drawModellKontextMenue() {
 
 namespace {
 
+// FIX612 R4 (Entscheidung B2): die Tabellen der Bereiche Modellieren und Animation kommen in modellTasten vor der Haupttabelle
+// (wie 3ds Max im Modellieren Alt+R = Ring, wie Blender in der Animation Alt+R = Drehung zuruecksetzen). Nennt der Text einer
+// Zeile der Haupttabelle am Ende in Klammern ihre Taste und nimmt der Bereich diese Taste selbst, steht die Zeile in der Suche
+// ohne die Klammer - die Taste loest dort etwas anderes aus. Ueber die Suche bleibt die Zeile ausfuehrbar.
+std::string tastenZeile(Str text, ImGuiKeyChord c) {
+    std::string s = tr(text);
+    if (c == 0 || (!modellMeshHatTaste(c) && !modellRigHatTaste(c))) { return s; }
+    const std::string name = ImGui::GetKeyChordName(c);
+    const std::size_t k = s.rfind(" (");
+    if (k != std::string::npos && !s.empty() && s.back() == ')' && s.find(name, k) != std::string::npos) { s.erase(k); }
+    return s;
+}
+
 void tasteAusloesen(const MaxTaste& k) {
     k.tun();
     ++mt().tastenZaehler;
-    mt().letzteTaste = tr(k.text);
+    mt().letzteTaste = tastenZeile(k.text, k.chord);
     g_app->modelDirty = true;
 }
 
@@ -1277,11 +1290,12 @@ void drawModellAktionen() {
     if (modellBlender()) {   // mb1a2: F3 sucht in der Belegung wie Blender
         for (const BlenderTaste& k : blenderTasten()) {
             // MBKOPF: die Tasten der Anzeige-Schalter stehen unten einmal - als Schalter mit Haken und Ort (Enter loest sie weiter aus)
-            if (!passt(tr(k.text), such) || (modellKopfSucheHatTaste(k.chord) && !erster)) { continue; }
-            if (ImGui::Selectable(tr(k.text)) || erster) {
+            const std::string zeile = tastenZeile(k.text, k.chord);   // FIX612 R4
+            if (!passt(zeile, such) || (modellKopfSucheHatTaste(k.chord) && !erster)) { continue; }
+            if (ImGui::Selectable(zeile.c_str()) || erster) {
                 k.tun();
                 ++t.tastenZaehler;
-                t.letzteTaste = tr(k.text);
+                t.letzteTaste = zeile;
                 g_app->modelDirty = true;
                 ImGui::CloseCurrentPopup();
                 break;
@@ -1292,9 +1306,10 @@ void drawModellAktionen() {
         // Strg+= / Strg+- in der Liste
         const bool malen = mt().bereich == ModellBereich::Painting;
         for (const MaxTaste& k : maxTasten()) {
-            if (!passt(tr(k.text), such) || (modellKopfSucheHatTaste(k.chord) && !erster)) { continue; }
+            const std::string zeile = tastenZeile(k.text, k.chord);   // FIX612 R4
+            if (!passt(zeile, such) || (modellKopfSucheHatTaste(k.chord) && !erster)) { continue; }
             if (malen && (k.chord == ImGuiKey_LeftBracket || k.chord == ImGuiKey_RightBracket)) { continue; }
-            if (ImGui::Selectable(tr(k.text)) || erster) {
+            if (ImGui::Selectable(zeile.c_str()) || erster) {
                 tasteAusloesen(k);
                 ImGui::CloseCurrentPopup();
                 break;

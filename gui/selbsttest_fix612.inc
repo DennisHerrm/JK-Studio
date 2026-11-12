@@ -8,6 +8,7 @@
 //     fix612p33   P3-3  Platzliste der eigenen GLA: "Leeren" auf dem ersten von drei Plaetzen
 //     fix612n     P3-2  doppelte Bodenzeile im Popover Overlays (wie Blender); P3-4 vier Ansichten nach Max -> Blender -> Max;
 //                 R6    Fehler beim Lesen eines ModView-Skripts in der Sprache der Oberflaeche
+//     fix612r4    R4    Alt+R: die Aktionssuche nennt die Taste neben "Texturen neu laden" nur, wo sie Texturen neu laedt
 //     fix612v     V2, V3: die Vermutungen der ersten Pruefung (Seitenleiste wie Blender, Zwischenspeicher des Explorers)
 //   BHED_EDITORTEST=karteneditor, BHED_KARTE_NUR=fix612   R3: "Bauen fortsetzen" startet nichts aus dem Zwischenstand neben der
 //                       Karte; nach dem Verschieben des Kartenordners gelten Verwerfen und Fortsetzen am neuen Ort
@@ -343,6 +344,53 @@ void kleinSchritte(std::vector<Schritt>& s) {
     }));
 }
 
+// --- R4: Alt+R - die angezeigte Taste neben "Texturen neu laden" stimmt in jedem Bereich -----------------------------------------
+// Entscheidung B2 (shank 12.11., plaene/entscheidungen_1211.md): Alt+R bleibt je Bereich wie im Vorbild (wie 3ds Max im Bereich
+// Modellieren Ring, wie Blender im Bereich Animation Drehung zuruecksetzen, sonst Texturen neu laden wie ModView); die Anzeige wird
+// berichtigt. Geprueft wird die Zeile der Aktionssuche: sie nennt Alt+R genau dort, wo die Taste Texturen neu laedt.
+
+void altRSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    struct Fall {
+        int modus;
+        ModellBereich bereich;
+        bool altR;   // laedt Alt+R hier Texturen neu?
+        const char* name;
+    };
+    static const Fall kFaelle[4] = {{0, ModellBereich::Ansehen, true, "wie 3ds Max, Ansehen/Pruefen"},
+                                    {0, ModellBereich::Modellieren, false, "wie 3ds Max, Modellieren (Alt+R = Ring)"},
+                                    {1, ModellBereich::Ansehen, true, "wie Blender, Ansehen/Pruefen"},
+                                    {1, ModellBereich::Animation, false, "wie Blender, Animation (Alt+R = Drehung zuruecksetzen)"}};
+    for (const Fall& f : kFaelle) {
+        add(tu(std::string("FIX612 R4: ") + f.name + ", Alle Aktionen suchen", [f] {
+            modellBedienungSetzen(f.modus);
+            mtab().bereich = f.bereich;
+            mtab().vierAnsichten = false;
+            mtab().aktionenOffen = true;
+        }));
+        add(pause(0.4));
+        add(tippe(tr(Str::MbTexNeu)));
+        add(pause(0.3));
+        add(pruefe(std::string("FIX612 R4 (") + f.name + "): die Aktionssuche nennt Alt+R neben \"Texturen neu laden\" " +
+                       (f.altR ? "(die Taste laedt hier Texturen neu)" : "NICHT (die Taste gehoert hier dem Bereich)"),
+                   [f] {
+                       std::string zeile;
+                       for (const Element& e : g_elemente) {
+                           if (e.fenster.find("##Popup_") != std::string::npos && e.label.rfind(tr(Str::MbTexNeu), 0) == 0) { zeile = e.label; }
+                       }
+                       const bool mitTaste = zeile.find("Alt+R") != std::string::npos;
+                       melde(std::string("R4 ") + f.name + ": \"" + zeile + "\"");
+                       return !zeile.empty() && mitTaste == f.altR;
+                   }));
+        add(mbefoto::popupsZu());
+        add(pause(0.2));
+    }
+    add(tu("FIX612 R4: wie 3ds Max, Ansehen/Pruefen", [] {
+        modellBedienungSetzen(0);
+        mtab().bereich = ModellBereich::Ansehen;
+    }));
+}
+
 // --- Die Vermutungen V2 und V3 der ersten Pruefung ---------------------------------------------------------------------------
 
 void vermutungSchritte(std::vector<Schritt>& s) {
@@ -509,6 +557,7 @@ std::vector<Schritt> modellSchritte(const char* nur) {
     if (mit("p31")) { presetSchritte(s); }
     if (mit("p33")) { plaetzeSchritte(s); }
     if (mit("n")) { kleinSchritte(s); }
+    if (mit("r4")) { altRSchritte(s); }
     if (mit("v")) { vermutungSchritte(s); }
     add(tu("FIX612: zurueck", [=] {
         modellBedienungSetzen(*bedienung);

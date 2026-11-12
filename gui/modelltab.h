@@ -747,6 +747,8 @@ void drawModellMeshBereich();               // Rollouts im Befehlsfeld
 void modellMeshMenue();                     // Hauptmenue "Modellieren"
 void modellMeshKontextMenue();              // Rechtsklick in der Ansicht
 bool modellMeshTasten();
+// FIX612 R4: nimmt der Bereich Modellieren die Taste selbst (dieselben Bedingungen wie modellMeshTasten, ohne Druck)?
+[[nodiscard]] bool modellMeshHatTaste(ImGuiKeyChord c);
 bool modellMeshAktionenSuche(const std::string& such);
 void drawModellMeshPopups();                // Werkzeugkaestchen und Menues
 void modellMeshUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
@@ -879,6 +881,7 @@ bool modellRigBacken();
 bool modellRigSchluesselLoeschen();
 void modellRigZuordnen(int knochen, modell::Rolle rolle, modell::Seite seite);
 bool modellRigTasten();                              // die Tasten der Rig-Aktionen (Bereich Animation)
+[[nodiscard]] bool modellRigHatTaste(ImGuiKeyChord c);   // FIX612 R4: nimmt der Bereich Animation die Taste selbst (wie modellRigTasten)?
 bool modellRigAktionenSuche(const std::string& such);   // Zeilen in "Alle Aktionen suchen"
 [[nodiscard]] bool modellRigGriffAufSchirm(int griff, ImVec2& out);
 // Stufe 3b (app_modelltab_kurven.cpp): Dopesheet, Kurveneditor, Animationswerkzeuge, Pfade ziehen

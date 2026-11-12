@@ -418,6 +418,15 @@ const char* modellRigAktionTaste(int i, bool blender) {
 }
 void modellRigAktionAusloesen(int i) { aktionAusloesen(rigAktionen()[static_cast<std::size_t>(i)]); }
 
+bool modellRigHatTaste(ImGuiKeyChord c) {
+    if (c == 0 || mt().bereich != ModellBereich::Animation) { return false; }
+    const bool blender = modellBlender();
+    for (const RigAktion& a : rigAktionen()) {
+        if ((blender ? a.blenderChord : a.maxChord) == c) { return true; }
+    }
+    return false;
+}
+
 // Die Tasten der Aktionen (nur im Bereich Animation; sonst gehoeren Strg+C/V usw. den anderen Bereichen).
 bool modellRigTasten() {
     if (mt().bereich != ModellBereich::Animation) { return false; }
