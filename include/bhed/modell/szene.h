@@ -57,8 +57,19 @@ struct Szene {
     std::vector<std::string> nichtUebernommen;   // beim Lesen: was im Skript stand, aber nicht abgebildet wird
 };
 
-// Liest ein ModView-Skript. false: kein loadmodel, Klammerfehler oder Pflichtschluessel fehlt (Text in *fehler wie ModView).
-[[nodiscard]] bool szeneLesen(std::string_view text, Szene& aus, std::string* fehler);
+// Was an einem Skript nicht stimmt - fuer eine Meldung in der Sprache der Oberflaeche (FIX612 R6; der Text in *fehler von
+// szeneLesen bleibt der englische von ModView, fuer das Protokoll)
+enum class SzeneFehlerArt { Keiner, Klammer, KeinBlock, KeinSchluessel, ElternUnbekannt };
+struct SzeneFehler {
+    SzeneFehlerArt art = SzeneFehlerArt::Keiner;
+    int zeile = 0;             // Klammer: die Zeile
+    std::string block;         // KeinBlock, KeinSchluessel, ElternUnbekannt: "loadmodel" bzw. "boltmodel"
+    std::string schluessel;    // KeinSchluessel: der fehlende Schluessel; ElternUnbekannt: die Kennung des Elternmodells
+};
+
+// Liest ein ModView-Skript. false: kein loadmodel, Klammerfehler oder Pflichtschluessel fehlt (Text in *fehler wie ModView,
+// die Art des Fehlers in *was).
+[[nodiscard]] bool szeneLesen(std::string_view text, Szene& aus, std::string* fehler, SzeneFehler* was = nullptr);
 // Schreibt die Szene so, wie ModView sie schreibt (Tabulatoren, Reihenfolge von R_ModelContainer_WriteOptional).
 [[nodiscard]] std::string szeneSchreiben(const Szene& s);
 // Die Kennung eines Modells im Skript wie GenerateHandleName: Dateiname ohne Pfad und Endung, klein, bei Doppel "_2", "_3" ...

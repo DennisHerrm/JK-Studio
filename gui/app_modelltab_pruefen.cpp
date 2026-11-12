@@ -364,9 +364,25 @@ bool modellSzeneLesen(const std::string& pfad) {
     modell::Szene s;
     std::string fehler;
     char z[900];
-    if (!f.good() && !f.eof()) { fehler = "File not found"; }
-    if (!fehler.empty() || !modell::szeneLesen(ss.str(), s, &fehler)) {
-        std::snprintf(z, sizeof z, tr(Str::PqSzeneFehler), (pfad + ": " + fehler).c_str());
+    // FIX612 R6: der Grund in der Sprache der Oberflaeche (bis rc612 "File not found" und die englischen Texte von ModView)
+    std::string grund;
+    modell::SzeneFehler was;
+    if (!f.good() && !f.eof()) {
+        grund = tr(Str::PqSzeneNichtOffen);
+    } else if (!modell::szeneLesen(ss.str(), s, &fehler, &was)) {
+        char g[400] = {};
+        switch (was.art) {
+            case modell::SzeneFehlerArt::Klammer: std::snprintf(g, sizeof g, tr(Str::PqSzeneKlammer), was.zeile); break;
+            case modell::SzeneFehlerArt::KeinBlock: std::snprintf(g, sizeof g, tr(Str::PqSzeneKeinBlock), was.block.c_str()); break;
+            case modell::SzeneFehlerArt::KeinSchluessel: std::snprintf(g, sizeof g, tr(Str::PqSzeneKeinSchluessel), was.block.c_str(), was.schluessel.c_str()); break;
+            case modell::SzeneFehlerArt::ElternUnbekannt: std::snprintf(g, sizeof g, tr(Str::PqSzeneEltern), was.block.c_str(), was.schluessel.c_str()); break;
+            case modell::SzeneFehlerArt::Keiner: std::snprintf(g, sizeof g, "%s", fehler.c_str()); break;
+        }
+        grund = g;
+        diag::detail("Model-Tab: Szene " + pfad + " nicht gelesen - " + fehler);
+    }
+    if (!grund.empty()) {
+        std::snprintf(z, sizeof z, tr(Str::PqSzeneFehler), (pfad + ": " + grund).c_str());
         t.meldung = z;
         return false;
     }

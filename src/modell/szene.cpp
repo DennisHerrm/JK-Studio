@@ -91,21 +91,27 @@ std::string szenenKennung(const std::string& pfad, const std::vector<std::string
     }
 }
 
-bool szeneLesen(std::string_view text, Szene& s, std::string* fehler) {
+bool szeneLesen(std::string_view text, Szene& s, std::string* fehler, SzeneFehler* was) {
     s = Szene{};
+    if (was != nullptr) { *was = SzeneFehler{}; }
     const efx::gp2::ParseResult r = efx::gp2::parse(text);
-    const auto melde = [&](const std::string& m) {
+    // m: der Text von ModView (Protokoll); art, block, schluessel: dasselbe fuer eine Meldung in der Sprache der Oberflaeche
+    const auto melde = [&](const std::string& m, SzeneFehlerArt art, const char* block = "", const std::string& schluessel = std::string(), int zeile = 0) {
         if (fehler != nullptr) { *fehler = m; }
+        if (was != nullptr) { *was = SzeneFehler{art, zeile, block, schluessel}; }
         return false;
     };
-    if (!r.ok()) { return melde("{} - Brace mismatch error (line " + std::to_string(r.errors.front().line) + ")"); }
+    if (!r.ok()) {
+        const int zeile = static_cast<int>(r.errors.front().line);
+        return melde("{} - Brace mismatch error (line " + std::to_string(zeile) + ")", SzeneFehlerArt::Klammer, "", {}, zeile);
+    }
     const efx::gp2::Group* lm = r.topLevel.findSubGroup("loadmodel");
-    if (lm == nullptr) { return melde("Unable to find keyword 'loadmodel'"); }
+    if (lm == nullptr) { return melde("Unable to find keyword 'loadmodel'", SzeneFehlerArt::KeinBlock, "loadmodel"); }
     s.basisOrdner = wert(*lm, "basedir");
     s.name = wert(*lm, "name");
-    if (s.name.empty()) { return melde("Script_Parse_LoadModel(): No 'name' keyword found!"); }
+    if (s.name.empty()) { return melde("Script_Parse_LoadModel(): No 'name' keyword found!", SzeneFehlerArt::KeinSchluessel, "loadmodel", "name"); }
     s.modell = wert(*lm, "modelfile");
-    if (s.modell.empty()) { return melde("Script_Parse_LoadModel(): No 'modelfile' keyword found!"); }
+    if (s.modell.empty()) { return melde("Script_Parse_LoadModel(): No 'modelfile' keyword found!", SzeneFehlerArt::KeinSchluessel, "loadmodel", "modelfile"); }
     s.wurzel = wert(*lm, "surfacename_rootoverride");
     s.sekundaerStart = wert(*lm, "bonename_secondarystart");
     s.primaer = wert(*lm, "locksequence");
@@ -132,19 +138,21 @@ bool szeneLesen(std::string_view text, Szene& s, std::string* fehler) {
         if (!gleich(u.name, "boltmodel")) { continue; }
         SzenenAnbau a;
         a.name = wert(u, "name");
-        if (a.name.empty()) { return melde("Script_Parse_BoltModel(): No 'name' keyword found!"); }
+        if (a.name.empty()) { return melde("Script_Parse_BoltModel(): No 'name' keyword found!", SzeneFehlerArt::KeinSchluessel, "boltmodel", "name"); }
         a.modell = wert(u, "modelfile");
-        if (a.modell.empty()) { return melde("Script_Parse_BoltModel(): No 'modelfile' keyword found!"); }
+        if (a.modell.empty()) { return melde("Script_Parse_BoltModel(): No 'modelfile' keyword found!", SzeneFehlerArt::KeinSchluessel, "boltmodel", "modelfile"); }
         a.eltern = wert(u, "parent");
-        if (a.eltern.empty()) { return melde("Script_Parse_BoltModel(): No 'parent' keyword found!"); }
+        if (a.eltern.empty()) { return melde("Script_Parse_BoltModel(): No 'parent' keyword found!", SzeneFehlerArt::KeinSchluessel, "boltmodel", "parent"); }
         const std::string knochen = wert(u, "bolttobone");
         const std::string flaeche = wert(u, "bolttosurface");
-        if (knochen.empty() && flaeche.empty()) { return melde("Script_Parse_BoltModel(): No 'bolttobone' or 'bolttosurface' keyword found!"); }
+        if (knochen.empty() && flaeche.empty()) {
+            return melde("Script_Parse_BoltModel(): No 'bolttobone' or 'bolttosurface' keyword found!", SzeneFehlerArt::KeinSchluessel, "boltmodel", "bolttobone / bolttosurface");
+        }
         a.knochen = !knochen.empty();
         a.ziel = a.knochen ? knochen : flaeche;
         bool bekannt = false;
         for (const std::string& k : kennungen) { bekannt = bekannt || k == a.eltern; }
-        if (!bekannt) { return melde("Script_Parse_BoltModel(): Unknown parent handle \"" + a.eltern + "\""); }
+        if (!bekannt) { return melde("Script_Parse_BoltModel(): Unknown parent handle \"" + a.eltern + "\"", SzeneFehlerArt::ElternUnbekannt, "boltmodel", a.eltern); }
         if (a.eltern != s.name) { s.nichtUebernommen.push_back(a.name + ": parent " + a.eltern); }   // Anbau an einem Anbau
         nichtAbgebildet(u, a.name, s, true);
         kennungen.push_back(a.name);

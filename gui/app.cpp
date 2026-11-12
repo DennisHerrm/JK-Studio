@@ -3784,7 +3784,7 @@ void drawKeyBindings() {
 bool oeffneModellAusArchiv(const std::string& name, std::string* fehler) {
     std::string data;
     if (!readFromArchives(name, data)) {
-        if (fehler != nullptr) { *fehler = "nicht in den Archiven"; }
+        if (fehler != nullptr) { *fehler = tr(Str::MbNichtInSpieldateien); }   // FIX612 R6: bis rc612 deutsch in jeder Sprache
         return false;
     }
     diag::Step ms("Modell laden: " + name);
