@@ -211,22 +211,30 @@ std::vector<Schritt> modellSchritte() {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto st = std::make_shared<Stand>();
     neuesRequisit(s, "md_kiste", "");
-    add(pruefe("MD Neues Requisit: .md3 ohne Datei, ein Teil, Bereich Modellieren, Befehlsfeld mit den Rollouts", [] {
+    add(pruefe("MD Neues Requisit: .md3 ohne Datei, ein Teil, Bereich Modellieren, Befehlsfeld mit der Gruppe Auswahl (Untertitel Edit Poly)", [] {
         const modell::Inhalt& in = g_app->mtab.dok.inhalt();
+        // AP6: die Gruppe heisst nach dem Entwurf "Auswahl"; "Edit Poly" (bis rc611 ihr Titel) steht als Untertitel in der Ueberschrift
         bool roll = false;
-        for (const Element& e : g_elemente) { roll = roll || e.label == tr(Str::MdRolloutMax); }
+        for (int i = 0; i < ui::rolloutProbeZahl(); ++i) {
+            roll = roll || (ui::rolloutProbe(i).titel == tr(Str::MdGrAuswahl) && ui::rolloutProbe(i).kurzinfo == tr(Str::MdRolloutMax));
+        }
         return roll && in.herkunft == modell::Herkunft::Md3 && !in.md3Datei && in.teile.size() == 1U && g_app->mtab.bereich == ModellBereich::Modellieren;
     }));
     kasten(s, 64.0F);
-    add(pruefe("MD Befehlsfeld: Rollout Edit Poly, Geometrie, Polygone, JKA-Grenzen und Requisit; Knoepfe mit Tooltip", [] {
+    add(pruefe("MD Befehlsfeld: Gruppen Auswahl, Werkzeuge (Untertitel Polygone bearbeiten), JKA-Grenzen und Requisit, der Teil Geometrie bearbeiten; Knoepfe mit Tooltip", [] {
+        // AP6: Gliederung nach dem Entwurf - die Werkzeuge der Ebene stehen in der Gruppe "Werkzeuge" (ihr Name aus 3ds Max, "Polygone
+        // bearbeiten", als Untertitel), "Geometrie bearbeiten" ist ihr zugeklappter Teil
         int da = 0;
-        for (const Str x : {Str::MdRolloutMax, Str::MdGrGeometrie, Str::MdGrVielecke, Str::MdGrGrenzen, Str::MdGrRequisit, Str::MdExtrude, Str::MdInset, Str::MdInDieKarte}) {
-            bool d = false;
-            for (const Element& e : g_elemente) { d = d || e.label == tr(x); }
+        for (const Str x : {Str::MdGrAuswahl, Str::Ap6Werkzeuge, Str::MdGrGeometrie, Str::MdGrGrenzen, Str::MdGrRequisit, Str::MdExtrude, Str::MdInset, Str::MdInDieKarte}) {
+            const bool d = finde(tr(x), "mtrollouts", 0, false) != nullptr;
             if (!d) { meldeFehler(std::string("MD: fehlt im Befehlsfeld: ") + tr(x)); }
             da += d ? 1 : 0;
         }
-        return da == 8;
+        bool untertitel = false;
+        for (int i = 0; i < ui::rolloutProbeZahl(); ++i) {
+            untertitel = untertitel || (ui::rolloutProbe(i).titel == tr(Str::Ap6Werkzeuge) && ui::rolloutProbe(i).kurzinfo == tr(Str::MdGrVielecke));
+        }
+        return da == 8 && untertitel;
     }));
     // --- Erreichbarkeit ---
     menueAlle(s, false);
@@ -541,6 +549,8 @@ std::vector<Schritt> karteSchritte() {
         modellMeshVorschau();
         modellMeshUebernehmen(false);
     }));
+    add(pause(0.3));
+    add(rig3::rollenZu(tr(Str::MdInDieKarte), "mtrollouts"));   // AP6: die Gruppe Requisit steht unter Auswahl, Werkzeuge und JKA-Grenzen
     add(pause(0.3));
     add(klick(tr(Str::MdInDieKarte)));
     add(pause(0.3));

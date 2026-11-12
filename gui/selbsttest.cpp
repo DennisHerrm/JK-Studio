@@ -6026,6 +6026,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_ap3.inc"        // AP3: Rollout-Baustein und Rahmen des rechten Felds (modellblock, BHED_MODELL_NUR=ap3 / ap3foto)
 #include "selbsttest_ap9.inc"        // AP9: rechtes Feld des Bereichs Painting nach dem Entwurf (modellblock, BHED_MODELL_NUR=ap9 / ap9foto)
 #include "selbsttest_ap7.inc"        // AP7: rechtes Feld des Bereichs UV nach dem Entwurf (modellblock, BHED_MODELL_NUR=ap7 / ap7foto)
+#include "selbsttest_ap6.inc"        // AP6: rechtes Feld im Bereich Modellieren nach dem Entwurf (modellblock, BHED_MODELL_NUR=ap6 / ap6foto / ap6hb)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
@@ -7040,6 +7041,7 @@ void selbsttest() {
                     for (Schritt& x : ap3::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP3 (rechtes Feld)
                     for (Schritt& x : ap9::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP9 (Painting, rechtes Feld)
                     for (Schritt& x : ap7::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP7 (Bereich UV)
+                    for (Schritt& x : ap6::schritte(nur)) { a.schritte.push_back(std::move(x)); }       // AP6 (Modellieren)
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

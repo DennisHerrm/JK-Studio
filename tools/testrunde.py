@@ -237,8 +237,8 @@ lauf("updateleiste2", "updateleiste2", 600, behalten="updateleiste", bereich="up
 # Bearbeiten in der Pose, Szenen-Explorer, Auto-Skin, Zeitleiste; der Modus uiform (Formular-Baustein, Mindestgroessen). Die
 # Gruppe numpad des Karten-Editors und die Malgruppe ptsprung stehen schon oben (voller karteneditor-Lauf, mb_ptsprung). Nicht
 # im Pool: Bildlaeufe (rasterfotos, ap1foto, ap2foto, ap12foto, ap3foto, mbefoto) und die Messung ptlang. ap3: Rollout-Baustein und
-# rechtes Feld des Model-Tabs (AP3).
-for g in "kopfrot kopf raster nav mbv ap2 ap12 ap1 ap3".split():
+# rechtes Feld des Model-Tabs (AP3). ap6: Bereich Modellieren nach dem Entwurf (AP6; Bildlaeufe ap6foto, ap6hb nicht im Pool).
+for g in "kopfrot kopf raster nav mbv ap2 ap12 ap1 ap3 ap6".split():
     lauf("mb_" + g, "modellblock", 2400, MB + ["BHED_MODELL_NUR=" + g, "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 lauf("uiform", "uiform", 3600, bereich="programm")
 # AP9: das rechte Feld des Bereichs Painting nach dem Entwurf (Gruppen Ziel, Werkzeuge, Pinsel, Ebenen, Fuer das Spiel; Tasten [ ]).
