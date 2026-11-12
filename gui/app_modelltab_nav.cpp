@@ -1211,8 +1211,10 @@ void modellNavMenue(int n) {
     navZeile({Str::MnGrenzenAuswahl, Str::MnGrenzenAuswahlHint, [] { modellNavGrenzen(0); }});
     navZeile({Str::MnGrenzen, Str::MnGrenzenHint, [] { modellNavGrenzen(1); }});
     navZeile({Str::MnGrenzenAlle, Str::MnGrenzenAlleHint, [] { modellNavGrenzen(2); }});
-    navZeile({Str::MnZoomHeran, Str::MnZoomMausHint, [] { modellNavZoomSchritt(1.0F); }});
-    navZeile({Str::MnZoomHinaus, Str::MnZoomMausHint, [] { modellNavZoomSchritt(-1.0F); }});
+    // FIX612C (P3-9): im Bereich Painting stellen [ und ] den Pinsel - dort nennt die Zeile die Taste, die zoomt
+    const bool malen = t.bereich == ModellBereich::Painting;
+    navZeile({malen ? Str::MnZoomHeran2 : Str::MnZoomHeran, Str::MnZoomMausHint, [] { modellNavZoomSchritt(1.0F); }});
+    navZeile({malen ? Str::MnZoomHinaus2 : Str::MnZoomHinaus, Str::MnZoomMausHint, [] { modellNavZoomSchritt(-1.0F); }});
     navZeile({Str::MnZoom2xHeran, Str::MnGrenzenHint, [] { modellNavZoom2x(true); }});
     navZeile({Str::MnZoom2xHinaus, Str::MnGrenzenHint, [] { modellNavZoom2x(false); }});
     ImGui::Separator();

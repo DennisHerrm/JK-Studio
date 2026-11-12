@@ -1179,8 +1179,12 @@ void drawModellAktionen() {
             }
         }
     } else {
+        // FIX612C (P3-9): im Bereich Painting gehoeren [ und ] dem Pinsel (AP9, Entscheidung shank) - das Zoomen steht dort nur mit
+        // Strg+= / Strg+- in der Liste
+        const bool malen = mt().bereich == ModellBereich::Painting;
         for (const MaxTaste& k : maxTasten()) {
             if (!passt(tr(k.text), such) || (modellKopfSucheHatTaste(k.chord) && !erster)) { continue; }
+            if (malen && (k.chord == ImGuiKey_LeftBracket || k.chord == ImGuiKey_RightBracket)) { continue; }
             if (ImGui::Selectable(tr(k.text)) || erster) {
                 tasteAusloesen(k);
                 ImGui::CloseCurrentPopup();
