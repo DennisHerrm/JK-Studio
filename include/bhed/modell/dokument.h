@@ -217,6 +217,8 @@ public:
     void vorschau(const std::function<void(Inhalt&)>& f, bool netz = true);
     bool rueckgaengig();
     // mb1a2: den letzten Schritt verwerfen (zurueck, ohne Wiederholen) - ein abgebrochenes G/R/S.
+    // FIX612B P2-5: was aendern() fuer diesen Schritt vom Wiederholen genommen hat, liegt danach wieder da - ein Befehl, der
+    // nichts aendert (aendern, dann abbrechen), laesst das Wiederholen stehen.
     bool abbrechen();
     // pfix H1: nur den Schritt `schritt` verwerfen - liegt er nicht mehr oben (Rueckgaengig, ein anderer Befehl), nichts.
     bool abbrechen(std::uint64_t schritt);
@@ -240,6 +242,10 @@ private:
     };
     std::vector<Schritt> zurueck_;
     std::vector<Schritt> vor_;
+    // FIX612B P2-5: das Wiederholen, das der juengste aendern()-Schritt (vorWegFuer_) verdraengt hat - bis zum naechsten
+    // Schritt, Rueckgaengig, Wiederholen oder Laden
+    std::vector<Schritt> vorWeg_;
+    std::uint64_t vorWegFuer_ = 0;
     std::uint64_t kennungZaehler_ = 0;
     int stand_ = 0;
     int netzZaehler_ = 0;

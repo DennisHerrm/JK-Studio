@@ -361,6 +361,8 @@ void Dokument::laden(Inhalt neu) {
     jetzt_.netzStand = ++netzZaehler_;
     zurueck_.clear();
     vor_.clear();
+    vorWeg_.clear();
+    vorWegFuer_ = 0;
     ++stand_;
     ++ladeStand_;
 }
@@ -369,6 +371,10 @@ std::uint64_t Dokument::aendern(const std::string& was, const std::function<void
     const std::uint64_t kennung = ++kennungZaehler_;
     zurueck_.push_back(Schritt{was, jetzt_, kennung});
     if (zurueck_.size() > kTiefe) { zurueck_.erase(zurueck_.begin()); }
+    // FIX612B P2-5: das Wiederholen faellt nicht weg, sondern liegt beiseite, bis feststeht, dass der Schritt bleibt
+    // (abbrechen legt es zurueck) - vorher loeschte es auch ein Befehl, der nichts aenderte
+    vorWeg_ = std::move(vor_);
+    vorWegFuer_ = kennung;
     vor_.clear();
     f(jetzt_);
     if (netz) { jetzt_.netzStand = ++netzZaehler_; }
@@ -387,14 +393,20 @@ bool Dokument::rueckgaengig() {
     vor_.push_back(Schritt{zurueck_.back().first, std::move(jetzt_), zurueck_.back().kennung});
     jetzt_ = std::move(zurueck_.back().second);
     zurueck_.pop_back();
+    vorWeg_.clear();
+    vorWegFuer_ = 0;
     ++stand_;
     return true;
 }
 
 bool Dokument::abbrechen() {
     if (zurueck_.empty()) { return false; }
+    const bool juengster = vorWegFuer_ != 0 && zurueck_.back().kennung == vorWegFuer_;
     jetzt_ = std::move(zurueck_.back().second);
     zurueck_.pop_back();
+    if (juengster) { vor_ = std::move(vorWeg_); }   // FIX612B P2-5: der Stand ist wieder der, zu dem das Wiederholen gehoert
+    vorWeg_.clear();
+    vorWegFuer_ = 0;
     ++stand_;
     return true;
 }
@@ -418,6 +430,8 @@ bool Dokument::wiederholen() {
     zurueck_.push_back(Schritt{vor_.back().first, std::move(jetzt_), vor_.back().kennung});
     jetzt_ = std::move(vor_.back().second);
     vor_.pop_back();
+    vorWeg_.clear();
+    vorWegFuer_ = 0;
     ++stand_;
     return true;
 }
