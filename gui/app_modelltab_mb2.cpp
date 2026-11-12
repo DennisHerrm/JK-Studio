@@ -1,19 +1,15 @@
-// app_modelltab_mb2.cpp - Modell-Block 1a-2 im Model-Tab: der Bereich Weights (Befehlsfeld), das Fenster
-// "Ins Skript", die Datei-Befehle des Modells
+// app_modelltab_mb2.cpp - Modell-Block 1a-2 im Model-Tab: das Fenster "Ins Skript", die Datei-Befehle des Modells
+// (das Befehlsfeld des Bereichs Weights steht seit AP8 in app_modelltab_gewichte.cpp)
 //
 // shank 06.11.: "der model tab sollte komplett sein ohne das andere. nur man muesste irgendwie waehlen koennen das man
 // animationen in ein script added ohne das es platz verschwendet am besten als separates Fenster" - der Model-Tab hat
 // keinen Skriptbaum, keine Knopfspalte und keine Skript-Statuszeile; Animationen kommen ueber das Fenster "Ins Skript"
 // (ab Werk zu, eigenes Fenster wie die herausgenommenen Panels) in ein offenes oder neues Skript.
-// Das Malen selbst (Pinsel in der Ansicht, Farbe je Knochen) steht in app_modelltab_ansicht.cpp, die Regeln fuer die
-// Gewichte in bhed/modell/gewichte.h.
 #include "app_internal.h"
 #include "textumbruch.h"
 #include "fenster_dock.h"
 #include "hilfe.h"
 #include "platform.h"
-
-#include "bhed/modell/gewichte.h"
 
 #include <algorithm>
 #include <cmath>
@@ -284,109 +280,6 @@ void modellDateiTasten(bool nurRueckgaengig) {
         return;
     }
     if (taste(ImGuiKey_F1)) { hilfeOeffnen(); }
-}
-
-// --- Bereich Weights: das Befehlsfeld --------------------------------------------------------------
-
-void drawModellGewichte() {
-    ModellTab& t = mt();
-    const modell::Inhalt& in = t.dok.inhalt();
-    const GlaAnimation& a = g_app->anim;
-    const bool blender = g_app->settings.modellBedienung == 1;
-    ImGui::PushTextWrapPos(0.0F);
-    // Knochen
-    cjkTextDisabled("%s", tr(Str::MbGwKnochen));
-    ImGui::SameLine();
-    const bool hatKnochen = t.knochenWahl >= 0 && static_cast<std::size_t>(t.knochenWahl) < a.bones.size();
-    ImGui::SetNextItemWidth(-1.0F);
-    if (ImGui::BeginCombo("##gwknochen", hatKnochen ? a.bones[static_cast<std::size_t>(t.knochenWahl)].name.c_str() : "-")) {
-        for (std::size_t b = 0; b < a.bones.size(); ++b) {
-            if (ImGui::Selectable(a.bones[b].name.c_str(), static_cast<int>(b) == t.knochenWahl)) {
-                t.knochenWahl = static_cast<int>(b);
-                g_app->modelDirty = true;
-            }
-        }
-        ImGui::EndCombo();
-    }
-    if (!hatKnochen) { cjkTextDisabled("%s", tr(Str::MbGwKnochenWaehlen)); }
-    // Werkzeug
-    static const Str kArten[modell::kPinselArten] = {Str::MbGwHinzu, Str::MbGwAbziehen, Str::MbGwGlaetten, Str::MbGwSetzen};
-    static const Str kHinweise[modell::kPinselArten] = {Str::MbGwHinzuHint, Str::MbGwAbziehenHint, Str::MbGwGlaettenHint, Str::MbGwSetzenHint};
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{2.0F, ImGui::GetStyle().ItemSpacing.y});
-    for (int k = 0; k < modell::kPinselArten; ++k) {
-        if (k > 0) { ImGui::SameLine(); }
-        const bool an = t.pinselArt == k;
-        if (an) { ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)); }
-        if (ImGui::Button(tr(kArten[k]))) { t.pinselArt = k; }
-        if (an) { ImGui::PopStyleColor(); }
-        ImGui::SetItemTooltip("%s", tr(kHinweise[k]));
-    }
-    ImGui::PopStyleVar();
-    const float fs = ImGui::GetFontSize();
-    ImGui::SetNextItemWidth(fs * 8.0F);
-    ImGui::SliderFloat(tr(Str::MbGwGewicht), &t.pinselGewicht, 0.0F, 1.0F, "%.3f");
-    // 3ds Max Weight Tool: Festwerte 0 / .1 / .25 / .5 / .75 / .9 / 1 (vorbilder_max_blender.md); Blender: Pinsel + Menue
-    if (!blender) {
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{2.0F, ImGui::GetStyle().ItemSpacing.y});
-        static const float kFest[] = {0.0F, 0.1F, 0.25F, 0.5F, 0.75F, 0.9F, 1.0F};
-        for (std::size_t k = 0; k < sizeof kFest / sizeof kFest[0]; ++k) {
-            if (k > 0) { ImGui::SameLine(); }
-            char n[16];
-            std::snprintf(n, sizeof n, "%g##fest", static_cast<double>(kFest[k]));
-            if (ImGui::SmallButton(n)) { t.pinselGewicht = kFest[k]; }
-        }
-        ImGui::PopStyleVar();
-    }
-    ImGui::SetNextItemWidth(fs * 8.0F);
-    ImGui::SliderFloat(tr(Str::MbGwStaerke), &t.pinselStaerke, 0.0F, 1.0F, "%.2f");
-    ImGui::SetNextItemWidth(fs * 8.0F);
-    ImGui::SliderFloat(tr(Str::MbGwRadius), &t.pinselRadius, 2.0F, 400.0F, "%.0f px");
-    ImGui::Checkbox(tr(Str::MbGwSpiegelMalen), &t.pinselSpiegeln);
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(Str::MbGwSpiegelHint)); }
-    ImGui::BeginDisabled(!hatKnochen);
-    if (ImGui::Button(tr(Str::MbGwAufAuswahl))) { (void)modellAufAuswahlSetzen(); }
-    ImGui::EndDisabled();
-    ImGui::SetItemTooltip("%s", tr(Str::MbGwAufAuswahlHint));
-    if (ImGui::Button(tr(Str::MbGwSpiegelnPlus))) { (void)modellSpiegeln(1); }
-    ImGui::SetItemTooltip("%s", tr(Str::MbGwSpiegelHint));
-    ImGui::SameLine();
-    if (ImGui::Button(tr(Str::MbGwSpiegelnMinus))) { (void)modellSpiegeln(-1); }
-    ImGui::SetItemTooltip("%s", tr(Str::MbGwSpiegelHint));
-    // Pruefhilfen live (g2.h / gewichte.h): Mallisten ueber vier, Knochen je Flaeche wie das Spiel sie bekaeme
-    const int stufe = t.lodJetzt;
-    int ueber4 = 0;
-    int malend = 0;
-    std::vector<std::string> ueber32;
-    const modell::Grenzen& g = modell::grenzen(static_cast<modell::Zielspiel>(t.zielspiel));
-    for (std::size_t i = 0; i < in.teile.size(); ++i) {
-        if (in.teile[i].istTag() || static_cast<std::size_t>(stufe) >= in.teile[i].stufen.size()) { continue; }
-        const modell::Netz& n = in.teile[i].stufen[static_cast<std::size_t>(stufe)];
-        ueber4 += modell::eckenUeberVier(n);
-        malend += modell::malt(n) ? 1 : 0;
-        if (i < t.anzeige.surfaces.size()) {
-            std::set<int> k;
-            for (const GlmVertex& v : t.anzeige.surfaces[i].verts) {
-                for (int j = 0; j < 4; ++j) {
-                    if (v.weights[j] > 0.0F) { k.insert(v.bones[j]); }
-                }
-            }
-            if (static_cast<int>(k.size()) > g.knochenJeFlaeche) { ueber32.push_back(in.teile[i].name + " (" + std::to_string(k.size()) + ")"); }
-        }
-    }
-    ImGui::Separator();
-    cjkTextDisabled(tr(Str::MbGwPruef), g.name, g.gewichteJeEcke, g.knochenJeFlaeche);
-    const ImVec4 warn = ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram);
-    if (ueber4 > 0) { cjkTextColored(warn, tr(Str::MbGwUeber4), ueber4); }
-    for (const std::string& n : ueber32) { cjkTextColored(warn, tr(Str::MbGwUeber32), n.c_str(), g.knochenJeFlaeche); }
-    if (ueber4 == 0 && ueber32.empty()) { cjkTextDisabled("%s", tr(Str::MbGwPruefOk)); }
-    ImGui::BeginDisabled(malend == 0);
-    if (ImGui::Button(tr(Str::MbGwUebernehmen))) { (void)modellUebernehmen(); }
-    ImGui::EndDisabled();
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("%s", tr(Str::MbGwUebernehmenHint));
-    }
-    cjkTextDisabled("%s", tr(blender ? Str::MrGwTastenBlender : Str::MbGwTastenMax));   // MRESTE: Blender-Tasten km_weight_paint
-    ImGui::PopTextWrapPos();
 }
 
 }  // namespace bhed::gui

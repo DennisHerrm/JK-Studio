@@ -274,6 +274,7 @@ struct ModellUv {
     // Selbsttest / Handbuch
     int dreieckeGezeichnet = 0;
     int nahtStriche3d = 0;        // Naht-Striche in der 3D-Ansicht im letzten Bild
+    float nahtDicke3d = 0.0F;     // ... und ihre Strichstaerke in Bildpunkten (modellUvNahtDicke)
     int befehle = 0;
     std::string letzterBefehl;
     std::string meldung;
@@ -485,8 +486,6 @@ struct ModellTab {
     bool pinselSpiegeln = false;  // X-Spiegel beim Malen (Knochen l/r)
     bool malStrich = false;       // ein Strich laeuft (ein Rueckgaengig-Schritt)
     float letzterTupfer[2]{};
-    std::vector<std::vector<modell::EckOrt>> spiegel;   // Spiegelpartner der gezeichneten Stufe
-    int spiegelStand = -1;        // dok.stand, fuer den die Karte gilt
     int tupferZahl = 0;           // Selbsttest
     int gemalteEcken = 0;         // Selbsttest: Ecken des letzten Tupfers
     // MRESTE: wie Blender (km_weight_paint) - Strg malt umgekehrt, Umschalt glaettet (fuer den ganzen Strich), F/Umschalt+F/
@@ -1376,8 +1375,102 @@ struct ModellUvFeld {
 // Figur und ohne das Requisit.
 [[nodiscard]] int modellUvSchnellVorlage();
 // Die Strichstaerke der Naehte in Bildpunkten: 2, mit "Naehte dick" ein Sechstel der Zeichenhoehe (mindestens 4) - im
-// UV-Editor; gedacht auch fuer die Naht-Striche der 3D-Ansicht (app_modelltab_ansicht.cpp, ueberlagerung).
+// UV-Editor und fuer die Naht-Striche der 3D-Ansicht (app_modelltab_ansicht.cpp, ueberlagerung).
 [[nodiscard]] float modellUvNahtDicke();
+// --- AP8 (MBENTWURF Teil B, 11.11.): der Bereich Weights nach dem freigegebenen Entwurf (gui/app_modelltab_gewichte.cpp) -
+// Rechtes Feld wie 3ds Max (Modifier-Stapel, Gewichts-Werkzeug, Spiegeln, Automatisch, Knochen, JKA-Grenzen) bzw. wie Blender
+// (Pinsel, Optionen, Bereinigen, Spiegeln, Automatisch, Knochen, JKA-Grenzen); die Werkzeuge stehen in bhed/modell/gewichte.h.
+// app_modelltab_ansicht.cpp: die Ecken der Flaechen im Bild einer Ansicht, in der Pose wie gezeichnet. Je Flaeche (leer:
+// nicht gezeichnet) je Ecke: der Ort im Bild, der Ort in der Bildebene ohne Perspektive (rechts, oben - fuer Richtungen wie
+// Blender sie nimmt), ob die Ecke im Bild liegt und ob sie zur Kamera zeigt.
+struct ModellEckenBild {
+    std::vector<std::vector<std::array<float, 2>>> ort;
+    std::vector<std::vector<std::array<float, 2>>> ebene;
+    std::vector<std::vector<char>> imBild;
+    std::vector<std::vector<char>> vorn;
+};
+struct ModellGewichte {
+    bool malen = true;               // Hauptknopf "Gewichte malen" / "Malen": die linke Taste malt; aus: sie waehlt (Ecken fuer das Werkzeug)
+    int werkzeug = 0;                // 0 Pinsel (ModellTab::pinselArt), 1 Verwischen (Blender Smear), 2 Verlauf (Blender Gradient)
+    int verlaufArt = 0;              // modell::VerlaufArt: 0 linear, 1 radial
+    bool autoNormalisieren = true;   // Blender "Auto Normalize", 3ds Max "Normalize": die Summe je Ecke bleibt 1
+    float saeubernGrenze = 0.0F;     // Blender Clean "Limit", 3ds Max "Remove Zero Limit" (Vorgabe beider: 0)
+    float glaettenFaktor = 0.5F;     // Blender Smooth "Factor" 0,5 und "Iterations" 1
+    int glaettenRunden = 1;
+    float skalieren = 0.95F;         // 3ds Max Weight Tool "Scale Weight" (Vorgabe 0,95)
+    // Spiegeln
+    bool spiegelModus = false;       // 3ds Max "Mirror Mode": die Ecken links blau, rechts gruen, ohne Gegenstueck gelb
+    bool nurAuswahl = false;         // nur Paare mit einer gewaehlten Ecke ("Mirror Paste" der Auswahl)
+    float toleranz = 0.5F;           // "Mirror Thresh": wie weit ein Gegenstueck vom gespiegelten Ort liegen darf (Einheiten)
+    bool blGewichte = true;          // Blender "Mirror Weights", "Flip Group Names", "Topology Mirror" (Vorgaben von Blender)
+    bool blNamen = true;
+    bool blTopologie = false;
+    // Sperren je Knochen (Blender: Schloss der Vertexgruppe, K)
+    std::vector<char> gesperrt;
+    bool sperrMenueOeffnen = false;
+    bool sperrMenueSichtbar = false;
+    // W10: im Bereich Weights sind die Knochen ab Werk zu sehen - der Schalter "Bones" merkt sich seinen Stand je Bereich
+    bool warDrin = false;
+    bool knochenInnen = true;
+    bool knochenAussen = false;
+    // der Spiegelstand der gezeichneten Stufe (Schweissnetz, Partner je Punkt, Befund), gemerkt bis sich etwas aendert
+    modell::Schweissnetz netz;
+    std::vector<int> partner;
+    modell::SpiegelBefund befund;
+    int links = 0;                   // +1: die linke Seite der Figur liegt bei x > 0, -1: bei x < 0, 0: nicht bestimmbar
+    std::string spiegelSchluessel;
+    // der laufende Verlauf (Ziehen in der Ansicht) und die letzte Pinselbewegung (Verwischen)
+    bool verlaufZieht = false;
+    int verlaufAnsicht = -1;
+    float verlaufStart[2]{};
+    float verlaufEnde[2]{};
+    std::vector<std::vector<modell::GewichtListe>> verlaufVorher;   // die Mallisten beim Beginn des Ziehens (je Teil)
+    std::vector<char> verlaufHatte;  // je Teil: hatte beim Beginn schon eine Malliste
+    ModellEckenBild verlaufBild;     // die Bildorte der Ecken beim Beginn (wie Blender: vert_cache sco)
+    std::uint64_t verlaufSchritt = 0;   // der Rueckgaengig-Schritt des Ziehens (ohne Aenderung wird er verworfen)
+    bool verlaufGeaendert = false;
+    float bewegung[2]{};             // Pinselbewegung seit dem letzten Tupfer (Bildpunkte, y nach unten)
+    // Selbsttest
+    int zaehlBild = -1;              // das Bild, fuer das die Zaehler unten gelten
+    int spiegelPunkte[4]{};          // im letzten Bild gezeichnet: blau, gruen, gelb, Mitte
+    int verlaufStriche = 0;          // gezeichnete Strecken des Verlaufs
+    int letzteZahl = 0;              // was der letzte Befehl gezaehlt hat (Ecken bzw. Gewichte)
+};
+[[nodiscard]] ModellGewichte& modellGewichte();
+[[nodiscard]] modell::MalRegeln modellGewichteRegeln();      // Sperren und Auto-Normalisieren fuer jedes Werkzeug
+void modellGewichteBereichSchritt();                          // W10: je Bild (Bereichswechsel)
+void modellGewichteMalenSetzen(bool an);
+void modellGewichteWerkzeug(int werkzeug);                    // 0 Pinsel, 1 Verwischen, 2 Verlauf
+// Die gewaehlten Ecken der gezeichneten Stufe: die Unterobjekt-Auswahl, im Objektmodus die Ecken der gewaehlten Flaechen.
+[[nodiscard]] modell::EckenMaske modellGewichteAuswahl(bool* da = nullptr);
+int modellGewichteWahl(int art);                              // 0 Wachsen, 1 Schrumpfen, 2 Ring, 3 Schleife - Rueckgabe: gewaehlte Ecken
+int modellGewichteSkalieren();                                // 3ds Max "Scale Weight" auf die Auswahl
+int modellGewichteMischen();                                  // 3ds Max "Blend" auf die Auswahl
+int modellGewichteBereinigen(int art);                        // 0 Alles normalisieren, 1 Saeubern, 2 Glaetten, 3 Begrenzen auf 4
+int modellGewichteSpiegelnSeite(int richtung);                // +1 Blau -> Gruen (links -> rechts), -1 Gruen -> Blau, 0 Seiten tauschen
+int modellGewichteSpiegelnBlender(bool alleGruppen);          // Blender "Mirror Vertex Group"
+// Sperren wie Blender object.vertex_group_lock: aktion 0 umschalten, 1 sperren, 2 entsperren, 3 umkehren; maske 0 alle,
+// 1 der gewaehlte Knochen, 2 alle anderen, 3 die anderen umgekehrt ("Lock Only Selected" / "Lock Only Unselected")
+void modellGewichteSperren(int aktion, int maske);
+[[nodiscard]] bool modellGewichtGesperrt(int knochen);
+void modellGewichteSpiegelStand();                            // Schweissnetz, Partner und Befund auf den Stand des Dokuments bringen
+// Ein Tupfer der Ansicht in das Dokument (modellTupfer): Pinsel bzw. Verwischen mit den Regeln, danach das Spiegeln beim Malen.
+void modellGewichteTupferAnwenden(modell::Inhalt& x, const ModellAnsicht& a, const std::vector<std::vector<modell::Tupfer>>& jeTeil, int knochen,
+                                  int spiegelKn, int art, float wert);
+bool modellGewichteVerlaufSchritt(int ansicht, ImVec2 maus, bool neu);   // das Ziehen des Verlaufs (statt eines Tupfers)
+void modellGewichteStrichEnde();
+void modellGewichteUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);   // Spiegelmodus (blau/gruen/gelb), Strecke des Verlaufs
+bool modellGewichteEigeneTasten();                            // wie Blender: K (Sperren-Menue)
+// Die Funktionen des Bereichs fuer "Alle Aktionen suchen", das Rechtsklick-Menue der Ansicht und den Selbsttest
+[[nodiscard]] int modellGewichteAktionZahl();
+[[nodiscard]] int modellGewichteAktionGruppe(int i);          // 0 Werkzeug, 1 Bereinigen, 2 Spiegeln, 3 Sperren
+[[nodiscard]] const char* modellGewichteAktionText(int i);
+[[nodiscard]] const char* modellGewichteAktionHinweis(int i);
+[[nodiscard]] const char* modellGewichteAktionTaste(int i, bool blender);
+void modellGewichteAktionAusloesen(int i);
+bool modellGewichteAktionenSuche(const std::string& such);
+void modellGewichteKontextMenue();
+void modellEckenBild(const ModellAnsicht& a, ModellEckenBild& aus);
 
 }  // namespace bhed::gui
 #endif

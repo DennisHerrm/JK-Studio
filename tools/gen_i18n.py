@@ -2352,6 +2352,8 @@ from i18n_ap7 import zeilen_vier as _ap7  # noqa: E402  (AP7: rechtes Feld des B
 S += _ap7()
 from i18n_ap6 import zeilen_vier as _ap6  # noqa: E402  (AP6: Bereich Modellieren - Auswahl, Werkzeuge, JKA-Grenzen, Grundkoerper)
 S += _ap6()
+from i18n_ap8 import zeilen_vier as _ap8  # noqa: E402  (AP8: Bereich Weights nach dem Entwurf - Gruppen, Werkzeuge, Spiegeln, Sperren)
+S += _ap8()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

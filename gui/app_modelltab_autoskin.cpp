@@ -57,15 +57,6 @@ void scheitern(const std::string& warum) {
     mt().meldung = warum;
 }
 
-void zeile(Str name, const std::string& wert, Str hinweis = Str::Count) {
-    ImGui::TableNextRow();
-    ImGui::TableNextColumn();
-    cjkTextDisabled("%s", tr(name));
-    if (hinweis != Str::Count && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(hinweis)); }
-    ImGui::TableNextColumn();
-    cjkTextUnformatted(wert.c_str());
-}
-
 }  // namespace
 
 ModellAutoSkin& modellAutoSkinZustand() {
@@ -128,112 +119,77 @@ bool modellAutoSkin() {
     return true;
 }
 
+// AP8: der Inhalt in der Form der Gruppen des rechten Felds (Baustein gui/ui_rollout.h, Entwurf W7) - die Verfahren als Wahl,
+// Regler, Schalter in zwei Spalten, der Hauptknopf, das Ergebnis als Tabelle. Er steht in der Gruppe des Bereichs Weights
+// (gui/app_modelltab_gewichte.cpp) und im Fenster "Auto-Skin: Einstellungen".
 void drawModellAutoSkinGruppe() {
     ModellTab& t = mt();
     ModellAutoSkin& z = modellAutoSkinZustand();
-    ImGui::PushTextWrapPos(0.0F);
-    // Verfahren: drei Umschaltknoepfe nebeneinander, solange sie in die Zeile passen (Entwurf: zwei oben, einer darunter)
     static const Str kVerfahren[modell::kAutoSkinVerfahren] = {Str::AsVerfUebertragen, Str::AsVerfVoxel, Str::AsVerfHuelle};
     static const Str kVerfahrenHint[modell::kAutoSkinVerfahren] = {Str::AsVerfUebertragenHint, Str::AsVerfVoxelHint, Str::AsVerfHuelleHint};
-    cjkTextDisabled("%s", tr(Str::AsVerfahren));
-    const ImGuiStyle& stil = ImGui::GetStyle();
-    const float rechts = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
+    const char* texte[modell::kAutoSkinVerfahren]{};
+    const char* hinweise[modell::kAutoSkinVerfahren]{};
     for (int k = 0; k < modell::kAutoSkinVerfahren; ++k) {
-        const float breite = ImGui::CalcTextSize(tr(kVerfahren[k])).x + stil.FramePadding.x * 2.0F;
-        if (k > 0) {
-            const float danach = ImGui::GetItemRectMax().x + 2.0F + breite;
-            if (danach <= rechts) { ImGui::SameLine(0.0F, 2.0F); }
-        }
-        const bool an = static_cast<int>(z.o.verfahren) == k;
-        if (an) { ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)); }
-        if (ImGui::Button(tr(kVerfahren[k]))) { z.o.verfahren = static_cast<modell::AutoSkinVerfahren>(k); }
-        if (an) { ImGui::PopStyleColor(); }
-        ImGui::SetItemTooltip("%s", tr(kVerfahrenHint[k]));
+        texte[k] = tr(kVerfahren[k]);
+        hinweise[k] = tr(kVerfahrenHint[k]);
     }
-    // Regler: Beschriftung links, Regler rechts ueber die restliche Breite
-    float beschriftung = 0.0F;
-    for (const Str x : {Str::AsVorlage, Str::AsAbstand, Str::AsAufloesung, Str::AsSteifigkeit, Str::AsGlaetten}) {
-        beschriftung = std::max(beschriftung, ImGui::CalcTextSize(tr(x)).x);
-    }
-    const auto links = [&](Str x, Str hinweis) {
-        ImGui::AlignTextToFramePadding();
-        cjkTextDisabled("%s", tr(x));
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(hinweis)); }
-        ImGui::SameLine(beschriftung + stil.ItemSpacing.x * 2.0F);
-        ImGui::SetNextItemWidth(-1.0F);
-    };
+    // drei Verfahren nebeneinander, solange sie in die Zeile passen (Entwurf: zwei oben, einer darunter)
+    int verfahren = static_cast<int>(z.o.verfahren);
+    if (ui::segment("##asverfahren", texte, modell::kAutoSkinVerfahren, &verfahren, 0, -1, hinweise)) { z.o.verfahren = static_cast<modell::AutoSkinVerfahren>(verfahren); }
     if (z.o.verfahren == modell::AutoSkinVerfahren::Uebertragen) {
-        links(Str::AsVorlage, Str::AsVorlageHint);
+        ui::zeile(tr(Str::AsVorlage), tr(Str::AsVorlageHint));
         ImGui::InputText("##asvorlage", z.vorlage, sizeof z.vorlage);
         ImGui::SetItemTooltip("%s", tr(Str::AsVorlageHint));
-        links(Str::AsAbstand, Str::AsAbstandHint);
-        ImGui::SliderFloat("##asabstand", &z.o.uebertragenAbstand, 0.1F, 10.0F, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-        ImGui::SetItemTooltip("%s", tr(Str::AsAbstandHint));
+        (void)ui::regler(tr(Str::AsAbstand), &z.o.uebertragenAbstand, 0.1F, 10.0F, "%.1f", tr(Str::AsAbstandHint), ImGuiSliderFlags_AlwaysClamp);
     }
-    links(Str::AsAufloesung, Str::AsAufloesungHint);
     ImGui::BeginDisabled(z.o.verfahren == modell::AutoSkinVerfahren::Huelle);
-    ImGui::SliderInt("##asaufloesung", &z.o.aufloesung, modell::kAutoSkinAufloesungMin, modell::kAutoSkinAufloesungMax, "%d", ImGuiSliderFlags_AlwaysClamp);
+    (void)ui::reglerInt(tr(Str::AsAufloesung), &z.o.aufloesung, modell::kAutoSkinAufloesungMin, modell::kAutoSkinAufloesungMax, "%d", tr(Str::AsAufloesungHint),
+                        ImGuiSliderFlags_AlwaysClamp);
     ImGui::EndDisabled();
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", tr(Str::AsAufloesungHint)); }
-    links(Str::AsSteifigkeit, Str::AsSteifigkeitHint);
-    ImGui::SliderFloat("##assteifigkeit", &z.o.steifigkeit, 0.0F, 1.0F, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SetItemTooltip("%s", tr(Str::AsSteifigkeitHint));
-    links(Str::AsGlaetten, Str::AsGlaettenHint);
-    ImGui::SliderInt("##asglaetten", &z.o.glaetten, 0, modell::kAutoSkinGlaettenMax, "%d", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SetItemTooltip("%s", tr(Str::AsGlaettenHint));
-    ImGui::Checkbox(tr(Str::AsNaehte), &z.o.naehte);
-    ImGui::SetItemTooltip("%s", tr(Str::AsNaehteHint));
-    ImGui::Checkbox(tr(Str::AsDreh), &z.o.drehknochen);
-    ImGui::SetItemTooltip("%s", tr(Str::AsDrehHint));
-    ImGui::Checkbox(tr(Str::AsDetail), &z.o.detailknochen);
-    ImGui::SetItemTooltip("%s", tr(Str::AsDetailHint));
-    ImGui::Checkbox(tr(Str::AsSpiegeln), &z.o.spiegeln);
-    ImGui::SetItemTooltip("%s", tr(Str::AsSpiegelnHint));
+    (void)ui::regler(tr(Str::AsSteifigkeit), &z.o.steifigkeit, 0.0F, 1.0F, "%.2f", tr(Str::AsSteifigkeitHint), ImGuiSliderFlags_AlwaysClamp);
+    (void)ui::reglerInt(tr(Str::AsGlaetten), &z.o.glaetten, 0, modell::kAutoSkinGlaettenMax, "%d", tr(Str::AsGlaettenHint), ImGuiSliderFlags_AlwaysClamp);
+    ui::rasterBeginn(2);
+    (void)ui::schalter(tr(Str::AsNaehte), &z.o.naehte, tr(Str::AsNaehteHint));
+    (void)ui::schalter(tr(Str::AsDreh), &z.o.drehknochen, tr(Str::AsDrehHint));
+    (void)ui::schalter(tr(Str::AsDetail), &z.o.detailknochen, tr(Str::AsDetailHint));
+    (void)ui::schalter(tr(Str::AsSpiegeln), &z.o.spiegeln, tr(Str::AsSpiegelnHint));
     // die Zahl der gewaehlten Flaechen steht dahinter (der Text selbst traegt keinen Platzhalter: das Handbuch nennt ihn)
-    ImGui::Checkbox((std::string(tr(Str::AsNurAuswahl)) + " (" + std::to_string(gewaehlteFlaechen()) + ")###asnurauswahl").c_str(), &z.nurAuswahl);
-    ImGui::SetItemTooltip("%s", tr(Str::AsNurAuswahlHint));
-    // der Hauptknopf in der Akzentfarbe (wie die Kopfzeile einer Gruppe)
-    ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_Header));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::GetStyleColorVec4(ImGuiCol_HeaderHovered));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive));
-    const bool los = ImGui::Button(tr(Str::AsAusfuehren), ImVec2{-1.0F, 0.0F});
-    ImGui::PopStyleColor(3);
-    ImGui::SetItemTooltip("%s", tr(Str::AsAusfuehrenHint));
-    if (los) { (void)modellAutoSkin(); }
-    ImGui::Separator();
-    cjkTextDisabled("%s", tr(Str::AsErgebnis));
-    const ImVec4 warn = ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram);
+    (void)ui::schalter((std::string(tr(Str::AsNurAuswahl)) + " (" + std::to_string(gewaehlteFlaechen()) + ")###asnurauswahl").c_str(), &z.nurAuswahl,
+                       tr(Str::AsNurAuswahlHint));
+    ui::rasterEnde();
+    if (ui::werkzeugKnopf(tr(Str::AsAusfuehren), {.icon = UiIcon::Erzeugen, .hinweis = tr(Str::AsAusfuehrenHint), .haupt = true})) { (void)modellAutoSkin(); }
+    ui::absatz(tr(Str::AsErgebnis));
     if (!z.fehler.empty()) {
-        cjkTextColored(warn, "%s", z.fehler.c_str());
+        ui::absatz(z.fehler.c_str(), ui::Ton::Warnung);
     } else if (!z.gelaufen || z.ladeStand != t.dok.ladeStand()) {
-        cjkTextDisabled("%s", tr(Str::AsErgKeins));
-        cjkTextDisabled("%s", tr(Str::AsTipp));   // nur vor dem ersten Lauf: danach steht hier das Ergebnis
+        ui::absatz(tr(Str::AsErgKeins));
+        ui::tipp(tr(Str::AsTipp));   // nur vor dem ersten Lauf: danach steht hier das Ergebnis
     } else {
         const modell::AutoSkinBericht& b = z.bericht;
-        if (ImGui::BeginTable("##asergebnis", 2, ImGuiTableFlags_SizingStretchProp)) {
-            zeile(Str::AsErgEcken, std::to_string(b.ecken));
-            zeile(Str::AsErgGewichte, text(Str::AsErgVon, b.gewichteMax, b.gewichteGrenze));
-            zeile(Str::AsErgKnochen, text(Str::AsErgKnochenWert, b.knochenJeFlaecheMax, b.knochenGrenze, b.knochenJeFlaecheName.c_str()));
-            zeile(Str::AsErgBit, tr(Str::AsErgBitWert));
-            zeile(Str::AsErgAbweichung, text(Str::AsErgAbweichungWert, z.verformung.mittel, z.verformung.p95, z.verformung.max), Str::AsErgAbweichungHint);
-            zeile(Str::AsErgHaupt,
-                  text(Str::AsErgHauptWert, z.vergleich.ecken > 0 ? 100.0 * static_cast<double>(z.vergleich.hauptGleich) / z.vergleich.ecken : 0.0),
-                  Str::AsErgAbweichungHint);
-            if (b.uebertragen > 0 || b.fern > 0) { zeile(Str::AsErgUebertragen, text(Str::AsErgUebertragenWert, b.uebertragen, b.fern)); }
-            if (b.voxelFest > 0) { zeile(Str::AsErgVoxel, text(Str::AsErgVoxelWert, b.voxel[0], b.voxel[1], b.voxel[2], b.voxelFest)); }
-            zeile(Str::AsErgZeit, text(Str::AsErgZeitWert, z.ms));
-            ImGui::EndTable();
-        }
+        const std::string abweichungHint = tr(Str::AsErgAbweichungHint);
+        std::vector<ui::WertZeile> werte;
+        werte.push_back({tr(Str::AsErgEcken), std::to_string(b.ecken), ui::Ton::Normal, {}});
+        werte.push_back({tr(Str::AsErgGewichte), text(Str::AsErgVon, b.gewichteMax, b.gewichteGrenze), b.gewichteMax <= b.gewichteGrenze ? ui::Ton::Gut : ui::Ton::Fehler, {}});
+        werte.push_back({tr(Str::AsErgKnochen), text(Str::AsErgKnochenWert, b.knochenJeFlaecheMax, b.knochenGrenze, b.knochenJeFlaecheName.c_str()),
+                         b.knochenJeFlaecheMax <= b.knochenGrenze ? ui::Ton::Gut : ui::Ton::Fehler, {}});
+        werte.push_back({tr(Str::AsErgBit), tr(Str::AsErgBitWert), ui::Ton::Gut, {}});
+        werte.push_back({tr(Str::AsErgAbweichung), text(Str::AsErgAbweichungWert, z.verformung.mittel, z.verformung.p95, z.verformung.max), ui::Ton::Normal, abweichungHint});
+        werte.push_back({tr(Str::AsErgHaupt),
+                         text(Str::AsErgHauptWert, z.vergleich.ecken > 0 ? 100.0 * static_cast<double>(z.vergleich.hauptGleich) / z.vergleich.ecken : 0.0), ui::Ton::Normal,
+                         abweichungHint});
+        if (b.uebertragen > 0 || b.fern > 0) { werte.push_back({tr(Str::AsErgUebertragen), text(Str::AsErgUebertragenWert, b.uebertragen, b.fern), ui::Ton::Normal, {}}); }
+        if (b.voxelFest > 0) { werte.push_back({tr(Str::AsErgVoxel), text(Str::AsErgVoxelWert, b.voxel[0], b.voxel[1], b.voxel[2], b.voxelFest), ui::Ton::Normal, {}}); }
+        werte.push_back({tr(Str::AsErgZeit), text(Str::AsErgZeitWert, z.ms), ui::Ton::Normal, {}});
+        ui::wertTabelle(werte.data(), static_cast<int>(werte.size()));
         if (b.eckenGekuerzt > 0 || b.flaechenGekuerzt > 0) {
-            cjkTextDisabled("%s", text(Str::AsWarnGekuerzt, b.eckenGekuerzt, b.gewichteGrenze, b.flaechenGekuerzt, b.knochenGrenze).c_str());
+            ui::absatz(text(Str::AsWarnGekuerzt, b.eckenGekuerzt, b.gewichteGrenze, b.flaechenGekuerzt, b.knochenGrenze).c_str());
         }
         if (b.knochenJeFlaecheMax > b.knochenGrenze) {
-            cjkTextColored(warn, "%s", text(Str::AsWarnKnochenGrenze, b.knochenJeFlaecheName.c_str(), b.knochenJeFlaecheMax, b.knochenGrenze).c_str());
+            ui::absatz(text(Str::AsWarnKnochenGrenze, b.knochenJeFlaecheName.c_str(), b.knochenJeFlaecheMax, b.knochenGrenze).c_str(), ui::Ton::Warnung);
         }
-        if (b.knochenAussen > 0) { cjkTextColored(warn, "%s", text(Str::AsWarnAussen, b.knochenAussen).c_str()); }
-        if (b.punkteUnerreicht > 0) { cjkTextColored(warn, "%s", text(Str::AsWarnUnerreicht, b.punkteUnerreicht).c_str()); }
+        if (b.knochenAussen > 0) { ui::absatz(text(Str::AsWarnAussen, b.knochenAussen).c_str(), ui::Ton::Warnung); }
+        if (b.punkteUnerreicht > 0) { ui::absatz(text(Str::AsWarnUnerreicht, b.punkteUnerreicht).c_str(), ui::Ton::Warnung); }
     }
-    ImGui::PopTextWrapPos();
 }
 
 void drawModellAutoSkinFenster() {

@@ -221,6 +221,23 @@ ImVec4 uiIconFarbe(UiIcon icon) {
         case UiIcon::MdKegel:
         case UiIcon::MdRohr:
         case UiIcon::MdTorus: c = ImVec4{1.00F, 0.80F, 0.30F, 1.0F}; break;
+        // AP8: Bereich Weights - Malen warm, Auswahl blau, Rechnen gruen, Spiegeln in den Farben der Seiten
+        case UiIcon::GwPinsel: c = ImVec4{1.00F, 0.70F, 0.32F, 1.0F}; break;
+        case UiIcon::GwVerlauf: c = ImVec4{1.00F, 0.70F, 0.32F, 1.0F}; break;
+        case UiIcon::GwVerwischen: c = ImVec4{1.00F, 0.70F, 0.32F, 1.0F}; break;
+        case UiIcon::GwTropfen: c = ImVec4{0.36F, 0.82F, 0.95F, 1.0F}; break;
+        case UiIcon::GwRing: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;
+        case UiIcon::GwSchleife: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;
+        case UiIcon::GwWachsen: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;
+        case UiIcon::GwSchrumpfen: c = ImVec4{0.40F, 0.68F, 1.00F, 1.0F}; break;
+        case UiIcon::GwSetzen: c = ImVec4{0.42F, 0.85F, 0.45F, 1.0F}; break;
+        case UiIcon::GwSkalieren: c = ImVec4{0.42F, 0.85F, 0.45F, 1.0F}; break;
+        case UiIcon::GwMischen: c = ImVec4{0.42F, 0.85F, 0.45F, 1.0F}; break;
+        case UiIcon::GwSumme: c = ImVec4{0.42F, 0.85F, 0.45F, 1.0F}; break;
+        case UiIcon::GwBesen: c = ImVec4{0.98F, 0.86F, 0.38F, 1.0F}; break;
+        case UiIcon::GwGrenze: c = ImVec4{1.00F, 0.55F, 0.45F, 1.0F}; break;
+        case UiIcon::GwNachRechts: c = ImVec4{0.40F, 0.60F, 1.00F, 1.0F}; break;   // von Blau aus
+        case UiIcon::GwNachLinks: c = ImVec4{0.40F, 0.85F, 0.45F, 1.0F}; break;    // von Gruen aus
 
         default: break;
     }
@@ -1059,6 +1076,104 @@ void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe)
             z.ellipse(8.0F, 8.0F, 6.5F, 4.2F);
             z.ellipsenBogen(8.0F, 7.3F, 2.8F, 1.4F, 0.0F, kPi);
             z.ellipsenBogen(8.0F, 8.6F, 2.3F, 1.0F, kPi, 2.0F * kPi);
+            break;
+        // --- AP8: Bereich Weights --------------------------------------------------------------------
+        case UiIcon::GwPinsel:   // Pinsel: Stiel von oben rechts, Borsten unten links
+            z.linie(13.5F, 2.5F, 7.5F, 8.5F);
+            z.zug({ImVec2{7.5F, 8.5F}, ImVec2{5.0F, 9.0F}, ImVec2{2.8F, 13.2F}, ImVec2{7.0F, 11.0F}, ImVec2{7.5F, 8.5F}}, true);
+            break;
+        case UiIcon::GwSetzen:   // setzen: Gleichheitszeichen
+            z.linie(3.5F, 6.0F, 12.5F, 6.0F);
+            z.linie(3.5F, 10.0F, 12.5F, 10.0F);
+            break;
+        case UiIcon::GwSkalieren:   // skalieren: Malzeichen
+            z.linie(4.0F, 4.0F, 12.0F, 12.0F);
+            z.linie(12.0F, 4.0F, 4.0F, 12.0F);
+            break;
+        case UiIcon::GwRing:   // Ring: parallele Kanten - drei Sprossen zwischen zwei Holmen
+            z.linie(3.0F, 3.0F, 3.0F, 13.0F);
+            z.linie(13.0F, 3.0F, 13.0F, 13.0F);
+            z.linie(3.0F, 4.5F, 13.0F, 4.5F);
+            z.linie(3.0F, 8.0F, 13.0F, 8.0F);
+            z.linie(3.0F, 11.5F, 13.0F, 11.5F);
+            break;
+        case UiIcon::GwSchleife:   // Schleife: fortlaufende Kanten - eine Kette von Punkten
+            z.linie(2.5F, 8.0F, 13.5F, 8.0F);
+            z.punkt(3.0F, 8.0F, 1.6F);
+            z.punkt(8.0F, 8.0F, 1.6F);
+            z.punkt(13.0F, 8.0F, 1.6F);
+            z.linie(8.0F, 3.5F, 8.0F, 5.5F);
+            z.linie(8.0F, 10.5F, 8.0F, 12.5F);
+            break;
+        case UiIcon::GwWachsen:   // wachsen: Punkt mit Pfeilen nach aussen
+            z.punkt(8.0F, 8.0F, 1.8F);
+            z.linie(8.0F, 5.0F, 8.0F, 2.0F);
+            z.spitze(8.0F, 2.0F, 0.0F, -1.0F, 2.0F);
+            z.linie(8.0F, 11.0F, 8.0F, 14.0F);
+            z.spitze(8.0F, 14.0F, 0.0F, 1.0F, 2.0F);
+            z.linie(5.0F, 8.0F, 2.0F, 8.0F);
+            z.spitze(2.0F, 8.0F, -1.0F, 0.0F, 2.0F);
+            z.linie(11.0F, 8.0F, 14.0F, 8.0F);
+            z.spitze(14.0F, 8.0F, 1.0F, 0.0F, 2.0F);
+            break;
+        case UiIcon::GwSchrumpfen:   // schrumpfen: Punkt mit Pfeilen nach innen
+            z.punkt(8.0F, 8.0F, 1.8F);
+            z.linie(8.0F, 1.5F, 8.0F, 4.8F);
+            z.spitze(8.0F, 4.8F, 0.0F, 1.0F, 2.0F);
+            z.linie(8.0F, 14.5F, 8.0F, 11.2F);
+            z.spitze(8.0F, 11.2F, 0.0F, -1.0F, 2.0F);
+            z.linie(1.5F, 8.0F, 4.8F, 8.0F);
+            z.spitze(4.8F, 8.0F, 1.0F, 0.0F, 2.0F);
+            z.linie(14.5F, 8.0F, 11.2F, 8.0F);
+            z.spitze(11.2F, 8.0F, -1.0F, 0.0F, 2.0F);
+            break;
+        case UiIcon::GwMischen:   // mischen / weichzeichnen: zwei Wellen
+            z.zug({ImVec2{2.5F, 6.5F}, ImVec2{5.0F, 4.8F}, ImVec2{8.0F, 6.5F}, ImVec2{11.0F, 8.2F}, ImVec2{13.5F, 6.5F}});
+            z.zug({ImVec2{2.5F, 10.5F}, ImVec2{5.0F, 8.8F}, ImVec2{8.0F, 10.5F}, ImVec2{11.0F, 12.2F}, ImVec2{13.5F, 10.5F}});
+            break;
+        case UiIcon::GwVerlauf:   // Verlauf: Kreis, eine Haelfte gefuellt
+            z.kreis(8.0F, 8.0F, 5.4F);
+            dl->PathArcTo(z.p(8.0F, 8.0F), 5.4F * z.s, kPi * 0.5F, kPi * 1.5F);
+            dl->PathFillConvex(farbe);
+            break;
+        case UiIcon::GwVerwischen:   // verwischen: Fingerzug - drei Striche, die nach rechts auslaufen
+            z.linie(3.0F, 5.0F, 13.0F, 5.0F);
+            z.linie(3.0F, 8.0F, 10.5F, 8.0F);
+            z.linie(3.0F, 11.0F, 8.0F, 11.0F);
+            z.punkt(3.0F, 8.0F, 1.5F);
+            break;
+        case UiIcon::GwTropfen:   // Gewicht holen: Tropfen
+            z.zug({ImVec2{8.0F, 2.5F}, ImVec2{11.6F, 8.6F}, ImVec2{11.2F, 11.2F}, ImVec2{9.4F, 13.0F}, ImVec2{8.0F, 13.4F}, ImVec2{6.6F, 13.0F}, ImVec2{4.8F, 11.2F},
+                   ImVec2{4.4F, 8.6F}},
+                  true);
+            break;
+        case UiIcon::GwSumme:   // normalisieren: Summenzeichen
+            z.zug({ImVec2{12.0F, 3.5F}, ImVec2{4.0F, 3.5F}, ImVec2{8.5F, 8.0F}, ImVec2{4.0F, 12.5F}, ImVec2{12.0F, 12.5F}});
+            break;
+        case UiIcon::GwBesen:   // saeubern: Besen - Stiel und Borsten
+            z.linie(12.5F, 2.5F, 7.5F, 8.0F);
+            z.zug({ImVec2{5.5F, 7.0F}, ImVec2{9.5F, 10.0F}, ImVec2{7.0F, 13.5F}, ImVec2{2.8F, 10.3F}}, true);
+            z.linie(5.6F, 9.6F, 4.2F, 11.4F);
+            z.linie(7.4F, 10.9F, 6.0F, 12.7F);
+            break;
+        case UiIcon::GwGrenze:   // begrenzen: Balken unter einer Deckellinie
+            z.linie(2.5F, 3.5F, 13.5F, 3.5F);
+            z.linie(4.5F, 13.0F, 4.5F, 6.0F);
+            z.linie(7.0F, 13.0F, 7.0F, 6.0F);
+            z.linie(9.5F, 13.0F, 9.5F, 6.0F);
+            z.linie(12.0F, 13.0F, 12.0F, 6.0F);
+            break;
+        case UiIcon::GwNachRechts:   // spiegeln nach rechts: Pfeil ueber die Spiegelebene
+            z.linie(8.0F, 2.0F, 8.0F, 14.0F);
+            z.linie(2.5F, 8.0F, 13.5F, 8.0F);
+            z.spitze(13.5F, 8.0F, 1.0F, 0.0F);
+            z.punkt(3.0F, 8.0F, 1.5F);
+            break;
+        case UiIcon::GwNachLinks:   // spiegeln nach links
+            z.linie(8.0F, 2.0F, 8.0F, 14.0F);
+            z.linie(13.5F, 8.0F, 2.5F, 8.0F);
+            z.spitze(2.5F, 8.0F, -1.0F, 0.0F);
+            z.punkt(13.0F, 8.0F, 1.5F);
             break;
     }
 }

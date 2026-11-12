@@ -46,9 +46,6 @@ namespace {
 ModellTab& mt() { return g_app->mtab; }
 
 constexpr float kPi = 3.14159265F;
-// mb1a2: Spiegelpartner beim Malen und Spiegeln - hoechstens so weit vom gespiegelten Ort (Einheiten); gemessen an den
-// Figuren der Spiele (NOTIZEN_mb1a2.md).
-constexpr float kSpiegelToleranz = 0.1F;
 
 // Die Achsen einer Ansicht (rechts = vorn x hoch wie AngleVectors). Wie 3ds Max und Blender: "Vorne" blickt entlang
 // +Y (Blender Ziffernblock 1), "Hinten" entlang -Y, "Links" entlang +X, "Rechts" entlang -X. Eine Figur schaut in ihrer
@@ -683,6 +680,7 @@ void ueberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     const ModellAnzeige& z = t.an;
     const bool brauchtHaut = z.normalen || z.gewichte || z.huelle || z.risse || z.tags || z.klammer || !t.auswahl.empty() || !t.eckenWahl.empty();
     const auto& h = brauchtHaut ? haut() : g_haut;
+    modellGewichteBereichSchritt();   // AP8 (W10): im Bereich Weights sind die Knochen ab Werk an
     if (g_app->modellKnochen) { knochenZeichnen(dl, a); }
     if (z.ursprung) {
         const float o[3] = {0.0F, 0.0F, 0.0F};
@@ -866,16 +864,19 @@ void ueberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     modellRigUeberlagerung(a, dl);   // Stufe 3: Griffe und Bewegungspfade
     if (t.bereich == ModellBereich::Modellieren) { modellMeshUeberlagerung(a, dl); }   // Modell-Block 1d: Vielecke, Auswahl
     modellMalenUeberlagerung(a, dl);   // Modell-Block 1c: der Pinsel
+    modellGewichteUeberlagerung(a, dl);   // AP8 (W5): Spiegelmodus blau/gruen/gelb, Strecke des Verlaufs
     ueberlagerungHinweise(a, dl);      // MBKOPF: Schalter, die eine gewaehlte Flaeche brauchen
     statistikZeichnen(a, dl);
-    // Modell-Block 1b: im Bereich UV die Naehte auf dem Modell (rot wie im UV-Editor)
+    // Modell-Block 1b: im Bereich UV die Naehte auf dem Modell (rot wie im UV-Editor; "Naehte dick" gilt auch hier)
     t.uv.nahtStriche3d = 0;
     if (t.bereich == ModellBereich::Uv) {
         const auto& hh = haut();
+        const float dicke = modellUvNahtDicke();
+        t.uv.nahtDicke3d = dicke;
         for (const std::array<int, 3>& st : modellUvNahtStriche()) {
             const std::size_t teil = static_cast<std::size_t>(st[0]);
             if (teil >= hh.size() || !gezeichnet(teil) || static_cast<std::size_t>(std::max(st[1], st[2])) >= hh[teil].size()) { continue; }
-            linie(dl, a, hh[teil][static_cast<std::size_t>(st[1])].data(), hh[teil][static_cast<std::size_t>(st[2])].data(), IM_COL32(230, 50, 40, 255), 2.0F);
+            linie(dl, a, hh[teil][static_cast<std::size_t>(st[1])].data(), hh[teil][static_cast<std::size_t>(st[2])].data(), IM_COL32(230, 50, 40, 255), dicke);
             ++t.uv.nahtStriche3d;
         }
     }
@@ -1770,9 +1771,48 @@ std::vector<std::string> knochenNamen() {
 
 }  // namespace
 
+// AP8: die Ecken der Flaechen im Bild einer Ansicht (Pose wie gezeichnet) fuer die Werkzeuge des Bereichs Weights
+void modellEckenBild(const ModellAnsicht& a, ModellEckenBild& aus) {
+    const ModellTab& t = mt();
+    const auto& h = haut();
+    float rechts[3];
+    float oben[3];
+    float blick[3];
+    ansichtAchsen(a.art, rechts, oben, blick);
+    const std::size_t zahl = std::min(h.size(), t.anzeige.surfaces.size());
+    aus.ort.assign(zahl, {});
+    aus.ebene.assign(zahl, {});
+    aus.imBild.assign(zahl, {});
+    aus.vorn.assign(zahl, {});
+    for (std::size_t i = 0; i < zahl; ++i) {
+        if (!gezeichnet(i)) { continue; }
+        const std::size_t ecken = h[i].size();
+        aus.ort[i].resize(ecken);
+        aus.ebene[i].resize(ecken);
+        aus.imBild[i].assign(ecken, 0);
+        aus.vorn[i].assign(ecken, 0);
+        for (std::size_t k = 0; k < ecken; ++k) {
+            const float* p = h[i][k].data();
+            ImVec2 sp;
+            if (aufSchirm(a, p, sp)) {
+                aus.ort[i][k] = {sp.x, sp.y};
+                aus.imBild[i][k] = 1;
+            }
+            aus.ebene[i][k] = {p[0] * rechts[0] + p[1] * rechts[1] + p[2] * rechts[2], p[0] * oben[0] + p[1] * oben[1] + p[2] * oben[2]};
+            aus.vorn[i][k] = k < t.anzeige.surfaces[i].verts.size() && zurKamera(a, t.anzeige.surfaces[i].verts[k], p) ? 1 : 0;
+        }
+    }
+}
+
 bool modellTupfer(int ansicht, ImVec2 maus, bool neuerStrich) {
     ModellTab& t = mt();
     if (ansicht < 0 || ansicht >= 4 || t.knochenWahl < 0) { return false; }
+    ModellGewichte& gw = modellGewichte();
+    if (gw.werkzeug == 2) { return modellGewichteVerlaufSchritt(ansicht, maus, neuerStrich); }   // AP8: Verlauf statt Tupfer
+    if (neuerStrich && modellGewichtGesperrt(t.knochenWahl)) {   // AP8 (W12): wie Blender "Active group is locked, aborting"
+        t.meldung = tr(Str::MgGesperrtAktiv);
+        return false;
+    }
     const ModellAnsicht& a = t.ansichten[ansicht];
     const auto& h = haut();
     std::vector<std::vector<modell::Tupfer>> je(t.anzeige.surfaces.size());
@@ -1792,11 +1832,11 @@ bool modellTupfer(int ansicht, ImVec2 maus, bool neuerStrich) {
     if (neuerStrich) {
         t.dok.aendern(tr(Str::MbUndoMalen), [](modell::Inhalt&) {});
         t.malStrich = true;
-        if (t.pinselSpiegeln) {
-            t.spiegel = modell::spiegelKarte(t.dok.inhalt(), t.lodJetzt, kSpiegelToleranz);
-            t.spiegelStand = t.dok.stand();
-        }
+        if (t.pinselSpiegeln) { modellGewichteSpiegelStand(); }   // AP8: Punkte und Partner mit der Toleranz des Felds
     }
+    // AP8: die Bewegung des Pinsels seit dem letzten Tupfer (Verwischen); der erste Tupfer eines Strichs hat keine
+    gw.bewegung[0] = neuerStrich ? 0.0F : maus.x - t.letzterTupfer[0];
+    gw.bewegung[1] = neuerStrich ? 0.0F : maus.y - t.letzterTupfer[1];
     t.letzterTupfer[0] = maus.x;
     t.letzterTupfer[1] = maus.y;
     if (zahl == 0) { return false; }
@@ -1814,36 +1854,18 @@ bool modellTupfer(int ansicht, ImVec2 maus, bool neuerStrich) {
             t.strichArt = static_cast<int>(p == modell::PinselArt::Abziehen ? modell::PinselArt::Hinzufuegen : modell::PinselArt::Abziehen);
         }
     }
-    const auto art = static_cast<modell::PinselArt>(t.strichArt);
     const float wert = t.pinselGewicht;
-    const bool spiegeln = t.pinselSpiegeln;
-    const auto& karte = t.spiegel;
-    const int stufe = t.lodJetzt;
-    t.dok.vorschau([&](modell::Inhalt& x) {
-        std::vector<std::vector<modell::Tupfer>> gespiegelt(x.teile.size());
-        for (std::size_t i = 0; i < je.size() && i < x.teile.size(); ++i) {
-            if (je[i].empty() || static_cast<std::size_t>(stufe) >= x.teile[i].stufen.size()) { continue; }
-            (void)modell::malen(x.teile[i].stufen[static_cast<std::size_t>(stufe)], je[i], knochen, art, wert);
-            if (!spiegeln || i >= karte.size()) { continue; }
-            for (const modell::Tupfer& tu : je[i]) {
-                if (static_cast<std::size_t>(tu.ecke) >= karte[i].size()) { continue; }
-                const modell::EckOrt p = karte[i][static_cast<std::size_t>(tu.ecke)];
-                if (p.teil >= 0 && static_cast<std::size_t>(p.teil) < gespiegelt.size()) {
-                    gespiegelt[static_cast<std::size_t>(p.teil)].push_back(modell::Tupfer{p.ecke, tu.staerke});
-                }
-            }
-        }
-        for (std::size_t i = 0; i < gespiegelt.size(); ++i) {
-            if (gespiegelt[i].empty() || static_cast<std::size_t>(stufe) >= x.teile[i].stufen.size()) { continue; }
-            (void)modell::malen(x.teile[i].stufen[static_cast<std::size_t>(stufe)], gespiegelt[i], spiegelK >= 0 ? spiegelK : knochen, art, wert);
-        }
-    });
+    // AP8: Pinsel bzw. Verwischen mit den Regeln (Sperren, Auto-Normalisieren), danach das Spiegeln beim Malen
+    t.dok.vorschau([&](modell::Inhalt& x) { modellGewichteTupferAnwenden(x, a, je, knochen, spiegelK, t.strichArt, wert); });
     ++t.tupferZahl;
     g_app->modelDirty = true;
     return true;
 }
 
-void modellStrichEnde() { mt().malStrich = false; }
+void modellStrichEnde() {
+    mt().malStrich = false;
+    modellGewichteStrichEnde();   // AP8: ein Verlauf endet mit dem Loslassen
+}
 
 // MRESTE: Blender Umschalt+X (paint.weight_sample): das Gewicht des gewaehlten Knochens an der Ecke unter der Maus (die
 // naechste Ecke des getroffenen Dreiecks) wird das Gewicht des Pinsels
@@ -1912,6 +1934,7 @@ static void gewichtRadialSchritt() {
 // hat im Skin-Modifier keine eigenen Tasten dafuer (Weight Tool, Festwerte im Rollout).
 bool modellGewichteTasten() {
     ModellTab& t = mt();
+    if (modellGewichteEigeneTasten()) { return true; }   // AP8: wie Blender K (Sperren-Menue), auch ohne gewaehlten Knochen
     if (!gewichtsAnsicht() || !modellBlender() || ImGui::GetIO().WantTextInput) { return false; }
     const ImGuiIO& io = ImGui::GetIO();
     if (t.gwModal != 0) {   // Esc / Enter; die Maus folgt in gewichtRadialSchritt (die Ansicht)
@@ -1959,58 +1982,6 @@ bool modellGewichteTasten() {
         return zaehlen(Str::MbGwGewicht);
     }
     return false;
-}
-
-bool modellUebernehmen() {
-    ModellTab& t = mt();
-    int n = 0;
-    t.dok.aendern(tr(Str::MbUndoUebernehmen), [&](modell::Inhalt& x) { n = modell::uebernehmen(x); });
-    char z[200];
-    std::snprintf(z, sizeof z, tr(Str::MbGwUebernommen), n);
-    t.meldung = z;
-    g_app->modelDirty = true;
-    return n > 0;
-}
-
-int modellAufAuswahlSetzen() {
-    ModellTab& t = mt();
-    if (t.knochenWahl < 0) { return 0; }
-    std::vector<std::vector<modell::Tupfer>> je(t.dok.inhalt().teile.size());
-    if (t.auswahlArt == AuswahlArt::Objekt) {
-        for (const int i : t.auswahl) {
-            const modell::Netz* n = netzVon(i);
-            if (n == nullptr) { continue; }
-            for (std::size_t k = 0; k < n->ecken.size(); ++k) { je[static_cast<std::size_t>(i)].push_back(modell::Tupfer{static_cast<int>(k), 1.0F}); }
-        }
-    } else {
-        for (const modell::EckOrt& o : t.eckenWahl) {
-            if (o.teil >= 0 && static_cast<std::size_t>(o.teil) < je.size()) { je[static_cast<std::size_t>(o.teil)].push_back(modell::Tupfer{o.ecke, 1.0F}); }
-        }
-    }
-    int z = 0;
-    const int stufe = t.lodJetzt;
-    const int knochen = t.knochenWahl;
-    const float wert = t.pinselGewicht;
-    t.dok.aendern(tr(Str::MbUndoSetzen), [&](modell::Inhalt& x) {
-        for (std::size_t i = 0; i < je.size(); ++i) {
-            if (je[i].empty() || static_cast<std::size_t>(stufe) >= x.teile[i].stufen.size()) { continue; }
-            z += modell::malen(x.teile[i].stufen[static_cast<std::size_t>(stufe)], je[i], knochen, modell::PinselArt::Setzen, wert);
-        }
-    });
-    g_app->modelDirty = true;
-    return z;
-}
-
-int modellSpiegeln(int quelle) {
-    ModellTab& t = mt();
-    int n = 0;
-    const std::vector<std::string> namen = knochenNamen();
-    t.dok.aendern(tr(Str::MbUndoSpiegeln), [&](modell::Inhalt& x) { n = modell::spiegeln(x, t.lodJetzt, namen, quelle, kSpiegelToleranz); });
-    char z[200];
-    std::snprintf(z, sizeof z, tr(Str::MbGwGespiegelt), n);
-    t.meldung = z;
-    g_app->modelDirty = true;
-    return n;
 }
 
 void modellAuswahlArtSetzen(AuswahlArt a) {
@@ -2363,7 +2334,7 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     if (t.modal.art != 0 && t.modal.ansicht == n) { modalAnwenden(); }
     // mb1a2: im Bereich Weights malt die linke Taste mit dem Pinsel (ein Strich = ein Rueckgaengig-Schritt)
     if (t.aktiv == n) { gewichtRadialSchritt(); }   // MRESTE: F / Umschalt+F / Strg+F
-    const bool gewMalen = gewichtsAnsicht() && t.modal.art == 0 && t.gwModal == 0 && t.gwModalEnde != ImGui::GetFrameCount();
+    const bool gewMalen = gewichtsAnsicht() && modellGewichte().malen && t.modal.art == 0 && t.gwModal == 0 && t.gwModalEnde != ImGui::GetFrameCount();   // AP8: Hauptknopf
     // Modell-Block 1c: im Bereich Painting malt die linke Taste auf das Bild (ein Strich = ein Rueckgaengig-Schritt in Kacheln)
     const bool texMalen = modellMalenAktiv() && t.modal.art == 0 && !modellMalenModal();
     if (texMalen && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt) {
@@ -2475,7 +2446,7 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     ueberlagerung(a, ImGui::GetWindowDrawList());
     if (hatMitte) { gizmoZeichnen(a, mitte); }
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    if (gewichtsAnsicht() && ueber) {   // mb1a2: der Pinselkreis
+    if (gewichtsAnsicht() && ueber && modellGewichte().malen && modellGewichte().werkzeug != 2) {   // mb1a2: der Pinselkreis (AP8: nicht beim Waehlen und beim Verlauf)
         dl->AddCircle(io.MousePos, t.pinselRadius, IM_COL32(255, 255, 255, 200), 48, 1.5F);
         ++t.ueber[11];
     }

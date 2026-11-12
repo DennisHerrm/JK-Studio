@@ -598,9 +598,7 @@ void drawModellBefehlsfeld() {
     // Bereich "mtrollouts" (gui/app_modelltab_feld.cpp). Der Schalter des Bedienmodus steht in der Statuszeile (Klick auf
     // "wie 3ds Max" / "wie Blender"), im Menue der Kopfzeile der Ansicht und in den Einstellungen.
     modellFeldBeginn();
-    if (t.bereich == ModellBereich::Weights && !g_app->model.empty() && ImGui::CollapsingHeader(tr(Str::MbRGewichte), ImGuiTreeNodeFlags_DefaultOpen)) {
-        drawModellGewichte();   // mb1a2
-    }
+    if (t.bereich == ModellBereich::Weights && !g_app->model.empty()) { drawModellGewichte(); }   // AP8: gui/app_modelltab_gewichte.cpp
     if (t.bereich == ModellBereich::Uv && !g_app->model.empty()) { drawModellUvBereich(); }   // Modell-Block 1b
     if (t.bereich == ModellBereich::Modellieren) { drawModellMeshBereich(); }   // Modell-Block 1d (auch ohne Modell: Neues Requisit)
     if (t.bereich == ModellBereich::Painting && !g_app->model.empty()) { drawModellMalenBereich(); }   // Modell-Block 1c
@@ -1020,6 +1018,7 @@ void drawModellKontextMenue() {
     modellUvKontextMenue();    // Modell-Block 1b
     modellMeshKontextMenue();  // Modell-Block 1d
     modellMalenKontextMenue(); // Modell-Block 1c
+    modellGewichteKontextMenue();   // AP8: Gewichts-Werkzeuge, Bereinigen, Spiegeln, Sperren
     ImGui::EndPopup();
 }
 
@@ -1160,6 +1159,7 @@ void drawModellAktionen() {
     if (!rigAusgeloest && modellKopfAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }    // MBKOPF: die Anzeige-Schalter
     if (!rigAusgeloest && modellNavAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }     // MBNAV: Navigation ohne eigene Taste
     if (!rigAusgeloest && modellExplorerAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP2: Szenen-Explorer
+    if (!rigAusgeloest && modellGewichteAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP8: Werkzeuge des Bereichs Weights
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
 }

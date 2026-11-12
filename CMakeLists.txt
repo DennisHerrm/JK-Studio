@@ -2057,3 +2057,14 @@ endif()
 if(TARGET behaved)
   target_sources(behaved PRIVATE gui/ui_rollout.cpp gui/app_modelltab_feld.cpp)
 endif()
+
+# AP8 (MBENTWURF Teil B): der Bereich Weights nach dem Entwurf - Gruppen wie 3ds Max (Gewichts-Werkzeug, Spiegeln) und wie
+# Blender (Pinsel, Optionen, Bereinigen, Spiegeln), Sperren je Knochen; die Werkzeuge stehen in bhed/modell/gewichte.h
+if(TARGET behaved)
+  target_sources(behaved PRIVATE gui/app_modelltab_gewichte.cpp)
+endif()
+if(BEHAVED_TESTS)
+  add_executable(modellgewichte2test tests/modell_gewichte2.cpp)
+  target_link_libraries(modellgewichte2test PRIVATE bhed_core)
+  add_test(NAME modell_gewichte2 COMMAND modellgewichte2test ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm "${BEHAVED_KARTE_JA}")
+endif()

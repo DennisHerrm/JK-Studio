@@ -31,6 +31,7 @@ GPL v2; nothing is licensed under Apache 2.0 or GPL v3 only. The licence texts s
 | [xatlas](https://github.com/jpcy/xatlas) | f700c779 | MIT | `third_party/xatlas/` | charts by shape for the UV tools (Copyright (c) 2018-2020 Jonathan Young); text `third_party/xatlas/LICENSE` |
 | Fonts Cinzel and Michroma | – | SIL OFL 1.1 | lettering of `res/jkstudio_logo.*`, `res/jkstudio.ico` | `licenses/OFL-*.txt` |
 | Windows system libraries | – | part of Windows | `bcrypt`, `winhttp`, `ws2_32`, `crypt32` (DPAPI), `d3d11` (loaded at run time) | no redistribution |
+| Blender weight tools (`object_vgroup.cc`: vertex_group_normalize_all, _clean, _smooth, _limit_total, _mirror, vertex_group_lock; `deform.cc` BKE_defvert_normalize_ex; `mesh_mirror.cc` ED_mesh_mirrtopo_init; `paint_weight.cc` do_weight_paint_normalize_all_locked(_try_active), smear, gradient with its vertex cache; `paint_vertex_weight_ops.cc`; keymap `blender_default.py` km_weight_paint) | 5.0.0 | GPL v2 or later (used as GPL v2) | ported into `src/modell/gewichte.cpp`, `include/bhed/modell/gewichte.h`, `gui/app_modelltab_gewichte.cpp` | weights area of the model tab (AP8): normalize all, clean, smooth, limit total, mirror vertex group with flipped names and topology mirror, auto normalize with locked groups, smear and gradient brushes, lock menu (K); Copyright (C) Blender Authors |
 
 ## Compiled into `bhed_q3map2.exe` (map compiler)
 

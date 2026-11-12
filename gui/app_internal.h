@@ -3128,6 +3128,10 @@ enum class UiIcon : int {
     MdBevel, MdHinge, MdBridge, MdRemove, MdRemoveSauber, MdConnect, MdWeld, MdTargetWeld,
     MdDetach, MdSymmetrie, MdToQuads, MdCollapse, MdEben, MdSlice, MdQuickSlice,
     MdKasten, MdEbene, MdZylinder, MdKugel, MdKegel, MdRohr, MdTorus,
+    // AP8: Bereich Weights - Pinsel, Gewichts-Werkzeug (Setzen, Skalieren, Ring, Schleife, Wachsen, Schrumpfen, Mischen), Pinsel wie
+    // Blender (Verlauf, Verwischen, Gewicht holen), Bereinigen (Summe, Besen, Grenze) und Spiegeln (nach rechts, nach links)
+    GwPinsel, GwSetzen, GwSkalieren, GwRing, GwSchleife, GwWachsen, GwSchrumpfen, GwMischen, GwVerlauf, GwVerwischen, GwTropfen,
+    GwSumme, GwBesen, GwGrenze, GwNachRechts, GwNachLinks,
 };
 void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe);
 // Quadratischer Icon-Knopf; der Text ist Kennung und Tooltip-Titel.

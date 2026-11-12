@@ -57,7 +57,6 @@ ZEILEN = [
     ("MbMaxElement", "Element (5)", "Element (5)", "元素 (5)", "エレメント (5)", "Elemento (5)", "Prvek (5)"),
     ("MbMaxObjekt", "Object (6)", "Objekt (6)", "对象 (6)", "オブジェクト (6)", "Objeto (6)", "Objekt (6)"),
     # --- Weights ---
-    ("MbRGewichte", "Weights", "Gewichte", "权重", "ウェイト", "Pesos", "Váhy"),
     ("MbGwKnochen", "Bone", "Knochen", "骨骼", "ボーン", "Hueso", "Kost"),
     ("MbGwKnochenWaehlen", "Pick a bone (list or scene explorer) - the model then shows its weights from blue (0) to red (1).",
      "Einen Knochen wählen (Liste oder Szenen-Explorer) - die Figur zeigt dann seine Gewichte von Blau (0) bis Rot (1).",
@@ -84,7 +83,6 @@ ZEILEN = [
      "Nastavit váhu na výběr"),
     ("MbGwSpiegelnPlus", "Mirror +X -> -X", "Spiegeln +X -> -X", "镜像 +X -> -X", "ミラー +X -> -X", "Reflejar +X -> -X", "Zrcadlit +X -> -X"),
     ("MbGwSpiegelnMinus", "Mirror -X -> +X", "Spiegeln -X -> +X", "镜像 -X -> +X", "ミラー -X -> +X", "Reflejar -X -> +X", "Zrcadlit -X -> +X"),
-    ("MbGwGespiegelt", "%d vertices mirrored", "%d Ecken gespiegelt", "已镜像 %d 个顶点", "%d 個の頂点をミラー", "%d vértices reflejados", "Zrcadleno vrcholů: %d"),
     ("MbGwPruef", "Check for %s: at most %d weights per vertex, %d bones per surface",
      "Prüfen für %s: höchstens %d Gewichte je Ecke, %d Knochen je Fläche", "针对 %s 检查: 每个顶点最多 %d 个权重, 每个面 %d 根骨骼",
      "%s 向けチェック: 頂点ごとのウェイトは最大 %d、サーフェスごとのボーンは %d", "Comprobar para %s: como máximo %d pesos por vértice, %d huesos por superficie",
