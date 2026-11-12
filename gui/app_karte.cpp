@@ -89,10 +89,13 @@ std::string defOrdner(int spiel) {
 }
 
 // REST8: woher die Shader kommen - q3map2 wie das Build-Menue (bauVariablen), das Spiel aus seinen Ordnern
-Spielkontext::ShaderQuellen shaderQuellenJetzt(int spiel) {
+// TEMPO (12.11.2026): imp = importOrdner() des Aufrufers - spielPruefen fragt je Bild und sucht den Ordner so nur einmal
+// auf der Platte (vorher je Bild zweimal: hier und in kartenVfsOrdner).
+std::vector<std::string> kartenVfsOrdnerMit(const std::string& imp);   // kartenVfsOrdner mit diesem Import-Ordner (unten)
+Spielkontext::ShaderQuellen shaderQuellenJetzt(int spiel, const std::string& imp) {
     Spielkontext::ShaderQuellen q;
     std::vector<std::string> paks(g().zusatzPfade.begin(), g().zusatzPfade.end());
-    paks.push_back(importOrdner());
+    paks.push_back(imp);
     q.q3map2 = karte::q3map2Verzeichnisse(enginePfadAnzeige(), bauSpielName(), kartenSpiel().basisSpiel, paks);
     std::vector<std::string> ordner = suchpfade(spiel);   // Mod zuerst
     std::reverse(ordner.begin(), ordner.end());
@@ -468,8 +471,9 @@ void spielPruefen() {
     }
     const int spiel = kartenSpielNummer();
     // EnginePath_Realise / gamemode_set: neu laden, wenn sich Spiel, Suchordner oder Modus aendern
-    const std::vector<std::string> ordner = kartenVfsOrdner();
-    Spielkontext::ShaderQuellen quellen = shaderQuellenJetzt(spiel);
+    const std::string imp = importOrdner();   // TEMPO: einmal je Aufruf fuer beide
+    const std::vector<std::string> ordner = kartenVfsOrdnerMit(imp);
+    Spielkontext::ShaderQuellen quellen = shaderQuellenJetzt(spiel, imp);
     std::string kennung = std::to_string(spiel) + "|" + e.spielModus + "|" + (quellen.dirVorPak ? "1" : "0");
     for (const std::string& o : ordner) { kennung += "|" + o; }
     for (const std::string& o : quellen.q3map2) { kennung += "|q3:" + o; }
@@ -597,7 +601,10 @@ std::string enginePfadAnzeige() {
 // QE_InitVFS (qe3.cpp:68-102): die zusaetzlichen Pfade, <Engine><fs_game>/,
 // <Engine><basegame>/. Ohne gesetzten Engine-Pfad stehen statt
 // <Engine><basegame>/ die Spielordner des Programms (Movie Duels vor base).
-std::vector<std::string> kartenVfsOrdner() {
+std::vector<std::string> kartenVfsOrdner() { return kartenVfsOrdnerMit(importOrdner()); }
+
+namespace {
+std::vector<std::string> kartenVfsOrdnerMit(const std::string& imp) {
     const Editor& e = g();
     const karte::SpielBeschreibung& sb = kartenSpiel();
     std::vector<std::string> zusatz;
@@ -605,7 +612,7 @@ std::vector<std::string> kartenVfsOrdner() {
         if (!p.empty()) { zusatz.push_back(p); }
     }
     // Stufe 9 Punkt 2 (Abweichung): der Import-Ordner des Programms, sobald es ihn gibt
-    if (const std::string imp = importOrdner(); !imp.empty()) { zusatz.push_back(imp); }
+    if (!imp.empty()) { zusatz.push_back(imp); }
     if (!e.enginePfad.empty()) { return karte::vfsOrdner(e.enginePfad, kartenFsGame(), sb.basisSpiel, zusatz); }
     std::vector<std::string> pfade = karte::vfsOrdner(enginePfadAnzeige(), kartenFsGame(), sb.basisSpiel, zusatz);
     if (!pfade.empty()) { pfade.pop_back(); }   // <Engine><basegame>/ - dafuer die Spielordner
@@ -615,6 +622,7 @@ std::vector<std::string> kartenVfsOrdner() {
     }
     return pfade;
 }
+}  // namespace
 
 // setEnginePath / GameImport / gamemode_set: Unrealise, aendern, Realise. Die
 // Entity-Klassen haengen daran, und mit ihnen die Karte (MapEntityClasses: aus

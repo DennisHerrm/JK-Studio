@@ -4,6 +4,7 @@
 #include "bhed/diag.h"
 #include "bhed/umzug.h"
 
+#include <mutex>
 #include <cstdlib>
 
 #include <windows.h>
@@ -276,9 +277,20 @@ std::string settingsDirectory() {
     // Selbsttests, die gleichzeitig laufen, bekommen je einen eigenen Ordner
     // (rc601): sonst schreiben sie sich gegenseitig - und dem Anwender - die
     // behaved.cfg ueber.
+    // TEMPO (12.11.2026): je Ordner einmal anlegen und umwandeln. Vorher lief CreateDirectoryW bei jedem Aufruf - der
+    // Karten-Editor fragt je Bild (spielPruefen -> importOrdner), das waren im Selbsttest 5 bis 8 % des Hauptfadens und
+    // verfaelschte jede Bildzeit-Messung gegenueber dem Anwender (der diesen Zweig nicht nimmt).
     if (const wchar_t* eigen = _wgetenv(L"BHED_EINSTELLUNGEN"); eigen != nullptr && eigen[0] != L'\0') {
-        CreateDirectoryW(eigen, nullptr);
-        return toUtf8(eigen);
+        static std::mutex sperre;   // gefragt wird auch aus Hintergrundfaeden
+        static std::wstring angelegt;
+        static std::string angelegtUtf8;
+        const std::lock_guard<std::mutex> halt(sperre);
+        if (angelegt != eigen) {
+            CreateDirectoryW(eigen, nullptr);
+            angelegt = eigen;
+            angelegtUtf8 = toUtf8(eigen);
+        }
+        return angelegtUtf8;
     }
     // Stufe 8c (Umbenennung in JK Studio): %APPDATA%\jkstudio statt %APPDATA%\behaved.
     // Beim ersten Start wird der alte Ordner kopiert (bhed/umzug.h), das Original
