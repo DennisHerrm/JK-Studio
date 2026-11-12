@@ -321,6 +321,10 @@ ID3D11SamplerState* g_samplerRand = nullptr;
 // Upload32 gibt Bildern ohne Mipmaps GL_LINEAR und keine Anisotropie (tr_image.cpp:739-753) - nicht den Abtaster der
 // Texturen (r_ext_texture_filter_anisotropic 16).
 ID3D11SamplerState* g_samplerLm = nullptr;
+// AP5: Modellfenster mit Texturfilter aus (ModView Texture_SetFilter: GL_NEAREST) - nur waehrend zeichneModellAnsicht gesetzt
+ID3D11SamplerState* g_samplerPunkt = nullptr;
+bool g_modellPunkt = false;
+bool g_modellOpak = false;   // AP5: Alpha-Blending aus (ModView: glDisable(GL_BLEND))
 std::map<std::uint32_t, ID3D11BlendState*> g_blend;
 std::map<std::uint32_t, ID3D11DepthStencilState*> g_depth;
 std::map<std::uint32_t, ID3D11RasterizerState*> g_raster;
@@ -2788,6 +2792,12 @@ void geistUeberschreiben(ID3D11DeviceContext* c) {
 }
 
 void umrissUeberschreiben(ID3D11DeviceContext* c) {
+    if (g_modellOpak) {   // AP5: im Modellfenster alles deckend (vor Ghosts und Silhouette, die ihren eigenen Zustand setzen)
+        if (ID3D11BlendState* bs = holeBlend(Blend::Opaque)) {
+            const float faktor[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+            c->OMSetBlendState(bs, faktor, 0xFFFFFFFFU);
+        }
+    }
     verdunkelnUeberschreiben(c);
     geistUeberschreiben(c);
     if (!g_umriss || g_umrissPs == nullptr) {
@@ -5137,7 +5147,7 @@ int zeichneFigurIn(const GlmModel& model, const ModelTextures* textures,
         c->VSSetConstantBuffers(1, 1, &g_cbStapel);
         c->PSSetConstantBuffers(1, 1, &g_cbStapel);
     }
-    c->PSSetSamplers(0, 1, &g_sampler);
+    c->PSSetSamplers(0, 1, g_modellPunkt && g_samplerPunkt != nullptr ? &g_samplerPunkt : &g_sampler);   // AP5: Texturfilter aus
     // --- Tiefe und Keulen ausdruecklich setzen -------------------------
     //
     // Seit rc434 setzt `zeichneAufrufe` diese Zustaende je Stapel. Sie
@@ -7064,6 +7074,19 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, c
     // Pose bleibt ganz sichtbar, die Ghosts zeigen sich daneben (mb4_hb_de: ueber der Figur gezeichnet faerbten sie sie ganz ein).
     const bool silhouette = art.silhouette[3] > 0.0F && geistAnlegen(d);
     const std::uint32_t raster = g_modellRaster;
+    // AP5: Alpha und Texturfilter wie ModView, nur fuer dieses Bild
+    if (art.punktFilter && g_samplerPunkt == nullptr) {
+        D3D11_SAMPLER_DESC sd{};
+        sd.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+        sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+        sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+        sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+        sd.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+        sd.MaxLOD = 0.0F;   // ModView: GL_NEAREST ohne Mipmaps
+        d->CreateSamplerState(&sd, &g_samplerPunkt);
+    }
+    g_modellPunkt = art.punktFilter;
+    g_modellOpak = art.opak;
     int n = 0;
     for (const ModellZusatz& z : zusatz) {
         if (!z.figur && z.modell != nullptr) { n += zeichneFigurIn(*z.modell, z.texturen, z.knochen, z.welt, viewProj, fehler, nullptr, false, true); }
@@ -7104,6 +7127,8 @@ int zeichneModellAnsicht(const GlmModel& model, const ModelTextures* textures, c
         if (rasterGeht && !r.hinten) { n += zeichneRaster(c, r, viewProj); }
     }
     g_modellRaster = 0;
+    g_modellPunkt = false;
+    g_modellOpak = false;
     beendeModellMessung(messung);
     return n;
 }
@@ -7527,6 +7552,7 @@ void shutdown() {
         g_samplerRand = nullptr;
     }
     if (g_samplerLm != nullptr) { g_samplerLm->Release(); g_samplerLm = nullptr; }
+    if (g_samplerPunkt != nullptr) { g_samplerPunkt->Release(); g_samplerPunkt = nullptr; }   // AP5
     vergissKarte();
     for (auto& [k, s2] : g_bilder) { if (s2 != nullptr) { s2->Release(); } }
     g_bilder.clear();

@@ -124,6 +124,14 @@ const std::vector<Schalter>& schalter() {
          Str::MrAchsenHint, 2, true, [](int n) { return achseSichtbar(n, 1); }},
         {Str::MrAchseZ, Str::MrAchsenHint, "", "", Ort::Allgemein, false, [](int n) -> bool& { return mt().ansichten[n].sch.achsen[2]; }, nullptr,
          Str::MrAchsenHint, 2, true, [](int n) { return achseSichtbar(n, 2); }},
+        // AP5 (Abgleich P3a): die fuenf Anzeige-Schalter von ModView, die fehlten (gui/app_modelltab_pruefen.cpp, Zeichner gpumap_win32.cpp)
+        {Str::PqAlpha, Str::PqAlphaHint, "", "", Ort::Schattierung, true, [](int) -> bool& { return modellPr().alpha; }, nullptr, Str::PqAlphaHint},
+        {Str::PqFilter, Str::PqFilterHint, "", "", Ort::Schattierung, true, [](int) -> bool& { return modellPr().filter; }, nullptr, Str::PqFilterHint},
+        {Str::PqSchwelle, Str::PqSchwelleHint, "", "", Ort::Knochen, false, [](int) -> bool& { return modellPr().schwelleAn; }, nullptr, Str::PqSchwelleHint},
+        {Str::PqHervor, Str::PqHervorHint, "", "", Ort::Knochen, false, [](int) -> bool& { return modellPr().hervorheben; }, nullptr, Str::PqHervorHint},
+        // zeigt nur etwas, wenn eine gezeichnete Flaeche SHADER_MAX_VERTEXES / 2 Ecken hat (im Zielspiel)
+        {Str::PqSchatten, Str::PqSchattenMenueHint, "", "", Ort::Knochen, false, [](int) -> bool& { return modellPr().schatten; }, nullptr,
+         Str::PqSchattenMenueHint, 0, false, [](int) { return modellPrSchattenZahl() > 0; }},
     };
     return kListe;
 }
@@ -157,6 +165,7 @@ void schalterZeile(const Schalter& s, int n) {
 void schalterDerArt(Ort ort, int n) {
     for (const Schalter& s : schalter()) {
         if (s.ort == ort && imModus(s)) { schalterZeile(s, n); }
+        if (s.ort == ort && s.text == Str::PqSchwelle) { modellPrSchwelleZeile(); }   // AP5: die Zahl zur Schwelle
     }
 }
 
@@ -497,6 +506,7 @@ void menueOverlays(int n) {
         if (s.blShading || s.hilfslinie || !imModus(s)) { continue; }
         schalterZeile(s, n);
         if (s.text == Str::MrGrauBoden) { bodenHoehe(); }
+        if (s.text == Str::PqSchwelle) { modellPrSchwelleZeile(); }   // AP5: die Zahl zur Schwelle
     }
     hintergrundZeile();
     ImGui::Separator();
@@ -836,7 +846,7 @@ bool modellKopfSchalterHier(int i, int ansicht) {
 }
 bool modellKopfSchalterBrauchtAuswahl(int i) {   // zeigen sich an der gewaehlten Flaeche (ohne: der Hinweis)
     const Str t = schalter()[static_cast<std::size_t>(i)].text;
-    return t == Str::MkKlammer;
+    return t == Str::MkKlammer || t == Str::PqHervor;   // AP5: Flaeche hervorheben zeigt sich an der gewaehlten Flaeche
 }
 
 // Selbsttest: die Mitte eines Felds der Kopfzeile der Ansicht (aus dem letzten Bild).

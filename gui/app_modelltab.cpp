@@ -125,6 +125,7 @@ void modellDokumentLaden(const std::string& bytes) {
     t.anbauten.clear();
     t.sekundaer = -1;
     t.zielspiel = zielspielVorgabe();
+    t.bereich = ModellBereich::Ansehen;   // AP5 P11: Startbereich beim Oeffnen einer .glm (Entwurf, wie ModView)
     diag::detail("Modelldokument: \"" + t.dok.inhalt().name + "\", " + std::to_string(t.dok.inhalt().teile.size()) + " Teile, " +
                  std::to_string(t.dok.inhalt().stufenZahl) + " Stufen");
 }
@@ -171,8 +172,10 @@ void modellAnzeigeAktualisieren() {
     for (const modell::FlaechenSchalter& s : z.slist) { schluessel += std::to_string(s.flaeche) + ":" + std::to_string(s.offFlags) + ","; }
     for (const GlmSurface& s : g_app->model.surfaces) { schluessel += s.texture + ";"; }
     schluessel += "|v" + std::to_string(t.verstecktStand);   // mb1a2: das Auge
+    schluessel += modellPrSchwelleSchluessel();   // AP5 P3a: Knochengewicht-Schwelle
     if (schluessel == t.anzeigeSchluessel) { return; }
     GlmModel neu = modell::zuGlm(in, lod);
+    modellPrSchwelleAnwenden(neu);   // AP5 P3a (ModView r_glm.cpp: kleine Gewichte fallen weg, ohne Umverteilen)
     t.gezeichnet = modell::gezeichnet(in, z);
     for (std::size_t i = 0; i < neu.surfaces.size() && i < g_app->model.surfaces.size(); ++i) {
         neu.surfaces[i].texture = g_app->model.surfaces[i].texture;
@@ -435,14 +438,23 @@ void rolloutModell() {
     }
     ui::rasterBeginn(2);
     if (ui::werkzeugKnopf(tr(Str::MbAndereGla), {.icon = UiIcon::Tauschen, .hinweis = tr(Str::MbAndereGlaHint)})) { ImGui::OpenPopup("###mtgla"); }
-    // Alt+R gibt es wie in ModView nur in der Belegung wie 3ds Max
-    if (ui::werkzeugKnopf(tr(Str::MbTexNeu), {.icon = UiIcon::Neuladen, .taste = modellBlender() ? nullptr : "Alt+R"})) { modellTexturenNeuLaden(); }
-    if (ui::werkzeugKnopf(tr(Str::MbFoto), {.icon = UiIcon::Kamera, .hinweis = tr(Str::MbFotoHint)})) {
-        const std::string p = platform::saveFileDialog(tr(Str::MbFoto), "Bitmap (*.bmp)|*.bmp", g_app->settings.lastDir,
-                                                       fileName(directoryOf(g_app->modelPath)) + ".bmp");
-        if (!p.empty()) { (void)modellFotoSpeichern(p, 1920); }
-    }
+    // AP5 P1: Alt+R (ModView "Refresh textures") in beiden Bedienmodi wie im Entwurf
+    if (ui::werkzeugKnopf(tr(Str::MbTexNeu), {.icon = UiIcon::Neuladen, .taste = "Alt+R", .tasteHalten = true})) { modellTexturenNeuLaden(); }
+    // AP5 P1: Importieren = das heutige Oeffnen (.glm, .md3 von der Platte) und jedes Modell des Spiels aus den .pk3
+    if (ui::werkzeugKnopf(tr(Str::PqImport), {.icon = UiIcon::Oeffnen, .hinweis = tr(Str::PqImportHint)})) { ImGui::OpenPopup("###pqimport"); }
     ui::rasterEnde();
+    if (ImGui::BeginPopup("###pqimport")) {
+        if (ImGui::MenuItem(tr(Str::PqImportDatei))) { openModelFile(); }
+        ImGui::SetItemTooltip("%s", tr(Str::OpenGlmHint));
+        if (ImGui::MenuItem(tr(Str::PqImportPk3))) {
+            if (g_app->gamePaths.empty()) { rescanGamePaths(); }
+            g_app->pk3Kind = 2;
+            refreshPk3List();
+            g_app->pk3Open = true;
+        }
+        ImGui::SetItemTooltip("%s", tr(Str::OpenGlmPk3Hint));
+        ImGui::EndPopup();
+    }
     glaFenster();
     ui::rolloutEnde();
 }
@@ -457,12 +469,26 @@ void rolloutLod() {
     bool automatisch = t.lodWahl == 0;
     if (ui::schalter(tr(Str::MbLodAuto), &automatisch, tr(Str::MbLodAutoHint))) { t.lodWahl = automatisch ? 0 : t.lodJetzt + 1; }
     static const char* const kStufen[10] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
-    // mit "Auto" ist keine Stufe gewaehlt (die gezeichnete steht in der Kurzinfo und in der Zeile darunter); ein Klick stellt sie fest
+    // mit "Auto" ist keine Stufe gewaehlt (die gezeichnete steht in der Kurzinfo und in der Zeile darunter); ein Klick stellt sie fest.
+    // AP5 P2: alle zehn waehlbar wie ModView und r_lodbias im Spiel - G2_ComputeLOD: "lodBias >= numLods -> numLods - 1"
+    // (tr_ghoul2.cpp:868-872 Movie Duels Update 9, gleich in OpenJK rd-vanilla); modellAnzeigeAktualisieren klemmt genauso.
     int stufe = t.lodWahl > 0 ? t.lodWahl - 1 : -1;
-    if (ui::segment("##mtlod", kStufen, 10, &stufe, 10, in.stufenZahl)) { t.lodWahl = stufe + 1; }
-    char gezeichnet[96];
-    std::snprintf(gezeichnet, sizeof gezeichnet, tr(Str::MbLodJetzt), t.lodJetzt + 1, in.stufenZahl);
-    ui::absatz(gezeichnet);
+    const char* hinweise[10];
+    for (const char*& h : hinweise) { h = tr(Str::PqLodStufeHint); }
+    if (ui::segment("##mtlod", kStufen, 10, &stufe, 10, -1, hinweise)) { t.lodWahl = stufe + 1; }
+    int dreiecke = 0;
+    for (const modell::Teil& x : in.teile) {
+        if (!x.istTag() && static_cast<std::size_t>(t.lodJetzt) < x.stufen.size()) { dreiecke += x.stufen[static_cast<std::size_t>(t.lodJetzt)].dreiecke(); }
+    }
+    char text[200];
+    std::snprintf(text, sizeof text, trN(Str::PqLodZahl, in.stufenZahl, dreiecke), in.stufenZahl, dreiecke);
+    std::string absatzText = text;
+    if (t.lodWahl > in.stufenZahl && in.stufenZahl > 0) {
+        std::snprintf(text, sizeof text, tr(Str::PqLodWieSpiel), t.lodWahl, in.stufenZahl);
+        absatzText = std::string(text) + " " + absatzText;
+    }
+    ui::absatz(absatzText.c_str());
+    modellPr().lodText = absatzText;   // Selbsttest ap5
     // Picmip wie die Vorschau (r_picmip, Einstellung).
     static const char* const kPicmip[4] = {"0##pm", "1##pm", "2##pm", "3##pm"};
     int picmip = std::clamp(g_app->settings.bildPicmip, 0, 3);
@@ -471,8 +497,9 @@ void rolloutLod() {
         g_app->settings.bildPicmip = picmip;
         modellTexturenNeuLaden();
     }
-    // Die Haeute des Modells ("off" blendet Flaechen aus) und der Flaechenzaehler - AP1 Z20: bis rc611 auch in der Zeitleiste
-    modellHautZeile();
+    // Die Haeute des Modells ("off" blendet Flaechen aus) und der Flaechenzaehler - AP1 Z20: bis rc611 in der Zeitleiste;
+    // AP5: als zweispaltige Auswahl wie im Entwurf (gui/app_modelltab_pruefen.cpp)
+    modellPrHaeute();
     ui::rolloutEnde();
 }
 
@@ -539,6 +566,7 @@ void rolloutPruefen() {
         ImGui::EndCombo();
     }
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(Str::MbZielspiel)); }
+    modellPrPruefZeilen();   // AP5 P6: Balken der Flaeche, Flaechen, Sequenzen, gesuchte Tags, Shader, LODs, Schatten
     // die Grenzen des Zielspiels als Tabelle (bis rc611 ein Satz)
     char titel[160];
     std::snprintf(titel, sizeof titel, tr(Str::MfPrGrenzenVon), g.name);
@@ -609,15 +637,17 @@ void drawModellBefehlsfeld() {
         drawModellAnimationBereich();   // Stufe 2
     }
     if (!g_app->model.empty()) {
-        if (t.bereich == ModellBereich::Ansehen) {
-            rolloutModell();
-            rolloutLod();
-        }
         // MBKOPF: die Anzeige-Schalter stehen in der Kopfzeile der Ansicht - der Hinweis darauf nur im Reiter, den der Bereich vorgibt
+        // (AP5: vor den Gruppen von Ansehen/Pruefen, sonst stuende er unter dem Rand des Felds)
         if (ui::feldReiterStandard()) { anzeigeUmzugHinweis(); }
         if (t.bereich == ModellBereich::Ansehen) {
+            rolloutModell();
+            modellPrRolloutAuswahl();   // AP5 X18
+            rolloutLod();
+            modellPrRolloutBoden();   // AP5 P4
             rolloutAnbauten();
             rolloutPruefen();
+            modellPrRolloutSzene();   // AP5 P7
         }
     }
     if (!t.meldung.empty()) {
@@ -888,6 +918,15 @@ const std::vector<BlenderTaste>& blenderTasten() {
         {ImGuiMod_Shift | ImGuiKey_LeftArrow, Str::MbAktAnfang, [] { bildRand(false); }, "Frames | screen.frame_jump | Umschalt+LEFT_ARROW PRESS end=False"},
         {ImGuiMod_Shift | ImGuiKey_RightArrow, Str::MbAktEnde, [] { bildRand(true); }, "Frames | screen.frame_jump | Umschalt+RIGHT_ARROW PRESS end=True"},
         {ImGuiKey_F3, Str::MbAktionen, [] { mt().aktionenOffen = true; }, "Window | wm.search_menu | F3 PRESS"},
+        // AP5: Texturen neu laden (ModView Alt+R, Entwurf auch wie Blender - im Bereich Animation gilt vorher Alt+R des Rigs: pose.rot_clear),
+        // Z Schattierung und Umschalt+Alt+Z Overlays (P10)
+        {ImGuiMod_Alt | ImGuiKey_R, Str::MbAktTexNeu, [] { modellTexturenNeuLaden(); }, "Entwurf | Texturen neu laden | Alt+R (ModView: Refresh textures)"},
+        {ImGuiKey_Z, Str::PqSchattierungMenue, [] { modellPr().schattierungOeffnen = true; }, "3D View | wm.call_menu_pie | Z PRESS name=VIEW3D_MT_shading_pie"},
+        {ImGuiMod_Shift | ImGuiMod_Alt | ImGuiKey_Z, Str::PqOverlays, [] {
+             bool& aus = modellPr().overlaysAus[std::clamp(mt().aktiv, 0, 3)];
+             aus = !aus;
+         },
+         "3D View | wm.context_toggle | Umschalt+Alt+Z PRESS data_path=space_data.overlay.show_overlays"},
         {ImGuiMod_Ctrl | ImGuiKey_Z, Str::MbAktUndo, [] { (void)modellRueckgaengig(); }, "Screen | ed.undo | Strg+Z PRESS"},
         {ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, Str::MbAktRedo, [] { (void)modellWiederholen(); }, "Screen | ed.redo | Strg+Umschalt+Z PRESS"},
     };
@@ -1164,6 +1203,7 @@ void drawModellAktionen() {
     if (!rigAusgeloest && modellExplorerAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP2: Szenen-Explorer
     if (!rigAusgeloest && modellGewichteAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP8: Werkzeuge des Bereichs Weights
     if (!rigAusgeloest && modellBlAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP4: Werkzeugleiste, Seitenleiste, Messen
+    if (!rigAusgeloest && modellPrAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP5: Flaechenliste, Overlays, Gruppen von Ansehen/Pruefen
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
 }

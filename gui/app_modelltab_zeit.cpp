@@ -21,7 +21,6 @@
 // Eigene Zeichnung: alle Symbole hier aus Strichen und Flaechen, nichts aus 3ds Max oder Blender.
 #include "app_internal.h"
 #include "textumbruch.h"
-#include "tour.h"
 
 #include <algorithm>
 #include <cctype>
@@ -1397,46 +1396,8 @@ bool modellZeitAktionenSuche(const std::string& such) {
     return false;
 }
 
-// Z20: Haut und Flaechenzaehler stehen nicht mehr in der Zeitleiste, sondern in der Gruppe "Detailstufe und Skin".
-void modellHautZeile() {
-    if (g_app->model.empty() || g_app->modelSkins.empty()) { return; }
-    const float fs = ImGui::GetFontSize();
-    const std::string jetzt = (g_app->modelSkinIndex >= 0 && static_cast<std::size_t>(g_app->modelSkinIndex) < g_app->modelSkins.size())
-                                  ? g_app->modelSkins[static_cast<std::size_t>(g_app->modelSkinIndex)]
-                                  : std::string("-");
-    int gezeigt = 0;
-    int alle = 0;
-    for (const GlmSurface& sf : g_app->model.surfaces) {
-        if (sf.isTag()) { continue; }
-        ++alle;
-        if (sf.isVisible(g_app->showCaps)) { ++gezeigt; }
-    }
-    char zahl[160];
-    std::snprintf(zahl, sizeof zahl, trN(Str::ModelSurfaces, gezeigt, alle), gezeigt, alle);
-    ImGui::SetNextItemWidth(std::max(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(tr(Str::ModelSkin)).x - ImGui::GetStyle().ItemInnerSpacing.x, fs * 6.0F));
-    if (ImGui::BeginCombo(tr(Str::ModelSkin), jetzt.c_str())) {
-        for (std::size_t i = 0; i < g_app->modelSkins.size(); ++i) {
-            const bool gewaehlt = static_cast<int>(i) == g_app->modelSkinIndex;
-            if (ImGui::Selectable(g_app->modelSkins[i].c_str(), gewaehlt)) {
-                applySkinByIndex(static_cast<int>(i));
-                ++g_app->modellHautWechsel;
-            }
-            if (gewaehlt) { ImGui::SetItemDefaultFocus(); }
-        }
-        ImGui::EndCombo();
-    }
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s", tr(Str::ModelSkinHint)); }
-    // H2: die Auswahlliste meldet ihre Beschriftung sonst nur aufgeklappt (Tour k-skins, Helfer).
-    if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), tr(Str::ModelSkin)); }
-    cjkTextDisabled("%s", zahl);
-    // Klick: alle Flaechen ins Detailprotokoll (siehe Watt Tambor, rc3xx).
-    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::ModelSurfaceDump)); }
-    tourZielMelden("modell.flaechen", ImRect{ImGui::GetItemRectMin(), ImGui::GetItemRectMax()});   // H2: Ziel der Tour k-skins
-    if (ImGui::IsItemClicked()) {
-        modellFlaechenProtokoll();
-        ++g_app->modellFlaechenListen;
-    }
-}
+// Z20: Haut und Flaechenzaehler stehen nicht mehr in der Zeitleiste, sondern in der Gruppe "Detailstufe und Skin" (AP5: modellPrHaeute,
+// gui/app_modelltab_pruefen.cpp).
 
 // Die Leiste unter allen Spalten, in jedem Bereich (shank 04.11.: "und in jedem Tab sieht man die animation?").
 void drawModellZeitleiste(const AnimEntry* e) {

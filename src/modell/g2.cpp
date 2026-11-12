@@ -461,4 +461,63 @@ std::vector<Befund> pruefeModell(const Inhalt& in, Zielspiel s, const std::vecto
     return alle;
 }
 
+namespace {
+
+std::string kleinPfad(const std::string& p) {
+    std::string g;
+    for (const char c : p) { g += c == '\\' ? '/' : static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    return g;
+}
+
+bool beginntMit(const std::string& s, const char* vorn) { return s.compare(0, std::strlen(vorn), vorn) == 0; }
+
+}  // namespace
+
+std::vector<std::string> gesuchteTags(Zielspiel s, const std::string& glaPfad, const std::string& modellPfad) {
+    if (s == Zielspiel::JkaMp) {
+        // codemp/cgame/cg_players.c:628-655 OpenJK (CG_RegisterClientModelname): r_hand zuerst, l_hand als zweites, chestg als
+        // drittes (Jetpack), die Klauen, head_top (sonst der Knochen ceyebrow)
+        return {"*r_hand", "*l_hand", "*chestg", "*r_hand_cap_r_arm", "*l_hand_cap_l_arm", "*head_top"};
+    }
+    if (s == Zielspiel::MdMp) {
+        // Movie Duels Update 9 codemp/cgame/cg_players.c:863-906: dieselben und die Holster der Waffen
+        return {"*r_hand", "*l_hand", "*chestg", "*r_hand_cap_r_arm", "*l_hand_cap_l_arm", "*head_top", "*holster_saber", "*holster_saber2",
+                "*holster_staff", "*holster_blaster", "*holster_blaster2", "*holster_golan", "*holster_launcher"};
+    }
+    // SP: die Tags nur fuer ein Standard-Skelett (der Pfad der GLA steht ohne Endung in der .glm)
+    std::string g = kleinPfad(glaPfad);
+    if (g.size() > 4 && g.compare(g.size() - 4, 4, ".gla") == 0) { g.resize(g.size() - 4); }
+    bool standard = false;
+    if (s == Zielspiel::Jk2Sp) {
+        // codeJK2/game/g_client.cpp:806-845 G_StandardHumanoid: nach dem Namen des Modells (Ordner unter models/players)
+        std::string m = kleinPfad(modellPfad);
+        const std::size_t ende = m.rfind('/');
+        m = ende == std::string::npos ? std::string() : m.substr(0, ende);
+        m = m.substr(m.rfind('/') == std::string::npos ? 0U : m.rfind('/') + 1U);
+        static const char* const kVorn[] = {"st", "imp", "gran", "rodian", "weequay", "reborn", "shadowtrooper", "swamptrooper", "bespincop",
+                                            "rebel", "ugnaught", "morgan", "protocol", "jedi", "prisoner"};
+        static const char* const kGanz[] = {"kyle", "rockettrooper", "bespin_cop", "tavion", "desann", "trandoshan", "jan", "luke",
+                                            "lando", "reelo", "bartender", "monmothma", "chiss", "galak"};
+        for (const char* v : kVorn) { standard = standard || beginntMit(m, v); }
+        for (const char* v : kGanz) { standard = standard || m == v; }
+    } else if (s == Zielspiel::MdSp) {
+        // Movie Duels Update 9 code/game/g_client.cpp:1269-1351 g_standard_humanoid: Q_stricmpn mit jedem Praefix der Liste
+        static const char* const kVorn[] = {"models/players/_humanoid", "models/players/jk2anims", "models/players/protocol/protocol",
+                                            "models/players/assassin_droid/model", "models/players/saber_droid/model",
+                                            "models/players/hazardtrooper/hazardtrooper", "models/players/rockettrooper/rockettrooper",
+                                            "models/players/wampa/wampa", "models/players/galak_mech/galak_mech",
+                                            "models/players/droideka/droideka", "models/players/kotor_monster/kotor_monster"};
+        for (const char* v : kVorn) { standard = standard || beginntMit(g, v); }
+    } else {
+        // code/game/g_client.cpp:895-920 OpenJK G_StandardHumanoid: Q_stricmpn("models/players/_humanoid", GLA, 24) oder
+        // "models/players/protocol/protocol"
+        standard = beginntMit(g, "models/players/_humanoid") || g == "models/players/protocol/protocol";
+    }
+    if (!standard) { return {}; }
+    // G_SetG2PlayerModelInfo: g_client.cpp:1171-1192 OpenJK, codeJK2/game/g_client.cpp:904-925, Movie Duels Update 9 :1681-1703
+    return {"*head_eyes", "*l_arm_elbow", "*r_arm_elbow", "*l_hand", "*r_hand", "*hips_l_knee", "*hips_r_knee", "*l_leg_foot", "*r_leg_foot"};
+}
+
+int schattenEckenGrenze(Zielspiel s) noexcept { return grenzen(s).eckenJeFlaeche / 2; }
+
 }  // namespace bhed::modell

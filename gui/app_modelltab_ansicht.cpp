@@ -2289,6 +2289,12 @@ gpu::ModellAnsichtArt zeichenArt(const ModellAnsicht& a, int w, int h) {
     }
     art.geister = modellGeister();
     art.raster = rasterFuer(a, w, h);   // MBRASTER
+    // AP5: Alpha-Blending und Texturfilter wie ModView (P3a); Overlays aus wie Blender (P10): ohne Raster, Boden-Linien, Achsen
+    art.opak = !modellPr().alpha;
+    art.punktFilter = !modellPr().filter;
+    for (int i = 0; i < 4; ++i) {
+        if (&mt().ansichten[i] == &a && modellPr().overlaysAus[i]) { art.raster.clear(); }
+    }
     return art;
 }
 
@@ -2425,7 +2431,7 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
                   static_cast<double>(g_app->modelCam.fovY),
                   static_cast<double>(a.mitte[0]), static_cast<double>(a.mitte[1]), static_cast<double>(a.mitte[2]),
                   static_cast<double>(a.halbHoehe), static_cast<double>(g_app->modelOrbit.distance));
-    const std::string standGanz = std::string(stand) + rasterStand(a);   // MBRASTER
+    const std::string standGanz = std::string(stand) + rasterStand(a) + modellPrStand(n);   // MBRASTER, AP5
     if (neu || g_sichtStand[static_cast<std::size_t>(n)] != standGanz) {
         gpu::modellZielWaehlen(n);
         if (gpu::bereiteModellZiel(w, h)) {
@@ -2445,7 +2451,7 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     if (gpu::modellZielTextur() != nullptr) {
         ImGui::Image(reinterpret_cast<ImTextureID>(gpu::modellZielTextur()), ImVec2{static_cast<float>(w), static_cast<float>(h)});
     }
-    ueberlagerung(a, ImGui::GetWindowDrawList());
+    if (!modellPr().overlaysAus[std::clamp(n, 0, 3)]) { ueberlagerung(a, ImGui::GetWindowDrawList()); }   // AP5 P10: Overlays wie Blender
     if (hatMitte) { gizmoZeichnen(a, mitte); }
     ImDrawList* dl = ImGui::GetWindowDrawList();
     if (gewichtsAnsicht() && ueber && modellGewichte().malen && modellGewichte().werkzeug != 2) {   // mb1a2: der Pinselkreis (AP8: nicht beim Waehlen und beim Verlauf)
@@ -2468,6 +2474,7 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     drawModellNavigation(n, a);
     drawModellKopfzeile(n, a);
     modellBlUeberlagerung(n, a, dl);   // AP4: wie Blender "N Seitenleiste - T Werkzeuge", die Messung
+    modellPrUeberlagerung(n, a, dl);   // AP5: rote Striche, Knochenbezuege, "LOD - Dreiecke" unten rechts
     ImGui::EndChild();
     ImGui::PopID();
 }
@@ -2482,6 +2489,7 @@ const std::vector<std::vector<std::array<float, 3>>>& modellHaut() { return haut
 
 const std::vector<BoneMatrix>& modellBearbeitungsPose() { return bearbeitungsPose(); }
 bool modellTeilGezeichnet(int teil) { return teil >= 0 && gezeichnet(static_cast<std::size_t>(teil)); }
+const std::vector<std::vector<std::array<float, 3>>>& modellHautOrte() { return haut(); }   // AP5
 
 void modellAnsichtEinpassenAktiv() {
     ModellTab& t = mt();
@@ -2490,6 +2498,7 @@ void modellAnsichtEinpassenAktiv() {
 
 void drawModellArbeitsflaeche() {
     ModellTab& t = mt();
+    modellPrSchritt();   // AP5: vier Ansichten je Bereich wie 3ds Max (R7), Z wie Blender
     modellAnzeigeAktualisieren();
     if (g_eingepasst != g_app->modelPath) {
         // Neue Figur: die vier Ansichten (Oben, Vorne, Links, Perspektive) auf sie einpassen.
@@ -3012,6 +3021,8 @@ void modellGegenseite() {
 bool modellFotoMitUeberlagerung(int breite, std::vector<unsigned char>& rgba, int& bw, int& bh) {
     ModellTab& t = mt();
     if (g_app->model.empty()) { return false; }
+    modellAnzeigeAktualisieren();   // AP5: das Foto zeigt den Stand der Schalter (Knochengewicht-Schwelle), nicht das letzte Bild
+    const bool overlays = !modellPr().overlaysAus[std::clamp(t.aktiv, 0, 3)];
     ModellAnsicht a = t.ansichten[t.aktiv];
     const float seiten = a.groesse[0] > 0.0F && a.groesse[1] > 0.0F ? a.groesse[1] / a.groesse[0] : 9.0F / 16.0F;
     const int w = std::max(breite, static_cast<int>(a.groesse[0]));
@@ -3026,14 +3037,22 @@ bool modellFotoMitUeberlagerung(int breite, std::vector<unsigned char>& rgba, in
     const bool gw = gewichtsAnsicht();
     if (!gpu::bereiteModellZiel(w, h) ||
         gpu::zeichneModellAnsicht(gw ? gewichtsModell() : t.anzeige, gw ? &g_gewTex : texturen(a.sch), g_knochen, a.viewProj, true, &fehler,
-                                  zeichenArt(a, w, h), zusaetze(a.sch)) <= 0) {
+                                  [&] {
+                                      gpu::ModellAnsichtArt art = zeichenArt(a, w, h);
+                                      if (!overlays) { art.raster.clear(); }   // AP5 P10
+                                      return art;
+                                  }(),
+                                  zusaetze(a.sch)) <= 0) {
         return false;
     }
     ImDrawList liste(ImGui::GetDrawListSharedData());
     liste._ResetForNewFrame();
     liste.PushTexture(ImGui::GetIO().Fonts->TexRef);
     liste.PushClipRect(ImVec2{0.0F, 0.0F}, ImVec2{static_cast<float>(w), static_cast<float>(h)});
-    ueberlagerung(a, &liste);
+    if (overlays) {
+        ueberlagerung(a, &liste);
+        modellPrUeberlagerung(-1, a, &liste);   // AP5: rote Striche, Knochenbezuege
+    }
     (void)gpu::zeichneUeberlagerung(&liste);
     return gpu::leseModellZiel(rgba, bw, bh);
 }

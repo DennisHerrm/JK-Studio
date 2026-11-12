@@ -298,6 +298,10 @@ struct ModellAnsichtArt {
     float silhouette[4]{};
     std::vector<ModellGeist> geister;
     std::vector<ModellRaster> raster;   // MBRASTER
+    // AP5 (ModView): opak = Alpha-Blending aus (alles deckend, ModView bUseAlpha aus: glDisable(GL_BLEND)); punktFilter = der naechste
+    // Bildpunkt statt des Abtasters des Spiels (ModView bBilinear aus: GL_NEAREST)
+    bool opak = false;
+    bool punktFilter = false;
 };
 // Eine weitere Figur im Modellfenster (angebautes Modell, Boden): Stellung
 // `welt` 4x4 zeilenweise wie zeichneFigur.

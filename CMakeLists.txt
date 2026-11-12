@@ -2080,3 +2080,16 @@ endif()
 if(TARGET behaved)
   target_sources(behaved PRIVATE gui/app_modelltab_blender.cpp)
 endif()
+
+# AP5 (MBENTWURF Teil B): der Bereich Ansehen/Pruefen des Model-Tabs vollstaendig nach dem Entwurf - Gruppen Boden und Kamera,
+# Auswahl, Szene (.mvs wie ModView: bhed/modell/szene.h), Skins zweispaltig, die fuenf fehlenden Anzeige-Schalter von ModView,
+# Hinweis "LOD - Dreiecke", vier Ansichten je Bereich wie 3ds Max, Overlays und Schattierung wie Blender
+target_sources(bhed_core PRIVATE src/modell/szene.cpp)
+if(TARGET behaved)
+  target_sources(behaved PRIVATE gui/app_modelltab_pruefen.cpp)
+endif()
+if(BEHAVED_TESTS)
+  add_executable(modellszenetest tests/modell_szene.cpp)
+  target_link_libraries(modellszenetest PRIVATE bhed_core)
+  add_test(NAME modell_szene COMMAND modellszenetest)
+endif()

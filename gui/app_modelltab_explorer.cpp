@@ -1742,6 +1742,18 @@ const char* modellExplorerTitel() { return tr(modellBlender() ? Str::MbXOutliner
 
 void modellExplorerSucheFokus() { g_sucheFokus = true; }
 
+// AP5 (X18): dieselbe Info wie der Tooltip der Zeile und "Info" im Rechtsklick - fuer die Gruppe "Auswahl" im rechten Feld
+std::string modellExplorerInfo(ExplorerArt art, int index) {
+    const modell::Inhalt& in = mt().dok.inhalt();
+    switch (art) {
+        case ExplorerArt::Flaeche: return index >= 0 && static_cast<std::size_t>(index) < in.teile.size() ? infoFlaeche(index) : std::string();
+        case ExplorerArt::Tag: return index >= 0 && static_cast<std::size_t>(index) < in.teile.size() ? infoTag(index) : std::string();
+        case ExplorerArt::Knochen: return index >= 0 && static_cast<std::size_t>(index) < g_app->anim.bones.size() ? infoKnochen(index) : std::string();
+        case ExplorerArt::Sequenz: return index >= 0 && static_cast<std::size_t>(index) < g_app->animList.size() ? infoSequenz(index) : std::string();
+        default: return {};
+    }
+}
+
 void modellExplorerVorgabe() {
     g_z.art = 0;
     for (bool& f : g_z.filterAus) { f = false; }

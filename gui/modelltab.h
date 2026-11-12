@@ -1299,7 +1299,6 @@ void modellZeitAutoKey(bool an);
 void modellZeitZugGemeldet(std::uint64_t schritt);   // ein Zug an einem Griff/Regler hat diesen Rueckgaengig-Schritt angelegt
 bool modellZeitOffenUebernehmen();               // Set Key: die Pose ohne Schluessel behalten (false: es gab keine)
 bool modellZeitSchluesselSprung(int richtung);   // zum vorigen (-1) / naechsten (+1) Schluessel
-void modellHautZeile();                          // Z20: Haut und Flaechenzaehler in der Gruppe "Detailstufe und Skin"
 // Gemeinsame Masse und Zeichner von Skala und Spuren (Zeitleiste und Dopesheet/Kurveneditor: ein Lineal, Bild 0 buendig)
 [[nodiscard]] float modellZeitNamenBreite();
 [[nodiscard]] float modellZeitSkalaHoehe();
@@ -1593,6 +1592,66 @@ void modellBlKontextMenue();
 bool modellBlWerkzeugAusloesen(int i);
 // Die gemessene Strecke in Spieleinheiten (false: noch keine zwei Punkte).
 [[nodiscard]] bool modellBlAbstand(float& abstand);
+
+// --- AP5 (MBENTWURF Teil B, 12.11.): Bereich Ansehen/Pruefen vollstaendig nach dem Entwurf (gui/app_modelltab_pruefen.cpp) ------
+// Gruppen Boden und Kamera, Auswahl, Szene (.mvs wie ModView, bhed/modell/szene.h), Skins zweispaltig; die fuenf fehlenden
+// Anzeige-Schalter von ModView (Alpha, Texturfilter, Knochengewicht-Schwelle, Flaeche hervorheben + Knochenbezuege, nicht
+// schattenwerfende Flaechen); der Hinweis "LOD - Dreiecke" in der Ansicht; vier Ansichten je Bereich wie 3ds Max; Overlays und
+// Schattierungs-Auswahl wie Blender (Umschalt+Alt+Z, Z).
+struct ModellPruefen {
+    bool alpha = true;           // Alpha-Blending: an = wie der Shader des Spiels (ModView bUseAlpha), aus = deckend
+    bool filter = true;          // Texturfilter: an = wie im Spiel, aus = naechster Bildpunkt (ModView bBilinear)
+    bool schwelleAn = false;     // Knochengewicht-Schwelle (ModView bBoneWeightThreshholdingActive)
+    float schwelle = 0.05F;      // Anteil 0..1 (ModView fBoneWeightThreshholdPercent 5)
+    bool hervorheben = false;    // Flaeche hervorheben + Knochenbezuege (ModView bSurfaceHighlight + ShowsBoneWeighting)
+    bool schatten = false;       // nicht schattenwerfende Flaechen (ModView bShowUnshadowableSurfaces)
+    bool overlaysAus[4]{};       // je Ansicht: Blender space_data.overlay.show_overlays aus
+    int vierJeBereich[kModellBereiche] = {-1, -1, -1, -1, -1, -1};   // wie 3ds Max: die Wahl von Alt+W je Bereich (-1: Vorgabe)
+    int letzterBereich = -1;
+    int letzteBedienung = -1;
+    bool schattierungOeffnen = false;   // Z wie Blender
+    // Selbsttest: was das letzte Bild gezeichnet hat
+    ImRect lodHinweis;                  // der Hinweis unten rechts in der aktiven Ansicht (leer: nicht gezeichnet)
+    std::string lodHinweisText;
+    int schattenFlaechen = 0;           // so viele Flaechen bekamen rote Striche
+    int bezugKnochen = 0;               // so viele Knochenbezuege der hervorgehobenen Flaeche wurden beschriftet
+    int schwelleEcken = 0;              // so viele Ecken haben in der Anzeige Gewichte verloren
+    bool schattierungSichtbar = false;
+    std::string lodText;                // der Satz unter LOD 1-10 (P2)
+    std::string pruefWerte;             // die Zeilen der Pruefung fuer das Spiel (P6): "Name=Wert|..."
+};
+[[nodiscard]] ModellPruefen& modellPr();
+// Die Gruppen von Ansehen/Pruefen aus dieser Datei (Aufruf in drawModellBefehlsfeld) und die Skins in "Detailstufe und Skin".
+void modellPrRolloutAuswahl();
+void modellPrRolloutBoden();
+void modellPrRolloutSzene();
+void modellPrHaeute();
+// Jedes Bild: vier Ansichten je Bereich wie 3ds Max (R7), die Schattierungs-Auswahl (Z wie Blender).
+void modellPrSchritt();
+// In jeder Ansicht nach der Ueberlagerung: rote Striche, Knochenbezuege, der Hinweis "LOD - Dreiecke" (Ansehen/Pruefen); n < 0: das
+// Foto der aktiven Ansicht (ohne Hinweis, ohne Probe).
+void modellPrUeberlagerung(int n, const ModellAnsicht& a, ImDrawList* dl);
+// So viele gezeichnete Flaechen werfen keinen eigenen Schatten (mindestens SHADER_MAX_VERTEXES / 2 Ecken im Zielspiel).
+[[nodiscard]] int modellPrSchattenZahl();
+// Was das Bild der Ansicht n ausser dem Stand der Ansicht bestimmt (Alpha, Filter, Overlays) - fuer das Neuzeichnen.
+[[nodiscard]] std::string modellPrStand(int n);
+// Die Knochengewicht-Schwelle auf das gezeichnete Modell (wie r_glm.cpp ModView: ohne Umverteilen); gehoert in den Schluessel.
+void modellPrSchwelleAnwenden(GlmModel& m);
+[[nodiscard]] std::string modellPrSchwelleSchluessel();
+// Die Zahl der Schwelle hinter ihrem Schalter in den Menues der Kopfzeile.
+void modellPrSchwelleZeile();
+// Die Zeilen der Gruppe "Pruefung fuer das Spiel" nach dem Entwurf: Balken der Flaeche, Flaechen, Sequenzen, gesuchte Tags, Shader,
+// LODs, Flaechen ohne eigenen Schatten.
+void modellPrPruefZeilen();
+// Die Orte der Ecken je Flaeche in der Pose (gui/app_modelltab_ansicht.cpp, wie die Ueberlagerung sie zeichnet).
+[[nodiscard]] const std::vector<std::vector<std::array<float, 3>>>& modellHautOrte();
+// Szene: als .mvs speichern, ein ModView-Skript lesen (true: gelesen).
+bool modellSzeneSpeichern(const std::string& pfad);
+bool modellSzeneLesen(const std::string& pfad);
+// "Alle Aktionen suchen": Flaechenliste, Overlays, Gruppen von Ansehen/Pruefen.
+bool modellPrAktionenSuche(const std::string& such);
+// Die Werte der Info einer Zeile des Szenen-Explorers (gui/app_modelltab_explorer.cpp) fuer die Gruppe "Auswahl".
+[[nodiscard]] std::string modellExplorerInfo(ExplorerArt art, int index);
 
 }  // namespace bhed::gui
 #endif

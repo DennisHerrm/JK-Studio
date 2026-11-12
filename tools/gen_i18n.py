@@ -2358,6 +2358,8 @@ from i18n_ap10 import zeilen_vier as _ap10  # noqa: E402  (AP10: rechtes Feld de
 S += _ap10()
 from i18n_ap4 import zeilen_vier as _ap4  # noqa: E402  (AP4: Model-Tab im Bedienmodus wie Blender - Werkzeugleiste, Outliner, Seitenleiste)
 S += _ap4()
+from i18n_ap5 import zeilen_vier as _ap5  # noqa: E402  (AP5: Model-Tab, Bereich Ansehen/Pruefen vollstaendig nach dem Entwurf)
+S += _ap5()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

@@ -168,5 +168,14 @@ struct FlaechenMass {
                                                int g2Instanzen, const std::vector<char>& hatBild,
                                                const std::vector<char>& gezeichneteFlaechen);
 
+// --- AP5 (MBENTWURF Teil B): Pruefung fuer das Spiel, weitere Zeilen -----------------------------------------------------
+// Die Tags, die der Spielcode am Spielermodell mit festem Namen sucht (G2API_AddBolt). SP: G_SetG2PlayerModelInfo nur fuer ein
+// Standard-Skelett (G_StandardHumanoid: JKA nach der GLA "models/players/_humanoid..." bzw. protocol, Movie Duels nach seiner
+// Praefixliste, Jedi Outcast nach dem Namen des Modells) - sonst leer. MP: CG_RegisterClientModelname fuer jedes Spielermodell.
+[[nodiscard]] std::vector<std::string> gesuchteTags(Zielspiel s, const std::string& glaPfad, const std::string& modellPfad);
+// Ab so vielen Ecken wirft eine Flaeche keinen eigenen Stencil-Schatten (r_shadows 2): RB_RenderSurfaces nimmt dann dieselbe
+// Flaeche der letzten LOD (SHADER_MAX_VERTEXES / 2; tr_ghoul2.cpp:2307 OpenJK, MD9 :2666/2690).
+[[nodiscard]] int schattenEckenGrenze(Zielspiel s) noexcept;
+
 }  // namespace bhed::modell
 #endif
