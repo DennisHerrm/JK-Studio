@@ -50,6 +50,14 @@ std::string format(Str s, auto... a) {
     return b;
 }
 
+// Selbsttest (FIX612 R2): zeigt die Sequenz, mit der die Leiste zeichnet, in die Liste, die gerade gilt?
+void sequenzPruefen(const AnimEntry* e) {
+    if (e == nullptr) { return; }
+    const auto p = reinterpret_cast<std::uintptr_t>(e);
+    const auto a = reinterpret_cast<std::uintptr_t>(g_app->animList.data());
+    if (p < a || p >= a + g_app->animList.size() * sizeof(AnimEntry)) { ++g_zeit.veralteteSequenz; }
+}
+
 void melden(const std::string& m) {
     mt().meldung = m;
     addStatus(m);
@@ -1469,6 +1477,7 @@ void drawModellZeitleiste(const AnimEntry* e) {
     if (ImGui::IsWindowHovered() && !ImGui::IsAnyItemHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Right)) { z.menueOeffnen = true; }
     menueZeichnen();
     keyingMenue();
+    sequenzPruefen(e);
     konfigFenster(e);
     if (t.kvOffen != g_app->settings.modellZeitSpuren && modellZeitFassung() == ZeitFassung::Voll) { g_app->settings.modellZeitSpuren = t.kvOffen; }
     z.probe = g_probe;

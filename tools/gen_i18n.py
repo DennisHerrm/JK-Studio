@@ -2376,6 +2376,8 @@ from i18n_fix612c import zeilen_vier as _fix612c  # noqa: E402  (FIX612C: Codepr
 S += _fix612c()
 from i18n_fix612b import zeilen_vier as _fix612b  # noqa: E402  (FIX612B: Funde der Code-Pruefung P2 - Gewichte, Malen, Auto-Skin)
 S += _fix612b()
+from i18n_fix612 import zeilen_vier as _fix612  # noqa: E402  (FIX612: Funde der Code-Pruefung seit rc611 - Bauen fortsetzen, ModView-Skript)
+S += _fix612()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

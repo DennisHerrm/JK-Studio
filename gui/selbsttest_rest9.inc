@@ -519,6 +519,23 @@ std::vector<Schritt> schritte() {
     add(pruefe("REST10: von Hand gesucht zeigt auch die uebersprungene Version (wie G2C), die Einstellung bleibt", [k] {
         return leisteDa() && updater::leisteBild().text.find(kurz(k + 1)) != std::string::npos && g_app->settings.updateUebersprungen == tagNr(k + 1);
     }));
+    // FIX612 R7: nach der Suche von Hand blendet "Diese Version ueberspringen" die Leiste ebenfalls aus (G2C drawUpdateBanner:
+    // UpdSkip setzt die Einstellung und updateBannerHidden_); die naechste Suche von Hand zeigt sie wieder
+    add(tu("FIX612 R7: die Einstellung leeren (der Klick muss sie setzen)", [] { g_app->settings.updateUebersprungen.clear(); }));
+    add(pause(0.2));
+    add(klick(knopf(Str::UpdBarSkip, "skip"), "###main"));
+    add(pause(0.3));
+    add(pruefe("FIX612 R7: nach einer Suche von Hand - ueberspringen blendet die Leiste aus, die Version steht in den Einstellungen", [k] {
+        diag::detail("Knopftest: FIX612 R7 ueberspringen nach Suche von Hand: " + standText() + ", Leiste " + (updater::leisteSichtbar() ? "SICHTBAR" : "weg") + ", Einstellung " +
+                     g_app->settings.updateUebersprungen);
+        return !updater::leisteSichtbar() && g_app->settings.updateUebersprungen == tagNr(k + 1) && statusHinweisDa(tagNr(k + 1));
+    }));
+    add(tu("FIX612 R7: noch einmal von Hand suchen", [] { updater::pruefen(false); }));
+    add(warteBis("FIX612 R7: Antwort", [] { return updater::zustand().stand != updater::Stand::Pruefe; }, 600));
+    add(pause(0.2));
+    add(pruefe("FIX612 R7: die naechste Suche von Hand zeigt die uebersprungene Version wieder (wie G2C)", [k] {
+        return leisteDa() && updater::leisteBild().text.find(kurz(k + 1)) != std::string::npos && g_app->settings.updateUebersprungen == tagNr(k + 1);
+    }));
     add(tu("REST9: Release noch neuer", [k] { simTag(k + 2); }));
     nachsehen(s, "noch neuer");
     add(pruefe("REST9: eine noch neuere Fassung zeigt die Leiste wieder", [k] {

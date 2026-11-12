@@ -374,6 +374,10 @@ std::vector<Schritt> schritte(int lauf);   // selbsttest_vis2c.inc: Bauen anhalt
 std::vector<Schritt> handbuchSchritte();   // dito: die Bilder h_vis2c_fortsetzen, h_vis2c_fortschritt (BHED_HB_NUR=vis2c)
 }  // namespace vis2c
 
+namespace fix612 {
+std::vector<Schritt> bauFortsetzenSchritte();   // selbsttest_fix612.inc: R3, Bauen fortsetzen (BHED_KARTE_NUR=fix612)
+}  // namespace fix612
+
 std::vector<Schritt> karteneditorSchritte() {
     namespace ke = karteneditor;
     std::vector<Schritt> s;
@@ -414,6 +418,11 @@ std::vector<Schritt> karteneditorSchritte() {
     // =vis2c1/2/3: Bauen anhalten und fortsetzen ueber echte Neustarts (ein Laufordner)
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strncmp(nur, "vis2c", 5) == 0 && nur[5] >= '1' && nur[5] <= '3') {
         for (Schritt& x : vis2c::schritte(nur[5] - '0')) { add(std::move(x)); }
+        return s;
+    }
+    // =fix612: FIX612 R3 - "Bauen fortsetzen" startet nichts aus dem Zwischenstand, Verwerfen/Fortsetzen nach dem Verschieben
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "fix612") == 0) {
+        for (Schritt& x : fix612::bauFortsetzenSchritte()) { add(std::move(x)); }
         return s;
     }
     // =split1/2/3: Split-Fenster frei belegen ueber echte Neustarts (Stufe 8b Punkt 2, ein Einstellungsordner)

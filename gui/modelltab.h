@@ -1773,5 +1773,16 @@ struct Fix612cProbe {
 [[nodiscard]] bool modellStufeGehalten();
 bool modellAnsichtOffenesAbbrechen(bool zuruecknehmen);
 
+// FIX612 (Code-Pruefung seit rc611, P3-1 und P3-3): Zaehler fuer den Selbsttest. Eine Stelle zaehlt, wenn die Oberflaeche in einem
+// Bild mit einem Stand weiterrechnen will, den ein Klick desselben Bilds schon ungueltig gemacht hat. Beide bleiben 0.
+struct Fix612Probe {
+    int presetWahlVeraltet = 0;   // Presets: der gewaehlte Eintrag der Bibliothek gilt nicht mehr (Klick auf einen erzeugten Gang)
+    int platzHinterEnde = 0;      // Platzliste der Ziel-GLA: eine Zeile hinter dem Ende der Liste (Leeren bei der eigenen GLA)
+};
+[[nodiscard]] inline Fix612Probe& fix612Probe() {
+    static Fix612Probe p;
+    return p;
+}
+
 }  // namespace bhed::gui
 #endif

@@ -1301,6 +1301,7 @@ void drawModellPresetBereich() {
             ImGui::PopID();
         }
         ImGui::EndChild();
+        if (gewaehlt && r.bibliothekWahl < 0) { ++fix612Probe().presetWahlVeraltet; }   // Selbsttest (FIX612 P3-1)
         // Quelle und Lizenz des gewaehlten Presets darunter nur, wenn sie nicht in seine Zeile passten
         if (gewaehlt && b[static_cast<std::size_t>(r.bibliothekWahl)].kategorie == wk && !wahlQuellePasst) {
             ui::absatz(format(Str::AiQuelle, b[static_cast<std::size_t>(r.bibliothekWahl)].quelle.c_str(), b[static_cast<std::size_t>(r.bibliothekWahl)].lizenz.c_str()).c_str());

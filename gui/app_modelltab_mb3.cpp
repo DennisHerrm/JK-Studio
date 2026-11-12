@@ -833,6 +833,7 @@ void gruppePlaetze() {
     clip.Begin(static_cast<int>(t.plaetze.size()));
     while (clip.Step()) {
         for (int i = clip.DisplayStart; i < clip.DisplayEnd; ++i) {
+            if (static_cast<std::size_t>(i) >= t.plaetze.size()) { ++fix612Probe().platzHinterEnde; }   // Selbsttest (FIX612 P3-3)
             modell::Platz& p = t.plaetze[static_cast<std::size_t>(i)];
             ImGui::PushID(i);
             std::string zeile = p.name + "   ";
@@ -922,6 +923,11 @@ bool modellMarkerAendern(const AnimEntry& neu) {
 void modellMarkerZeile(const AnimEntry* e) {
     ModellTab& t = mt();
     cfgAbgleich();
+    if (e != nullptr) {   // Selbsttest (FIX612 R2): der Zeiger des Aufrufers nach dem Abgleich
+        const auto p = reinterpret_cast<std::uintptr_t>(e);
+        const auto a = reinterpret_cast<std::uintptr_t>(g_app->animList.data());
+        if (p < a || p >= a + g_app->animList.size() * sizeof(AnimEntry)) { ++modellZeit().veralteteSequenz; }
+    }
     const float fs = ImGui::GetFontSize();
     ImGui::AlignTextToFramePadding();
     cjkTextDisabled("%s", tr(Str::MbMarker));
