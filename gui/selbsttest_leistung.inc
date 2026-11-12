@@ -58,6 +58,8 @@ inline Schritt bildzeit(const std::string& was, std::function<void()> lage, std:
     };
     auto st = std::make_shared<Stand>();
     constexpr int kAnlauf = 12;
+    // TEMPO (12.11.): BHED_LEISTUNG_BILDER=<n> misst n statt 240 Bilder je Schritt - fuer Profile mit mehr Stichproben
+    if (const char* n = std::getenv("BHED_LEISTUNG_BILDER"); n != nullptr && std::atoi(n) > 0) { bilder = std::atoi(n); }
     return {"Leistung: Bildzeit " + was, [=](int b) {
                 const auto jetzt = std::chrono::steady_clock::now();
                 if (b == 0) {
