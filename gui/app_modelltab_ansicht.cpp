@@ -2309,8 +2309,10 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
         t.rahmenStart[0] = io.MousePos.x;
         t.rahmenStart[1] = io.MousePos.y;
     }
-    if (t.aktiv == n && t.griff != 0 && hatMitte) {
-        if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+    // FIX612C (P3-8): das Ende des Zugs haengt nicht am Gizmo - nimmt eine Taste es bei gehaltener Maus weg (wie 3ds Max Q), endet
+    // der Zug sofort; sonst blieben Griff und Rig-Zug offen, und Strg+Z verwarf den Schritt, statt ihn zurueckzunehmen
+    if (t.aktiv == n && t.griff != 0) {
+        if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && hatMitte) {
             gizmoZiehen(a, mitte);
         } else {
             t.griff = 0;
