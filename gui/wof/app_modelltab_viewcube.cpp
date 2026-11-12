@@ -103,9 +103,9 @@ struct Lage {
     // Gizmo
     std::array<ImVec2, 6> kugel{};   // +X -X +Y -Y +Z -Z
     float kugelR = 0.0F;
-    std::array<ImVec2, 3> knopf{};   // Zoom, Verschieben, Persp/Ortho
+    std::array<ImVec2, 4> knopf{};   // von oben wie Blender: Zoom, Verschieben, Kamera, Persp/Ortho
     float knopfR = 0.0F;
-    int ziehArt = 0;   // 0 Kreisen, 1 Zoom, 2 Verschieben
+    int ziehArt = 0;   // 0 Kreisen, 1 Zoom, 2 Verschieben, 3 nichts (Kamera-Knopf)
 };
 std::array<Lage, 4> g_lage;
 
@@ -678,6 +678,11 @@ void knopfSymbol(ImDrawList* dl, int art, ImVec2 m, float r, ImU32 f, bool ortho
             dl->AddTriangleFilled(spitze, ImVec2{spitze.x - c * r * 0.25F - s * r * 0.18F, spitze.y - s * r * 0.25F + c * r * 0.18F},
                                   ImVec2{spitze.x - c * r * 0.25F + s * r * 0.18F, spitze.y - s * r * 0.25F - c * r * 0.18F}, f);
         }
+    } else if (art == 2) {   // Kamera: Gehaeuse, Objektiv, zwei Spulen
+        dl->AddRectFilled(ImVec2{m.x - r * 0.58F, m.y - r * 0.12F}, ImVec2{m.x + r * 0.18F, m.y + r * 0.46F}, f, r * 0.08F);
+        dl->AddTriangleFilled(ImVec2{m.x + r * 0.18F, m.y + r * 0.17F}, ImVec2{m.x + r * 0.62F, m.y - r * 0.12F}, ImVec2{m.x + r * 0.62F, m.y + r * 0.46F}, f);
+        dl->AddCircleFilled(ImVec2{m.x - r * 0.36F, m.y - r * 0.34F}, r * 0.2F, f, 12);
+        dl->AddCircleFilled(ImVec2{m.x + r * 0.02F, m.y - r * 0.36F}, r * 0.16F, f, 12);
     } else if (ortho) {   // Raster: orthographisch
         dl->AddRect(ImVec2{m.x - r * 0.5F, m.y - r * 0.5F}, ImVec2{m.x + r * 0.5F, m.y + r * 0.5F}, f, 0.0F, 0, 1.4F);
         dl->AddLine(ImVec2{m.x, m.y - r * 0.5F}, ImVec2{m.x, m.y + r * 0.5F}, f, 1.2F);
@@ -699,9 +704,12 @@ void gizmo(int n, ModellAnsicht& a, Lage& l, ImVec2 o, float groesse) {
     l.kugelR = radius * 0.22F;
     l.skala = radius - l.kugelR;
     l.knopfR = radius * 0.30F;
-    for (int i = 0; i < 3; ++i) { l.knopf[static_cast<std::size_t>(i)] = ImVec2{l.mitte.x, l.mitte.y + radius + l.knopfR * (1.4F + 2.4F * static_cast<float>(i))}; }
+    // KLEIN (rc612): vier Knoepfe wie Blenders Navigations-Gizmo (VIEW3D_GGT_navigate: Zoom, Move, Camera, Persp/Ortho); bis rc611
+    // fehlte der Kamera-Knopf. Der Model-Tab hat keine Szenenkamera: der Knopf ist blass, sagt es im Tooltip und in der Statuszeile
+    // und laesst die Ansicht, wie sie ist (in Blender bricht view3d.view_camera ohne Kamera ebenfalls ab).
+    for (int i = 0; i < 4; ++i) { l.knopf[static_cast<std::size_t>(i)] = ImVec2{l.mitte.x, l.mitte.y + radius + l.knopfR * (1.4F + 2.4F * static_cast<float>(i))}; }
     const ImVec2 box0{l.mitte.x - radius - 2.0F, o.y};
-    const ImVec2 box1{o.x, l.knopf[2].y + l.knopfR + 2.0F};
+    const ImVec2 box1{o.x, l.knopf[3].y + l.knopfR + 2.0F};
     a.wuerfel[0] = box0.x;
     a.wuerfel[1] = box0.y;
     a.wuerfel[2] = box1.x;
@@ -721,28 +729,29 @@ void gizmo(int n, ModellAnsicht& a, Lage& l, ImVec2 o, float groesse) {
         teile[static_cast<std::size_t>(i)] = {i, -dot(e, l.v)};
     }
     std::sort(teile.begin(), teile.end(), [](const Teil& x, const Teil& y) { return x.tiefe < y.tiefe; });
-    int unter = -1;   // 0..5 Kugel, 6..8 Knopf, 9 Kreis
+    int unter = -1;   // 0..5 Kugel, 6 Zoom, 7 Verschieben, 8 Persp/Ortho, 9 Kreis, 10 Kamera
+    static const int kKnopfTeil[4] = {6, 7, 10, 8};   // die Knoepfe von oben nach unten
     if (ueber) {
         for (const Teil& x : teile) {
             const ImVec2 p = l.kugel[static_cast<std::size_t>(x.i)];
             if (std::hypot(io.MousePos.x - p.x, io.MousePos.y - p.y) <= l.kugelR) { unter = x.i; }
         }
-        for (int i = 0; i < 3 && unter < 0; ++i) {
+        for (int i = 0; i < 4 && unter < 0; ++i) {
             const ImVec2 p = l.knopf[static_cast<std::size_t>(i)];
-            if (std::hypot(io.MousePos.x - p.x, io.MousePos.y - p.y) <= l.knopfR) { unter = 6 + i; }
+            if (std::hypot(io.MousePos.x - p.x, io.MousePos.y - p.y) <= l.knopfR) { unter = kKnopfTeil[i]; }
         }
         if (unter < 0 && std::hypot(io.MousePos.x - l.mitte.x, io.MousePos.y - l.mitte.y) <= radius) { unter = 9; }
     }
     if (ImGui::IsItemActivated()) {
         l.druck = io.MousePos;
-        l.ziehArt = unter == 6 ? 1 : (unter == 7 ? 2 : 0);
+        l.ziehArt = unter == 6 ? 1 : (unter == 7 ? 2 : (unter == 10 ? 3 : 0));
         l.kreist = false;
         l.geschoben = ImVec2{0.0F, 0.0F};
         if (l.ziehArt == 1) { modellNavBlZoomZug(n, true, 0.0F); }
         t.aktiv = n;
         t.klickDrinBild = ImGui::GetFrameCount();
     }
-    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0F) && (io.MouseDelta.x != 0.0F || io.MouseDelta.y != 0.0F)) {
+    if (l.ziehArt != 3 && ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0F) && (io.MouseDelta.x != 0.0F || io.MouseDelta.y != 0.0F)) {
         a.animStart = -1.0;
         if (l.ziehArt == 0) {
             kreisen(n, io.MouseDelta, !l.kreist);
@@ -772,6 +781,9 @@ void gizmo(int n, ModellAnsicht& a, Lage& l, ImVec2 o, float groesse) {
     } else if (klick && unter == 8) {
         t.aktiv = n;
         modellPerspektiveUmschalten();
+    } else if (klick && unter == 10) {   // Kameraansicht: es gibt keine Szenenkamera (wie der Eintrag im Kuchenmenue der Ansicht)
+        t.meldung = tr(Str::MnBlKameraHint);
+        addStatus(t.meldung);
     }
     // --- zeichnen: die Kugeln wie Blender (gizmo_axis_draw; GPL-Teil in app_modelltab_ansicht.cpp), dann die Knoepfe ---
     if (unter >= 0) { dl->AddCircleFilled(l.mitte, radius, IM_COL32(255, 255, 255, 28), 40); }
@@ -780,14 +792,19 @@ void gizmo(int n, ModellAnsicht& a, Lage& l, ImVec2 o, float groesse) {
         kugeln[k] = {teile[k].i, teile[k].tiefe, l.kugel[static_cast<std::size_t>(teile[k].i)]};
     }
     modellGizmoKugelnZeichnen(dl, kugeln.data(), l.mitte, l.kugelR, groesse, unter, ausgerichtet);
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 4; ++i) {
         const ImVec2 p = l.knopf[static_cast<std::size_t>(i)];
-        dl->AddCircleFilled(p, l.knopfR, unter == 6 + i ? IM_COL32(90, 90, 96, 230) : IM_COL32(40, 40, 46, 190), 20);
-        knopfSymbol(dl, i, p, l.knopfR, IM_COL32(225, 225, 225, 255), a.art != AnsichtArt::Perspektive);
+        const bool kamera = kKnopfTeil[i] == 10;
+        dl->AddCircleFilled(p, l.knopfR, unter == kKnopfTeil[i] ? IM_COL32(90, 90, 96, 230) : IM_COL32(40, 40, 46, 190), 20);
+        knopfSymbol(dl, i, p, l.knopfR, kamera ? IM_COL32(225, 225, 225, 110) : IM_COL32(225, 225, 225, 255), a.art != AnsichtArt::Perspektive);
     }
     if (ueber) {
         static const Str kTip[3] = {Str::MkZoomZiehen, Str::MkVerschiebenZiehen, Str::MbBlPersp};
-        ImGui::SetItemTooltip("%s", tr(unter >= 6 && unter <= 8 ? kTip[unter - 6] : Str::MkGizmoHint));
+        if (unter == 10) {
+            ImGui::SetItemTooltip("%s\n%s", tr(Str::MnBlKamera), tr(Str::MnBlKameraHint));
+        } else {
+            ImGui::SetItemTooltip("%s", tr(unter >= 6 && unter <= 8 ? kTip[unter - 6] : Str::MkGizmoHint));
+        }
     }
 }
 
@@ -860,10 +877,11 @@ bool modellWuerfelOrt(int ansicht, int x, int y, int z, ImVec2& out) {
 }
 
 bool modellGizmoOrt(int ansicht, int teil, ImVec2& out) {
-    if (ansicht < 0 || ansicht > 3 || teil < 0 || teil > 8) { return false; }
+    if (ansicht < 0 || ansicht > 3 || teil < 0 || teil > 9) { return false; }
     const Lage& l = g_lage[static_cast<std::size_t>(ansicht)];
     if (!l.da || !l.blender) { return false; }
-    out = teil < 6 ? l.kugel[static_cast<std::size_t>(teil)] : l.knopf[static_cast<std::size_t>(teil - 6)];
+    static const std::size_t kKnopf[4] = {0, 1, 3, 2};   // Teil 6 Zoom, 7 Verschieben, 8 Persp/Ortho (der unterste), 9 Kamera (der dritte)
+    out = teil < 6 ? l.kugel[static_cast<std::size_t>(teil)] : l.knopf[kKnopf[teil - 6]];
     return true;
 }
 

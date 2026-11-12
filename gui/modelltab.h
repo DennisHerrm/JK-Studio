@@ -1092,7 +1092,7 @@ void modellAllesEinpassenIn(int n);            // Blender Pos1 (view3d.view_all)
 [[nodiscard]] bool modellKopfSchalterBrauchtAuswahl(int i);
 [[nodiscard]] bool modellKopfFeldOrt(int ansicht, int feld, ImVec2& out);   // 0 [+], 1 [Ansicht], 2 [Schattierung], 3 Overlays, 4 Shading-Menue
 [[nodiscard]] bool modellWuerfelOrt(int ansicht, int x, int y, int z, ImVec2& out);   // Flaeche/Kante/Ecke (-1/0/1 je Achse); 9,9,9 = Home
-[[nodiscard]] bool modellGizmoOrt(int ansicht, int teil, ImVec2& out);   // 0..5 +X -X +Y -Y +Z -Z, 6 Zoom, 7 Verschieben, 8 Persp/Ortho
+[[nodiscard]] bool modellGizmoOrt(int ansicht, int teil, ImVec2& out);   // 0..5 +X -X +Y -Y +Z -Z, 6 Zoom, 7 Verschieben, 8 Persp/Ortho, 9 Kamera
 [[nodiscard]] bool modellKompassOrt(int ansicht, int teil, ImVec2& out);   // 0..3 N O S W, 4 ein Punkt des Rings vor dem Wuerfel
 [[nodiscard]] bool modellWuerfelPfeilOrt(int ansicht, int teil, ImVec2& out);   // 0..3 Pfeil oben/unten/links/rechts, 4/5 Rollpfeil rechts/links
 [[nodiscard]] float modellWuerfelAlpha(int ansicht);   // Deckkraft des ViewCube im letzten Bild (0: nicht gezeichnet)
