@@ -3422,11 +3422,33 @@ std::vector<Schritt> karteneditorEntitaetenSchritte() {
                finde("##el" + zeigerText(entitaetNr("light", 0).get()), "", 0, true) != nullptr && feldVon("EntityList:Filter") != nullptr;
     }));
     add(foto("karteneditor_entityliste"));
-    add({"Klick auf die Zeile des Lichts", [zeigerText](int b) {
-             static Schritt k;
-             if (b == 0) { k = klick("##el" + zeigerText(entitaetNr("light", 0).get())); }
-             return k.tun(b);
-         }});
+    // KLEIN (rc612): jede Zeile der Liste ist so breit wie die breiteste, und die Wurzel traegt den ganzen Pfad der Karte - liegt der
+    // Lauf in einem langen Ordner, sind die Zeilen breiter als die Liste (sie rollt dann waagrecht wie ein QTreeView), und der
+    // Klick auf die ganze Zeile meldete "nicht ganz sichtbar (929..1619, sichtbar 928..1610)". Der Klick gilt dem sichtbaren Teil
+    // der Zeile: in voller Hoehe im Bild, links nicht abgeschnitten, rechts nur, wenn die Liste waagrecht rollen kann.
+    add(klickAn("auf die Zeile des Lichts (ihr sichtbarer Teil)", [zeigerText] {
+        const std::string label = "##el" + zeigerText(entitaetNr("light", 0).get());
+        const Element* e = finde(label, "", 0, false);
+        if (e == nullptr) {
+            meldeFehler("Klick \"" + label + "\": nicht gefunden");
+            return ImVec2{0.0F, 0.0F};
+        }
+        ImRect s = e->rect;
+        s.ClipWithFull(e->clip);
+        const ImGuiWindow* w = ImGui::FindWindowByName(e->innen.c_str());
+        const bool rollt = w != nullptr && w->ScrollMax.x > 0.0F;
+        const bool rechtsAb = e->rect.Max.x > e->clip.Max.x + 0.5F;
+        char z[260];
+        std::snprintf(z, sizeof z, "Knopftest: Entity List - Zeile %.0f..%.0f, sichtbar %.0f..%.0f, die Liste rollt waagrecht %s (um %.0f)",
+                      static_cast<double>(e->rect.Min.x), static_cast<double>(e->rect.Max.x), static_cast<double>(e->clip.Min.x),
+                      static_cast<double>(e->clip.Max.x), rollt ? "ja" : "nein", static_cast<double>(w != nullptr ? w->ScrollMax.x : 0.0F));
+        diag::detail(z);
+        if (s.GetHeight() < e->rect.GetHeight() - 0.5F || e->rect.Min.x < e->clip.Min.x - 1.5F || (rechtsAb && !rollt) ||
+            s.GetWidth() < ImGui::GetFontSize() * 4.0F) {
+            meldeFehler("Klick \"" + label + "\": der sichtbare Teil der Zeile reicht nicht (" + std::string(z + 11) + ")");
+        }
+        return s.GetCenter();
+    }));
     add(pause(0.2));
     add(pruefe("Klick in der Liste: das Licht gewaehlt", [] {
         const ke::Editor& e = ke::editor();
