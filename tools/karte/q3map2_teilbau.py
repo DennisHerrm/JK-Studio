@@ -338,10 +338,10 @@ if NUR in ('', 'bounce') and os.path.exists(ZWEI):
     text_p = ', '.join('%d/%d' % (x[2], x[3]) for x in p) or '(keine Zeile)'
     pruefe('2 of 3 passes kept' in ausgabe and len(p) == 3 and p[0][2] == p[0][3] and p[1][2] == p[1][3] and p[2][2] == 0,
            'zweiraum, -bounce 2, Cache mitten im dritten Durchgang abgeschnitten: 2 von 3 Durchgaengen behalten, aus dem Cache je Durchgang %s' % text_p)
-    # der neue Cache: Kopf (8 + 3 x 16 Bytes), dann je Durchgang Nummer (i32), Laenge (u64) und so viele Bytes
+    # der neue Cache: Kopf (Kennung 8, Fassung 32 (lcfix), 3 x 16 Bytes), dann je Durchgang Nummer (i32), Laenge (u64) und so viele Bytes
     import struct
     roh = open(cachedatei, 'rb').read()
-    pos, ganze = 56, []
+    pos, ganze = 8 + 32 + 3 * 16, []
     while pos + 12 <= len(roh):
         nr, laenge = struct.unpack_from('<iQ', roh, pos)
         pos += 12 + laenge

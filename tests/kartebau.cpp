@@ -279,7 +279,11 @@ void fortschrittPruefen(const std::string& q3) {
         const bool z6 = bauLichtCacheZeile("BehavEd: light cache not usable: no cache yet - everything is traced", k) && k.grund == BauLichtCache::Grund::KeinCache &&
                         bauLichtCacheZeile("BehavEd: light cache not usable: light switches changed - everything is traced", k) &&
                         k.grund == BauLichtCache::Grund::Schalter && !bauLichtCacheZeile("--- IlluminateRawLightmap ---", k);
-        pruefe(z1 && z2 && z3 && z4 && z5 && z5b && z6, "lcb1: Zeilen des Licht-Caches gelesen (gefunden, Durchgang, Flaechen, Summe, Gruende)");
+        // lcfix (P4-3): der Cache einer anderen Fassung von bhed_q3map2 - der Grund "aeltere Version" wie beim alten Format
+        BauLichtCache f;
+        const bool z7 = bauLichtCacheZeile("BehavEd: light cache not usable: older cache format (made by rc611, this is rc612) - everything is traced", f) &&
+                        f.zustand == BauLichtCache::Zustand::Aus && f.grund == BauLichtCache::Grund::AltesFormat;
+        pruefe(z1 && z2 && z3 && z4 && z5 && z5b && z6 && z7, "lcb1: Zeilen des Licht-Caches gelesen (gefunden, Durchgang, Flaechen, Summe, Gruende)");
 
         // der letzte Bau: voll, ohne Cache (Gitter 10 s, Licht 100 s, Radiosity 10 s, Bounce-Licht 100 s)
         const std::string bef = q + "-light -fast -bounce 1 -bhedlightcache \"C:/m/a.map\"";

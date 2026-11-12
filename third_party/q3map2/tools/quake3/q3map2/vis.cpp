@@ -33,6 +33,7 @@
 #include "vis.h"
 #include "visflow.h"
 #include "bhed_vischeck.h" /* BehavEd vis3: -bhedvischeck */
+#include "bhed_lichtcache.h" /* BehavEd lcfix: BhedQ3Fassung */
 #include <limits>
 
 vportal_t          *sorted_portals[ MAX_MAP_PORTALS * 2 ];
@@ -1134,7 +1135,8 @@ int VisMain( Args& args ){
 	if ( bhedReuse ) {
 		const char *far = "";
 		entities[ 0 ].read_keyvalue( far, "_farplanedist", "fogclip", "distancecull" );
-		bhedKey = StringStream( "vis1 fast=", fastvis, " merge=", mergevis, " mergeportals=", mergevisportals, " nopassage=", noPassageVis,
+		/* BehavEd lcfix (P4-3): the version of bhed_q3map2 first - a later one may compute the vis differently */
+		bhedKey = StringStream( "version=", BhedQ3Fassung(), "\nvis1 fast=", fastvis, " merge=", mergevis, " mergeportals=", mergevisportals, " nopassage=", noPassageVis,
 		                        " passageOnly=", passageVisOnly, " nosort=", nosort, " hint=", hint, " far=", far, " nrcplanes=", bhedNrcPlanes, " strictplanes=", bhedStrictPlanes ).c_str();
 		strcpy( bhedCache, ExpandArg( fileName ) );
 		bhed_set_map_extension( bhedCache, ".bhedvis" );
@@ -1165,7 +1167,7 @@ int VisMain( Args& args ){
 		strcpy( stopFile, ExpandArg( fileName ) );
 		bhed_set_map_extension( stopFile, ".bhedvisstop" );
 		BhedVisStateSetup( stateFile, stopFile,
-		                   StringStream( "vis2 fast=", fastvis, " merge=", mergevis, " mergeportals=", mergevisportals, " nopassage=", noPassageVis,
+		                   StringStream( "version=", BhedQ3Fassung(), "\nvis2 fast=", fastvis, /* BehavEd lcfix (P4-3): the version first (BhedStateRead) */ " merge=", mergevis, " mergeportals=", mergevisportals, " nopassage=", noPassageVis,
 		                                 " passageOnly=", passageVisOnly, " nosort=", nosort, " hint=", hint, " far=", far, " exact=", bhedExact,
 		                                 " fixed=", bhedFixed, " nrcplanes=", bhedNrcPlanes, " strictplanes=", bhedStrictPlanes ).c_str(),
 		                   bhedPortalData, bhedStateEvery );

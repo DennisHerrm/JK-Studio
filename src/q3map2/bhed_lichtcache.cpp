@@ -6,8 +6,10 @@
 //   Copyright (C) 2026 BehavEd-Remake contributors. GPL v2 (LICENSE).
 #include "q3map2.h"
 #include "bhed_lichtcache.h"
+#include "bhed/fassung.h"   // lcfix: the version in the cache header
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <cstdio>
@@ -716,10 +718,27 @@ void altVergessen(){
 }
 
 /* 3: one section per pass (lcb1), 4: by content, 5: packed (lcb2), 6: the hash keeps the last byte of a 7 byte tail (lcfix P4-2),
-   7: vertex lit surfaces and the grid with the whole trace tree, the patch subdivisions in the switches (lcfix P4-1) */
-constexpr char kKopf[8] = { 'B', 'H', 'L', 'I', 'C', 'H', 'T', '7' };
+   7: vertex lit surfaces and the grid with the whole trace tree, the patch subdivisions in the switches (lcfix P4-1),
+   8: the version of the compiler after the mark (lcfix P4-3) */
+constexpr char kKopf[8] = { 'B', 'H', 'L', 'I', 'C', 'H', 'T', '8' };
+constexpr std::size_t kFassungLaenge = 32;   // the version, padded with zeros
+
+/* lcfix (P4-3): a cache of another version of bhed_q3map2 is not used - a later version may light differently (a fix
+   too) and the mark only tells changes of the format */
+std::array<char, kFassungLaenge> fassungFeld(){
+	std::array<char, kFassungLaenge> f{};
+	const char* v = BhedQ3Fassung();
+	for ( std::size_t i = 0; i + 1 < kFassungLaenge && v[i] != '\0'; ++i )
+		f[i] = v[i];
+	return f;
+}
 
 }  // namespace
+
+const char* BhedQ3Fassung(){
+	const char* v = getenv( "BHED_Q3_FASSUNG" );
+	return v != nullptr && v[0] != '\0' ? v : bhed::kFassung;
+}
 
 void BhedLichtCacheSchalter( bool an, const std::vector<const char*>& args, const char* bspName ){
 	g_an = an;
@@ -846,12 +865,25 @@ void BhedLichtCacheGeometrie(){
 	g_cacheGilt = false;
 	g_geoGleich = false;
 	const char* grund = "no cache yet";
+	char grundText[160];
 	g_altDatei = fopen( pfad, "rb" );
 	if ( g_altDatei != nullptr ) {
 		char kopf[8] = {};
+		std::array<char, kFassungLaenge> fassung{};
 		Sig opt, welt, geo;
 		if ( fread( kopf, 1, 8, g_altDatei ) != 8 || memcmp( kopf, kKopf, 8 ) != 0 ) {
 			grund = "older cache format";
+		}
+		else if ( fread( fassung.data(), 1, kFassungLaenge, g_altDatei ) != kFassungLaenge ) {
+			grund = "cache file damaged";
+		}
+		else if ( fassung != fassungFeld() ) {
+			fassung[kFassungLaenge - 1] = '\0';
+			for ( char& c : fassung )   // printable only (a damaged file)
+				if ( c != '\0' && ( c < ' ' || c > '~' ) )
+					c = '?';
+			snprintf( grundText, sizeof( grundText ), "older cache format (made by %s, this is %s)", fassung.data(), fassungFeld().data() );
+			grund = grundText;
 		}
 		else if ( fread( &opt, sizeof( opt ), 1, g_altDatei ) != 1 || fread( &welt, sizeof( welt ), 1, g_altDatei ) != 1 ||
 		          fread( &geo, sizeof( geo ), 1, g_altDatei ) != 1 ) {
@@ -903,6 +935,7 @@ void BhedLichtCacheGeometrie(){
 	g_neu = fopen( g_neuPfad.c_str(), "wb" );
 	if ( g_neu != nullptr ) {
 		fwrite( kKopf, 1, 8, g_neu );
+		fwrite( fassungFeld().data(), 1, kFassungLaenge, g_neu );
 		fwrite( &g_opt, sizeof( g_opt ), 1, g_neu );
 		fwrite( &g_welt, sizeof( g_welt ), 1, g_neu );
 		fwrite( &g_geo, sizeof( g_geo ), 1, g_neu );

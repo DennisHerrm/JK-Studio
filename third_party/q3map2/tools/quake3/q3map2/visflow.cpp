@@ -809,6 +809,11 @@ const char *BhedStateRead(){
 	if ( d.size() < 6 || d.compare( 0, 6, c_bhedStateMagic ) != 0 || !block( key ) || !block( prt ) || pos + 8 > d.size() ) {
 		return "state damaged";
 	}
+	/* BehavEd lcfix (P4-3): the key begins with the version of bhed_q3map2 up to the first line end (a state of rc611 has
+	   none: its whole key is that part) */
+	if ( key.substr( 0, key.find( '\n' ) ) != g_bhedState.key.substr( 0, g_bhedState.key.find( '\n' ) ) ) {
+		return "state of another version";
+	}
 	if ( key != g_bhedState.key ) {
 		return "other vis switches";
 	}

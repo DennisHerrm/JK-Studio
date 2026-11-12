@@ -105,6 +105,10 @@ struct BhedHash {
 	}
 };
 
+/* lcfix (P4-3): the version of this bhed_q3map2 (bhed::kFassung; BHED_Q3_FASSUNG replaces it for the tests) - in the
+   header of the light cache and in the keys of the VIS reuse and the VIS state */
+[[nodiscard]] const char* BhedQ3Fassung();
+
 /* the key of the light switches: the game, the switches after -light without the post-processing ones and the patch
    subdivisions (-subdivisions is taken before -light: lcfix P4-1, it sets the patch iterations of every patch) */
 inline BhedSig BhedLichtSchalterSig( const char* spiel, const std::vector<std::string>& optionen, int unterteilung ){

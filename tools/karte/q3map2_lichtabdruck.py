@@ -25,6 +25,9 @@ Faelle (BHED_LICHTABDRUCK_NUR=<name>[,<name>...] waehlt aus):
     faeden        nichts geaendert, nur -threads 1 gegen 8: alles kommt aus dem Cache, die Bytes sind gleich
   Fund P4-2 (der Hash verlor bei Laenge 7 mod 8 die unteren drei Bits des letzten Bytes):
     floodlight    worldspawn "_floodlight" "255 99 99 256 1" gegen "... 7" (15 Zeichen)
+  Fund P4-3 (die Fassung des Compilers stand in keinem Schluessel):
+    fassung       derselbe Bau mit anderer Fassung (BHED_Q3_FASSUNG): der Cache wird mit Meldung verworfen
+    altformat     ein Cache mit der Kennung des alten Formats: mit Meldung verworfen, kein Absturz
 Nur die Standardbibliothek.
 """
 import os
@@ -341,6 +344,24 @@ def flut(wert):
 fall('floodlight', 'worldspawn _floodlight "255 99 99 256 1" -> "255 99 99 256 7" (15 Zeichen, nur die letzte Ziffer)',
      flut('255 99 99 256 1'), flut('255 99 99 256 7'), wirksam=(10, 15))
 
+
+# --- Fund P4-3 -------------------------------------------------------------------------------------------------------
+def verworfen(ausgabe):
+    kopf, _ = cachezeilen(ausgabe)
+    z = aus_cache(ausgabe)
+    return (kopf.startswith('light cache not usable: older cache format') and z is not None and z[0] == 0 and z[2] == 0 and z[4] == 'traced',
+            'der Cache wird mit Meldung verworfen und nichts uebernommen ("%s", %s)' % (kopf, z))
+
+
+def altes_format(pfad):
+    with open(pfad, 'r+b') as f:
+        f.write(b'BHLICHT5')
+
+
+karte = raum(welt=quader(*WERFER, 'test/wand', True))
+fall('fassung', 'derselbe Bau mit einer anderen Fassung des Compilers', karte, karte, wirksam=(), env_neu={'BHED_Q3_FASSUNG': 'lcfix-andere-fassung'},
+     erwartet=verworfen)
+fall('altformat', 'Cache mit der Kennung BHLICHT5 (rc611)', karte, karte, wirksam=(), cache_aendern=altes_format, erwartet=verworfen)
 
 print('q3map2_lichtabdruck: %d Fehlschlaege' % fehler)
 sys.exit(1 if fehler else 0)
