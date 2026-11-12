@@ -503,12 +503,13 @@ void menueAnsichtBlender(int n) {
 }
 
 void menueOverlays(int n) {
-    hilfslinienBlender(n);   // MBRASTER
+    hilfslinienBlender(n);   // MBRASTER (mit der Zeile Bodenhoehe / Tiefster Punkt)
     ImGui::Separator();
     for (const Schalter& s : schalter()) {
         if (s.blShading || s.hilfslinie || !imModus(s)) { continue; }
         schalterZeile(s, n);
-        if (s.text == Str::MrGrauBoden) { bodenHoehe(); }
+        // FIX612 P3-2: unter "Grauer Boden" KEINE zweite Zeile Bodenhoehe - sie steht schon unter den Hilfslinien, im selben
+        // Fenster (zwei Elemente mit derselben Kennung: der untere Knopf tat nichts, das untere Zugfeld zog doppelt)
         if (s.text == Str::PqSchwelle) { modellPrSchwelleZeile(); }   // AP5: die Zahl zur Schwelle
     }
     modellKdMenue(n);   // AP13K: Im Vordergrund, Anzeigen als, Rig-Stil
