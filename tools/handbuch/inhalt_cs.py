@@ -7575,3 +7575,5 @@ TEXTE.update(_DXR)
 # Der Model-Tab: alle seine Quellen (inhalt_mb*, inhalt_ap*, ...) stehen mit einer Zeile je Quelle in inhalt_modell.py
 import inhalt_modell  # noqa: E402
 TEXTE.update(inhalt_modell.weitere("CS"))
+from inhalt_klein import CS as _KLEIN  # noqa: E402
+TEXTE.update(_KLEIN)
