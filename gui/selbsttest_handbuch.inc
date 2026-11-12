@@ -318,6 +318,10 @@ std::vector<Schritt> schritte();   // selbsttest_karte9d.inc: Stufe 9d (Nebel, E
 namespace licht1 {
 std::vector<Schritt> schritte();   // selbsttest_kartelicht1.inc: rc610 LICHT1, das Echtzeit-Licht zeigt die ganze Karte
 }  // namespace licht1
+namespace dxrtest {
+std::vector<Schritt> schritte();   // selbsttest_dxr.inc: DXR, Raytracing-Schatten im Echtzeit-Licht (BHED_KARTE_NUR=dxr)
+std::vector<Schritt> handbuchSchritte();   // dito: die Bilder h_dxr_* (BHED_HB_NUR=dxr)
+}  // namespace dxrtest
 namespace modobj {
 std::vector<Schritt> schritte();   // selbsttest_modobj.inc: rc610 MODOBJ, Modell-Browser mit .obj/.fbx usw., Setzen wandelt in .md3
 std::vector<Schritt> handbuchSchritte();   // dito: das Bild h_modobj_browser (BHED_HB_NUR=modobj)
@@ -681,6 +685,13 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =dxr: DXR - Raytracing-Schatten im Echtzeit-Licht (was der Lauf erwartet: BHED_DXR_ERWARTET)
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "dxr") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+        for (Schritt& x : dxrtest::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =modobj: rc610 MODOBJ - der Modell-Browser zeigt .obj, .fbx usw. wie NRC, Setzen wandelt in .md3, die .pk3 nimmt es mit
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "modobj") == 0) {
         for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
@@ -874,6 +885,9 @@ std::vector<Schritt> karteneditorSchritte() {
     gruppe("reste1");
     einrichten();
     for (Schritt& x : reste1::schritte()) { add(std::move(x)); }    // Liste reste1: Decals in der Echtzeit-Ansicht
+    gruppe("dxr");
+    einrichten();
+    for (Schritt& x : dxrtest::schritte()) { add(std::move(x)); }   // DXR: Raytracing-Schatten im Echtzeit-Licht
     gruppe("fotos");
     for (Schritt& x : karteneditorFotoSchritte()) { add(std::move(x)); }
     gruppe("gross");
@@ -1190,6 +1204,7 @@ void skriptNeu() {
 #include "selbsttest_r2a.inc"   // rc610 R2a: Gras in der Echtzeit-Ansicht, Nachfrage beim Schliessen
 #include "selbsttest_optsicher.inc"
 #include "selbsttest_reste1.inc"   // Liste reste1: Decals in der Echtzeit-Ansicht
+#include "selbsttest_dxr.inc"   // DXR: Raytracing-Schatten im Echtzeit-Licht
 
 // --- Stufe 3 Punkt 8: Bilder der Seite "Karte bauen" ------------------------------
 //
@@ -2775,6 +2790,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "vis2c") == 0) {
         return vis2c::handbuchSchritte();   // vis2c: Bauen anhalten und fortsetzen
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "dxr") == 0) {
+        return dxrtest::handbuchSchritte();   // DXR: Raytracing-Schatten im Echtzeit-Licht
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "karte8b") == 0) {
         return karte8bHandbuchSchritte();
