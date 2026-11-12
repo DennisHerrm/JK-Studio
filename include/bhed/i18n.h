@@ -6634,6 +6634,11 @@ enum class Str {
     BzKnochenAn,
     BzKnochenAus,
     BzKnochenAnzeige,
+    FxSpMalListen,
+    FxUebernehmenSpeichern,
+    FxAsSpiegelnAuswahl,
+    FxLodGilt,
+    FxStrichStrgZ,
     Count,
 };
 

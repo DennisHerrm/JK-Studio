@@ -2374,6 +2374,8 @@ from i18n_lcfix import zeilen_vier as _lcfix  # noqa: E402  (LCFIX: Gruende Rech
 S += _lcfix()
 from i18n_fix612c import zeilen_vier as _fix612c  # noqa: E402  (FIX612C: Codepruefung seit rc611, P3-5/P3-6)
 S += _fix612c()
+from i18n_fix612b import zeilen_vier as _fix612b  # noqa: E402  (FIX612B: Funde der Code-Pruefung P2 - Gewichte, Malen, Auto-Skin)
+S += _fix612b()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

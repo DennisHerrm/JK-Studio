@@ -6050,6 +6050,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_vis2c.inc"   // vis2c: Bauen anhalten und fortsetzen (karteneditor, BHED_KARTE_NUR=vis2c1/2/3)
 #include "selbsttest_gdpfad.inc"  // GDPFAD: das Programm, wenn ein eingerichteter Spielordner fehlt (spielordnerfehlt)
 #include "selbsttest_fix612c.inc"  // FIX612C: Funde P3-5 bis P3-10, PV4/PV5 der Codepruefung seit rc611 (modellblock, BHED_MODELL_NUR=fix612c)
+#include "selbsttest_fix612b.inc"   // FIX612B: Funde der Code-Pruefung P2 - Gewichte, Malen, Auto-Skin (modellblock, BHED_MODELL_NUR=fix612b / fix612babsturz)
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -7066,6 +7067,7 @@ void selbsttest() {
                     for (Schritt& x : ap13s::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // AP13S (Modifier-Stapel)
                     for (Schritt& x : ap13k::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // AP13K (Knochen-Darstellung, Rig-Stile, Durchsicht)
                     for (Schritt& x : fix612c::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // FIX612C (Codepruefung seit rc611, P3-5 bis P3-10)
+                    for (Schritt& x : fix612b::schritte(nur)) { a.schritte.push_back(std::move(x)); }   // FIX612B (Funde der Code-Pruefung P2)
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
