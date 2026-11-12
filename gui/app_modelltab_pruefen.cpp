@@ -571,12 +571,13 @@ void modellPrPruefZeilen() {
     for (const ui::WertZeile& x : w) { g_pr.pruefWerte += (g_pr.pruefWerte.empty() ? "" : "|") + x.name + "=" + x.wert; }
 }
 
-// --- Jedes Bild ------------------------------------------------------------------------------------------------------------
-void modellPrSchritt() {
+// R7: die Zahl der Ansichten je Bereich wie 3ds Max - beim Wechsel des Bereichs merkt sich der alte seine Wahl (Alt+W), der
+// neue nimmt seine (ab Werk die Vorgabe des Entwurfs); wie Blender eine grosse Ansicht (Strg+Alt+Q teilt, der Bereich nicht).
+// Jedes Bild (modellPrSchritt) und beim Umschalten des Bedienmodus (modellBedienungSetzen, FIX612 P3-4: dort VOR dem Loeschen
+// von vierAnsichten - sonst merkte sich der Bereich fuer wie 3ds Max die schon geloeschte Wahl).
+void modellPrAnsichtenAbgleich() {
     ModellTab& t = mt();
     ModellPruefen& p = g_pr;
-    // R7: die Zahl der Ansichten je Bereich wie 3ds Max - beim Wechsel des Bereichs merkt sich der alte seine Wahl (Alt+W), der
-    // neue nimmt seine (ab Werk die Vorgabe des Entwurfs); wie Blender eine grosse Ansicht (Strg+Alt+Q teilt, der Bereich nicht)
     const int b = static_cast<int>(t.bereich);
     const int bed = g_app->settings.modellBedienung;
     if (p.letzterBereich >= 0 && (b != p.letzterBereich || bed != p.letzteBedienung)) {
@@ -591,6 +592,13 @@ void modellPrSchritt() {
     }
     p.letzterBereich = b;
     p.letzteBedienung = bed;
+}
+
+// --- Jedes Bild ------------------------------------------------------------------------------------------------------------
+void modellPrSchritt() {
+    ModellTab& t = mt();
+    ModellPruefen& p = g_pr;
+    modellPrAnsichtenAbgleich();
     // P10: Z wie Blender - die Schattierung der aktiven Ansicht zur Wahl (Blender VIEW3D_MT_shading_pie: Wireframe, Solid, Material)
     if (p.schattierungOeffnen) {
         ImGui::OpenPopup("###pqschattierung");

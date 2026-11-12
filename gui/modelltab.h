@@ -1773,6 +1773,10 @@ struct Fix612cProbe {
 [[nodiscard]] bool modellStufeGehalten();
 bool modellAnsichtOffenesAbbrechen(bool zuruecknehmen);
 
+// FIX612 P3-4: vier Ansichten je Bereich (wie 3ds Max) abgleichen - jedes Bild und beim Umschalten des Bedienmodus
+// (gui/app_modelltab_pruefen.cpp).
+void modellPrAnsichtenAbgleich();
+
 // FIX612 (Code-Pruefung seit rc611, P3-1 und P3-3): Zaehler fuer den Selbsttest. Eine Stelle zaehlt, wenn die Oberflaeche in einem
 // Bild mit einem Stand weiterrechnen will, den ein Klick desselben Bilds schon ungueltig gemacht hat. Beide bleiben 0.
 struct Fix612Probe {

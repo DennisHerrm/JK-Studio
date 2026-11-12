@@ -1365,7 +1365,10 @@ void modellBedienungSetzen(int b) {
     g_app->settings.modellBedienung = b;
     modellModalEnde(false);
     modellNavZuruecksetzen();   // MBNAV
-    t.vierAnsichten = b == 0 && t.vierAnsichten;
+    // FIX612 P3-4: erst merkt sich der Bereich seine Wahl fuer wie 3ds Max (bzw. nimmt sie beim Zurueckschalten wieder), dann
+    // gilt wie Blender eine Ansicht - auch vor dem ersten Bild des Model-Tabs
+    modellPrAnsichtenAbgleich();
+    if (b != 0) { t.vierAnsichten = false; }
     // FIX612C (P3-6): das Werkzeug Knochen waehlen der Leiste wie Blender kommt nicht unsichtbar mit nach wie 3ds Max
     if (b == 0 && modellBl().werkzeug == 2) { modellBl().werkzeug = 0; }
     g_app->modelDirty = true;
