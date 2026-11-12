@@ -214,7 +214,7 @@ void modellieren(std::vector<Werkzeug>& w) {
                 if (art > 0) { g.taste.clear(); }
                 g.an = x.an && m.art == art;
                 g.tun = [i, art] {
-                    mt().mesh.art = art;
+                    modellMeshArtMerken(MeshWerkzeug::Extrude, art);   // KLEIN: die Art gehoert dem Extrudieren, nicht jedem Werkzeug
                     modellMeshAktionAusloesen(i);
                 };
                 glieder.push_back(std::move(g));

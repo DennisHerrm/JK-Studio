@@ -1807,5 +1807,12 @@ struct Fix612Probe {
     return p;
 }
 
+// --- KLEIN (rc612) --------------------------------------------------------------------------------------------------------
+// Die Art, mit der das Werkzeug `wz` des Bereichs Modellieren das naechste Mal oeffnet (jedes Werkzeug merkt sich seine eigene:
+// Extrudieren, Einfuegen, Abschraegen, Abloesen, Verschmelzen); ein offenes Kaestchen dieses Werkzeugs traegt sie sofort.
+void modellMeshArtMerken(MeshWerkzeug wz, int art);
+// Wie modellDreieckUnter, aber fuer die Auswahl: eingefrorene Flaechen nehmen nicht teil (der Klick geht hindurch); liegt an der
+// Stelle nur Eingefrorenes, nennt die Statuszeile die Flaeche, false.
+[[nodiscard]] bool modellDreieckUnterWaehlbar(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck);
 }  // namespace bhed::gui
 #endif

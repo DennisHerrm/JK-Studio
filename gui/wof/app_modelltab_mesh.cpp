@@ -525,6 +525,17 @@ void modellMeshNetzAktualisieren() {
     z.auswahl = a;
 }
 
+namespace {
+
+// KLEIN (rc612): jedes Werkzeug mit einer Art merkt sich seine eigene - wie die getrennten Werte von Editable Poly in 3ds Max
+// (extrusionType, insetType, bevelType). Bis rc611 teilten sich alle Werkzeuge das eine Feld ModellMesh::art: nach Extrudieren
+// "Je Vieleck" (2) zeigte Einfuegen, das nur Gruppe (0) und Je Vieleck (1) kennt, eine leere Auswahl und rechnete als Gruppe, und
+// "Je Vieleck" (1) von Einfuegen war danach "Lokale Normale" (1) beim Extrudieren. ModellMesh::art ist die Art des offenen Kaestchens.
+int g_artJe[16]{};   // nach MeshWerkzeug
+int& artVon(MeshWerkzeug wz) { return g_artJe[uz(static_cast<int>(wz)) % 16U]; }
+
+}  // namespace
+
 bool modellMeshWerkzeugStarten(MeshWerkzeug wz) {
     ModellTab& t = mt();
     ModellMesh& z = mz();
@@ -537,6 +548,7 @@ bool modellMeshWerkzeugStarten(MeshWerkzeug wz) {
     if (t.dok.inhalt().leer()) { (void)modellNeuesRequisit(); }
     modellMeshNetzAktualisieren();
     z.werkzeug = wz;
+    z.art = artVon(wz);   // KLEIN: die zuletzt uebernommene Art DIESES Werkzeugs
     z.basis = t.dok.inhalt();
     z.basisNetz = z.netz;
     z.basisAuswahl = z.auswahl;
@@ -595,6 +607,7 @@ void modellMeshUebernehmen(bool weiter) {
     ModellMesh& z = mz();
     if (!z.kaestchenOffen) { return; }
     const MeshWerkzeug wz = z.werkzeug;
+    artVon(wz) = z.art;   // KLEIN: mit dem Uebernehmen gemerkt (Abbrechen verwirft auch die Art)
     const bool abgelehnt = z.plan.abgelehnt();
     z.kaestchenOffen = false;
     z.werkzeug = MeshWerkzeug::Keins;
@@ -620,6 +633,14 @@ void modellMeshAbbrechen() {
     modellMeshNetzAktualisieren();
     auswahlSetzen(z.basisAuswahl);
     g_app->modelDirty = true;
+}
+
+// KLEIN: die Art, mit der `wz` das naechste Mal oeffnet (die Glieder der Werkzeuggruppe Extrudieren im Bedienmodus wie Blender);
+// ein offenes Kaestchen dieses Werkzeugs traegt sie sofort.
+void modellMeshArtMerken(MeshWerkzeug wz, int art) {
+    artVon(wz) = art;
+    ModellMesh& z = mz();
+    if (z.kaestchenOffen && z.werkzeug == wz) { z.art = art; }
 }
 
 namespace {
@@ -1095,7 +1116,7 @@ float abstandStrecke(ImVec2 p, ImVec2 a, ImVec2 b, float* t) {
 // Das Vieleck unter der Maus (ueber das vorderste Dreieck der Ansicht)
 int vieleckUnter(const ModellAnsicht& a, ImVec2 m) {
     int teil = -1, dr = -1;
-    if (!modellDreieckUnter(a, m, teil, dr)) { return -1; }
+    if (!modellDreieckUnterWaehlbar(a, m, teil, dr)) { return -1; }   // KLEIN: Eingefrorenes nimmt am Treffertest nicht teil
     const w::PolyNetz& n = mz().netz;
     if (uz(teil) >= n.flaecheVonDreieck.size() || dr < 0 || uz(dr) >= n.flaecheVonDreieck[uz(teil)].size()) { return -1; }
     return n.flaecheVonDreieck[uz(teil)][uz(dr)];
@@ -1299,7 +1320,11 @@ bool modellMeshKlick(const ModellAnsicht& a, bool klick, ImVec2 start, ImVec2 en
         std::vector<char> drin(n.punkte.size(), 0);
         for (std::size_t p = 0; p < n.punkte.size(); ++p) {
             ImVec2 s;
-            if (n.punkte[p].weg || uz(n.punkte[p].teil) >= t.gezeichnet.size() || !modellTeilGezeichnet(n.punkte[p].teil) || !punktSchirm(a, zi(p), s)) { continue; }
+            // KLEIN: Punkte eingefrorener Flaechen nimmt der Rahmen nicht (wie der Rahmen fuer Flaechen)
+            if (n.punkte[p].weg || uz(n.punkte[p].teil) >= t.gezeichnet.size() || !modellTeilGezeichnet(n.punkte[p].teil) ||
+                !modellFlaecheWaehlbar(n.punkte[p].teil, false) || !punktSchirm(a, zi(p), s)) {
+                continue;
+            }
             drin[p] = s.x >= lo.x && s.x <= hi.x && s.y >= lo.y && s.y <= hi.y ? 1 : 0;
         }
         if (e == w::PEbene::Punkt) {

@@ -1391,14 +1391,14 @@ std::vector<int> flaechenImRahmen(const ModellAnsicht& a, ImVec2 p, ImVec2 q) {
 
 // --- mb1a2: Unterobjekte (Ecke, Kante, Dreieck, Rand, Element) -------------------------------------------
 
-// Das vorderste Dreieck unter der Maus: Teil und Dreieck, false wenn keins.
-bool dreieckUnter(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck) {
+// Das vorderste Dreieck unter der Maus: Teil und Dreieck, false wenn keins. `nurWaehlbar`: eingefrorene Flaechen zaehlen nicht.
+bool dreieckUnter(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck, bool nurWaehlbar = false) {
     const ModellTab& t = mt();
     const auto& h = haut();
     float bestT = 2.0F;
     teil = -1;
     for (std::size_t i = 0; i < h.size() && i < t.anzeige.surfaces.size(); ++i) {
-        if (!gezeichnet(i)) { continue; }
+        if (!gezeichnet(i) || (nurWaehlbar && !modellFlaecheWaehlbar(static_cast<int>(i), false))) { continue; }
         const GlmSurface& s = t.anzeige.surfaces[i];
         for (std::size_t k = 0; k + 2 < s.indexes.size(); k += 3) {
             ImVec2 p[3];
@@ -1423,6 +1423,18 @@ bool dreieckUnter(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck) 
     return teil >= 0;
 }
 
+// KLEIN (rc612): fuer die Auswahl von Unterobjekten (Ecke, Kante, Dreieck, Rand, Element; im Bereich Modellieren Punkt, Kante,
+// Vieleck) nimmt eine eingefrorene Flaeche am Treffertest nicht teil - wie beim Klick auf Flaechen (flaecheUnter, ENTSCHEID1; 3ds Max:
+// eingefrorene Objekte "cannot be selected"). Bis rc611 traf der Klick ihre Ecken weiter. Das vorderste Dreieck einer nicht
+// eingefrorenen Flaeche; liegt an der Stelle nur Eingefrorenes, nennt die Statuszeile die vorderste solche Flaeche, false.
+bool dreieckUnterWaehlbar(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck) {
+    if (dreieckUnter(a, maus, teil, dreieck, true)) { return true; }
+    int frost = -1;
+    int dr = -1;
+    if (dreieckUnter(a, maus, frost, dr, false)) { (void)modellFlaecheWaehlbar(frost, true); }
+    return false;
+}
+
 const modell::Netz* netzVon(int teil) {
     const ModellTab& t = mt();
     const modell::Inhalt& in = t.dok.inhalt();
@@ -1437,7 +1449,7 @@ std::vector<modell::EckOrt> eckenUnter(const ModellAnsicht& a, ImVec2 maus) {
     std::vector<modell::EckOrt> out;
     int teil = -1;
     int dr = -1;
-    if (!dreieckUnter(a, maus, teil, dr)) { return out; }
+    if (!dreieckUnterWaehlbar(a, maus, teil, dr)) { return out; }   // KLEIN: durch Eingefrorenes hindurch
     const modell::Netz* n = netzVon(teil);
     if (n == nullptr || static_cast<std::size_t>(dr) * 3U + 2U >= n->kanten.size()) { return out; }
     const auto& h = haut()[static_cast<std::size_t>(teil)];
@@ -1547,7 +1559,7 @@ std::vector<modell::EckOrt> eckenImRahmen(const ModellAnsicht& a, ImVec2 p, ImVe
     const ImVec2 mx{std::max(p.x, q.x), std::max(p.y, q.y)};
     std::vector<modell::EckOrt> out;
     for (std::size_t i = 0; i < h.size() && i < t.anzeige.surfaces.size(); ++i) {
-        if (!gezeichnet(i)) { continue; }
+        if (!gezeichnet(i) || !modellFlaecheWaehlbar(static_cast<int>(i), false)) { continue; }   // KLEIN: Eingefrorenes nimmt der Rahmen nicht
         for (std::size_t e = 0; e < h[i].size(); ++e) {
             ImVec2 sp;
             if (aufSchirm(a, h[i][e].data(), sp) && sp.x >= mn.x && sp.x <= mx.x && sp.y >= mn.y && sp.y <= mx.y) {
@@ -2450,6 +2462,7 @@ bool modellAufSchirm(const ModellAnsicht& a, const float p[3], ImVec2& out) { re
 bool modellGrenzen(bool nurAuswahl, float mn[3], float mx[3]) { return grenzen(nurAuswahl, mn, mx); }   // MBNAV
 // Modell-Block 1d: fuer das Modellieren (gui/wof/app_modelltab_mesh.cpp)
 bool modellDreieckUnter(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck) { return dreieckUnter(a, maus, teil, dreieck); }
+bool modellDreieckUnterWaehlbar(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck) { return dreieckUnterWaehlbar(a, maus, teil, dreieck); }
 std::vector<int> modellFlaechenUnter(const ModellAnsicht& a, ImVec2 maus) { return flaechenUnter(a, maus); }
 void modellAuswahlUmformen(const modell::Inhalt& vorher, int art, const float mitte[3], const float wert[3]) {
     mt().dok.vorschau([&](modell::Inhalt& x) { umformen(x, vorher, art, mitte, wert); });
