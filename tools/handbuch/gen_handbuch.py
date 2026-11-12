@@ -248,6 +248,8 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _ap10()})
             from i18n_ent1 import zeilen_vier as _ent1   # ENTSCHEID1: Werkzeugnamen wie Blender, Werkzeuggruppen, Seitenleiste eingebbar
             texte.update({e[0]: e[1:] for e in _ent1()})
+            from i18n_ent2 import zeilen_vier as _ent2   # ENTSCHEID2: Control Rig wie CAT, Preset-Kategorien, Generator-Gaenge
+            texte.update({e[0]: e[1:] for e in _ent2()})
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

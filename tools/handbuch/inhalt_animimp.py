@@ -72,33 +72,37 @@ X = {
     "h_bibliothek": ("The preset library", "Die Preset-Bibliothek", "预设库", "プリセットライブラリ", "La biblioteca de presets", "Knihovna předvoleb"),
     "bibliothek": (
         "The group **{{PrRollout}}** starts with the library: choose a category, click an animation (a double-click shows it on your figure at once, like "
-        "**{{AzPresetVorschau}}**), check the **{{AzZielPlatz}}** (a game name such as BOTH_WALK1 is suggested) and click **{{AzPresetAuflegen}}**. **{{AzGenerator}}** "
-        "opens the generator below the library. Loops are cut "
+        "**{{AzPresetVorschau}}**), check the **{{AzZielPlatz}}** (a game name such as BOTH_WALK1 is suggested) and click **{{AzPresetAuflegen}}**. The eight "
+        "categories of the design always show; one without presets yet shows a short note. In {{AzKatGehen}} and {{AzKatLaufen}} the list also has **{{EnGangGehen}}** and "
+        "**{{EnGangLaufen}}** from the own generator (**{{PrTempo}}** and **{{PrArm}}** under the list, the rest with **{{AzGenerator}}**). Loops are cut "
         "to one seamless cycle and play in place like the walks of the game. The animations come from Quaternius (Universal Animation Library, CC0) and from "
         "\"The 100STYLE Dataset - Ian Mason\" (CC BY 4.0, motion capture); every entry names its source and licence, all of it is listed in data/presets/CREDITS.txt "
         "and in the About window. JK Studio ships them on their own skeletons, never with a file of the game.",
         "Die Gruppe **{{PrRollout}}** beginnt mit der Bibliothek: eine Kategorie wählen, eine Animation anklicken (ein Doppelklick zeigt sie sofort auf deiner Figur, wie "
         "**{{AzPresetVorschau}}**), den **{{AzZielPlatz}}** prüfen (ein Name des Spiels wie BOTH_WALK1 ist vorgeschlagen) und **{{AzPresetAuflegen}}** klicken. "
-        "**{{AzGenerator}}** öffnet den Generator unter der Bibliothek. Schleifen sind auf einen nahtlosen Zyklus geschnitten und spielen auf der Stelle wie die Gänge des Spiels. Die Animationen stammen von "
+        "Die acht Kategorien des Entwurfs stehen immer da; eine ohne Presets zeigt einen kurzen Hinweis. In {{AzKatGehen}} und {{AzKatLaufen}} stehen dazu **{{EnGangGehen}}** und "
+        "**{{EnGangLaufen}}** aus dem eigenen Generator (**{{PrTempo}}** und **{{PrArm}}** unter der Liste, der Rest über **{{AzGenerator}}**). Schleifen sind auf einen nahtlosen Zyklus geschnitten und spielen auf der Stelle wie die Gänge des Spiels. Die Animationen stammen von "
         "Quaternius (Universal Animation Library, CC0) und aus \"The 100STYLE Dataset - Ian Mason\" (CC BY 4.0, Motion-Capture); jeder Eintrag nennt Quelle und Lizenz, "
         "alles steht in data/presets/CREDITS.txt und im Über-Fenster. JK Studio liefert sie auf ihren eigenen Skeletten aus, nie mit einer Datei des Spiels.",
         "**{{PrRollout}}** 组以动画库开头: 选择一个类别, 点击一个动画 (双击会立即在角色上显示, 与 **{{AzPresetVorschau}}** 相同), 检查 **{{AzZielPlatz}}** "
-        "(会建议游戏中的名称如 BOTH_WALK1), 然后点击 **{{AzPresetAuflegen}}**。**{{AzGenerator}}** 在动画库下方打开生成器。循环被剪成一个无缝周期, 像游戏中的步行一样原地播放。动画来自 Quaternius (Universal "
+        "(会建议游戏中的名称如 BOTH_WALK1), 然后点击 **{{AzPresetAuflegen}}**。设计中的八个类别始终显示; 还没有预设的类别会显示简短提示。{{AzKatGehen}} 和 {{AzKatLaufen}} 中还有自带生成器的 **{{EnGangGehen}}** 和 **{{EnGangLaufen}}** (列表下方为 **{{PrTempo}}** 和 **{{PrArm}}**, 其余在 **{{AzGenerator}}** 中)。循环被剪成一个无缝周期, 像游戏中的步行一样原地播放。动画来自 Quaternius (Universal "
         "Animation Library, CC0) 和 \"The 100STYLE Dataset - Ian Mason\" (CC BY 4.0, 动作捕捉); 每个条目都标明来源和许可, 全部列在 data/presets/CREDITS.txt 和关于窗口中。"
         "JK Studio 以它们自己的骨架提供, 从不附带游戏文件。",
         "グループ **{{PrRollout}}** はライブラリから始まります: カテゴリを選び、アニメーションをクリック (ダブルクリックで **{{AzPresetVorschau}}** と同じくすぐフィギュアに表示)、"
-        "**{{AzZielPlatz}}** を確認 (BOTH_WALK1 などゲームの名前を提案) して **{{AzPresetAuflegen}}** をクリックします。**{{AzGenerator}}** はライブラリの下にジェネレーターを開きます。ループは継ぎ目"
+        "**{{AzZielPlatz}}** を確認 (BOTH_WALK1 などゲームの名前を提案) して **{{AzPresetAuflegen}}** をクリックします。デザインの 8 つのカテゴリは常に表示され、まだプリセットのないカテゴリには短い案内が出ます。{{AzKatGehen}} と {{AzKatLaufen}} には独自ジェネレーターの **{{EnGangGehen}}** と **{{EnGangLaufen}}** もあります (一覧の下に **{{PrTempo}}** と **{{PrArm}}**、その他は **{{AzGenerator}}**)。ループは継ぎ目"
         "のない 1 サイクルに切られ、ゲームの歩きのようにその場で再生します。アニメーションは Quaternius (Universal Animation Library、CC0) と \"The 100STYLE Dataset - Ian "
         "Mason\" (CC BY 4.0、モーションキャプチャ) のものです。各項目に出典とライセンスがあり、すべて data/presets/CREDITS.txt と「バージョン情報」にあります。JK Studio "
         "は元の骨格のまま同梱し、ゲームのファイルは含みません。",
         "El grupo **{{PrRollout}}** empieza con la biblioteca: elige una categoría, haz clic en una animación (un doble clic la muestra al instante en tu figura, como "
-        "**{{AzPresetVorschau}}**), revisa el **{{AzZielPlatz}}** (se sugiere un nombre del juego como BOTH_WALK1) y pulsa **{{AzPresetAuflegen}}**. **{{AzGenerator}}** "
-        "abre el generador bajo la biblioteca. Los bucles "
+        "**{{AzPresetVorschau}}**), revisa el **{{AzZielPlatz}}** (se sugiere un nombre del juego como BOTH_WALK1) y pulsa **{{AzPresetAuflegen}}**. Las ocho "
+        "categorías del diseño están siempre; una sin preajustes muestra una nota breve. En {{AzKatGehen}} y {{AzKatLaufen}} la lista tiene además **{{EnGangGehen}}** y "
+        "**{{EnGangLaufen}}** del generador propio (**{{PrTempo}}** y **{{PrArm}}** bajo la lista, el resto con **{{AzGenerator}}**). Los bucles "
         "están cortados a un ciclo sin costura y se reproducen en el sitio como los pasos del juego. Las animaciones son de Quaternius (Universal Animation Library, CC0) y "
         "de \"The 100STYLE Dataset - Ian Mason\" (CC BY 4.0, captura de movimiento); cada entrada indica origen y licencia, todo figura en data/presets/CREDITS.txt y en la "
         "ventana Acerca de. JK Studio las incluye en sus propios esqueletos, nunca con un archivo del juego.",
         "Skupina **{{PrRollout}}** začíná knihovnou: zvolte kategorii, klikněte na animaci (dvojklik ji hned ukáže na postavě, stejně jako **{{AzPresetVorschau}}**), "
-        "zkontrolujte **{{AzZielPlatz}}** (navrhne se název hry jako BOTH_WALK1) a klikněte na **{{AzPresetAuflegen}}**. **{{AzGenerator}}** otevře generátor pod knihovnou. Smyčky jsou střiženy na jeden "
+        "zkontrolujte **{{AzZielPlatz}}** (navrhne se název hry jako BOTH_WALK1) a klikněte na **{{AzPresetAuflegen}}**. Osm kategorií návrhu je vždy vidět; kategorie bez předvoleb ukáže krátkou poznámku. V {{AzKatGehen}} a {{AzKatLaufen}} je navíc **{{EnGangGehen}}** a "
+        "**{{EnGangLaufen}}** z vlastního generátoru (**{{PrTempo}}** a **{{PrArm}}** pod seznamem, zbytek přes **{{AzGenerator}}**). Smyčky jsou střiženy na jeden "
         "plynulý cyklus a hrají na místě jako chůze ve hře. Animace pocházejí od Quaterniuse (Universal Animation Library, CC0) a z \"The 100STYLE Dataset - Ian Mason\" "
         "(CC BY 4.0, motion capture); každá položka uvádí zdroj a licenci, vše je v data/presets/CREDITS.txt a v okně O programu. JK Studio je dodává na jejich vlastních "
         "kostrách, nikdy se souborem hry."),

@@ -201,50 +201,48 @@ X = {
     "h_presets": ("Presets: walk and run generator", "Presets: Geh- und Laufgenerator", "预设: 步行与跑步生成器", "プリセット: 歩きと走りのジェネレーター",
                   "Presets: generador de andar y correr", "Předvolby: generátor chůze a běhu"),
     "presets": (
-        "The rollout **{{PrRollout}}** (also in the menu **Animation > {{PrRollout}}** and in the search) makes walk and run cycles with our own generator, so "
-        "there is no licence question: choose **{{PrKategorie}}** and **{{PrHaltung}}** ({{PrHaltNormal}}, {{PrHaltSchwer}}, {{PrHaltSchleichend}}, "
-        "{{PrHaltVerletzt}}, {{PrHaltSaebel}}), set **{{PrTempo}}** (the NPCs of the game walk with 90 and run with 300 units per second), **{{PrSchritt}}** - "
-        "measured from the figure's own BOTH_WALK1 / BOTH_RUN1 - and arm swing, hip swing and foot lift, then **{{PrAuflegen}}**. The cycle plays at once on the "
-        "figure; the standing foot lies exactly on the ground and glides evenly backwards like the walks of the game (the game moves the figure), the cycle "
-        "joins without a seam, the pelvis sinks where both feet have to reach the ground. Bake it to the slot BOTH_WALK1 or BOTH_RUN1 like a retargeted "
-        "animation. Libraries of other authors are not shipped yet: the Quaternius Universal Animation Library (CC0) and the 100STYLE dataset (Ian Mason, CC BY "
-        "4.0) would need an importer for their file formats (glTF/FBX and BVH) - see the notes of the release.",
-        "Das Rollout **{{PrRollout}}** (auch im Menü **Animation > {{PrRollout}}** und in der Suche) erzeugt Geh- und Laufzyklen mit unserem eigenen Generator, "
-        "deshalb gibt es keine Lizenzfrage: **{{PrKategorie}}** und **{{PrHaltung}}** wählen ({{PrHaltNormal}}, {{PrHaltSchwer}}, {{PrHaltSchleichend}}, "
-        "{{PrHaltVerletzt}}, {{PrHaltSaebel}}), **{{PrTempo}}** einstellen (die NPCs des Spiels gehen mit 90 und laufen mit 300 Einheiten je Sekunde), "
-        "**{{PrSchritt}}** - gemessen am eigenen BOTH_WALK1 / BOTH_RUN1 der Figur - sowie Armschwung, Hüftschwung und Fußhub, dann **{{PrAuflegen}}**. Der Zyklus "
-        "spielt sofort auf der Figur; der Standfuß liegt genau auf dem Boden und gleitet gleichmäßig nach hinten wie bei den Gängen des Spiels (die Figur bewegt "
-        "das Spiel), der Zyklus schließt ohne Naht, das Becken senkt sich dort, wo beide Füße den Boden erreichen müssen. Gebacken wird er wie eine übertragene "
-        "Animation auf den Platz BOTH_WALK1 oder BOTH_RUN1. Bibliotheken anderer Urheber liegen noch nicht bei: die Quaternius Universal Animation Library "
-        "(CC0) und der 100STYLE-Datensatz (Ian Mason, CC BY 4.0) bräuchten einen Import ihrer Dateiformate (glTF/FBX und BVH) - siehe die Hinweise zur Fassung.",
-        "**{{PrRollout}}** 卷展栏 (也在菜单 **Animation > {{PrRollout}}** 和搜索中) 用我们自己的生成器制作步行和跑步循环, 因此没有许可问题: 选择 **{{PrKategorie}}** "
-        "和 **{{PrHaltung}}** ({{PrHaltNormal}}、{{PrHaltSchwer}}、{{PrHaltSchleichend}}、{{PrHaltVerletzt}}、{{PrHaltSaebel}}), 设置 **{{PrTempo}}** (游戏 NPC 步行 90、"
-        "跑步 300 单位/秒)、**{{PrSchritt}}** (从角色自己的 BOTH_WALK1 / BOTH_RUN1 测得) 以及手臂摆动、髋部摆动和抬脚, 然后 **{{PrAuflegen}}**。循环立即在角色上播放; "
-        "支撑脚精确贴地, 并像游戏中的步行一样匀速向后滑动 (由游戏移动角色), 循环无缝衔接, 在两脚都需着地处骨盆下沉。像重定向的动画一样烘焙到 BOTH_WALK1 或 "
-        "BOTH_RUN1 槽位。其他作者的库暂未附带: Quaternius Universal Animation Library (CC0) 和 100STYLE 数据集 (Ian Mason, CC BY 4.0) 需要导入其文件格式 "
-        "(glTF/FBX 与 BVH) - 见版本说明。",
-        "ロールアウト **{{PrRollout}}** (メニュー **Animation > {{PrRollout}}** と検索にも) は独自のジェネレーターで歩きと走りのサイクルを作るので、ライセンスの問題は"
-        "ありません: **{{PrKategorie}}** と **{{PrHaltung}}** ({{PrHaltNormal}}、{{PrHaltSchwer}}、{{PrHaltSchleichend}}、{{PrHaltVerletzt}}、{{PrHaltSaebel}}) を選び、"
-        "**{{PrTempo}}** (ゲームの NPC は歩き 90、走り 300 ユニット/秒)、フィギュア自身の BOTH_WALK1 / BOTH_RUN1 から測った **{{PrSchritt}}**、腕の振り、腰の振り、"
-        "足の上げを設定して **{{PrAuflegen}}**。サイクルはすぐフィギュアで再生されます。立ち足は正確に地面にあり、ゲームの歩きと同じく等速で後ろへ滑ります (フィギュア"
-        "を動かすのはゲーム)。継ぎ目なくつながり、両足が地面に届く必要がある所で骨盤が下がります。リターゲットしたアニメーションと同じく BOTH_WALK1 または BOTH_RUN1 "
-        "のスロットにベイクします。他の作者のライブラリはまだ同梱していません: Quaternius Universal Animation Library (CC0) と 100STYLE データセット (Ian Mason、"
-        "CC BY 4.0) には、そのファイル形式 (glTF/FBX と BVH) の読み込みが必要です - リリースノートを参照。",
-        "El panel **{{PrRollout}}** (también en el menú **Animation > {{PrRollout}}** y en la búsqueda) crea ciclos de andar y correr con nuestro propio generador, "
-        "así que no hay cuestión de licencia: elige **{{PrKategorie}}** y **{{PrHaltung}}** ({{PrHaltNormal}}, {{PrHaltSchwer}}, {{PrHaltSchleichend}}, "
-        "{{PrHaltVerletzt}}, {{PrHaltSaebel}}), ajusta **{{PrTempo}}** (los NPC del juego andan a 90 y corren a 300 unidades por segundo), **{{PrSchritt}}** (medida "
-        "en el BOTH_WALK1 / BOTH_RUN1 propio de la figura), balanceo de brazos y cadera y altura del pie, y luego **{{PrAuflegen}}**. El ciclo se reproduce al "
-        "instante en la figura; el pie de apoyo queda justo en el suelo y se desliza uniformemente hacia atrás como los pasos del juego (el juego mueve la figura), "
-        "el ciclo cierra sin costura y la pelvis baja donde ambos pies deben llegar al suelo. Hornéalo como una animación transferida en el hueco BOTH_WALK1 o "
-        "BOTH_RUN1. Aún no se incluyen bibliotecas de otros autores: la Quaternius Universal Animation Library (CC0) y el conjunto 100STYLE (Ian Mason, CC BY 4.0) "
-        "necesitarían importar sus formatos (glTF/FBX y BVH); ver las notas de la versión.",
-        "Rollout **{{PrRollout}}** (také v nabídce **Animation > {{PrRollout}}** a ve vyhledávání) vytváří cykly chůze a běhu naším vlastním generátorem, takže "
-        "neexistuje licenční otázka: zvolte **{{PrKategorie}}** a **{{PrHaltung}}** ({{PrHaltNormal}}, {{PrHaltSchwer}}, {{PrHaltSchleichend}}, {{PrHaltVerletzt}}, "
-        "{{PrHaltSaebel}}), nastavte **{{PrTempo}}** (NPC hry chodí rychlostí 90 a běhají 300 jednotek za sekundu), **{{PrSchritt}}** - změřenou na vlastních "
-        "BOTH_WALK1 / BOTH_RUN1 postavy - a švih paží, švih boků a zvednutí chodidla, pak **{{PrAuflegen}}**. Cyklus hned hraje na postavě; stojné chodidlo leží "
-        "přesně na zemi a rovnoměrně klouže dozadu jako chůze hry (postavu posouvá hra), cyklus navazuje bez švu a pánev klesne tam, kde musí obě chodidla dosáhnout "
-        "země. Zapeče se jako přenesená animace do pozice BOTH_WALK1 nebo BOTH_RUN1. Knihovny jiných autorů zatím přiloženy nejsou: Quaternius Universal Animation "
-        "Library (CC0) a datová sada 100STYLE (Ian Mason, CC BY 4.0) by potřebovaly import svých formátů (glTF/FBX a BVH) - viz poznámky k vydání."),
+        "The group **{{PrRollout}}** (also in the menu **Animation > {{PrRollout}}** and in the search) makes walk and run cycles with our own generator, so there "
+        "is no licence question: in the categories {{AzKatGehen}} and {{AzKatLaufen}} choose **{{EnGangGehen}}** or **{{EnGangLaufen}}** in the list. **{{PrTempo}}** (the "
+        "NPCs of the game walk with 90 and run with 300 units per second) and **{{PrArm}}** stand under the list; **{{AzGenerator}}** shows the rest: **{{PrHaltung}}** "
+        "({{PrHaltNormal}}, {{PrHaltSchwer}}, {{PrHaltSchleichend}}, {{PrHaltVerletzt}}, {{PrHaltSaebel}}), **{{PrSchritt}}** - measured from the figure's own BOTH_WALK1 / "
+        "BOTH_RUN1 - hip swing and foot lift. **{{AzPresetVorschau}}** plays the cycle at once on the figure; the standing foot lies exactly on the ground and glides "
+        "evenly backwards like the walks of the game (the game moves the figure), the cycle joins without a seam, the pelvis sinks where both feet have to reach the "
+        "ground. **{{AzPresetAuflegen}}** bakes it to the slot BOTH_WALK1 or BOTH_RUN1 (or another target slot) like a retargeted animation. The free animations of "
+        "other authors stand in the same list (see Import animation).",
+        "Die Gruppe **{{PrRollout}}** (auch im Menü **Animation > {{PrRollout}}** und in der Suche) erzeugt Geh- und Laufzyklen mit unserem eigenen Generator, deshalb "
+        "gibt es keine Lizenzfrage: in den Kategorien {{AzKatGehen}} und {{AzKatLaufen}} **{{EnGangGehen}}** bzw. **{{EnGangLaufen}}** in der Liste wählen. **{{PrTempo}}** "
+        "(die NPCs des Spiels gehen mit 90 und laufen mit 300 Einheiten je Sekunde) und **{{PrArm}}** stehen unter der Liste; **{{AzGenerator}}** zeigt den Rest: "
+        "**{{PrHaltung}}** ({{PrHaltNormal}}, {{PrHaltSchwer}}, {{PrHaltSchleichend}}, {{PrHaltVerletzt}}, {{PrHaltSaebel}}), **{{PrSchritt}}** - gemessen am eigenen "
+        "BOTH_WALK1 / BOTH_RUN1 der Figur - sowie Hüftschwung und Fußhub. **{{AzPresetVorschau}}** spielt den Zyklus sofort auf der Figur; der Standfuß liegt genau auf "
+        "dem Boden und gleitet gleichmäßig nach hinten wie bei den Gängen des Spiels (die Figur bewegt das Spiel), der Zyklus schließt ohne Naht, das Becken senkt sich "
+        "dort, wo beide Füße den Boden erreichen müssen. **{{AzPresetAuflegen}}** backt ihn wie eine übertragene Animation auf den Platz BOTH_WALK1 oder BOTH_RUN1 (oder "
+        "einen anderen Ziel-Platz). Die freien Animationen anderer Urheber stehen in derselben Liste (siehe Animation importieren).",
+        "**{{PrRollout}}** 组 (也在菜单 **Animation > {{PrRollout}}** 和搜索中) 用我们自己的生成器制作步行和跑步循环, 因此没有许可问题: 在类别 {{AzKatGehen}} 和 {{AzKatLaufen}} "
+        "中选择列表里的 **{{EnGangGehen}}** 或 **{{EnGangLaufen}}**。**{{PrTempo}}** (游戏 NPC 步行 90、跑步 300 单位/秒) 和 **{{PrArm}}** 位于列表下方; **{{AzGenerator}}** 显示其余设置: "
+        "**{{PrHaltung}}** ({{PrHaltNormal}}、{{PrHaltSchwer}}、{{PrHaltSchleichend}}、{{PrHaltVerletzt}}、{{PrHaltSaebel}})、**{{PrSchritt}}** (从角色自己的 BOTH_WALK1 / BOTH_RUN1 测得) "
+        "以及髋部摆动和抬脚。**{{AzPresetVorschau}}** 立即在角色上播放循环; 支撑脚精确贴地, 并像游戏中的步行一样匀速向后滑动 (由游戏移动角色), 循环无缝衔接, 在两脚都需着地处骨盆下沉。"
+        "**{{AzPresetAuflegen}}** 像重定向的动画一样把它烘焙到 BOTH_WALK1 或 BOTH_RUN1 槽位 (或其他目标槽位)。其他作者的免费动画位于同一列表中 (见“导入动画”)。",
+        "グループ **{{PrRollout}}** (メニュー **Animation > {{PrRollout}}** と検索にも) は独自のジェネレーターで歩きと走りのサイクルを作るので、ライセンスの問題はありません: "
+        "カテゴリ {{AzKatGehen}} と {{AzKatLaufen}} で一覧の **{{EnGangGehen}}** または **{{EnGangLaufen}}** を選びます。**{{PrTempo}}** (ゲームの NPC は歩き 90、走り 300 ユニット/秒) "
+        "と **{{PrArm}}** は一覧の下にあり、**{{AzGenerator}}** でその他を表示します: **{{PrHaltung}}** ({{PrHaltNormal}}、{{PrHaltSchwer}}、{{PrHaltSchleichend}}、{{PrHaltVerletzt}}、"
+        "{{PrHaltSaebel}})、フィギュア自身の BOTH_WALK1 / BOTH_RUN1 から測った **{{PrSchritt}}**、腰の振り、足の上げ。**{{AzPresetVorschau}}** でサイクルがすぐフィギュアで再生されます。"
+        "立ち足は正確に地面にあり、ゲームの歩きと同じく等速で後ろへ滑ります (フィギュアを動かすのはゲーム)。継ぎ目なくつながり、両足が地面に届く必要がある所で骨盤が下がります。"
+        "**{{AzPresetAuflegen}}** はリターゲットしたアニメーションと同じく BOTH_WALK1 または BOTH_RUN1 (または別の出力先スロット) にベイクします。他の作者の無料アニメーションも同じ一覧にあります (「アニメーションをインポート」を参照)。",
+        "El grupo **{{PrRollout}}** (también en el menú **Animation > {{PrRollout}}** y en la búsqueda) crea ciclos de andar y correr con nuestro propio generador, así "
+        "que no hay cuestión de licencia: en las categorías {{AzKatGehen}} y {{AzKatLaufen}} elige **{{EnGangGehen}}** o **{{EnGangLaufen}}** en la lista. **{{PrTempo}}** "
+        "(los NPC del juego andan a 90 y corren a 300 unidades por segundo) y **{{PrArm}}** están bajo la lista; **{{AzGenerator}}** muestra el resto: **{{PrHaltung}}** "
+        "({{PrHaltNormal}}, {{PrHaltSchwer}}, {{PrHaltSchleichend}}, {{PrHaltVerletzt}}, {{PrHaltSaebel}}), **{{PrSchritt}}** (medida en el BOTH_WALK1 / BOTH_RUN1 propio de la "
+        "figura), balanceo de cadera y altura del pie. **{{AzPresetVorschau}}** reproduce el ciclo al instante en la figura; el pie de apoyo queda justo en el suelo y se "
+        "desliza uniformemente hacia atrás como los pasos del juego (el juego mueve la figura), el ciclo cierra sin costura y la pelvis baja donde ambos pies deben llegar al "
+        "suelo. **{{AzPresetAuflegen}}** lo hornea como una animación transferida en el hueco BOTH_WALK1 o BOTH_RUN1 (u otro hueco de destino). Las animaciones libres de "
+        "otros autores están en la misma lista (ver Importar animación).",
+        "Skupina **{{PrRollout}}** (také v nabídce **Animation > {{PrRollout}}** a ve vyhledávání) vytváří cykly chůze a běhu naším vlastním generátorem, takže neexistuje "
+        "licenční otázka: v kategoriích {{AzKatGehen}} a {{AzKatLaufen}} zvolte v seznamu **{{EnGangGehen}}** nebo **{{EnGangLaufen}}**. **{{PrTempo}}** (NPC hry chodí "
+        "rychlostí 90 a běhají 300 jednotek za sekundu) a **{{PrArm}}** jsou pod seznamem; **{{AzGenerator}}** ukáže zbytek: **{{PrHaltung}}** ({{PrHaltNormal}}, "
+        "{{PrHaltSchwer}}, {{PrHaltSchleichend}}, {{PrHaltVerletzt}}, {{PrHaltSaebel}}), **{{PrSchritt}}** - změřenou na vlastních BOTH_WALK1 / BOTH_RUN1 postavy - a švih boků "
+        "a zvednutí chodidla. **{{AzPresetVorschau}}** hned přehraje cyklus na postavě; stojné chodidlo leží přesně na zemi a rovnoměrně klouže dozadu jako chůze hry "
+        "(postavu posouvá hra), cyklus navazuje bez švu a pánev klesne tam, kde musí obě chodidla dosáhnout země. **{{AzPresetAuflegen}}** ho zapeče jako přenesenou "
+        "animaci do pozice BOTH_WALK1 nebo BOTH_RUN1 (nebo jiné cílové pozice). Volné animace jiných autorů jsou ve stejném seznamu (viz Import animace)."),
     "bild_presets": ("A walk from the generator on the figure (posture saber drawn), rollout Presets with its check.",
                      "Ein Gang aus dem Generator auf der Figur (Haltung Säbel gezogen), Rollout Presets mit Befund.",
                      "生成器生成的步行在角色上 (姿态: 拔出光剑), 预设卷展栏及检查结果。", "ジェネレーターの歩きをフィギュアに (姿勢: セーバーを抜く)、検査結果付きのロールアウト「プリセット」。",
