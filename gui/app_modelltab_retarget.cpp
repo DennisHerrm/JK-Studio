@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <functional>
 #include <iterator>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -356,11 +357,21 @@ void modellRtAktualisieren() {
     if (!d.quelle.empty() && d.quelle != r.quelleFuer && !quelleLesen(d.quelle)) { return; }
     const std::string fuer = r.quelleFuer + "|" + d.sequenz + "|" + r.czFuer;
     if (r.stand == t.dok.stand() && r.fuer == fuer) { return; }
+    // FIX612C (PV5): die Zuordnung gilt fuer die Ketten einer Rig-Vorlage (die Wahl der Vorlage steht nicht im Dokument). Wechselt die
+    // Vorlage auf andere Ketten, bleibt die Zuordnung der alten gemerkt (je Modell, Quelle und Vorlage) und kommt beim Zurueckwechseln
+    // wieder - auch die von Hand gesetzten Ketten
+    static std::map<std::string, modell::RtZuordnung> gemerkt;
+    static std::string zuFuer;   // die Vorlage, zu deren Ketten d.zu gehoert
+    const std::string schluessel = std::to_string(t.dok.ladeStand()) + "|" + r.quelleFuer + "|";
     if (d.zu.quelle.size() != r.cz.ketten.size()) {
-        // das Ziel hat andere Ketten (anderes Modell): leere Zuordnung neu, ohne eigenen Rueckgaengig-Schritt
-        const modell::RtZuordnung zu = modell::rtZuordnen(r.cq, r.cz);
+        if (!d.zu.quelle.empty() && !zuFuer.empty()) { gemerkt[schluessel + zuFuer] = d.zu; }
+        const auto alt = gemerkt.find(schluessel + r.czFuer);
+        // das Ziel hat andere Ketten (anderes Modell, andere Vorlage): die gemerkte Zuordnung dieser Vorlage, sonst neu vorgeschlagen -
+        // ohne eigenen Rueckgaengig-Schritt
+        const modell::RtZuordnung zu = alt != gemerkt.end() && alt->second.quelle.size() == r.cz.ketten.size() ? alt->second : modell::rtZuordnen(r.cq, r.cz);
         t.dok.vorschau([&](modell::Inhalt& in) { in.rig.rt.zu = zu; }, false);
     }
+    zuFuer = r.czFuer;
     int erstes = 0;
     int anzahl = 0;
     int schleife = -1;
