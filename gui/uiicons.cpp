@@ -238,6 +238,9 @@ ImVec4 uiIconFarbe(UiIcon icon) {
         case UiIcon::GwGrenze: c = ImVec4{1.00F, 0.55F, 0.45F, 1.0F}; break;
         case UiIcon::GwNachRechts: c = ImVec4{0.40F, 0.60F, 1.00F, 1.0F}; break;   // von Blau aus
         case UiIcon::GwNachLinks: c = ImVec4{0.40F, 0.85F, 0.45F, 1.0F}; break;    // von Gruen aus
+        // AP4: Werkzeugleiste wie Blender - Auswahl und Skalieren neutral wie Verschieben/Drehen, Messen gelb wie die Strecke
+        case UiIcon::BlMessen: c = ImVec4{1.00F, 0.82F, 0.24F, 1.0F}; break;
+        case UiIcon::BlAbwickeln: c = ImVec4{0.55F, 0.80F, 1.00F, 1.0F}; break;
 
         default: break;
     }
@@ -1174,6 +1177,43 @@ void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe)
             z.linie(13.5F, 8.0F, 2.5F, 8.0F);
             z.spitze(2.5F, 8.0F, -1.0F, 0.0F);
             z.punkt(13.0F, 8.0F, 1.5F);
+            break;
+        // --- AP4: Werkzeugleiste wie Blender (eigene Zeichnung) ------------------------------------------------------
+        case UiIcon::BlAuswahl:   // Mauspfeil vor einem gestrichelten Rahmen
+            z.linie(1.5F, 1.5F, 4.5F, 1.5F);
+            z.linie(7.0F, 1.5F, 10.0F, 1.5F);
+            z.linie(1.5F, 1.5F, 1.5F, 4.5F);
+            z.linie(1.5F, 7.0F, 1.5F, 10.0F);
+            z.linie(12.5F, 1.5F, 12.5F, 4.0F);
+            z.linie(1.5F, 12.5F, 4.0F, 12.5F);
+            z.flaeche({ImVec2{6.0F, 6.0F}, ImVec2{14.5F, 10.0F}, ImVec2{10.8F, 11.0F}, ImVec2{9.6F, 14.8F}});
+            break;
+        case UiIcon::BlSkalieren:   // kleines und grosses Quadrat mit Pfeil nach aussen
+            z.rahmen(1.5F, 8.5F, 7.5F, 14.5F, 0.5F);
+            z.rahmen(1.5F, 1.5F, 14.5F, 14.5F, 0.5F);
+            z.linie(6.5F, 9.5F, 12.0F, 4.0F);
+            z.spitze(12.0F, 4.0F, 0.7F, -0.7F);
+            break;
+        case UiIcon::BlMessen:   // Lineal schraeg mit Teilstrichen
+            z.zug({ImVec2{1.5F, 11.0F}, ImVec2{11.0F, 1.5F}, ImVec2{14.5F, 5.0F}, ImVec2{5.0F, 14.5F}}, true);
+            z.linie(4.0F, 8.5F, 5.6F, 10.1F);
+            z.linie(6.0F, 6.5F, 7.0F, 7.5F);
+            z.linie(8.0F, 4.5F, 9.6F, 6.1F);
+            z.linie(10.0F, 2.5F, 11.0F, 3.5F);
+            break;
+        case UiIcon::BlAbwickeln:   // Netz eines Wuerfels (Kreuz aus sechs Feldern)
+            z.rahmen(5.5F, 1.0F, 10.5F, 15.0F, 0.0F);
+            z.rahmen(0.5F, 5.5F, 15.5F, 10.5F, 0.0F);
+            z.linie(5.5F, 5.5F, 10.5F, 5.5F);
+            z.linie(5.5F, 10.5F, 10.5F, 10.5F);
+            break;
+        case UiIcon::BlSeitenleiste:   // Fenster mit Leiste rechts
+            z.rahmen(1.5F, 2.5F, 14.5F, 13.5F, 1.0F);
+            z.flaeche({ImVec2{10.0F, 2.5F}, ImVec2{14.5F, 2.5F}, ImVec2{14.5F, 13.5F}, ImVec2{10.0F, 13.5F}});
+            break;
+        case UiIcon::BlWerkzeugleiste:   // Fenster mit Leiste links
+            z.rahmen(1.5F, 2.5F, 14.5F, 13.5F, 1.0F);
+            z.flaeche({ImVec2{1.5F, 2.5F}, ImVec2{5.5F, 2.5F}, ImVec2{5.5F, 13.5F}, ImVec2{1.5F, 13.5F}});
             break;
     }
 }

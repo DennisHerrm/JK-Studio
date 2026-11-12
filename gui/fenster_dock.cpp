@@ -64,8 +64,9 @@ Zustand& z() {
 
 const char* const kPraefix[kBereiche] = {"ereignisse.", "mission.", "modell.", "karte.", "menue."};
 
-// AP2: der Szenen-Explorer des Model-Tabs heisst im Modus wie Blender "Outliner".
-const char* panelTitel(const Panel& p) { return p.titel == Str::MbExplorer ? modellExplorerTitel() : tr(p.titel); }
+// AP2: der Szenen-Explorer des Model-Tabs heisst im Modus wie Blender "Outliner". AP4: wie Blender steht in der linken Spalte
+// die Werkzeugleiste (der Outliner oben rechts) - das Panel heisst dann so.
+const char* panelTitel(const Panel& p) { return p.titel == Str::MbExplorer ? modellLinksTitel() : tr(p.titel); }
 
 std::string panelFensterName(const Panel& p) { return std::string(panelTitel(p)) + fenster::kFensterKennung + p.id; }
 
@@ -495,6 +496,29 @@ void vorBild() {
     }
     s.ladenBereich = -1;
     s.merken = true;
+}
+
+// AP4: die laufende Anordnung je Bedienmodus des Model-Tabs ("b<bereich>@max" / "b<bereich>@blender" in Settings::fenster -
+// nicht in der Liste der benannten Anordnungen, die mit "b<bereich>/" beginnen). Laden wie laden(), nur ohne die Tabs in eigenen
+// Fenstern (die gehoeren nicht zum Bedienmodus).
+void modusAnordnung(int bereich, int alt, int neu) {
+    if (g_app == nullptr || ImGui::GetCurrentContext() == nullptr || bereich < 0 || bereich >= kBereiche || alt == neu) { return; }
+    const auto schluessel = [&](int modus) { return fenster::schluesselLaufend(bereich) + (modus == 1 ? "@blender" : "@max"); };
+    merkenLaufend();
+    g_app->settings.fenster[schluessel(alt)] = fenster::kodieren(z().jetzt[static_cast<std::size_t>(bereich)]);
+    const auto it = g_app->settings.fenster.find(schluessel(neu));
+    fenster::Anordnung a;
+    if (it == g_app->settings.fenster.end() || !fenster::dekodieren(it->second, a)) {
+        diag::detail("Fenster: Bedienmodus " + std::to_string(neu) + " von Bereich " + std::to_string(bereich) + " - noch keine eigene Anordnung, die jetzige gilt weiter");
+        return;
+    }
+    if (a == z().jetzt[static_cast<std::size_t>(bereich)]) { return; }
+    std::size_t n = 0;
+    const char* text = ImGui::SaveIniSettingsToMemory(&n);
+    z().iniLaden = fenster::iniErsetzen(fenster::iniFiltern(std::string(text, n)), a.ini, kPraefix[bereich]);
+    z().ladenBereich = bereich;
+    z().ladenAnordnung = a;
+    diag::detail("Fenster: Anordnung des Bedienmodus " + std::to_string(neu) + " von Bereich " + std::to_string(bereich) + " geladen");
 }
 
 void setzeVerfuegbar(int bereich, VerfuegbarFn fn) {

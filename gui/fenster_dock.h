@@ -114,5 +114,9 @@ void menue(int bereich);
 using VerfuegbarFn = bool (*)(const char* id);
 void setzeVerfuegbar(int bereich, VerfuegbarFn fn);
 
+// AP4: jeder Bedienmodus des Model-Tabs (0 wie 3ds Max, 1 wie Blender) hat seine laufende Anordnung - beim Wechsel die
+// jetzige fuer `alt` merken und die von `neu` laden (gibt es sie noch nicht, gilt die jetzige weiter).
+void modusAnordnung(int bereich, int alt, int neu);
+
 }  // namespace bhed::gui::dock
 #endif

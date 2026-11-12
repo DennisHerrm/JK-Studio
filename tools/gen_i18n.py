@@ -2356,6 +2356,8 @@ from i18n_ap8 import zeilen_vier as _ap8  # noqa: E402  (AP8: Bereich Weights na
 S += _ap8()
 from i18n_ap10 import zeilen_vier as _ap10  # noqa: E402  (AP10: rechtes Feld des Model-Tabs im Bereich Animation nach dem Entwurf)
 S += _ap10()
+from i18n_ap4 import zeilen_vier as _ap4  # noqa: E402  (AP4: Model-Tab im Bedienmodus wie Blender - Werkzeugleiste, Outliner, Seitenleiste)
+S += _ap4()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

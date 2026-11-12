@@ -3074,7 +3074,9 @@ inline constexpr float kEntitySpalte = 18.0F;
 // freigegebenen Entwurf (270 px bei 13 px Schrift = 19,5 Zeichenhoehen nach dem Abgleich): die Namen der ersten Ebenen
 // passen mit Auge, Symbol und der Spalte "Frozen" ohne Kuerzen.
 inline constexpr float kModellSpalte = 19.5F;
-inline float ebenenSpalte(int leftMode) { return leftMode == 2 ? kModellSpalte : kEntitySpalte; }
+// AP4: wie Blender steht dort die Werkzeugleiste (schmal; aus: ein Streifen mit dem Pfeil) - gui/app_modelltab_blender.cpp
+[[nodiscard]] float modellLinksSpalte();
+inline float ebenenSpalte(int leftMode) { return leftMode == 2 ? modellLinksSpalte() : kEntitySpalte; }
 
 // --- Bedien-Icons (gui/uiicons.cpp) ----------------------------------------
 // M4: kleinste Oberflaechengroesse (Grundschrift 16 px -> mindestens 12 px, wie die
@@ -3132,6 +3134,9 @@ enum class UiIcon : int {
     // Blender (Verlauf, Verwischen, Gewicht holen), Bereinigen (Summe, Besen, Grenze) und Spiegeln (nach rechts, nach links)
     GwPinsel, GwSetzen, GwSkalieren, GwRing, GwSchleife, GwWachsen, GwSchrumpfen, GwMischen, GwVerlauf, GwVerwischen, GwTropfen,
     GwSumme, GwBesen, GwGrenze, GwNachRechts, GwNachLinks,
+    // AP4: Werkzeugleiste wie Blender - Auswaehlen (Pfeil mit Rahmen), Skalieren, Messen (Lineal), Abwickeln (Wuerfelnetz),
+    // Seitenleiste und Werkzeugleiste (fuer Menue und Suche)
+    BlAuswahl, BlSkalieren, BlMessen, BlAbwickeln, BlSeitenleiste, BlWerkzeugleiste,
 };
 void uiIcon(ImDrawList* dl, UiIcon icon, ImVec2 pos, float groesse, ImU32 farbe);
 // Quadratischer Icon-Knopf; der Text ist Kennung und Tooltip-Titel.

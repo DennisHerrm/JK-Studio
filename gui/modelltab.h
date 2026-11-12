@@ -1537,5 +1537,62 @@ bool modellAnimWerkzeugAusloesen(int i);
 // Selbsttest: wo in der Gruppe Presets die Wahl des Ziel-Platzes steht (Bildschirm; leer: nicht gezeichnet)
 [[nodiscard]] ImRect modellPresetPlatzKasten();
 
+// --- AP4 (MBENTWURF Teil B, 12.11.): der Model-Tab im Bedienmodus wie Blender (gui/app_modelltab_blender.cpp) ----------
+// Entwurf (plaene/modellblock_stufe0/entwurf_modelltab.html) und shank 10.11.: "es geht ja nicht nur um controls like blender
+// oder 3ds max sondern das aussehen" - wie Blender links die Werkzeugleiste (T) mit Auswaehlen, Bewegen, Drehen, Skalieren und
+// den Werkzeugen des Bereichs, eine grosse Ansicht mit dem Modus im Kopf, rechts der Outliner ueber dem Eigenschaften-Editor,
+// die Seitenleiste (N). Der Max-Modus bleibt, wie er ist. Jeder Bedienmodus merkt sich seine Fensteranordnung.
+struct ModellBlender {
+    bool werkzeugleiste = true;     // T (Blender: Toolbar, wm.context_toggle space_data.show_region_toolbar)
+    bool seitenleiste = false;      // N (Blender: Sidebar, space_data.show_region_ui)
+    int seitenReiter = 0;           // Seitenleiste: 0 Objekt (Item), 1 Ansicht (View)
+    float outlinerAnteil = 0.44F;   // Hoehe des Outliners ueber den Eigenschaften (Entwurf: 44 % der Spalte)
+    int werkzeug = 0;               // Ansehen/Pruefen: 0 Flaeche waehlen, 1 Messen, 2 Knochen waehlen
+    int messPunkte = 0;             // Messen: 0 keiner, 1 der erste, 2 beide
+    float messA[3]{};
+    float messB[3]{};
+    // Selbsttest: was im letzten Bild gezeichnet wurde (Bildschirmpunkte)
+    int bild = -1;
+    ImRect leiste;                  // die Werkzeugleiste (bzw. der schmale Streifen, wenn sie aus ist)
+    ImRect outliner;                // Outliner oben rechts (Titel und Baum)
+    ImRect feld;                    // der Eigenschaften-Editor darunter
+    ImRect seite;                   // die Seitenleiste
+    ImRect modusFeld;               // der Modus im Kopf der aktiven Ansicht
+    ImRect hinweis;                 // "N Seitenleiste - T Werkzeuge" unten rechts in der Ansicht
+    std::string modusText;          // der Kopf der Ansicht: "Benutzer-Perspektive - Objektmodus"
+    std::vector<std::pair<std::string, ImRect>> knoepfe;   // Werkzeugleiste: Text und Rechteck je Knopf
+    int trennstrich = -1;           // nach so vielen Knoepfen steht der Trennstrich
+    std::string seiteText;          // die Zeilen der Seitenleiste (Beschriftung = Wert, mit | getrennt)
+    int fotos = 0;                  // Werkzeug Foto: geschriebene Bilder
+};
+[[nodiscard]] ModellBlender& modellBl();
+// Die linke Spalte des Model-Tabs (Breite in Zeichenhoehen, Titel des Panels): wie 3ds Max der Szenen-Explorer, wie Blender die
+// Werkzeugleiste (aus: ein schmaler Streifen mit dem Pfeil zum Zeigen).
+[[nodiscard]] const char* modellLinksTitel();
+void drawModellWerkzeugleiste(float hoehe);
+// Wie Blender rechts: Outliner (Titel, Baum, Trennkante) - liefert die Hoehe, die dem Eigenschaften-Editor darunter bleibt.
+float drawModellBlOutliner(float breite, float hoehe);
+// Die Seitenleiste (N) rechts neben den Ansichten: Breite (0: aus oder Max-Modus) und Inhalt.
+[[nodiscard]] float modellSeitenleisteBreite(float frei);
+void drawModellSeitenleiste(ImVec2 groesse);
+// In jeder Ansicht nach ihrem Kopf: der Hinweis "N Seitenleiste - T Werkzeuge" und die Messung.
+void modellBlUeberlagerung(int n, const ModellAnsicht& a, ImDrawList* dl);
+// Ein Klick (oder Zug von start nach ende) in der Ansicht mit dem Werkzeug Messen bzw. Knochen waehlen: true = verbraucht.
+bool modellBlKlick(const ModellAnsicht& a, bool klick, ImVec2 start, ImVec2 ende);
+// Im Kopf der Ansicht (wie Blender): "<Name der Ansicht> - <Modus>" mit dem Modus als Ausklapper; liefert das rechte Ende.
+float modellBlModusKopf(ImDrawList* dl, int n, float x, float y, float hoehe, const char* ansichtName);
+[[nodiscard]] const char* modellBlModusName(ModellBereich b);
+// Tasten (T, N), "Alle Aktionen suchen", Rechtsklick-Menue der Ansicht.
+bool modellBlTasten();
+bool modellBlAktionenSuche(const std::string& such);
+void modellBlKontextMenue();
+// Die Werkzeuge der Leiste im laufenden Bereich (Auswaehlen, Bewegen, Drehen, Skalieren und die des Bereichs).
+[[nodiscard]] int modellBlWerkzeugZahl();
+[[nodiscard]] const char* modellBlWerkzeugText(int i);
+[[nodiscard]] bool modellBlWerkzeugAn(int i);
+bool modellBlWerkzeugAusloesen(int i);
+// Die gemessene Strecke in Spieleinheiten (false: noch keine zwei Punkte).
+[[nodiscard]] bool modellBlAbstand(float& abstand);
+
 }  // namespace bhed::gui
 #endif

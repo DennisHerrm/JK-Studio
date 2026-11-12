@@ -2397,7 +2397,9 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
         t.rahmen = false;
         const ImVec2 start{t.rahmenStart[0], t.rahmenStart[1]};
         const bool klick = std::hypot(io.MousePos.x - start.x, io.MousePos.y - start.y) < 4.0F;
-        if (t.bereich == ModellBereich::Modellieren && modellMeshKlick(a, klick, start, io.MousePos)) {
+        if (modellBlKlick(a, klick, start, io.MousePos)) {
+            // AP4: Werkzeug Messen bzw. Knochen waehlen (Ansehen/Pruefen)
+        } else if (t.bereich == ModellBereich::Modellieren && modellMeshKlick(a, klick, start, io.MousePos)) {
             // Modell-Block 1d: Punkte, Kanten, Raender, Vielecke, Elemente des Arbeitsnetzes (und Cut / Target Weld)
         } else if (t.auswahlArt != AuswahlArt::Objekt) {   // mb1a2: Ecke, Kante, Dreieck, Rand, Element
             eckenWahlAendern(klick ? eckenUnter(a, io.MousePos) : eckenImRahmen(a, start, io.MousePos));
@@ -2465,6 +2467,7 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     // MBKOPF: ViewCube bzw. Gizmo und die Kopfzeile wie die Viewport Label Menus von 3ds Max / die Kopfzeile von Blender
     drawModellNavigation(n, a);
     drawModellKopfzeile(n, a);
+    modellBlUeberlagerung(n, a, dl);   // AP4: wie Blender "N Seitenleiste - T Werkzeuge", die Messung
     ImGui::EndChild();
     ImGui::PopID();
 }
@@ -2543,6 +2546,9 @@ void drawModellArbeitsflaeche() {
     const float sp = ImGui::GetStyle().ItemSpacing.x;
     // AP1: Dopesheet und Kurveneditor stehen als Spurbereich in der Zeitleiste (app_modelltab_zeit.cpp), nicht mehr hier
     ImVec2 ansichtenG{std::max(frei.x - befehlB - sp, 64.0F), std::max(frei.y, 64.0F)};
+    // AP4: wie Blender die Seitenleiste (N) rechts neben den Ansichten
+    const float seiteB = modellSeitenleisteBreite(ansichtenG.x);
+    if (seiteB > 0.0F) { ansichtenG.x = std::max(ansichtenG.x - seiteB - sp, 64.0F); }
     // Modell-Block 1b: im Bereich UV der UV-Editor links neben den Ansichten (wie Blenders Arbeitsbereich "UV Editing" und
     // der UV-Editor von WhiteoutFlakes); Platz nur, solange er offen ist
     if (const float uvB = modellUvEditorBreite(ansichtenG.x); uvB > 0.0F) {
@@ -2568,12 +2574,28 @@ void drawModellArbeitsflaeche() {
         eineAnsicht(t.aktiv, ansichtenG, neu);
     }
     ImGui::EndChild();
+    if (seiteB > 0.0F) {
+        ImGui::SameLine(0.0F, sp);
+        ImGui::BeginChild("mtseitenleiste", ImVec2{seiteB, ansichtenG.y}, ImGuiChildFlags_Borders);
+        drawModellSeitenleiste(ImGui::GetContentRegionAvail());
+        ImGui::EndChild();
+    }
     ImGui::SameLine(0.0F, 0.0F);
     modellFeldTrenner(sp, ansichtenG.y, frei.x);   // AP3: die Trennkante - ziehen aendert die Breite des Felds
     ImGui::SameLine(0.0F, 0.0F);
-    ImGui::BeginChild("mtbefehlsfeld", ImVec2{befehlB, ansichtenG.y}, ImGuiChildFlags_Borders);
+    // AP4: wie Blender oben der Outliner (der Baum von AP2), darunter der Eigenschaften-Editor; wie 3ds Max nur das Befehlsfeld
+    const bool outliner = modellBlender();
+    if (outliner) { ImGui::BeginGroup(); }
+    const float feldH = outliner ? drawModellBlOutliner(befehlB, ansichtenG.y) : ansichtenG.y;
+    ImGui::BeginChild("mtbefehlsfeld", ImVec2{befehlB, feldH}, ImGuiChildFlags_Borders);
     drawModellBefehlsfeld();
     ImGui::EndChild();
+    modellBl().feld = ImRect{ImGui::GetItemRectMin(), ImGui::GetItemRectMax()};
+    if (outliner) {
+        ImGui::EndGroup();
+    } else {
+        modellBl().outliner = ImRect{};
+    }
     drawModellAktionen();
     drawModellRigUebersicht();   // Stufe 3
     drawModellAnimEditor();      // Stufe 3b: Dopesheet / Kurveneditor

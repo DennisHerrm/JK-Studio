@@ -1885,9 +1885,11 @@ void drawEbenenInhalt(const Layout& l) {
     } else if (g_app->leftMode == 2) {
         // AP2: die ganze Spalte ist der Szenen-Explorer (wie Blender: Outliner) - EIN Baum mit Flaechen, Tags, Knochen und
         // den Sequenzen (vorher 55 % Baum, darunter die eigene Animationsliste).
+        // AP4: wie Blender steht hier die Werkzeugleiste (T), der Outliner oben rechts ueber den Eigenschaften (Entwurf).
+        const bool blender = modellBlender();
         ImGui::BeginGroup();
         const float top = ImGui::GetCursorPosY();
-        ImGui::TextUnformatted(modellExplorerTitel());
+        if (!blender) { ImGui::TextUnformatted(modellExplorerTitel()); }
         ImGui::SetCursorPosY(top + l.headerH);
         ImGui::Dummy(ImVec2{0.0F, 0.0F});   // Anker (siehe oben)
         // Die Hoehe, die wirklich da ist: im Andockraum steht frameH auf
@@ -1896,7 +1898,11 @@ void drawEbenenInhalt(const Layout& l) {
         // vorher nahm die Spalte den ganzen Rest und lag ueber dem Band (Zeitleiste) und der Statuszeile (dock2mass, dock5).
         const float frei = ImGui::GetContentRegionAvail().y;
         const float hoehe = l.frameH > 0.0F ? std::min(l.frameH, frei) : std::max(frei + l.frameH, 0.0F);
-        drawModellExplorer(std::max(hoehe, 40.0F));
+        if (blender) {
+            drawModellWerkzeugleiste(std::max(hoehe, 40.0F));
+        } else {
+            drawModellExplorer(std::max(hoehe, 40.0F));
+        }
         ImGui::EndGroup();
     }
 }

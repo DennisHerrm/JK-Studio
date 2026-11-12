@@ -9,6 +9,7 @@
 #include "app_internal.h"
 #include "textumbruch.h"
 #include "gpumap.h"
+#include "fenster_dock.h"   // AP4: Fensteranordnung je Bedienmodus
 
 #include "bhed/modell/dokument.h"
 #include "bhed/modell/g2.h"
@@ -1019,6 +1020,7 @@ void drawModellKontextMenue() {
     modellMeshKontextMenue();  // Modell-Block 1d
     modellMalenKontextMenue(); // Modell-Block 1c
     modellGewichteKontextMenue();   // AP8: Gewichts-Werkzeuge, Bereinigen, Spiegeln, Sperren
+    modellBlKontextMenue();   // AP4: Werkzeugleiste (T), Seitenleiste (N), Abstand messen
     ImGui::EndPopup();
 }
 
@@ -1058,6 +1060,7 @@ bool modellTasten() {
     if (modellMalenTasten()) { return true; } // Modell-Block 1c: Pinsel (Bereich Painting)
     if (modellGewichteTasten()) { return true; }   // MRESTE: Bereich Weights wie Blender (km_weight_paint)
     if (modellBlender()) {
+        if (modellBlTasten()) { return true; }   // AP4: T Werkzeugleiste, N Seitenleiste
         for (const BlenderTaste& k : blenderTasten()) {
             if (ImGui::IsKeyChordPressed(k.chord)) {
                 k.tun();
@@ -1160,6 +1163,7 @@ void drawModellAktionen() {
     if (!rigAusgeloest && modellNavAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }     // MBNAV: Navigation ohne eigene Taste
     if (!rigAusgeloest && modellExplorerAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP2: Szenen-Explorer
     if (!rigAusgeloest && modellGewichteAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP8: Werkzeuge des Bereichs Weights
+    if (!rigAusgeloest && modellBlAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP4: Werkzeugleiste, Seitenleiste, Messen
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
 }
@@ -1189,6 +1193,7 @@ void drawModellModusMenue() {
 void modellBedienungSetzen(int b) {
     ModellTab& t = mt();
     if (g_app->settings.modellBedienung == b) { return; }
+    dock::modusAnordnung(2, g_app->settings.modellBedienung, b);   // AP4: jeder Bedienmodus behaelt seine Fensteranordnung
     g_app->settings.modellBedienung = b;
     modellModalEnde(false);
     modellNavZuruecksetzen();   // MBNAV

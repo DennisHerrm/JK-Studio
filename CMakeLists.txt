@@ -2074,3 +2074,9 @@ endif()
 if(TARGET behaved)
   target_sources(behaved PRIVATE gui/app_modelltab_anim.cpp)
 endif()
+
+# AP4 (MBENTWURF Teil B): der Model-Tab im Bedienmodus wie Blender - Werkzeugleiste (T) links, Outliner oben rechts ueber dem
+# Eigenschaften-Editor, Seitenleiste (N), der Modus im Kopf der Ansicht, das Werkzeug Messen
+if(TARGET behaved)
+  target_sources(behaved PRIVATE gui/app_modelltab_blender.cpp)
+endif()

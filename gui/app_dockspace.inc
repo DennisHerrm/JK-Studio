@@ -122,7 +122,7 @@ std::vector<Blatt> blaetter(int b) {
 bool mitBand(int b) { return b == 1 || b == 2; }
 
 std::string fensterName(const Blatt& p) {   // wie fenster_dock (panelFensterName)
-    return std::string(p.titel == Str::MbExplorer ? modellExplorerTitel() : tr(p.titel)) + "###dock." + p.id;
+    return std::string(p.titel == Str::MbExplorer ? modellLinksTitel() : tr(p.titel)) + "###dock." + p.id;   // AP4: wie Blender "Werkzeugleiste"
 }
 
 struct Raum {

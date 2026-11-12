@@ -653,6 +653,8 @@ void drawModellKopfzeile(int n, ModellAnsicht& a) {
     } else {
         std::snprintf(text, sizeof text, "%s", tr(Str::MkBlAnsicht));
         x = feld(dl, ImVec2{x, y}, "##mkansicht", text, Str::MkAnsichtHintBl, "##mkm1", n, hoehe, anker[1]) + 6.0F;
+        // AP4 (Entwurf "Benutzer-Perspektive - Objektmodus"): der Name der Ansicht und der Modus des Bereichs als Ausklapper
+        x = modellBlModusKopf(dl, n, x, y, hoehe, blenderName(a.art).c_str()) + 6.0F;
     }
     a.kopfRechts = x;
     a.kopfUnten = y + hoehe;
@@ -674,17 +676,8 @@ void drawModellKopfzeile(int n, ModellAnsicht& a) {
     }
     // --- der Hinweis daneben (nur maximiert, nur wenn er passt) und im Blender-Modus der Name der Ansicht ----------
     {
-        std::string hin;
-        if (bl) {
-            hin = blenderName(a.art);
-        }
-        if (!t.vierAnsichten) {
-            const char* max = tr(bl ? Str::MbAnsichtMaxBlender : Str::MbAnsichtMax);
-            hin = hin.empty() ? max : hin + "  " + max;
-        }
-        if (!hin.empty() && x + 6.0F + ImGui::CalcTextSize(hin.c_str()).x > rechtsAb - 6.0F && bl) {
-            hin = blenderName(a.art);
-        }
+        std::string hin;   // AP4: wie Blender steht der Name der Ansicht schon vor dem Modus (modellBlModusKopf)
+        if (!t.vierAnsichten) { hin = tr(bl ? Str::MbAnsichtMaxBlender : Str::MbAnsichtMax); }
         if (!hin.empty() && x + 6.0F + ImGui::CalcTextSize(hin.c_str()).x <= rechtsAb - 6.0F) {
             dl->AddText(ImVec2{x + 6.0F, y + (hoehe - fs) * 0.5F}, IM_COL32(200, 200, 200, 170), hin.c_str());
         }
