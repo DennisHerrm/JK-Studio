@@ -2619,6 +2619,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_ap4.inc: AP4 Model-Tab 
 namespace ap5 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_ap5.inc: AP5 Bereich Ansehen/Pruefen, BHED_HB_NUR=ap5
 }  // namespace ap5
+namespace ap13k {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_ap13k.inc: AP13K Knochen, Rig-Stile, Durchsicht, BHED_HB_NUR=ap13k
+}  // namespace ap13k
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2709,6 +2712,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap5") == 0) {
         return ap5::handbuchSchritte();   // AP5: der Bereich Ansehen/Pruefen wie 3ds Max und wie Blender, die Pruefanzeigen
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap13k") == 0) {
+        return ap13k::handbuchSchritte();   // AP13K: Knochen-Darstellung, Durchsicht, Rig-Stile
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste

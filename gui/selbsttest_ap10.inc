@@ -179,11 +179,13 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
                    return ok;
                }));
     // --- A14: was das Programm mehr kann, steht dahinter ---
-    add(pruefe(zeile("A14", modus, "hinter den acht Gruppen des Entwurfs: Pose, Ghosts, Bewegungspfade, Kurven und Animationswerkzeuge, Posen-Bibliothek, GLA, animation.cfg, Ziel-GLA und Plaetze - alle Gruppen des Bausteins (ohne Rig keine Auto-Physik)"),
+    add(pruefe(zeile("A14", modus, "hinter den acht Gruppen des Entwurfs: Pose, Ghosts, Bewegungspfade, Knochen- und Rig-Darstellung, Kurven und Animationswerkzeuge, Posen-Bibliothek, GLA, animation.cfg, Ziel-GLA und Plaetze - alle Gruppen des Bausteins (ohne Rig keine Auto-Physik)"),
                [] {
                    std::string soll;
                    for (const Str t : kEntwurf) { soll += std::string(tr(t)) + "|"; }
-                   soll += folge({Str::MbRgGruppePose, Str::MbRgGhosts, Str::MbRgPfade, Str::MbKvRollout, Str::MbKvGruppeBibliothek, Str::MbRGla, Str::MbRCfg, Str::MbRKartenGla});
+                   // AP13K: die Gruppe Knochen- und Rig-Darstellung steht hinter den Bewegungspfaden
+                   soll += folge({Str::MbRgGruppePose, Str::MbRgGhosts, Str::MbRgPfade, Str::KdGruppe, Str::MbKvRollout, Str::MbKvGruppeBibliothek, Str::MbRGla, Str::MbRCfg,
+                                  Str::MbRKartenGla});
                    // kein Element des Felds ist mehr eine Gruppe ohne den Baustein (ImGui::CollapsingHeader): jede aufklappbare Kopfzeile gehoert zu einer Probe
                    int fremd = 0;
                    for (const Element& e : g_elemente) {
@@ -357,7 +359,8 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
     const Str reiterStd = modus == 0 ? Str::MfBewegung : Str::MfKnochen;
     const std::string sollA = modus == 0 ? folge({Str::AzRRig, Str::MbIkRollout, Str::AzRAnbauten}) : folge({Str::MbIkRollout, Str::AzRAnbauten});
     const std::string sollB = modus == 0 ? folge({Str::AzRBauen, Str::MbKvGruppeBibliothek, Str::MbRGla, Str::MbRCfg, Str::MbRKartenGla})
-                                         : folge({Str::MbRgGhosts, Str::MbRgPfade, Str::MbKvGruppeBibliothek, Str::MbRGla, Str::MbRCfg, Str::MbRKartenGla});
+                                         : folge({Str::MbRgGhosts, Str::MbRgPfade, Str::KdGruppe, Str::MbKvGruppeBibliothek, Str::MbRGla, Str::MbRCfg,
+                                                  Str::MbRKartenGla});   // AP13K: Knochen- und Rig-Darstellung im Reiter Daten
     add(klick(tr(reiterA), "mtbefehlsfeld"));
     add(pause(0.4));
     add(pruefe(zeile("A14", modus, modus == 0 ? "der Reiter Hierarchie zeigt Rig erstellen, IK/FK, Anbauten und Vorschau" : "der Reiter Constraints zeigt IK/FK, Anbauten und Vorschau"), [=] {
@@ -367,7 +370,7 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
     add(klick(tr(reiterB), "mtbefehlsfeld"));
     add(pause(0.4));
     add(pruefe(zeile("A14", modus, modus == 0 ? "der Reiter Dienstprogramme zeigt Fuer das Spiel bauen, Posen-Bibliothek, GLA, animation.cfg, Ziel-GLA und Plaetze"
-                                              : "der Reiter Daten zeigt Ghosts, Bewegungspfade, Posen-Bibliothek, GLA, animation.cfg, Ziel-GLA und Plaetze"),
+                                              : "der Reiter Daten zeigt Ghosts, Bewegungspfade, Knochen- und Rig-Darstellung, Posen-Bibliothek, GLA, animation.cfg, Ziel-GLA und Plaetze"),
                [=] {
                    melde("A14 Reiter B: " + gruppen());
                    return gruppen() == sollB;

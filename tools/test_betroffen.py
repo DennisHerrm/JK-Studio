@@ -45,6 +45,7 @@ SELBSTTEST = (
     ("ap4", "modell"),
     ("ap5", "modell"),
     ("ap13s", "modell"),
+    ("ap13k", "modell"),
     ("numpad", "karteneditor"),
     ("uiform", "programm"),
     ("gdpfad", "programm"),   # GDPFAD: das Programm ohne den eingerichteten Spielordner (Lauf spielordnerfehlt)
@@ -63,6 +64,7 @@ REGELN: tuple[tuple[str, tuple[str, ...] | None], ...] = (
     ("src/q3map2/*", ("karteneditor",)), ("third_party/q3map2/*", ("karteneditor",)),
     ("gui/app_menue.cpp", ("menue",)), ("gui/menueeditor.h", ("menue",)), ("gui/videoimport*", ("menue",)), ("src/menue/*", ("menue",)),
     ("include/bhed/menue/*", ("menue",)),
+    ("gui/gpumap_formen.inc", ("modell",)),   # AP13K: Formen und Durchsicht nur im Modellfenster
     ("gui/app_modelltab*", ("modell",)), ("gui/modelltab.h", ("modell",)), ("gui/wof/*", ("modell",)), ("src/modell/*", ("modell",)),
     ("gui/ui_rollout.*", ("modell",)),                 # AP3: der Rollout-Baustein - benutzt vom rechten Feld des Model-Tabs
     ("include/bhed/modell/*", ("modell",)),
