@@ -1153,6 +1153,7 @@ void zeichneZeile(const Zeile& r, const Masse& m) {
     // FIX612C (P3-7): Probe fuer den Selbsttest - eine Zeile, deren Eintrag es nicht mehr gibt
     if ((r.art == ExplorerArt::Anbau && static_cast<std::size_t>(r.index) >= t.anbauten.size()) || (r.art == ExplorerArt::Griff && r.index >= modellRigExplorerZahl())) {
         ++fix612cProbe().explorerHinterEnde;
+        return;
     }
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImGui::TableNextRow(ImGuiTableRowFlags_None, m.zeileH);
@@ -2063,8 +2064,20 @@ void drawModellExplorer(float hoehe) {
             }
             if (ohneSequenzen > 0) { clipper.IncludeItemsByIndex(0, ohneSequenzen); }
         }
-        while (clipper.Step()) {
-            for (int r = clipper.DisplayStart; r < clipper.DisplayEnd; ++r) { zeichneZeile(g_zeilen[static_cast<std::size_t>(r)], m); }
+        // FIX612C (P3-7): ein Befehl im Rechtsklick einer Zeile kann die Liste kuerzer machen (Anbau loesen, Rig nur FK) - dann
+        // die Schleife verlassen, die Zeilen dahinter truegen Nummern hinter dem Ende; das naechste Bild baut den Baum neu
+        const std::size_t anbauten = t.anbauten.size();
+        const int griffe = modellRigExplorerZahl();
+        bool veraltet = false;
+        while (!veraltet && clipper.Step()) {
+            for (int r = clipper.DisplayStart; r < clipper.DisplayEnd && !veraltet; ++r) {
+                zeichneZeile(g_zeilen[static_cast<std::size_t>(r)], m);
+                veraltet = t.anbauten.size() != anbauten || modellRigExplorerZahl() != griffe;
+            }
+        }
+        if (veraltet) {
+            clipper.End();
+            g_app->modelDirty = true;
         }
         ImGui::PopStyleVar();
         ImGui::EndTable();

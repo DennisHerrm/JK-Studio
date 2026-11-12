@@ -1211,6 +1211,7 @@ int modellRigExplorerZahl() { return modellRigDa() ? static_cast<int>(mt().rig.g
 std::string modellRigExplorerName(int griff) { return griffName(griff); }
 
 void modellRigExplorerSymbol(int griff, UiIcon& icon, ImU32& farbe) {
+    if (griff < 0 || static_cast<std::size_t>(griff) >= mt().rig.griffe.size()) { return; }   // FIX612C (P3-7)
     const modell::Griff& g = mt().rig.griffe[static_cast<std::size_t>(griff)];
     icon = g.ik ? UiIcon::MbPol : UiIcon::MbGriff;
     farbe = seitenFarbe(g.seite);
@@ -1218,6 +1219,7 @@ void modellRigExplorerSymbol(int griff, UiIcon& icon, ImU32& farbe) {
 
 // Der Tooltip der Zeile: der Knochen des Griffs und was der Griff tut.
 std::string modellRigExplorerHinweis(int griff) {
+    if (griff < 0 || static_cast<std::size_t>(griff) >= mt().rig.griffe.size()) { return {}; }   // FIX612C (P3-7)
     const modell::Griff& g = mt().rig.griffe[static_cast<std::size_t>(griff)];
     return (g.knochen >= 0 ? g_app->anim.bones[static_cast<std::size_t>(g.knochen)].name : std::string("-")) + "\n" + tr(griffHinweis(g));
 }
