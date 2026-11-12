@@ -829,12 +829,21 @@ void gruppePlaetze() {
     if (ui::werkzeugKnopf(tr(Str::MbXsiAufnehmen), {.icon = UiIcon::Plus, .hinweis = tr(Str::MbXsiAufnehmenHint)})) { modellXsiAufnehmenFrage(); }
     ui::rasterEnde();
     ImGui::BeginChild("##kgplaetze", ImVec2{-1.0F, fs * 14.0F}, ImGuiChildFlags_Borders | ImGuiChildFlags_ResizeY);
+    // FIX612 P3-3: "Hierher" und "Leeren" legen t.plaetze neu an (plaetzeAnpassen; bei der eigenen GLA wird die Liste dabei
+    // kuerzer). Bis rc612 liefen sie mitten in der Schleife: die folgenden Zeilen lasen die neue Liste mit dem Ende der alten,
+    // die letzte einen Platz hinter ihrem Ende. Jetzt merkt die Schleife die Aktion nur, ausgefuehrt wird sie danach.
+    int hierher = -1;
+    int hierherAnim = -1;
+    int leeren = -1;
     ImGuiListClipper clip;
     clip.Begin(static_cast<int>(t.plaetze.size()));
     while (clip.Step()) {
         for (int i = clip.DisplayStart; i < clip.DisplayEnd; ++i) {
-            if (static_cast<std::size_t>(i) >= t.plaetze.size()) { ++fix612Probe().platzHinterEnde; }   // Selbsttest (FIX612 P3-3)
-            modell::Platz& p = t.plaetze[static_cast<std::size_t>(i)];
+            if (static_cast<std::size_t>(i) >= t.plaetze.size()) {   // Selbsttest (FIX612 P3-3): kommt nicht mehr vor
+                ++fix612Probe().platzHinterEnde;
+                break;
+            }
+            const modell::Platz& p = t.plaetze[static_cast<std::size_t>(i)];
             ImGui::PushID(i);
             std::string zeile = p.name + "   ";
             zeile += p.belegt ? p.quelle.sequenz.name + "  (" +
@@ -849,20 +858,24 @@ void gruppePlaetze() {
             ImGui::SetItemTooltip("%s", tr(Str::MbKgZiehen));
             if (ImGui::BeginDragDropTarget()) {
                 if (const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("MB_SEQ"); pl != nullptr && pl->DataSize == sizeof(int)) {
-                    int anim = 0;
-                    std::memcpy(&anim, pl->Data, sizeof anim);
-                    (void)modellPlatzSetzen(i, anim);
+                    std::memcpy(&hierherAnim, pl->Data, sizeof hierherAnim);
+                    hierher = i;
                 }
                 ImGui::EndDragDropTarget();
             }
             if (ImGui::BeginPopupContextItem("##platzkontext")) {
-                if (ImGui::MenuItem(tr(Str::MbKgHierher), nullptr, false, g_app->animIndex >= 0)) { (void)modellPlatzSetzen(i, g_app->animIndex); }
-                if (ImGui::MenuItem(tr(Str::MbKgLeeren), nullptr, false, p.belegt)) { modellPlatzLeeren(i); }
+                if (ImGui::MenuItem(tr(Str::MbKgHierher), nullptr, false, g_app->animIndex >= 0)) {
+                    hierher = i;
+                    hierherAnim = g_app->animIndex;
+                }
+                if (ImGui::MenuItem(tr(Str::MbKgLeeren), nullptr, false, p.belegt)) { leeren = i; }
                 ImGui::EndPopup();
             }
             ImGui::PopID();
         }
     }
+    if (hierher >= 0) { (void)modellPlatzSetzen(hierher, hierherAnim); }
+    if (leeren >= 0) { modellPlatzLeeren(leeren); }
     if (t.glaZiel == 2) {
         // eigene GLA: neue Plaetze heissen wie die gezogene Sequenz
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
