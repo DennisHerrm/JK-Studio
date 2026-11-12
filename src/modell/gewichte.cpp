@@ -1176,7 +1176,7 @@ int spiegelnSeite(Inhalt& in, int stufe, const std::vector<std::string>& namen, 
         }
     }
     int z = 0;
-    for (const auto& [p, l] : neu) { z += punktSchreiben(in, stufe, s, p, l, true); }
+    for (const auto& [p, l] : neu) { z += punktSchreiben(in, stufe, s, p, l, true, nurTeile); }
     return z;
 }
 

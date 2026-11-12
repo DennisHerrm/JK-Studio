@@ -152,7 +152,9 @@ void drawModellAutoSkinGruppe() {
     (void)ui::schalter(tr(Str::AsNaehte), &z.o.naehte, tr(Str::AsNaehteHint));
     (void)ui::schalter(tr(Str::AsDreh), &z.o.drehknochen, tr(Str::AsDrehHint));
     (void)ui::schalter(tr(Str::AsDetail), &z.o.detailknochen, tr(Str::AsDetailHint));
-    (void)ui::schalter(tr(Str::AsSpiegeln), &z.o.spiegeln, tr(Str::AsSpiegelnHint));
+    // FIX612B P2-1 (Entscheidung A16): der Hinweis nennt, dass mit "Nur Auswahl" nur in die gewaehlten Flaechen gespiegelt wird
+    const std::string spiegelnHinweis = std::string(tr(Str::AsSpiegelnHint)) + " " + tr(Str::FxAsSpiegelnAuswahl);
+    (void)ui::schalter(tr(Str::AsSpiegeln), &z.o.spiegeln, spiegelnHinweis.c_str());
     // die Zahl der gewaehlten Flaechen steht dahinter (der Text selbst traegt keinen Platzhalter: das Handbuch nennt ihn)
     (void)ui::schalter((std::string(tr(Str::AsNurAuswahl)) + " (" + std::to_string(gewaehlteFlaechen()) + ")###asnurauswahl").c_str(), &z.nurAuswahl,
                        tr(Str::AsNurAuswahlHint));

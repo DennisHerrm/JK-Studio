@@ -1106,8 +1106,28 @@ bool autoSkin(Inhalt& in, const GlaAnimation& g, const AutoSkinOptionen& o, Auto
         std::vector<std::string> namen;
         namen.reserve(g.bones.size());
         for (const GlaBone& b : g.bones) { namen.push_back(b.name); }
-        for (int st = 0; st < in.stufenZahl; ++st) { bericht.gespiegelt += spiegeln(in, st, namen, 1, o.spiegelToleranz); }
-        (void)uebernehmen(in);
+        // FIX612B P2-1: mit "Nur Auswahl" schreibt das Spiegeln nur in die gewaehlten Flaechen (gelesen wird ueberall), und
+        // uebernommen werden nur die Mallisten, die das Spiegeln selbst angelegt hat. Vorher lief es ueber das Schweissnetz
+        // aller Flaechen - jede Ecke bei x < 0 bekam die Gewichte ihres Gegenstuecks, auch in nicht gewaehlten Flaechen - und
+        // uebernehmen(in) nahm jede offene Malliste des Modells mit.
+        const bool nurWahl = o.teile.size() == in.teile.size();
+        std::vector<std::vector<char>> malte(in.teile.size());
+        for (std::size_t t = 0; t < in.teile.size(); ++t) {
+            for (const Netz& netz : in.teile[t].stufen) { malte[t].push_back(malt(netz) ? 1 : 0); }
+        }
+        for (int st = 0; st < in.stufenZahl; ++st) {
+            const Schweissnetz sn = schweissen(in, st);
+            bericht.gespiegelt += spiegelnSeite(in, st, namen, sn, spiegelPartner(in, st, sn, o.spiegelToleranz), 1, o.spiegelToleranz, nullptr,
+                                                nurWahl ? &s.gewaehlt : nullptr);
+        }
+        for (std::size_t t = 0; t < in.teile.size(); ++t) {
+            for (std::size_t st = 0; st < in.teile[t].stufen.size(); ++st) {
+                Netz& netz = in.teile[t].stufen[st];
+                if (malte[t][st] != 0 || !malt(netz)) { continue; }   // offene Mallisten von vorher bleiben offen
+                for (std::size_t e = 0; e < netz.mal.size() && e < netz.ecken.size(); ++e) { (void)aufEcke(netz.mal[e], netz.ecken[e]); }
+                netz.mal.clear();
+            }
+        }
     }
     // was jetzt in den Ecken steht
     std::vector<char> benutzt(static_cast<std::size_t>(nk), 0);
