@@ -5,13 +5,21 @@
 // zum Weiterrechnen braucht: eine Kopie der Karte (.map bzw. .reg), die .bsp, .prt und .srf der fertigen Schritte,
 // der VIS-Zwischenstand von bhed_q3map2 (-bhedvisstate, visflow.cpp), der Licht-Cache und stand.json (Eintrag,
 // Befehle, Schritt). Fortsetzen geht auf zwei Wegen:
-//   - "Karte wie angehalten": die uebrigen Befehle laufen auf den Kopien im Ordner, danach kommen die Ergebnisse
-//     neben die Karte - genau der angehaltene Bau, zu Ende gefuehrt;
+//   - "Karte wie angehalten": die uebrigen Schritte laufen auf den Kopien im Ordner, danach kommen die Ergebnisse
+//     neben die Karte - der angehaltene Bau, zu Ende gefuehrt;
 //   - "aktuelle Karte": der Eintrag wird fuer die Karte von jetzt neu gebaut, der VIS-Zwischenstand kommt vorher
 //     zurueck neben die .bsp - bhed_q3map2 nimmt ihn nur bei derselben Portaldatei und denselben Schaltern, der
 //     Licht-Cache prueft jede Lightmap selbst. Das Ergebnis ist das eines vollen Baus der aktuellen Karte.
 // Ein Schritt, der sich nicht anhalten laesst (BSP, LIGHT, VIS ohne Zwischenstand), wird beendet und beginnt beim
 // Fortsetzen neu; vom Licht bleiben mit -bhedlightcache die fertigen Durchgaenge (bauLichtCacheRettenDatei).
+//
+// Sicherheit (FIX612 R3): der Ordner liegt neben der Karte und kann mit ihr von jemand anderem kommen (Kartenquellen
+// als .zip). Aus stand.json wird deshalb NICHTS ausgefuehrt und kein Pfad uebernommen:
+//   - Pfade: bauPauseLesen bindet den Stand an den Ort der Karte von jetzt (bauPauseAnOrt) - Verwerfen, Fortsetzen
+//     und die Ergebnisse gelten dort, auch nachdem der Kartenordner verschoben oder umbenannt wurde;
+//   - Befehle: "Karte wie angehalten" startet die Befehle, die das Programm selbst aus dem Eintrag seines Build-Menues
+//     fuer die Kopien erzeugt, und nur, wenn jeder davon den eigenen Compiler startet (bauPausePruefen). Die Befehle
+//     in stand.json dienen nur dem Vergleich (gleiche Schritte, Hinweis bei anderen Schaltern) und der Anzeige.
 //
 // Portiert aus q3map2 (NetRadiant-Custom 20260114): vis.cpp LoadPortals (portalbytes aus der Zahl der Portale) fuer die
 // Hoechstgroesse des VIS-Zwischenstands. Alles andere ist eigener Code zu den BehavEd-Erweiterungen von bhed_q3map2
@@ -44,7 +52,8 @@ struct BauPause {
     std::string karte;                   // die Karte des Editors
     std::string stamm;                   // die gebaute Datei ohne Endung ('/'): <stamm>.map, .bsp, .prt ...
     std::string mapDatei;                // was q3map2 baut: <stamm>.map bzw. <stamm>.reg
-    std::vector<std::string> befehle;    // alle Schritte des Baus, wie sie gestartet wurden
+    std::string stammInDatei;            // nach bauPauseLesen: der Stamm, wie stand.json ihn nannte (nur Anzeige "verschoben")
+    std::vector<std::string> befehle;    // alle Schritte des Baus, wie sie gestartet wurden (nie ausgefuehrt: bauPausePruefen)
     std::size_t schritt = 0;             // bei diesem Schritt geht es weiter
     std::string zeit;                    // wann angehalten wurde (Text fuer die Anzeige)
     double vergangen = 0.0;              // Sekunden Bauzeit bis dahin
@@ -59,10 +68,13 @@ struct BauPause {
 // <stamm>.bhedpause und <stamm>.bhedpause/<name> (der Stamm der Kopien)
 [[nodiscard]] std::string bauPauseOrdner(const std::string& stamm);
 [[nodiscard]] std::string bauPauseStamm(const std::string& stamm);
-// stand.json als Text und zurueck
+// stand.json als Text und zurueck (bauPauseAusText: die Werte der Datei, wie sie dastehen - ohne Bindung an einen Ort)
 [[nodiscard]] std::string bauPauseText(const BauPause& p);
 [[nodiscard]] bool bauPauseAusText(const std::string& json, BauPause& p);
-// stand.json im Ordner des Stamms lesen bzw. (atomar) schreiben
+// Den gelesenen Stand an den Ort der Karte von jetzt binden: stamm und mapDatei kommen aus `stamm` (die Endung .map
+// bzw. .reg aus der Datei), was stand.json dazu nannte, steht danach nur noch in stammInDatei.
+void bauPauseAnOrt(BauPause& p, const std::string& stamm);
+// stand.json im Ordner des Stamms lesen (und an diesen Ort binden) bzw. (atomar) schreiben
 [[nodiscard]] bool bauPauseLesen(const std::string& stamm, BauPause& p);
 bool bauPauseSchreiben(const BauPause& p, std::string* fehler = nullptr);
 // Bytes aller Dateien des Zwischenstands; -1 ohne Zwischenstand
@@ -75,10 +87,26 @@ bool bauPauseSchreiben(const BauPause& p, std::string* fehler = nullptr);
 // VIS-Zwischenstand wird verschoben (bis 2,9 GB - und ein spaeteres -vis -fast loeschte ihn sonst), der Licht-Cache
 // verknuepft (fester Link, sonst kopiert), wenn noch ein Licht-Schritt mit -bhedlightcache kommt.
 bool bauPauseSichern(const BauPause& p, std::string* fehler = nullptr);
-// "Karte wie angehalten": alle Befehle auf die Kopien umgebogen (<stamm>. -> <ordner>/<name>.)
-[[nodiscard]] std::vector<std::string> bauPauseBefehleAlt(const BauPause& p);
-// ... und nach deren Ende: .bsp, .prt, .srf, Licht-Cache, Editor-Daten und der Ordner externer Lightmaps neben
-// die Karte, der Zwischenstand weg
+// Das Programm eines Befehls: sein erstes Wort ohne Anfuehrungszeichen ("" bei einem leeren Befehl)
+[[nodiscard]] std::string bauBefehlProgramm(const std::string& befehl);
+// Startet der Befehl genau dieses Programm? Verglichen wird der Pfad ohne Gross/Klein und mit '/' wie '\\'.
+[[nodiscard]] bool bauBefehlIstCompiler(const std::string& befehl, const std::string& compiler);
+// "Karte wie angehalten": `heute` sind die Befehle, die das Programm selbst aus dem Eintrag des Build-Menues fuer die
+// Kopien im Ordner erzeugt hat - nur sie werden gestartet. Abgelehnt wird, wenn der Eintrag heute andere Schritte
+// hat als der Stand (Zahl oder Stufe), wenn ein noch offener Schritt nicht `compiler` startet, oder wenn der Stand
+// selbst ein anderes Programm als einen bhed_q3map2 nennt (nicht von JK Studio geschrieben oder veraendert).
+enum class BauPauseGrund { Ok, Schritte, Programm, StandFremd };
+struct BauPausePruefung {
+    BauPauseGrund grund = BauPauseGrund::Ok;
+    std::size_t schritt = 0;                    // Programm, StandFremd: der Schritt (ab 0)
+    std::string programm;                       // Programm, StandFremd: das fremde Programm
+    std::string stufenStand;                    // Schritte: "BSP, VIS, LIGHT" des Stands ...
+    std::string stufenHeute;                    // ... und des Eintrags von heute
+    std::vector<std::size_t> andereSchalter;    // Ok: offene Schritte, deren Schalter heute andere sind als im Stand
+};
+[[nodiscard]] BauPausePruefung bauPausePruefen(const BauPause& p, const std::vector<std::string>& heute, const std::string& compiler);
+// Nach dem Ende der Befehle auf den Kopien: .bsp, .prt, .srf, Licht-Cache, Editor-Daten und der Ordner externer
+// Lightmaps neben die Karte, der Zwischenstand weg. Die Karte selbst (<name>.map, <name>.reg) kommt nie zurueck.
 bool bauPauseAltFertig(const BauPause& p, std::string* fehler = nullptr);
 // "aktuelle Karte": der VIS-Zwischenstand zurueck neben die .bsp (liegt dort kein neuerer), der Zwischenstand weg.
 // true, wenn ein VIS-Zwischenstand zurueckgelegt wurde.

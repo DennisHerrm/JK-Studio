@@ -2530,6 +2530,78 @@ void bauAbbrechen() {
 
 namespace {
 
+// Die Befehle eines Eintrags des Build-Menues mit den Bauoptionen des Editors, fuer die Dateien in `v` (MapFile, BspFile).
+// Ein Weg fuer den Bau (bauStarten) und fuer "Karte wie angehalten" (FIX612 R3: dort zeigen MapFile und BspFile auf die
+// Kopien im Zwischenstand) - die Befehle eines fortgesetzten Baus kommen so aus dem Programm, nie aus stand.json.
+// melden: Meldungen des Build-Menues und die Zeile zu den Editor-Daten in die Konsole. Rumpf vor bauStarten.
+struct BauBefehlsSatz {
+    std::vector<std::string> befehle;
+    std::string edQuelle;            // Editor-Daten (Stufe 8a Punkt 2): die Quelle und die .bsp, wenn eine BSP-Stufe sie schreibt
+    std::string edBsp;
+    karte::GpuZeiten autoZeiten;     // Stufe 8d: die gemerkten Zeiten, mit denen "Auto" gewaehlt hat
+};
+BauBefehlsSatz bauBefehleFuer(std::size_t index, const karte::BauVariablen& v, bool melden);
+
+// FIX612 R3: was "Karte wie angehalten" tun wird - die Befehle aus dem eigenen Build-Menue fuer die Kopien im Zwischenstand,
+// oder der Grund, aus dem es nicht geht. Aus stand.json kommen dafuer nur der Name des Eintrags und der Schritt.
+struct AltPlan {
+    bool ok = false;
+    std::string grund;                          // !ok: der Grund in der Sprache der Oberflaeche
+    BauBefehlsSatz satz;                        // ok: die Befehle aller Schritte (gestartet wird ab dem Schritt des Stands)
+    std::vector<std::size_t> andereSchalter;    // ok: offene Schritte, deren Schalter heute andere sind als beim Anhalten
+};
+
+AltPlan altPlanen(const karte::BauPause& p) {
+    Editor& ed = e();
+    AltPlan plan;
+    char z[1600] = {};
+    bauMenueSicherstellen();
+    const std::vector<karte::BauEintrag>& liste = ed.bauProjekt.eintraege;
+    std::size_t index = liste.size();
+    for (std::size_t i = 0; i < liste.size() && index == liste.size(); ++i) {
+        if (!karte::bauIstTrenner(liste[i]) && karte::ohneMnemonik(liste[i].name) == p.eintrag) { index = i; }
+    }
+    if (index == liste.size()) {
+        std::snprintf(z, sizeof(z), trK(Str::KeBpKeinEintrag), p.eintrag.c_str());
+        plan.grund = z;
+        return plan;
+    }
+    // gebaut wird auf den Kopien im Zwischenstand: <karte>.bhedpause/<name>.map (bzw. .reg) und .bsp
+    const std::string kopie = karte::bauPauseStamm(p.stamm);
+    const std::size_t strich = p.stamm.find_last_of('/');
+    karte::BauVariablen v = bauVariablen();
+    v["MapFile"] = kopie + pfadAus(p.mapDatei).extension().string();
+    v["BspFile"] = kopie + ".bsp";
+    v["MapName"] = p.stamm.substr(strich == std::string::npos ? 0 : strich + 1) + ".map";
+    plan.satz = bauBefehleFuer(index, v, false);
+    const std::string compiler = v.at("RadiantPath") + "bhed_q3map2." + v.at("ExecutableType");
+    const karte::BauPausePruefung pr = karte::bauPausePruefen(p, plan.satz.befehle, compiler);
+    switch (pr.grund) {
+        case karte::BauPauseGrund::Ok:
+            plan.ok = true;
+            plan.andereSchalter = pr.andereSchalter;
+            return plan;
+        case karte::BauPauseGrund::Schritte:
+            std::snprintf(z, sizeof(z), trK(Str::KeBpGrundSchritte), p.eintrag.c_str(), pr.stufenHeute.c_str(), pr.stufenStand.c_str());
+            break;
+        case karte::BauPauseGrund::Programm:
+            std::snprintf(z, sizeof(z), trK(Str::KeBpGrundProgramm), static_cast<int>(pr.schritt + 1), p.eintrag.c_str(), pr.programm.c_str(), compiler.c_str());
+            break;
+        case karte::BauPauseGrund::StandFremd:
+            std::snprintf(z, sizeof(z), trK(Str::KeBpGrundStandFremd), pr.programm.c_str());
+            break;
+    }
+    plan.grund = z;
+    return plan;
+}
+
+// Liegt die Karte nicht mehr dort, wo sie beim Anhalten lag? Dann der Ordner von damals ("" sonst).
+std::string pauseAlterOrt(const karte::BauPause& p) {
+    if (p.stammInDatei.empty() || gleichOhneFall(mitSchraegstrich(p.stammInDatei), mitSchraegstrich(p.stamm))) { return {}; }
+    const std::u8string u = pfadAus(p.stammInDatei).parent_path().generic_u8string();
+    return std::string(u.begin(), u.end());
+}
+
 // Wo die aktuelle Karte gebaut wird, ohne Endung - wie bauOrtBestimmen, ohne etwas anzulegen
 std::string bauStammVorschau() {
     Editor& ed = e();
@@ -2636,8 +2708,17 @@ void bauPauseVerwerfen() {
     if (bauLaeuft() && g_lauf.p.alteKarte) { return; }   // der laufende Bau rechnet gerade darin
     const BauPauseStand s = bauPauseStand();
     if (!s.da) { return; }
+    // FIX612 R3: s.pause.stamm ist der Ort der Karte von jetzt (bauPauseLesen), nicht der aus stand.json
+    const std::string ordner = karte::bauPauseOrdner(s.pause.stamm);
     (void)karte::bauPauseVerwerfen(s.pause.stamm);
     pauseStandVergessen();
+    std::error_code ec;
+    if (fs::exists(pfadAus(ordner), ec)) {
+        char z[1400];
+        std::snprintf(z, sizeof(z), trK(Str::KeBpVerwerfenFehler), mitSchraegstrich(ordner).c_str());
+        fehler(z);
+        return;
+    }
     ausgabe(trK(Str::KeBpVerworfen));
 }
 
@@ -2675,10 +2756,27 @@ void bauFortsetzen(bool alteKarte) {
         g_lauf.p.fortgesetzt = bauLaeuft();
         return;
     }
-    // genau der angehaltene Bau: die uebrigen Befehle auf den Kopien im Zwischenstand
+    // Der angehaltene Bau: die uebrigen Schritte auf den Kopien im Zwischenstand. FIX612 R3: die Befehle erzeugt das Programm
+    // selbst aus dem Eintrag seines Build-Menues (altPlanen) - aus stand.json wird nichts gestartet, und gestartet wird nur
+    // der eigene Compiler.
+    const AltPlan plan = altPlanen(p);
+    if (!plan.ok) {
+        std::snprintf(z, sizeof(z), trK(Str::KeBpAltNichtMoeglich), plan.grund.c_str());
+        fehler(z);
+        ausgabe(trK(Str::KeBpAltRat));
+        return;
+    }
     const std::string stamm = karte::bauPauseStamm(p.stamm);
-    const std::vector<std::string> befehle = karte::bauPauseBefehleAlt(p);
-    std::snprintf(z, sizeof(z), trK(Str::KeBpAltStart), static_cast<int>(p.schritt + 1), static_cast<int>(p.befehle.size()),
+    const std::vector<std::string>& befehle = plan.satz.befehle;
+    if (const std::string alt = pauseAlterOrt(p); !alt.empty()) {
+        std::snprintf(z, sizeof(z), trK(Str::KeBpVerschoben), alt.c_str());
+        ausgabe(z);
+    }
+    for (const std::size_t i : plan.andereSchalter) {
+        std::snprintf(z, sizeof(z), trK(Str::KeBpAltSchalter), static_cast<int>(i + 1), karte::bauStufeName(befehle[i]).c_str());
+        ausgabe(z);
+    }
+    std::snprintf(z, sizeof(z), trK(Str::KeBpAltStart), static_cast<int>(p.schritt + 1), static_cast<int>(befehle.size()),
                   mitSchraegstrich(karte::bauPauseOrdner(p.stamm)).c_str());
     ausgabe(z);
     BauLauf& l = g_lauf;
@@ -2697,21 +2795,29 @@ void bauFortsetzen(bool alteKarte) {
     bauAusfuehrenAb(befehle, p.schritt, p.fertig);
     l.gpuModus = karte::GpuBacken::Aus;   // wie der Befehl es sagt; gemerkt wird von einem fortgesetzten Bau keine Zeit
     l.autoZeiten = {};
-    // Editor-Daten (Stufe 8a Punkt 2), wenn der angehaltene Bau sie schrieb: seine BSP-Stufe hat -keeplights
-    l.editorDatenQuelle.clear();
-    l.editorDatenBsp.clear();
-    for (const std::string& b : p.befehle) {
-        if (ed.bau.editorDaten && karte::bauStufeAusBefehl(b) == karte::BauStufe::Bsp && karte::befehlMitLichtern(b) == b) {
-            l.editorDatenQuelle = l.p.mapDatei;
-            l.editorDatenBsp = stamm + ".bsp";
-        }
-    }
+    // Editor-Daten (Stufe 8a Punkt 2), wenn die BSP-Stufe des Eintrags sie schreibt (-keeplights): Quelle und .bsp sind die Kopien
+    l.editorDatenQuelle = plan.satz.edQuelle;
+    l.editorDatenBsp = plan.satz.edBsp;
 }
 
 // Das Fenster "Bauen fortsetzen": was gespeichert ist, ob die Karte sich geaendert hat, und die zwei Wege
 void bauFortsetzenZeichnen() {
     if (!e().bauFortsetzenOffen) { return; }
     const BauPauseStand s = bauPauseStand();
+    // FIX612 R3: was "Karte wie angehalten" tun wird - neu bestimmt, wenn der Stand ein anderer ist, sonst zweimal je Sekunde
+    static AltPlan plan;
+    static std::string planFuer;
+    static double planZeit = -10.0;
+    if (s.da) {
+        const std::string fuer = s.pause.stamm + "|" + s.pause.eintrag + "|" + std::to_string(s.pause.schritt) + "|" + s.pause.zeit;
+        if (fuer != planFuer || ImGui::GetTime() - planZeit >= 0.5) {
+            plan = altPlanen(s.pause);
+            planFuer = fuer;
+            planZeit = ImGui::GetTime();
+        }
+    } else {
+        planFuer.clear();
+    }
     const float m = massstab();
     const ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(vp->GetCenter(), ImGuiCond_Appearing, ImVec2{0.5F, 0.5F});
@@ -2725,9 +2831,23 @@ void bauFortsetzenZeichnen() {
             cjkTextWrapped("%s", trK(Str::KeBpKeiner));
         } else {
             for (const std::string& z : bauPauseZeilen(s)) { cjkTextWrapped("%s", z.c_str()); }
+            if (const std::string alt = pauseAlterOrt(s.pause); !alt.empty()) {   // FIX612 R3: der Kartenordner wurde verschoben
+                char z[1400];
+                std::snprintf(z, sizeof(z), trK(Str::KeBpVerschoben), alt.c_str());
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+                cjkTextWrapped("%s", z);
+                ImGui::PopStyleColor();
+            }
             ImGui::PushStyleColor(ImGuiCol_Text, s.karteGeaendert ? ImVec4(1.0F, 127.0F / 255.0F, 0.0F, 1.0F) : ImGui::GetStyleColorVec4(ImGuiCol_Text));
             cjkTextWrapped("%s", trK(s.karteGeaendert ? Str::KeBpGeaendert : Str::KeBpUnveraendert));
             ImGui::PopStyleColor();
+            if (!plan.ok) {   // FIX612 R3: der Grund, aus dem "Karte wie angehalten" nicht geht (der Knopf ist gesperrt)
+                char z[2000];
+                std::snprintf(z, sizeof(z), trK(Str::KeBpAltNichtMoeglich), plan.grund.c_str());
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0F, 127.0F / 255.0F, 0.0F, 1.0F));
+                cjkTextWrapped("%s %s", z, trK(Str::KeBpAltRat));
+                ImGui::PopStyleColor();
+            }
             const std::string& schritt = s.pause.befehle[s.pause.schritt];
             if (karte::bauStufeAusBefehl(schritt) == karte::BauStufe::Vis) {   // was "fortgesetzt" fuer das VIS heisst, ehrlich
                 ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -2751,11 +2871,28 @@ void bauFortsetzenZeichnen() {
             ImGui::BeginDisabled(bauLaeuft());
             for (const auto& k : knoepfe) {
                 if (zeile && k.wahl > 1) { ImGui::SameLine(); }
+                const bool gehtNicht = k.wahl == 2 && !plan.ok;   // FIX612 R3
+                ImGui::BeginDisabled(gehtNicht);
                 if (ImGui::Button((std::string(trK(k.text)) + k.id).c_str())) { wahl = k.wahl; }
+                ImGui::EndDisabled();
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                    const bool mitBefehlen = k.wahl == 2 && plan.ok && !bauLaeuft();
                     ImGui::BeginTooltip();
-                    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28.0F);
-                    cjkTextWrapped("%s", trK(bauLaeuft() ? Str::KeBpLaeuft : k.tip));
+                    ImGui::PushTextWrapPos(ImGui::GetFontSize() * (mitBefehlen ? 40.0F : 28.0F));
+                    if (gehtNicht && !bauLaeuft()) {
+                        cjkTextWrapped("%s %s", plan.grund.c_str(), trK(Str::KeBpAltRat));
+                    } else {
+                        cjkTextWrapped("%s", trK(bauLaeuft() ? Str::KeBpLaeuft : k.tip));
+                    }
+                    if (mitBefehlen) {   // FIX612 R3: was laufen wird, steht da - die Befehle des eigenen Build-Menues
+                        char z[600];
+                        std::snprintf(z, sizeof(z), trK(Str::KeBpAltBefehle), s.pause.eintrag.c_str());
+                        ImGui::Spacing();
+                        cjkTextWrapped("%s", z);
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+                        for (std::size_t i = s.pause.schritt; i < plan.satz.befehle.size(); ++i) { cjkTextWrapped("%s", plan.satz.befehle[i].c_str()); }
+                        ImGui::PopStyleColor();
+                    }
                     ImGui::PopTextWrapPos();
                     ImGui::EndTooltip();
                 }
@@ -2954,6 +3091,73 @@ bool bauOrtBestimmen() {
 
 // --- RunBSP (qe3.cpp:235-262) bis zu den Befehlen ----------------------------------
 
+namespace {
+
+// (Erklaerung und BauBefehlsSatz stehen weiter oben, vor dem Abschnitt "Bauen anhalten und fortsetzen")
+BauBefehlsSatz bauBefehleFuer(std::size_t index, const karte::BauVariablen& v, bool melden) {
+    Editor& ed = e();
+    BauBefehlsSatz s;
+    std::vector<std::string> meldungen;
+    std::vector<std::string>& befehle = s.befehle;
+    befehle = karte::bauBefehle(ed.bauProjekt, index, v, &meldungen);
+    if (melden) {
+        for (const std::string& m : meldungen) { fehler(m); }
+    }
+    // Stufe 8a Punkt 2 (Abweichung, eigene Bauoption): Editor-Daten behalten - jede
+    // BSP-Stufe mit -keeplights, nach dem Bau die Quelle als <karte>.bhed neben die .bsp
+    if (ed.bau.editorDaten) {
+        int n = 0;
+        for (std::string& b : befehle) {
+            const std::string neu = karte::befehlMitLichtern(b);
+            if (neu != b) { ++n; }
+            if (karte::bauStufeAusBefehl(b) == karte::BauStufe::Bsp) {
+                s.edQuelle = v.at("MapFile");
+                s.edBsp = v.at("BspFile");
+            }
+            b = neu;
+        }
+        if (n > 0 && melden) {
+            char z[256];
+            std::snprintf(z, sizeof(z), trKN(Str::KeEdLichter, n), n);
+            ausgabe(z);
+        }
+    }
+    // Stufe 8a Punkt 5a (Abweichung): VIS wiederverwenden, wenn sich die Portale nicht aendern
+    if (ed.bau.visWieder) {
+        for (std::string& b : befehle) { b = karte::befehlMitVisWiederverwendung(b); }
+    }
+    // Stufe 8a Punkt 5b/5d (Abweichung): Licht nur fuer betroffene Lightmaps, Nachbearbeitung ohne neu zu tracen
+    if (ed.bau.lichtWieder) {
+        for (std::string& b : befehle) { b = karte::befehlMitLichtWiederverwendung(b); }
+    }
+    // vis1 (Abweichung): mit mehreren Threads genau das VIS von -threads 1
+    if (ed.bau.visExakt) {
+        for (std::string& b : befehle) { b = karte::befehlMitVisExakt(b); }
+    }
+    // vis2c (Abweichung): jedes -vis von bhed_q3map2 mit Zwischenstand - anhalten (Stoppdatei) und fortsetzen
+    for (std::string& b : befehle) { b = karte::befehlMitVisStand(b); }
+    // rc609 L (Abweichung, eigene Bauoption): "Patch shadows" der Karte - jeder Licht-Schritt bekommt -patchshadows.
+    // Aus bleibt der Eintrag, wie er ist (NRC: nur die [Final]-Eintraege haben -patchshadows)
+    if (patchSchattenAn()) {
+        for (std::string& b : befehle) { b = karte::befehlMitPatchSchatten(b); }
+    }
+    // Stufe 8g (Abweichung): die Lichtrechnung auf der GPU, Byte-gleich mit der CPU. Stufe 8d: Auto -
+    // bhed_q3map2 waehlt mit den gemerkten Zeiten dieser Karte die schnellere Variante
+    if (ed.bau.gpuBacken == karte::GpuBacken::Ein) {
+        for (std::string& b : befehle) { b = karte::befehlMitGpuBacken(b); }
+    } else if (ed.bau.gpuBacken == karte::GpuBacken::Auto) {
+        for (std::string& b : befehle) {
+            const std::string sch = karte::lichtSchalter(b);
+            if (sch.empty()) { continue; }
+            s.autoZeiten = gpuZeitenHolen(ed.name, sch);
+            b = karte::befehlMitGpuBackenAuto(b, s.autoZeiten.cpuMs, s.autoZeiten.gpuMs, s.autoZeiten.gpuzMs);
+        }
+    }
+    return s;
+}
+
+}  // namespace
+
 void bauStarten(std::size_t index) {
     Editor& ed = e();
     bauMenueSicherstellen();
@@ -2997,63 +3201,11 @@ void bauStarten(std::size_t index) {
         fs::remove(pfadAus(karte.substr(0, karte.rfind('.')) + ".lin"), ec);
     }
     if (index < ed.bauProjekt.eintraege.size()) { ed.bauZuletzt = static_cast<long long>(index); }   // g_lastExecutedBuild
-    std::vector<std::string> meldungen;
-    std::vector<std::string> befehle = karte::bauBefehle(ed.bauProjekt, index, bauVariablen(), &meldungen);
-    for (const std::string& m : meldungen) { fehler(m); }
-    // Stufe 8a Punkt 2 (Abweichung, eigene Bauoption): Editor-Daten behalten - jede
-    // BSP-Stufe mit -keeplights, nach dem Bau die Quelle als <karte>.bhed neben die .bsp
-    std::string edQuelle;
-    std::string edBsp;
-    if (ed.bau.editorDaten) {
-        int n = 0;
-        for (std::string& b : befehle) {
-            const std::string neu = karte::befehlMitLichtern(b);
-            if (neu != b) { ++n; }
-            if (karte::bauStufeAusBefehl(b) == karte::BauStufe::Bsp) {
-                const karte::BauVariablen v = bauVariablen();
-                edQuelle = v.at("MapFile");
-                edBsp = v.at("BspFile");
-            }
-            b = neu;
-        }
-        if (n > 0) {
-            char z[256];
-            std::snprintf(z, sizeof(z), trKN(Str::KeEdLichter, n), n);
-            ausgabe(z);
-        }
-    }
-    // Stufe 8a Punkt 5a (Abweichung): VIS wiederverwenden, wenn sich die Portale nicht aendern
-    if (ed.bau.visWieder) {
-        for (std::string& b : befehle) { b = karte::befehlMitVisWiederverwendung(b); }
-    }
-    // Stufe 8a Punkt 5b/5d (Abweichung): Licht nur fuer betroffene Lightmaps, Nachbearbeitung ohne neu zu tracen
-    if (ed.bau.lichtWieder) {
-        for (std::string& b : befehle) { b = karte::befehlMitLichtWiederverwendung(b); }
-    }
-    // vis1 (Abweichung): mit mehreren Threads genau das VIS von -threads 1
-    if (ed.bau.visExakt) {
-        for (std::string& b : befehle) { b = karte::befehlMitVisExakt(b); }
-    }
-    // vis2c (Abweichung): jedes -vis von bhed_q3map2 mit Zwischenstand - anhalten (Stoppdatei) und fortsetzen
-    for (std::string& b : befehle) { b = karte::befehlMitVisStand(b); }
-    // rc609 L (Abweichung, eigene Bauoption): "Patch shadows" der Karte - jeder Licht-Schritt bekommt -patchshadows.
-    // Aus bleibt der Eintrag, wie er ist (NRC: nur die [Final]-Eintraege haben -patchshadows)
-    if (patchSchattenAn()) {
-        for (std::string& b : befehle) { b = karte::befehlMitPatchSchatten(b); }
-    }
-    // Stufe 8g (Abweichung): die Lichtrechnung auf der GPU, Byte-gleich mit der CPU. Stufe 8d: Auto -
-    // bhed_q3map2 waehlt mit den gemerkten Zeiten dieser Karte die schnellere Variante
-    karte::GpuZeiten autoZeiten;
-    if (ed.bau.gpuBacken == karte::GpuBacken::Ein) {
-        for (std::string& b : befehle) { b = karte::befehlMitGpuBacken(b); }
-    } else if (ed.bau.gpuBacken == karte::GpuBacken::Auto) {
-        for (std::string& b : befehle) {
-            const std::string sch = karte::lichtSchalter(b);
-            if (sch.empty()) { continue; }
-            autoZeiten = gpuZeitenHolen(ed.name, sch);
-            b = karte::befehlMitGpuBackenAuto(b, autoZeiten.cpuMs, autoZeiten.gpuMs, autoZeiten.gpuzMs);
-        }
-    }
+    const BauBefehlsSatz satz = bauBefehleFuer(index, bauVariablen(), true);
+    const std::vector<std::string>& befehle = satz.befehle;
+    const std::string& edQuelle = satz.edQuelle;
+    const std::string& edBsp = satz.edBsp;
+    const karte::GpuZeiten autoZeiten = satz.autoZeiten;
     // bspname: PathFilename( Map_Name( g_map ) ) fuer die Engine
     const std::u8string stamm = pfadAus(ed.name).stem().u8string();
     const std::string name = index < ed.bauProjekt.eintraege.size() ? karte::ohneMnemonik(ed.bauProjekt.eintraege[index].name) : std::string();

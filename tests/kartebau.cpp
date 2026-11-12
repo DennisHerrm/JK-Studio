@@ -538,10 +538,59 @@ void fortschrittPruefen(const std::string& q3) {
         // der Licht-Cache neben der Karte wird ersetzt (wie q3map2: remove, rename) - der des Zwischenstands bleibt
         fs::remove(stamm + ".bhedlight", ec);
         schreib(stamm + ".bhedlight", "neuer bau");
-        const std::vector<std::string> alt = bauPauseBefehleAlt(p);
-        pruefe(lies(ps + ".bhedlight") == "alt.bhedlight" && alt.size() == 3 && alt[1] == qq + "-vis -bhedvisstate \"" + ps + ".map\"" &&
-                   alt[2] == qq + "-light -bhedlightcache \"" + ps + ".map\"",
-               "vis2c: \"Karte wie angehalten\" baut auf den Kopien; ihr Licht-Cache bleibt, wenn der neben der Karte ersetzt wird");
+        pruefe(lies(ps + ".bhedlight") == "alt.bhedlight", "vis2c: der Licht-Cache des Zwischenstands bleibt, wenn der neben der Karte ersetzt wird");
+        // FIX612 R3: aus stand.json wird nichts gestartet und kein Ort uebernommen
+        {
+            // der Stand gilt am Ort der Karte von jetzt, was die Datei auch nennt
+            BauPause woanders = p;
+            woanders.stamm = "C:/woanders/alt";
+            woanders.mapDatei = "C:/woanders/alt.reg";
+            BauPause g;
+            const std::string ordner = bauPauseOrdner(stamm);
+            {
+                std::ofstream f(fs::path(ordner) / "stand.json", std::ios::binary | std::ios::trunc);
+                f << bauPauseText(woanders);
+            }
+            const bool lesen = bauPauseLesen(stamm, g) && g.stamm == stamm && g.mapDatei == stamm + ".reg" && g.stammInDatei == "C:/woanders/alt";
+            BauPause m = p;
+            m.mapDatei = stamm + ".exe";
+            BauPause x;
+            pruefe(lesen && !bauPauseAusText(bauPauseText(m), x),
+                   "FIX612 R3: bauPauseLesen bindet den Stand an den Ort der Karte von jetzt (Stamm, .map/.reg), eine andere Endung ist kein Stand");
+            {   // stand.json wie vorher
+                std::ofstream f(fs::path(ordner) / "stand.json", std::ios::binary | std::ios::trunc);
+                f << bauPauseText(p);
+            }
+            // nur der eigene Compiler, dieselben Schritte wie beim Anhalten
+            const std::string c = "C:/x/bhed_q3map2.exe";
+            const std::vector<std::string> heute = {qq + "-meta \"" + ps + ".map\"", qq + "-vis -bhedvisstate \"" + ps + ".map\"",
+                                                    qq + "-light -bhedlightcache \"" + ps + ".map\""};
+            const BauPausePruefung ok = bauPausePruefen(p, heute, c);
+            const BauPausePruefung gross = bauPausePruefen(p, heute, "c:\\X\\BHED_Q3MAP2.EXE");
+            std::vector<std::string> schalter = heute;
+            schalter[2] = qq + "-light -fast -bhedlightcache \"" + ps + ".map\"";
+            const BauPausePruefung anders = bauPausePruefen(p, schalter, c);
+            std::vector<std::string> fremd = heute;
+            fremd[2] = "\"C:/x/rechner.exe\" -light \"" + ps + ".map\"";
+            const BauPausePruefung prog = bauPausePruefen(p, fremd, c);
+            std::vector<std::string> davor = heute;
+            davor[0] = "\"C:/x/rechner.exe\" -meta \"" + ps + ".map\"";   // ein fertiger Schritt laeuft nicht noch einmal
+            const BauPausePruefung fertig = bauPausePruefen(p, davor, c);
+            const BauPausePruefung weniger = bauPausePruefen(p, {heute[0], heute[1]}, c);
+            std::vector<std::string> stufen = heute;
+            stufen[1] = qq + "-light \"" + ps + ".map\"";
+            const BauPausePruefung stufe = bauPausePruefen(p, stufen, c);
+            BauPause s = p;
+            s.befehle[0] = "\"C:/fremd/rechner.exe\" -meta \"C:/fremd/k.map\"";
+            const BauPausePruefung stand = bauPausePruefen(s, heute, c);
+            pruefe(ok.grund == BauPauseGrund::Ok && ok.andereSchalter.empty() && gross.grund == BauPauseGrund::Ok && anders.grund == BauPauseGrund::Ok &&
+                       anders.andereSchalter == std::vector<std::size_t>{2} && prog.grund == BauPauseGrund::Programm && prog.schritt == 2 &&
+                       prog.programm == "C:/x/rechner.exe" && fertig.grund == BauPauseGrund::Ok &&
+                       weniger.grund == BauPauseGrund::Schritte && stufe.grund == BauPauseGrund::Schritte && stand.grund == BauPauseGrund::StandFremd &&
+                       stand.schritt == 0 && stand.programm == "C:/fremd/rechner.exe",
+                   "FIX612 R3: bauPausePruefen - nur der eigene Compiler (Pfad ohne Gross/Klein), dieselben Schritte und Stufen; ein fremdes Programm "
+                   "im Stand oder in einem offenen Befehl, andere Schritte lehnen ab, andere Schalter sind nur ein Hinweis");
+        }
         // die alte Karte ist fertig gebaut: Ergebnisse zurueck, die Karte des Anwenders bleibt
         schreib(stamm + ".map", "neue karte");
         schreib(ps + ".bsp", "fertig.bsp");

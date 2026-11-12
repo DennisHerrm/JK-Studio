@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -138,11 +139,57 @@ std::string bauPauseText(const BauPause& p) {
     return json::schreibe(w);
 }
 
+namespace {
+
+// Endet der Pfad auf diese Endung (ohne Gross/Klein)?
+bool endetAuf(const std::string& pfad, const char* endung) {
+    const std::string e = endung;
+    return pfad.size() > e.size() && klein(pfad.substr(pfad.size() - e.size())) == e;
+}
+
+// Pfad zum Vergleichen: klein, '/', ohne Anfuehrungszeichen, "." und ".." aufgeloest
+std::string pfadGleich(std::string p) {
+    p.erase(std::remove(p.begin(), p.end(), '"'), p.end());
+    std::replace(p.begin(), p.end(), '\\', '/');
+    return klein(textAus(pfadAus(p).lexically_normal()));
+}
+
+// Ein Text aus stand.json fuer die Anzeige: ohne Steuerzeichen, hoechstens `laenge` Bytes
+std::string anzeigeText(std::string s, std::size_t laenge) {
+    for (char& c : s) {
+        if (static_cast<unsigned char>(c) < 0x20U) { c = ' '; }
+    }
+    if (s.size() > laenge) {
+        s.resize(laenge);
+        while (!s.empty() && (static_cast<unsigned char>(s.back()) & 0xC0U) == 0x80U) { s.pop_back(); }   // kein halbes UTF-8-Zeichen
+        if (!s.empty() && (static_cast<unsigned char>(s.back()) & 0x80U) != 0U) { s.pop_back(); }
+    }
+    return s;
+}
+
+double endlich(double v) { return std::isfinite(v) && v >= 0.0 ? v : 0.0; }
+
+// Die Woerter eines Befehls zwischen Programm und Karte (die Schalter mit ihren Werten), klein
+std::string schalterText(const std::string& befehl) {
+    const auto w = wortGrenzen(befehl);
+    std::string s;
+    for (std::size_t i = 1; i + 1 < w.size(); ++i) { s += klein(befehl.substr(w[i].first, w[i].second - w[i].first)) + " "; }
+    return s;
+}
+
+std::string stufenText(const std::vector<std::string>& befehle) {
+    std::string s;
+    for (const std::string& b : befehle) { s += (s.empty() ? "" : ", ") + bauStufeName(b); }
+    return s;
+}
+
+}  // namespace
+
 bool bauPauseAusText(const std::string& text, BauPause& p) {
     json::Wert w;
     if (!json::lies(text, w) || w.art != json::Wert::Art::Objekt || w.zahlVon("fassung", 0.0) != 1.0) { return false; }
     BauPause n;
-    n.eintrag = w.textVon("eintrag");
+    n.eintrag = anzeigeText(w.textVon("eintrag"), 200);
     n.karte = w.textVon("karte");
     n.stamm = w.textVon("stamm");
     n.mapDatei = w.textVon("mapDatei");
@@ -150,19 +197,19 @@ bool bauPauseAusText(const std::string& text, BauPause& p) {
         for (const json::Wert& x : b->liste) { n.befehle.push_back(x.text); }
     }
     const double schritt = w.zahlVon("schritt", -1.0);
-    n.zeit = w.textVon("zeit");
-    n.vergangen = w.zahlVon("vergangen", 0.0);
+    n.zeit = anzeigeText(w.textVon("zeit"), 40);
+    n.vergangen = endlich(w.zahlVon("vergangen", 0.0));
     if (const json::Wert* f = w.feld("fertig"); f != nullptr && f->art == json::Wert::Art::Liste) {
-        for (const json::Wert& x : f->liste) { n.fertig.push_back(x.zahl); }
+        for (const json::Wert& x : f->liste) { n.fertig.push_back(endlich(x.zahl)); }
     }
     n.visFertig = static_cast<int>(w.zahlVon("visFertig", -1.0));
     n.visAlle = static_cast<int>(w.zahlVon("visAlle", 0.0));
     n.lichtPaesse = static_cast<int>(w.zahlVon("lichtPaesse", 0.0));
     n.lichtPaesseVon = static_cast<int>(w.zahlVon("lichtPaesseVon", 0.0));
     n.kartenHash = std::strtoull(w.textVon("kartenHash").c_str(), nullptr, 16);
-    // ein Stand, mit dem sich nicht weiterbauen laesst, ist keiner
-    if (n.stamm.empty() || n.mapDatei.empty() || n.befehle.empty() || schritt < 0.0 || schritt >= static_cast<double>(n.befehle.size()) ||
-        n.fertig.size() != static_cast<std::size_t>(schritt)) {
+    // ein Stand, mit dem sich nicht weiterbauen laesst, ist keiner; gebaut wird eine .map oder eine .reg (FIX612 R3)
+    if (n.stamm.empty() || n.mapDatei.empty() || n.befehle.empty() || !(schritt >= 0.0) || schritt >= static_cast<double>(n.befehle.size()) ||
+        n.fertig.size() != static_cast<std::size_t>(schritt) || (!endetAuf(n.mapDatei, ".map") && !endetAuf(n.mapDatei, ".reg"))) {
         return false;
     }
     n.schritt = static_cast<std::size_t>(schritt);
@@ -170,12 +217,23 @@ bool bauPauseAusText(const std::string& text, BauPause& p) {
     return true;
 }
 
+void bauPauseAnOrt(BauPause& p, const std::string& stamm) {
+    p.stammInDatei = p.stamm;
+    p.mapDatei = stamm + (endetAuf(p.mapDatei, ".reg") ? ".reg" : ".map");
+    p.stamm = stamm;
+}
+
 bool bauPauseLesen(const std::string& stamm, BauPause& p) {
     std::ifstream f(pfadAus(bauPauseOrdner(stamm)) / "stand.json", std::ios::binary);
     if (!f) { return false; }
     std::ostringstream s;
     s << f.rdbuf();
-    return bauPauseAusText(s.str(), p);
+    BauPause n;
+    if (!bauPauseAusText(s.str(), n)) { return false; }
+    // FIX612 R3: gefunden wurde der Stand neben der Karte von jetzt - dort gilt er, was auch immer die Datei als Ort nennt
+    bauPauseAnOrt(n, stamm);
+    p = std::move(n);
+    return true;
 }
 
 bool bauPauseSchreiben(const BauPause& p, std::string* fehler) {
@@ -261,14 +319,54 @@ bool bauPauseSichern(const BauPause& p, std::string* fehler) {
     return true;
 }
 
-std::vector<std::string> bauPauseBefehleAlt(const BauPause& p) {
-    const std::string von = p.stamm + ".";
-    const std::string nach = bauPauseStamm(p.stamm) + ".";
-    std::vector<std::string> b = p.befehle;
-    for (std::string& x : b) {
-        for (std::size_t i = x.find(von); i != std::string::npos; i = x.find(von, i + nach.size())) { x.replace(i, von.size(), nach); }
+std::string bauBefehlProgramm(const std::string& befehl) {
+    const auto w = wortGrenzen(befehl);
+    if (w.empty()) { return {}; }
+    std::string p = befehl.substr(w[0].first, w[0].second - w[0].first);
+    p.erase(std::remove(p.begin(), p.end(), '"'), p.end());
+    return p;
+}
+
+bool bauBefehlIstCompiler(const std::string& befehl, const std::string& compiler) {
+    const std::string p = bauBefehlProgramm(befehl);
+    return !p.empty() && !compiler.empty() && pfadGleich(p) == pfadGleich(compiler);
+}
+
+BauPausePruefung bauPausePruefen(const BauPause& p, const std::vector<std::string>& heute, const std::string& compiler) {
+    BauPausePruefung r;
+    // dieselben Schritte wie beim Anhalten: sonst hiesse "Schritt n" heute etwas anderes
+    bool gleich = heute.size() == p.befehle.size() && p.schritt < heute.size();
+    for (std::size_t i = 0; gleich && i < heute.size(); ++i) { gleich = bauStufeName(heute[i]) == bauStufeName(p.befehle[i]); }
+    if (!gleich) {
+        r.grund = BauPauseGrund::Schritte;
+        r.stufenStand = stufenText(p.befehle);
+        r.stufenHeute = stufenText(heute);
+        return r;
     }
-    return b;
+    // der Stand nennt ein Programm, das kein bhed_q3map2 ist: nicht von JK Studio geschrieben oder danach veraendert
+    const std::string name = klein(textAus(pfadAus(compiler).filename()));
+    for (std::size_t i = 0; i < p.befehle.size(); ++i) {
+        const std::string prog = bauBefehlProgramm(p.befehle[i]);
+        if (klein(textAus(pfadAus(prog).filename())) != name) {
+            r.grund = BauPauseGrund::StandFremd;
+            r.schritt = i;
+            r.programm = prog;
+            return r;
+        }
+    }
+    // gestartet wird nur der eigene Compiler
+    for (std::size_t i = p.schritt; i < heute.size(); ++i) {
+        if (!bauBefehlIstCompiler(heute[i], compiler)) {
+            r.grund = BauPauseGrund::Programm;
+            r.schritt = i;
+            r.programm = bauBefehlProgramm(heute[i]);
+            return r;
+        }
+    }
+    for (std::size_t i = p.schritt; i < heute.size(); ++i) {
+        if (schalterText(heute[i]) != schalterText(p.befehle[i])) { r.andereSchalter.push_back(i); }
+    }
+    return r;
 }
 
 bool bauPauseAltFertig(const BauPause& p, std::string* fehler) {
@@ -293,6 +391,9 @@ bool bauPauseAltFertig(const BauPause& p, std::string* fehler) {
             continue;
         }
         if (n == karte || n == "stand.json" || n.u8string().compare(0, vorn.size(), vorn) != 0) { continue; }
+        // FIX612 R3: die Karte des Anwenders ersetzt nichts aus dem Zwischenstand - weder <name>.map noch <name>.reg
+        const std::string endung = klein(textAus(n.extension()));
+        if (n.stem() == name && (endung == ".map" || endung == ".reg")) { continue; }
         ok = verschieben(d, ziel / n) && ok;
     }
     if (!ok) {

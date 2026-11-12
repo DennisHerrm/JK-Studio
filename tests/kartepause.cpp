@@ -99,8 +99,16 @@ int main(int argc, char** argv) {
     }
     BauPause p;
     if (befehl == "befehlealt" && argc == 3 && bauPauseLesen(argv[2], p)) {
-        const std::vector<std::string> b = bauPauseBefehleAlt(p);
-        for (std::size_t i = p.schritt; i < b.size(); ++i) { std::printf("%s\n", b[i].c_str()); }
+        // FIX612 R3: das Programm startet nie die Befehle aus stand.json - "Karte wie angehalten" erzeugt sie aus dem eigenen
+        // Build-Menue fuer die Kopien im Zwischenstand (gui/app_karte_bau.cpp, altPlanen). Der ctest baut ohne Editor und spielt
+        // nur nach, was dabei herauskommt: dieselben Befehle, die Karte durch ihre Kopie ersetzt.
+        const std::string von = p.stammInDatei + ".";
+        const std::string nach = bauPauseStamm(p.stamm) + ".";
+        for (std::size_t i = p.schritt; i < p.befehle.size(); ++i) {
+            std::string x = p.befehle[i];
+            for (std::size_t k = x.find(von); k != std::string::npos; k = x.find(von, k + nach.size())) { x.replace(k, von.size(), nach); }
+            std::printf("%s\n", x.c_str());
+        }
         return 0;
     }
     if (befehl == "altfertig" && argc == 3 && bauPauseLesen(argv[2], p)) {
