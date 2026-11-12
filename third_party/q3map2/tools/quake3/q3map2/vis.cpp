@@ -1136,8 +1136,18 @@ int VisMain( Args& args ){
 		const char *far = "";
 		entities[ 0 ].read_keyvalue( far, "_farplanedist", "fogclip", "distancecull" );
 		/* BehavEd lcfix (P4-3): the version of bhed_q3map2 first - a later one may compute the vis differently */
+		/* BehavEd lcfix (P4-4): and the rule - NRC's with several threads gives other bits in every run, -bhedvisexact (and
+		   one thread, the same result) and -bhedvisfixed promise one result; a vis of one rule is not taken by another */
+		char rule[32];
+		if ( bhedFixed ) {
+			snprintf( rule, sizeof( rule ), "fixed=%d", bhedFixed );
+		}
+		else{
+			strcpy( rule, bhedExact || numthreads <= 1 ? "exact" : "nrc" );
+		}
 		bhedKey = StringStream( "version=", BhedQ3Fassung(), "\nvis1 fast=", fastvis, " merge=", mergevis, " mergeportals=", mergevisportals, " nopassage=", noPassageVis,
-		                        " passageOnly=", passageVisOnly, " nosort=", nosort, " hint=", hint, " far=", far, " nrcplanes=", bhedNrcPlanes, " strictplanes=", bhedStrictPlanes ).c_str();
+		                        " passageOnly=", passageVisOnly, " nosort=", nosort, " hint=", hint, " far=", far, " nrcplanes=", bhedNrcPlanes, " strictplanes=", bhedStrictPlanes,
+		                        " rule=", rule ).c_str();
 		strcpy( bhedCache, ExpandArg( fileName ) );
 		bhed_set_map_extension( bhedCache, ".bhedvis" );
 	}

@@ -2139,5 +2139,9 @@ if(BEHAVED_TESTS)
              COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_lichtabdruck.py
                      $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe ${CMAKE_CURRENT_BINARY_DIR}/q3map2_lichtabdruck)
     set_tests_properties(q3map2_lichtabdruck PROPERTIES TIMEOUT 1800)
+    add_test(NAME q3map2_visschluessel
+             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_visschluessel.py ctest
+                     $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe ${CMAKE_CURRENT_BINARY_DIR}/q3map2_visschluessel)
+    set_tests_properties(q3map2_visschluessel PROPERTIES TIMEOUT 1200)
   endif()
 endif()
