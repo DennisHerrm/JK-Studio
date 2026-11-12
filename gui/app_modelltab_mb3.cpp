@@ -920,14 +920,15 @@ bool modellMarkerAendern(const AnimEntry& neu) {
 }
 
 // AP1: die Zeile steht im Fenster Zeitkonfiguration (app_modelltab_zeit.cpp), bis rc611 als vierte Zeile in der Leiste
-void modellMarkerZeile(const AnimEntry* e) {
+void modellMarkerZeile() {
     ModellTab& t = mt();
     cfgAbgleich();
-    if (e != nullptr) {   // Selbsttest (FIX612 R2): der Zeiger des Aufrufers nach dem Abgleich
-        const auto p = reinterpret_cast<std::uintptr_t>(e);
-        const auto a = reinterpret_cast<std::uintptr_t>(g_app->animList.data());
-        if (p < a || p >= a + g_app->animList.size() * sizeof(AnimEntry)) { ++modellZeit().veralteteSequenz; }
-    }
+    // FIX612 R2: die Primaersequenz erst NACH dem Abgleich holen (er kann die animList ersetzen - bis rc612 kam sie als Zeiger
+    // des Aufrufers und zeigte dann in die freigegebene Liste) und als Kopie halten: modellMarkerAendern am Ende ersetzt die
+    // Liste noch einmal.
+    const bool hat = !g_app->model.empty() && !g_app->anim.empty() && g_app->animIndex >= 0 && static_cast<std::size_t>(g_app->animIndex) < g_app->animList.size();
+    const AnimEntry jetzt = hat ? g_app->animList[static_cast<std::size_t>(g_app->animIndex)] : AnimEntry{};
+    const AnimEntry* e = hat ? &jetzt : nullptr;
     const float fs = ImGui::GetFontSize();
     ImGui::AlignTextToFramePadding();
     cjkTextDisabled("%s", tr(Str::MbMarker));

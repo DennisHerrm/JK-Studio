@@ -44,15 +44,30 @@ const AnimEntry* sequenz() {
     return &g_app->animList[static_cast<std::size_t>(g_app->animIndex)];
 }
 
+// FIX612 R2: die Sequenz, mit der die Leiste in diesem Bild zeichnet - eine KOPIE vom Bildanfang, kein Zeiger in
+// g_app->animList. Ein Klick in der Leiste (Start/Ende wie Blender, die Marker in der Zeitkonfiguration, Set Key bei offener
+// Zeitkonfiguration) ersetzt die Liste ueber cfgAbgleich (app_modelltab_mb3.cpp); ein Zeiger in die alte Liste zeigte fuer
+// den Rest des Bilds in freigegebenen Speicher (Knopfreihe, Skala, Sequenzzeilen, Zeitkonfiguration). Mit der Kopie zeichnet
+// das Bild einheitlich mit den Werten seines Anfangs, das naechste mit den neuen. Der Speicher bleibt (keine Anforderung je Bild).
+AnimEntry g_sequenzBild;
+
+const AnimEntry* sequenzDesBilds() {
+    const AnimEntry* e = sequenz();
+    if (e == nullptr) { return nullptr; }
+    g_sequenzBild = *e;
+    return &g_sequenzBild;
+}
+
 std::string format(Str s, auto... a) {
     char b[700];
     std::snprintf(b, sizeof b, tr(s), a...);
     return b;
 }
 
-// Selbsttest (FIX612 R2): zeigt die Sequenz, mit der die Leiste zeichnet, in die Liste, die gerade gilt?
+// Selbsttest (FIX612 R2): die Sequenz, mit der die Leiste zeichnet, ist die Kopie des Bildanfangs oder zeigt in die Liste, die
+// gerade gilt - sonst zaehlt das Bild (bis rc612: der Zeiger in die schon ersetzte Liste)
 void sequenzPruefen(const AnimEntry* e) {
-    if (e == nullptr) { return; }
+    if (e == nullptr || e == &g_sequenzBild) { return; }
     const auto p = reinterpret_cast<std::uintptr_t>(e);
     const auto a = reinterpret_cast<std::uintptr_t>(g_app->animList.data());
     if (p < a || p >= a + g_app->animList.size() * sizeof(AnimEntry)) { ++g_zeit.veralteteSequenz; }
@@ -1097,7 +1112,7 @@ void konfigFenster(const AnimEntry* e) {
             ImGui::PopTextWrapPos();
         }
     }
-    modellMarkerZeile(e);
+    modellMarkerZeile();   // holt die Sequenz nach ihrem Abgleich selbst (FIX612 R2)
     ImGui::PushTextWrapPos(0.0F);
     cjkTextDisabled("%s", tr(modellBlender() ? Str::MbZeitHinweisBlender : Str::MbZeitHinweis));
     ImGui::PopTextWrapPos();
@@ -1409,7 +1424,7 @@ bool modellZeitAktionenSuche(const std::string& such) {
 // gui/app_modelltab_pruefen.cpp).
 
 // Die Leiste unter allen Spalten, in jedem Bereich (shank 04.11.: "und in jedem Tab sieht man die animation?").
-void drawModellZeitleiste(const AnimEntry* e) {
+void drawModellZeitleiste() {
     ModellZeit& z = g_zeit;
     ModellTab& t = mt();
     if (!z.einstellungenGelesen) {
@@ -1418,15 +1433,10 @@ void drawModellZeitleiste(const AnimEntry* e) {
         z.einstellungenGelesen = true;
     }
     modellCfgAbgleich();   // die animation.cfg zur GLA (bis rc611 in der Marker-Zeile der Leiste)
-    // Nach einer Aenderung des Dokuments setzt der Abgleich die animList neu (cfgAbgleich, app_modelltab_mb3.cpp); der Zeiger des
-    // Aufrufers zeigte dann in die freigegebene alte Liste (Absturz in transport, Lauf ap6k_mb_ap7) - die Sequenz neu holen.
-    e = sequenz();
-    // Selbsttest: zeigt die Sequenz noch in die Liste, die gerade gilt?
-    if (e != nullptr) {
-        const auto p = reinterpret_cast<std::uintptr_t>(e);
-        const auto a = reinterpret_cast<std::uintptr_t>(g_app->animList.data());
-        if (p < a || p >= a + g_app->animList.size() * sizeof(AnimEntry)) { ++z.veralteteSequenz; }
-    }
+    // Der Abgleich setzt nach einer Aenderung des Dokuments die animList neu (cfgAbgleich, app_modelltab_mb3.cpp), und das tun
+    // auch Klicks in der Leiste selbst (FIX612 R2; davor der Absturz in transport, Lauf ap6k_mb_ap7): die Leiste zeichnet deshalb
+    // mit einer Kopie der Sequenz, nie mit einem Zeiger in die Liste.
+    const AnimEntry* e = sequenzDesBilds();
     offenPruefen();
     g_probe = ModellZeitProbe{};
     g_probe.bild = ImGui::GetFrameCount();

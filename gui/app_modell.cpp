@@ -293,7 +293,7 @@ void drawModelPanel() {
     }
 
     // AP1: die Leiste selbst - nach dem freigegebenen Entwurf, je Bedienmodus wie 3ds Max bzw. wie Blender
-    drawModellZeitleiste(e);
+    drawModellZeitleiste();
 }
 
 // Was der Zeichner von jeder Flaeche sieht - ins Detailprotokoll.

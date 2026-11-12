@@ -983,7 +983,7 @@ void modellVerwerfenDann(std::function<void()> danach);
 void modellBeendenVergessen();
 void drawModellSpeichernFrage();
 void drawModellAnimationBereich();
-void modellMarkerZeile(const AnimEntry* e);
+void modellMarkerZeile();   // die Marker der Primaersequenz (holt sie nach dem Abgleich der animation.cfg selbst, FIX612 R2)
 bool modellMarkerAendern(const AnimEntry& neu);
 void modellSequenzZiehen(int anim);
 bool modellPlatzSetzen(int platz, int anim);
@@ -1308,7 +1308,7 @@ struct ModellZeit {
 [[nodiscard]] ModellZeit& modellZeit();
 [[nodiscard]] ZeitFassung modellZeitFassung();
 [[nodiscard]] float modellZeitleisteHoehe();     // Hoehe des Bands unter den Spalten (app_anordnung.inc)
-void drawModellZeitleiste(const AnimEntry* e);   // die Leiste (drawModelPanel, nach der Uhr)
+void drawModellZeitleiste();   // die Leiste (drawModelPanel, nach der Uhr); zeichnet mit einer Kopie der Primaersequenz (FIX612 R2)
 bool modellZeitTasten();                         // Max: N, Key-Modus; Blender: Pfeil hoch/runter, K, Pos1 im Editor
 bool modellZeitAktionenSuche(const std::string& such);   // Zeilen in "Alle Aktionen suchen"
 void modellZeitAutoKey(bool an);
