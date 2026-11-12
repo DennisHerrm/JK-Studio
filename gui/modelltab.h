@@ -775,6 +775,11 @@ bool modellRequisitInKarte();               // als .md3 in den Import-Ordner und
 bool modellRequisitBearbeiten(const std::string& vfsPfad);   // Rueckweg: ein .md3 der Karte im Model-Tab
 // fuer die Ansicht (gui/app_modelltab_ansicht.cpp)
 bool modellDreieckUnter(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck);
+// ENTSCHEID1: alle gezeichneten Flaechen unter der Maus, die vorderste zuerst (jede einmal, auch eingefrorene).
+[[nodiscard]] std::vector<int> modellFlaechenUnter(const ModellAnsicht& a, ImVec2 maus);
+// ENTSCHEID1 (Seitenleiste): die Auswahl ausgehend von `vorher` umformen wie das Gizmo (art 1 Weg, 3 Faktoren je Achse, um `mitte`),
+// ohne neuen Rueckgaengig-Schritt (den legt der Aufrufer beim ersten Aendern an).
+void modellAuswahlUmformen(const modell::Inhalt& vorher, int art, const float mitte[3], const float wert[3]);
 const std::vector<std::vector<std::array<float, 3>>>& modellHaut();
 // mbvers: die Pose, in der dieses Bild bearbeitet wird: die Knochenmatrizen der Ansicht; leer ohne Skelett und wenn die Pose exakt die
 // Bindepose ist (modell::bindepose) - dann ist das Gezeigte die Bindepose, und alles rechnet wie ohne Skelett
@@ -853,6 +858,10 @@ void modellRigZiehen(int gizmoArt, const float wert[3]);   // Gizmo: 1 verschieb
 void modellRigUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
 [[nodiscard]] bool modellAufSchirm(const ModellAnsicht& a, const float p[3], ImVec2& out);
 void modellRigZiehenEnde();
+// ENTSCHEID1 (Seitenleiste): ein Zug mit dieser Drehung in Weltachsen um das Gelenk (wie modellRigZiehen 2, ein Rueckgaengig-Schritt je
+// Ziehen) und ob der gewaehlte Griff eine Art Zug kann (1 verschieben, 2 drehen; sonst die Meldung in `grund`).
+void modellRigDrehen(const BoneMatrix& dreh);
+[[nodiscard]] bool modellRigZugMoeglich(int art, std::string* grund);
 bool modellRigModalStarten(int art);
 bool modellRigModalTasten();
 bool modellPoseKopieren();
@@ -1264,7 +1273,9 @@ struct ModellZeitProbe {
     std::string transport;    // die Knoepfe und Felder der Knopfreihe der Reihe nach, mit | getrennt
 };
 struct ModellZeit {
-    bool autoKey = true;       // Auto Key (Max: N) / Auto-Keying (Blender): an = jeder Zug an einem Griff setzt einen Schluessel
+    // Auto Key (Max: N) / Auto-Keying (Blender): an = jeder Zug an einem Griff setzt einen Schluessel. ENTSCHEID1: ab Werk aus wie
+    // 3ds Max und Blender, beim ersten Zeichnen aus Settings::modellZeitAutoKey (modellZeitAutoKey schreibt die Wahl dorthin).
+    bool autoKey = false;
     bool keyModus = false;     // wie 3ds Max "Key Mode": Bild zurueck/vor (auch , .) springen von Schluessel zu Schluessel
     bool sequenzAuf = true;    // Ansehen/Pruefen: die Zeilen Primaer/Sekundaer unter der Skala
     bool konfigOffen = false;  // Fenster Zeitkonfiguration
@@ -1562,6 +1573,26 @@ struct ModellBlender {
     std::vector<std::pair<std::string, ImRect>> knoepfe;   // Werkzeugleiste: Text und Rechteck je Knopf
     int trennstrich = -1;           // nach so vielen Knoepfen steht der Trennstrich
     std::string seiteText;          // die Zeilen der Seitenleiste (Beschriftung = Wert, mit | getrennt)
+    // ENTSCHEID1: die Zahlenfelder der Seitenleiste (Kennung ort0..2, dreh0..2, masse0..2; Rechteck; eingebbar)
+    struct SeitenFeld {
+        std::string id;
+        ImRect rect;
+        bool eingebbar = false;
+        bool grau = false;               // der Wert steht in der Farbe inaktiver Felder (nur zum Ablesen)
+        std::string beschriftung;        // die gezeichnete Beschriftung links und ihr Platz (Punkte)
+        float beschriftungBreite = 0.0F;
+        float platz = 0.0F;
+    };
+    std::vector<SeitenFeld> seitenFelder;
+    int seitenSchritte = 0;         // Selbsttest: Rueckgaengig-Schritte, die Eingaben in der Seitenleiste angelegt haben
+    // ENTSCHEID1: Werkzeuggruppen wie Blender (operator_menu_hold) und die Namen der Werkzeuge
+    std::vector<std::string> gruppen;   // die Texte der Knoepfe, die eine Gruppe sind
+    std::vector<ImRect> dreiecke;       // je Gruppenknopf das kleine Dreieck unten rechts
+    std::string gruppeOffen;            // der Knopf, dessen Gruppe offen ist (leer: keine)
+    float gruppeOffenNach = -1.0F;      // Sekunden zwischen Druecken und Oeffnen der Gruppe
+    bool gruppeGezogen = false;         // durch Ziehen geoeffnet (nicht durch Halten)
+    std::vector<std::pair<std::string, ImRect>> gruppenEintraege;   // die Eintraege der offenen Gruppe
+    bool namenGezeigt = false;          // im letzten Bild standen die Namen neben den Werkzeugen
     int fotos = 0;                  // Werkzeug Foto: geschriebene Bilder
 };
 [[nodiscard]] ModellBlender& modellBl();
@@ -1589,6 +1620,8 @@ void modellBlKontextMenue();
 [[nodiscard]] int modellBlWerkzeugZahl();
 [[nodiscard]] const char* modellBlWerkzeugText(int i);
 [[nodiscard]] bool modellBlWerkzeugAn(int i);
+// ENTSCHEID1: die Werkzeuggruppen zeigen wieder ihr erstes Werkzeug (wie nach dem Start).
+void modellBlGruppenVorgabe();
 bool modellBlWerkzeugAusloesen(int i);
 // Die gemessene Strecke in Spieleinheiten (false: noch keine zwei Punkte).
 [[nodiscard]] bool modellBlAbstand(float& abstand);

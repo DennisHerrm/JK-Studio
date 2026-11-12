@@ -36,10 +36,10 @@ ZEILEN = [
     # --- Reiter wie Blender (Eigenschaften-Editor) ---
     ("MfWerkzeug", "Tool", "Werkzeug", "工具", "ツール", "Herramienta", "Nástroj"),
     ("MfObjekt", "Object", "Objekt", "物体", "オブジェクト", "Objeto", "Objekt"),
-    ("MfModifier", "Modifiers", "Modifier", "修改器", "モディファイアー", "Modificadores", "Modifikátory"),
+    ("MfModifier", "Modifiers", "Modifikatoren", "修改器", "モディファイアー", "Modificadores", "Modifikátory"),
     ("MfDaten", "Data", "Daten", "数据", "データ", "Datos", "Data"),
     ("MfKnochen", "Bone", "Knochen", "骨骼", "ボーン", "Hueso", "Kost"),
-    ("MfConstraints", "Constraints", "Constraints", "约束", "コンストレイント", "Restricciones", "Vazby"),
+    ("MfConstraints", "Constraints", "Beschränkungen", "约束", "コンストレイント", "Restricciones", "Vazby"),
     ("MfMaterial", "Material", "Material", "材质", "マテリアル", "Material", "Materiál"),
     ("MfWerkzeugHint", "The settings of the active tool (brush).", "Die Einstellungen des aktiven Werkzeugs (Pinsel).", "活动工具 (笔刷) 的设置。", "アクティブなツール (ブラシ) の設定。",
      "Los ajustes de la herramienta activa (pincel).", "Nastavení aktivního nástroje (štětce)."),

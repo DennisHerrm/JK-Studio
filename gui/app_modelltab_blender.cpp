@@ -23,8 +23,10 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -56,7 +58,24 @@ struct Werkzeug {
     bool an = false;
     bool aktiv = true;
     std::function<void()> tun;
+    // ENTSCHEID1: eine Werkzeuggruppe wie Blender (operator_menu_hold): der Knopf zeigt das zuletzt gewaehlte Glied, langes
+    // Halten oder Ziehen oeffnet die Liste aller Glieder.
+    std::string gruppe;
+    std::vector<Werkzeug> glieder;
 };
+
+// Das gewaehlte Glied je Gruppe - wie Blenders ToolSelectPanelHelper._tool_group_active nur fuer die laufende Sitzung.
+std::map<std::string, int> g_gruppenWahl;
+
+// Aus den Gliedern den Knopf der Gruppe: das gewaehlte Glied; leuchtet, wenn eines der Glieder an ist.
+Werkzeug gruppeAus(const std::string& name, std::vector<Werkzeug> glieder) {
+    const auto it = g_gruppenWahl.find(name);
+    const std::size_t n = it != g_gruppenWahl.end() ? static_cast<std::size_t>(std::clamp(it->second, 0, static_cast<int>(glieder.size()) - 1)) : 0U;
+    Werkzeug w = glieder[n];
+    w.gruppe = name;
+    w.glieder = std::move(glieder);
+    return w;
+}
 
 int inTabelle(int zahl, const char* (*text)(int), Str name) {
     const std::string n = tr(name);
@@ -150,9 +169,11 @@ void modellieren(std::vector<Werkzeug>& w) {
         UiIcon icon;
         MeshWerkzeug wz;
     };
+    // ENTSCHEID1: die Namen wie Blender 5.0 (space_toolsystem_toolbar.py: Extrude Region, Inset Faces, Bevel, Loop Cut, Knife; Merge
+    // steht in Blender im Menue M) und die Gruppen wie dort (_tools EDIT_MESH: Extrude Region/... Individual, Knife/Bisect).
     static const E kListe[6] = {
-        {Str::MdExtrude, Str::MdExtrude, UiIcon::MdExtrude, MeshWerkzeug::Extrude}, {Str::MdInset, Str::MdInset, UiIcon::MdInset, MeshWerkzeug::Inset},
-        {Str::MdChamfer, Str::BzFase, UiIcon::MdChamfer, MeshWerkzeug::Chamfer},    {Str::MdLoopCut, Str::MdLoopCut, UiIcon::MdLoopCut, MeshWerkzeug::LoopCut},
+        {Str::MdExtrude, Str::BeExtrude, UiIcon::MdExtrude, MeshWerkzeug::Extrude}, {Str::MdInset, Str::BeInset, UiIcon::MdInset, MeshWerkzeug::Inset},
+        {Str::MdChamfer, Str::BzFase, UiIcon::MdChamfer, MeshWerkzeug::Chamfer},    {Str::MdLoopCut, Str::BeLoopCut, UiIcon::MdLoopCut, MeshWerkzeug::LoopCut},
         {Str::MdCut, Str::BzMesser, UiIcon::MdCut, MeshWerkzeug::Keins},           {Str::MdMerge, Str::MdMerge, UiIcon::MdMerge, MeshWerkzeug::Merge},
     };
     const ModellMesh& m = mt().mesh;
@@ -166,24 +187,63 @@ void modellieren(std::vector<Werkzeug>& w) {
         x.taste = modellMeshAktionTaste(i, true);
         x.an = e.wz == MeshWerkzeug::Keins ? m.cutAn : (m.kaestchenOffen && m.werkzeug == e.wz);
         x.tun = [i] { modellMeshAktionAusloesen(i); };
+        if (e.wz == MeshWerkzeug::Extrude) {
+            // Blender Extrude Region / Along Normals / Individual = die Arten Gruppe / Lokale Normale / Je Vieleck des Kaestchens
+            // (wie 3ds Max Extrude Group / Local Normal / By Polygon)
+            static const Str kText[3] = {Str::BeExtrude, Str::BeExtrudeNormalen, Str::BeExtrudeEinzeln};
+            std::vector<Werkzeug> glieder;
+            for (int art = 0; art < 3; ++art) {
+                Werkzeug g = x;
+                g.text = tr(kText[art]);
+                if (art == 1) { g.hinweis = tr(Str::BeExtrudeNormalenHint); }
+                if (art == 2) { g.hinweis = tr(Str::BeExtrudeEinzelnHint); }
+                if (art > 0) { g.taste.clear(); }
+                g.an = x.an && m.art == art;
+                g.tun = [i, art] {
+                    mt().mesh.art = art;
+                    modellMeshAktionAusloesen(i);
+                };
+                glieder.push_back(std::move(g));
+            }
+            w.push_back(gruppeAus("extrude", std::move(glieder)));
+            continue;
+        }
+        if (e.wz == MeshWerkzeug::Keins) {
+            // Blender Knife / Bisect = Messer und QuickSlice (ein Schnitt mit einer gezogenen Linie durch die Auswahl)
+            std::vector<Werkzeug> glieder{x};
+            const int q = inTabelle(modellMeshAktionZahl(), modellMeshAktionText, Str::MdQuickSlice);
+            if (q >= 0) {
+                Werkzeug b;
+                b.icon = UiIcon::MdQuickSlice;
+                b.text = tr(Str::BeHalbieren);
+                b.hinweis = modellMeshAktionHinweis(q);
+                b.taste = modellMeshAktionTaste(q, true);
+                b.an = m.quickAn;
+                b.tun = [q] { modellMeshAktionAusloesen(q); };
+                glieder.push_back(std::move(b));
+            }
+            w.push_back(gruppeAus("messer", std::move(glieder)));
+            continue;
+        }
         w.push_back(std::move(x));
     }
 }
 
-// UV (Entwurf: Naht, Abwickeln, Entspannen, Packen)
+// UV (Entwurf: Naht, Abwickeln, Entspannen, Packen) - ENTSCHEID1: die Namen der Blender-Befehle (Mark Seam, Unwrap, Relax, Pack Islands)
 void uv(std::vector<Werkzeug>& w) {
     struct E {
         Str text;
         UiIcon icon;
+        Str anzeige;
     };
-    static const E kListe[4] = {{Str::UvNahtMarkieren, UiIcon::UvSchere}, {Str::UvAbwickeln, UiIcon::BlAbwickeln}, {Str::UvEntspannen, UiIcon::UvEntspannen},
-                                {Str::UvPacken, UiIcon::UvPacken}};
+    static const E kListe[4] = {{Str::UvNahtMarkieren, UiIcon::UvSchere, Str::BeNaht}, {Str::UvAbwickeln, UiIcon::BlAbwickeln, Str::UvAbwickeln},
+                                {Str::UvEntspannen, UiIcon::UvEntspannen, Str::BeEntspannen}, {Str::UvPacken, UiIcon::UvPacken, Str::BePacken}};
     for (const E& e : kListe) {
         const int i = inTabelle(modellUvAktionZahl(), modellUvAktionText, e.text);
         if (i < 0) { continue; }
         Werkzeug x;
         x.icon = e.icon;
-        x.text = tr(e.text);
+        x.text = tr(e.anzeige);
         x.hinweis = modellUvAktionHinweis(i);
         x.taste = modellUvAktionTaste(i, true);
         // Blender: U oeffnet das Menue Abwickeln (blender_default.py km_uv_editor IMAGE_MT_uvs_unwrap) - der Knopf wickelt gleich ab
@@ -193,7 +253,8 @@ void uv(std::vector<Werkzeug>& w) {
     }
 }
 
-// Weights (Entwurf: Pinsel, Weichzeichnen, Verlauf, Gewicht holen) - wie die Gruppe Pinsel des Feldes (AP8, rolloutPinselBl)
+// Weights (Entwurf: Pinsel, Weichzeichnen, Verlauf, Gewicht holen) - wie die Gruppe Pinsel des Feldes (AP8, rolloutPinselBl); ENTSCHEID1:
+// die Namen wie Blender 5.0 PAINT_WEIGHT (Brush, Blur, Gradient, Sample Weight)
 void weights(std::vector<Werkzeug>& w) {
     ModellTab& t = mt();
     ModellGewichte& g = modellGewichte();
@@ -228,7 +289,7 @@ void weights(std::vector<Werkzeug>& w) {
     w.push_back(std::move(b));
     Werkzeug v;
     v.icon = UiIcon::GwVerlauf;
-    v.text = tr(Str::MgVerlauf);
+    v.text = tr(Str::BeVerlauf);
     v.hinweis = tr(Str::MgVerlaufHint);
     v.an = g.werkzeug == 2 && !t.gwAufnehmenKlick;
     v.tun = [] {
@@ -239,7 +300,7 @@ void weights(std::vector<Werkzeug>& w) {
     w.push_back(std::move(v));
     Werkzeug h;
     h.icon = UiIcon::GwTropfen;
-    h.text = tr(Str::MrGwAufnehmen);
+    h.text = tr(Str::BeGewichtHolen);
     h.hinweis = tr(Str::MrGwAufnehmenHint);
     h.taste = "Shift+X";
     h.an = t.gwAufnehmenKlick;
@@ -251,25 +312,27 @@ void weights(std::vector<Werkzeug>& w) {
     w.push_back(std::move(h));
 }
 
-// Painting (Entwurf: Pinsel, Fuellen, Klonen, Wischen, Maske)
+// Painting (Entwurf: Pinsel, Fuellen, Klonen, Wischen, Maske) - ENTSCHEID1: die Namen wie Blender 5.0 PAINT_TEXTURE (Brush, Fill, Clone,
+// Smear, Mask; der erste heisst seit Blender 4.3 "Brush" statt "Draw")
 void painting(std::vector<Werkzeug>& w) {
     using W = modell::texmalen::Werkzeug;
     struct E {
         Str text;
         UiIcon icon;
         W wz;
+        Str anzeige;
     };
-    static const E kListe[5] = {{Str::PtWzPinsel, UiIcon::MalPinsel, W::Pinsel},
-                                {Str::PtWzFuellen, UiIcon::MalFuellen, W::Fuellen},
-                                {Str::PtWzKlonen, UiIcon::MalKlonen, W::Klonen},
-                                {Str::PtWzWischen, UiIcon::MalWischen, W::Verwischen},
-                                {Str::PtWzMaske, UiIcon::MalMaske, W::Maske}};
+    static const E kListe[5] = {{Str::PtWzPinsel, UiIcon::MalPinsel, W::Pinsel, Str::MgRPinsel},
+                                {Str::PtWzFuellen, UiIcon::MalFuellen, W::Fuellen, Str::BeFuellen},
+                                {Str::PtWzKlonen, UiIcon::MalKlonen, W::Klonen, Str::PtWzKlonen},
+                                {Str::PtWzWischen, UiIcon::MalWischen, W::Verwischen, Str::BeWischen},
+                                {Str::PtWzMaske, UiIcon::MalMaske, W::Maske, Str::BeMaske}};
     for (const E& e : kListe) {
         const int i = inTabelle(modellMalenAktionZahl(), modellMalenAktionText, e.text);
         if (i < 0) { continue; }
         Werkzeug x;
         x.icon = e.icon;
-        x.text = tr(e.text);
+        x.text = tr(e.anzeige);
         x.hinweis = modellMalenAktionHinweis(i);
         x.taste = modellMalenAktionTaste(i, true);
         x.an = mt().malen.werkzeug == static_cast<int>(e.wz);
@@ -284,7 +347,9 @@ void animation(std::vector<Werkzeug>& w) {
         const ModellAnimWerkzeug a = modellAnimWerkzeug(i);
         Werkzeug x;
         x.icon = a.icon;
-        x.text = a.text;
+        // ENTSCHEID1: die Namen der Blender-Befehle Copy Pose / Paste X-Flipped Pose (pose.copy, pose.paste flipped)
+        const std::string name = a.text;
+        x.text = name == tr(Str::MbRgKopieren) ? std::string(tr(Str::BeKopieren)) : (name == tr(Str::MbRgGespiegelt) ? std::string(tr(Str::BeGespiegelt)) : name);
         x.hinweis = a.hinweis;
         x.taste = a.taste;
         x.aktiv = a.aktiv;
@@ -328,40 +393,154 @@ void tooltip(const std::string& titel, const std::string& taste, const std::stri
     ImGui::EndTooltip();
 }
 
-// Ein Knopf der Werkzeugleiste: quadratisch, Symbol in der Mitte, das gewaehlte Werkzeug in der Betonungsfarbe (wie Blender blau).
-// Die Kennung ist der Text - Tooltip und Selbsttest finden ihn darueber.
-bool leistenKnopf(const Werkzeug& x, float g) {
+// Die offene Werkzeuggruppe (ENTSCHEID1): ihre Glieder, der Name, wo das Menue steht und ob es durch Halten/Ziehen aufging
+// (dann schliesst Loslassen ausserhalb des Menues es wie Blenders BLOCK_POPUP_HOLD).
+std::vector<Werkzeug> g_gruppeGlieder;
+std::string g_gruppeName;
+ImVec2 g_gruppeOrt;
+bool g_gruppeHalten = false;
+constexpr const char* kGruppeMenue = "##blgruppe";
+// Blender interface_handlers.cc: ein Knopf mit hold_func oeffnet sein Menue nach BUTTON_AUTO_OPEN_THRESH (0.2 s) Halten - oder sofort,
+// wenn die Maus beim Halten weiter als die Ziehschwelle wandert (WM_event_drag_threshold: U.drag_threshold_mouse, ab Werk 3 Punkte,
+// mal der Oberflaechengroesse).
+constexpr float kHalteZeit = 0.2F;
+constexpr float kZiehSchwelle = 3.0F;
+
+// Ein Knopf der Werkzeugleiste: quadratisch, Symbol in der Mitte, das gewaehlte Werkzeug in der Betonungsfarbe (wie Blender blau);
+// mit Namen (ENTSCHEID1, "Werkzeugnamen zeigen") so breit wie die Leiste, das Symbol links und der Name daneben. Eine Gruppe hat
+// unten rechts ein kleines Dreieck und oeffnet ihre Glieder beim Halten oder Ziehen. Die Kennung ist der Text - Tooltip und
+// Selbsttest finden ihn darueber.
+bool leistenKnopf(const Werkzeug& x, float g, float breite) {
+    const bool namen = g_app->settings.modellBlWerkzeugnamen;
     ImGui::BeginDisabled(!x.aktiv);
-    const bool geklickt = ImGui::InvisibleButton(x.text.c_str(), ImVec2{g, g});
+    const bool geklickt = ImGui::InvisibleButton(x.text.c_str(), ImVec2{namen ? breite : g, g});
     const bool ueber = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
     const bool gehalten = ImGui::IsItemActive();
     ImGui::EndDisabled();
     const ImVec2 a = ImGui::GetItemRectMin();
     const ImVec2 b = ImGui::GetItemRectMax();
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    const float rund = std::floor(ImGui::GetFontSize() * 0.22F);
+    const float fs = ImGui::GetFontSize();
+    const float rund = std::floor(fs * 0.22F);
     const ImVec4 beton = ui::betonungsFarbe();
     ImU32 farbe = ImGui::GetColorU32(uiIconFarbe(x.icon));
+    ImU32 schrift = ImGui::GetColorU32(ImGuiCol_Text);
     if (x.an) {
         dl->AddRectFilled(a, b, ImGui::GetColorU32(beton), rund);
         farbe = helligkeit(beton) > 0.6F ? IM_COL32_BLACK : IM_COL32_WHITE;
+        schrift = farbe;
     } else if (ueber && x.aktiv) {
         dl->AddRectFilled(a, b, ImGui::GetColorU32(gehalten ? ImGuiCol_ButtonActive : ImGuiCol_ButtonHovered), rund);
     }
-    if (!x.aktiv) { farbe = ImGui::GetColorU32(ImGuiCol_TextDisabled); }
+    if (!x.aktiv) {
+        farbe = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+        schrift = farbe;
+    }
     const float ig = std::floor(g * 0.6F);
     uiIcon(dl, x.icon, ImVec2{std::floor(a.x + (g - ig) * 0.5F), std::floor(a.y + (g - ig) * 0.5F)}, ig, farbe);
+    if (namen) {
+        const ImVec2 tg = ImGui::CalcTextSize(x.text.c_str());
+        dl->PushClipRect(a, b, true);
+        dl->AddText(ImVec2{a.x + g + std::floor(fs * 0.1F), std::floor(a.y + (g - tg.y) * 0.5F)}, schrift, x.text.c_str());
+        dl->PopClipRect();
+        g_bl.namenGezeigt = true;
+    }
+    if (!x.glieder.empty()) {
+        // das kleine Dreieck unten rechts (Blender zeichnet es an Knoepfen mit Haltefunktion)
+        const float s = std::floor(std::max(g * 0.18F, 3.0F));
+        const float r = std::floor(g * 0.08F);
+        const ImVec2 p0{b.x - r, b.y - r - s};
+        const ImVec2 p1{b.x - r, b.y - r};
+        const ImVec2 p2{b.x - r - s, b.y - r};
+        dl->AddTriangleFilled(p0, p1, p2, farbe);
+        g_bl.gruppen.push_back(x.text);
+        g_bl.dreiecke.emplace_back(ImVec2{p2.x, p0.y}, p1);
+        if (gehalten) {
+            const ImGuiIO& io = ImGui::GetIO();
+            const float dauer = io.MouseDownDuration[0];
+            const float zug = std::hypot(io.MousePos.x - io.MouseClickedPos[0].x, io.MousePos.y - io.MouseClickedPos[0].y);
+            const bool gezogen = zug >= kZiehSchwelle * std::max(g_app->uiScale, 0.5F);
+            if (dauer >= kHalteZeit || gezogen) {
+                g_gruppeGlieder = x.glieder;
+                g_gruppeName = x.gruppe;
+                g_gruppeOrt = ImVec2{b.x + std::floor(fs * 0.2F), a.y};
+                g_gruppeHalten = true;
+                g_bl.gruppeOffen = x.text;
+                g_bl.gruppeOffenNach = dauer;
+                g_bl.gruppeGezogen = gezogen && dauer < kHalteZeit;
+                // die Maus gehoert jetzt dem Menue: Loslassen auf einem Eintrag waehlt ihn (sonst bliebe die linke Taste bis zum
+                // Loslassen dem Knopf, und der Eintrag saehe das Loslassen nicht)
+                ImGui::ClearActiveID();
+                ImGui::SetKeyOwner(ImGuiKey_MouseLeft, ImGuiKeyOwner_NoOwner);
+                ImGui::OpenPopup(kGruppeMenue);
+            }
+        }
+    }
     g_bl.knoepfe.emplace_back(x.text, ImRect{a, b});
-    if (ueber) { tooltip(x.text, x.taste, x.hinweis); }
+    if (ueber && !gehalten) {
+        tooltip(x.text, x.taste, x.glieder.empty() ? x.hinweis : x.hinweis + (x.hinweis.empty() ? "" : "\n") + tr(Str::BeGruppeHint));
+    }
     return geklickt && x.aktiv;
 }
 
-// Das Menue der Werkzeugleiste und der Ansicht (Rechtsklick): Werkzeugleiste T, Seitenleiste N (wie Blenders Menue View).
+// Die Glieder der offenen Gruppe als Menue rechts neben dem Knopf (Blender WM_MT_toolsystem_submenu: Symbol und Name, doppelt hoch).
+void gruppenMenue() {
+    if (ImGui::IsPopupOpen(kGruppeMenue)) { ImGui::SetNextWindowPos(g_gruppeOrt, ImGuiCond_Appearing); }
+    if (!ImGui::BeginPopup(kGruppeMenue)) {
+        g_bl.gruppeOffen.clear();
+        g_bl.gruppeOffenNach = -1.0F;
+        g_bl.gruppenEintraege.clear();
+        g_gruppeHalten = false;
+        return;
+    }
+    g_bl.gruppenEintraege.clear();
+    const float fs = ImGui::GetFontSize();
+    const float h = std::floor(ImGui::GetFrameHeight() * 2.0F);   // Blender: layout.scale_y = 2.0
+    float breite = 0.0F;
+    for (const Werkzeug& w : g_gruppeGlieder) { breite = std::max(breite, ImGui::CalcTextSize(w.text.c_str()).x); }
+    breite += h + fs;
+    bool gewaehlt = false;
+    for (std::size_t i = 0; i < g_gruppeGlieder.size(); ++i) {
+        const Werkzeug& w = g_gruppeGlieder[i];
+        ImGui::PushID(static_cast<int>(i));
+        const ImVec2 o = ImGui::GetCursorScreenPos();
+        const bool klick = ImGui::Selectable("##glied", w.an, static_cast<ImGuiSelectableFlags>(ImGuiSelectableFlags_SelectOnRelease), ImVec2{breite, h});
+        const bool ueber = ImGui::IsItemHovered();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const float ig = std::floor(h * 0.55F);
+        uiIcon(dl, w.icon, ImVec2{std::floor(o.x + (h - ig) * 0.5F), std::floor(o.y + (h - ig) * 0.5F)}, ig, ImGui::GetColorU32(uiIconFarbe(w.icon)));
+        const ImVec2 tg = ImGui::CalcTextSize(w.text.c_str());
+        dl->AddText(ImVec2{o.x + h, std::floor(o.y + (h - tg.y) * 0.5F)}, ImGui::GetColorU32(ImGuiCol_Text), w.text.c_str());
+        g_bl.gruppenEintraege.emplace_back(w.text, ImRect{ImGui::GetItemRectMin(), ImGui::GetItemRectMax()});
+        if (ueber) { tooltip(w.text, w.taste, w.hinweis); }
+        if (klick && !gewaehlt) {
+            g_gruppenWahl[g_gruppeName] = static_cast<int>(i);
+            ausloesen(w);
+            gewaehlt = true;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::PopID();
+    }
+    // durch Halten/Ziehen geoeffnet: Loslassen ausserhalb des Menues schliesst es ohne Wahl (Blender BLOCK_POPUP_HOLD)
+    if (g_gruppeHalten && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+        if (!gewaehlt && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem)) { ImGui::CloseCurrentPopup(); }
+        g_gruppeHalten = false;
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
+    ImGui::EndPopup();
+}
+
+// Das Menue der Werkzeugleiste und der Ansicht (Rechtsklick): Werkzeugleiste T, Seitenleiste N (wie Blenders Menue View) und
+// "Werkzeugnamen zeigen" (ENTSCHEID1).
 void leistenMenue() {
     if (ImGui::MenuItem(tr(Str::BzWerkzeugleiste), "T", g_bl.werkzeugleiste)) { g_bl.werkzeugleiste = !g_bl.werkzeugleiste; }
     ImGui::SetItemTooltip("%s", tr(Str::BzWerkzeugleisteHint));
     if (ImGui::MenuItem(tr(Str::BzSeitenleiste), "N", g_bl.seitenleiste)) { g_bl.seitenleiste = !g_bl.seitenleiste; }
     ImGui::SetItemTooltip("%s", tr(Str::BzSeitenleisteHint));
+    if (ImGui::MenuItem(tr(Str::BeWerkzeugnamen), nullptr, g_app->settings.modellBlWerkzeugnamen)) {
+        g_app->settings.modellBlWerkzeugnamen = !g_app->settings.modellBlWerkzeugnamen;
+    }
+    ImGui::SetItemTooltip("%s", tr(Str::BeWerkzeugnamenHint));
 }
 
 // Text um 90 Grad gedreht (von oben nach unten zu lesen, wie die Reiter der Seitenleiste von Blender).
@@ -448,26 +627,57 @@ std::string einheiten(float d) {
 
 // --- Seitenleiste --------------------------------------------------------------------------------------------------------
 
-// Eine Zeile wie Blenders Panels: Beschriftung rechtsbuendig links, der Wert in einem Feld rechts.
-void seitenZeile(const std::string& name, const std::string& wert) {
+// Die Beschriftung links, auf `platz` Punkte gekuerzt: passt sie nicht, endet sie mit ... wie in Blenders schmalen Panels (der ganze
+// Text steht dann im Tooltip). Liefert den gezeichneten Text.
+std::string gekuerzt(const std::string& text, float platz) {
+    if (ImGui::CalcTextSize(text.c_str()).x <= platz) { return text; }
+    const std::string punkte = "\xe2\x80\xa6";
+    std::string s = text;
+    while (!s.empty()) {
+        // ein ganzes UTF-8-Zeichen entfernen
+        std::size_t n = s.size() - 1;
+        while (n > 0 && (static_cast<unsigned char>(s[n]) & 0xC0U) == 0x80U) { --n; }
+        s.erase(n);
+        while (!s.empty() && s.back() == ' ') { s.pop_back(); }
+        if (ImGui::CalcTextSize((s + punkte).c_str()).x <= platz) { return s + punkte; }
+    }
+    return punkte;
+}
+
+void feldTooltip(const char* text) {
+    if (!ImGui::BeginTooltip()) { return; }
+    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 24.0F);
+    cjkTextUnformatted(text);
+    ImGui::PopTextWrapPos();
+    ImGui::EndTooltip();
+}
+
+// Eine Zeile wie Blenders Panels: Beschriftung rechtsbuendig links, der Wert in einem Feld rechts (nur zum Ablesen). Liefert das
+// Rechteck des Felds.
+ImRect seitenZeile(const std::string& name, const std::string& wert, bool nurLesen = false) {
     const float breite = ImGui::GetContentRegionAvail().x;
     const float links = std::floor(breite * 0.42F);
     const float fs = ImGui::GetFontSize();
     const ImVec2 o = ImGui::GetCursorScreenPos();
     const float h = std::floor(fs * 1.35F);
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    const ImVec2 nb = ImGui::CalcTextSize(name.c_str());
-    dl->AddText(ImVec2{std::max(o.x, o.x + links - fs * 0.4F - nb.x), o.y + (h - nb.y) * 0.5F}, ImGui::GetColorU32(ImGuiCol_TextDisabled), name.c_str());
+    const std::string zeigt = gekuerzt(name, links - fs * 0.4F);
+    const ImVec2 nb = ImGui::CalcTextSize(zeigt.c_str());
+    dl->AddText(ImVec2{std::max(o.x, o.x + links - fs * 0.4F - nb.x), o.y + (h - nb.y) * 0.5F}, ImGui::GetColorU32(ImGuiCol_TextDisabled), zeigt.c_str());
     const ImVec2 fa{o.x + links, o.y};
     const ImVec2 fb{o.x + breite, o.y + h - 2.0F};
     dl->AddRectFilled(fa, fb, ImGui::GetColorU32(ImGuiCol_FrameBg), std::floor(fs * 0.2F));
     const ImVec2 wb = ImGui::CalcTextSize(wert.c_str());
     dl->PushClipRect(fa, fb, true);
-    dl->AddText(ImVec2{std::max(fa.x + fs * 0.3F, fb.x - fs * 0.3F - wb.x), o.y + (h - 2.0F - wb.y) * 0.5F}, ImGui::GetColorU32(ImGuiCol_Text), wert.c_str());
+    // ein nur ablesbares Zahlenfeld: der Wert mittig (wie die eingebbaren) und grau wie Blenders inaktive Felder
+    const float wx = nurLesen ? std::floor((fa.x + fb.x - wb.x) * 0.5F) : fb.x - fs * 0.3F - wb.x;
+    dl->AddText(ImVec2{std::max(fa.x + fs * 0.3F, wx), o.y + (h - 2.0F - wb.y) * 0.5F}, ImGui::GetColorU32(nurLesen ? ImGuiCol_TextDisabled : ImGuiCol_Text), wert.c_str());
     dl->PopClipRect();
     ImGui::Dummy(ImVec2{breite, h});
+    if (ImGui::IsItemHovered() && zeigt != name && ImGui::GetIO().MousePos.x < fa.x) { ImGui::SetTooltip("%s", name.c_str()); }
     if (ImGui::IsItemHovered() && ImGui::CalcTextSize(wert.c_str()).x > fb.x - fa.x - fs * 0.6F) { ImGui::SetTooltip("%s", wert.c_str()); }
     g_bl.seiteText += (g_bl.seiteText.empty() ? "" : "|") + name + "=" + wert;
+    return ImRect{fa, fb};
 }
 
 // Ueberschrift eines Panels (wie Blender: Pfeil und Titel auf einem leicht abgesetzten Balken)
@@ -507,13 +717,146 @@ void eulerXyz(const BoneMatrix& b, float out[3]) {
     for (int i = 0; i < 3; ++i) { out[i] *= 180.0F / kPi; }
 }
 
-void seiteObjekt() {
+// --- Seitenleiste eingebbar (ENTSCHEID1, shank 12.11. "ja Bitte wie in Blender") ---------------------------------------------
+// Wie Blenders Zahlenfelder (UI_BTYPE_NUM): nach links/rechts ziehen aendert den Wert, ein Klick ohne Ziehen tippt ihn ein (Enter
+// uebernimmt, Esc bricht ab), Strg+Z nimmt die ganze Eingabe in einem Schritt zurueck. Flaeche: Mitte und Abmessungen ihres Kastens
+// in der Pose (wie Blenders Location/Dimensions bzw. Median im Bearbeitungsmodus) - verschiebt bzw. skaliert die Ecken wie das
+// Gizmo. Griff des Rigs im Posenmodus: Ort und Drehung (Euler XYZ) des Knochens - wie G/R bzw. das Gizmo (modellRigZiehen), mit
+// denselben Grenzen (modellRigZugMoeglich). Ein Knochen ausserhalb des Posenmodus steht nur zum Ablesen da (Blender zeigt den Knochen
+// erst im Posenmodus).
+
+// Das Feld, das gerade gezogen oder getippt wird.
+struct SeitenZug {
+    std::string id;
+    float echt = 0.0F;          // der Wert beim Anfassen (ungerundet)
+    float wert = 0.0F;          // der Wert, den das Feld zeigt
+    std::uint64_t schritt = 0;  // Flaeche: Rueckgaengig-Schritt (0: noch keiner)
+    modell::Inhalt vorher;      // Flaeche: der Inhalt beim Anfassen
+    float mitte[3]{};
+    float euler[3]{};           // Griff: die Drehung beim Anfassen (Euler XYZ)
+    BoneMatrix dreh = BoneMatrix::identity();   // Griff: die Drehung beim Anfassen (Spalten normiert, ohne Ort)
+};
+SeitenZug g_zug;
+
+struct FeldStatus {
+    bool anfang = false;   // in diesem Bild angefasst
+    bool wert = false;     // der Wert hat sich geaendert (neu)
+    bool ende = false;     // in diesem Bild losgelassen (Enter, Esc, Klick daneben)
+    float neu = 0.0F;
+};
+
+// Ein Zahlenfeld der Seitenleiste in der Form von seitenZeile. `jetzt` ist der Wert, wie er gerade ist; solange das Feld angefasst
+// ist, zeigt es den eingegebenen. Nicht eingebbar: dieselbe Zeile zum Ablesen, der Tooltip sagt warum.
+FeldStatus seitenFeld(const std::string& id, const std::string& name, float jetzt, bool eingebbar, float tempo, float kleinste, const char* format,
+                      const std::string& anzeige, const char* gesperrt) {
+    FeldStatus s;
+    if (!eingebbar) {
+        const ImRect r = seitenZeile(name, anzeige, true);
+        if (ImGui::IsItemHovered() && gesperrt != nullptr && ImGui::GetIO().MousePos.x >= r.Min.x) { feldTooltip(gesperrt); }
+        const float links = std::floor(r.Min.x - ImGui::GetItemRectMin().x);
+        const std::string zeigt = gekuerzt(name, links - ImGui::GetFontSize() * 0.4F);
+        g_bl.seitenFelder.push_back({id, r, false, true, zeigt, ImGui::CalcTextSize(zeigt.c_str()).x, links - ImGui::GetFontSize() * 0.4F});
+        return s;
+    }
+    const float breite = ImGui::GetContentRegionAvail().x;
+    const float links = std::floor(breite * 0.42F);
+    const float fs = ImGui::GetFontSize();
+    const float h = std::floor(fs * 1.35F);
+    const ImVec2 o = ImGui::GetCursorScreenPos();
+    const std::string zeigt = gekuerzt(name, links - fs * 0.4F);
+    const ImVec2 nb = ImGui::CalcTextSize(zeigt.c_str());
+    ImGui::GetWindowDrawList()->AddText(ImVec2{std::max(o.x, o.x + links - fs * 0.4F - nb.x), o.y + (h - nb.y) * 0.5F}, ImGui::GetColorU32(ImGuiCol_TextDisabled), zeigt.c_str());
+    ImGui::Dummy(ImVec2{links, h});
+    if (zeigt != name && ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", name.c_str()); }
+    ImGui::SameLine(0.0F, 0.0F);
+    ImGui::SetNextItemWidth(breite - links);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{std::floor(fs * 0.3F), std::max(0.0F, std::floor((h - 2.0F - fs) * 0.5F))});
+    ImGuiIO& io = ImGui::GetIO();
+    const bool klickTippt = io.ConfigDragClickToInputText;
+    io.ConfigDragClickToInputText = true;   // wie Blender: ein Klick ohne Ziehen tippt ein (nur fuer diese Felder)
+    float v = g_zug.id == id ? g_zug.wert : jetzt;
+    s.wert = ImGui::DragFloat(("##" + id).c_str(), &v, tempo, kleinste, kleinste > 0.0F ? 1e9F : 0.0F, format, kleinste > 0.0F ? ImGuiSliderFlags_AlwaysClamp : ImGuiSliderFlags_None);
+    io.ConfigDragClickToInputText = klickTippt;
+    ImGui::PopStyleVar();
+    s.neu = v;
+    // angefasst/losgelassen ueber IsItemActive: wird aus dem Ziehen ein Eintippen (Klick ohne Ziehen), meldet ImGui fuer dasselbe
+    // Feld kurz "deaktiviert" (TempInputText raeumt die ActiveId und setzt sie neu) - das ist kein Loslassen
+    const bool aktiv = ImGui::IsItemActive();
+    s.anfang = aktiv && g_zug.id != id;
+    s.ende = !aktiv && g_zug.id == id;
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal) && !ImGui::IsItemActive()) { feldTooltip(tr(Str::BeFeldHint)); }
+    g_bl.seitenFelder.push_back({id, ImRect{ImGui::GetItemRectMin(), ImGui::GetItemRectMax()}, true, false, zeigt, nb.x, links - fs * 0.4F});
+    g_bl.seiteText += (g_bl.seiteText.empty() ? "" : "|") + name + "=" + anzeige;
+    return s;
+}
+
+// Euler XYZ (Grad) -> Drehung R = Rz * Ry * Rx (wie eulerXyz zurueck)
+BoneMatrix ausEuler(const float e[3]) {
+    const float x[3] = {1.0F, 0.0F, 0.0F};
+    const float y[3] = {0.0F, 1.0F, 0.0F};
+    const float z[3] = {0.0F, 0.0F, 1.0F};
+    return modell::drehungUm(z, e[2]) * modell::drehungUm(y, e[1]) * modell::drehungUm(x, e[0]);
+}
+
+// Die Drehung einer Knochenmatrix ohne Massstab und Ort.
+BoneMatrix nurDrehung(const BoneMatrix& b) {
+    BoneMatrix r = BoneMatrix::identity();
+    for (int c = 0; c < 3; ++c) {
+        const float l = std::sqrt(b.m[0][c] * b.m[0][c] + b.m[1][c] * b.m[1][c] + b.m[2][c] * b.m[2][c]);
+        for (int z = 0; z < 3; ++z) { r.m[z][c] = l > 1e-6F ? b.m[z][c] / l : 0.0F; }
+    }
+    return r;
+}
+
+BoneMatrix transponiert(const BoneMatrix& b) {
+    BoneMatrix r = BoneMatrix::identity();
+    for (int z = 0; z < 3; ++z) {
+        for (int c = 0; c < 3; ++c) { r.m[z][c] = b.m[c][z]; }
+    }
+    return r;
+}
+
+// Einheiten je Bildpunkt beim Ziehen eines Orts: wie G und das Gizmo in der aktiven Ansicht (modellRigModalTasten)
+float ortTempo() {
     const ModellTab& t = mt();
+    const ModellAnsicht& a = t.ansichten[static_cast<std::size_t>(std::clamp(t.aktiv, 0, 3))];
+    return 2.0F * std::max(a.halbHoehe, 1.0F) / std::max(a.groesse[1], 1.0F);
+}
+// Grad je Bildpunkt beim Ziehen einer Drehung: wie das Dreh-Gizmo und R (gizmoZiehen, modellRigModalTasten: 0,5 Grad je Punkt)
+constexpr float kDrehTempo = 0.5F;
+// Abmessungen: 1 % je Bildpunkt wie das Skalier-Gizmo (gizmoZiehen: Faktor 1 + dx * 0.01)
+constexpr float kMassTempo = 0.01F;
+
+float gerundet(float v, float stelle) { return std::fabs(v) < stelle ? 0.0F : v; }   // ohne "-0.00" (AP4 Fund 2)
+
+void zugLoslassenFlaeche() {
+    if (g_zug.schritt != 0 && std::fabs(g_zug.wert - g_zug.echt) < 1e-6F) {
+        (void)mt().dok.abbrechen(g_zug.schritt);   // nichts geaendert (Esc): kein leerer Rueckgaengig-Schritt
+        --g_bl.seitenSchritte;
+    }
+    g_zug = SeitenZug{};
+}
+
+void zugLoslassenRig() {
+    ModellTab& t = mt();
+    if (t.rigZieht) {
+        if (std::fabs(g_zug.wert - g_zug.echt) < 1e-6F) {
+            (void)t.dok.abbrechen(t.rigSchritt);
+            --g_bl.seitenSchritte;
+        }
+        modellRigZiehenEnde();
+    }
+    g_zug = SeitenZug{};
+}
+
+void seiteObjekt() {
+    ModellTab& t = mt();
     if (seitenPanel(tr(Str::BzTransform))) {
         // ein Griff des Rigs bzw. ein Knochen: Ort und Drehung des Knochens in der Pose
         int knochen = -1;
         std::string name;
-        if (t.bereich == ModellBereich::Animation && t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size()) {
+        const bool griff = t.bereich == ModellBereich::Animation && t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size();
+        if (griff) {
             knochen = t.rig.griffe[static_cast<std::size_t>(t.griffWahl)].knochen;
             if (knochen >= 0 && static_cast<std::size_t>(knochen) < g_app->anim.bones.size()) {
                 char z[160];
@@ -527,13 +870,60 @@ void seiteObjekt() {
             name = z;
         }
         const char* achse[3] = {"X", "Y", "Z"};
+        const auto beschriftung = [&](Str was, int i) { return std::string(i == 0 ? tr(was) : "") + " " + achse[i]; };
+        const auto undoName = [&](Str was, int i) {
+            char z[200];
+            std::snprintf(z, sizeof z, tr(Str::BeUndoSeite), (std::string(tr(was)) + " " + achse[i]).c_str());
+            return std::string(z);
+        };
         if (knochen >= 0 && static_cast<std::size_t>(knochen) < g_app->modellWelt.size()) {
             const BoneMatrix& b = g_app->modellWelt[static_cast<std::size_t>(knochen)];
-            seitenZeile(tr(Str::BzGewaehlt), name);
-            for (int i = 0; i < 3; ++i) { seitenZeile(std::string(i == 0 ? tr(Str::BzOrt) : "") + " " + achse[i], zahl(b.m[i][3])); }
+            (void)seitenZeile(tr(Str::BzGewaehlt), name);
+            const bool ortFrei = griff && modellRigZugMoeglich(1, nullptr);
+            const bool drehFrei = griff && modellRigZugMoeglich(2, nullptr);
+            const char* gesperrt = griff ? tr(Str::BeFeldGesperrt) : tr(Str::BeFeldNurPose);
+            for (int i = 0; i < 3; ++i) {
+                const std::string id = "ort" + std::to_string(i);
+                const float jetzt = b.m[i][3];
+                const FeldStatus s = seitenFeld(id, beschriftung(Str::BzOrt, i), gerundet(jetzt, 0.005F), ortFrei, ortTempo(), 0.0F, "%.2f", zahl(jetzt), gesperrt);
+                if (s.anfang) {
+                    g_zug = SeitenZug{};
+                    g_zug.id = id;
+                    g_zug.echt = jetzt;
+                    g_zug.wert = gerundet(jetzt, 0.005F);
+                }
+                if (s.wert && g_zug.id == id) {
+                    g_zug.wert = s.neu;
+                    if (!t.rigZieht) { ++g_bl.seitenSchritte; }
+                    float w[3] = {0.0F, 0.0F, 0.0F};
+                    w[i] = s.neu - g_zug.echt;
+                    modellRigZiehen(1, w);
+                }
+                if (s.ende && g_zug.id == id) { zugLoslassenRig(); }
+            }
             float e[3];
             eulerXyz(b, e);
-            for (int i = 0; i < 3; ++i) { seitenZeile(std::string(i == 0 ? tr(Str::BzDrehung) : "") + " " + achse[i], grad(e[i])); }
+            for (int i = 0; i < 3; ++i) {
+                const std::string id = "dreh" + std::to_string(i);
+                const FeldStatus s = seitenFeld(id, beschriftung(Str::BzDrehung, i), gerundet(e[i], 0.05F), drehFrei, kDrehTempo, 0.0F, "%.1f\xc2\xb0", grad(e[i]), gesperrt);
+                if (s.anfang) {
+                    g_zug = SeitenZug{};
+                    g_zug.id = id;
+                    g_zug.echt = e[i];
+                    g_zug.wert = gerundet(e[i], 0.05F);
+                    std::copy(e, e + 3, g_zug.euler);
+                    g_zug.dreh = nurDrehung(b);
+                }
+                if (s.wert && g_zug.id == id) {
+                    g_zug.wert = s.neu;
+                    if (!t.rigZieht) { ++g_bl.seitenSchritte; }
+                    float ziel[3] = {g_zug.euler[0], g_zug.euler[1], g_zug.euler[2]};
+                    ziel[i] = g_zug.euler[i] + (s.neu - g_zug.echt);
+                    // die Drehung, die den Knochen von seiner Drehung beim Anfassen auf die eingegebene bringt (in Weltachsen)
+                    modellRigDrehen(ausEuler(ziel) * transponiert(g_zug.dreh));
+                }
+                if (s.ende && g_zug.id == id) { zugLoslassenRig(); }
+            }
         } else if (!t.auswahl.empty()) {
             // Flaechen: Mitte und Abmessungen des Kastens in der Pose
             std::string namen;
@@ -544,21 +934,64 @@ void seiteObjekt() {
                 std::snprintf(z, sizeof z, trN(Str::BzFlaechen, static_cast<int>(t.auswahl.size())), static_cast<int>(t.auswahl.size()));
                 namen = z;
             }
-            seitenZeile(tr(Str::BzGewaehlt), namen);
+            (void)seitenZeile(tr(Str::BzGewaehlt), namen);
             float mn[3];
             float mx[3];
             if (modellGrenzen(true, mn, mx)) {
-                for (int i = 0; i < 3; ++i) { seitenZeile(std::string(i == 0 ? tr(Str::BzOrt) : "") + " " + achse[i], zahl((mn[i] + mx[i]) * 0.5F)); }
-                for (int i = 0; i < 3; ++i) { seitenZeile(std::string(i == 0 ? tr(Str::BzMasse) : "") + " " + achse[i], zahl(mx[i] - mn[i])); }
+                float m[3];
+                for (int i = 0; i < 3; ++i) { m[i] = (mn[i] + mx[i]) * 0.5F; }
+                const auto anfassen = [&](const std::string& id, float echt, float zeigt) {
+                    g_zug = SeitenZug{};
+                    g_zug.id = id;
+                    g_zug.echt = echt;
+                    g_zug.wert = zeigt;
+                    g_zug.vorher = t.dok.inhalt();
+                    std::copy(m, m + 3, g_zug.mitte);
+                };
+                const auto schritt = [&](Str was, int i) {
+                    if (g_zug.schritt == 0) {
+                        g_zug.schritt = t.dok.aendern(undoName(was, i), [](modell::Inhalt&) {});
+                        ++g_bl.seitenSchritte;
+                    }
+                };
+                for (int i = 0; i < 3; ++i) {
+                    const std::string id = "ort" + std::to_string(i);
+                    const FeldStatus s = seitenFeld(id, beschriftung(Str::BzOrt, i), gerundet(m[i], 0.005F), true, ortTempo(), 0.0F, "%.2f", zahl(m[i]), nullptr);
+                    if (s.anfang) { anfassen(id, m[i], gerundet(m[i], 0.005F)); }
+                    if (s.wert && g_zug.id == id) {
+                        g_zug.wert = s.neu;
+                        schritt(Str::BzOrt, i);
+                        float w[3] = {0.0F, 0.0F, 0.0F};
+                        w[i] = s.neu - g_zug.echt;
+                        modellAuswahlUmformen(g_zug.vorher, 1, g_zug.mitte, w);
+                    }
+                    if (s.ende && g_zug.id == id) { zugLoslassenFlaeche(); }
+                }
+                for (int i = 0; i < 3; ++i) {
+                    const std::string id = "masse" + std::to_string(i);
+                    const float d = mx[i] - mn[i];
+                    // eine flache Flaeche (Abmessung 0) laesst sich nicht skalieren - wie das Gizmo
+                    const FeldStatus s = seitenFeld(id, beschriftung(Str::BzMasse, i), gerundet(d, 0.005F), d > 1e-4F, std::max(d * kMassTempo, 0.001F), 0.001F, "%.2f",
+                                                    zahl(d), nullptr);
+                    if (s.anfang) { anfassen(id, d, gerundet(d, 0.005F)); }
+                    if (s.wert && g_zug.id == id && g_zug.echt > 1e-4F) {
+                        g_zug.wert = s.neu;
+                        schritt(Str::BzMasse, i);
+                        float f[3] = {1.0F, 1.0F, 1.0F};
+                        f[i] = s.neu / g_zug.echt;
+                        modellAuswahlUmformen(g_zug.vorher, 3, g_zug.mitte, f);
+                    }
+                    if (s.ende && g_zug.id == id) { zugLoslassenFlaeche(); }
+                }
             }
         } else {
-            seitenZeile(tr(Str::BzGewaehlt), tr(Str::BzNichtsGewaehlt));
+            (void)seitenZeile(tr(Str::BzGewaehlt), tr(Str::BzNichtsGewaehlt));
         }
     }
     if (seitenPanel(tr(Str::BzMessen))) {
         float d = 0.0F;
         if (modellBlAbstand(d)) {
-            seitenZeile(tr(Str::BzAbstand), einheiten(d));
+            (void)seitenZeile(tr(Str::BzAbstand), einheiten(d));
         } else {
             ImGui::PushTextWrapPos(0.0F);
             cjkTextDisabled("%s", tr(Str::BzKeineMessung));
@@ -570,7 +1003,7 @@ void seiteObjekt() {
 void seiteAnsicht() {
     if (!seitenPanel(tr(Str::BzReiterAnsicht))) { return; }
     const float fs = ImGui::GetFontSize();
-    seitenZeile(tr(Str::BzSichtfeld), grad(g_app->modelCam.fovY));
+    (void)seitenZeile(tr(Str::BzSichtfeld), grad(g_app->modelCam.fovY));
     ImGui::SetNextItemWidth(-1.0F);
     float fov = g_app->modelCam.fovY;
     if (ImGui::SliderFloat("##blfov", &fov, 10.0F, 120.0F, "%.0f\xc2\xb0")) {
@@ -579,7 +1012,7 @@ void seiteAnsicht() {
     }
     ImGui::SetItemTooltip("%s", tr(Str::BzSichtfeld));
     const ModellAnsicht& a = mt().ansichten[static_cast<std::size_t>(std::clamp(mt().aktiv, 0, 3))];
-    seitenZeile(tr(Str::BzAnsichtArt), a.art == AnsichtArt::Perspektive ? tr(Str::MkBlUserPersp) : tr(Str::MkBlUserOrtho));
+    (void)seitenZeile(tr(Str::BzAnsichtArt), a.art == AnsichtArt::Perspektive ? tr(Str::MkBlUserPersp) : tr(Str::MkBlUserOrtho));
     const float b = ImGui::GetContentRegionAvail().x;
     if (ImGui::Button(tr(Str::MkBlPersp), ImVec2{b, 0.0F})) { modellPerspektiveUmschalten(); }
     ImGui::SetItemTooltip("%s", "Numpad 5");
@@ -596,7 +1029,14 @@ ModellBlender& modellBl() { return g_bl; }
 
 float modellLinksSpalte() {
     if (!modellBlender()) { return kModellSpalte; }
-    return g_bl.werkzeugleiste ? kLeisteBreite : kStreifenBreite;
+    if (!g_bl.werkzeugleiste) { return kStreifenBreite; }
+    if (!g_app->settings.modellBlWerkzeugnamen) { return kLeisteBreite; }
+    // ENTSCHEID1 "Werkzeugnamen zeigen": so breit, dass neben dem Symbol der laengste Name des Bereichs ganz steht (Blender zeigt die
+    // Namen, wenn die Leiste breiter als 120 Punkte ist - space_toolsystem_common.py _layout_generator_detect_from_region)
+    const float fs = std::max(ImGui::GetFontSize(), 1.0F);
+    float laengster = 0.0F;
+    for (const Werkzeug& w : werkzeuge()) { laengster = std::max(laengster, ImGui::CalcTextSize(w.text.c_str()).x); }
+    return kLeisteBreite + laengster / fs + 0.8F;
 }
 
 const char* modellLinksTitel() { return modellBlender() ? tr(Str::BzWerkzeugleiste) : modellExplorerTitel(); }
@@ -622,6 +1062,8 @@ bool modellBlWerkzeugAusloesen(int i) {
     return true;
 }
 
+void modellBlGruppenVorgabe() { g_gruppenWahl.clear(); }
+
 bool modellBlAbstand(float& abstand) {
     if (g_bl.messPunkte < 2) { return false; }
     abstand = abstandVon(g_bl.messA, g_bl.messB);
@@ -632,6 +1074,9 @@ void drawModellWerkzeugleiste(float hoehe) {
     const float fs = ImGui::GetFontSize();
     if (g_bl.bild != ImGui::GetFrameCount()) {
         g_bl.knoepfe.clear();
+        g_bl.gruppen.clear();
+        g_bl.dreiecke.clear();
+        g_bl.namenGezeigt = false;
         g_bl.bild = ImGui::GetFrameCount();
     }
     g_bl.trennstrich = -1;
@@ -657,22 +1102,26 @@ void drawModellWerkzeugleiste(float hoehe) {
     const float breite = std::floor(std::max(ImGui::GetContentRegionAvail().x, fs));
     const float luecke = std::floor(fs * 0.15F);
     const std::vector<Werkzeug> w = werkzeuge();
-    // so gross wie die Spalte breit ist; reicht die Hoehe nicht fuer alle Knoepfe (kleines Fenster), kleiner und mittig
+    // so gross wie die Spalte breit ist; reicht die Hoehe nicht fuer alle Knoepfe (kleines Fenster), kleiner und mittig. Mit Namen
+    // bleibt das Symbol so gross wie in der schmalen Leiste, der Knopf reicht ueber die ganze Breite.
+    const bool namen = g_app->settings.modellBlWerkzeugnamen;
+    const float quadrat = namen ? std::min(breite, std::floor(fs * kLeisteBreite)) : breite;
     const float n = static_cast<float>(w.size());
     const float passt = (ImGui::GetContentRegionAvail().y - luecke * 2.0F - luecke * n) / std::max(n, 1.0F);
-    const float g = std::floor(std::clamp(passt, std::min(fs * 1.3F, breite), breite));
-    const float rand = std::floor((breite - g) * 0.5F);
+    const float g = std::floor(std::clamp(passt, std::min(fs * 1.3F, quadrat), quadrat));
+    const float rand = namen ? 0.0F : std::floor((breite - g) * 0.5F);
+    const float strich = namen ? breite : g;
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0.0F, luecke});
     if (rand > 0.0F) { ImGui::Indent(rand); }
     for (std::size_t i = 0; i < w.size(); ++i) {
         if (i == 4) {
             // Trennstrich zwischen den vier Werkzeugen jedes Bereichs und denen des Bereichs (Entwurf: <hr>)
             const ImVec2 o = ImGui::GetCursorScreenPos();
-            ImGui::Dummy(ImVec2{g, luecke * 2.0F});
-            ImGui::GetWindowDrawList()->AddLine(ImVec2{o.x + g * 0.15F, o.y + luecke}, ImVec2{o.x + g * 0.85F, o.y + luecke}, ImGui::GetColorU32(ImGuiCol_Separator));
+            ImGui::Dummy(ImVec2{strich, luecke * 2.0F});
+            ImGui::GetWindowDrawList()->AddLine(ImVec2{o.x + strich * 0.15F, o.y + luecke}, ImVec2{o.x + strich * 0.85F, o.y + luecke}, ImGui::GetColorU32(ImGuiCol_Separator));
             g_bl.trennstrich = 4;
         }
-        if (leistenKnopf(w[i], g)) { ausloesen(w[i]); }
+        if (leistenKnopf(w[i], g, breite)) { ausloesen(w[i]); }
         if (ImGui::BeginPopupContextItem()) {
             leistenMenue();
             ImGui::EndPopup();
@@ -680,6 +1129,7 @@ void drawModellWerkzeugleiste(float hoehe) {
     }
     if (rand > 0.0F) { ImGui::Unindent(rand); }
     ImGui::PopStyleVar();
+    gruppenMenue();
     if (ImGui::BeginPopupContextWindow("##blleistemenue", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
         leistenMenue();
         ImGui::EndPopup();
@@ -724,6 +1174,7 @@ float modellSeitenleisteBreite(float frei) {
 void drawModellSeitenleiste(ImVec2 groesse) {
     const float fs = ImGui::GetFontSize();
     g_bl.seiteText.clear();
+    g_bl.seitenFelder.clear();
     const ImVec2 o = ImGui::GetCursorScreenPos();
     g_bl.seite = ImRect{o, ImVec2{o.x + groesse.x, o.y + groesse.y}};
     // die Reiter am rechten Rand, senkrecht beschriftet (Blender: Item, Tool, View)
@@ -958,9 +1409,10 @@ bool modellBlAktionenSuche(const std::string& such) {
         bool nurBlender;
         std::function<void()> tun;
     };
-    const Z liste[4] = {
+    const Z liste[5] = {
         {Str::BzWerkzeugleiste, Str::BzWerkzeugleisteHint, "T", true, [] { g_bl.werkzeugleiste = !g_bl.werkzeugleiste; }},
         {Str::BzSeitenleiste, Str::BzSeitenleisteHint, "N", true, [] { g_bl.seitenleiste = !g_bl.seitenleiste; }},
+        {Str::BeWerkzeugnamen, Str::BeWerkzeugnamenHint, "", true, [] { g_app->settings.modellBlWerkzeugnamen = !g_app->settings.modellBlWerkzeugnamen; }},
         {Str::BzMessenMax, Str::BzMessenHint, "", false, [] {
              mt().bereich = ModellBereich::Ansehen;
              g_bl.werkzeug = 1;

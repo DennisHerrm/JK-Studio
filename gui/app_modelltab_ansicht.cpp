@@ -1397,15 +1397,15 @@ void gizmoZiehen(const ModellAnsicht& a, const float m[3]) {
 
 // --- Auswaehlen ------------------------------------------------------------------------------
 
-// Die Flaeche unter der Maus (vorderstes Dreieck), -1 keine.
-int flaecheUnter(const ModellAnsicht& a, ImVec2 maus) {
+// Alle gezeichneten Flaechen unter der Maus nach der Tiefe ihres vordersten Dreiecks an dieser Stelle, die vorderste zuerst.
+std::vector<int> flaechenUnter(const ModellAnsicht& a, ImVec2 maus) {
     const ModellTab& t = mt();
     const auto& h = haut();
-    int best = -1;
-    float bestT = 2.0F;
+    std::vector<std::pair<float, int>> treffer;
     for (std::size_t i = 0; i < h.size() && i < t.anzeige.surfaces.size(); ++i) {
         if (!gezeichnet(i)) { continue; }
         const GlmSurface& s = t.anzeige.surfaces[i];
+        float vorn = 2.0F;
         for (std::size_t k = 0; k + 2 < s.indexes.size(); k += 3) {
             ImVec2 p[3];
             float d[3];
@@ -1418,16 +1418,28 @@ int flaecheUnter(const ModellAnsicht& a, ImVec2 maus) {
             const float v = ((p[2].x - maus.x) * (p[0].y - maus.y) - (p[0].x - maus.x) * (p[2].y - maus.y)) / flaeche;
             const float w = 1.0F - u - v;
             if (u < 0.0F || v < 0.0F || w < 0.0F) { continue; }
-            const float tiefe = u * d[0] + v * d[1] + w * d[2];
-            if (tiefe < bestT) {
-                bestT = tiefe;
-                best = static_cast<int>(i);
-            }
+            vorn = std::min(vorn, u * d[0] + v * d[1] + w * d[2]);
         }
+        if (vorn < 2.0F) { treffer.emplace_back(vorn, static_cast<int>(i)); }
     }
-    // AP2: eine eingefrorene Flaeche ist sichtbar, aber nicht waehlbar - der Klick meldet es und waehlt nichts
-    if (best >= 0 && !modellFlaecheWaehlbar(best, true)) { return -1; }
-    return best;
+    std::stable_sort(treffer.begin(), treffer.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
+    std::vector<int> out;
+    out.reserve(treffer.size());
+    for (const auto& x : treffer) { out.push_back(x.second); }
+    return out;
+}
+
+// Die Flaeche unter der Maus (vorderstes Dreieck), -1 keine. ENTSCHEID1 (shank 11.11.: "hindurch auf die flaeche dahinter"): wie
+// 3ds Max nimmt eine eingefrorene Flaeche am Treffertest nicht teil (Autodesk-Hilfe "Freezing and Unfreezing Objects": sichtbar, aber
+// "cannot be selected"; Blender ebenso mit hide_select) - der Klick waehlt die vorderste nicht eingefrorene Flaeche dahinter. Liegt
+// dahinter keine, meldet er die eingefrorene (AP2) und waehlt nichts.
+int flaecheUnter(const ModellAnsicht& a, ImVec2 maus) {
+    const std::vector<int> f = flaechenUnter(a, maus);
+    for (const int i : f) {
+        if (modellFlaecheWaehlbar(i, false)) { return i; }
+    }
+    if (!f.empty()) { (void)modellFlaecheWaehlbar(f.front(), true); }
+    return -1;
 }
 
 void auswahlAendern(const std::vector<int>& treffer) {
@@ -2485,6 +2497,11 @@ bool modellAufSchirm(const ModellAnsicht& a, const float p[3], ImVec2& out) { re
 bool modellGrenzen(bool nurAuswahl, float mn[3], float mx[3]) { return grenzen(nurAuswahl, mn, mx); }   // MBNAV
 // Modell-Block 1d: fuer das Modellieren (gui/wof/app_modelltab_mesh.cpp)
 bool modellDreieckUnter(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck) { return dreieckUnter(a, maus, teil, dreieck); }
+std::vector<int> modellFlaechenUnter(const ModellAnsicht& a, ImVec2 maus) { return flaechenUnter(a, maus); }
+void modellAuswahlUmformen(const modell::Inhalt& vorher, int art, const float mitte[3], const float wert[3]) {
+    mt().dok.vorschau([&](modell::Inhalt& x) { umformen(x, vorher, art, mitte, wert); });
+    g_app->modelDirty = true;
+}
 const std::vector<std::vector<std::array<float, 3>>>& modellHaut() { return haut(); }
 
 const std::vector<BoneMatrix>& modellBearbeitungsPose() { return bearbeitungsPose(); }

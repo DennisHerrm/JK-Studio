@@ -20,7 +20,8 @@
 // passt, endet mit "..." und steht ganz im Tooltip.
 //
 // Auge = nur in der Ansicht ausblenden (Spiel unveraendert), Schneeflocke = einfrieren: sichtbar, aber in Baum und Ansicht
-// nicht waehlbar (flaecheUnter / flaechenImRahmen in gui/app_modelltab_ansicht.cpp fragen modellFlaecheWaehlbar).
+// nicht waehlbar (flaecheUnter / flaechenImRahmen in gui/app_modelltab_ansicht.cpp fragen modellFlaecheWaehlbar; ENTSCHEID1: ein
+// Klick in der Ansicht geht durch eine eingefrorene Flaeche hindurch auf die dahinter).
 // Gezeichnet wird ein flacher Zeilenvorrat mit ImGuiListClipper: _humanoid hat ueber 1800 Sequenzen, gebaut werden nur
 // die sichtbaren Zeilen.
 #include "app_internal.h"

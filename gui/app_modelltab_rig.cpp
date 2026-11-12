@@ -627,9 +627,11 @@ bool modellRigGriffMitte(float m[3]) {
     return modellRigGriffWelt(t.griffWahl, g_app->modellWelt, m);
 }
 
-void modellRigZiehen(int gizmoArt, const float wert[3]) {
+namespace {
+
+// Der erste Zug eines Ziehens: Schicht und Welt beim Anfassen merken, ein Rueckgaengig-Schritt.
+void zugBeginnen(int gizmoArt) {
     ModellTab& t = mt();
-    if (t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size()) { return; }
     if (!t.rigZieht) {
         const modell::RigSchicht* s = modellRigSchichtJetzt();
         t.rigSchichtStart = s != nullptr ? *s : modell::RigSchicht{};
@@ -642,6 +644,14 @@ void modellRigZiehen(int gizmoArt, const float wert[3]) {
         modellZeitZugGemeldet(t.rigSchritt);   // AP1: Auto Key aus - die Pose bleibt ohne Schluessel bis Set Key
         g_app->animPlaying = false;
     }
+}
+
+}  // namespace
+
+void modellRigZiehen(int gizmoArt, const float wert[3]) {
+    ModellTab& t = mt();
+    if (t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size()) { return; }
+    zugBeginnen(gizmoArt);
     BoneMatrix dreh = BoneMatrix::identity();
     float weg[3] = {0.0F, 0.0F, 0.0F};
     if (gizmoArt == 2) {
@@ -658,28 +668,51 @@ void modellRigZiehen(int gizmoArt, const float wert[3]) {
     rigZugAnwenden(gizmoArt, dreh, weg);
 }
 
+void modellRigDrehen(const BoneMatrix& dreh) {
+    ModellTab& t = mt();
+    if (t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size()) { return; }
+    zugBeginnen(2);
+    const float nichts[3] = {0.0F, 0.0F, 0.0F};
+    rigZugAnwenden(2, dreh, nichts);
+}
+
 void modellRigZiehenEnde() { mt().rigZieht = false; }
+
+// Kann der gewaehlte Griff diese Art Zug (1 verschieben, 2 drehen, 3 skalieren)? Sonst steht in `grund` die Meldung. Gilt fuer G/R
+// und die Seitenleiste (ENTSCHEID1).
+bool modellRigZugMoeglich(int art, std::string* grund) {
+    const ModellTab& t = mt();
+    if (t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size()) { return false; }
+    const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(t.griffWahl)];
+    // Stufe 4: G bewegt auch Hand, Fuss, Saebelgriff und Pol (IK), R rollt an Ferse/Ballen/Zehe
+    const bool ende = g.art == modell::GriffArt::Hand || g.art == modell::GriffArt::Fuss || g.art == modell::GriffArt::Saebelgriff;
+    const bool pol = g.art == modell::GriffArt::PolEllbogen || g.art == modell::GriffArt::PolKnie;
+    if (art == 3 || (art == 1 && g.art != modell::GriffArt::Becken && !ende && !pol) || (art == 2 && pol)) {
+        if (grund != nullptr) { *grund = tr(pol ? Str::MbIkPolNurVerschieben : (g.ik ? Str::MbIkRolleNurDrehen : Str::MbRgNurDrehen)); }
+        return false;
+    }
+    // wie Blender (Rigify): G greift das IK-Ziel nur bei IK - sonst eine Meldung statt eines Modals, das nichts tut
+    if (art == 1 && (ende || pol) && modellBlender() && modellIkAnteil(modellIkArtFuerGriff(t.griffWahl)) < 0.5F) {
+        if (grund != nullptr) {
+            char b[400];
+            std::snprintf(b, sizeof b, tr(Str::MbIkNurIk), tr(modell::ikArm(static_cast<modell::IkArt>(std::max(modellIkArtFuerGriff(t.griffWahl), 0))) ?
+                                                               (g.seite == modell::Seite::Links ? Str::MbIkArmL : Str::MbIkArmR) :
+                                                               (g.seite == modell::Seite::Links ? Str::MbIkBeinL : Str::MbIkBeinR)));
+            *grund = b;
+        }
+        return false;
+    }
+    return true;
+}
 
 // G und R wie Blender (transform.translate / transform.rotate im Pose-Modus): Maus nach rechts dreht um die Blickachse der
 // aktiven Ansicht (X/Y/Z: Weltachse), Klick/Enter uebernimmt, Esc/rechts bricht ab.
 bool modellRigModalStarten(int art) {
     ModellTab& t = mt();
     if (t.bereich != ModellBereich::Animation || t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size()) { return false; }
-    const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(t.griffWahl)];
-    // Stufe 4: G bewegt auch Hand, Fuss, Saebelgriff und Pol (IK), R rollt an Ferse/Ballen/Zehe
-    const bool ende = g.art == modell::GriffArt::Hand || g.art == modell::GriffArt::Fuss || g.art == modell::GriffArt::Saebelgriff;
-    const bool pol = g.art == modell::GriffArt::PolEllbogen || g.art == modell::GriffArt::PolKnie;
-    if (art == 3 || (art == 1 && g.art != modell::GriffArt::Becken && !ende && !pol) || (art == 2 && pol)) {
-        melden(tr(pol ? Str::MbIkPolNurVerschieben : (g.ik ? Str::MbIkRolleNurDrehen : Str::MbRgNurDrehen)));
-        return true;
-    }
-    // wie Blender (Rigify): G greift das IK-Ziel nur bei IK - sonst eine Meldung statt eines Modals, das nichts tut
-    if (art == 1 && (ende || pol) && modellBlender() && modellIkAnteil(modellIkArtFuerGriff(t.griffWahl)) < 0.5F) {
-        char b[400];
-        std::snprintf(b, sizeof b, tr(Str::MbIkNurIk), tr(modell::ikArm(static_cast<modell::IkArt>(std::max(modellIkArtFuerGriff(t.griffWahl), 0))) ?
-                                                           (g.seite == modell::Seite::Links ? Str::MbIkArmL : Str::MbIkArmR) :
-                                                           (g.seite == modell::Seite::Links ? Str::MbIkBeinL : Str::MbIkBeinR)));
-        melden(b);
+    std::string grund;
+    if (!modellRigZugMoeglich(art, &grund)) {
+        melden(grund);
         return true;
     }
     t.rigModal = art;

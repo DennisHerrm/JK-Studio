@@ -22,7 +22,7 @@ ZEILEN = [
     ("MbBlModusMenue", "Mode menu (Ctrl+Tab)", "Modus-Menü (Strg+Tab)", "模式菜单 (Ctrl+Tab)", "モードメニュー (Ctrl+Tab)", "Menú de modo (Ctrl+Tab)",
      "Nabídka režimů (Ctrl+Tab)"),
     ("MbBlObjektModus", "Object Mode", "Objektmodus", "物体模式", "オブジェクトモード", "Modo Objeto", "Objektový režim"),
-    ("MbBlEditModus", "Edit Mode", "Bearbeitungsmodus", "编辑模式", "編集モード", "Modo Edición", "Editační režim"),
+    ("MbBlEditModus", "Edit Mode", "Bearbeitungsmodus", "编辑模式", "編集モード", "Modo Edición", "Režim úprav"),
     ("MbBlEcke", "Vertex select (1)", "Ecken wählen (1)", "顶点选择 (1)", "頂点選択 (1)", "Selección de vértices (1)", "Výběr vrcholů (1)"),
     ("MbBlKante", "Edge select (2)", "Kanten wählen (2)", "边选择 (2)", "辺選択 (2)", "Selección de aristas (2)", "Výběr hran (2)"),
     ("MbBlFlaeche", "Face select (3)", "Flächen wählen (3)", "面选择 (3)", "面選択 (3)", "Selección de caras (3)", "Výběr ploch (3)"),

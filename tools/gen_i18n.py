@@ -2360,6 +2360,8 @@ from i18n_ap4 import zeilen_vier as _ap4  # noqa: E402  (AP4: Model-Tab im Bedie
 S += _ap4()
 from i18n_ap5 import zeilen_vier as _ap5  # noqa: E402  (AP5: Model-Tab, Bereich Ansehen/Pruefen vollstaendig nach dem Entwurf)
 S += _ap5()
+from i18n_ent1 import zeilen_vier as _ent1  # noqa: E402  (ENTSCHEID1: Werkzeugnamen wie Blender, Gruppen, eingebbare Seitenleiste)
+S += _ent1()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

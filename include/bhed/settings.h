@@ -218,6 +218,11 @@ struct Settings {
     // AP1: die Zeitleiste des Model-Tabs - Spuren offen, Hoehe des Spurbereichs je Bedienmodus (in Schrifthoehen),
     // Zeitanzeige (0 Frames, 1 Sekunden)
     bool modellZeitSpuren = true;
+    // ENTSCHEID1 (shank 11.11.: "Aus man kann es an machen"): Auto Key / Auto-Keying ab Werk aus wie in 3ds Max und Blender;
+    // die Wahl des Anwenders bleibt.
+    bool modellZeitAutoKey = false;
+    // ENTSCHEID1: Werkzeugleiste wie Blender mit den Namen der Werkzeuge (Rechtsklick "Werkzeugnamen zeigen").
+    bool modellBlWerkzeugnamen = false;
     float modellZeitSpurHoeheMax = 8.0F;
     float modellZeitSpurHoeheBlender = 8.0F;
     int modellZeitAnzeige = 0;

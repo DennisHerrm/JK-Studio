@@ -146,6 +146,8 @@ std::string writeSettings(const Settings& s) {
     put(o, "r_picmip", std::to_string(s.bildPicmip));
     put(o, "modelControls", s.modellBedienung == 1 ? "blender" : "max");   // mb1a1
     put(o, "modelTimelineTracks", s.modellZeitSpuren);                      // AP1
+    put(o, "modelTimelineAutoKey", s.modellZeitAutoKey);                    // ENTSCHEID1
+    put(o, "modelBlenderToolNames", s.modellBlWerkzeugnamen);               // ENTSCHEID1
     std::snprintf(buf, sizeof(buf), "%.2f", static_cast<double>(s.modellZeitSpurHoeheMax));
     put(o, "modelTimelineTracksMax", std::string(buf));
     std::snprintf(buf, sizeof(buf), "%.2f", static_cast<double>(s.modellZeitSpurHoeheBlender));
@@ -500,6 +502,8 @@ bool readSettings(const std::string& text, Settings& out) {
         else if (key == "r_picmip") { out.bildPicmip = std::clamp(std::atoi(value.c_str()), 0, 3); }
         else if (key == "modelControls") { out.modellBedienung = value == "blender" ? 1 : 0; }   // mb1a1
         else if (key == "modelTimelineTracks") { out.modellZeitSpuren = toBool(value); }           // AP1
+        else if (key == "modelTimelineAutoKey") { out.modellZeitAutoKey = toBool(value); }         // ENTSCHEID1
+        else if (key == "modelBlenderToolNames") { out.modellBlWerkzeugnamen = toBool(value); }    // ENTSCHEID1
         else if (key == "modelTimelineTracksMax") { out.modellZeitSpurHoeheMax = std::clamp(static_cast<float>(std::atof(value.c_str())), 2.5F, 26.0F); }
         else if (key == "modelTimelineTracksBlender") { out.modellZeitSpurHoeheBlender = std::clamp(static_cast<float>(std::atof(value.c_str())), 2.5F, 26.0F); }
         else if (key == "modelTimelineDisplay") { out.modellZeitAnzeige = std::atoi(value.c_str()) == 1 ? 1 : 0; }

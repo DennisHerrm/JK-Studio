@@ -1271,6 +1271,7 @@ float modellZeitleisteHoehe() {
 
 void modellZeitAutoKey(bool an) {
     ModellZeit& z = g_zeit;
+    g_app->settings.modellZeitAutoKey = an;   // ENTSCHEID1: die Wahl bleibt (behaved.cfg modelTimelineAutoKey)
     if (z.autoKey == an) { return; }
     z.autoKey = an;
     // beim Einschalten bleibt eine Pose ohne Schluessel, wie sie ist: ihre Schluessel stehen schon am Bild
@@ -1405,6 +1406,7 @@ void drawModellZeitleiste(const AnimEntry* e) {
     ModellTab& t = mt();
     if (!z.einstellungenGelesen) {
         t.kvOffen = g_app->settings.modellZeitSpuren;   // ab Werk offen: im Bereich Animation stehen die Spuren da (Entwurf)
+        z.autoKey = g_app->settings.modellZeitAutoKey;  // ENTSCHEID1: ab Werk aus, sonst die Wahl des Anwenders
         z.einstellungenGelesen = true;
     }
     modellCfgAbgleich();   // die animation.cfg zur GLA (bis rc611 in der Marker-Zeile der Leiste)
