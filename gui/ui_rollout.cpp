@@ -606,8 +606,12 @@ void feldEnde() {
     Feld& f = s.feld;
     // vergessene rolloutEnde() in diesem Fenster schliessen (sonst bliebe der Zeichenkanal geteilt)
     while (s.tiefe > 0 && f.an && s.lauf[s.tiefe - 1].fenster == f.fenster) { rolloutEnde(); }
+    // FIX612C (PV4): hat der rollende Bereich in diesem Bild nichts gezeichnet (SkipItems: ganz abgeschnitten, z. B. ein sehr
+    // kleines Fenster), meldete keine Gruppe ihren Reiter - dann gilt der Stand des letzten gezeichneten Bilds weiter, sonst fiele
+    // der gewaehlte Reiter auf den vorgegebenen zurueck
+    const bool gezeichnet = f.fenster != nullptr && !f.fenster->SkipItems;
     ImGui::EndChild();
-    if (f.an) { s.belegt[f.schluessel] = f.belegtNeu; }
+    if (f.an && gezeichnet) { s.belegt[f.schluessel] = f.belegtNeu; }
     f = Feld{};
 }
 
