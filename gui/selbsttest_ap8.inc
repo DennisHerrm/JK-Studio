@@ -101,6 +101,19 @@ std::vector<modell::EckOrt> zweiNachbarn(int teil, bool schleife) {
     return {};
 }
 
+// KLEIN (rc612): der Ort einer bestimmten Ecke im Bild der aktiven Ansicht (Pose wie gezeichnet). false: nicht im Bild oder von
+// der Kamera abgewandt (dann trifft sie kein Tupfer).
+bool eckeOrt(const modell::EckOrt& a, ImVec2& ort) {
+    ModellEckenBild bild;
+    modellEckenBild(mtab().ansichten[mtab().aktiv], bild);
+    if (a.teil < 0 || a.ecke < 0 || static_cast<std::size_t>(a.teil) >= bild.ort.size()) { return false; }
+    const auto t = static_cast<std::size_t>(a.teil);
+    const auto e = static_cast<std::size_t>(a.ecke);
+    if (e >= bild.ort[t].size() || bild.imBild[t][e] == 0 || bild.vorn[t][e] == 0) { return false; }
+    ort = ImVec2{bild.ort[t][e][0], bild.ort[t][e][1]};
+    return true;
+}
+
 // Die Ecke einer Flaeche, die zur Kamera zeigt und in der aktiven Ansicht der Mitte der Flaeche am naechsten liegt (ein
 // Tupfer genau dorthin trifft sie mit voller Staerke).
 int vordereEcke(int teil, ImVec2& ort) {
@@ -868,9 +881,18 @@ void zeilenSchritte(std::vector<Schritt>& s) {
             g_app->modelDirty = true;
         }));
         add(pause(0.3));
-        add(tu("AP8 W12: Tupfer", [p] {
-            (void)vordereEcke(mb1::teil("torso"), p->ort);
+        // KLEIN (rc612): der Tupfer gilt DER Ecke, die eben rhumerus 0,3 bekam (p->a) - an ihrem Ort in diesem Bild. Bis rc612 suchte
+        // der Schritt die vorderste Ecke neu: in einer bewegten Pose rueckt die Ecke mit dem neuen Gewicht, eine andere liegt dann der
+        // Mitte naeher, der Tupfer (Radius 3) malte die andere, und die Pruefung las an p->a 0 statt 0,5. Die Pose hing am Bild, auf
+        // dem W13 des Teils davor die Animation anhielt - nach der Wanduhr, also an der Last (gruen bis Bild 30308, rot ab 30309;
+        // nachgestellt mit BHED_TEST_BREMSE=80 und 200).
+        add(tu("AP8 W12: Tupfer auf dieselbe Ecke", [p] {
+            ImVec2 vorderste = p->ort;
+            const int jetzt = vordereEcke(mb1::teil("torso"), vorderste);
+            if (!eckeOrt(p->a, p->ort)) { meldeFehler("AP8 W12: die Ecke " + std::to_string(p->a.ecke) + " von torso ist nicht mehr im Bild oder abgewandt"); }
             (void)modellTupfer(mtab().aktiv, p->ort, true);
+            melde("W12 Tupfer: Bild " + std::to_string(g_app->animFrame) + ", vorderste Ecke jetzt " + std::to_string(jetzt) + ", gemalt wird Ecke " +
+                  std::to_string(p->a.ecke) + ", " + std::to_string(mtab().gemalteEcken) + " Ecken unter dem Pinsel");
             modellStrichEnde();
         }));
         add(pruefe(zeile("W12", modus, "ein anderer Knochen daneben: der gesperrte behaelt 0,3, der gemalte traegt 0,5, die uebrigen teilen sich 0,2"), [p] {
@@ -1034,6 +1056,10 @@ void zeilenSchritte(std::vector<Schritt>& s) {
             melde("W13 Fassung " + std::to_string(z.fassung) + ", Bild " + std::to_string(p->frame) + " -> " + std::to_string(g_app->animFrame));
             const bool ok = modellZeitFassung() == ZeitFassung::Kurz && z.fassung == static_cast<int>(ZeitFassung::Kurz) && g_app->animFrame != p->frame;
             g_app->animPlaying = false;
+            // KLEIN (rc612): zurueck auf das Bild vor dem Abspielen - wie weit die Animation in 0,7 s Wanduhr kam, haengt an der Last,
+            // und der Teil des naechsten Bedienmodus soll in derselben Pose laufen wie dieser
+            g_app->animFrame = p->frame;
+            g_app->modelDirty = true;
             return ok;
         }));
 
