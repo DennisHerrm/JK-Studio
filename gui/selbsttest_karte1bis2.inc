@@ -3322,8 +3322,13 @@ std::vector<Schritt> karteneditorEntitaetenSchritte() {
         e.kamera.setzeWinkel(karte::Vektor3f(0, 0, 0));
         e.karte.auswahl.leeren();
     }));
+    // TESTTEMPO (rc612): der zweite Rechtsklick zaehlt nur innerhalb von 250 ms Programmzeit als Doppelklick
+    // (context_menu_try) - unter Last liegen zehn Bilder weiter auseinander (rot im vollen Lauf neben einer vollen Runde;
+    // nachgestellt mit BHED_TEST_BREMSE=400). In Simulationszeit bleiben die zwei Klicks bei acht Bildern = 133 ms.
+    add(simZeit(true));
     add(rechtsKamera());
     add(rechtsKamera());
+    add(simZeit(false));
     add(pause(0.3));
     add(pruefe("Doppel-M2 in der Kamera: das Entitaetenmenue (g_bCamEntityMenu), Freelook aus", [] {
         return finde("info", "", 0, false) != nullptr && ke::editor().ent.kameraMenue && !ke::editor().kamFenster.frei;
