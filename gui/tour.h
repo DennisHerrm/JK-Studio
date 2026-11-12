@@ -88,6 +88,8 @@ struct TourSicht {
     // Selbsttest: das Ziel des Schritts ist (noch) nicht zu finden, und die Zeile "Der Knopf ist gerade verdeckt" erscheint
     // erst 0,3 s nach dem Schrittwechsel - bis dahin waechst das Fenster noch um diese Zeile
     bool hinweisKommt = false;
+    // KLEIN (rc612): die Zeile "Der Knopf ist gerade verdeckt" steht im Tutorial-Fenster (das Ziel des Schritts ist nicht zu finden)
+    bool verdeckt = false;
 };
 TourSicht tourSicht();
 

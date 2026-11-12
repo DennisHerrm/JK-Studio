@@ -1087,8 +1087,30 @@ std::vector<Schritt> tourSchritte() {
         const Element* k = finde(tr(Str::Compile), "###main", 0, false);
         return tourSicht().ziele.size() == 1 && k != nullptr && gleich(tourSicht().ziele[0], sichtbar(k));
     }));
+    // KLEIN (rc612): der Knopf zeigt nach dem Uebersetzen 2 s lang "Failed" statt seiner Beschriftung. Er bleibt in dieser Zeit das
+    // hervorgehobene Ziel von Schritt 2 - bis rc611 fand die Tour ihn dann nicht (sie sucht die Beschriftung), der gelbe Rahmen
+    // fehlte, und im Tutorial-Fenster stand 1,5 bis 2 s lang "Der Knopf ist gerade verdeckt". In Simulationszeit, damit die 2 s
+    // auch unter Last nicht vor der Pruefung um sind.
+    add(simZeit(true));
     add(klick(tr(Str::Compile), "###main"));
     add(warteBis("Tour: k-uebersetzen bei Schritt 2 (uebersetzt, gescheitert)", [] { return tourSicht().schritt == 1; }, 4000));
+    {
+        auto seit = std::make_shared<double>(-1.0);
+        add(warteBis("Tour: 0,5 s nach dem Schrittwechsel (die Zeile \"verdeckt\" kaeme nach 0,3 s)", [seit] {
+            if (*seit < 0.0) { *seit = ImGui::GetTime(); }
+            return ImGui::GetTime() - *seit > 0.5;
+        }, 4000));
+    }
+    add(pruefe("Tour: k-uebersetzen Schritt 2 - solange Compile sein Ergebnis zeigt, bleibt der Knopf hervorgehoben, keine Zeile \"verdeckt\"", [=] {
+        const TourSicht v = tourSicht();
+        const Element* k = finde("###compile", "###main", 0, false);
+        const bool zeigtErgebnis = ImGui::GetTime() < g_app->kompiliertFehlerBis;
+        diag::detail(std::string("Knopftest: Tour Uebersetzen 2 - Knopf zeigt ") + (zeigtErgebnis ? "sein Ergebnis" : "seine Beschriftung") + ", " +
+                     std::to_string(v.ziele.size()) + " Ziele hervorgehoben, Zeile verdeckt " + (v.verdeckt ? "steht" : "steht nicht") + ", Knopf " +
+                     (k != nullptr ? "da" : "nicht gefunden"));
+        return zeigtErgebnis && v.schritt == 1 && k != nullptr && v.ziele.size() == 1 && gleich(v.ziele[0], sichtbar(k)) && !v.verdeckt;
+    }));
+    add(simZeit(false));
     add(compileRuhig());
     add(tourRuhig());
     add(klick(tr(Str::TourNext), "###tour"));

@@ -188,6 +188,12 @@ std::string kennungText(const std::string& name) {
     return tr(s);
 }
 
+// KLEIN (rc612): ein Knopf, der zeitweise etwas anderes zeigt als seine Beschriftung, behaelt seine feste Kennung. Compile! zeigt
+// nach dem Uebersetzen 1,5 s "Done" bzw. 2 s "Failed" (compileKnopf, app_anordnung.inc) und heisst so lange nur "###compile". Bis
+// rc611 fand ein Schritt mit dem Ziel knopf:Compile ihn dann nicht: der gelbe Rahmen fehlte, und im Tutorial "Compile and fix errors"
+// stand 1,5 bis 2 s lang "The button is hidden right now". nullptr: der Knopf hat keine zweite Gestalt.
+const char* festeKennung(const std::string& name) { return name == "Compile" ? "###compile" : nullptr; }
+
 // --- Laden ------------------------------------------------------------------------
 
 void speichereStand() {
@@ -428,7 +434,13 @@ const elemente::Element* findeMenue(const std::string& label, bool oben) {
 Gefunden loese(const tour::Ziel& zl) {
     using A = tour::Ziel::Art;
     switch (zl.art) {
-        case A::Knopf: return aus(elemente::finde(kennungText(zl.teile[0]), zl.fenster, 0, false));
+        case A::Knopf: {
+            Gefunden g = aus(elemente::finde(kennungText(zl.teile[0]), zl.fenster, 0, false));
+            if (!g.da) {   // KLEIN: der Knopf zeigt gerade sein Ergebnis statt der Beschriftung
+                if (const char* fest = festeKennung(zl.teile[0]); fest != nullptr) { g = aus(elemente::finde(fest, zl.fenster, 0, false)); }
+            }
+            return g;
+        }
         case A::KnopfN: return aus(elemente::finde(zl.teile[0], zl.fenster, zl.nte, false));
         case A::Menue: {
             // Das tiefste Glied, das gerade zu sehen ist: erst "File", nach dem
@@ -535,6 +547,9 @@ void wuensche(const std::vector<tour::Ziel>& zs, std::vector<std::string>& out) 
             case A::Menue:
             case A::Gruppe:
                 for (const std::string& t : zl.teile) { out.push_back(kennungText(t)); }
+                if (zl.art == A::Knopf && !zl.teile.empty()) {   // KLEIN: auch die feste Kennung behalten (Stufe "Gefiltert")
+                    if (const char* fest = festeKennung(zl.teile[0]); fest != nullptr) { out.push_back(fest); }
+                }
                 break;
             case A::KnopfN:
             case A::Eintrag:
@@ -1430,6 +1445,7 @@ TourSicht tourSicht() {
     v.hinweis = s.hinweis;
     v.stufe = s.stufe;
     v.hinweisKommt = s.zielErwartet && s.ziele.empty() && !s.zeigtOeffner && ImGui::GetTime() <= s.pulsBis - 0.9;
+    v.verdeckt = s.zielErwartet && s.ziele.empty() && !s.zeigtOeffner && ImGui::GetTime() > s.pulsBis - 0.9;
     return v;
 }
 
