@@ -12,6 +12,8 @@
                                                       (--mit-doppelten), dass jedes Doppel enthalten ist
     python -I tools/testrunde.py --namen vorher.txt   Pruefzeilen aller Laeufe als Liste (Vergleich vorher/nachher)
     python -I tools/testrunde.py --vergleich a.txt b.txt
+    python -I tools/testrunde.py --pruefe-ports       zwei Runden nebeneinander bekommen nie denselben Portbereich der
+                                                      Bau-Ueberwachung (ctest testrunde_ports)
 
 Jeder Lauf bekommt einen eigenen Ordner (Kopie von jkstudio.exe, bhed_q3map2.exe und data, eigene
 Einstellungen), laeuft mit normaler Prioritaet (--leerlauf: wie frueher), wird ueber 8 GB oder nach seiner Zeitgrenze beendet und
@@ -25,7 +27,8 @@ nach der Wanduhr; es zaehlt die Wiederholung, und die Zeile nennt, was nur nach 
 
 Lange Laeufe fahren in Teilen nebeneinander, zusammen mit denselben Pruefzeilen wie der eine Lauf:
 der volle karteneditor als ke_* (BHED_KARTE_GRUPPEN, jeder Teil mit eigenem Portbereich der
-Bau-Ueberwachung, BHED_BAU_PORT), kartenpruefung als kartenpruefung_1v4 ... (BHED_TEST_ANTEIL=i/N).
+Bau-Ueberwachung, BHED_BAU_PORT - systemweit reserviert, mehrere Runden nebeneinander stoeren sich nicht),
+kartenpruefung als kartenpruefung_1v4 ... (BHED_TEST_ANTEIL=i/N).
 Ein Teil beginnt mit frischem Programm: was eine Gruppe der naechsten hinterlaesst, wirkt ueber die
 Teilgrenzen nicht mehr - --ungeteilt faehrt stattdessen die ganzen Laeufe (sie bleiben auch beim Namen
 erreichbar); --pruefe-doppel belegt die Gleichheit der Pruefzeilen.
@@ -91,9 +94,8 @@ UMGEBUNG = {
 #             Laeufe, die eine andere Sprache BRAUCHEN (mb_ptfix2 mit ja, cjkweit), sind keine Sprachlaeufe.
 #   behalten  Einstellungen des genannten Laufs uebernehmen (zweiter Start); laeuft nach ihm
 #   vorlage   "<ordner>|<name>": Ordner in den Laufordner kopieren
-#   sperre    Laeufe mit derselben Sperre nie gleichzeitig ("ports": die Ports 39000-39063 der Bau-Ueberwachung)
-#   ports     "vorgabe": der Lauf baut mit NRCs Ports 39000-39063 (Stufe 3 prueft genau diese Adresse) - braucht die Sperre
-#             "ports". Alle anderen Laeufe bekommen einen eigenen freien Bereich (BHED_BAU_PORT) und stoeren sich nicht.
+#   sperre    Laeufe mit derselben Sperre nie gleichzeitig (seit KLEIN traegt sie kein Lauf mehr: jeder Lauf bekommt einen
+#             eigenen, systemweit reservierten Bereich der Bau-Ueberwachung, BHED_BAU_PORT - auch gegen eine zweite Runde nebenan)
 #   braucht   Dateien, ohne die der Lauf nicht startet (ROT "Testdaten fehlen")
 #   befehl    statt jkstudio.exe (nur die Probe der Haengt-Erkennung)
 #   doppel    (lauf, grund): jede Pruefzeile dieses Laufs steht auch in <lauf> - bleibt in der vollen Runde weg
@@ -116,8 +118,9 @@ MB = ["BHED_RT_GLA=" + S6 + r"\rt\gla", "BHED_MB_BELEGE=" + BELEGE, "BHED_MB7_BS
 # Die langen zuerst (der Pool nimmt in dieser Reihenfolge)
 # Der volle karteneditor in Teilen nebeneinander: jede Gruppe des vollen Laufs (gui/selbsttest_handbuch.inc, gruppe("...")) steht
 # in genau einem Teil; zusammen dieselben Pruefzeilen (docs/intern/NOTIZEN_testtempo_1111.md). Was zusammenbleibt: die Gruppen
-# der Stufe 1 (bauen aufeinander auf), stufe8c + stufe8g + stufe9 (die gebaute Karte). ke_bau baut mit NRCs Ports (Stufe 3 prueft
-# die Adresse 127.0.0.1:39000), alle anderen mit eigenem Bereich.
+# der Stufe 1 (bauen aufeinander auf), stufe8c + stufe8g + stufe9 (die gebaute Karte). Jeder Teil baut mit eigenem Portbereich -
+# seit KLEIN (rc612) auch ke_bau: Stufe 3 prueft die Adresse der Instanz (s3Adresse) und NRCs Vorgabe 39000 an der Rechnung
+# selbst (ke::bauMonitorPortAus), so stoeren sich zwei Runden nebeneinander nicht mehr ("Port nicht belegt").
 KE_TEILE = {   # die langen zuerst (Zeiten mit Pausen nach Bildern am 11.11.: 540, 337, 300, 256, 217, 140 s; der ganze Lauf 1797 s)
     "ke_stufe8": "stufe8",
     "ke_befehle": "befehle,stufe6",
@@ -128,14 +131,11 @@ KE_TEILE = {   # die langen zuerst (Zeiten mit Pausen nach Bildern am 11.11.: 54
 }
 for name_, gruppen_ in KE_TEILE.items():
     lauf(name_, "karteneditor", 5400, GROSS + ["BHED_KARTE_GRUPPEN=" + gruppen_], bereich="karteneditor", teil_von="karteneditor", pausen="bild",
-         **({"sperre": "ports", "ports": "vorgabe"} if "stufe3" in gruppen_.split(",") else {}),
          **({"braucht": GROSS_DATEIEN} if {"stufe7", "gross"} & set(gruppen_.split(",")) else {}))
-lauf("karteneditor", "karteneditor", 9000, GROSS, sperre="ports", ports="vorgabe", bereich="karteneditor", braucht=GROSS_DATEIEN, pausen="bild",
+lauf("karteneditor", "karteneditor", 9000, GROSS, bereich="karteneditor", braucht=GROSS_DATEIEN, pausen="bild",
      doppel=("+".join(KE_TEILE), "laeuft in Teilen nebeneinander (BHED_KARTE_GRUPPEN)"))
-lauf("karteneditor_es", "karteneditor", 9000, GROSS, sprache="es", sperre="ports", ports="vorgabe", bereich="karteneditor", sprachlauf=True,
-     braucht=GROSS_DATEIEN)
-lauf("karteneditor_cs", "karteneditor", 9000, GROSS, sprache="cs", sperre="ports", ports="vorgabe", bereich="karteneditor", sprachlauf=True,
-     braucht=GROSS_DATEIEN)
+lauf("karteneditor_es", "karteneditor", 9000, GROSS, sprache="es", bereich="karteneditor", sprachlauf=True, braucht=GROSS_DATEIEN)
+lauf("karteneditor_cs", "karteneditor", 9000, GROSS, sprache="cs", bereich="karteneditor", sprachlauf=True, braucht=GROSS_DATEIEN)
 lauf("menueeditor", "menueeditor", 5400, bereich="menue", pausen="bild")
 lauf("menueeditor_ja", "menueeditor", 5400, cfg=SP + r"\rc608\nur_ja.cfg", bereich="menue", sprachlauf=True)
 lauf("menueeditor_es", "menueeditor", 5400, sprache="es", bereich="menue", sprachlauf=True)
@@ -382,18 +382,48 @@ def _beenden(p: subprocess.Popen) -> None:
         pass
 
 
-_PORTBEREICHE: set[int] = set()   # von den laufenden Laeufen dieser Runde belegt
+_PORTBEREICHE: dict[int, int] = {}   # erster Port -> Handle der Reservierung (von den laufenden Laeufen dieser Runde belegt)
+
+
+def _reservieren(basis: int) -> int:
+    """Den Bereich ab `basis` systemweit fuer diesen Prozess reservieren: ein benannter Mutex, den es nur einmal gibt. Das
+    Handle (0: ein anderer Prozess hat den Bereich). Windows gibt es von selbst frei, wenn die Runde endet oder abstuerzt."""
+    k = ctypes.WinDLL("kernel32", use_last_error=True)
+    k.CreateMutexW.restype = ctypes.wintypes.HANDLE
+    k.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.wintypes.BOOL, ctypes.wintypes.LPCWSTR]
+    k.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]
+    ctypes.set_last_error(0)
+    h = k.CreateMutexW(None, False, "Local\\bhed_testrunde_bauport_%d" % basis)
+    if not h:
+        return 0
+    if ctypes.get_last_error() == 183:   # ERROR_ALREADY_EXISTS: eine andere Runde haelt ihn
+        k.CloseHandle(h)
+        return 0
+    return h
+
+
+def _freigeben(basis: int) -> None:
+    h = _PORTBEREICHE.pop(basis, 0)
+    if h:
+        k = ctypes.WinDLL("kernel32", use_last_error=True)
+        k.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]
+        k.CloseHandle(h)
 
 
 def _portbereich() -> int:
     """Erster Port eines freien Bereichs von 64 Ports fuer BHED_BAU_PORT (40000 + 64 k, unter den dynamischen Ports ab 49152).
 
-    Alle Runden nehmen dasselbe Raster - zwei Bereiche ueberlappen nie. Frei heisst: in dieser Runde nicht vergeben, und auf
-    dem ersten, zweiten und letzten Port lauscht gerade niemand (eine zweite Runde nebenan). 0, wenn keiner frei ist.
+    Alle Runden nehmen dasselbe Raster - zwei Bereiche ueberlappen nie. Frei heisst: in dieser Runde nicht vergeben, von keiner
+    anderen Runde reserviert (_reservieren - bis rc612 konnten zwei Runden nebeneinander denselben Bereich wuerfeln, solange
+    keine gerade baute, und stoerten sich dann: "Port nicht belegt"), und auf dem ersten, zweiten und letzten Port lauscht gerade
+    niemand (ein Programm ausserhalb der Runden). 0, wenn keiner frei ist. Freigabe mit _freigeben am Ende des Laufs.
     """
     for _ in range(600):
         basis = 40000 + 64 * random.randrange(140)
         if basis in _PORTBEREICHE:
+            continue
+        handle = _reservieren(basis)
+        if not handle:
             continue
         frei = True
         for port in (basis, basis + 1, basis + 63):
@@ -406,9 +436,10 @@ def _portbereich() -> int:
                 s.close()
             if not frei:
                 break
+        _PORTBEREICHE[basis] = handle
         if frei:
-            _PORTBEREICHE.add(basis)
             return basis
+        _freigeben(basis)
     return 0
 
 
@@ -435,7 +466,7 @@ class Lauf:
         self.beginn = 0.0
         self.wanduhr = False      # Pausen nach der Wanduhr erzwingen (Wiederholung eines roten Laufs)
         self.vorlauf = ""         # was der Lauf mit Pausen nach Bildern ergab, bevor er wiederholt wurde
-        self.ports = 0            # erster Port des eigenen Bereichs der Bau-Ueberwachung (0: NRCs 39000-39063)
+        self.ports = 0            # erster Port des eigenen Bereichs der Bau-Ueberwachung (0: keiner frei, dann NRCs 39000-39063)
         self.fehlt: list[str] = []   # Testdaten, ohne die der Lauf nicht startet
 
     def starten(self) -> None:
@@ -481,10 +512,12 @@ class Lauf:
         self.nach_bildern = bool(a.get("pausen")) and not o.pausen_wanduhr and not self.wanduhr
         if self.nach_bildern:
             env["BHED_TEST_PAUSEN"] = a["pausen"]
-        if a.get("ports") != "vorgabe" and not self.ports:
+        if not self.ports:
             self.ports = _portbereich()
         if self.ports:
             env["BHED_BAU_PORT"] = str(self.ports)
+        else:
+            print("%s: kein freier Portbereich - der Lauf baut mit 39000-39063 und kann einen anderen stoeren" % self.name, flush=True)
         for v in a["var"] + o.var:
             k, w = v.split("=", 1)
             env[k] = (w.replace("<FOTOS>", os.path.join(d, "fotos")).replace("<LAUF>", d)
@@ -554,7 +587,7 @@ class Lauf:
             self.starten()
             return False
         self.ergebnis += self.vorlauf
-        _PORTBEREICHE.discard(self.ports)
+        _freigeben(self.ports)
         return True
 
 
@@ -750,6 +783,38 @@ def pruefe_doppel(o: argparse.Namespace) -> int:
     return 1 if rot else 0
 
 
+def ports_kind(saat: int) -> int:
+    """Eine zweite Runde fuer --pruefe-ports: holt mit dem Zufall `saat` einen Bereich, nennt ihn und haelt ihn, bis die
+    Elternrunde die Leitung schliesst."""
+    random.seed(saat)
+    print(_portbereich(), flush=True)
+    sys.stdin.read()
+    return 0
+
+
+def pruefe_ports() -> int:
+    """Zwei Runden, die zufaellig dasselbe wuerfeln (gleicher Zufall), holen nacheinander einen Portbereich, waehrend noch
+    niemand lauscht (wie zwischen zwei Bauten). Gleicher Bereich = ROT: die Laeufe stoeren sich, sobald beide bauen (bis rc612
+    war das so)."""
+    rot = 0
+    for saat in (1, 7, 12345):
+        kind = subprocess.Popen([sys.executable, "-I", os.path.abspath(__file__), "--ports-kind", str(saat)], stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE, text=True)
+        andere = int((kind.stdout.readline() if kind.stdout else "").strip() or 0)
+        random.seed(saat)
+        eigene = _portbereich()
+        gleich = andere == eigene or not andere or not eigene
+        rot += 1 if gleich else 0
+        print("Zufall %5d: die andere Runde haelt %d-%d, diese bekommt %d-%d -> %s" % (
+            saat, andere, andere + 63, eigene, eigene + 63, "GLEICH (ROT)" if gleich else "verschieden"))
+        _freigeben(eigene)
+        if kind.stdin:
+            kind.stdin.close()
+        kind.wait(timeout=30)
+    print("Portbereiche: %s" % ("ROT - zwei Runden koennen denselben Bereich bekommen" if rot else "gruen - jede Runde bekommt ihren eigenen"))
+    return 1 if rot else 0
+
+
 def main() -> int:
     for strom in (sys.stdout, sys.stderr):   # umgeleitet schreibt Windows sonst cp1252 - eine Pruefzeile mit "Č" brach --vergleich ab
         strom.reconfigure(encoding="utf-8", errors="replace")
@@ -777,7 +842,13 @@ def main() -> int:
     ap.add_argument("--vergleich", nargs=2, metavar=("A", "B"), help="zwei --namen-Dateien vergleichen")
     ap.add_argument("--ziffern", action="store_true", help="beim Vergleich Zahlen in den Namen uebergehen (Messwerte)")
     ap.add_argument("--pruefe-doppel", action="store_true")
+    ap.add_argument("--pruefe-ports", action="store_true", help="zwei Runden nebeneinander bekommen nie denselben Portbereich")
+    ap.add_argument("--ports-kind", type=int, metavar="SAAT", help=argparse.SUPPRESS)
     o = ap.parse_args()
+    if o.ports_kind is not None:
+        return ports_kind(o.ports_kind)
+    if o.pruefe_ports:
+        return pruefe_ports()
     if o.vergleich:
         return vergleich(o.vergleich[0], o.vergleich[1], o.ziffern)
     o.exe = os.path.abspath(o.exe)

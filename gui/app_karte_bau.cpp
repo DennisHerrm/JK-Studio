@@ -196,12 +196,13 @@ void bauMenueNeuLaden() {   // Reset: build_commands_clear(); LoadBuildMenu()
 std::string bauMenueDateiPfad() { return menuePfad(e().bauMenueName.empty() ? std::string("build_menu.xml") : e().bauMenueName); }
 
 // build_init_variables (qe3.cpp:152-178)
+int bauMonitorPortAus(const char* text) {
+    const int erster = text != nullptr ? std::atoi(text) : 0;
+    return (erster >= 1024 && erster <= 65535 - kBauMonitorPorts) ? erster : kBauMonitorPort;
+}
+
 int bauMonitorPort() {
-    static const int port = [] {
-        const char* text = std::getenv("BHED_BAU_PORT");
-        const int erster = text != nullptr ? std::atoi(text) : 0;
-        return (erster >= 1024 && erster <= 65535 - kBauMonitorPorts) ? erster : kBauMonitorPort;
-    }();
+    static const int port = bauMonitorPortAus(std::getenv("BHED_BAU_PORT"));
     return port;
 }
 

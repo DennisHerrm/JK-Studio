@@ -2212,5 +2212,7 @@ if(BEHAVED_TESTS)
   if(Python3_Interpreter_FOUND)
     add_test(NAME rig_vorlagen_aktuell
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/modell/rig_vorlagen_gen.py --pruefen)
+    # KLEIN (rc612): zwei Testrunden nebeneinander bekommen nie denselben Portbereich der Bau-Ueberwachung (tools/testrunde.py)
+    add_test(NAME testrunde_ports COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/testrunde.py --pruefe-ports)
   endif()
 endif()

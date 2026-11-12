@@ -1760,6 +1760,14 @@ std::vector<Schritt> baumenue() {
         return q.rfind("\"" + v["RadiantPath"] + "bhed_q3map2.exe\" -v -connect " + s3Adresse(0) + " -game ja -fs_basepath \"", 0) == 0 &&
                q.find("\" -fs_game " + v["GameName"]) != std::string::npos;
     }));
+    // KLEIN (rc612): seit rc612 laeuft auch dieser Teil (ke_bau) mit eigenem Portbereich - zwei Runden nebeneinander belegten sich
+    // NRCs Ports gegenseitig ("Port 39000 nicht belegt"). Dass die Bau-Ueberwachung ohne BHED_BAU_PORT auf NRCs 127.0.0.1:39000
+    // lauscht, prueft darum die Rechnung selbst; die Adresse der Instanz pruefen die Zeilen um s3Adresse.
+    add(pruefe("Bau-Ueberwachung: ohne BHED_BAU_PORT NRCs Port 39000 (RADIANT_MONITOR_ADDRESS), mit der Variable deren Bereich, ein Wert ausserhalb faellt auf 39000 zurueck", [] {
+        return ke::kBauMonitorPort == 39000 && ke::bauMonitorPortAus(nullptr) == 39000 && ke::bauMonitorPortAus("") == 39000 &&
+               ke::bauMonitorPortAus("40064") == 40064 && ke::bauMonitorPortAus("80") == 39000 && ke::bauMonitorPortAus("65500") == 39000 &&
+               ke::bauMonitorPortAus("abc") == 39000 && ke::bauMonitorPort() == ke::bauMonitorPortAus(std::getenv("BHED_BAU_PORT"));
+    }));
     add(foto("karteneditor_s3_build_variablen"));
     // Editables: ein Werkzeug ueber "+" (CustomDelegate0), dann sein Wert (CustomDelegate1)
     add(klickAn("Editables \"+\" doppelt (Spalte 0)", bauZeile(4, 1, 0), 0, true));

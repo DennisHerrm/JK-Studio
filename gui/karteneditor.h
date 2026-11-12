@@ -1765,6 +1765,10 @@ inline constexpr int kBauMonitorPorts = 64;
 // TESTTEMPO (rc612): BHED_BAU_PORT=<erster Port> gibt dieser Instanz einen eigenen Bereich von kBauMonitorPorts Ports -
 // Selbsttests nebeneinander belegen sich die Ports nicht gegenseitig. Ohne die Variable kBauMonitorPort wie NRC.
 [[nodiscard]] int bauMonitorPort();
+// KLEIN (rc612): der erste Port aus dem Wert von BHED_BAU_PORT (nullptr, leer, keine Zahl oder ausserhalb von 1024 .. 65535 - 64:
+// NRCs 39000) - die Rechnung von bauMonitorPort() ohne die Umgebung. Der Selbsttest der Stufe 3 laeuft selbst mit eigenem Bereich
+// und prueft NRCs Vorgabe daran.
+[[nodiscard]] int bauMonitorPortAus(const char* text);
 [[nodiscard]] std::string bauMonitorAdresse();   // "127.0.0.1:<bauMonitorPort()>"
 void bauMenueSicherstellen();          // BuildMenu_Construct/LoadBuildMenu fuer das Spiel des Editors
 void bauMenueSpeichern();              // SaveBuildMenu (BuildMenu_Destroy)
