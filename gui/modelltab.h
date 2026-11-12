@@ -192,6 +192,7 @@ struct ModellRetarget {
     std::string bibliothekOrdner;
     int bibliothekKategorie = 0;
     int bibliothekWahl = -1;
+    int gangWahl = -1;           // ENT2: gewaehlter Gang des Generators in der Preset-Liste (modell::GangArt: 0 Gehen, 1 Laufen), -1 keiner
     float weltNaht = -1.0F;
     float bibliothekY = -1.0F;   // Lage der Gruppe Bibliothek im Fenster der Rollouts (Inhalt, fuer das Rollen im Selbsttest)
     std::vector<AnimEntry> quelleCfg;
@@ -951,6 +952,9 @@ void drawModellRtQuelleFenster();
 // Stufe 5b: Presets (Generator)
 bool modellPresetMessen();
 bool modellPresetAuflegen();
+// ENT2: den erzeugten Gang (modell::GangArt: 0 Gehen, 1 Laufen) in der Preset-Liste waehlen - Kategorie Gehen bzw. Laufen, Tempo
+// und Armschwung unter der Liste; eine andere Art setzt das Tempo der NPCs und misst die Figur (wie bisher die Wahl im Generator)
+void modellPresetGangWaehlen(int art);
 void drawModellPresetBereich();
 // Stufe 6: Auto-Physik (app_modelltab_physik.cpp)
 void modellPhysikAktualisieren();
@@ -1511,8 +1515,9 @@ void modellAnimVorlageSetzen(int wahl);
 // Tabelle (Skelett, Massstab, Erkannt als) und Auswahl der Vorlage (Gruppen als Segment, darunter die Vorlagen der Gruppe) -
 // der Kopf der Gruppe "Rig erstellen" (app_modelltab_rig.cpp).
 void drawModellAnimVorlage();
-// "Control Rig erstellen" (nurFk = false) bzw. "Animation-Rig (nur FK)"; "Auf Rig legen": die Bilder der Sequenz als
-// Schluessel an den Griffen, die IK-Ziele der Glieder folgen der Bewegung (Anteil 0 - die Pose bleibt).
+// "Control Rig erstellen" (nurFk = false; ENT2: eine Sequenz ohne Schicht geht dabei von FK auf IK auf das Rig) bzw.
+// "Animation-Rig (nur FK)"; "Auf Rig legen": die Bilder der Sequenz als Schluessel an den Griffen, die Glieder von FK auf IK
+// (Anteil 1, Ziel und Pol aus der FK-Pose - die Bewegung bleibt).
 bool modellAnimRigErstellen(bool nurFk);
 bool modellAnimAufRigLegen();
 // Frames zu Schluesseln reduzieren / Animation spiegeln (app_modelltab_kurven.cpp) - fuer die Gruppen und die Werkzeugleiste.

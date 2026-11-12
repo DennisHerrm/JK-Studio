@@ -1922,9 +1922,11 @@ bool modellAnimReduzieren() { return reduzieren(); }
 bool modellAnimSpiegeln() { return animationSpiegeln(); }
 
 // Entwurf, Gruppe "Rig erstellen": "Auf Rig legen" - die Bilder der Sequenz werden Schluessel an den Griffen (rigReduzieren ueber
-// die ganze Sequenz, alle Knochen), und die IK-Ziele der Glieder des Rigs folgen an jedem Bild der Bewegung (ikAufFkBereich mit
-// Anteil 0: das Ziel liegt auf der Hand bzw. dem Fuss, die Pose bleibt FK und damit gleich). Danach laesst sich jeder Griff
-// bearbeiten; wer eine Hand oder einen Fuss greift, wechselt ohne Sprung auf IK. Ein Rueckgaengig-Schritt.
+// die ganze Sequenz, alle Knochen), und die Glieder gehen von FK auf IK (ENT2, wie ein CAT-Rig: IK/FK 0 = IK an allen vier
+// Gliedern der ausgelesenen Szene, Y:/werkzeuge/ent2/cat_ikfk.txt): an jedem Bild ein IK-Schluessel mit Anteil 1, Ziel auf der
+// Hand bzw. dem Fuss der FK-Pose und Pol in der Ebene der Kette (ikAufFkBereich) - die IK loest dieselbe Pose. Danach arbeitet man
+// an den Griffen (Hand-/Fuss-Ziel, Pol, Fussrolle); IK/FK je Glied ab dem Bild ohne Sprung. Ein Rueckgaengig-Schritt. Control Rig
+// erstellen ruft das fuer eine Sequenz ohne Schicht selbst (modellAnimRigErstellen).
 bool modellAnimAufRigLegen() {
     ModellTab& t = mt();
     const AnimEntry* e = sequenz();
@@ -1947,8 +1949,23 @@ bool modellAnimAufRigLegen() {
         for (int art = 0; art < modell::kIkArten; ++art) {
             const int spur = modellIkSpur(art, neu);
             if (spur < 0) { continue; }
-            modell::ikAufFkBereich(g_app->anim, neu, spur, erstes, erstes + anzahl - 1, 0.0F);
+            // die FK-Kette wie die IK-Spur mit einem Schluessel je Bild: ein Griff an einem Bild aendert nur dieses Bild
+            modell::ikKetteJedesBild(g_app->anim, neu, spur, erstes, erstes + anzahl - 1);
+            modell::ikAufFkBereich(g_app->anim, neu, spur, erstes, erstes + anzahl - 1, 1.0F);
             ++glieder;
+        }
+    }
+    // wie weit die Bewegung abweicht: groesster Ortsunterschied eines Knochens gegen die Sequenz vorher, ueber alle Bilder
+    float abweichung = 0.0F;
+    {
+        std::vector<BoneMatrix> wa;
+        std::vector<BoneMatrix> wb;
+        for (int bild = erstes; bild < erstes + anzahl; ++bild) {
+            modell::rigWelt(g_app->anim, schicht(), bild, bild, 0.0F, wa);
+            modell::rigWelt(g_app->anim, neu, bild, bild, 0.0F, wb);
+            for (std::size_t k = 0; k < wa.size() && k < wb.size(); ++k) {
+                abweichung = std::max(abweichung, std::hypot(wa[k].m[0][3] - wb[k].m[0][3], wa[k].m[1][3] - wb[k].m[1][3], wa[k].m[2][3] - wb[k].m[2][3]));
+            }
         }
     }
     const std::string name = e->name;
@@ -1957,7 +1974,11 @@ bool modellAnimAufRigLegen() {
     t.kvWahl.clear();
     ++t.kvAenderungen;
     g_app->modelDirty = true;
-    melden(format(Str::AzAufRigMeldung, name.c_str(), static_cast<int>(br.nachher), static_cast<int>(br.vorher), glieder));
+    if (modellAnim().nurFk) {
+        melden(format(Str::EnAufRigNurFk, name.c_str(), neu.schluesselZahl(), static_cast<int>(br.vorher), static_cast<double>(abweichung)));
+    } else {
+        melden(format(Str::EnAufRigMeldung, name.c_str(), neu.schluesselZahl(), static_cast<int>(br.vorher), glieder, static_cast<double>(abweichung)));
+    }
     return true;
 }
 

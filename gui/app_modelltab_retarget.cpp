@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <functional>
+#include <iterator>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -1057,10 +1058,12 @@ bool modellPresetAuflegen() {
     return true;
 }
 
-// --- Gruppe "Presets" (AP10, Entwurf A3) -------------------------------------------------------------------------------------
-// Form des Entwurfs: die Kategorien als Segment, die Presets der Kategorie als Liste mit Quelle und Lizenz, der Ziel-Platz,
-// "Vorschau auf Figur" und "Generator ..." im Raster, der Hauptknopf "Auf Figur legen (Retarget)", der Tipp. Die Bibliothek
-// steht oben, der Generator (eigene Geh- und Laufzyklen aus Reglern) klappt ueber seinen Knopf auf.
+// --- Gruppe "Presets" (AP10, Entwurf A3; ENT2) --------------------------------------------------------------------------------
+// Form des Entwurfs: die Kategorien als Segment (die acht des Entwurfs, auch leer - ENT2), die Presets der Kategorie als Liste mit
+// Quelle und Lizenz, in Gehen und Laufen dazu der Gang des eigenen Generators als Eintrag ("Gehen (erzeugt)", Quelle Generator),
+// der Ziel-Platz, beim erzeugten Gang die Regler Tempo und Armschwung, "Vorschau auf Figur" und "Generator ..." im Raster, der
+// Hauptknopf "Auf Figur legen (Retarget)", der Tipp. "Generator ..." zeigt beim erzeugten Gang den Rest des Generators (Haltung,
+// Schrittlaenge, Hueftschwung, Hub, Messen); Rechtsklick auf einen Eintrag nennt seine Befehle.
 
 namespace {
 
@@ -1068,17 +1071,21 @@ namespace {
 char g_presetPlatz[64] = {};
 int g_presetPlatzFuer = -1;
 ImRect g_presetPlatzKasten;   // Selbsttest: wo die Wahl des Ziel-Platzes steht
+bool g_generatorZeigen = false;   // Generator ... ist eben aufgeklappt: den Rest ins Bild rollen
 
-// Die Kategorien der Bibliothek in der Reihenfolge der Datei.
+// Die Kategorien des Entwurfs in seiner Folge (Stehen, Gehen, Laufen, Rueckwaerts, Ducken, Springen, Kampf, Gesten), auch leer
+// (shank 12.11.: "Wir holen uns noch presets"); was presets.txt sonst nennt (other), dahinter in der Folge der Datei.
+constexpr const char* kKategorienEntwurf[8] = {"idle", "walk", "run", "back", "crouch", "jump", "combat", "gesture"};
+
 std::vector<std::string> presetKategorien(const std::vector<PresetEintrag>& b) {
-    std::vector<std::string> kat;
+    std::vector<std::string> kat(std::begin(kKategorienEntwurf), std::end(kKategorienEntwurf));
     for (const PresetEintrag& e : b) {
         if (std::find(kat.begin(), kat.end(), e.kategorie) == kat.end()) { kat.push_back(e.kategorie); }
     }
     return kat;
 }
 
-// Die Kategorien des Entwurfs (Stehen, Gehen, Laufen, Rueckwaerts, Ducken, Springen, Kampf, Gesten); was presets.txt sonst nennt: Sonstiges
+// Der Name einer Kategorie; was keine des Entwurfs ist: Sonstiges
 const char* presetKategorieName(const std::string& k) {
     if (k == "idle") { return tr(Str::AiKatStehen); }
     if (k == "walk") { return tr(Str::AzKatGehen); }
@@ -1089,6 +1096,13 @@ const char* presetKategorieName(const std::string& k) {
     if (k == "combat") { return tr(Str::AiKatKampf); }
     if (k == "gesture") { return tr(Str::AzKatGesten); }
     return tr(Str::AiKatSonst);
+}
+
+// Der erzeugte Gang einer Kategorie (modell::GangArt) bzw. -1: Gehen und Laufen kann der Generator
+int gangDerKategorie(const std::string& k) {
+    if (k == "walk") { return static_cast<int>(modell::GangArt::Gehen); }
+    if (k == "run") { return static_cast<int>(modell::GangArt::Laufen); }
+    return -1;
 }
 
 // Die Quelle kurz fuer die Liste (der Teil vor " - "), dahinter die Lizenz: "Quaternius · CC0 1.0"
@@ -1107,52 +1121,45 @@ bool presetVorschau(int wahl) {
     return true;
 }
 
-// Der Generator: Kategorie, Haltung, Regler, Messen, auf die Figur legen, Befund
-void presetGenerator(ModellRetarget& r, const modell::RetargetDaten& d) {
-    const auto setze = [&](const std::function<void(modell::GangRegler&)>& f) {
-        (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { f(x.gang); });
-    };
-    const char* kategorien[2] = {tr(Str::PrGehen), tr(Str::PrLaufen)};
-    int k = static_cast<int>(d.gang.art);
-    ui::zeile(tr(Str::PrKategorie), tr(Str::PrKategorieHint));
-    if (ImGui::Combo("##prkategorie", &k, kategorien, 2)) {
-        setze([&](modell::GangRegler& g) {
-            g.art = static_cast<modell::GangArt>(k);
-            g.tempo = k == 1 ? 300.0F : 90.0F;   // runSpeed / walkSpeed der NPCs (NPC_stats.cpp:1996-1997)
-        });
-        (void)modellPresetMessen();
+// Der erzeugte Gang als Vorschau auf der Figur, auf dem gewuenschten Platz (sonst BOTH_WALK1 / BOTH_RUN1)
+bool gangVorschau() {
+    const ModellRetarget& r = rt();
+    if (r.gangWahl < 0) { return false; }
+    const std::string p = g_presetPlatz[0] != '\0' ? std::string(g_presetPlatz) : std::string(kategorieZeile(static_cast<modell::GangArt>(r.gangWahl)));
+    (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { x.platz = p; });
+    return modellPresetAuflegen();
+}
+
+// Ein Regler des Generators (ein Rueckgaengig-Schritt je Zug, waehrend des Zugs Vorschau)
+void gangRegler(ModellRetarget& r, Str text, Str hinweis, float wert, float lo, float hi, const char* fmt, const std::function<void(modell::GangRegler&, float)>& f) {
+    float v = wert;
+    if (ui::regler(tr(text), &v, lo, hi, fmt, tr(hinweis))) {
+        if (r.presetZug) {
+            mt().dok.vorschau([&](modell::Inhalt& in) { f(in.rig.rt.gang, v); }, false);
+        } else {
+            (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { f(x.gang, v); });
+            r.presetZug = true;
+        }
+        g_app->modelDirty = true;
     }
-    ImGui::SetItemTooltip("%s", tr(Str::PrKategorieHint));
+    if (ImGui::IsItemDeactivated()) { r.presetZug = false; }
+}
+
+// Der Rest des Generators (Generator ...): Haltung, Schrittlaenge, Hueftschwung, Hub, Messen, Befund
+void gangMehr(ModellRetarget& r, const modell::RetargetDaten& d) {
     const char* haltungen[modell::kGangHaltungen] = {tr(Str::PrHaltNormal), tr(Str::PrHaltSchwer), tr(Str::PrHaltSchleichend), tr(Str::PrHaltVerletzt),
                                                      tr(Str::PrHaltSaebel)};
     int h = static_cast<int>(d.gang.haltung);
     ui::zeile(tr(Str::PrHaltung), tr(Str::PrHaltungHint));
-    if (ImGui::Combo("##prhaltung", &h, haltungen, modell::kGangHaltungen)) { setze([&](modell::GangRegler& g) { g.haltung = static_cast<modell::GangHaltung>(h); }); }
+    if (ImGui::Combo("##prhaltung", &h, haltungen, modell::kGangHaltungen)) {
+        (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { x.gang.haltung = static_cast<modell::GangHaltung>(h); });
+    }
     ImGui::SetItemTooltip("%s", tr(Str::PrHaltungHint));
-    // Regler (ein Rueckgaengig-Schritt je Zug)
-    const auto regler = [&](Str text, Str hinweis, float wert, float lo, float hi, const char* fmt, const std::function<void(modell::GangRegler&, float)>& f) {
-        float v = wert;
-        if (ui::regler(tr(text), &v, lo, hi, fmt, tr(hinweis))) {
-            if (r.presetZug) {
-                mt().dok.vorschau([&](modell::Inhalt& in) { f(in.rig.rt.gang, v); }, false);
-            } else {
-                (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { f(x.gang, v); });
-                r.presetZug = true;
-            }
-            g_app->modelDirty = true;
-        }
-        if (ImGui::IsItemDeactivated()) { r.presetZug = false; }
-    };
-    regler(Str::PrTempo, Str::PrTempoHint, d.gang.tempo, 10.0F, 600.0F, "%.0f", [](modell::GangRegler& g, float v) { g.tempo = v; });
-    regler(Str::PrSchritt, Str::PrSchrittHint, d.gang.schritt, 2.0F, 120.0F, "%.1f", [](modell::GangRegler& g, float v) { g.schritt = v; });
-    regler(Str::PrArm, Str::PrFaktorHint, d.gang.armschwung, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.armschwung = v; });
-    regler(Str::PrHuefte, Str::PrFaktorHint, d.gang.hueftschwung, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.hueftschwung = v; });
-    regler(Str::PrHub, Str::PrFaktorHint, d.gang.hub, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.hub = v; });
+    gangRegler(r, Str::PrSchritt, Str::PrSchrittHint, d.gang.schritt, 2.0F, 120.0F, "%.1f", [](modell::GangRegler& g, float v) { g.schritt = v; });
+    gangRegler(r, Str::PrHuefte, Str::PrFaktorHint, d.gang.hueftschwung, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.hueftschwung = v; });
+    gangRegler(r, Str::PrHub, Str::PrFaktorHint, d.gang.hub, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.hub = v; });
     const std::string messen = format(Str::PrMessen, kategorieZeile(d.gang.art));
-    ui::rasterBeginn(2);
     if (ui::werkzeugKnopf(messen.c_str(), {.icon = UiIcon::Zielen, .hinweis = tr(Str::PrMessenHint)})) { (void)modellPresetMessen(); }
-    if (ui::werkzeugKnopf(tr(Str::PrAuflegen), {.icon = UiIcon::Abspielen, .hinweis = tr(Str::PrAuflegenHint)})) { (void)modellPresetAuflegen(); }
-    ui::rasterEnde();
     if (d.vonPreset && !r.welt.empty()) {
         const modell::GangBefund& bf = r.gang;
         ui::absatz(format(Str::PrBefund, static_cast<double>(modell::gangZyklus(d.gang)), static_cast<int>(r.welt.size()), presetFps(d.gang), static_cast<double>(bf.bodenAbw),
@@ -1166,42 +1173,96 @@ void presetGenerator(ModellRetarget& r, const modell::RetargetDaten& d) {
 
 ImRect modellPresetPlatzKasten() { return g_presetPlatzKasten; }
 
+void modellPresetGangWaehlen(int art) {
+    ModellRetarget& r = rt();
+    art = std::clamp(art, 0, 1);
+    r.gangWahl = art;
+    r.bibliothekWahl = -1;
+    r.bibliothekKategorie = art == static_cast<int>(modell::GangArt::Laufen) ? 2 : 1;   // Gehen bzw. Laufen in kKategorienEntwurf
+    if (static_cast<int>(modellRtDaten()->gang.art) != art) {
+        (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) {
+            x.gang.art = static_cast<modell::GangArt>(art);
+            x.gang.tempo = art == static_cast<int>(modell::GangArt::Laufen) ? 300.0F : 90.0F;   // runSpeed / walkSpeed der NPCs (NPC_stats.cpp:1996-1997)
+        });
+        (void)modellPresetMessen();
+    }
+}
+
 void drawModellPresetBereich() {
     ModellRetarget& r = rt();
     if (g_app->anim.bones.empty()) { return; }
     const modell::RetargetDaten d = *modellRtDaten();
     if (r.presetOeffnen) {
         ui::rolloutSetzen(tr(Str::PrRollout), true);   // aufklappen (ins Bild rollen die Aktionen "... oeffnen" selbst)
-        if (d.vonPreset) { modellAnim().generatorOffen = true; }   // ein Gang aus dem Generator liegt auf der Figur
+        // ein Gang aus dem Generator liegt auf der Figur: sein Eintrag ist gewaehlt
+        if (d.vonPreset && r.gangWahl < 0) { modellPresetGangWaehlen(static_cast<int>(d.gang.art)); }
         r.presetOeffnen = false;
     }
     const std::vector<PresetEintrag>& b = modellPresetBibliothek();
     const std::vector<std::string> kat = presetKategorien(b);
-    if (!kat.empty()) { r.bibliothekKategorie = std::clamp(r.bibliothekKategorie, 0, static_cast<int>(kat.size()) - 1); }
-    int zeilen = 0;
-    for (const PresetEintrag& e : b) { zeilen += !kat.empty() && e.kategorie == kat[static_cast<std::size_t>(r.bibliothekKategorie)] ? 1 : 0; }
+    r.bibliothekKategorie = std::clamp(r.bibliothekKategorie, 0, static_cast<int>(kat.size()) - 1);
+    const std::string& wk = kat[static_cast<std::size_t>(r.bibliothekKategorie)];
+    const int gangHier = gangDerKategorie(wk);
+    int zeilen = gangHier >= 0 ? 1 : 0;
+    for (const PresetEintrag& e : b) { zeilen += e.kategorie == wk ? 1 : 0; }
     char info[96] = {};
-    if (!kat.empty()) { std::snprintf(info, sizeof info, "%s \xc2\xb7 %d", presetKategorieName(kat[static_cast<std::size_t>(r.bibliothekKategorie)]), zeilen); }
-    if (!ui::rolloutBeginn(tr(Str::PrRollout), {.kurzinfo = kat.empty() ? nullptr : info, .hinweis = tr(Str::PrRolloutHint)})) { return; }
+    std::snprintf(info, sizeof info, "%s \xc2\xb7 %d", presetKategorieName(wk), zeilen);
+    if (!ui::rolloutBeginn(tr(Str::PrRollout), {.kurzinfo = info, .hinweis = tr(Str::PrRolloutHint)})) { return; }
     r.presetRolloutBild = ImGui::GetFrameCount();
     r.bibliothekY = ImGui::GetCursorPosY();
     const float fs = ImGui::GetFontSize();
     const bool gewaehlt = r.bibliothekWahl >= 0 && static_cast<std::size_t>(r.bibliothekWahl) < b.size();
-    if (kat.empty()) {
-        ui::absatz(tr(Str::AiKeineBibliothek));
+    const bool gang = !gewaehlt && r.gangWahl >= 0;
+    // die Kategorien als eine Wahl in zwei Spalten; ein Wechsel nimmt die Wahl nicht weg (sie steht dann nur nicht in der Liste)
+    std::vector<const char*> texte;
+    for (const std::string& k : kat) { texte.push_back(presetKategorieName(k)); }
+    (void)ui::segment("##aikategorie", texte.data(), static_cast<int>(texte.size()), &r.bibliothekKategorie, 2, -1, nullptr, 0.0F, true);
+    if (zeilen == 0) {
+        // leer (noch keine Presets mit freier Lizenz): ein kurzer Hinweis statt einer leeren Flaeche
+        ui::tipp(tr(Str::EnPresetsLeer));
     } else {
-        // die Kategorien als eine Wahl in zwei Spalten
-        std::vector<const char*> texte;
-        for (const std::string& k : kat) { texte.push_back(presetKategorieName(k)); }
-        (void)ui::segment("##aikategorie", texte.data(), static_cast<int>(texte.size()), &r.bibliothekKategorie, 2, -1, nullptr, 0.0F, true);
-        const std::string& wk = kat[static_cast<std::size_t>(r.bibliothekKategorie)];
-        // die Presets der Kategorie: ein Klick waehlt, ein Doppelklick legt als Vorschau auf die Figur; rechts Quelle und Lizenz
+        // die Eintraege der Kategorie: ein Klick waehlt, ein Doppelklick legt als Vorschau auf die Figur; rechts Quelle und Lizenz
         ImGui::BeginChild("##aibib", ImVec2{-1.0F, std::min(static_cast<float>(zeilen), 6.0F) * ImGui::GetTextLineHeightWithSpacing() + fs * 0.6F}, ImGuiChildFlags_Borders);
         // die gewaehlte Zeile: Schrift hell oder dunkel nach der Auswahlfarbe (wie ui::segment; das erste helle Thema waehlt
         // dunkelblau, die dunkle Schrift stand darauf kaum lesbar)
         const ImVec4 kopf = ImGui::GetStyleColorVec4(ImGuiCol_Header);
         const bool kopfHell = kopf.x * 0.299F + kopf.y * 0.587F + kopf.z * 0.114F > 0.6F;
         const ImVec4 wahlText = kopfHell ? ImVec4{0.0F, 0.0F, 0.0F, 1.0F} : ImVec4{1.0F, 1.0F, 1.0F, 1.0F};
+        // Quelle rechtsbuendig in der Zeile, wenn sie neben den Namen passt
+        const auto rechts = [&](const char* name, const std::string& ql, bool istWahl) {
+            const ImVec2 lo = ImGui::GetItemRectMin();
+            const ImVec2 hi = ImGui::GetItemRectMax();
+            const float qlB = ImGui::CalcTextSize(ql.c_str()).x;
+            if (lo.x + ImGui::CalcTextSize(name).x + fs + qlB > hi.x) { return false; }
+            const ImU32 farbe = istWahl ? ImGui::GetColorU32(ImVec4{wahlText.x, wahlText.y, wahlText.z, 0.7F}) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
+            ImGui::GetWindowDrawList()->AddText(ImVec2{std::floor(hi.x - qlB), lo.y}, farbe, ql.c_str());
+            return true;
+        };
+        if (gangHier >= 0) {
+            // der Gang des eigenen Generators als Eintrag, oben (immer zu sehen; Entwurf: "Gehen - Saebel gezogen · Generator")
+            const char* name = tr(gangHier == static_cast<int>(modell::GangArt::Laufen) ? Str::EnGangLaufen : Str::EnGangGehen);
+            const bool istWahl = gang && r.gangWahl == gangHier;
+            if (istWahl) { ImGui::PushStyleColor(ImGuiCol_Text, wahlText); }
+            const bool geklickt = ImGui::Selectable(name, istWahl, ImGuiSelectableFlags_AllowDoubleClick);
+            if (istWahl) { ImGui::PopStyleColor(); }
+            if (geklickt) {
+                modellPresetGangWaehlen(gangHier);
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { (void)gangVorschau(); }
+            }
+            ImGui::SetItemTooltip("%s", tr(Str::EnGangHint));
+            (void)rechts(name, tr(Str::EnGangQuelle), istWahl);
+            if (ImGui::BeginPopupContextItem("##engang")) {
+                if (r.gangWahl != gangHier || gewaehlt) { modellPresetGangWaehlen(gangHier); }
+                if (ImGui::MenuItem(tr(Str::AzPresetVorschau))) { (void)gangVorschau(); }
+                if (ImGui::MenuItem(tr(Str::AzPresetAuflegen)) && gangVorschau()) { (void)modellRtBacken(); }
+                if (ImGui::MenuItem(tr(Str::PrMessenAktion))) { (void)modellPresetMessen(); }
+                if (ImGui::MenuItem(tr(Str::AzGenerator), nullptr, modellAnim().generatorOffen)) {
+                    modellAnim().generatorOffen = !modellAnim().generatorOffen;
+                    g_generatorZeigen = modellAnim().generatorOffen;
+                }
+                ImGui::EndPopup();
+            }
+        }
         bool wahlQuellePasst = false;
         for (std::size_t i = 0; i < b.size(); ++i) {
             if (b[i].kategorie != wk) { continue; }
@@ -1212,86 +1273,114 @@ void drawModellPresetBereich() {
             if (istWahl) { ImGui::PopStyleColor(); }
             if (geklickt) {
                 r.bibliothekWahl = static_cast<int>(i);
+                r.gangWahl = -1;
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { (void)presetVorschau(static_cast<int>(i)); }
             }
             ImGui::SetItemTooltip("%s", format(Str::AiQuelle, b[i].quelle.c_str(), b[i].lizenz.c_str()).c_str());
-            // Quelle und Lizenz rechtsbuendig in der Zeile, wenn sie neben den Namen passen (sonst im Tooltip und unter der Liste)
-            const std::string ql = quelleKurz(b[i]);
-            const ImVec2 lo = ImGui::GetItemRectMin();
-            const ImVec2 hi = ImGui::GetItemRectMax();
-            const float qlB = ImGui::CalcTextSize(ql.c_str()).x;
-            if (lo.x + ImGui::CalcTextSize(b[i].name.c_str()).x + fs + qlB <= hi.x) {
-                const ImU32 farbe = istWahl ? ImGui::GetColorU32(ImVec4{wahlText.x, wahlText.y, wahlText.z, 0.7F}) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
-                ImGui::GetWindowDrawList()->AddText(ImVec2{std::floor(hi.x - qlB), lo.y}, farbe, ql.c_str());
-                wahlQuellePasst = wahlQuellePasst || istWahl;
+            const bool passt = rechts(b[i].name.c_str(), quelleKurz(b[i]), istWahl);
+            wahlQuellePasst = wahlQuellePasst || (passt && istWahl);
+            // Rechtsklick: die Befehle des Eintrags
+            if (ImGui::BeginPopupContextItem("##aieintrag")) {
+                r.bibliothekWahl = static_cast<int>(i);
+                r.gangWahl = -1;
+                if (ImGui::MenuItem(tr(Str::AzPresetVorschau))) { (void)presetVorschau(static_cast<int>(i)); }
+                if (ImGui::MenuItem(tr(Str::AzPresetAuflegen)) && presetVorschau(static_cast<int>(i))) { (void)modellRtBacken(); }
+                ImGui::EndPopup();
             }
             ImGui::PopID();
         }
         ImGui::EndChild();
         // Quelle und Lizenz des gewaehlten Presets darunter nur, wenn sie nicht in seine Zeile passten
-        if (gewaehlt && !wahlQuellePasst) { ui::absatz(format(Str::AiQuelle, b[static_cast<std::size_t>(r.bibliothekWahl)].quelle.c_str(), b[static_cast<std::size_t>(r.bibliothekWahl)].lizenz.c_str()).c_str()); }
-        // Ziel-Platz: vor dem Laden der Platz der Bibliothek (aenderbar), danach der des Uebertragens
-        const bool geladen = gewaehlt && r.quelleFuer == b[static_cast<std::size_t>(r.bibliothekWahl)].datei && !d.vonPreset;
-        if (g_presetPlatzFuer != r.bibliothekWahl) {
-            g_presetPlatzFuer = r.bibliothekWahl;
-            std::snprintf(g_presetPlatz, sizeof g_presetPlatz, "%s", gewaehlt ? b[static_cast<std::size_t>(r.bibliothekWahl)].platz.c_str() : "");
-        }
-        if (geladen && d.platz != g_presetPlatz && !ImGui::IsAnyItemActive()) { std::snprintf(g_presetPlatz, sizeof g_presetPlatz, "%s", d.platz.c_str()); }
-        // Ziel-Platz wie im Entwurf als Wahl: der Platz des Presets, die Plaetze der anderen Presets der Kategorie, der erste freie
-        // Kino-Platz der Ziel-GLA (BOTH_CIN_n) und ein Name, den das Feld Platz von "Uebertragen" gesetzt hat
-        std::vector<std::string> plaetze;
-        const auto dazu = [&](const std::string& p) {
-            if (!p.empty() && std::find(plaetze.begin(), plaetze.end(), p) == plaetze.end()) { plaetze.push_back(p); }
-        };
-        if (gewaehlt) { dazu(b[static_cast<std::size_t>(r.bibliothekWahl)].platz); }
-        for (const PresetEintrag& e : b) {
-            if (e.kategorie == wk && plaetze.size() < 2U) { dazu(e.platz); }
-        }
-        for (const modell::Platz& p : mt().plaetze) {
-            if (!p.belegt && p.name.rfind("BOTH_CIN_", 0) == 0) {
-                dazu(p.name);
-                break;
-            }
-        }
-        if (g_presetPlatz[0] != '\0' && std::find(plaetze.begin(), plaetze.end(), std::string(g_presetPlatz)) == plaetze.end()) {
-            plaetze.insert(plaetze.begin(), g_presetPlatz);
-        }
-        std::vector<const char*> platzTexte;
-        std::vector<const char*> platzHinweise;
-        int platzWahl = -1;
-        for (std::size_t i = 0; i < plaetze.size(); ++i) {
-            platzTexte.push_back(plaetze[i].c_str());
-            platzHinweise.push_back(tr(Str::AzZielPlatzHint));
-            if (plaetze[i] == g_presetPlatz) { platzWahl = static_cast<int>(i); }
-        }
-        ImGui::BeginDisabled(!gewaehlt);
-        ui::absatz(tr(Str::AzZielPlatz), ui::Ton::Leise);
-        const ImVec2 platzOben = ImGui::GetCursorScreenPos();
-        if (!platzTexte.empty() &&
-            ui::segment("##aiplatz", platzTexte.data(), static_cast<int>(platzTexte.size()), &platzWahl, 0, -1, platzHinweise.data()) && platzWahl >= 0) {
-            std::snprintf(g_presetPlatz, sizeof g_presetPlatz, "%s", plaetze[static_cast<std::size_t>(platzWahl)].c_str());
-            if (geladen) {
-                const std::string p = g_presetPlatz;
-                (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { x.platz = p; });
-            }
-        }
-        g_presetPlatzKasten = platzTexte.empty() ? ImRect{} : ImRect{platzOben, ImGui::GetItemRectMax()};
-        ImGui::EndDisabled();
-        ui::rasterBeginn(2);
-        if (ui::werkzeugKnopf(tr(Str::AzPresetVorschau), {.icon = UiIcon::Sichtbar, .hinweis = tr(Str::AiAuflegenHint), .aktiv = gewaehlt})) { (void)presetVorschau(r.bibliothekWahl); }
-        if (ui::werkzeugKnopf(tr(Str::AzGenerator), {.icon = UiIcon::Einstellungen, .hinweis = tr(Str::AzGeneratorHint), .an = modellAnim().generatorOffen})) {
-            modellAnim().generatorOffen = !modellAnim().generatorOffen;
-        }
-        ui::rasterEnde();
-        if (ui::werkzeugKnopf(tr(Str::AzPresetAuflegen), {.icon = UiIcon::Abspielen, .hinweis = tr(Str::AzPresetAuflegenHint), .haupt = true, .aktiv = gewaehlt})) {
-            // noch nicht geladen: erst laden und uebertragen, dann auf den Platz
-            if (geladen || presetVorschau(r.bibliothekWahl)) { (void)modellRtBacken(); }
-        }
-        if (geladen && !r.welt.empty() && r.weltNaht >= 0.0F) {
-            ui::absatz(format(Str::AiNahtlos, static_cast<int>(r.welt.size()), r.quelleCfg.empty() ? 0 : r.quelleCfg.front().fps, static_cast<double>(r.weltNaht)).c_str());
+        if (gewaehlt && b[static_cast<std::size_t>(r.bibliothekWahl)].kategorie == wk && !wahlQuellePasst) {
+            ui::absatz(format(Str::AiQuelle, b[static_cast<std::size_t>(r.bibliothekWahl)].quelle.c_str(), b[static_cast<std::size_t>(r.bibliothekWahl)].lizenz.c_str()).c_str());
         }
     }
-    if (kat.empty() || modellAnim().generatorOffen) { presetGenerator(r, d); }
+    // Ziel-Platz: vor dem Laden der Platz der Bibliothek bzw. des Gangs (aenderbar), danach der des Uebertragens
+    const bool geladen = gewaehlt ? r.quelleFuer == b[static_cast<std::size_t>(r.bibliothekWahl)].datei && !d.vonPreset
+                                  : gang && d.vonPreset && static_cast<int>(d.gang.art) == r.gangWahl && !r.welt.empty();
+    const int platzFuer = gewaehlt ? r.bibliothekWahl : (gang ? 100000 + r.gangWahl : -1);
+    const std::string eigenerPlatz = gewaehlt ? b[static_cast<std::size_t>(r.bibliothekWahl)].platz
+                                              : (gang ? std::string(kategorieZeile(static_cast<modell::GangArt>(r.gangWahl))) : std::string());
+    if (g_presetPlatzFuer != platzFuer) {
+        g_presetPlatzFuer = platzFuer;
+        std::snprintf(g_presetPlatz, sizeof g_presetPlatz, "%s", eigenerPlatz.c_str());
+    }
+    if (geladen && d.platz != g_presetPlatz && !ImGui::IsAnyItemActive()) { std::snprintf(g_presetPlatz, sizeof g_presetPlatz, "%s", d.platz.c_str()); }
+    // Ziel-Platz wie im Entwurf als Wahl: der eigene Platz, die Plaetze der anderen Presets der Kategorie, der erste freie Kino-Platz
+    // der Ziel-GLA (BOTH_CIN_n) und ein Name, den das Feld Platz von "Uebertragen" gesetzt hat
+    std::vector<std::string> plaetze;
+    const auto dazu = [&](const std::string& p) {
+        if (!p.empty() && std::find(plaetze.begin(), plaetze.end(), p) == plaetze.end()) { plaetze.push_back(p); }
+    };
+    dazu(eigenerPlatz);
+    for (const PresetEintrag& e : b) {
+        if (e.kategorie == wk && plaetze.size() < 2U) { dazu(e.platz); }
+    }
+    for (const modell::Platz& p : mt().plaetze) {
+        if (!p.belegt && p.name.rfind("BOTH_CIN_", 0) == 0) {
+            dazu(p.name);
+            break;
+        }
+    }
+    if (g_presetPlatz[0] != '\0' && std::find(plaetze.begin(), plaetze.end(), std::string(g_presetPlatz)) == plaetze.end()) { plaetze.insert(plaetze.begin(), g_presetPlatz); }
+    std::vector<const char*> platzTexte;
+    std::vector<const char*> platzHinweise;
+    int platzWahl = -1;
+    for (std::size_t i = 0; i < plaetze.size(); ++i) {
+        platzTexte.push_back(plaetze[i].c_str());
+        platzHinweise.push_back(tr(Str::AzZielPlatzHint));
+        if (plaetze[i] == g_presetPlatz) { platzWahl = static_cast<int>(i); }
+    }
+    const bool wahlDa = gewaehlt || gang;
+    ImGui::BeginDisabled(!wahlDa);
+    ui::absatz(tr(Str::AzZielPlatz), ui::Ton::Leise);
+    const ImVec2 platzOben = ImGui::GetCursorScreenPos();
+    if (!platzTexte.empty() && ui::segment("##aiplatz", platzTexte.data(), static_cast<int>(platzTexte.size()), &platzWahl, 0, -1, platzHinweise.data()) && platzWahl >= 0) {
+        std::snprintf(g_presetPlatz, sizeof g_presetPlatz, "%s", plaetze[static_cast<std::size_t>(platzWahl)].c_str());
+        if (geladen) {
+            const std::string p = g_presetPlatz;
+            (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { x.platz = p; });
+        }
+    }
+    g_presetPlatzKasten = platzTexte.empty() ? ImRect{} : ImRect{platzOben, ImGui::GetItemRectMax()};
+    ImGui::EndDisabled();
+    // der erzeugte Gang: Tempo und Armschwung unter der Liste (Entwurf), mit Generator ... der Rest des Generators
+    if (gang) {
+        gangRegler(r, Str::PrTempo, Str::PrTempoHint, d.gang.tempo, 10.0F, 600.0F, "%.0f", [](modell::GangRegler& g, float v) { g.tempo = v; });
+        gangRegler(r, Str::PrArm, Str::PrFaktorHint, d.gang.armschwung, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.armschwung = v; });
+    }
+    ui::rasterBeginn(2);
+    if (ui::werkzeugKnopf(tr(Str::AzPresetVorschau), {.icon = UiIcon::Sichtbar, .hinweis = tr(gang ? Str::PrAuflegenHint : Str::AiAuflegenHint), .aktiv = wahlDa})) {
+        (void)(gang ? gangVorschau() : presetVorschau(r.bibliothekWahl));
+    }
+    if (ui::werkzeugKnopf(tr(Str::AzGenerator), {.icon = UiIcon::Einstellungen, .hinweis = tr(Str::EnGeneratorHint), .an = modellAnim().generatorOffen && gang})) {
+        if (modellAnim().generatorOffen && gang) {
+            modellAnim().generatorOffen = false;
+        } else {
+            // ohne erzeugten Gang: den der Kategorie (Laufen) bzw. Gehen waehlen
+            if (!gang) { modellPresetGangWaehlen(gangHier >= 0 ? gangHier : static_cast<int>(modell::GangArt::Gehen)); }
+            modellAnim().generatorOffen = true;
+            g_generatorZeigen = true;
+        }
+    }
+    ui::rasterEnde();
+    if (ui::werkzeugKnopf(tr(Str::AzPresetAuflegen), {.icon = UiIcon::Abspielen, .hinweis = tr(Str::AzPresetAuflegenHint), .haupt = true, .aktiv = wahlDa})) {
+        // noch nicht geladen: erst laden bzw. erzeugen und uebertragen, dann auf den Platz
+        if (geladen || (gang ? gangVorschau() : presetVorschau(r.bibliothekWahl))) { (void)modellRtBacken(); }
+    }
+    if (gewaehlt && geladen && !r.welt.empty() && r.weltNaht >= 0.0F) {
+        ui::absatz(format(Str::AiNahtlos, static_cast<int>(r.welt.size()), r.quelleCfg.empty() ? 0 : r.quelleCfg.front().fps, static_cast<double>(r.weltNaht)).c_str());
+    }
+    // Generator ...: der Rest des Generators unter dem Hauptknopf (Knopf und Hauptknopf bleiben, wo sie sind); beim Aufklappen
+    // ins Bild gerollt
+    if (gang && modellAnim().generatorOffen) {
+        const ImVec2 oben = ImGui::GetCursorScreenPos();
+        gangMehr(r, d);
+        if (g_generatorZeigen) {
+            ImGui::ScrollToRect(ImGui::GetCurrentWindow(), ImRect{oben, ImVec2{oben.x + 1.0F, ImGui::GetCursorScreenPos().y}}, ImGuiScrollFlags_KeepVisibleEdgeY);
+            g_generatorZeigen = false;
+        }
+    }
     ui::tipp(tr(Str::AzPresetTipp));
     ui::rolloutEnde();
 }

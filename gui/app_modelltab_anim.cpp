@@ -149,7 +149,14 @@ std::vector<modell::Zuordnung> modellAnimVorlageZuordnung() {
 
 bool modellAnimRigErstellen(bool nurFk) {
     g_anim.nurFk = nurFk;
-    return modellRigAnlegen();
+    if (!modellRigAnlegen()) { return false; }
+    // ENT2 (shank 12.11.: "bei Control Rig Erstellung von FK auf IK uebertragen ... wie das CAT Rig"): eine Animation der Sequenz
+    // geht beim Erstellen des Control Rigs von FK auf IK auf das Rig (wie "Auf Rig legen"), danach arbeitet man an den Griffen.
+    // Eine Schicht mit Schluesseln - schon aufgelegt oder bearbeitet - bleibt (Neu erkennen); "Auf Rig legen" legt neu auf.
+    const modell::RigSchicht* s = modellRigSchichtJetzt();
+    const bool leer = s == nullptr || (s->schluesselZahl() == 0 && std::all_of(s->ik.begin(), s->ik.end(), [](const modell::IkSpur& x) { return x.ziel.empty(); }));
+    if (!nurFk && sequenz() != nullptr && leer) { (void)modellAnimAufRigLegen(); }
+    return true;
 }
 
 void drawModellAnimVorlage() {

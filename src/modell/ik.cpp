@@ -827,14 +827,15 @@ void ikAufFkBereich(const GlaAnimation& g, RigSchicht& s, int spur, int von, int
     ikHenkelNeu(sp);
 }
 
-int fkAufIk(const GlaAnimation& g, RigSchicht& s, int spur, int bild) { return fkAufIkBereich(g, s, spur, bild, bild); }
+namespace {
 
-int fkAufIkBereich(const GlaAnimation& g, RigSchicht& s, int spur, int von, int bis) {
-    if (spur < 0 || static_cast<std::size_t>(spur) >= s.ik.size() || bis < von) { return 0; }
-    // erst jedes Bild aus der unveraenderten Schicht (ein geschriebener Schluessel aendert die FK-Pose der Nachbarn), dann
-    // die Schluessel - wie "Snap & Bake" von Rigify ueber eine Spanne
-    std::vector<std::vector<std::pair<int, BoneMatrix>>> roh(static_cast<std::size_t>(bis - von + 1));
-    for (int bild = von; bild <= bis; ++bild) {
+// "FK -> IK" an den Bildern der Liste: erst jedes Bild aus der unveraenderten Schicht (ein geschriebener Schluessel aendert
+// die FK-Pose der Nachbarn), dann die Schluessel - wie "Snap & Bake" von Rigify ueber eine Spanne
+int fkAufIkBilder(const GlaAnimation& g, RigSchicht& s, int spur, const std::vector<int>& bilder) {
+    if (spur < 0 || static_cast<std::size_t>(spur) >= s.ik.size() || bilder.empty()) { return 0; }
+    std::vector<std::vector<std::pair<int, BoneMatrix>>> roh(bilder.size());
+    for (std::size_t j = 0; j < bilder.size(); ++j) {
+        const int bild = bilder[j];
         std::vector<std::pair<int, BoneMatrix>> m;
         rigNachMalFk(g, s, bild, bild, 0.0F, m);
         std::vector<BoneMatrix> welt;
@@ -852,17 +853,28 @@ int fkAufIkBereich(const GlaAnimation& g, RigSchicht& s, int spur, int von, int 
             // der Schluessel traegt eine Drehung: die naechste zu M (polare Zerlegung, R = M (M^T M)^-1/2 ueber die Newton-Folge
             // R <- (R + R^-T) / 2 bis zur Ruhe) - die IK dreht Knochen, deren Weltmatrix nicht orthonormal ist (Raven-Daten,
             // MC_UnCompressQuat normiert nicht), dann ist M = X^-1 U X keine reine Drehung (mb6_irl_jka)
-            roh[static_cast<std::size_t>(bild - von)].emplace_back(b, naechsteDrehung(eff));
+            roh[j].emplace_back(b, naechsteDrehung(eff));
         }
     }
     int n = 0;
-    for (int bild = von; bild <= bis; ++bild) {
-        for (const auto& [b, m] : roh[static_cast<std::size_t>(bild - von)]) {
-            rigSchluesselSetzen(s, b, bild, m);
+    for (std::size_t j = 0; j < bilder.size(); ++j) {
+        for (const auto& [b, m] : roh[j]) {
+            rigSchluesselSetzen(s, b, bilder[j], m);
             ++n;
         }
     }
     return n;
+}
+
+}  // namespace
+
+int fkAufIk(const GlaAnimation& g, RigSchicht& s, int spur, int bild) { return fkAufIkBilder(g, s, spur, {bild}); }
+
+int fkAufIkBereich(const GlaAnimation& g, RigSchicht& s, int spur, int von, int bis) {
+    if (bis < von) { return 0; }
+    std::vector<int> bilder;
+    for (int bild = von; bild <= bis; ++bild) { bilder.push_back(bild); }
+    return fkAufIkBilder(g, s, spur, bilder);
 }
 
 void ikFkWechseln(const GlaAnimation& g, RigSchicht& s, int spur, int bild, float ik, bool einrasten) {
@@ -880,6 +892,120 @@ void ikFkWechseln(const GlaAnimation& g, RigSchicht& s, int spur, int bild, floa
     IkWert w = l.w;
     w.ik = ik;
     ikSchluesselSetzen(sp, bild, l.ziel, w);
+}
+
+int ikFkUmschaltenAb(const GlaAnimation& g, RigSchicht& s, int spur, int bild, float ik, bool einrasten) {
+    if (spur < 0 || static_cast<std::size_t>(spur) >= s.ik.size()) { return bild; }
+    ik = std::clamp(ik, 0.0F, 1.0F);
+    // die Bilder: dieses und die folgenden Schluessel, die noch den alten Anteil tragen - wie ein Schluessel der IK/FK-Spur
+    // eines CAT-Glieds, der bis zum naechsten gilt (Autodesk-Hilfe "Limb Animation Controls": IK/FK 0 = IK, 1 = FK, ein
+    // Schluessel des Reglers; im Rig dieser Szenen die Spur layerIKFKRatio je Glied, Y:/werkzeuge/ent2/cat_ikfk.txt)
+    const IkSpur& sp0 = s.ik[static_cast<std::size_t>(spur)];
+    const float alt = sp0.ziel.empty() ? 0.0F : ikAnteilAm(sp0, static_cast<float>(bild));
+    std::vector<int> bilder{bild};
+    for (std::size_t i = 0; i < sp0.ziel.size() && i < sp0.wert.size(); ++i) {
+        if (sp0.ziel[i].bild <= bild) { continue; }
+        if (std::fabs(std::clamp(sp0.wert[i].ik, 0.0F, 1.0F) - alt) > 1e-4F) { break; }   // dort schon anders umgeschaltet
+        bilder.push_back(sp0.ziel[i].bild);
+    }
+    if (einrasten) {
+        // die sichtbare Pose in die FK-Schluessel (CAT "Match IK and FK" aus IK, Rigify fk2ik) - bei FK (Anteil 0) wirkt keine IK,
+        // dann aendert das nichts
+        (void)fkAufIkBilder(g, s, spur, bilder);
+        if (ik > 0.0F) {
+            // nach IK: Ziel und Pol auf diese FK-Pose (CAT "Move IK Target", Rigify ik2fk); erst alle Bilder ausrechnen (die FK-Pose
+            // haengt nicht an dieser Spur), dann setzen
+            std::vector<std::pair<BoneMatrix, IkWert>> neu;
+            std::vector<int> mit;
+            for (const int b : bilder) {
+                BoneMatrix z;
+                IkWert w;
+                if (zielAusFk(g, s, spur, b, ik, -2, z, w)) {
+                    neu.emplace_back(z, w);
+                    mit.push_back(b);
+                }
+            }
+            for (std::size_t j = 0; j < mit.size(); ++j) { ikSchluesselSetzen(s.ik[static_cast<std::size_t>(spur)], mit[j], neu[j].first, neu[j].second); }
+            if (!mit.empty()) { return bilder.back(); }
+        }
+    }
+    IkSpur& sp = s.ik[static_cast<std::size_t>(spur)];
+    if (sp.ziel.empty()) {
+        // noch keine Spur: ein Schluessel am Bild mit dem Ziel auf der Pose
+        ikAufFk(g, s, spur, bild, ik);
+        return bild;
+    }
+    for (const int b : bilder) {
+        const auto it = std::find_if(sp.ziel.begin(), sp.ziel.end(), [b](const RigSchluessel& k) { return k.bild == b; });
+        if (it != sp.ziel.end()) {
+            sp.wert[static_cast<std::size_t>(it - sp.ziel.begin())].ik = ik;
+            continue;
+        }
+        const Lokal l = lokalAm(sp, static_cast<float>(b));
+        IkWert w = l.w;
+        w.ik = ik;
+        ikSchluesselSetzen(sp, b, l.ziel, w);
+    }
+    return bilder.back();
+}
+
+void ikKetteJedesBild(const GlaAnimation& g, RigSchicht& s, int spur, int von, int bis) {
+    if (spur < 0 || static_cast<std::size_t>(spur) >= s.ik.size() || bis < von) { return; }
+    std::vector<int> kette;
+    {
+        const IkSpur& sp = s.ik[static_cast<std::size_t>(spur)];
+        for (const IkGlied* gl : {&sp.oben, &sp.unten, &sp.ende, &sp.zehen}) {
+            if (gl->knochen >= 0) { kette.push_back(gl->knochen); }
+            kette.insert(kette.end(), gl->mit.begin(), gl->mit.end());
+            if (gl->twist >= 0) { kette.push_back(gl->twist); }
+        }
+    }
+    std::vector<std::pair<int, std::pair<int, BoneMatrix>>> neu;
+    for (const int b : kette) {
+        if (b < 0 || static_cast<std::size_t>(b) >= g.bones.size()) { continue; }
+        for (int n = von; n <= bis; ++n) {
+            if (s.hatSchluessel(b, n)) { continue; }
+            BoneMatrix m = BoneMatrix::identity();
+            if (!rigWert(s, b, static_cast<float>(n), m) && s.bindeBasis) {
+                const GlaBone& kb = g.bones[static_cast<std::size_t>(b)];
+                m = kb.basePoseInv * g.localMatrix(n, b) * kb.basePose;   // ohne Schluessel: das Bild der GLA (wie ikNurAmBild)
+            }
+            neu.push_back({b, {n, m}});
+        }
+    }
+    for (const auto& [b, nm] : neu) { rigSchluesselSetzen(s, b, nm.first, nm.second); }
+}
+
+std::vector<float> ikGliedAbweichung(const GlaAnimation& g, const RigSchicht& a, const RigSchicht& b, int von, int bis) {
+    std::vector<float> aus(b.ik.size(), 0.0F);
+    if (b.ik.empty() || bis < von || g.bones.empty()) { return aus; }
+    // je Spur die Knochen: das obere Glied und alles darunter (Unterarm, Hand, Finger bzw. Unterschenkel, Fuss, Zehen)
+    std::vector<std::vector<char>> knochen(b.ik.size(), std::vector<char>(g.bones.size(), 0));
+    for (std::size_t i = 0; i < b.ik.size(); ++i) {
+        const int oben = b.ik[i].oben.knochen;
+        if (oben < 0 || static_cast<std::size_t>(oben) >= g.bones.size()) { continue; }
+        knochen[i][static_cast<std::size_t>(oben)] = 1;
+        for (const int k : g.topologicalOrder()) {
+            const int p = k >= 0 && static_cast<std::size_t>(k) < g.bones.size() ? g.bones[static_cast<std::size_t>(k)].parent : -1;
+            if (p >= 0 && knochen[i][static_cast<std::size_t>(p)] != 0) { knochen[i][static_cast<std::size_t>(k)] = 1; }
+        }
+    }
+    std::vector<BoneMatrix> wa;
+    std::vector<BoneMatrix> wb;
+    for (int bild = von; bild <= bis; ++bild) {
+        rigWelt(g, a, bild, bild, 0.0F, wa);
+        rigWelt(g, b, bild, bild, 0.0F, wb);
+        if (wa.size() != g.bones.size() || wb.size() != g.bones.size()) { continue; }
+        for (std::size_t i = 0; i < b.ik.size(); ++i) {
+            for (std::size_t k = 0; k < g.bones.size(); ++k) {
+                if (knochen[i][k] == 0) { continue; }
+                float d = 0.0F;
+                for (int r = 0; r < 3; ++r) { d += (wa[k].m[r][3] - wb[k].m[r][3]) * (wa[k].m[r][3] - wb[k].m[r][3]); }
+                aus[i] = std::max(aus[i], std::sqrt(d));
+            }
+        }
+    }
+    return aus;
 }
 
 void ikRaumWechseln(const GlaAnimation& g, RigSchicht& s, int spur, int bild, int raum, int erstesBild) {

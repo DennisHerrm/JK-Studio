@@ -197,11 +197,22 @@ float modellIkAnteil(int art) {
 
 bool modellIkWechselnRoh(int art, bool ik, bool einrasten) {
     const int bild = bildJetzt();
+    int bis = bild;
     const bool ok = ikAendern(Str::MbIkUndoWechsel, art, [&](modell::RigSchicht& s, int sp) {
-        modell::ikFkWechseln(g_app->anim, s, sp, bild, ik ? 1.0F : 0.0F, einrasten);
+        if (einrasten) {
+            // ENT2: wie das IK/FK eines CAT-Glieds ab dem Bild bis zum naechsten Wechsel, an jedem dieser Bilder angeglichen (Match IK
+            // and FK) - nach "Auf Rig legen" traegt jedes Bild einen Schluessel, ein Wechsel nur am Bild waere sonst nur dort
+            bis = modell::ikFkUmschaltenAb(g_app->anim, s, sp, bild, ik ? 1.0F : 0.0F, true);
+        } else {
+            modell::ikFkWechseln(g_app->anim, s, sp, bild, ik ? 1.0F : 0.0F, false);   // nur der Anteil am Bild (der Sprung bleibt sichtbar)
+        }
         return true;
     });
-    if (ok) { melden(format(ik ? Str::MbIkGewechseltIk : Str::MbIkGewechseltFk, artName(art), bild)); }
+    if (ok && einrasten) {
+        melden(format(ik ? Str::EnIkAbIk : Str::EnIkAbFk, artName(art), bild, bis));
+    } else if (ok) {
+        melden(format(ik ? Str::MbIkGewechseltIk : Str::MbIkGewechseltFk, artName(art), bild));
+    }
     return ok;
 }
 
@@ -604,9 +615,9 @@ void gliedZeilen(bool blender, int jetzt) {
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(ImGui::GetContentRegionAvail().x - wechselB, 0.0F));   // rechtsbuendig
             if (ImGui::Button(an ? "IK##azik" : "FK##azik", ImVec2{wechselB, 0.0F})) { (void)modellIkWechseln(art, !an); }
             if (mitZustand) {
-                ImGui::SetItemTooltip("%s", tr(Str::MbIkAnHint));
+                ImGui::SetItemTooltip("%s", tr(Str::EnIkKnopfHint));
             } else {
-                ImGui::SetItemTooltip("%s\n%s", zustand, tr(Str::MbIkAnHint));
+                ImGui::SetItemTooltip("%s\n%s", zustand, tr(Str::EnIkKnopfHint));
             }
         }
         ImGui::EndDisabled();

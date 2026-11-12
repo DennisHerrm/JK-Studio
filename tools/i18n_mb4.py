@@ -43,13 +43,6 @@ ZEILEN = [
      "Rig zde nemá paži ani nohu s horní, dolní a koncovou kostí."),
     # --- 3ds Max: HI-Solver ---
     ("MbIkAn", "IK enabled", "IK aktiviert", "启用 IK", "IK 有効", "IK activado", "IK zapnuto"),
-    ("MbIkAnHint",
-     "Like Enabled of the HI solver in 3ds Max: IK from this frame (a key). With auto snap the limb does not jump.",
-     "Wie „Aktiviert“ beim HI-Solver von 3ds Max: ab diesem Frame IK (ein Schlüssel). Mit automatischem Einrasten springt das Glied nicht.",
-     "与 3ds Max HI 解算器的“启用”相同: 从此帧起为 IK (一个关键帧)。使用自动捕捉时肢体不会跳变。",
-     "3ds Max の HI ソルバーの「有効」と同じ: このフレームから IK (キー 1 つ)。自動スナップなら肢は飛びません。",
-     "Como «Activado» del solucionador HI de 3ds Max: IK desde este fotograma (una clave). Con el ajuste automático el miembro no salta.",
-     "Jako „Povoleno“ u HI řešiče v 3ds Max: od tohoto snímku IK (klíč). S automatickým přichycením končetina neskočí."),
     ("MbIkAuto", "Auto snap", "Automatisch einrasten", "自动捕捉", "自動スナップ", "Ajuste automático", "Automatické přichycení"),
     ("MbIkAutoHint",
      "Like Auto Snap of the HI solver: every IK/FK switch first snaps the other side to the visible pose, so nothing jumps. On by default.",

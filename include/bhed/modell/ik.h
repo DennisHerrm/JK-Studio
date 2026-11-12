@@ -104,6 +104,20 @@ int fkAufIkBereich(const GlaAnimation& g, RigSchicht& s, int spur, int von, int 
 // IK/FK wechseln am Bild: einrasten = ohne Sprung (vorher IK -> FK bzw. FK -> IK), sonst nur der Anteil (der Sprung
 // bleibt sichtbar - die Pruefung muss ihn finden).
 void ikFkWechseln(const GlaAnimation& g, RigSchicht& s, int spur, int bild, float ik, bool einrasten);
+// ENT2: IK/FK umschalten AB dem Bild wie das IK/FK-Verhaeltnis eines CAT-Glieds (eine Spur, die bis zum naechsten Schluessel
+// gilt): der Anteil wechselt am Bild und an den folgenden Schluesseln, die noch den alten Anteil tragen (bis zum naechsten,
+// der schon anders umgeschaltet ist). einrasten = an jedem dieser Bilder vorher die andere Seite angleichen (CAT "Match IK and
+// FK", Rigify-Snap): nach IK das Ziel und den Pol auf die FK-Pose, nach FK die FK-Schluessel auf die sichtbare IK-Pose - die
+// Pose an diesen Bildern bleibt. Gibt das letzte umgeschaltete Bild.
+int ikFkUmschaltenAb(const GlaAnimation& g, RigSchicht& s, int spur, int bild, float ik, bool einrasten);
+// ENT2: die FK-Schluessel der Kette einer Spur (Glieder, mitgedrehte Knochen, Drehknochen) an jedem Bild von [von, bis] mit ihrem
+// jetzigen Wert - erst alle ausgewertet, dann gesetzt, die Pose bleibt an jedem Bild. Wie die IK-Spur nach "Auf Rig legen" (ein
+// Schluessel je Bild, wie ein CAT-Rig nach dem Uebertragen): eine Aenderung an einem Bild (Ziel, Pol, Rolle mit Auto-Einrasten)
+// bleibt dort, die Nachbarbilder behalten ihre Pose.
+void ikKetteJedesBild(const GlaAnimation& g, RigSchicht& s, int spur, int von, int bis);
+// ENT2: die groesste Abweichung (Ort in Einheiten) der Knochen eines Glieds - die Kette ab dem oberen Glied mit allem, was an
+// ihr haengt (Hand und Finger, Fuss und Zehen) - zwischen zwei Schichten ueber die Bilder [von, bis]; je Spur von `b`.
+[[nodiscard]] std::vector<float> ikGliedAbweichung(const GlaAnimation& g, const RigSchicht& a, const RigSchicht& b, int von, int bis);
 // Den Raum der Spur ab dem Bild wechseln, ohne Sprung (Schluessel am Bild davor im alten Raum, am Bild im neuen).
 void ikRaumWechseln(const GlaAnimation& g, RigSchicht& s, int spur, int bild, int raum, int erstesBild);
 // Das Ziel am Bild in der Welt setzen (Ort und Drehung), Pol und Rolle wie ausgewertet, IK 1; danach die FK-Schluessel

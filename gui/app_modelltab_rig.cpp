@@ -328,6 +328,15 @@ const std::vector<RigAktion>& rigAktionen() {
         {Str::PrRolloutOeffnen, Str::PrRolloutHint, "", "", 0, 0, "", [] {
              mt().rt.presetOeffnen = true;
              modellAnim().generatorOffen = true;
+             modellPresetGangWaehlen(mt().rt.gangWahl >= 0 ? mt().rt.gangWahl : static_cast<int>(modellRtDaten()->gang.art));
+             modellFeldReiter(MbReiter::Bewegung, MbReiterBl::Knochen);
+             ui::rolloutZeigen(tr(Str::PrRollout));
+         },
+         {}, 8},
+        // ENT2: der erzeugte Gang steht als Eintrag in der Preset-Liste (Gehen (erzeugt) / Laufen (erzeugt))
+        {Str::EnGangWaehlen, Str::EnGangHint, "", "", 0, 0, "", [] {
+             mt().rt.presetOeffnen = true;
+             modellPresetGangWaehlen(static_cast<int>(modellRtDaten()->gang.art));
              modellFeldReiter(MbReiter::Bewegung, MbReiterBl::Knochen);
              ui::rolloutZeigen(tr(Str::PrRollout));
          },
@@ -779,6 +788,20 @@ bool modellRigModalTasten() {
 
 // --- Posen ----------------------------------------------------------------------------------------------------------------
 
+namespace {
+
+// ENT2: liegt ein Glied am Bild auf IK (nach Control Rig erstellen liegt die Animation von FK auf IK auf dem Rig), folgen Ziel und
+// Pol der neuen FK-Pose (ikAufFk mit dem Anteil am Bild) - eine eingefuegte Pose, die Bindepose oder eine Handpose zeigt sich dann
+// wie gesetzt, statt von der IK des Glieds verdeckt zu werden
+void ikFolgtFk(modell::RigSchicht& s, int bild) {
+    for (std::size_t i = 0; i < s.ik.size(); ++i) {
+        const float anteil = modell::ikAnteilAm(s.ik[i], static_cast<float>(bild));
+        if (!s.ik[i].ziel.empty() && anteil > 0.0F) { modell::ikAufFk(g_app->anim, s, static_cast<int>(i), bild, anteil); }
+    }
+}
+
+}  // namespace
+
 bool modellPoseKopieren() {
     ModellTab& t = mt();
     if (g_app->modellWelt.empty()) {
@@ -801,7 +824,10 @@ bool modellPoseEinfuegen(bool gespiegelt) {
     const int bild = bildJetzt();
     int n = 0;
     schichtAendern(gespiegelt ? Str::MbRgGespiegelt : Str::MbRgEinfuegen,
-                   [&](modell::RigSchicht& s) { n = modell::poseEinfuegen(g_app->anim, t.rig, t.kopie, gespiegelt, bild, {}, s); });
+                   [&](modell::RigSchicht& s) {
+                       n = modell::poseEinfuegen(g_app->anim, t.rig, t.kopie, gespiegelt, bild, {}, s);
+                       ikFolgtFk(s, bild);
+                   });
     melden(format(gespiegelt ? Str::MbRgGespiegeltOk : Str::MbRgEingefuegt, n, bild));
     return n > 0;
 }
@@ -818,7 +844,10 @@ bool modellBindepose(bool alle) {
     }
     const int bild = bildJetzt();
     int n = 0;
-    schichtAendern(alle ? Str::MbRgBindeAlle : Str::MbRgBindeAuswahl, [&](modell::RigSchicht& s) { n = modell::bindePose(g_app->anim, bild, nur, s); });
+    schichtAendern(alle ? Str::MbRgBindeAlle : Str::MbRgBindeAuswahl, [&](modell::RigSchicht& s) {
+        n = modell::bindePose(g_app->anim, bild, nur, s);
+        ikFolgtFk(s, bild);
+    });
     melden(format(Str::MbRgBindeOk, n, bild));
     return true;
 }
@@ -841,7 +870,10 @@ bool modellHandpose(modell::Seite seite, int art) {
     }
     const int bild = bildJetzt();
     int n = 0;
-    schichtAendern(Str::MbRgUndoHand, [&](modell::RigSchicht& s) { n = modell::handPoseSetzen(g_app->anim, t.rig, seite, quelle, bild, s); });
+    schichtAendern(Str::MbRgUndoHand, [&](modell::RigSchicht& s) {
+        n = modell::handPoseSetzen(g_app->anim, t.rig, seite, quelle, bild, s);
+        ikFolgtFk(s, bild);
+    });
     if (n == 0) {
         melden(tr(Str::MbRgKeineHand));
         return false;
@@ -1465,7 +1497,7 @@ void drawModellRigUebersicht() {
     if (!modellRigDa()) {
         cjkTextDisabled("%s", tr(Str::MbRgNochKeins));
         ImGui::BeginDisabled(g_app->anim.bones.empty());
-        if (ImGui::Button(tr(Str::MbRgAnlegen))) { (void)modellRigAnlegen(); }
+        if (ImGui::Button(tr(Str::MbRgAnlegen))) { (void)modellAnimRigErstellen(false); }   // wie der Hauptknopf (ENT2: mit der Animation von FK auf IK)
         ImGui::EndDisabled();
         ImGui::SetItemTooltip("%s", tr(Str::MbRgAnlegenHint));
         ImGui::End();

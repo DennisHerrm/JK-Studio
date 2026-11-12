@@ -2362,6 +2362,8 @@ from i18n_ap5 import zeilen_vier as _ap5  # noqa: E402  (AP5: Model-Tab, Bereich
 S += _ap5()
 from i18n_ent1 import zeilen_vier as _ent1  # noqa: E402  (ENTSCHEID1: Werkzeugnamen wie Blender, Gruppen, eingebbare Seitenleiste)
 S += _ent1()
+from i18n_ent2 import zeilen_vier as _ent2  # noqa: E402  (ENTSCHEID2: Control Rig wie CAT, acht Preset-Kategorien, Generator-Gaenge)
+S += _ent2()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

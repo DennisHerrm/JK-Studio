@@ -3132,6 +3132,8 @@ from i18n_ap5 import texte as _ap5  # noqa: E402
 TEXTE.update(_ap5("cs"))
 from i18n_ent1 import texte as _ent1  # noqa: E402
 TEXTE.update(_ent1("cs"))
+from i18n_ent2 import texte as _ent2  # noqa: E402
+TEXTE.update(_ent2("cs"))
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.
 TEXTE.update({_e[0]: _e[1] for _e in _nrc()})
