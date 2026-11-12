@@ -3132,6 +3132,8 @@ from i18n_ent1 import texte as _ent1  # noqa: E402
 TEXTE.update(_ent1("es"))
 from i18n_ent2 import texte as _ent2  # noqa: E402
 TEXTE.update(_ent2("es"))
+from i18n_p_dx12 import texte as _p_dx12  # noqa: E402
+TEXTE.update(_p_dx12("es"))
 
 # Die Menue- und Werkzeugleistennamen von NetRadiant-Custom bleiben englisch
 # wie in NRC (das nur Englisch kennt) - so passen die JKHub-Tutorials auch auf

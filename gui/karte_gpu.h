@@ -181,6 +181,14 @@ void linien(const std::vector<LinienPunkt>& p, const Zustand3& z);
 // Das Ergebnis gilt, solange geraetStand() gleich bleibt.
 // mipStufe: GL_TEXTURE_BASE_LEVEL ("Texture Quality"), als MostDetailedMip
 [[nodiscard]] void* bildAnlegen(const unsigned char* rgba, int breite, int hoehe, int mipStufe = 0);
+// Die Mip-Stufen von bildAnlegen selbst rechnen wie das Spiel (R_MipMap, tr_image.cpp:466 - TextureSet::Tex::buildMips) statt
+// mit ID3D11DeviceContext::GenerateMips. Dessen Regel legt der Treiber fest: bei Groessen, die keine Zweierpotenz sind, weichen
+// Direct3D 11 und Direct3D 12 um 1-2/255 voneinander ab (Selbsttest grafik, Bild grafik_mipstufen). Selbst gerechnet sind die
+// Stufen unter beiden gleich. VORGABE AN seit rc612 (Entscheidung shank 11.11.: "wie im Spiel", fuer beide Schnittstellen);
+// die Stufen des Treibers mit der Editor-Einstellung "BhedMipsLikeGame" = 0 (behaved.cfg: karte=BhedMipsLikeGame=0) oder
+// BHED_KARTE_MIPS=treiber.
+void mipsWieSpiel(bool an);
+[[nodiscard]] bool mipsWieSpiel();
 // MR7 P40: ein Bild mit fertigen Mip-Stufen (Echtzeit-Licht unter JKA/JK2-Regeln: die Stufen wie Upload32), ohne Gamma und
 // Basisstufe des Editors - wie die Vorschau (gpumap ladeMitStufen).
 // MR8 Punkt 2 (Selbsttest): die Ressource hinter einem Bild (Adresse), nullptr ohne Bild.

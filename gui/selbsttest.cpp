@@ -6034,6 +6034,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_ap4.inc"        // AP4: Model-Tab im Bedienmodus wie Blender (modellblock, BHED_MODELL_NUR=ap4 / ap4foto; Handbuch BHED_HB_NUR=ap4)
 #include "selbsttest_ap5.inc"        // AP5: Bereich Ansehen/Pruefen vollstaendig (modellblock, BHED_MODELL_NUR=ap5 / ap5foto; Handbuch BHED_HB_NUR=ap5)
 #include "selbsttest_leistung.inc"   // leistung: Bildzeiten, Laden, Leerlauf, Speicher, feste Bilder (rc608 Teil 12)
+#include "selbsttest_grafik.inc"     // grafik: Wahl der Grafikschnittstelle, Rueckfall auf Direct3D 11 (D3D12 Stufe 1)
 #include "selbsttest_zeitleiste0.inc"   // zeitleiste0: Daten und Kamerabilder fuer den Entwurf der neuen Zeitleiste
 #include "selbsttest_zeitleiste1.inc"   // zeitleiste1: die neue Zeitleiste im Mission-Tab
 #include "selbsttest_dock1.inc"   // dock1: Fenster frei anordnen, mehrere Bildschirme
@@ -6424,6 +6425,7 @@ void selbsttest() {
     static const bool nurEditorportal = std::strcmp(modus, "editorportal") == 0;   // rc609 P
     static const bool nurTeil11 = std::strcmp(modus, "teil11") == 0;
     static const bool nurLeistung = std::strcmp(modus, "leistung") == 0;   // rc608 Teil 12
+    static const bool nurGrafik = std::strcmp(modus, "grafik") == 0;       // D3D12 Stufe 1
     // zeitleiste0: Spuren als JSON und Kamerabilder fuer den Entwurf (BHED_ZL0_AUS).
     static const bool nurZeitleiste0 = std::strcmp(modus, "zeitleiste0") == 0;
     // zeitleiste1: die neue Zeitleiste (Mini-Szene, academy1, md_am_sith).
@@ -6631,6 +6633,10 @@ void selbsttest() {
                 a.teil = 2;
             } else if (nurLeistung) {
                 a.schritte = leistung::schritte();
+                for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
+                a.teil = 2;
+            } else if (nurGrafik) {
+                a.schritte = grafikSchritte();
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
             } else if (nurWegErzeugung) {

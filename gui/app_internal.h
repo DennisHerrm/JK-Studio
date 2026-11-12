@@ -3291,6 +3291,9 @@ void drawKameraInspector(float hoehe);
 void drawEntityInspector(float hoehe);
 // --- Model-Tab (gui/app_modell.cpp, rc591) -----------------------------------
 void animWaehlen(int i, bool abspielen);
+// rc612: der letzte Start mit Direct3D 12 stuerzte ab (Startmarke, main_win32.cpp) - Einstellung auf Direct3D 11, Hinweis im Menue
+void grafikRueckfallMelden();
+[[nodiscard]] bool grafikRueckfallGemeldet();
 void modellAnsichtEinpassen();
 bool npcLaden(const std::string& typ);
 const std::vector<std::string>& npcTypenListe();

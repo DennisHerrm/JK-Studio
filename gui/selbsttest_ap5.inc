@@ -585,6 +585,7 @@ void anzeigeSchritte(std::vector<Schritt>& s, int modus) {
     add(klickPopup(tr(Str::PqFilter)));
     add(pause(0.6));
     add(bildMerken(bildB, neuB));
+    add(foto(std::string("ap5_") + (modus == 0 ? "max" : "blender") + "_filteraus"));   // D3D12-2: punktFilter je Schnittstelle
     add(pruefe(zeile("P3a", modus, "Texturfilter aus: der Schalter ist aus, die Ansicht zeichnet neu, das Bild zeigt die Bildpunkte der Textur (anderes Bild)"),
                [bildA, bildB, neuA, neuB] {
         const int d = bildUnterschied(*bildA, *bildB);
@@ -602,6 +603,7 @@ void anzeigeSchritte(std::vector<Schritt>& s, int modus) {
     add(klickPopup(tr(Str::PqAlpha)));
     add(pause(0.6));
     add(bildMerken(bildB, neuB));
+    add(foto(std::string("ap5_") + (modus == 0 ? "max" : "blender") + "_alphaaus"));   // D3D12-2: opak je Schnittstelle
     add(pruefe(zeile("P3a", modus, "Alpha-Blending aus: der Schalter ist aus, die Ansicht zeichnet neu, alles deckend (anderes Bild)"), [bildA, bildB, neuA, neuB] {
         const int d = bildUnterschied(*bildA, *bildB);
         melde("P3a Alpha: Unterschied " + std::to_string(d) + " Bildpunkte");

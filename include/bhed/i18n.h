@@ -6508,6 +6508,11 @@ enum class Str {
     EnGangHint,
     EnGeneratorHint,
     EnGangWaehlen,
+    GrafikMenu,
+    GrafikD3d11,
+    GrafikD3d12,
+    GrafikHint,
+    GrafikRueckfall,
     Count,
 };
 

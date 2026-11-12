@@ -5409,6 +5409,32 @@ void drawMenu() {
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
             ImGui::SetTooltip("%s", tr(Str::ViewHighlightSameHint));
         }
+        // rc612: Grafikschnittstelle fuer den naechsten Start - Direct3D 12 ist Vorgabe, Direct3D 11 der Rueckfall (main_win32.cpp).
+        // Hat die Startmarke einen abgestuerzten Start mit Direct3D 12 gemeldet, sagt es der Tooltip dazu.
+        {
+            const auto hinweis = [] {
+                if (!ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { return; }
+                char z[1024];
+                std::snprintf(z, sizeof(z), tr(Str::GrafikHint), render::backendName(render::current()));
+                ImGui::BeginTooltip();
+                ImGui::PushTextWrapPos(ImGui::GetFontSize() * 36.0F);
+                cjkTextUnformatted(z);
+                if (grafikRueckfallGemeldet()) {
+                    ImGui::Spacing();
+                    cjkTextUnformatted(tr(Str::GrafikRueckfall));
+                }
+                ImGui::PopTextWrapPos();
+                ImGui::EndTooltip();
+            };
+            if (ImGui::BeginMenu(tr(Str::GrafikMenu))) {
+                if (ImGui::MenuItem(tr(Str::GrafikD3d11), nullptr, !g_app->settings.grafikD3d12)) { g_app->settings.grafikD3d12 = false; }
+                hinweis();
+                if (ImGui::MenuItem(tr(Str::GrafikD3d12), nullptr, g_app->settings.grafikD3d12)) { g_app->settings.grafikD3d12 = true; }
+                hinweis();
+                ImGui::EndMenu();
+            }
+            hinweis();
+        }
         ImGui::Separator();
         // --- Modell ------------------------------------------------------
         //

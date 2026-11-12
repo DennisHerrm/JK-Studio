@@ -478,7 +478,9 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     ${IMGUI_DIR}/imgui_widgets.cpp
     ${IMGUI_DIR}/backends/imgui_impl_win32.cpp
     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
-    $<$<BOOL:${BEHAVED_D3D11}>:${IMGUI_DIR}/backends/imgui_impl_dx11.cpp>)
+    $<$<BOOL:${BEHAVED_D3D11}>:${IMGUI_DIR}/backends/imgui_impl_dx11.cpp>
+    # D3D12 Stufe 1 (rc612): die Oberflaeche wahlweise auf Direct3D 12
+    $<$<BOOL:${BEHAVED_D3D11}>:${IMGUI_DIR}/backends/imgui_impl_dx12.cpp>)
   target_include_directories(imgui PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends
                              ${CMAKE_CURRENT_SOURCE_DIR}/gui)
   target_compile_definitions(imgui PUBLIC IMGUI_USER_CONFIG="imgui_config.h")
@@ -593,6 +595,12 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/karte_gpu_win32.cpp
     gui/tastatur_win32.cpp
     gui/backend_win32.cpp
+    # Direct3D 12 (rc612): Geraet, Swapchain, die Befehlsliste des Bildes und die Oberflaeche; der Abgeber fuehrt die
+    # Zeichenbefehle der 3D-Ansichten (Schnittstelle ID3D11Device/ID3D11DeviceContext) auf Direct3D 12 aus
+    $<$<BOOL:${BEHAVED_D3D11}>:gui/backend_d3d12_win32.cpp>
+    $<$<BOOL:${BEHAVED_D3D11}>:gui/abgeber12_geraet_win32.cpp>
+    $<$<BOOL:${BEHAVED_D3D11}>:gui/abgeber12_kontext_win32.cpp>
+    $<$<BOOL:${BEHAVED_D3D11}>:gui/abgeber12_protokoll_win32.cpp>
     gui/gpumap_win32.cpp
     gui/main_win32.cpp
     gui/platform_win32.cpp
@@ -672,13 +680,13 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
 
   if(BEHAVED_D3D11)
     target_compile_definitions(behaved PRIVATE BHED_WITH_D3D11)
-    target_link_libraries(behaved PRIVATE d3d11 d3dcompiler)
+    target_link_libraries(behaved PRIVATE d3d11 d3dcompiler d3d12 dxgi)
     if(MSVC)
       target_link_options(behaved PRIVATE
-        # dxgi.dll steht bewusst NICHT dabei: wir rufen nichts daraus direkt
-        # auf, und MSVC meldet dann LNK4199 "wird ignoriert; keine Importe
-        # von dxgi.dll gefunden".
-        /DELAYLOAD:d3d11.dll /DELAYLOAD:d3dcompiler_47.dll)
+        # D3D12 Stufe 1: d3d12.dll und dxgi.dll ebenso verzoegert (CreateDXGIFactory2,
+        # D3D12CreateDevice, imgui_impl_dx12) - fehlt D3D12, startet das Programm trotzdem
+        # und nimmt Direct3D 11.
+        /DELAYLOAD:d3d11.dll /DELAYLOAD:d3dcompiler_47.dll /DELAYLOAD:d3d12.dll /DELAYLOAD:dxgi.dll)
       target_link_libraries(behaved PRIVATE delayimp)
     endif()
   endif()

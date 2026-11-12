@@ -4201,6 +4201,20 @@ std::string gemerkteFensterlage() {
     return (g_app != nullptr) ? g_app->settings.windowPlacement : std::string{};
 }
 
+// rc612: Direct3D 12 gewuenscht (Einstellung grafikD3d12, Vorgabe an; main_win32.cpp fragt beim Start).
+bool grafikD3d12Gewuenscht() { return g_app != nullptr && g_app->settings.grafikD3d12; }
+
+// rc612: die Startmarke meldet einen abgestuerzten Start mit Direct3D 12 - die Einstellung geht auf Direct3D 11, das Menue
+// Ansicht > Grafikschnittstelle sagt es im Tooltip (main_win32.cpp).
+namespace {
+bool g_grafikRueckfall = false;
+}  // namespace
+void grafikRueckfallMelden() {
+    g_grafikRueckfall = true;
+    if (g_app != nullptr) { g_app->settings.grafikD3d12 = false; }
+}
+bool grafikRueckfallGemeldet() { return g_grafikRueckfall; }
+
 void merkeFensterlage(const std::string& wert) {
     if (g_app != nullptr) {
         g_app->settings.windowPlacement = wert;

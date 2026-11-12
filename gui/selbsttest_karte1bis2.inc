@@ -5981,7 +5981,7 @@ std::vector<Schritt> einstellungen11c() {
                      " Merkmale");
         return ke::editor().ueberOffen && finde(std::string(ke::trK(Str::KePrefOk)) + "##ueberok", "", 0, true) != nullptr &&
                finde(std::string(ke::trK(Str::KeAboutCredits)) + "##uebercredits", "", 0, true) != nullptr && !i.karte.empty() &&
-               i.version.find("Direct3D 11") != std::string::npos && !i.merkmale.empty();
+               i.version.find(render::backendName(render::current())) != std::string::npos && !i.merkmale.empty();
     }));
     add(foto("karteneditor_about"));
     add(klick(std::string(ke::trK(Str::KeAboutQt)) + "##ueberqt"));

@@ -23,6 +23,7 @@
 //   Public License for more details (LICENSE).
 #include "fenster_dock.h"   // dock1: Menue "Fenster"
 #include "hilfe.h"   // H1: der Helfer im Help-Menue
+#include "karte_gpu.h"   // D3D12 Runde 2: kartegpu::mipsWieSpiel
 #include "karteneditor.h"
 
 #include "app_internal.h"
@@ -1473,6 +1474,9 @@ void einstellungenLaden() {
     ed.tags.gui = zahl("TagsShowGui", 0) != 0.0F;   // TextureBrowser_Construct (texwindow.cpp:2133)
     // Textures_Construct (textures.cpp:848-852)
     ed.texQual.mipStufe = std::clamp(static_cast<int>(zahl("TextureMipLevel", 0)), 0, 3);
+    // eigene Einstellung ohne Bedienelement: Mip-Stufen wie das Spiel statt aus dem Treiber (karte_gpu.h, mipsWieSpiel) -
+    // ab Werk an (rc612)
+    kartegpu::mipsWieSpiel(zahl("BhedMipsLikeGame", 1) != 0.0F);
     ed.texQual.gamma = zahl("SI_Gamma", 1.0F);
     ed.texQual.modus = std::clamp(static_cast<int>(zahl("TextureFiltering", 5)), 0, 5);
     ed.texQual.anisotropie = zahl("TextureAnisotropy", 1) != 0.0F;

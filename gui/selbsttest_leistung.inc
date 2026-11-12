@@ -11,7 +11,8 @@
 // Bilder fuer den Vergleich vorher/nachher (BHED_FOTOS): feste Lage, feste Zeit, die 3D-Bilder direkt aus ihren
 // Zielen (Vorschau, Kamera des Karten-Editors), Model-Tab und Menue-Editor als ganzes Fenster.
 // BHED_LEISTUNG_MAP: eine .map fuer den Karten-Editor mit Echtzeit-Licht (ohne: dieser Teil faellt weg).
-// BHED_LEISTUNG_NUR: nur diese Abschnitte (Buchstaben: w Wechsel, k Karten, s Szene, e Editor, m Model, n Menue, g die
+// BHED_LEISTUNG_NUR: nur diese Abschnitte (Buchstaben: w Wechsel, k Karten, s Szene, e Editor, m Model, r Model mit
+// aufgelegtem Control Rig (ENTSCHEID2: je Bild IK fuer vier Glieder), n Menue, g die
 // Gegenproben zum Bildvorrat - sie kopieren texCache und treiben die Speicherspitze, fuer Speichervergleiche weglassen;
 // u Bildzeit mit und ohne Update-Leiste je Tab - nur wenn ausdruecklich genannt, nicht im vollen Lauf).
 namespace leistung {
@@ -39,6 +40,10 @@ inline void speicher(const std::string& wann) {
     char z[260];
     std::snprintf(z, sizeof(z), "Leistung: Speicher %s | Spitze %lld MB, Arbeitssatz %lld MB, privat %lld MB, Grafikkarte %lld MB", wann.c_str(),
                   p.spitzeBytes / 1048576, p.arbeitBytes / 1048576, p.privatBytes / 1048576, g.grafikBytes / 1048576);
+    diag::detail(z);
+    // Was das System dem Prozess an Grafikspeicher zugesteht (sinkt im Hintergrund und wenn andere Programme die Grafikkarte
+    // brauchen): danach raeumen der D3D11-Treiber und der D3D12-Abgeber. Eine eigene Zeile - die Auswertung liest die obere.
+    std::snprintf(z, sizeof(z), "Leistung: Grafikspeicher-Budget %s | %lld MB", wann.c_str(), static_cast<long long>(kartegpu::grafikBudget() / 1048576U));
     diag::detail(z);
 }
 
@@ -594,6 +599,10 @@ inline std::vector<Schritt> schritte() {
                 ed.kamera.freiBewegen(6, (b / 60) % 2 == 0 ? 1 : -1, ed.kameraE);
             }));
             add(leerlauf("Map Editor Echtzeit-Licht"));
+            // Der Grafikspeicher erst jetzt: alle Schattenwuerfel sind gezeichnet. Gleich nach dem Oeffnen ("nach der .map")
+            // hat der D3D11-Treiber den Atlas der Schattenwuerfel noch nicht belegt (er belegt erst, was beschrieben ist),
+            // Direct3D 12 belegt ihn beim Anlegen - der Vergleich dort zeigt den Zeitpunkt, nicht den Bedarf.
+            add(tu("Leistung: Speicher mit Echtzeit-Licht", [] { speicher("mit Echtzeit-Licht"); }));
             add(tu("Leistung: Editor leeren", [] {
                 ke::Editor& e = ke::editor();
                 e.echtLicht.an = false;
@@ -618,6 +627,48 @@ inline std::vector<Schritt> schritte() {
         }, nullptr));
         add(tu("Leistung: Model ruhig", [] { m1Grundlage(); }));
         add(leerlauf("Model"));
+    }
+    if (abschnitt('r')) {
+        // ENTSCHEID2: Control Rig erstellen legt die Animation von FK auf IK auf das Rig; danach rechnet jedes Bild die IK der vier
+        // Glieder (modell::rigWelt). Dieselbe Figur und Sequenz wie die Fotos von ENT2 (mbefoto::sequenz: BOTH_WALK1).
+        add(tu("Leistung: Model-Tab, stormtrooper, Control Rig", [] {
+            g_app->leftMode = 2;
+            std::string fehler;
+            if (!oeffneModellAusArchiv("models/players/stormtrooper/model.glm", &fehler)) { meldeFehler("Leistung: stormtrooper: " + fehler); }
+            m1Grundlage();
+            modellBedienungSetzen(0);
+            g_app->mtab.bereich = ModellBereich::Animation;
+            animWaehlen(mbefoto::sequenz(), false);
+            g_app->mtab.rig = modell::Rig{};
+            g_app->mtab.rigFuer.clear();
+            g_app->mtab.dok.aendern("Leistung Rig leer", [](modell::Inhalt& in) { in.rig.schichten.clear(); }, false);
+            if (!modellAnimRigErstellen(false)) { meldeFehler("Leistung: Control Rig liess sich nicht erstellen"); }
+            g_app->animFrame = g_app->animList.empty() ? 0 : g_app->animList[static_cast<std::size_t>(mbefoto::sequenz())].firstFrame + 5;
+            g_app->animPlaying = false;
+            g_app->modelDirty = true;
+        }));
+        add(pause(1.0));
+        add(pruefe("Leistung: das Control Rig liegt auf (vier IK-Spuren)", [] {
+            const modell::RigSchicht* sch = modellRigSchichtJetzt();
+            const bool da = sch != nullptr && sch->ik.size() >= 4U;
+            diag::detail(std::string("Knopftest: Leistung Rig - ") + (sch != nullptr ? std::to_string(sch->ik.size()) + " IK-Spuren" : "keine Schicht"));
+            return da;
+        }));
+        add(foto("leistung_modell_rig"));
+        add(bildzeit("Model stormtrooper Control Rig ruhend", [] { g_app->animPlaying = false; g_app->modelDirty = true; }, nullptr));
+        add(bildzeit("Model stormtrooper Control Rig Animation", [] {
+            g_app->loopMode = 1;
+            g_app->animPlaying = true;
+        }, nullptr));
+        add(tu("Leistung: Rig ab, Model ruhig", [] {
+            g_app->animPlaying = false;
+            g_app->mtab.rig = modell::Rig{};
+            g_app->mtab.rigFuer.clear();
+            g_app->mtab.dok.aendern("Leistung Rig leer", [](modell::Inhalt& in) { in.rig.schichten.clear(); }, false);
+            g_app->mtab.bereich = ModellBereich::Ansehen;
+            m1Grundlage();
+        }));
+        add(leerlauf("Model mit Rig"));
     }
     if (abschnitt('n')) {
         add(tu("Leistung: Menue-Editor, ui/main.menu", [] {

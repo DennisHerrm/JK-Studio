@@ -21,6 +21,9 @@ namespace bhed::render {
 enum class Backend : std::uint8_t {
     Direct3D11,
     OpenGL3,
+    // D3D12 Stufe 1 (rc612): Oberflaeche und Swapchain auf Direct3D 12, die 3D-Ansichten noch Direct3D 11 ueber D3D11On12
+    // (backend_d3d12.h). Wahlweise (Ansicht > Grafikschnittstelle, BHED_D3D12=1); ohne D3D12-Geraet Direct3D 11.
+    Direct3D12,
 };
 
 // Was tatsaechlich lief - fuer die Anzeige und das Fehlerprotokoll.
@@ -98,6 +101,16 @@ void zeichneAdditiv(ImDrawList* dl, void* textur, ImVec2 a, ImVec2 b, unsigned i
 // klemmen = clampMap, sonst wiederholt (tcMod scroll).
 void zeichneStufe(ImDrawList* dl, void* textur, const ImVec2 p[4], const ImVec2 uv[4], unsigned int farbe, int quelle, int ziel,
                   bool klemmen);
+// Die folgenden Zeichenbefehle der Liste ohne Mischen (bis ImDrawCallback_ResetRenderState) - fuer Bilder der 3D-Ansichten,
+// deren Alpha nicht mischen soll (bis D3D12 Stufe 1 kartegpu::ohneMischen).
+void zeichneOhneMischen(ImDrawList* dl);
+// D3D12 Stufe 1: eine ImGui-Zeichenliste in eine Textur der 3D-Ansichten zeichnen (ID3D11Texture2D*, Renderziel) - unter
+// Direct3D 12 auf dem Weg der Oberflaeche (imgui_impl_dx12). false unter Direct3D 11 und OpenGL: dort zeichnet der
+// Aufrufer selbst (ImGui_ImplDX11_RenderDrawData auf das gesetzte Ziel).
+bool zeichneInD3d11Ziel(void* textur11, ImDrawData* dd);
+// D3D12 Stufe 1: unmittelbar vor ImGui_ImplWin32_Shutdown aufrufen. Unter Direct3D 12 baut es den ImGui-Zeichenteil zuerst ab
+// (backend_d3d12.h, imguiAbbauen); unter Direct3D 11 und OpenGL tut es nichts - dort bleibt die Reihenfolge wie bisher.
+void vorPlattformAbbau();
 // Zaehlt jedes destroyTextures (Geraeteverlust, Wechsel der Schnittstelle) -
 // wer eine Textur aus createTexture zwischenspeichert, legt sie neu an, wenn
 // sich der Stand aendert.
@@ -105,6 +118,9 @@ void zeichneStufe(ImDrawList* dl, void* textur, const ImVec2 p[4], const ImVec2 
 
 Backend current();
 bool ready();
+// Selbsttest: der Befund der Schnittstelle am Ende eines Laufs. Unter Direct3D 12: hat der Abgeber (abgeber12.h) jede gerufene
+// Methode umgesetzt, und meldet die Debugschicht keinen Fehler? text nennt die Zaehler. Sonst true mit leerem Text.
+[[nodiscard]] bool grafikBefund(std::string& text);
 
 // --- Welche Grafikkarte (rc596) -------------------------------------------
 //

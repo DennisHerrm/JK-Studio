@@ -4406,6 +4406,12 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     // Vollpuffer, nicht am Ziel vorbei. Eine Textur gleichzeitig zu lesen
     // und zu beschreiben ist bei Direct3D nicht erlaubt, und der Treiber
     // meldet es als stille Nichtbindung: das Bild bliebe schwarz.
+    //
+    // Mit Mehrfachabtastung (rc612) geht es gleich ins Ziel: gelesen wird dort die AUFGELOESTE Szene (g_zielSrv zeigt auf
+    // g_zielAufTex), das Ziel ist eine andere Textur. Das Vollbilddreieck schreibt ohne Mischen und ohne Tiefe jede Probe
+    // jedes Bildpunkts - dasselbe, was die Kopie aus dem zweiten Vollpuffer uebertrug, nur ohne sie (1920x1440 mit 8 Proben:
+    // 0,19 ms unter Direct3D 11, 0,29 ms unter Direct3D 12, je Gluehdurchgang; mit Himmelsportal zwei je Bild).
+    const bool insZiel = g_zielAufTex != nullptr && g_zielRtv != nullptr;
     setzeSchritt("Gluehen: auflegen");
     setzeGlowKonstanten(0.0F, 1.0F, weich, g_glowW, g_glowH);
     // --- Erst das Ziel setzen, DANN die Eingaenge -------------------------
@@ -4419,7 +4425,7 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     // Texturen), aber die Reihenfolge Ziel-vor-Eingang ist die richtige und
     // haelt auch, wenn sich das einmal aendert.
     zielAufloesen();
-    ::bhed::render::zielSetzen(c, 1, &g_glowVollRtv, nullptr);
+    ::bhed::render::zielSetzen(c, 1, insZiel ? &g_zielRtv : &g_glowVollRtv, nullptr);
     ID3D11ShaderResourceView* zwei[2] = {g_glowSrv[quelle], g_zielSrv};
     c->PSSetShaderResources(0, 2, zwei);
     // Auch beim Auflegen klemmen - es liest dieselben Vollbildtexturen.
@@ -4437,7 +4443,7 @@ int zeichneGluehen(const BspMesh& mesh, const TextureSet* textures,
     ID3D11ShaderResourceView* nichts[3] = {nullptr, nullptr, nullptr};
     c->PSSetShaderResources(0, 3, nichts);
     ::bhed::render::zielSetzen(c, 0, nullptr, nullptr);
-    ::bhed::render::kopieren(c, g_zielTex, g_glowVollTex);
+    if (!insZiel) { ::bhed::render::kopieren(c, g_zielTex, g_glowVollTex); }
     g_zielVeraendert = true;
     return n;
 }
@@ -6683,7 +6689,6 @@ void modellZielWaehlen(int nr) {
 bool zeichneUeberlagerung(ImDrawList* liste) {
     ID3D11DeviceContext* c = ctx();
     if (c == nullptr || g_modellRtv == nullptr || liste == nullptr) { return false; }
-    ::bhed::render::zielSetzen(c, 1, &g_modellRtv, nullptr);
     ImDrawData dd;
     dd.Valid = true;
     dd.DisplayPos = ImVec2{0.0F, 0.0F};
@@ -6691,6 +6696,12 @@ bool zeichneUeberlagerung(ImDrawList* liste) {
     dd.FramebufferScale = ImVec2{1.0F, 1.0F};
     dd.OwnerViewport = ImGui::GetMainViewport();
     dd.AddDrawList(liste);
+    // D3D12 Stufe 1: unter Direct3D 12 zeichnet die Oberflaeche mit imgui_impl_dx12 - dieselbe Liste in dieselbe Textur.
+    if (::bhed::render::current() == ::bhed::render::Backend::Direct3D12) {
+        ::bhed::render::bemaltMerken(g_modellTex);
+        return ::bhed::render::zeichneInD3d11Ziel(g_modellTex, &dd);
+    }
+    ::bhed::render::zielSetzen(c, 1, &g_modellRtv, nullptr);
     ImGui_ImplDX11_RenderDrawData(&dd);
     return true;
 }

@@ -134,6 +134,11 @@ struct Settings {
     // (gui/update_win32.cpp). Gefunden wird nur angezeigt - installiert wird
     // erst auf Klick.
     bool updateCheck = true;
+    // rc612: Grafikschnittstelle beim naechsten Start - true Direct3D 12 (Vorgabe: Oberflaeche und 3D-Ansichten ueber den
+    // nativen Abgeber, gui/abgeber12.h), false Direct3D 11. BHED_D3D12=0/1 geht vor. Direct3D 11 ist der Rueckfall: ohne
+    // D3D12-Geraet, wenn der Start scheitert, wenn der letzte Start mit Direct3D 12 abstuerzte (Startmarke, main_win32.cpp)
+    // und wenn nach einem Geraeteverlust kein neues D3D12-Geraet kommt.
+    bool grafikD3d12 = true;
     // REST9: "Diese Fassung ueberspringen" in der Update-Leiste - der Tag dieses
     // Releases ("v1.0.0-rc612"). Die Leiste meldet erst wieder eine neuere Fassung.
     std::string updateUebersprungen;

@@ -50,6 +50,7 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <cwchar>
 #include <cwctype>
 #include <chrono>
@@ -103,6 +104,8 @@ void defaultWindowSize(int* w, int* h);
 // Kopf mitsamt imgui_internal.h nur fuer zwei Zeichenketten waere zu viel.
 std::string gemerkteFensterlage();
 void merkeFensterlage(const std::string& wert);
+bool grafikD3d12Gewuenscht();
+void grafikRueckfallMelden();
 bool loadModel(App* a, const std::string& dataDir, std::string* error);
 const theme::Theme* currentTheme(App* a);
 void setThemeById(App* a, const char* id);
@@ -871,6 +874,24 @@ void imguiWin32Starten(HWND hwnd) {
     }
 }
 
+// rc612: Startmarke fuer Direct3D 12. Vor dem Start mit Direct3D 12 angelegt, nach kStartmarkeBilder gezeigten Bildern
+// geloescht (auch nach einem gescheiterten Start und beim geordneten Ende). Steht sie beim naechsten Start noch da, ist der
+// letzte Start mit Direct3D 12 abgestuerzt oder haengen geblieben (ein Treiber, der Direct3D 12 nicht traegt) - dann startet
+// das Programm mit Direct3D 11, ohne dass der Nutzer erst ein Menue erreichen muss.
+constexpr int kStartmarkeBilder = 60;
+std::filesystem::path startmarkePfad() {
+    const std::string einst = bhed::platform::settingsDirectory();
+    if (einst.empty()) { return {}; }
+    return std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(einst.data()), einst.size())) / "d3d12_start.marke";
+}
+bool g_startmarke = false;   // diese Sitzung hat die Marke angelegt und noch nicht geloescht
+void startmarkeLoeschen() {
+    if (!g_startmarke) { return; }
+    g_startmarke = false;
+    std::error_code ec;
+    std::filesystem::remove(startmarkePfad(), ec);
+}
+
 bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -996,7 +1017,15 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
         // geht, wird kein Bild gezeichnet; nach drei Fehlversuchen geordnet
         // beenden statt mit einem toten Geraet weiterzulaufen.
         if (neuaufbauOffen) {
-            if (bhed::render::init(preferred, reinterpret_cast<HWNDHandle>(hwnd))) {
+            bool neu = bhed::render::init(preferred, reinterpret_cast<HWNDHandle>(hwnd));
+            if (!neu && preferred == bhed::render::Backend::Direct3D12) {
+                // rc612: Direct3D 11 ist der Rueckfall auch hier - kommt nach dem Verlust kein D3D12-Geraet, traegt Direct3D 11
+                // (die Einstellung bleibt; der naechste Start versucht wieder Direct3D 12).
+                bhed::diag::error("Grafik: nach dem Geraeteverlust kein Direct3D-12-Geraet - weiter mit Direct3D 11");
+                neu = bhed::render::init(bhed::render::Backend::Direct3D11, reinterpret_cast<HWNDHandle>(hwnd));
+                if (neu) { preferred = bhed::render::Backend::Direct3D11; }
+            }
+            if (neu) {
                 imguiWin32Starten(hwnd);
                 neuaufbauOffen = false;
                 neuaufbauFehler = 0;
@@ -1075,6 +1104,7 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
                                                      : bhed::theme::Color{0.2F, 0.2F, 0.2F, 1.0F};
         bhed::render::present(bg.r, bg.g, bg.b);
         BHED_BILD();
+        if (g_startmarke && ImGui::GetFrameCount() >= kStartmarkeBilder) { startmarkeLoeschen(); }
         // Stufe 7 (tools/karte/tempo.py): Programmstart bis zum ersten
         // gezeigten Bild - ab der Entstehung des Prozesses (GetProcessTimes),
         // also mit dem Laden der .exe und allem vor wWinMain.
@@ -1117,6 +1147,7 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
             // Daten des Hauptfensters, die dem Win32-Teil gehoeren - ohne
             // dessen Neustart stuerzte das naechste NewFrame in
             // ImGui_ImplWin32_GetWindowDpiScale ab (Kartentest).
+            bhed::render::vorPlattformAbbau();   // D3D12 Stufe 1: imgui_impl_dx12 vor dem Win32-Teil
             ImGui_ImplWin32_Shutdown();
             bhed::gpu::shutdown();
             bhed::render::shutdown();
@@ -1135,6 +1166,7 @@ bool runSession(bhed::render::Backend preferred, HWND hwnd, bhed::gui::App* app)
         ImGui::DestroyContext();
         return true;
     }
+    bhed::render::vorPlattformAbbau();   // D3D12 Stufe 1: imgui_impl_dx12 vor dem Win32-Teil
     ImGui_ImplWin32_Shutdown();
     // VOR render::shutdown(): die Puffer und Texturen des GPU-Wegs gehoeren
     // dem Geraet. Wer sie danach freigibt, gibt sie an ein Geraet zurueck,
@@ -1608,7 +1640,40 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
 #ifdef BHED_WITH_D3D11
     // dock4: BHED_OPENGL=1 nimmt gleich den zweiten Weg (DEBUGGEN.md 3.5) - so laesst
     // er sich pruefen, ohne dass Direct3D 11 fehlen muss.
-    const bool first = std::getenv("BHED_OPENGL") == nullptr && runSession(bhed::render::Backend::Direct3D11, hwnd, app);
+    // D3D12 Stufe 1: mit der Einstellung "Direct3D 12" (oder BHED_D3D12=1; BHED_D3D12=0 erzwingt Direct3D 11) zuerst
+    // Direct3D 12; ohne D3D12-Geraet (Merkmalsstufe 11_0) weiter wie bisher mit Direct3D 11.
+    // rc612: Direct3D 12 ist Vorgabe (Settings::grafikD3d12). Die Startmarke gilt fuer die Wahl aus der Einstellung - mit
+    // BHED_D3D12 entscheidet der Aufrufer selbst. BHED_D3D12_FEHLER=absturz spielt eine liegen gebliebene Marke.
+    const char* d3d12Wahl = std::getenv("BHED_D3D12");
+    bool d3d12Wunsch = d3d12Wahl != nullptr ? d3d12Wahl[0] == '1' : bhed::gui::grafikD3d12Gewuenscht();
+    if (d3d12Wunsch && d3d12Wahl == nullptr && !startmarkePfad().empty()) {
+        std::error_code ec;
+        const char* f = std::getenv("BHED_D3D12_FEHLER");
+        const bool gespielt = f != nullptr && std::strcmp(f, "absturz") == 0;
+        if (gespielt || std::filesystem::exists(startmarkePfad(), ec)) {
+            bhed::diag::error(std::string("Grafik: der letzte Start mit Direct3D 12 wurde nicht fertig (Startmarke") +
+                              (gespielt ? ", gespielt mit BHED_D3D12_FEHLER=absturz" : "") + ") - diesmal Direct3D 11, Einstellung auf Direct3D 11");
+            std::filesystem::remove(startmarkePfad(), ec);
+            bhed::gui::grafikRueckfallMelden();
+            d3d12Wunsch = false;
+        } else {
+            std::FILE* m = _wfopen(startmarkePfad().c_str(), L"wb");
+            if (m != nullptr) {
+                std::fputs("Direct3D 12 start\n", m);
+                std::fclose(m);
+                g_startmarke = true;
+            }
+        }
+    }
+    bool first = false;
+    if (std::getenv("BHED_OPENGL") == nullptr) {
+        first = d3d12Wunsch && runSession(bhed::render::Backend::Direct3D12, hwnd, app);
+        startmarkeLoeschen();   // gescheitert (Rueckfall) oder geordnet beendet
+        if (!first) {
+            g_quit = false;
+            first = runSession(bhed::render::Backend::Direct3D11, hwnd, app);
+        }
+    }
 #else
     const bool first = false;
 #endif

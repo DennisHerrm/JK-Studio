@@ -48,6 +48,7 @@
 #include <d3d11.h>
 #include <dxgi1_6.h>
 #include "bemalt.h"   // rc609 T1: Leerlauf je Fenster
+#include "backend_d3d12.h"   // D3D12 Stufe 1
 #endif
 #include <cstring>
 
@@ -69,6 +70,7 @@ HWND g_hwnd = nullptr;
 #ifdef BHED_WITH_D3D11
 ID3D11Device* g_device = nullptr;
 ID3D11BlendState* g_additivMischung = nullptr;   // rc601 saber review: zeichneAdditiv
+ID3D11BlendState* g_ohneMischung = nullptr;      // D3D12 Stufe 1: zeichneOhneMischen (vorher kartegpu::ohneMischen)
 std::map<int, ID3D11BlendState*> g_stufenMischung;   // Menue-Editor M2: zeichneStufe, je blendFunc
 ID3D11SamplerState* g_stufeWieder = nullptr;         // wiederholt (map)
 ID3D11SamplerState* g_stufeKlemm = nullptr;          // geklemmt (clampMap)
@@ -290,6 +292,7 @@ void shutdownD3D11() {
     g_stufenMischung.clear();
     if (g_stufeWieder != nullptr) { g_stufeWieder->Release(); g_stufeWieder = nullptr; }
     if (g_stufeKlemm != nullptr) { g_stufeKlemm->Release(); g_stufeKlemm = nullptr; }
+    if (g_ohneMischung != nullptr) { g_ohneMischung->Release(); g_ohneMischung = nullptr; }
     ImGui_ImplDX11_Shutdown();
     releaseRtv();
     // D3D11 zerstoert verzoegert: ohne ClearState und Flush haengt die alte
@@ -434,6 +437,8 @@ std::vector<unsigned int> g_glTextures;
 
 void* d3dDevice() {
 #ifdef BHED_WITH_D3D11
+    // Direct3D 12: die Zeichenbefehle der 3D-Ansichten fuehrt der Abgeber aus (abgeber12.h) - er bedient dieselbe Schnittstelle.
+    if (g_backend == Backend::Direct3D12) { return g_ready ? d3d12::geraet11() : nullptr; }
     return (g_backend == Backend::Direct3D11) ? g_device : nullptr;
 #else
     return nullptr;
@@ -442,6 +447,7 @@ void* d3dDevice() {
 
 void* d3dContext() {
 #ifdef BHED_WITH_D3D11
+    if (g_backend == Backend::Direct3D12) { return g_ready ? d3d12::kontext11() : nullptr; }
     return (g_backend == Backend::Direct3D11) ? g_context : nullptr;
 #else
     return nullptr;
@@ -475,6 +481,25 @@ void additivD3d(const ImDrawList* /*liste*/, const ImDrawCmd* /*befehl*/) {
 }
 #endif
 void additivGl(const ImDrawList* /*liste*/, const ImDrawCmd* /*befehl*/) { glBlendFunc(GL_ONE, GL_ONE); }
+
+#ifdef BHED_WITH_D3D11
+// Bis D3D12 Stufe 1 in karte_gpu_win32.cpp (kartegpu::ohneMischen): ein Mischzustand ohne Mischen bis
+// ImDrawCallback_ResetRenderState. Hier, weil der Rueckruf zur Zeichenschicht der Oberflaeche gehoert.
+void ohneMischenD3d(const ImDrawList* /*liste*/, const ImDrawCmd* /*befehl*/) {
+    if (g_device == nullptr || g_context == nullptr) { return; }
+    if (g_ohneMischung == nullptr) {
+        D3D11_BLEND_DESC bd{};
+        bd.RenderTarget[0].BlendEnable = FALSE;
+        bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+        if (FAILED(g_device->CreateBlendState(&bd, &g_ohneMischung))) {
+            g_ohneMischung = nullptr;
+            return;
+        }
+    }
+    const float faktor[4] = {0, 0, 0, 0};
+    g_context->OMSetBlendState(g_ohneMischung, faktor, 0xFFFFFFFFU);
+}
+#endif
 
 // --- Menue-Editor M2: zeichneStufe -----------------------------------------------
 #ifdef BHED_WITH_D3D11
@@ -538,6 +563,8 @@ void zeichneAdditiv(ImDrawList* dl, void* textur, ImVec2 a, ImVec2 b, unsigned i
 #ifdef BHED_WITH_D3D11
     if (g_backend == Backend::Direct3D11) {
         dl->AddCallback(additivD3d, nullptr);
+    } else if (g_backend == Backend::Direct3D12) {
+        d3d12::mischart(dl, 0, 0, 0, false);
     } else {
         dl->AddCallback(additivGl, nullptr);
     }
@@ -553,7 +580,11 @@ void zeichneStufe(ImDrawList* dl, void* textur, const ImVec2 p[4], const ImVec2 
     if (dl == nullptr || textur == nullptr || !g_ready) { return; }
     void* code = reinterpret_cast<void*>(static_cast<std::intptr_t>((quelle & 0xff) | ((ziel & 0xff) << 8) | (klemmen ? 0x10000 : 0)));
 #ifdef BHED_WITH_D3D11
-    dl->AddCallback(g_backend == Backend::Direct3D11 ? stufeD3d : stufeGl, code);
+    if (g_backend == Backend::Direct3D12) {
+        d3d12::mischart(dl, 1, quelle, ziel, klemmen);
+    } else {
+        dl->AddCallback(g_backend == Backend::Direct3D11 ? stufeD3d : stufeGl, code);
+    }
 #else
     dl->AddCallback(stufeGl, code);
 #endif
@@ -561,11 +592,33 @@ void zeichneStufe(ImDrawList* dl, void* textur, const ImVec2 p[4], const ImVec2 
     dl->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
 }
 
+void zeichneOhneMischen(ImDrawList* dl) {
+    if (dl == nullptr || !g_ready) { return; }
+#ifdef BHED_WITH_D3D11
+    if (g_backend == Backend::Direct3D11) { dl->AddCallback(ohneMischenD3d, nullptr); }
+    if (g_backend == Backend::Direct3D12) { d3d12::mischart(dl, 2, 0, 0, false); }
+#endif
+}
+
+void vorPlattformAbbau() {
+#ifdef BHED_WITH_D3D11
+    if (g_ready && g_backend == Backend::Direct3D12) { d3d12::imguiAbbauen(); }
+#endif
+}
+
+bool zeichneInD3d11Ziel([[maybe_unused]] void* textur11, [[maybe_unused]] ImDrawData* dd) {
+#ifdef BHED_WITH_D3D11
+    if (g_ready && g_backend == Backend::Direct3D12) { return d3d12::inZielZeichnen(static_cast<ID3D11Resource*>(textur11), dd); }
+#endif
+    return false;
+}
+
 void* createTexture(const unsigned char* rgba, int width, int height) {
     if (!g_ready) {
         return nullptr;
     }
 #ifdef BHED_WITH_D3D11
+    if (g_backend == Backend::Direct3D12) { return d3d12::texturAnlegen(rgba, width, height); }
     if (g_backend == Backend::Direct3D11) {
         D3D11_TEXTURE2D_DESC desc{};
         desc.Width = static_cast<UINT>(width);
@@ -625,6 +678,10 @@ void updateTexture(void* handle, const unsigned char* rgba, int width, int heigh
         return;
     }
 #ifdef BHED_WITH_D3D11
+    if (g_backend == Backend::Direct3D12) {
+        d3d12::texturErsetzen(handle, rgba, width, height, 0, 0, width, height);
+        return;
+    }
     if (g_backend == Backend::Direct3D11) {
         // Ueber die Sicht an die Textur kommen und den ganzen Inhalt
         // ersetzen. D3D11_USAGE_DEFAULT erlaubt UpdateSubresource.
@@ -660,6 +717,10 @@ void updateTextureBereich(void* handle, const unsigned char* rgba, int width, in
         return;
     }
 #ifdef BHED_WITH_D3D11
+    if (g_backend == Backend::Direct3D12) {
+        d3d12::texturErsetzen(handle, rgba, width, height, x0, y0, x1, y1);
+        return;
+    }
     if (g_backend == Backend::Direct3D11) {
         auto* srv = static_cast<ID3D11ShaderResourceView*>(handle);
         ID3D11Resource* res = nullptr;
@@ -737,6 +798,7 @@ IDXGIAdapter1* holeKarte(bool leistung) {
 }
 
 std::string geraeteKarte() {
+    if (g_backend == Backend::Direct3D12) { return g_ready ? d3d12::karte() : ""; }
     if (g_device == nullptr) {
         return "";
     }
@@ -771,6 +833,10 @@ std::string sparsamsteKarte() { return karteNach(false); }
 
 GeraeteInfo geraeteInfo() {
     GeraeteInfo i;
+    if (g_backend == Backend::Direct3D12) {
+        if (g_ready) { d3d12::info(i.hersteller, i.version, i.karte, i.merkmale); }
+        return i;
+    }
     if (g_device == nullptr) { return i; }
     IDXGIDevice* dxdev = nullptr;
     if (SUCCEEDED(g_device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&dxdev))) && dxdev != nullptr) {
@@ -838,6 +904,7 @@ void warteAufBild() {
         // nicht mit ihr stehen bleiben.
         WaitForSingleObjectEx(g_bildFrei, 1000, TRUE);
     }
+    if (g_ready && g_backend == Backend::Direct3D12 && d3d12::bildFrei() != nullptr) { WaitForSingleObjectEx(d3d12::bildFrei(), 1000, TRUE); }
 #endif
 }
 
@@ -857,6 +924,7 @@ void geraetVerlorenSpielen() {
 
 bool flipModell() {
 #ifdef BHED_WITH_D3D11
+    if (g_backend == Backend::Direct3D12) { return g_ready; }   // D3D12 kennt nur das Flip-Modell
     return g_swapFlip;
 #else
     return false;
@@ -875,6 +943,7 @@ void destroyTextures() {
         if (t != nullptr) { t->Release(); }
     }
     g_d3dTextures.clear();
+    if (g_backend == Backend::Direct3D12 && g_ready) { d3d12::texturenFrei(); }
 #endif
     if (!g_glTextures.empty()) {
         glDeleteTextures(static_cast<GLsizei>(g_glTextures.size()), g_glTextures.data());
@@ -883,17 +952,62 @@ void destroyTextures() {
 }
 
 const char* backendName(Backend b) {
-    return b == Backend::Direct3D11 ? "Direct3D 11" : "OpenGL 3.3";
+    return b == Backend::Direct3D11 ? "Direct3D 11" : b == Backend::Direct3D12 ? "Direct3D 12" : "OpenGL 3.3";
 }
+
+namespace {
+#ifdef BHED_WITH_D3D11
+// D3D12 Stufe 1: dieselbe Karte wie Direct3D 11 (holeKarte, BHED_GPU=sparsam), dieselbe Regel fuer die Debugschicht
+// (im Selbsttest an, BHED_D3D_DEBUG=0/1). Kein WARP: ohne D3D12-Geraet traegt Direct3D 11 (main_win32.cpp).
+bool initD3D12(HWND hwnd) {
+    // Selbsttest des Rueckfalls nach einem Geraeteverlust: BHED_D3D12_FEHLER=neuaufbau laesst jeden Start nach dem ersten
+    // scheitern (der erste ist der Programmstart) - dann muss der Neuaufbau mit Direct3D 11 tragen (main_win32.cpp).
+    static int starts = 0;
+    if (starts++ > 0) {
+        const char* f = std::getenv("BHED_D3D12_FEHLER");
+        if (f != nullptr && std::strcmp(f, "neuaufbau") == 0) {
+            diag::detail("D3D12: Fehler gespielt an der Stelle \"neuaufbau\" (BHED_D3D12_FEHLER)");
+            return false;
+        }
+    }
+    const char* dbg = std::getenv("BHED_D3D_DEBUG");
+    const bool debug = dbg != nullptr ? dbg[0] == '1' : std::getenv("BHED_EDITORTEST") != nullptr;
+    IDXGIAdapter1* stark = holeKarte(!sparsamGewuenscht());
+    bool ok = d3d12::init(hwnd, stark, debug);
+    if (!ok && stark != nullptr) {
+        d3d12::shutdown();
+        diag::detail("Grafikkarte: auf der gewuenschten Karte kein D3D12-Geraet - Windows waehlt");
+        ok = d3d12::init(hwnd, nullptr, debug);
+    }
+    if (stark != nullptr) { stark->Release(); }
+    return ok;
+}
+
+void shutdownD3D12() {
+    bildMarkenFrei();   // die Abfragen gehoeren dem Abgeber
+    d3d12::shutdown();
+    g_geraetVerloren = false;
+}
+#else
+bool initD3D12(HWND) { return false; }
+void shutdownD3D12() {}
+#endif
+}  // namespace
 
 bool init(Backend b, HWNDHandle hwnd) {
     g_hwnd = reinterpret_cast<HWND>(hwnd);
     g_backend = b;
-    g_ready = (b == Backend::Direct3D11) ? initD3D11(g_hwnd) : initGL3(g_hwnd);
+    g_ready = (b == Backend::Direct3D11) ? initD3D11(g_hwnd) : (b == Backend::Direct3D12) ? initD3D12(g_hwnd) : initGL3(g_hwnd);
     if (!g_ready) {
         // Halb aufgebaute Zustaende wieder abraeumen, sonst scheitert der
         // zweite Versuch an Resten des ersten.
-        if (b == Backend::Direct3D11) { shutdownD3D11(); } else { shutdownGL3(); }
+        if (b == Backend::Direct3D11) {
+            shutdownD3D11();
+        } else if (b == Backend::Direct3D12) {
+            shutdownD3D12();
+        } else {
+            shutdownGL3();
+        }
     }
     return g_ready;
 }
@@ -903,21 +1017,37 @@ void shutdown() {
         return;
     }
     destroyTextures();
-    if (g_backend == Backend::Direct3D11) { shutdownD3D11(); } else { shutdownGL3(); }
+    if (g_backend == Backend::Direct3D11) {
+        shutdownD3D11();
+    } else if (g_backend == Backend::Direct3D12) {
+        shutdownD3D12();
+    } else {
+        shutdownGL3();
+    }
     g_ready = false;
 }
 
 #ifdef BHED_WITH_D3D11
+// Direct3D 12: die Zeitmarken um das Bild sind dieselben Abfragen, am Kontext des Abgebers. Sie stehen wie unter Direct3D 11
+// im Befehlsstrom des Bildes. Unterschied in der Lesart: Direct3D 12 schickt die Befehle eines Bildes am Stueck ab, die
+// Strecke zwischen den Marken ist dann reine Rechenzeit der Grafikkarte; der D3D11-Treiber schickt in Teilen ab, dort
+// zaehlt Warten auf den Prozessor zwischen den Teilen mit.
+ID3D11Device* markenGeraet() { return g_backend == Backend::Direct3D12 ? d3d12::geraet11() : g_device; }
+ID3D11DeviceContext* markenKontext() { return g_backend == Backend::Direct3D12 ? d3d12::kontext11() : g_context; }
+
 // rc608 Teil 12: fertige Zeitmarken abholen, dann die naechste beginnen.
 void bildMarkenAnfang() {
+    ID3D11Device* const geraet = markenGeraet();
+    ID3D11DeviceContext* const kontext = markenKontext();
+    if (geraet == nullptr || kontext == nullptr) { return; }
     for (BildMarken& m : g_bildMarken) {
         if (!m.offen) { continue; }
         D3D11_QUERY_DATA_TIMESTAMP_DISJOINT dj{};
         UINT64 a = 0;
         UINT64 e = 0;
-        if (g_context->GetData(m.takt, &dj, sizeof(dj), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK ||
-            g_context->GetData(m.anfang, &a, sizeof(a), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK ||
-            g_context->GetData(m.ende, &e, sizeof(e), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK) {
+        if (kontext->GetData(m.takt, &dj, sizeof(dj), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK ||
+            kontext->GetData(m.anfang, &a, sizeof(a), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK ||
+            kontext->GetData(m.ende, &e, sizeof(e), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK) {
             continue;
         }
         m.offen = false;
@@ -931,20 +1061,21 @@ void bildMarkenAnfang() {
     if (m.takt == nullptr) {
         D3D11_QUERY_DESC qd{};
         qd.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
-        if (FAILED(g_device->CreateQuery(&qd, &m.takt))) { return; }
+        if (FAILED(geraet->CreateQuery(&qd, &m.takt))) { return; }
         qd.Query = D3D11_QUERY_TIMESTAMP;
-        if (FAILED(g_device->CreateQuery(&qd, &m.anfang)) || FAILED(g_device->CreateQuery(&qd, &m.ende))) { return; }
+        if (FAILED(geraet->CreateQuery(&qd, &m.anfang)) || FAILED(geraet->CreateQuery(&qd, &m.ende))) { return; }
     }
-    g_context->Begin(m.takt);
-    g_context->End(m.anfang);
+    kontext->Begin(m.takt);
+    kontext->End(m.anfang);
     g_bildMarkeLaeuft = true;
 }
 
 void bildMarkenEnde() {
-    if (!g_bildMarkeLaeuft) { return; }
+    ID3D11DeviceContext* const kontext = markenKontext();
+    if (!g_bildMarkeLaeuft || kontext == nullptr) { return; }
     BildMarken& m = g_bildMarken[g_bildMarkeJetzt];
-    g_context->End(m.ende);
-    g_context->End(m.takt);
+    kontext->End(m.ende);
+    kontext->End(m.takt);
     m.offen = true;
     g_bildMarkeLaeuft = false;
     g_bildMarkeJetzt = (g_bildMarkeJetzt + 1U) % 4U;
@@ -969,6 +1100,11 @@ void newFrame() {
         ImGui_ImplDX11_NewFrame();
         return;
     }
+    if (g_backend == Backend::Direct3D12) {
+        if (g_bildMessung) { bildMarkenAnfang(); }
+        d3d12::newFrame();
+        return;
+    }
 #endif
     ImGui_ImplOpenGL3_NewFrame();
 }
@@ -984,12 +1120,8 @@ void fotoMitFensternAnfordern(const std::string& pfad) {
 }
 
 #ifdef BHED_WITH_D3D11
-// Ein Bild im Speicher (RGBA, Zeile fuer Zeile von oben).
-struct Bild {
-    std::uint32_t w = 0;
-    std::uint32_t h = 0;
-    std::vector<unsigned char> rgba;
-};
+// Ein Bild im Speicher (RGBA, Zeile fuer Zeile von oben) - dieselbe Art wie im D3D12-Weg.
+using Bild = d3d12::Bild;
 Bild g_fotoHaupt;   // rc609 T1: das Hauptfenster, bis die eigenen Fenster dazukommen
 
 // Ein Renderziel (Hintergrundpuffer) in den Speicher lesen.
@@ -1052,6 +1184,17 @@ void bmpSchreiben(const std::string& pfad, const Bild& b) {
 // an ihrer Stelle eingesetzt hat - so, wie sie auf dem Bildschirm ueber dem
 // Hauptfenster liegen, aber nur aus den eigenen Grafikpuffern.
 void fotoSchreiben() {
+    if (g_backend == Backend::Direct3D12) {
+        Bild b;
+        const bool ok = d3d12::hauptfensterLesen(b);
+        if (ok && g_fotoMitFenstern) {
+            g_fotoHaupt = std::move(b);
+            return;
+        }
+        if (ok) { bmpSchreiben(g_fotoPfad, b); }
+        g_fotoPfad.clear();
+        return;
+    }
     ID3D11Texture2D* back = nullptr;
     if (FAILED(g_swap->GetBuffer(0, IID_PPV_ARGS(&back))) || back == nullptr) {
         g_fotoPfad.clear();
@@ -1070,23 +1213,28 @@ void fotoSchreiben() {
 }
 
 // Das gerade gezeichnete eigene Fenster `v` an seiner Stelle ins Bild des Hauptfensters.
-void fensterInsFoto(const ImGuiViewport* v) {
-    ID3D11RenderTargetView* rtv = nullptr;
-    g_context->OMGetRenderTargets(1, &rtv, nullptr);
-    if (rtv == nullptr) { return; }
-    ID3D11Resource* res = nullptr;
-    rtv->GetResource(&res);
-    rtv->Release();
-    ID3D11Texture2D* tex = nullptr;
-    if (res == nullptr || FAILED(res->QueryInterface(IID_PPV_ARGS(&tex))) || tex == nullptr) {
-        if (res != nullptr) { res->Release(); }
-        return;
-    }
-    res->Release();
+void fensterInsFoto(ImGuiViewport* v) {
     Bild f;
-    const bool ok = zielLesen(tex, f);
-    tex->Release();
-    if (!ok || g_fotoHaupt.rgba.empty()) { return; }
+    if (g_backend == Backend::Direct3D12) {
+        if (!d3d12::fensterLesen(v, f)) { return; }
+    } else {
+        ID3D11RenderTargetView* rtv = nullptr;
+        g_context->OMGetRenderTargets(1, &rtv, nullptr);
+        if (rtv == nullptr) { return; }
+        ID3D11Resource* res = nullptr;
+        rtv->GetResource(&res);
+        rtv->Release();
+        ID3D11Texture2D* tex = nullptr;
+        if (res == nullptr || FAILED(res->QueryInterface(IID_PPV_ARGS(&tex))) || tex == nullptr) {
+            if (res != nullptr) { res->Release(); }
+            return;
+        }
+        res->Release();
+        const bool ok = zielLesen(tex, f);
+        tex->Release();
+        if (!ok) { return; }
+    }
+    if (g_fotoHaupt.rgba.empty()) { return; }
     const ImGuiViewport* haupt = ImGui::GetMainViewport();
     const int x0 = static_cast<int>(std::lround(v->Pos.x - haupt->Pos.x));
     const int y0 = static_cast<int>(std::lround(v->Pos.y - haupt->Pos.y));
@@ -1114,6 +1262,28 @@ unsigned g_vpBildFuer = 0;   // angefordert fuer dieses Fenster (ImGuiViewport::
 ViewportBild g_vpBild;
 
 #ifdef BHED_WITH_D3D11
+// D3D12: dasselbe aus dem noch einmal gezeichneten Fenster (d3d12::fensterLesen) - Groesse und Zahl der Farben.
+void viewportBildLesen12(ImGuiViewport* v) {
+    Bild b;
+    if (!d3d12::fensterLesen(v, b)) { return; }
+    ViewportBild ergebnis;
+    ergebnis.id = v->ID;
+    std::vector<std::uint32_t> farben;
+    for (std::uint32_t y = 0; y < b.h; y += 2U) {
+        for (std::uint32_t x = 0; x < b.w; x += 2U) {
+            std::uint32_t c = 0;
+            std::memcpy(&c, b.rgba.data() + (static_cast<std::size_t>(y) * b.w + x) * 4U, 4U);
+            c &= 0x00FFFFFFU;
+            if (farben.size() < 4096U && std::find(farben.begin(), farben.end(), c) == farben.end()) { farben.push_back(c); }
+        }
+    }
+    ergebnis.breite = static_cast<int>(b.w);
+    ergebnis.hoehe = static_cast<int>(b.h);
+    ergebnis.farben = static_cast<int>(farben.size());
+    ergebnis.da = true;
+    g_vpBild = ergebnis;
+}
+
 void viewportBildLesen(unsigned id) {
     ViewportBild ergebnis;
     ergebnis.id = id;
@@ -1252,7 +1422,7 @@ bool bemaltIst(const void* p) { return std::find(g_bemalt.begin(), g_bemalt.end(
 bool brauchtBild(const ImGuiViewport* v, std::uint64_t& summe) {
     const ImDrawData* d = v->DrawData;
     auto& gruende = g_vpGruende[v->ID];
-    if (d == nullptr || !d->Valid || g_backend != Backend::Direct3D11) {
+    if (d == nullptr || !d->Valid || (g_backend != Backend::Direct3D11 && g_backend != Backend::Direct3D12)) {
         ++gruende[kGrundAnders];
         return true;
     }
@@ -1290,6 +1460,11 @@ bool brauchtBild(const ImGuiViewport* v, std::uint64_t& summe) {
             const ImTextureID t = c.GetTexID();
             eine.wort(static_cast<std::uint64_t>(t));
 #ifdef BHED_WITH_D3D11
+            if (g_backend == Backend::Direct3D12) {
+                // die Kennungen sind schon die der D3D12-Texturen (d3d12::vorbereiten): neu hochgeladen oder kopiert?
+                bemaltDrin = bemaltDrin || d3d12::frisch(t);
+                continue;
+            }
             if (!bemaltDrin && t != ImTextureID_Invalid && !g_bemalt.empty()) {
                 auto* srv = reinterpret_cast<ID3D11ShaderResourceView*>(static_cast<std::uintptr_t>(t));
                 ID3D11Resource* r = nullptr;
@@ -1369,7 +1544,11 @@ void plattformFenster() {
             g_vpBildFuer = 0;
             viewportBildLesen(v->ID);
         }
-        if (g_backend == Backend::Direct3D11 && !g_fotoHaupt.rgba.empty()) { fensterInsFoto(v); }
+        if (g_backend == Backend::Direct3D12 && g_vpBildFuer != 0 && v->ID == g_vpBildFuer) {
+            g_vpBildFuer = 0;
+            viewportBildLesen12(v);
+        }
+        if ((g_backend == Backend::Direct3D11 || g_backend == Backend::Direct3D12) && !g_fotoHaupt.rgba.empty()) { fensterInsFoto(v); }
 #endif
         if (g_backend == Backend::OpenGL3 && g_vpBildFuer != 0 && v->ID == g_vpBildFuer) {
             g_vpBildFuer = 0;
@@ -1488,6 +1667,43 @@ void present(float r, float g, float bl) {
         }
         return;
     }
+    if (g_backend == Backend::Direct3D12) {
+        const float clear[4] = {r, g, bl, 1.0F};
+        if (const ImDrawData* d = ImGui::GetDrawData(); d != nullptr && d->Textures != nullptr) {
+            for (const ImTextureData* t : *d->Textures) {
+                if (t->Status != ImTextureStatus_OK) { g_texturenNeu = true; }
+            }
+        }
+        d3d12::vorbereiten(g_bemalt);
+        // Die Endmarke der Bildmessung in die Befehlsliste des Bildes, hinter das Hauptfenster (wie unter Direct3D 11 hinter
+        // ImGui_ImplDX11_RenderDrawData). Bis 11.11. stand sie in einer eigenen Liste: ein zweites ExecuteCommandLists je Bild,
+        // nur beim Messen und nur unter Direct3D 12.
+        d3d12::hauptfensterZeichnen(clear, g_bildMessung ? &bildMarkenEnde : nullptr);
+        if (!g_fotoPfad.empty()) { fotoSchreiben(); }
+        // Eigene Fenster zeichnet imgui_impl_dx12 selbst ueber die Warteschlange: erst hinter der Befehlsliste des Bildes.
+        if (ImGui::GetPlatformIO().Viewports.Size > 1) { d3d12::abschickenAbwarten(); }
+        plattformFenster();
+        if (g_bildMessung) {
+            const auto vor = std::chrono::steady_clock::now();
+            g_bildZeiten.cpuMs = std::chrono::duration<double, std::milli>(vor - g_bildAnfang).count();
+            ++g_bildZeiten.cpuBilder;
+        }
+        const HRESULT hr = static_cast<HRESULT>(d3d12::zeigen());
+        if (g_trimmen) {
+            g_trimmen = false;
+            d3d12::trimmen();
+        }
+        if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET || g_verlustSpielen) {
+            const HRESULT grund = g_verlustSpielen ? S_OK : static_cast<HRESULT>(d3d12::verlustGrund());
+            char z[160];
+            std::snprintf(z, sizeof(z), "Grafikgeraet verloren (Direct3D 12): Present 0x%08lX, Grund 0x%08lX%s", static_cast<unsigned long>(hr),
+                          static_cast<unsigned long>(grund), g_verlustSpielen ? " (Selbsttest)" : "");
+            diag::error(z);
+            g_verlustSpielen = false;
+            g_geraetVerloren = true;
+        }
+        return;
+    }
 #endif
     {
         const ImGuiIO& io = ImGui::GetIO();
@@ -1512,11 +1728,19 @@ void resize(int width, int height) {
                               DXGI_FORMAT_UNKNOWN, g_swapFlags);
         createRtv();
     }
+    if (g_backend == Backend::Direct3D12) { d3d12::resize(width, height); }
 #else
     (void)width;
     (void)height;
 #endif
     // Bei OpenGL genuegt der Aufruf von glViewport beim Zeichnen.
+}
+
+bool grafikBefund([[maybe_unused]] std::string& text) {
+#ifdef BHED_WITH_D3D11
+    if (g_ready && g_backend == Backend::Direct3D12) { return d3d12::befund(text); }
+#endif
+    return true;
 }
 
 Backend current() { return g_backend; }

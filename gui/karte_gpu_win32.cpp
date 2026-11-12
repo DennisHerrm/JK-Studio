@@ -24,6 +24,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include <string>
@@ -541,7 +542,8 @@ void ziehen(ID3D11Buffer* vb, std::size_t anzahl, const float* matrix, float bre
 
 }  // namespace
 
-bool verfuegbar() { return render::current() == render::Backend::Direct3D11 && bereit(); }
+// D3D12 Stufe 1: unter Direct3D 12 ist d3dDevice() das D3D11On12-Geraet - dieselben Wege.
+bool verfuegbar() { return (render::current() == render::Backend::Direct3D11 || render::current() == render::Backend::Direct3D12) && bereit(); }
 
 Puffer::~Puffer() {
     if (m_vb != nullptr && m_stand == render::texturStand()) { static_cast<ID3D11Buffer*>(m_vb)->Release(); }
@@ -2748,34 +2750,66 @@ void bildUnterlegen(void* srv) {
 }
 
 void ohneMischen(void* dl) {
-    // Der ImGui-Rueckruf setzt einen Mischzustand ohne Mischen; ImGui setzt
-    // ihn erst mit ImDrawCallback_ResetRenderState zurueck.
-    static_cast<ImDrawList*>(dl)->AddCallback(
-        [](const ImDrawList*, const ImDrawCmd*) {
-            static ID3D11BlendState* zustand = nullptr;
-            static unsigned stand = ~0U;
-            if (stand != render::texturStand()) {
-                if (zustand != nullptr) { zustand->Release(); }
-                zustand = nullptr;
-                stand = render::texturStand();
-            }
-            if (zustand == nullptr && geraet() != nullptr) {
-                D3D11_BLEND_DESC bd{};
-                bd.RenderTarget[0].BlendEnable = FALSE;
-                bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-                geraet()->CreateBlendState(&bd, &zustand);
-            }
-            if (zustand != nullptr && kontext() != nullptr) {
-                const float faktor[4] = {0, 0, 0, 0};
-                kontext()->OMSetBlendState(zustand, faktor, 0xFFFFFFFFU);
-            }
-        },
-        nullptr);
+    // Ein Mischzustand ohne Mischen, bis ImDrawCallback_ResetRenderState - gehoert zur Zeichenschicht der Oberflaeche
+    // (Direct3D 11 oder 12, backend_win32.cpp).
+    render::zeichneOhneMischen(static_cast<ImDrawList*>(dl));
 }
+
+namespace {
+// BHED_KARTE_MIPS=spiel|treiber geht der Einstellung vor (Selbsttests und Vergleichsbilder).
+int mipsAusUmgebung() {
+    static const int wahl = [] {
+        const char* v = std::getenv("BHED_KARTE_MIPS");
+        if (v == nullptr) { return -1; }
+        return std::strcmp(v, "spiel") == 0 ? 1 : std::strcmp(v, "treiber") == 0 ? 0 : -1;
+    }();
+    return wahl;
+}
+bool g_mipsWieSpiel = true;   // rc612: ab Werk wie das Spiel (karte_gpu.h)
+}  // namespace
+
+void mipsWieSpiel(bool an) { g_mipsWieSpiel = an; }
+bool mipsWieSpiel() { return mipsAusUmgebung() >= 0 ? mipsAusUmgebung() == 1 : g_mipsWieSpiel; }
 
 void* bildAnlegen(const unsigned char* rgba, int breite, int hoehe, int mipStufe) {
     if (!bereit() || rgba == nullptr || breite <= 0 || hoehe <= 0) { return nullptr; }
     ID3D11Device* d = geraet();
+    if (mipsWieSpiel()) {
+        // Alle Stufen wie das Spiel (R_MipMap: je vier Nachbarn zu einem, ungerade Kanten runden ab), fertig hochgeladen.
+        TextureSet::Tex t;
+        t.width = breite;
+        t.height = hoehe;
+        t.rgba.assign(rgba, rgba + static_cast<std::size_t>(breite) * static_cast<std::size_t>(hoehe) * 4U);
+        t.buildMips();
+        std::vector<D3D11_SUBRESOURCE_DATA> daten(t.mips.size() + 1U);
+        daten[0].pSysMem = t.rgba.data();
+        daten[0].SysMemPitch = static_cast<UINT>(breite) * 4U;
+        for (std::size_t i = 0; i < t.mips.size(); ++i) {
+            daten[i + 1U].pSysMem = t.mips[i].rgba.data();
+            daten[i + 1U].SysMemPitch = static_cast<UINT>(t.mips[i].width) * 4U;
+        }
+        D3D11_TEXTURE2D_DESC td{};
+        td.Width = static_cast<UINT>(breite);
+        td.Height = static_cast<UINT>(hoehe);
+        td.MipLevels = static_cast<UINT>(daten.size());
+        td.ArraySize = 1;
+        td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        td.SampleDesc.Count = 1;
+        td.Usage = D3D11_USAGE_IMMUTABLE;
+        td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        ID3D11Texture2D* tex = nullptr;
+        if (FAILED(d->CreateTexture2D(&td, daten.data(), &tex))) { return nullptr; }
+        const int basis = karte::mipBasis(mipStufe, breite, hoehe);
+        D3D11_SHADER_RESOURCE_VIEW_DESC sv{};   // GL_TEXTURE_BASE_LEVEL
+        sv.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        sv.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        sv.Texture2D.MostDetailedMip = static_cast<UINT>(std::max(0, basis));
+        sv.Texture2D.MipLevels = static_cast<UINT>(-1);
+        ID3D11ShaderResourceView* srv = nullptr;
+        ::bhed::render::sichtAnlegen(d, tex, basis > 0 ? &sv : nullptr, &srv);
+        tex->Release();
+        return srv;
+    }
     // GL_GENERATE_MIPMAP: alle Stufen aus der ersten
     D3D11_TEXTURE2D_DESC td{};
     td.Width = static_cast<UINT>(breite);

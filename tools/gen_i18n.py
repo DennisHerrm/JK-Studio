@@ -2364,6 +2364,8 @@ from i18n_ent1 import zeilen_vier as _ent1  # noqa: E402  (ENTSCHEID1: Werkzeugn
 S += _ent1()
 from i18n_ent2 import zeilen_vier as _ent2  # noqa: E402  (ENTSCHEID2: Control Rig wie CAT, acht Preset-Kategorien, Generator-Gaenge)
 S += _ent2()
+from i18n_p_dx12 import zeilen_vier as _p_dx12  # noqa: E402  (D3D12 Stufe 1: Grafikschnittstelle im Menue Ansicht)
+S += _p_dx12()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #
