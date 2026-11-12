@@ -797,12 +797,14 @@ void blenderSchritte(std::vector<Schritt>& s) {
         g_app->mtab.bereich = ModellBereich::Ansehen;
         zuruecksetzen();
         modellExplorerZeigen(ExplorerArt::Modell, 0);
+        // AP4: wie Blender steht der Outliner oben rechts (Entwurf 44 % der Spalte) - fuer die Zeile torso und die Fusszeile hoeher gezogen
+        modellBl().outlinerAnteil = 0.8F;
     }));
     add(pause(0.6));
     add(foto("ap2_blender_hierarchie"));
-    add(pruefe("AP2 X2: wie Blender heisst der Baum \"Outliner\" (Titel des Felds)", [] {
-        melde("X2: Titel '" + spaltenTitel() + "'");
-        return spaltenTitel() == tr(Str::MbXOutliner);
+    add(pruefe("AP2 X2: wie Blender heisst der Baum \"Outliner\" (Titel ueber dem Baum; AP4: er steht oben rechts, die linke Spalte ist die Werkzeugleiste)", [] {
+        melde("X2: Titel '" + std::string(modellExplorerTitel()) + "', linke Spalte '" + spaltenTitel() + "'");
+        return std::string(modellExplorerTitel()) == tr(Str::MbXOutliner) && spaltenTitel() == tr(Str::BzWerkzeugleiste);
     }));
     add(pruefe("AP2 X3: Umschalter \"Hierarchy / Collections\" (wie Blender)", [] {
         return imKopf(tr(Str::MbXHierarchie)) != nullptr && imKopf(tr(Str::MbXSammlungen)) != nullptr && imKopf(tr(Str::MbNachEbenen)) == nullptr;
@@ -890,6 +892,7 @@ void blenderSchritte(std::vector<Schritt>& s) {
     add(tu("AP2: zurueck (wie 3ds Max)", [] {
         zuruecksetzen();
         modellExplorerZeigen(ExplorerArt::Modell, 0);
+        modellBl().outlinerAnteil = ModellBlender{}.outlinerAnteil;
         modellBedienungSetzen(0);
     }));
     add(pause(0.4));

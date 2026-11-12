@@ -556,6 +556,8 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 return std::fabs(gewicht(p->a, mtab().knochenWahl) - 0.5F) < 1e-6F && std::fabs(summe(p->a) - 1.0F) < 1e-5F;
             }));
             add(tu("AP8 W4: Rueckgaengig", [] { (void)modellRueckgaengig(); }));
+            add(ap3::insFeld(tr(Str::MgAutoNorm)));
+            add(pause(0.3));
             add(klick(tr(Str::MgAutoNorm), "mtrollouts"));
             add(pause(0.2));
             add(tu("AP8 W4: derselbe Tupfer ohne Auto-Normalisieren", [p] {
@@ -568,6 +570,8 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 melde("W4 aus: Summe " + std::to_string(summe(p->a)));
                 return !gw().autoNormalisieren && std::fabs(gewicht(p->a, mtab().knochenWahl) - 0.5F) < 1e-6F && std::fabs(summe(p->a) - 1.5F) < 1e-5F;
             }));
+            add(ap3::insFeld(tr(Str::MgAutoNorm)));
+            add(pause(0.3));
             add(klick(tr(Str::MgAutoNorm), "mtrollouts"));
             add(klickAn("AP8 W4: auf den gesperrten Schalter Hoechstens 4", [] {
                 const Element* e = imRoll(tr(Str::MgVier));
@@ -831,6 +835,8 @@ void zeilenSchritte(std::vector<Schritt>& s) {
         add(tu("AP8 W8: Knochen rhumerus", [] { mtab().knochenWahl = knochen("rhumerus"); }));
 
         // --- W12: Sperren ---
+        add(ap3::insFeld(tr(Str::MgSperre)));
+        add(pause(0.3));
         add(klick(tr(Str::MgSperre), "mtrollouts"));
         add(pause(0.3));
         add(pruefe(zeile("W12", modus, "Haken Sperren: der gewaehlte Knochen ist gesperrt und steht als Zeile mit x in der Gruppe"), [] {
@@ -870,6 +876,8 @@ void zeilenSchritte(std::vector<Schritt>& s) {
             melde("W12 gesperrt " + std::to_string(gewicht(p->a, knochen("rhumerus"))) + ", gemalt " + std::to_string(gewicht(p->a, knochen("lhumerus"))) + ", Summe " + std::to_string(summe(p->a)));
             return gewicht(p->a, knochen("rhumerus")) == 0.3F && std::fabs(gewicht(p->a, knochen("lhumerus")) - 0.5F) < 1e-6F && std::fabs(summe(p->a) - 1.0F) < 1e-5F;
         }));
+        add(ap3::insFeld(tr(Str::MgEntsperren)));
+        add(pause(0.3));
         add(klick(tr(Str::MgEntsperren), "mtrollouts"));
         add(pause(0.3));
         add(pruefe(zeile("W12", modus, "das x der Zeile entsperrt den Knochen"), [] { return !modellGewichtGesperrt(knochen("rhumerus")) && imRoll(tr(Str::MgEntsperren)) == nullptr; }));
@@ -963,6 +971,8 @@ void zeilenSchritte(std::vector<Schritt>& s) {
         add(pruefe(zeile("W9", modus, "eine Ecke mit sechs Gewichten: eine Malliste ueber vier, der Balken Gewichte je Ecke steht da"), [] {
             return malend() == 1 && modell::eckenUeberVier(*netz(mb1::teil("torso"))) == 1 && inGruppe(Str::MgRGrenzen, imRoll(tr(Str::MgGrGewichte)));
         }));
+        add(ap3::insFeld(tr(Str::MbGwUebernehmen)));
+        add(pause(0.3));
         add(klick(tr(Str::MbGwUebernehmen), "mtrollouts"));
         add(pause(0.4));
         add(pruefe(zeile("W9", modus, "Uebernehmen schreibt vier Gewichte wie das Spiel sie liest in die Ecke (kein Knochen ohne Gewicht), die Mallisten sind weg"), [p] {

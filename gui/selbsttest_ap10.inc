@@ -382,6 +382,8 @@ void rigSchritte(std::vector<Schritt>& s, int modus) {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     add(zeige(Str::AzRRig));
     add(pause(0.3));
+    add(ap3::insFeld(tr(Str::AzRigErstellen)));
+    add(pause(0.3));
     add(klick(tr(Str::AzRigErstellen), "mtrollouts"));
     add(pause(0.6));
     add(pruefe(zeile("A2", modus, "Klick auf Control Rig erstellen legt das Rig mit IK-Zielen an; der Hauptknopf heisst danach Neu erkennen"), [] {
@@ -463,6 +465,8 @@ void bedienSchritte(std::vector<Schritt>& s) {
     // --- A2: Animation-Rig (nur FK) ---
     add(zeige(Str::AzRRig));
     add(pause(0.3));
+    add(ap3::insFeld(tr(Str::AzRigFk)));
+    add(pause(0.3));
     add(klick(tr(Str::AzRigFk), "mtrollouts"));
     add(pause(0.6));
     add(pruefe(zeile("A2", modus, "Klick auf Animation-Rig (nur FK): das Rig hat keine IK-Griffe mehr, Hand und Fuss greifen ohne IK, der Knopf ist gedrueckt, der Hauptknopf heisst wieder Control Rig erstellen"), [] {
@@ -481,6 +485,8 @@ void bedienSchritte(std::vector<Schritt>& s) {
         return inGruppe(gruppe(Str::MbIkRollout), imRoll(tr(Str::AzIkNurFk))) && imRoll(tr(Str::MbIkArmL)) == nullptr;
     }));
     add(zeige(Str::AzRRig));
+    add(pause(0.3));
+    add(ap3::insFeld(tr(Str::AzRigErstellen)));
     add(pause(0.3));
     add(klick(tr(Str::AzRigErstellen), "mtrollouts"));
     add(pause(0.6));

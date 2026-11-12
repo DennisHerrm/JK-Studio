@@ -292,6 +292,10 @@ std::vector<Schritt> modellSchritte() {
     add(taste(ImGuiKey_4, "4"));
     add(pruefe("UV Taste wie 3ds Max: 4 -> Flaeche (Polygonebene)", [] { return g_app->mtab.uv.ebene == 2 && g_app->mtab.auswahlArt == AuswahlArt::Dreieck; }));
     add(tu("UV: wie Blender", [] { modellBedienungSetzen(1); }));
+    // AP4: wie Blender ist die linke Spalte die schmale Werkzeugleiste - der UV-Editor steht weiter links, die Maus wieder auf ihn
+    add(pause(0.3));
+    add(tu("UV: Maus wieder ueber den Editor", [] { setzeMaus(leinwandMitte()); }));
+    add(pause(0.2));
     add(taste(ImGuiKey_4, "4"));
     add(pruefe("UV Taste wie Blender: 4 -> Insel (use_uv_select_island)", [] { return g_app->mtab.uv.ebene == 3; }));
     add(taste(ImGuiKey_1, "1"));

@@ -243,6 +243,8 @@ for g in "kopfrot kopf raster nav mbv ap2 ap12 ap1 ap3 ap6 ap8".split():
     lauf("mb_" + g, "modellblock", 2400, MB + ["BHED_MODELL_NUR=" + g, "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 # AP10: das rechte Feld im Bereich Animation nach dem Entwurf (nicht im Pool: der Bildlauf ap10foto)
 lauf("mb_ap10", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap10", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
+# AP4: der Model-Tab im Bedienmodus wie Blender - Werkzeugleiste, Outliner oben rechts, Seitenleiste (nicht im Pool: der Bildlauf ap4foto)
+lauf("mb_ap4", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap4", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 lauf("uiform", "uiform", 3600, bereich="programm")
 # AP9: das rechte Feld des Bereichs Painting nach dem Entwurf (Gruppen Ziel, Werkzeuge, Pinsel, Ebenen, Fuer das Spiel; Tasten [ ]).
 # Nicht im Pool: der Bildlauf ap9foto.

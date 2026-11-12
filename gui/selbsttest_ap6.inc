@@ -320,6 +320,8 @@ void figurSchritte(std::vector<Schritt>& s) {
             return g->kurzinfo == tr(bl ? Str::Ap6SegFlaeche : Str::MdGrVielecke) && !teilOffen(Str::MdGrGeometrie) && imRoll(tr(Str::MdDetach)) == nullptr && bevel->rect.Min.y >= merge->rect.Max.y &&
                    geo->rect.Min.y >= bevel->rect.Max.y && tipp->rect.Min.y >= geo->rect.Max.y && g->kasten.Contains(tipp->rect) && tipp->rect.GetWidth() >= g->kasten.GetWidth() - em() * 1.2F;
         }));
+        add(ap3::insFeld(tr(Str::MdGrGeometrie)));
+        add(pause(0.3));
         add(klick(tr(Str::MdGrGeometrie), "mtrollouts"));
         add(pause(0.4));
         add(pruefe(zeile("M5", modus, "ein Klick auf Geometrie bearbeiten klappt den Teil auf: Grundkoerper, Abtrennen, Symmetrisieren, Zu Vierecken, Kollabieren, Eben, Schneiden, Schnellschnitt, Loeschen"), [] {

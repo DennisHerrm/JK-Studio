@@ -371,6 +371,23 @@ float feldBreiteEm() {
     return w != nullptr ? w->Size.x / em() : 0.0F;
 }
 
+// AP4: wie Blender steht das Feld unter dem Outliner und ist niedriger (Entwurf: Outliner 44 % der Spalte) - eine Beschriftung des
+// Felds vor dem Klick ganz ins Bild rollen, wie ein Benutzer es taete; steht sie schon im Bild, bleibt die Rolle.
+Schritt insFeld(const std::string& label) {
+    return tu("AP4: ins Bild des Felds rollen - " + label, [label] {
+        const Element* e = finde(label, "mtrollouts", 0, false);
+        ImGuiWindow* w = kindFenster("mtrollouts");
+        if (e == nullptr || w == nullptr) { return; }
+        float d = 0.0F;
+        if (e->rect.Max.y > w->InnerRect.Max.y) {
+            d = e->rect.Max.y - w->InnerRect.Max.y + ImGui::GetFontSize() * 0.5F;
+        } else if (e->rect.Min.y < w->InnerRect.Min.y) {
+            d = e->rect.Min.y - w->InnerRect.Min.y - ImGui::GetFontSize() * 0.5F;
+        }
+        if (d != 0.0F) { ImGui::SetScrollY(w, std::clamp(w->Scroll.y + d, 0.0F, w->ScrollMax.y)); }
+    });
+}
+
 bool tooltipDa() {
     for (const ImGuiWindow* w : GImGui->Windows) {
         if ((w->Flags & ImGuiWindowFlags_Tooltip) != 0 && w->Active && !w->Hidden) { return true; }
@@ -739,6 +756,8 @@ void musterSchritte(std::vector<Schritt>& s) {
                    zehn->rect.Max.x - eins->rect.Min.x >= l->kasten.GetWidth() - em() * 1.2F && p0->rect.Min.y == p3->rect.Min.y && p0->rect.Min.x > l->kasten.Min.x + em() * 2.0F &&
                    l->kasten.Contains(zehn->rect) && l->kasten.Contains(p3->rect);
         }));
+        add(insFeld("1"));
+        add(pause(0.3));
         add(klick("1", "mtrollouts"));
         add(pause(0.3));
         add(pruefe(zeile("F12", modus, "ein Klick auf 1 waehlt die Stufe fest (Auto aus)"), [] {
@@ -747,6 +766,8 @@ void musterSchritte(std::vector<Schritt>& s) {
             return g_app->mtab.lodWahl == 1 && automatisch != nullptr && (automatisch->flags & ImGuiItemStatusFlags_Checked) == 0 && eins != nullptr &&
                    (eins->flags & ImGuiItemStatusFlags_Checked) != 0;
         }));
+        add(insFeld(tr(Str::MbLodAuto)));
+        add(pause(0.3));
         add(klick(tr(Str::MbLodAuto), "mtrollouts"));
         add(pause(0.3));
         add(pruefe(zeile("F12", modus, "der Haken Auto stellt wieder auf wie im Spiel"), [] { return g_app->mtab.lodWahl == 0; }));
