@@ -2479,6 +2479,10 @@ void modellAnsichtEinpassenAktiv() {
     einpassen(t.ansichten[t.aktiv]);
 }
 
+namespace {
+void homeHolen();   // KLEIN: weiter unten bei modellHomeFlug
+}
+
 void drawModellArbeitsflaeche() {
     ModellTab& t = mt();
     modellPrSchritt();   // AP5: vier Ansichten je Bereich wie 3ds Max (R7), Z wie Blender
@@ -2494,7 +2498,7 @@ void drawModellArbeitsflaeche() {
         // MBKOPF: die Perspektive von vorne und mittig (shank 10.11.: "das das model immer von vorne angezeigt wird und
         // nicht von der Seite") - eingepasst, sobald die Ansicht ihre Groesse und die Pose kennt
         t.einpassenOffen = true;
-        t.homeDa = false;   // ein gesetztes Home gehoert zur Figur
+        homeHolen();   // KLEIN: ein gesetztes Home gehoert zur Figur - das dieser Figur aus den Einstellungen, sonst keins
         modellNavZuruecksetzen();   // MBNAV
         g_eingepasst = g_app->modelPath;
     }
@@ -2896,6 +2900,51 @@ void modellStartansicht(int n) {
     modellAllesEinpassenIn(n);
 }
 
+namespace {
+
+// KLEIN (rc612): ein gesetztes Home gehoert zur Figur (3ds Max sichert es mit der Szene) - es steht je Figur in den Einstellungen
+// (Settings::modellHome) und ist nach einer anderen Figur und nach dem Neustart wieder da. Bis rc611 galt es nur bis zur naechsten
+// Figur. Der Eintrag einer Figur: "<Neigung> <Gier> <Rollen> <Abstand> <Drehpunkt x y z>|<Pfad>".
+std::vector<std::string>::iterator homeEintrag(const std::string& pfad) {
+    std::vector<std::string>& liste = g_app->settings.modellHome;
+    return std::find_if(liste.begin(), liste.end(), [&](const std::string& e) {
+        const std::size_t strich = e.find('|');
+        return strich != std::string::npos && e.compare(strich + 1, std::string::npos, pfad) == 0;
+    });
+}
+
+void homeMerken() {
+    const ModellTab& t = mt();
+    const std::string& pfad = g_app->modelPath;
+    if (pfad.empty()) { return; }   // ein neues Requisit ohne Datei: Home gilt, solange es offen ist
+    std::vector<std::string>& liste = g_app->settings.modellHome;
+    if (const auto alt = homeEintrag(pfad); alt != liste.end()) { liste.erase(alt); }
+    char z[256];
+    std::snprintf(z, sizeof z, "%.9g %.9g %.9g %.9g %.9g %.9g %.9g|", static_cast<double>(t.homeWinkel[0]), static_cast<double>(t.homeWinkel[1]),
+                  static_cast<double>(t.homeWinkel[2]), static_cast<double>(t.homeAbstand), static_cast<double>(t.homeZiel[0]),
+                  static_cast<double>(t.homeZiel[1]), static_cast<double>(t.homeZiel[2]));
+    liste.insert(liste.begin(), z + pfad);
+    if (liste.size() > Settings::kMaxModellHome) { liste.resize(Settings::kMaxModellHome); }
+}
+
+// Das gesetzte Home der geladenen Figur aus den Einstellungen (keins: Home ist die Startansicht).
+void homeHolen() {
+    ModellTab& t = mt();
+    t.homeDa = false;
+    const auto e = homeEintrag(g_app->modelPath);
+    if (g_app->modelPath.empty() || e == g_app->settings.modellHome.end()) { return; }
+    float w[7];
+    if (std::sscanf(e->c_str(), "%f %f %f %f %f %f %f", &w[0], &w[1], &w[2], &w[3], &w[4], &w[5], &w[6]) != 7 || !(w[3] > 0.0F)) { return; }
+    for (int k = 0; k < 3; ++k) {
+        t.homeWinkel[k] = w[k];
+        t.homeZiel[k] = w[4 + k];
+    }
+    t.homeAbstand = w[3];
+    t.homeDa = true;
+}
+
+}  // namespace
+
 // Home wie 3ds Max und die Vorlage (max_viewcube.h goHome): die Kamera fliegt hin - Winkel, Abstand und Drehpunkt
 // zusammen in 0,5 s. Ohne gesetztes Home ist das Ziel die Startansicht (von vorne, eingepasst). Home ist eine Perspektive.
 void modellHomeFlug(int n) {
@@ -2948,6 +2997,15 @@ void modellHomeSetzen(int n) {
         for (int k = 0; k < 3; ++k) { t.homeZiel[k] = a.mitte[k]; }
     }
     t.homeDa = true;
+    homeMerken();   // KLEIN: bleibt fuer diese Figur, auch ueber den Neustart
+}
+
+// KLEIN (rc612): Home ist wieder die Startansicht (von vorne, eingepasst), der Eintrag der Figur in den Einstellungen ist weg.
+// Im Rechtsklick des ViewCube und in "Alle Aktionen suchen" als "Home zuruecksetzen" (Entscheidung A12, 12.11.).
+void modellHomeZuruecksetzen() {
+    mt().homeDa = false;
+    std::vector<std::string>& liste = g_app->settings.modellHome;
+    if (const auto e = homeEintrag(g_app->modelPath); e != liste.end()) { liste.erase(e); }
 }
 
 void modellAnsichtSetzenIn(int n, AnsichtArt art) {

@@ -6661,6 +6661,11 @@ enum class Str {
     KeStrahlenGrundShader,
     KeStrahlenGrundFehler,
     KeStrahlenHinweis,
+    MkHomeSetzenHint,
+    MkHomeZurueck,
+    MkHomeZurueckHint,
+    KeEditZweit,
+    KeEditZweitHint,
     Count,
 };
 

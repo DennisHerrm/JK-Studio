@@ -826,6 +826,20 @@ bool modellKopfAktionenSuche(const std::string& such) {
             modellHomeFlug(n);
             geaendert();
         }, 1003);
+        // KLEIN (rc612): "Aktuelle Ansicht als Home setzen" steht auch in der Suche (bis rc611 nur im Rechtsklick des ViewCube,
+        // darum wie er nur im Bedienmodus wie 3ds Max)
+        if (!modellBlender()) {
+            zeile(tr(Str::MkHomeSetzen), -1, tr(Str::MkHomeSetzenHint), [n] {
+                modellHomeSetzen(n);
+                geaendert();
+            }, 1007);
+            if (mt().homeDa) {   // KLEIN (A12): "Home zuruecksetzen" wie im Rechtsklick des ViewCube, nur mit gesetztem Home
+                zeile(tr(Str::MkHomeZurueck), -1, tr(Str::MkHomeZurueckHint), [] {
+                    modellHomeZuruecksetzen();
+                    geaendert();
+                }, 1008);
+            }
+        }
     }
     return ausgeloest;
 }

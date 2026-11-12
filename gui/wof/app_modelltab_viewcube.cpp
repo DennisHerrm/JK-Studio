@@ -630,6 +630,10 @@ void viewCube(int n, ModellAnsicht& a, Lage& l) {
         if (ImGui::MenuItem(tr(Str::MkStartansicht))) { modellHomeFlug(n); }
         ImGui::SetItemTooltip("%s", tr(Str::MkHomeHint));
         if (ImGui::MenuItem(tr(Str::MkHomeSetzen))) { modellHomeSetzen(n); }
+        ImGui::SetItemTooltip("%s", tr(Str::MkHomeSetzenHint));   // KLEIN: sagt, dass es fuer die Figur bleibt
+        // KLEIN (rc612, Entscheidung A12): ein gesetztes Home bleibt je Figur - hier wird es wieder die Startansicht (blass ohne Home)
+        if (ImGui::MenuItem(tr(Str::MkHomeZurueck), nullptr, false, mt().homeDa)) { modellHomeZuruecksetzen(); }
+        ImGui::SetItemTooltip("%s", tr(Str::MkHomeZurueckHint));
         const bool ortho = a.art != AnsichtArt::Perspektive;
         if (ImGui::MenuItem(tr(Str::MkOrtho), nullptr, ortho)) {
             float w[3];

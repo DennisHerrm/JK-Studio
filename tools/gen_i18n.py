@@ -2380,6 +2380,8 @@ from i18n_fix612 import zeilen_vier as _fix612  # noqa: E402  (FIX612: Funde der
 S += _fix612()
 from i18n_dxr import zeilen_vier as _dxr  # noqa: E402  (DXR: Raytracing-Schatten im Echtzeit-Licht des Karten-Editors)
 S += _dxr()
+from i18n_klein import zeilen_vier as _klein  # noqa: E402  (KLEIN: Tooltip Home setzen, zweite Taste in Edit > Shortcuts)
+S += _klein()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

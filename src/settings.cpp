@@ -194,6 +194,7 @@ std::string writeSettings(const Settings& s) {
     put(o, "modelGridExtent", std::to_string(s.modellRasterAusdehnung));
     put(o, "modelDisplayMovedSeen", s.modellAnzeigeUmzugGesehen);
     put(o, "modelPanelWidth", std::to_string(s.modellFeldBreite));   // AP3
+    for (const std::string& h : s.modellHome) { put(o, "modelHome", h); }   // KLEIN: gesetztes Home je Figur
     put(o, "lumpEditOffen", s.lumpEditOffen);
     put(o, "lumpEditKarteOffen", s.lumpEditKarteOffen);
     put(o, "texListeOffen", s.texListeOffen);
@@ -252,6 +253,7 @@ std::string writeSettings(const Settings& s) {
 bool readSettings(const std::string& text, Settings& out) {
     out.recent.clear();
     out.recentMissions.clear();
+    out.modellHome.clear();
     out.gamePaths.clear();
     out.gamePathsJk2.clear();
     out.keyBindings.clear();
@@ -377,6 +379,9 @@ bool readSettings(const std::string& text, Settings& out) {
         else if (key == "modelPanelWidth") {   // AP3: 0 = Vorgabe, sonst 12..44 Zeichenhoehen
             const float v = static_cast<float>(std::atof(value.c_str()));
             out.modellFeldBreite = v <= 0.0F ? 0.0F : std::clamp(v, 12.0F, 44.0F);
+        }
+        else if (key == "modelHome") {   // KLEIN: gesetztes Home je Figur
+            if (out.modellHome.size() < Settings::kMaxModellHome) { out.modellHome.push_back(value); }
         }
         else if (key == "lumpEditOffen") { out.lumpEditOffen = toBool(value); }
         else if (key == "lumpEditKarteOffen") { out.lumpEditKarteOffen = toBool(value); }

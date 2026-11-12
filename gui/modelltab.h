@@ -534,7 +534,7 @@ struct ModellTab {
     // MBNAV: Navigationsmodus wie die Knoepfe der Ansichtssteuerung von 3ds Max (linke Taste, bis Rechtsklick/Esc):
     // 0 keiner, 1 Zoom (Alt+Z), 2 Schieben (Strg+P), 3 Orbit (Strg+R), 4 Bereich (Strg+W, Blender Umschalt+B)
     int navModus = 0;
-    // MBKOPF: ViewCube "Aktuelle Ansicht als Home setzen" - gilt bis zur naechsten Figur (in der Vorlage bis zum Programmende)
+    // MBKOPF: ViewCube "Aktuelle Ansicht als Home setzen" - gehoert zur Figur; KLEIN (rc612): je Figur in Settings::modellHome
     bool homeDa = false;
     float homeWinkel[3]{};
     float homeAbstand = 0.0F;
@@ -1814,5 +1814,9 @@ void modellMeshArtMerken(MeshWerkzeug wz, int art);
 // Wie modellDreieckUnter, aber fuer die Auswahl: eingefrorene Flaechen nehmen nicht teil (der Klick geht hindurch); liegt an der
 // Stelle nur Eingefrorenes, nennt die Statuszeile die Flaeche, false.
 [[nodiscard]] bool modellDreieckUnterWaehlbar(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck);
+// Home ist wieder die Startansicht, der Eintrag der Figur in den Einstellungen ist weg (gui/app_modelltab_ansicht.cpp;
+// modellHomeSetzen merkt das Home je Figur in Settings::modellHome). Rechtsklick des ViewCube "Home zuruecksetzen" (A12).
+void modellHomeZuruecksetzen();
+
 }  // namespace bhed::gui
 #endif

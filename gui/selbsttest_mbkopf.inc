@@ -683,7 +683,7 @@ void kopfSchritte(std::vector<Schritt>& s) {
     add(tu("MBKOPF VC: Ansicht zuruecksetzen (Werkzeugleiste)", [] { modellAnsichtEinpassen(); }));
     add(pause(0.4));
     add(pruefeVorne("Ansicht zuruecksetzen trotz gesetztem Home"));
-    add(tu("MBKOPF VC: kein gesetztes Home mehr", [] { t().homeDa = false; }));
+    add(tu("MBKOPF VC: kein gesetztes Home mehr", [] { modellHomeZuruecksetzen(); }));
     add(klickAn("MBKOPF VC: Rechtsklick auf den ViewCube", wuerfelOrt(0, -1, 0), 1));
     add(pause(0.3));
     add(klick(tr(Str::MkOrtho), "##Popup"));

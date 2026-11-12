@@ -310,6 +310,10 @@ struct Settings {
     bool modellAnzeigeUmzugGesehen = false;
     // AP3: Breite des rechten Felds des Model-Tabs in Zeichenhoehen (0: Vorgabe 22), mit der Trennkante gezogen
     float modellFeldBreite = 0.0F;
+    // KLEIN (rc612): ViewCube "Aktuelle Ansicht als Home setzen" je Figur, die zuletzt gesetzte zuerst (hoechstens kMaxModellHome,
+    // aeltere fallen heraus): "<Neigung> <Gier> <Rollen> <Abstand> <Drehpunkt x y z>|<Pfad des Modells>" (Schluessel modelHome)
+    std::vector<std::string> modellHome;
+    static constexpr std::size_t kMaxModellHome = 64;
     // rc609 J: das Fenster "Shader und Flaechen" im Mission-Tab und im Karten-Editor
     bool lumpEditOffen = false;
     bool lumpEditKarteOffen = false;
