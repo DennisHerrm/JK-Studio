@@ -41,6 +41,7 @@ SELBSTTEST = (
     ("ap6", "modell"),
     ("ap8", "modell"),
     ("ap10", "modell"),
+    ("ent2", "modell"),
     ("ap4", "modell"),
     ("ap5", "modell"),
     ("numpad", "karteneditor"),

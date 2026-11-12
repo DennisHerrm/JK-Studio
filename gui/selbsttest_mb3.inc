@@ -447,10 +447,12 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
     // --- Drehen mit dem Ring (E): rechte Hand um Z ------------------------------------------------------------------
     auto vorher = std::make_shared<std::vector<BoneMatrix>>();
     auto netz = std::make_shared<int>(0);
+    auto schluesselVor = std::make_shared<int>(0);
     add(tu("MB4 Drehen: Griff Hand R, E", [=] {
         modellRigGriffWaehlen(griffNach(modell::GriffArt::Hand, modell::Seite::Rechts));
         *vorher = g_app->modellWelt;
         *netz = g_app->mtab.neuGebaut;
+        *schluesselVor = schicht() != nullptr ? schicht()->schluesselZahl() : 0;
     }));
     add(taste(ImGuiKey_E, "E"));
     add(pause(0.3));
@@ -485,10 +487,11 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
     }));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
     add(pause(0.3));
-    add(pruefe("MB4 Drehen: Strg+Z nimmt den Schluessel zurueck (Pose wie vorher)", [=] {
+    add(pruefe("MB4 Drehen: Strg+Z nimmt den Schluessel zurueck (Schluessel und Pose wie vorher)", [=] {
         const int h = boneIndex(g_app->anim, "rhand");
         const modell::RigSchicht* sch = schicht();
-        return (sch == nullptr || sch->schluesselZahl() == 0) && drehDiff(g_app->modellWelt[static_cast<std::size_t>(h)], (*vorher)[static_cast<std::size_t>(h)]) < 1e-5F;
+        // ENT2: Control Rig erstellen legt die Sequenz schon auf das Rig (Schicht mit Schluesseln) - Strg+Z stellt die Schluessel von vorher her
+        return (sch == nullptr ? 0 : sch->schluesselZahl()) == *schluesselVor && drehDiff(g_app->modellWelt[static_cast<std::size_t>(h)], (*vorher)[static_cast<std::size_t>(h)]) < 1e-5F;
     }));
     // --- Pose: rechter Oberarm um Y, kopieren, gespiegelt einfuegen (Blender Strg+Umschalt+V) -------------------------------
     auto pose = std::make_shared<std::vector<BoneMatrix>>();

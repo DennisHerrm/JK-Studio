@@ -492,7 +492,7 @@ std::vector<Schritt> presetSchritte() {
             }
             ++n;
         }
-        return n == 4;   // Presets oeffnen, Auf Figur legen, Messen; dazu Preset-Bibliothek oeffnen (Animations-Import)
+        return n == 5;   // Presets oeffnen, Auf Figur legen, Messen; dazu Preset-Bibliothek oeffnen (Animations-Import) und (ENT2) Erzeugten Gang in der Preset-Liste waehlen
     }));
     add(taste(ImGuiKey_Escape, "Esc"));
     add(taste(ImGuiKey_Escape, "Esc"));

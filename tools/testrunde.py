@@ -243,6 +243,8 @@ for g in "kopfrot kopf raster nav mbv ap2 ap12 ap1 ap3 ap6 ap8".split():
     lauf("mb_" + g, "modellblock", 2400, MB + ["BHED_MODELL_NUR=" + g, "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 # AP10: das rechte Feld im Bereich Animation nach dem Entwurf (nicht im Pool: der Bildlauf ap10foto)
 lauf("mb_ap10", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap10", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
+# ENTSCHEID2: Control Rig wie CAT (FK -> IK beim Erstellen, IK/FK ab dem Bild), acht Preset-Kategorien, Generator-Gaenge in der Liste
+lauf("mb_ent2", "modellblock", 1800, MB + ["BHED_MODELL_NUR=ent2", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 # AP4: der Model-Tab im Bedienmodus wie Blender - Werkzeugleiste, Outliner oben rechts, Seitenleiste (nicht im Pool: der Bildlauf ap4foto)
 lauf("mb_ap4", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap4", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 # AP5: der Bereich Ansehen/Pruefen vollstaendig nach dem Entwurf (nicht im Pool: der Bildlauf ap5foto)

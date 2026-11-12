@@ -400,7 +400,7 @@ void rigSchritte(std::vector<Schritt>& s, int modus) {
     add(zeige(Str::MbIkRollout));
     add(pause(0.4));
     if (modus == 0) {
-        add(pruefe(zeile("A6", modus, "je Glied eine Zeile: Name, Zustand, rechts ein Knopf mit dem Zustand (FK); darunter der Tipp zu Greifen = IK, Drehen = FK"), [] {
+        add(pruefe(zeile("A6", modus, "je Glied eine Zeile: Name, Zustand, rechts ein Knopf mit dem Zustand (IK - Control Rig erstellen legt die Animation von FK auf IK, ENT2); darunter der Tipp zu Greifen = IK, Drehen = FK"), [] {
             const ui::RolloutProbe* g = gruppe(Str::MbIkRollout);
             if (g == nullptr) { return false; }
             bool ok = inGruppe(g, imRoll(tr(Str::AzIkTippMax)));
@@ -408,21 +408,26 @@ void rigSchritte(std::vector<Schritt>& s, int modus) {
             static const Str kGlied[4] = {Str::MbIkArmL, Str::MbIkArmR, Str::MbIkBeinL, Str::MbIkBeinR};
             for (int i = 0; i < 4; ++i) {
                 const Element* name = imRoll(tr(kGlied[i]));
-                const Element* knopf = imRoll("FK##azik", i);
+                const Element* knopf = imRoll("IK##azik", i);
                 ok = ok && inGruppe(g, name) && inGruppe(g, knopf) && name->rect.Min.y >= y - 0.5F && knopf->rect.Min.y < name->rect.Max.y && knopf->rect.Max.y > name->rect.Min.y &&
                      knopf->rect.Min.x > name->rect.Max.x && knopf->rect.Max.x >= g->kasten.Max.x - em() * 1.0F;
                 if (name != nullptr) { y = name->rect.Max.y; }
             }
-            melde("A6 IK/FK: " + std::string(ok ? "vier Zeilen mit Knopf FK rechts" : "Zeilen fehlen oder liegen falsch"));
+            melde("A6 IK/FK: " + std::string(ok ? "vier Zeilen mit Knopf IK rechts" : "Zeilen fehlen oder liegen falsch"));
             return ok;
         }));
-        add(klick("FK##azik", "mtrollouts", 0));
+        auto vorWechsel = std::make_shared<modell::RigSchicht>();
+        add(tu("AP10 A6: Schicht vor dem Wechsel merken", [vorWechsel] {
+            if (const modell::RigSchicht* sch = modellRigSchichtJetzt()) { *vorWechsel = *sch; }
+        }));
+        add(klick("IK##azik", "mtrollouts", 0));
         add(pause(0.5));
-        add(pruefe(zeile("A6", modus, "ein Klick auf den Knopf von Arm L wechselt auf IK: der Knopf zeigt IK, das Glied hat einen IK-Schluessel"), [] {
+        add(pruefe(zeile("A6", modus, "ein Klick auf den Knopf von Arm L wechselt ab diesem Bild auf FK: der Knopf zeigt FK, die anderen drei IK, die Pose springt nicht"), [vorWechsel] {
             const modell::RigSchicht* sch = modellRigSchichtJetzt();
             const int spur = sch != nullptr ? modell::ikSpurIndex(*sch, modell::IkArt::ArmLinks) : -1;
-            melde("A6 Wechsel: Anteil " + std::to_string(modellIkAnteil(0)) + ", Spur " + std::to_string(spur));
-            return modellIkAnteil(0) >= 0.5F && spur >= 0 && !sch->ik[static_cast<std::size_t>(spur)].ziel.empty() && imRoll("IK##azik") != nullptr && imRoll("FK##azik", 3) == nullptr;
+            const float sprung = sch != nullptr && !vorWechsel->ik.empty() ? modell::ikSprung(g_app->anim, *vorWechsel, *sch, g_app->animFrame) : 1e9F;
+            melde("A6 Wechsel: Anteil " + std::to_string(modellIkAnteil(0)) + ", Spur " + std::to_string(spur) + ", Sprung " + std::to_string(sprung));
+            return modellIkAnteil(0) < 0.5F && spur >= 0 && sprung < 0.01F && imRoll("FK##azik") != nullptr && imRoll("IK##azik", 2) != nullptr && imRoll("IK##azik", 3) == nullptr;
         }));
         add(tu("AP10 A6: Wechsel zuruecknehmen", [] { (void)g_app->mtab.dok.rueckgaengig(); }));
         add(pause(0.3));
@@ -446,11 +451,11 @@ void rigSchritte(std::vector<Schritt>& s, int modus) {
             }
             return ok;
         }));
-        add(reglerZiehen("##ikfk", "mtrollouts", 0, 0.9F, 0.05F));
+        add(reglerZiehen("##ikfk", "mtrollouts", 0, 0.1F, 0.95F));
         add(pause(0.5));
-        add(pruefe(zeile("A7", modus, "den Regler von Arm L nach links ziehen stellt IK ein (Anteil ueber 0,5)"), [] {
+        add(pruefe(zeile("A7", modus, "den Regler von Arm L nach rechts ziehen stellt FK ein (Anteil unter 0,5; vorher IK - die Animation liegt von FK auf IK auf dem Rig)"), [] {
             melde("A7 Regler: Anteil " + std::to_string(modellIkAnteil(0)));
-            return modellIkAnteil(0) > 0.5F;
+            return modellIkAnteil(0) < 0.5F;
         }));
         add(tu("AP10 A7: Regler zuruecknehmen", [] { (void)g_app->mtab.dok.rueckgaengig(); }));
         add(pause(0.3));
@@ -509,6 +514,7 @@ void bedienSchritte(std::vector<Schritt>& s) {
     // --- A2: Auf Rig legen ---
     auto vorher = std::make_shared<std::vector<BoneMatrix>>();
     auto schritte = std::make_shared<std::string>();
+    auto schluesselVor = std::make_shared<int>(0);
     add(tu("AP10 A2: Bild 12 der Sequenz, die Pose merken", [=] {
         if (const AnimEntry* e = sequenzJetzt()) {
             g_app->animFrame = e->firstFrame + std::min(12, std::max(e->numFrames - 1, 0));
@@ -521,20 +527,21 @@ void bedienSchritte(std::vector<Schritt>& s) {
     add(tu("AP10 A2: Pose merken", [=] {
         *vorher = g_app->modellWelt;
         *schritte = g_app->mtab.dok.rueckgaengigName();
+        *schluesselVor = schluessel();
     }));
     add(klick(tr(Str::AzAufRig), "mtrollouts"));
     add(pause(0.8));
-    add(pruefe(zeile("A2", modus, "Klick auf Auf Rig legen: die Bilder der Sequenz sind Schluessel an den Griffen, die IK-Ziele der vier Glieder folgen an jedem Bild (Anteil 0), die Pose bleibt"), [=] {
+    add(pruefe(zeile("A2", modus, "Klick auf Auf Rig legen: die Bilder der Sequenz sind Schluessel an den Griffen, die vier Glieder sind an jedem Bild IK (Anteil 1, von FK auf IK wie ENT2) und folgen ihren Zielen, die Pose bleibt"), [=] {
         const modell::RigSchicht* sch = modellRigSchichtJetzt();
         const AnimEntry* e = sequenzJetzt();
         if (sch == nullptr || e == nullptr) { return false; }
         int spuren = 0;
         bool jedesBild = true;
-        float anteil = 0.0F;
+        float anteil = 1.0F;
         for (const modell::IkSpur& sp : sch->ik) {
             ++spuren;
             jedesBild = jedesBild && static_cast<int>(sp.ziel.size()) == e->numFrames;
-            anteil = std::max(anteil, modell::ikAnteilAm(sp, static_cast<float>(g_app->animFrame)));
+            for (int b = e->firstFrame; b < e->firstFrame + e->numFrames; ++b) { anteil = std::min(anteil, modell::ikAnteilAm(sp, static_cast<float>(b))); }
         }
         const float abstand = poseAbstand(*vorher, g_app->modellWelt);
         char z[240];
@@ -545,11 +552,13 @@ void bedienSchritte(std::vector<Schritt>& s) {
         // 1/64 Einheit je Achse) und der Drehgrenze; entlang der Kette bis zur Hand (8 Glieder) summieren sich die Stufen bis
         // 8/64 = 0,125. Gemessen (kyle, BOTH_WALK1, Bild 12; Laeufe ap10_g1 bis ap10_g3 gleich): 0,0479. Grenze 1/16 Einheit -
         // ueber dem Messwert, halb so weit wie die Summe der Stufen.
-        return sch->schluesselZahl() > 0 && spuren == 4 && jedesBild && anteil == 0.0F && abstand < 0.0625F && g_app->mtab.dok.rueckgaengigName() == tr(Str::AzAufRig);
+        return sch->schluesselZahl() > 0 && spuren == 4 && jedesBild && anteil >= 1.0F && abstand < 0.0625F && g_app->mtab.dok.rueckgaengigName() == tr(Str::AzAufRig);
     }));
     add(tu("AP10 A2: Auf Rig legen zuruecknehmen", [] { (void)g_app->mtab.dok.rueckgaengig(); }));
     add(pause(0.4));
-    add(pruefe(zeile("A2", modus, "Rueckgaengig nimmt Auf Rig legen in einem Schritt zurueck"), [=] { return schluessel() == 0 && g_app->mtab.dok.rueckgaengigName() == *schritte; }));
+    add(pruefe(zeile("A2", modus, "Rueckgaengig nimmt Auf Rig legen in einem Schritt zurueck (die Schluessel wie vorher)"), [=] {
+        return schluessel() == *schluesselVor && g_app->mtab.dok.rueckgaengigName() == *schritte;
+    }));
     // --- A2: Tooltip ---
     add(tu("AP10 A2: Maus auf Auf Rig legen", [] {
         if (const Element* e = imRoll(tr(Str::AzAufRig))) { setzeMaus(e->rect.GetCenter()); }
@@ -576,7 +585,7 @@ void bedienSchritte(std::vector<Schritt>& s) {
     add(pause(0.3));
     add(klick(tr(Str::AzKatLaufen), "mtrollouts"));
     add(pause(0.4));
-    add(pruefe(zeile("A3", modus, "Klick auf die Kategorie Laufen: die Liste zeigt ihre Presets, die Kurzinfo nennt Kategorie und Zahl"), [] {
+    add(pruefe(zeile("A3", modus, "Klick auf die Kategorie Laufen: die Liste zeigt ihre Presets und Laufen (erzeugt), die Kurzinfo nennt Kategorie und Zahl (mit dem erzeugten Gang, ENT2)"), [] {
         const ui::RolloutProbe* g = gruppe(Str::PrRollout);
         const std::vector<PresetEintrag>& b = modellPresetBibliothek();
         int n = 0;
@@ -587,7 +596,8 @@ void bedienSchritte(std::vector<Schritt>& s) {
             ++n;
         }
         melde("A3 Laufen: " + std::to_string(n) + " Presets, erstes " + erstes + ", Kurzinfo " + (g != nullptr ? g->kurzinfo : std::string("-")));
-        return g != nullptr && n > 0 && g->kurzinfo == std::string(tr(Str::AzKatLaufen)) + " \xc2\xb7 " + std::to_string(n) && inFenster(erstes, "##aibib") != nullptr;
+        return g != nullptr && n > 0 && g->kurzinfo == std::string(tr(Str::AzKatLaufen)) + " \xc2\xb7 " + std::to_string(n + 1) && inFenster(erstes, "##aibib") != nullptr &&
+               inFenster(tr(Str::EnGangLaufen), "##aibib") != nullptr;
     }));
     add(tu("AP10 A3: das erste Preset der Kategorie waehlen", [=] {
         const std::vector<PresetEintrag>& b = modellPresetBibliothek();
@@ -617,10 +627,19 @@ void bedienSchritte(std::vector<Schritt>& s) {
     }));
     add(klick(tr(Str::AzGenerator), "mtrollouts"));
     add(pause(0.4));
-    add(pruefe(zeile("A3", modus, "Klick auf Generator ...: die Regler des Generators klappen unter der Bibliothek auf"), [] {
+    add(pruefe(zeile("A3", modus, "Klick auf Generator ...: der erzeugte Gang der Kategorie (Laufen (erzeugt)) ist gewaehlt, der Rest des Generators (Schrittlaenge, Messen) ist unter dem Hauptknopf aufgeklappt und ins Bild gerollt (ENT2)"), [] {
+        char messen[160];
+        std::snprintf(messen, sizeof messen, tr(Str::PrMessen), "BOTH_RUN1");
+        return modellAnim().generatorOffen && g_app->mtab.rt.gangWahl == 1 && imRoll(tr(Str::PrSchritt)) != nullptr && imRoll(messen) != nullptr;
+    }));
+    add(zeige(Str::PrRollout));
+    add(pause(0.4));
+    add(pruefe(zeile("A3", modus, "dabei stehen Tempo und Armschwung unter der Liste ueber dem Hauptknopf (wie der Entwurf, ENT2)"), [] {
         const Element* tempo = imRoll(tr(Str::PrTempo));
+        const Element* arm = imRoll(tr(Str::PrArm));
         const Element* haupt = imRoll(tr(Str::AzPresetAuflegen));
-        return modellAnim().generatorOffen && tempo != nullptr && (haupt == nullptr || tempo->rect.Min.y > haupt->rect.Max.y);
+        const ImGuiWindow* liste = kindFenster("##aibib");
+        return liste != nullptr && tempo != nullptr && arm != nullptr && haupt != nullptr && tempo->rect.Min.y >= liste->Pos.y + liste->Size.y - 1.0F && arm->rect.Max.y <= haupt->rect.Min.y;
     }));
     add(klick(tr(Str::AzGenerator), "mtrollouts"));
     add(tu("AP10 A3: Vorschau aus", [] { (void)modellRtVorschau(false); }));
@@ -628,6 +647,8 @@ void bedienSchritte(std::vector<Schritt>& s) {
     // --- A4: Vorhandene Animation bearbeiten ---
     auto quellen = std::make_shared<std::size_t>(0);
     auto belegtVorBacken = std::make_shared<int>(0);
+    auto schluesselVorA4 = std::make_shared<int>(0);
+    add(tu("AP10 A4: Schluessel vor dem Umwandeln merken", [=] { *schluesselVorA4 = schluessel(); }));
     add(zeige(Str::AzRBearbeiten));
     add(pause(0.3));
     add(klick(tr(Str::MbKvReduzieren), "mtrollouts"));
@@ -651,8 +672,8 @@ void bedienSchritte(std::vector<Schritt>& s) {
         (void)g_app->mtab.dok.rueckgaengig();
     }));
     add(pause(0.3));
-    add(pruefe(zeile("A4", modus, "zwei Schritte Rueckgaengig: der Platz des Backens ist wieder frei, die Sequenz hat keine Schluessel mehr"), [=] {
-        return belegt() == *belegtVorBacken && schluessel() == 0;
+    add(pruefe(zeile("A4", modus, "zwei Schritte Rueckgaengig: der Platz des Backens ist wieder frei, die Sequenz hat wieder die Schluessel von vorher"), [=] {
+        return belegt() == *belegtVorBacken && schluessel() == *schluesselVorA4;
     }));
     add(pause(0.3));
     // --- A5: Uebertragen mit Quelle ---
