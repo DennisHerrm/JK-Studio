@@ -1971,6 +1971,25 @@ ID3D12Resource* ressource(ID3D11Resource* r, std::uint64_t* versatz) {
     return t->res;
 }
 
+// DXR: die Sicht haelt weder Textur noch Puffer - nur ihren Deskriptor (Kontext::vorZeichnen bindet ihn ueber s->index).
+ID3D11ShaderResourceView* strukturSicht(D3D12_GPU_VIRTUAL_ADDRESS adresse) {
+    if (!g_aktiv || adresse == 0U) { return nullptr; }
+    auto* s = new Sicht;
+    s->index = rahmen::srvNehmen();
+    if (s->index == rahmen::srvKeiner()) {
+        s->Release();
+        diag::error("D3D12-Abgeber: der Deskriptorstapel der Texturen ist voll");
+        return nullptr;
+    }
+    s->art12.Format = DXGI_FORMAT_UNKNOWN;
+    s->art12.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
+    s->art12.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    s->art12.RaytracingAccelerationStructure.Location = adresse;
+    rahmen::geraet()->CreateShaderResourceView(nullptr, &s->art12, rahmen::srvCpu(s->index));
+    sichtMelden(s, true);
+    return s;
+}
+
 Zaehler& zaehlerIntern() { return g_zaehler; }
 
 std::vector<std::string> speicherBericht(std::uint64_t& summe) {

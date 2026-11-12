@@ -3,6 +3,7 @@
 // mit MSAA, Vorgabe 8 Abtastungen, xywindow.cpp:2291 "XYMSAA"), Linien als
 // Linienliste, breite Linien (glLineWidth 2) ueber einen Geometrie-Shader.
 #include "karte_gpu.h"
+#include "karte_dxr.h"   // DXR (rc612): Schattenstrahlen im Echtzeit-Licht
 
 #include "bhed/arbeiter.h"
 #include "bhed/diag.h"
@@ -288,6 +289,7 @@ void gluehLoesen() {
 }
 
 void echtLichtLoesen() {
+    dxr::loesen();   // DXR: Beschleunigungsstrukturen und DXIL-Shader (karte_dxr_win32.cpp)
     los(g.vs4);
     los(g.ps4);
     los(g.vsSchatten);
@@ -1200,6 +1202,7 @@ bool zustandSetzen(const Zustand3& z, bool linie) {
         c->PSSetShaderResources(0, 11, srv);
         ID3D11SamplerState* sm[3] = {z.klammern && g.abtasterKlemm != nullptr ? g.abtasterKlemm : g.abtaster, g.wuerfelAbtaster, g.punktAbtaster};
         c->PSSetSamplers(0, 3, sm);
+        dxr::lichtBinden(c, z.nebelNur);   // DXR: mit Schattenstrahlen die DXIL-Fassung derselben Shader und t11 bis t13 (karte_dxr_win32.cpp)
     } else {
         c->IASetInputLayout(g.layout3);
         c->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -1672,6 +1675,10 @@ float3 lichtVon(uint k, float3 p, float3 n) {
     LichtD L = lichtLesen(k);
     float add = beitrag(L, p, n);
     if (add <= 0.0) { return float3(0, 0, 0); }
+#ifdef DXR_SCHATTEN
+    // DXR (rc612): ein Schattenstrahl je Licht statt der Schattenkarten - gui/karte_dxr.hlsl, vom Bau mit dxc uebersetzt
+    float3 s = dxrSicht((int)L.farbe.a, L.pos.xyz, L.richtung.xyz, p, n);
+#else
     float s;
     if ((int)L.farbe.a == 2) {
         // Stufe 9d: die Kaskaden gelten in ihrer Richtung (auch fuer die Proben derselben Sonne)
@@ -1679,6 +1686,7 @@ float3 lichtVon(uint k, float3 p, float3 n) {
     } else {
         s = wuerfelSicht(L, p, n, add > 8.0);
     }
+#endif
     return L.farbe.rgb * add * s * (L.zusatz.x > 0.5 ? -1.0 : 1.0);
 }
 float4 ps4(VO4 i) : SV_Target {

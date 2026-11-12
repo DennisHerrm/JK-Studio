@@ -105,6 +105,11 @@ void protokollNotiz(ID3D12GraphicsCommandList* l, const char* text);
 // Die D3D12-Ressource hinter einer Textur oder einem Puffer des Abgebers (ohne AddRef; nullptr: keine). Bei Puffern mit
 // D3D11_USAGE_DYNAMIC gilt sie bis zum naechsten Map(WRITE_DISCARD); versatz ist ihr Anfang in der Ressource.
 [[nodiscard]] ID3D12Resource* ressource(ID3D11Resource* r, std::uint64_t* versatz = nullptr);
+// DXR (gui/karte_dxr_win32.cpp): eine Sicht auf die Beschleunigungsstruktur (TLAS) an dieser Adresse - sie laesst sich mit
+// PSSetShaderResources binden wie jede andere Sicht (eigener Deskriptor im gemeinsamen Stapel). Die Struktur gehoert dem
+// Rufer und muss leben, solange die Sicht gebunden werden kann; Release() gibt nur den Deskriptor zurueck. nullptr: Abgeber
+// nicht aktiv oder kein Platz im Stapel.
+[[nodiscard]] ID3D11ShaderResourceView* strukturSicht(D3D12_GPU_VIRTUAL_ADDRESS adresse);
 
 // Zaehler fuer Messung und Selbsttest (seit dem Start).
 struct Zaehler {

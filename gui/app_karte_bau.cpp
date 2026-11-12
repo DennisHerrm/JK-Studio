@@ -396,6 +396,7 @@ void bauMenueEintraegeZeichnen() {
     psp.haken = patchSchattenAn();
     psp.tooltip = psTip.c_str();
     if (qtPunkt(psp)) { patchSchattenSetzen(!patchSchattenAn()); }
+    strahlenMenuePunkt();   // DXR (rc612): Schattenstrahlen statt Schattenkarten (app_karte_dxr.cpp)
     // Stufe 9d: fx_runner in der Echtzeit-Ansicht (abschaltbar)
     const std::string fx = std::string(trK(Str::KeEchtEffekte)) + "##bauechteffekte";
     QtPunkt fxp;

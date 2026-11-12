@@ -159,6 +159,31 @@ void spielbildZeitFest(double sekunden);
 // rc610 R2a: die Shaderzeit des Spielbilds in Sekunden (fest oder die Uhr) - auch fuer die Halme der Echtzeit-Ansicht
 [[nodiscard]] double spielbildZeit();
 
+// --- DXR (rc612): Schattenstrahlen als Schattenart des Echtzeit-Lichts (app_karte_dxr.cpp, karte_dxr.h) ---
+// Der Menuepunkt (Build, bei den Schatten-Einstellungen): pruefbar, ausgegraut mit dem Grund im Tooltip, wenn es nicht geht.
+void strahlenMenuePunkt();
+// Die gewaehlte Schattenart: die Einstellung (Editor::echtLicht.schattenStrahlen); BHED_DXR=1 bzw. =0 uebersteuert sie fuer
+// einen Lauf (Messung: derselbe Selbsttest einmal mit Schattenkarten, einmal mit Strahlen)
+[[nodiscard]] bool strahlenGewaehlt();
+// Warum es nicht geht, in der Programmsprache (leer: es geht)
+[[nodiscard]] std::string strahlenGrundText();
+// Fuer den Selbsttest und die Messung: die Kennzahlen von kartegpu::dxr::stand() und der Grund als Zahl (0 es geht, 1 nicht
+// Direct3D 12, 2 kein DXR 1.1, 3 kein DXIL-Shader im Bau, 4 Fehler)
+struct StrahlenStand {
+    int grund = 0;
+    std::size_t teile = 0;
+    std::size_t dreiecke = 0;
+    std::size_t filterTeile = 0;
+    std::size_t gebaut = 0;
+    std::size_t schnellGebaut = 0;
+    std::size_t nachgezogen = 0;
+    std::size_t szenen = 0;
+    std::size_t bytes = 0;
+    std::size_t strukturBytes = 0;
+    std::size_t gebunden = 0;
+};
+[[nodiscard]] StrahlenStand strahlenStand();
+
 }  // namespace bhed::gui::karteneditor
 
 #endif

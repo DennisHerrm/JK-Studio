@@ -1156,6 +1156,10 @@ struct Editor {
         double lichtMs = 0;                // Lichtliste + Schatten im letzten Bild (Prozessor)
         std::size_t nebel = 0;             // Stufe 9d: Nebel der Karte (Pinsel mit fogParms, globaler Nebel)
         bool effekte = true;               // Stufe 9d: fx_runner in der Echtzeit-Ansicht ("RealtimeEffects")
+        // DXR (rc612): Schattenart des Echtzeit-Lichts - Schattenstrahlen (Raytracing, nur Direct3D 12 mit DXR 1.1) statt
+        // Schattenkarten ("BhedRaytracedShadows", Vorgabe aus); strahlenAktiv: das letzte Bild rechnete so
+        bool schattenStrahlen = false;
+        bool strahlenAktiv = false;
         std::size_t effektLaeufer = 0;     // Stufe 9d: laufende fx_runner
         std::size_t markenPinsel = 0;      // reste2 Punkt 4: Pinsel der Welt fuer die Decals (wie q3map2)
         std::size_t markenFlaechen = 0;    // reste2 Punkt 4: Flaechen, auf die Decals fallen koennen

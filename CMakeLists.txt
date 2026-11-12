@@ -2145,3 +2145,62 @@ if(BEHAVED_TESTS)
     set_tests_properties(q3map2_visschluessel PROPERTIES TIMEOUT 1200)
   endif()
 endif()
+
+# DXR (rc612): Schatten per Raytracing im Echtzeit-Licht des Karten-Editors (gui/karte_dxr.h) - nur unter Direct3D 12 mit
+# DXR 1.1. Der Shader ist derselbe Text wie mit den Schattenkarten (kShader4 in gui/karte_gpu_win32.cpp); bhed_dxr_quelle
+# schreibt ihn mit gui/karte_dxr.hlsl davor in eine Datei, dxc aus dem Windows SDK uebersetzt drei Einstiege zu DXIL
+# (Shader Model 6.5, signiert mit dem dxil.dll daneben), die Header landen in der exe. Ohne dxc beim Bau gibt es die
+# Schattenart nicht (der Menuepunkt ist dann ausgegraut und nennt den Grund); alle anderen Shader bleiben, wie sie sind.
+if(TARGET behaved)
+  target_sources(behaved PRIVATE gui/karte_dxr_win32.cpp gui/app_karte_dxr.cpp)
+  set(BHED_DXR_KITS "")
+  get_filename_component(BHED_DXR_KITS "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots;KitsRoot10]" ABSOLUTE)
+  set(BHED_DXR_SDK_BIN "")
+  if(BHED_DXR_KITS AND IS_DIRECTORY "${BHED_DXR_KITS}/bin")
+    file(GLOB BHED_DXR_SDK_VERSIONEN LIST_DIRECTORIES true "${BHED_DXR_KITS}/bin/10.*")
+    list(SORT BHED_DXR_SDK_VERSIONEN COMPARE NATURAL ORDER DESCENDING)
+    foreach(v ${BHED_DXR_SDK_VERSIONEN})
+      list(APPEND BHED_DXR_SDK_BIN "${v}/x64")
+    endforeach()
+  endif()
+  find_program(BHED_DXR_DXC dxc PATHS ${BHED_DXR_SDK_BIN} NO_DEFAULT_PATH)
+  if(BEHAVED_D3D11 AND BHED_DXR_DXC)
+    add_executable(bhed_dxr_quelle tools/dxr/dxr_quelle.cpp)
+    target_link_libraries(bhed_dxr_quelle PRIVATE bhed_core)
+    set(BHED_DXR_AUS ${CMAKE_CURRENT_BINARY_DIR}/dxr)
+    set(BHED_DXR_HLSL ${BHED_DXR_AUS}/karte_dxr_licht.hlsl)
+    add_custom_command(OUTPUT ${BHED_DXR_HLSL}
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${BHED_DXR_AUS}
+      COMMAND bhed_dxr_quelle ${CMAKE_CURRENT_SOURCE_DIR}/gui/karte_gpu_win32.cpp ${BHED_DXR_HLSL}
+      DEPENDS bhed_dxr_quelle ${CMAKE_CURRENT_SOURCE_DIR}/gui/karte_gpu_win32.cpp
+      COMMENT "dxr_quelle karte_dxr_licht.hlsl"
+      VERBATIM)
+    set(BHED_DXR_HEADER "")
+    # bhed_dxr_dxc(<Name> <Einstieg> <Ziel>): ${BHED_DXR_AUS}/<Name>.h mit const unsigned char <Name>[]
+    function(bhed_dxr_dxc name einstieg ziel)
+      set(aus ${BHED_DXR_AUS}/${name}.h)
+      add_custom_command(OUTPUT ${aus}
+        COMMAND ${BHED_DXR_DXC} -nologo -T ${ziel} -E ${einstieg} -O3 -I ${CMAKE_CURRENT_SOURCE_DIR}/gui -Qstrip_reflect -Qstrip_debug
+                -Vn ${name} -Fh ${aus} ${BHED_DXR_HLSL}
+        DEPENDS ${BHED_DXR_HLSL} ${CMAKE_CURRENT_SOURCE_DIR}/gui/karte_dxr.hlsl
+        COMMENT "dxc ${name}"
+        VERBATIM)
+      set(BHED_DXR_HEADER ${BHED_DXR_HEADER} ${aus} PARENT_SCOPE)
+    endfunction()
+    bhed_dxr_dxc(g_karte_dxr_vs4 vs4 vs_6_5)
+    bhed_dxr_dxc(g_karte_dxr_ps4 ps4 ps_6_5)
+    bhed_dxr_dxc(g_karte_dxr_ps4nebel ps4Nebel ps_6_5)
+    target_sources(behaved PRIVATE ${BHED_DXR_HEADER})
+    target_include_directories(behaved PRIVATE ${BHED_DXR_AUS})
+    target_compile_definitions(behaved PRIVATE BHED_DXR_SHADER)
+    message(STATUS "Karten-Editor: Raytracing-Schatten (DXR) mit ${BHED_DXR_DXC}")
+    if(BEHAVED_TESTS)
+      # dxr_quelle findet kShader4 mit dem Haken DXR_SCHATTEN in der Quelle - und scheitert laut an einer Datei ohne ihn
+      add_test(NAME dxr_quelle COMMAND bhed_dxr_quelle ${CMAKE_CURRENT_SOURCE_DIR}/gui/karte_gpu_win32.cpp ${BHED_DXR_AUS}/pruef_licht.hlsl)
+      add_test(NAME dxr_quelle_fehlt COMMAND bhed_dxr_quelle ${CMAKE_CURRENT_SOURCE_DIR}/gui/karte_dxr_win32.cpp ${BHED_DXR_AUS}/pruef_fehlt.hlsl)
+      set_tests_properties(dxr_quelle_fehlt PROPERTIES WILL_FAIL TRUE)
+    endif()
+  else()
+    message(STATUS "Karten-Editor: kein dxc - ohne Raytracing-Schatten (DXR)")
+  endif()
+endif()

@@ -848,6 +848,8 @@ const std::vector<Ort>& orte() {
             const char* h = texte.back().c_str();
             o.push_back(Ort{"karte", ziel, k, h, "modus:3 < knopf:ViewMapEditor@modebar", ""});
         }
+        // DXR (rc612): Build > Ray-traced shadows (DXR) ist kein Befehl von NetRadiant-Custom und steht nicht in menues()
+        o.push_back(Ort{"karte", "menue:KeLBuild>KeStrahlenMenue", "KeLBuild>KeStrahlenMenue", "KeStrahlenTip", "modus:3 < knopf:ViewMapEditor@modebar", ""});
         return o;
     }();
     return v;

@@ -1463,6 +1463,23 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, const std::vector<in
         }
         return v;
     };
+    // ApplySurfaceParm (shaders.cpp:230) fuer die Flags, die hier gebraucht werden - aus "surfaceparm <x>" und aus "q3map_<x>"
+    const auto parmAnwenden = [&r](const std::string& parm) {
+        if (parm == "sky") { r.himmel = true; }
+        if (parm == "origin") { r.ursprung = true; }
+        // games.cpp game_sof2 (Jedi Academy): die Compile-Flags fuer die Schatten
+        if (parm == "trans" || parm == "nonopaque" || parm == "water" || parm == "slime" || parm == "lava" || parm == "fog" ||
+            parm == "areaportal" || parm == "trigger" || parm == "origin" || parm == "shotclip" || parm == "playerclip" ||
+            parm == "monsterclip" || parm == "nodrop" || parm == "terrain" || parm == "ladder" || parm == "abseil" ||
+            parm == "outside" || parm == "botclip" || parm == "alphashadow" || parm == "lightfilter") {
+            r.durchscheinend = true;
+        }
+        if (parm == "alphashadow") { r.alphaSchatten = true; }
+        if (parm == "lightfilter") { r.lichtFilter = true; }
+        if (parm == "nodraw") { r.nichtZeichnen = true; }
+        if (parm == "nolightmap" || parm == "pointlight") { r.eckLicht = true; }
+        if (parm == "fog") { r.nebel = true; }
+    };
     for (std::size_t j = i + 1; j < w.size(); ++j) {
         if (w[j] == "{") {
             ++t;
@@ -1668,21 +1685,27 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, const std::vector<in
             r.lichtFarbe = true;
             for (int c = 0; c < 3; ++c) { r.lichtRGB[c] = std::atof(w[j + 1 + static_cast<std::size_t>(c)].c_str()); }
         } else if (k == "surfaceparm" && j + 1 < w.size()) {
-            const std::string parm = klein(w[j + 1]);
-            if (parm == "sky") { r.himmel = true; }
-            if (parm == "origin") { r.ursprung = true; }
-            // games.cpp game_sof2 (Jedi Academy): die Compile-Flags fuer die Schatten
-            if (parm == "trans" || parm == "nonopaque" || parm == "water" || parm == "slime" || parm == "lava" || parm == "fog" ||
-                parm == "areaportal" || parm == "trigger" || parm == "origin" || parm == "shotclip" || parm == "playerclip" ||
-                parm == "monsterclip" || parm == "nodrop" || parm == "terrain" || parm == "ladder" || parm == "abseil" ||
-                parm == "outside" || parm == "botclip" || parm == "alphashadow" || parm == "lightfilter") {
-                r.durchscheinend = true;
-            }
-            if (parm == "alphashadow") { r.alphaSchatten = true; }
-            if (parm == "lightfilter") { r.lichtFilter = true; }
-            if (parm == "nodraw") { r.nichtZeichnen = true; }
-            if (parm == "nolightmap" || parm == "pointlight") { r.eckLicht = true; }
-            if (parm == "fog") { r.nebel = true; }
+            parmAnwenden(klein(w[j + 1]));
+        } else if (k.size() > 6 && k.rfind("q3map_", 0) == 0 && (j == 0 || j >= zeilen.size() || zeilen[j] != zeilen[j - 1])) {
+            // B3 (12.11.): shaders.cpp:1706-1714 - jedes q3map_<x>, das ParseShaderFile nicht selbst kennt, ist surfaceparm <x>
+            // (ApplySurfaceParm( &token[ 6 ] )). So zaehlt "q3map_alphashadow" (53 Shader von Jedi Academy, z. B. die Gitter von
+            // Kejim) wie surfaceparm alphashadow - im Compiler wie im Echtzeit-Licht. Vorher uebersah das Echtzeit-Licht das Wort:
+            // die Gitter warfen dort keinen Schatten, im gebauten Licht schon (Selbsttest dxr, g6). Ausgenommen: die Woerter, die
+            // ParseShaderFile ausdruecklich behandelt (shaders.cpp:846-1704, hier klein), die nie zu ApplySurfaceParm kommen.
+            static const std::set<std::string> kAusdruecklich = {
+                "q3map_alphagen", "q3map_alphamod", "q3map_backshader", "q3map_backsplash", "q3map_baseshader", "q3map_bounce",
+                "q3map_bouncescale", "q3map_clipmodel", "q3map_cloneshader", "q3map_colorgen", "q3map_colormod", "q3map_deprecateshader",
+                "q3map_flare", "q3map_flareshader", "q3map_floodlight", "q3map_fogdir", "q3map_foliage", "q3map_forcemeta",
+                "q3map_forcesunlight", "q3map_fur", "q3map_globaltexture", "q3map_indexed", "q3map_invert", "q3map_lightimage",
+                "q3map_lightmapaxis", "q3map_lightmapbrightness", "q3map_lightmapfilterradius", "q3map_lightmapgamma",
+                "q3map_lightmapmergable", "q3map_lightmapsampleoffset", "q3map_lightmapsamplesize", "q3map_lightmapsize", "q3map_lightrgb",
+                "q3map_lightstyle", "q3map_lightsubdivide", "q3map_material", "q3map_noclip", "q3map_nodirty", "q3map_nofast",
+                "q3map_nofog", "q3map_nonplanar", "q3map_normalimage", "q3map_notjunc", "q3map_novertexlight", "q3map_novertexshadows",
+                "q3map_offset", "q3map_onlyvertexlighting", "q3map_patchshadows", "q3map_remapshader", "q3map_rgbgen", "q3map_rgbmod",
+                "q3map_shadeangle", "q3map_skylight", "q3map_splotchfix", "q3map_stylemarker", "q3map_stylemarker2", "q3map_sun",
+                "q3map_sunext", "q3map_surfacelight", "q3map_surfacemodel", "q3map_tcgen", "q3map_tcmod", "q3map_terrain", "q3map_tesssize",
+                "q3map_texturesize", "q3map_vertexscale", "q3map_vertexshadows"};
+            if (kAusdruecklich.count(k) == 0) { parmAnwenden(k.substr(6)); }
         }
     }
     return r;

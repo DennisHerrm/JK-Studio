@@ -18,6 +18,7 @@
 #include "karte_echtlicht.h"
 
 #include "karte_bau_plattform.h"
+#include "karte_dxr.h"   // DXR (rc612): Schattenstrahlen statt Schattenkarten
 #include "karteneditor.h"
 #include "platform.h"
 
@@ -359,6 +360,13 @@ struct SchattenGeo {
     std::map<EimerSchluessel, EimerInhalt> inhalt;
     std::vector<std::array<float, 6>> geaendert;   // Grenzen der seit dem letzten Bau geaenderten Eimer (mn, mx)
     bool alleGeaendert = true;                     // erster Bau, neues Geraet: jeder Wuerfel neu
+    // DXR (rc612): mit Schattenstrahlen gebaut werden sollte (strahlenWahl) und wurde (strahlen: die Eimer stehen als
+    // Beschleunigungsstruktur, kartegpu::dxr) - sonst gelten die Schattenkarten
+    bool strahlenWahl = false;
+    bool strahlen = false;
+    // DXR (rc612): alphashadow-/lightfilter-Shader, deren Bild beim Bau noch nicht geladen war - ihre Teile verdecken solange
+    // ganz; sobald eines da ist, wird neu gebaut (schattenBildDa)
+    std::vector<std::string> bildFehlt;
 };
 SchattenGeo g_schatten;
 
@@ -389,9 +397,10 @@ int entitaetWirft(const karte::Entitaet& e, bool welt) {
 // games.cpp game_sof2 (game_ja, game_jk2): "default patchMeta subdivisions tolerance" (patchSubdivisions)
 constexpr int kPatchUnterteilungen = 8;
 
-void schattenGeoBauen(std::size_t geoStand, bool patches) {
+void schattenGeoBauen(std::size_t geoStand, bool patches, bool strahlen) {
     SchattenGeo& sg = g_schatten;
     sg.teile.clear();
+    sg.bildFehlt.clear();
     sg.dreiecke = 0;
     sg.modellDreiecke = 0;
     std::size_t patchDreiecke = 0;
@@ -531,7 +540,10 @@ void schattenGeoBauen(std::size_t geoStand, bool patches) {
                 teil.mx[i] = std::max(teil.mx[i], q.pos[i]);
             }
         }
-        if (teil.art == 3 && teil.bild == nullptr) { teil.art = 0; }   // Bild noch nicht da: deckend
+        if (teil.art == 3 && teil.bild == nullptr) {   // Bild noch nicht da: deckend, bis es geladen ist
+            teil.art = 0;
+            sg.bildFehlt.push_back(std::get<4>(schluessel));
+        }
         EimerInhalt& in = inhalt[schluessel];
         in.summe = pruefsumme(v.data(), v.size() * sizeof(kartegpu::Punkt3), 1469598103934665603ULL);
         const std::uintptr_t bild = reinterpret_cast<std::uintptr_t>(teil.bild);
@@ -563,6 +575,41 @@ void schattenGeoBauen(std::size_t geoStand, bool patches) {
     sg.geoStand = geoStand;
     sg.patches = patches;
     sg.geraet = kartegpu::geraetStand();
+    // DXR (rc612): dieselben Eimer als Beschleunigungsstruktur - je Eimer eine untere Struktur, die bleibt, solange seine
+    // Pruefsumme gleich ist (karte_dxr.h). sg.inhalt und sg.teile stehen in derselben Reihenfolge (beide aus `eimer`).
+    sg.strahlenWahl = strahlen;
+    sg.strahlen = false;
+    if (strahlen) {
+        std::vector<kartegpu::dxr::Teil> dt;
+        dt.reserve(sg.teile.size());
+        std::size_t i = 0;
+        for (const auto& [schluessel, in] : sg.inhalt) {
+            const kartegpu::SchattenTeil& t = sg.teile[i++];
+            kartegpu::dxr::Teil d;
+            const int zelle[4] = {std::get<0>(schluessel), std::get<1>(schluessel), std::get<2>(schluessel), std::get<3>(schluessel)};
+            const std::string& sh = std::get<4>(schluessel);
+            d.kennung = pruefsumme(sh.data(), sh.size(), pruefsumme(zelle, sizeof(zelle), 1469598103934665603ULL));
+            d.summe = in.summe;
+            d.erstes = t.erstes;
+            d.anzahl = t.anzahl;
+            d.art = t.art;
+            d.bild = t.bild;
+            if (t.art == 3) {   // TraceTriangle: alphashadow mal (255 - Alpha) / 255, lightfilter mal Farbe
+                const karte::ShaderSkript& sk = skript(sh);
+                d.filter = (sk.alphaSchatten ? 1 : 0) | (sk.lichtFilter ? 2 : 0);
+            }
+            dt.push_back(d);
+        }
+        sg.strahlen = kartegpu::dxr::geoSetzen(alle, dt);
+    }
+}
+
+// Ein Bild, das beim Bau der Schattengeometrie noch fehlte, ist jetzt geladen
+bool schattenBildDa() {
+    for (const std::string& sh : g_schatten.bildFehlt) {
+        if (kameraTexturBild(sh) != nullptr) { return true; }
+    }
+    return false;
 }
 
 // --- b) Schnell-Backen ------------------------------------------------------------------
@@ -1289,6 +1336,22 @@ void wuerfelVerteilen(const karte::EchtLichtWelt& w) {
     }
 }
 
+// DXR (rc612): mit Schattenstrahlen braucht kein Licht einen Wuerfel - Atlas und Wuerfel freigeben (einmal); die
+// naechste Verteilung (zurueck zu den Schattenkarten) beginnt von vorn
+void wuerfelAus(const karte::EchtLichtWelt& w) {
+    if (!g_wuerfel.empty() || g_atlas.seiten() > 0 || kartegpu::schattenAtlasBytes() > 0) {
+        g_wuerfel.clear();
+        g_atlas.leeren();
+        (void)kartegpu::schattenAtlasSeiten(0);
+        g_zaehlen = true;
+    }
+    g_wuerfelStand = static_cast<std::size_t>(-1);
+    g_ohnePlatz = 0;
+    if (g_lichtWuerfel.size() != w.lichter.size() || std::any_of(g_lichtWuerfel.begin(), g_lichtWuerfel.end(), [](const Wuerfel* z) { return z != nullptr; })) {
+        g_lichtWuerfel.assign(w.lichter.size(), nullptr);
+    }
+}
+
 // Nach einem Neubau der Schattengeometrie: die Wuerfel, deren Huelle einen geaenderten Eimer trifft
 void wuerfelPruefen() {
     SchattenGeo& sg = g_schatten;
@@ -1386,16 +1449,27 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
     weltAktualisieren(geoStand);
     static std::size_t schattenNeuGeladen = 0;   // Stufe 9d: nach Flush & Reload Shaders auch die Schattengeometrie (Shader-Regeln)
     const bool patches = patchSchattenAn();   // rc609 L: die Einstellung der Karte
+    // DXR (rc612): die Schattenart - Schattenstrahlen, wenn gewaehlt und moeglich (Direct3D 12 mit DXR 1.1), sonst Schattenkarten
+    const bool strahlenWahl = strahlenGewaehlt() && kartegpu::dxr::moeglich();
+    if (!strahlenGewaehlt() && g_schatten.strahlen) { kartegpu::dxr::loesen(); }   // abgewaehlt: die Strukturen gehen zurueck
     if (g_schatten.geoStand != geoStand || g_schatten.patches != patches || g_schatten.geraet != kartegpu::geraetStand() ||
-        schattenNeuGeladen != e.neuGeladen) {
+        schattenNeuGeladen != e.neuGeladen || g_schatten.strahlenWahl != strahlenWahl || (g_schatten.strahlen && !kartegpu::dxr::szeneSteht()) ||
+        schattenBildDa()) {
         schattenNeuGeladen = e.neuGeladen;
-        schattenGeoBauen(geoStand, patches);
+        schattenGeoBauen(geoStand, patches, strahlenWahl);
         wuerfelPruefen();
         for (SonnenKarte& k : g_kaskade) { k.gueltig = false; }
         for (SonnenKarte& k : g_himmelKarten) { k.gueltig = false; }
     }
     const karte::EchtLichtWelt& w = g_welt.welt;
-    wuerfelVerteilen(w);
+    const bool strahlen = g_schatten.strahlen;   // DXR: dieses Bild rechnet seine Schatten mit Strahlen
+    kartegpu::dxr::bildSetzen(strahlen);
+    e.echtLicht.strahlenAktiv = kartegpu::dxr::aktiv();
+    if (strahlen) {
+        wuerfelAus(w);
+    } else {
+        wuerfelVerteilen(w);
+    }
     e.echtLicht.lichter = w.lichter.size();
     const int kachelnX = std::max(1, (breite + kartegpu::kKachel - 1) / kartegpu::kKachel);
     const int kachelnY = std::max(1, (hoehe + kartegpu::kKachel - 1) / kartegpu::kKachel);
@@ -1490,8 +1564,8 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
     const Vektor3f wm = g_welt.grenzen.origin;
     const Vektor3f we = g_welt.grenzen.extents;
     const float radius = std::sqrt(we[0] * we[0] + we[1] * we[1] + we[2] * we[2]) + 64.0F;
-    int sonnenBudget = 1;
-    int himmelBudget = 2;
+    int sonnenBudget = strahlen ? 0 : 1;   // DXR: keine Sonnenkarten
+    int himmelBudget = strahlen ? 0 : 2;
     bool hauptDa = false;
     for (const Wahl& x : sw) {
         const EchtLicht& l = w.lichter[x.i];
@@ -1596,7 +1670,7 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
         kartegpu::LichtGpu g = gpuLicht(l, ecken);
         g.pos[3] *= x.faktor;
         const bool karte = x.platz <= -3 ? g_kaskade[0].gueltig : g_himmelKarten[static_cast<std::size_t>(x.platz)].gueltig;
-        if (!karte) { continue; }   // die Karte kommt in einem der naechsten Bilder
+        if (!karte && !strahlen) { continue; }   // die Karte kommt in einem der naechsten Bilder (DXR: braucht keine)
         g.mehr[0] = static_cast<float>(std::max(x.platz, -3));
         gpu.push_back(g);
         liste.push_back(&x);
@@ -1637,7 +1711,7 @@ void echtLichtBildVorbereiten(const Vektor3f& auge, const float* vp, int breite,
             g.mehr[0] = static_cast<float>((p.seite * 64 + ex / 64) * 64 + ey / 64);
             g.mehr[1] = z->weite;
             g.zusatz[3] = static_cast<float>(p.groesse);
-        } else {
+        } else if (!strahlen) {   // DXR: jeder Schatten kommt vom Strahl
             ++e.echtLicht.ohneSchatten;
         }
         const auto j = static_cast<std::uint32_t>(gpu.size());
@@ -1690,6 +1764,7 @@ std::string echtLichtHinweis() {
         return z;
     }
     std::string s = trK(Str::KeLichtVorschau);
+    if (e.echtLicht.strahlenAktiv) { s += std::string(" - ") + trK(Str::KeStrahlenHinweis); }   // DXR: die Schattenart dieses Bilds
     if (e.echtLicht.wuerfelAusstehend > 0) {   // rc610 LICHT1: die Schattenwuerfel werden noch gerechnet
         std::snprintf(z, sizeof(z), trK(Str::KeLichtWuerfelFortschritt), static_cast<int>(e.echtLicht.wuerfel - e.echtLicht.wuerfelAusstehend),
                       static_cast<int>(e.echtLicht.wuerfel));
@@ -1701,6 +1776,7 @@ std::string echtLichtHinweis() {
 
 void echtLichtSchritt(std::size_t kartenStand) {
     Editor& e = ed();
+    if (kartegpu::dxr::nachziehenFaellig()) { neuZeichnen(); }   // DXR: ein bewegter Teil ruht - ein Bild, das ihn nachzieht
     // fertigen Bau abholen
     const int st = g_backen.stand.load();
     if (st == 3) {

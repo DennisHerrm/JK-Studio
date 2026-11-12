@@ -6654,6 +6654,13 @@ enum class Str {
     PqSzeneKeinSchluessel,
     PqSzeneEltern,
     MbNichtInSpieldateien,
+    KeStrahlenMenue,
+    KeStrahlenTip,
+    KeStrahlenGrundD3d12,
+    KeStrahlenGrundGeraet,
+    KeStrahlenGrundShader,
+    KeStrahlenGrundFehler,
+    KeStrahlenHinweis,
     Count,
 };
 
