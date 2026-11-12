@@ -1755,5 +1755,16 @@ void modellStapelZeigen();                          // Bereich, Reiter und Grupp
 void modellStapelMenue();
 bool modellStapelAktionenSuche(const std::string& such);
 
+// FIX612C (Codepruefung seit rc611, P3-5): "Animation-Rig (nur FK)" - der Modus des Rigs (true: ohne IK-Griffe, Hand und Fuss
+// greifen ohne IK). Setzen ohne Rueckgaengig-Schritt (Selbsttests; die Knoepfe gehen ueber modellAnimRigErstellen).
+[[nodiscard]] bool modellRigNurFk();
+void modellRigNurFkSetzen(bool an);
+// FIX612C: Proben fuer den Selbsttest (P3-7 Zeilen des Explorers hinter dem Listenende, P3-6 Bild der Anzeige "Knochen waehlen")
+struct Fix612cProbe {
+    int explorerHinterEnde = 0;
+    int knochenHinweisBild = -1;
+};
+[[nodiscard]] Fix612cProbe& fix612cProbe();
+
 }  // namespace bhed::gui
 #endif

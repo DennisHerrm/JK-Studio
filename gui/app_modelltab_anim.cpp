@@ -101,6 +101,9 @@ int gruppeVon(int vorlage) {
 
 ModellAnim& modellAnim() { return g_anim; }
 
+bool modellRigNurFk() { return g_anim.nurFk; }
+void modellRigNurFkSetzen(bool an) { g_anim.nurFk = an; }
+
 int modellAnimVorlageWahl() {
     vorlageAbgleich();
     return g_anim.vorlage;

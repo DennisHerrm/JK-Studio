@@ -2372,6 +2372,8 @@ from i18n_ap13k import zeilen_vier as _ap13k  # noqa: E402  (AP13K: Knochen-Dars
 S += _ap13k()
 from i18n_lcfix import zeilen_vier as _lcfix  # noqa: E402  (LCFIX: Gruende Rechenweg des Licht-Caches, VIS-Zwischenstand anderer Fassung)
 S += _lcfix()
+from i18n_fix612c import zeilen_vier as _fix612c  # noqa: E402  (FIX612C: Codepruefung seit rc611, P3-5/P3-6)
+S += _fix612c()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

@@ -1150,6 +1150,10 @@ Gruppe kopfGruppe(const Zeile& r) {
 void zeichneZeile(const Zeile& r, const Masse& m) {
     ModellTab& t = mt();
     const modell::Inhalt& in = t.dok.inhalt();
+    // FIX612C (P3-7): Probe fuer den Selbsttest - eine Zeile, deren Eintrag es nicht mehr gibt
+    if ((r.art == ExplorerArt::Anbau && static_cast<std::size_t>(r.index) >= t.anbauten.size()) || (r.art == ExplorerArt::Griff && r.index >= modellRigExplorerZahl())) {
+        ++fix612cProbe().explorerHinterEnde;
+    }
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImGui::TableNextRow(ImGuiTableRowFlags_None, m.zeileH);
     ImGui::TableSetColumnIndex(0);
@@ -1738,6 +1742,11 @@ std::string aktionText(const Aktion& a) {
 // --- Schnittstelle ----------------------------------------------------------------------------------------------------------------
 
 ModellExplorerZustand& modellExplorer() { return g_z; }
+
+Fix612cProbe& fix612cProbe() {
+    static Fix612cProbe p;
+    return p;
+}
 
 const char* modellExplorerTitel() { return tr(modellBlender() ? Str::MbXOutliner : Str::MbExplorer); }
 

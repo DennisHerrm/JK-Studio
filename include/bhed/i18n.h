@@ -6630,6 +6630,10 @@ enum class Str {
     KdOrt,
     KeLcGrundWeg,
     KeBpGrundFassung,
+    AzNurFkGebacken,
+    BzKnochenAn,
+    BzKnochenAus,
+    BzKnochenAnzeige,
     Count,
 };
 
