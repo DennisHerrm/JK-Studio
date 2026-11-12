@@ -716,12 +716,21 @@ void achseSetzen(int a) {
 void blenderAlle(bool an);   // mb1a2: unten bei den Tasten wie Blender
 void blenderUmkehren();
 
+// FIX612C (P3-6): Q/W/E/R wie 3ds Max beenden auch "Knochen waehlen" (wie die Grundwerkzeuge der Leiste wie Blender)
+void maxWerkzeug(int gizmo) {
+    mt().gizmo = gizmo;
+    if (modellBl().werkzeug == 2) {
+        modellBl().werkzeug = 0;
+        mt().meldung = tr(Str::BzKnochenAus);
+    }
+}
+
 const std::vector<MaxTaste>& maxTasten() {
     static const std::vector<MaxTaste> kListe = {
-        {ImGuiKey_Q, Str::MbAktAuswaehlen, [] { mt().gizmo = 0; }},
-        {ImGuiKey_W, Str::MbAktVerschieben, [] { mt().gizmo = 1; }},
-        {ImGuiKey_E, Str::MbAktDrehen, [] { mt().gizmo = 2; }},
-        {ImGuiKey_R, Str::MbAktSkalieren, [] { mt().gizmo = 3; }},
+        {ImGuiKey_Q, Str::MbAktAuswaehlen, [] { maxWerkzeug(0); }},
+        {ImGuiKey_W, Str::MbAktVerschieben, [] { maxWerkzeug(1); }},
+        {ImGuiKey_E, Str::MbAktDrehen, [] { maxWerkzeug(2); }},
+        {ImGuiKey_R, Str::MbAktSkalieren, [] { maxWerkzeug(3); }},
         {ImGuiMod_Alt | ImGuiKey_W, Str::MbAktMax, [] { mt().vierAnsichten = !mt().vierAnsichten; }},
         {ImGuiKey_Z, Str::MbAktZoom, [] { modellNavGrenzen(0); }},   // MBNAV: Zoom Extents All Selected - alle Ansichten
         {ImGuiKey_F3, Str::MbAnDraht, [] { modellSch().drahtgitter = !modellSch().drahtgitter; }},   // MBKOPF: die aktive Ansicht
@@ -1244,6 +1253,8 @@ void modellBedienungSetzen(int b) {
     modellModalEnde(false);
     modellNavZuruecksetzen();   // MBNAV
     t.vierAnsichten = b == 0 && t.vierAnsichten;
+    // FIX612C (P3-6): das Werkzeug Knochen waehlen der Leiste wie Blender kommt nicht unsichtbar mit nach wie 3ds Max
+    if (b == 0 && modellBl().werkzeug == 2) { modellBl().werkzeug = 0; }
     g_app->modelDirty = true;
 }
 

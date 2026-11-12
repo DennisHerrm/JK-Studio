@@ -88,6 +88,19 @@ int inTabelle(int zahl, const char* (*text)(int), Str name) {
 
 void melde(const std::string& s) { mt().meldung = s; }
 
+// FIX612C (P3-6): "Knochen waehlen" an/aus. Wie 3ds Max gibt es keine Werkzeugleiste, die den Zustand zeigt: dort ist es ein
+// Umschalter wie "Abstand messen" (Meldung, Haken im Rechtsklick, Anzeige oben in der Ansicht; Q/W/E/R beenden es).
+void knochenWaehlen(bool an) {
+    if (an) {
+        mt().bereich = ModellBereich::Ansehen;
+        g_bl.werkzeug = 2;
+        g_app->modellKnochen = true;   // die Knochen zeigen (Blender: nur sichtbare Knochen lassen sich waehlen)
+    } else if (g_bl.werkzeug == 2) {
+        g_bl.werkzeug = 0;
+    }
+    if (!modellBlender()) { melde(tr(an ? Str::BzKnochenAn : Str::BzKnochenAus)); }
+}
+
 // Die vier Werkzeuge jedes Bereichs (Blender: Select Box, Move, Rotate, Scale) - sie waehlen das Gizmo der Auswahl.
 void basis(std::vector<Werkzeug>& w) {
     static const Str kText[4] = {Str::BzAuswaehlen, Str::BzBewegen, Str::BzDrehen, Str::BzSkalieren};
@@ -1239,6 +1252,17 @@ void modellBlUeberlagerung(int n, const ModellAnsicht& a, ImDrawList* dl) {
         if (da) { dl->AddCircleFilled(pa, fs * 0.22F, gelb); }
         if (db) { dl->AddCircleFilled(pb, fs * 0.22F, gelb); }
     }
+    // FIX612C (P3-6): wie 3ds Max steht oben in der Mitte, dass "Knochen waehlen" an ist (ein Klick waehlt dann keine Flaeche)
+    if (!modellBlender() && n == t.aktiv && t.bereich == ModellBereich::Ansehen && g_bl.werkzeug == 2) {
+        const char* text = tr(Str::BzKnochenAnzeige);
+        const ImVec2 g = ImGui::CalcTextSize(text);
+        if (g.x + fs * 2.0F < a.groesse[0]) {
+            const ImVec2 p{std::floor(a.lo[0] + (a.groesse[0] - g.x) * 0.5F), std::floor(a.lo[1] + fs * 2.2F)};
+            dl->AddRectFilled(ImVec2{p.x - fs * 0.4F, p.y - fs * 0.15F}, ImVec2{p.x + g.x + fs * 0.4F, p.y + g.y + fs * 0.15F}, IM_COL32(20, 20, 24, 210), 3.0F);
+            dl->AddText(p, IM_COL32(255, 210, 60, 255), text);
+            fix612cProbe().knochenHinweisBild = ImGui::GetFrameCount();
+        }
+    }
     // unten rechts der Hinweis auf die beiden Leisten (Entwurf: in den Bereichen ausser Ansehen/Pruefen, dort steht die Detailstufe)
     if (modellBlender() && n == t.aktiv && t.bereich != ModellBereich::Ansehen) {
         const char* text = tr(Str::BzHinweisAnsicht);
@@ -1422,11 +1446,8 @@ bool modellBlAktionenSuche(const std::string& such) {
              g_bl.messPunkte = 0;
              melde(tr(Str::BzMessenErster));
          }},
-        {Str::BzKnochenWaehlen, Str::BzKnochenWaehlenHint, "", false, [] {
-             mt().bereich = ModellBereich::Ansehen;
-             g_bl.werkzeug = 2;
-             g_app->modellKnochen = true;
-         }},
+        {Str::BzKnochenWaehlen, Str::BzKnochenWaehlenHint, "", false,
+         [] { knochenWaehlen(modellBlender() || mt().bereich != ModellBereich::Ansehen || g_bl.werkzeug != 2); }},
     };
     const auto klein = [](std::string s) {
         for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
@@ -1467,6 +1488,11 @@ void modellBlKontextMenue() {
         }
     }
     ImGui::SetItemTooltip("%s", tr(Str::BzMessenHint));
+    if (!modellBlender()) {   // FIX612C (P3-6): wie Blender steht das Werkzeug in der Leiste (T)
+        const bool knochen = mt().bereich == ModellBereich::Ansehen && g_bl.werkzeug == 2;
+        if (ImGui::MenuItem(tr(Str::BzKnochenWaehlen), nullptr, knochen, !g_app->anim.bones.empty())) { knochenWaehlen(!knochen); }
+        ImGui::SetItemTooltip("%s", tr(Str::BzKnochenWaehlenHint));
+    }
 }
 
 }  // namespace bhed::gui
