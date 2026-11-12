@@ -2134,4 +2134,10 @@ endif()
 if(BEHAVED_TESTS)
   add_executable(lichthash tests/lichthash.cpp)
   add_test(NAME q3map2_lichthash COMMAND lichthash)
+  if(Python3_Interpreter_FOUND AND TARGET bhed_q3map2)
+    add_test(NAME q3map2_lichtabdruck
+             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_lichtabdruck.py
+                     $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe ${CMAKE_CURRENT_BINARY_DIR}/q3map2_lichtabdruck)
+    set_tests_properties(q3map2_lichtabdruck PROPERTIES TIMEOUT 1800)
+  endif()
 endif()

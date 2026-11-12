@@ -17,7 +17,10 @@
 //     state after the pass cannot differ - it is copied bit for bit; otherwise it is traced;
 //   * a vertex lit surface likewise (CreateTraceLightsForSurface, its vertex luxels and styles);
 //   * the light grid of a pass is taken when every light, the grid origins and the raw
-//     grid before the pass are the same, else traced.
+//     grid before the pass are the same, else traced;
+//   * lcfix: both also need the whole trace tree to be the same (every shadow caster with its
+//     shader and the image of an alpha shadow, point entity models with _cs, patch triangles);
+//     the patch subdivisions (-subdivisions, given before -light) count as a light switch.
 //
 // Stitching, StoreSurfaceLightmaps and RadCreateDiffuseLights run on every lightmap in every
 // pass as always (they are not cached); they only read what the passes left, which is the
@@ -33,6 +36,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <vector>
 
 struct trace_t;
@@ -101,6 +105,19 @@ struct BhedHash {
 	}
 };
 
+/* the key of the light switches: the game, the switches after -light without the post-processing ones and the patch
+   subdivisions (-subdivisions is taken before -light: lcfix P4-1, it sets the patch iterations of every patch) */
+inline BhedSig BhedLichtSchalterSig( const char* spiel, const std::vector<std::string>& optionen, int unterteilung ){
+	BhedHash h;
+	h.text( "bhedlicht4" );
+	h.text( spiel );
+	for ( const std::string& o : optionen )
+		h.text( o.c_str() );
+	h.text( "subdivisions" );
+	h.wert( unterteilung );
+	return h.ende();
+}
+
 // lcb2 (light_trace.cpp): where the rays of one raw lightmap can run - a box A (the samples and every
 // light target that is a point) and, per sun, the samples swept by the sun's ray vector
 struct BhedStrahlRaum {
@@ -116,6 +133,8 @@ struct BhedStrahlRaum {
 void BhedSpurHashesAnlegen( BhedSig ( *flaeche )( int surfaceNum ), BhedSig ( *shader )( const shaderInfo_t* si ) );
 // the part of the trace tree the rays of raum can meet, with every plane they are cut at and every leaf they can reach
 [[nodiscard]] BhedSig BhedSpurRaumSig( const BhedStrahlRaum& raum );
+// lcfix: the whole trace tree (main and portal sky tree) - empty without the hashes
+[[nodiscard]] BhedSig BhedSpurGanzSig();
 
 // LightMain: the switch was given; args = the light switches (argsToInject) and the map
 void BhedLichtCacheSchalter( bool an, const std::vector<const char*>& args, const char* bspName );

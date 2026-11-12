@@ -1733,6 +1733,10 @@ static void ParseShaderFile( const char *filename ){
 			//%	if( vector3_length( si.vecs[ 0 ] ) )
 			//%		Sys_Printf( "%s\n", si.shaderText );
 		}
+		else{ /* BehavEd lcfix: kept apart (shaderText stays empty as in NRC), the light cache hashes it */
+			text.text << '\n';
+			si.bhedSkript = copystring( text.text );
+		}
 
 		/* ydnar: clear shader text buffer */
 		text.clear();

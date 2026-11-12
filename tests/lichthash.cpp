@@ -78,6 +78,17 @@ int main() {
         expect("7 Bytes und 1 Byte nacheinander sind nicht dasselbe wie 8 Bytes am Stueck", !(a.ende() == b.ende()));
     }
 
+    // Fund P4-1 (c): -subdivisions steht vor -light, nicht in dessen Schaltern - es muss trotzdem im Schalter-Schluessel stehen
+    {
+        const std::vector<std::string> schalter = {"-fast", "-patchshadows"};
+        expect("Schalter-Schluessel: -subdivisions 8 und 32 geben verschiedene Schluessel",
+               !(BhedLichtSchalterSig("ja", schalter, 8) == BhedLichtSchalterSig("ja", schalter, 32)));
+        expect("Schalter-Schluessel: gleiche Eingaben geben denselben Schluessel",
+               BhedLichtSchalterSig("ja", schalter, 8) == BhedLichtSchalterSig("ja", schalter, 8));
+        expect("Schalter-Schluessel: ein anderes Spiel gibt einen anderen Schluessel",
+               !(BhedLichtSchalterSig("ja", schalter, 8) == BhedLichtSchalterSig("jk2", schalter, 8)));
+    }
+
     std::printf(fehler == 0 ? "\nalle Proben des Licht-Cache-Hashes bestanden\n" : "\nFEHLGESCHLAGEN (%d)\n", fehler);
     return fehler == 0 ? 0 : 1;
 }

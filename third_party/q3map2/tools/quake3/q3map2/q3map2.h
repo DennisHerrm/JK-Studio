@@ -641,6 +641,7 @@ struct shaderInfo_t_data
 	Vector3 fogDir{ 0 };                                /* ydnar */
 
 	char                *shaderText;                    /* ydnar */
+	char                *bhedSkript;                    /* BehavEd lcfix: the script of a ":q3map" shader without stages (no shaderText), for the light cache */
 	bool custom;
 	bool finished;
 };

@@ -47,6 +47,7 @@ Sig shaderSigRechnen( const shaderInfo_t* si ){
 		return h.ende();
 	h.text( si->shader.c_str() );
 	h.text( si->shaderText );
+	h.text( si->bhedSkript );   // lcfix: a ":q3map" shader without stages has no shaderText
 	h.wert( si->surfaceFlags );
 	h.wert( si->contentFlags );
 	h.wert( si->compileFlags );
@@ -110,6 +111,7 @@ std::string g_neuPfad;                 // written while the run goes, renamed at
 Sig g_opt;                             // the light switches
 Sig g_welt;                            // worldspawn without the post-processing keys
 Sig g_geo;                             // the geometry (lumps, .srf, shader scripts, brush entities)
+Sig g_spurGanz;                        // lcfix: the whole trace tree (empty: no hashes - vertex lit surfaces and the grid are traced, not kept)
 bool g_geoGleich = false;              // ... the same as in the cache
 int g_paesse = 1;                      // first pass and the bounces
 
@@ -713,8 +715,9 @@ void altVergessen(){
 	g_altGitterAnzahl = 0;
 }
 
-// 3: one section per pass (lcb1), 4: by content, 5: packed (lcb2), 6: the hash keeps the last byte of a 7 byte tail (lcfix P4-2)
-constexpr char kKopf[8] = { 'B', 'H', 'L', 'I', 'C', 'H', 'T', '6' };
+/* 3: one section per pass (lcb1), 4: by content, 5: packed (lcb2), 6: the hash keeps the last byte of a 7 byte tail (lcfix P4-2),
+   7: vertex lit surfaces and the grid with the whole trace tree, the patch subdivisions in the switches (lcfix P4-1) */
+constexpr char kKopf[8] = { 'B', 'H', 'L', 'I', 'C', 'H', 'T', '7' };
 
 }  // namespace
 
@@ -744,14 +747,7 @@ void BhedLichtCacheGeometrie(){
 	if ( !g_an )
 		return;
 	g_paesse = bounce + 1;
-	{
-		Hash h;
-		h.text( "bhedlicht4" );
-		h.text( g_game->arg );
-		for ( const std::string& o : g_optionen )
-			h.text( o.c_str() );
-		g_opt = h.ende();
-	}
+	g_opt = BhedLichtSchalterSig( g_game->arg, g_optionen, patchSubdivisions );
 	{   // lcb2: worldspawn on its own (ambient, colour, scales ... reach every lightmap)
 		Hash w;
 		if ( !entities.empty() )
@@ -821,6 +817,7 @@ void BhedLichtCacheGeometrie(){
 	for ( const shaderInfo_t& si : shaderInfo ) {
 		h.text( si.shader.c_str() );
 		h.text( si.shaderText );
+		h.text( si.bhedSkript );   // lcfix: a ":q3map" shader without stages has no shaderText
 	}
 	// worldspawn (without the post-processing keys) and the brush entities (origins move their surfaces)
 	for ( std::size_t i = 0; i < entities.size(); ++i ) {
@@ -921,6 +918,12 @@ void BhedLichtCacheDurchgang( int b ){
 		return;
 	g_pass = b;
 	altVergessen();
+	if ( b == 0 ) {
+		/* lcfix: before the grid of the first pass (it is traced before the lightmaps) - its fingerprint and that of the
+		   vertex lit surfaces carry the whole trace tree (P4-1) */
+		inhaltAnlegen();
+		g_spurGanz = BhedSpurGanzSig();
+	}
 	if ( g_cacheGilt && g_altDatei != nullptr ) {
 		const auto it = g_altPaesse.find( b );
 		if ( it != g_altPaesse.end() ) {
@@ -946,9 +949,14 @@ void BhedLichtCacheDurchgang( int b ){
 bool BhedGitterAusCache( std::uint64_t ursprung ){
 	if ( !g_an )
 		return false;
+	++g_gitterPaesse;
+	g_gitterSig = Sig{};
+	if ( !g_spurGanz.da() )   // lcfix: no trace tree hashes - traced, not kept
+		return false;
 	Hash h;
 	h.text( "gitter" );
 	h.wert( g_geo );   // lcb2: the grid traces against everything - same geometry only
+	h.wert( g_spurGanz );   // lcfix: ... and against every shadow caster (alpha shadow images, models of point entities, patches)
 	h.wert( g_pass );
 	h.wert( lights.size() );
 	for ( const light_t& l : lights )
@@ -960,7 +968,6 @@ bool BhedGitterAusCache( std::uint64_t ursprung ){
 		h.wert( g.styles );
 	h.wert( ursprung );
 	g_gitterSig = h.ende();
-	++g_gitterPaesse;
 	if ( !g_altDa || !g_altGitterSig.da() || !( g_altGitterSig == g_gitterSig ) || g_altGitterAnzahl != rawGridPoints.size() )
 		return false;
 	std::size_t pos = g_altGitterPos;
@@ -1000,8 +1007,10 @@ void BhedLichtCacheLichter(){
 		h.wert( l.cluster );
 		g_lichtHash.emplace( &l, h.ende() );
 	}
-	if ( g_pass == 0 || g_fest.size() != std::size_t( numRawLightmaps ) )
-		inhaltAnlegen();   // lcb2
+	if ( g_fest.size() != std::size_t( numRawLightmaps ) ) {   // lcb2 (made in BhedLichtCacheDurchgang( 0 ))
+		inhaltAnlegen();
+		g_spurGanz = BhedSpurGanzSig();
+	}
 	g_lmSig.assign( numRawLightmaps, Sig{} );
 	g_lmZeit.assign( numRawLightmaps, LmZeit{} );
 	g_lmArbeit.assign( numRawLightmaps, 0 );
@@ -1256,10 +1265,13 @@ void BhedLmDatenMerken(){
 bool BhedFlaecheAusCache( int surfaceNum, const trace_t& trace, unsigned int seed ){
 	if ( !g_an || surfaceNum < 0 || surfaceNum >= int( g_flaecheSig.size() ) )
 		return false;
+	if ( !g_spurGanz.da() )   // lcfix: no trace tree hashes - traced, not kept
+		return false;
 	bspDrawSurface_t& ds = bspDrawSurfaces[surfaceNum];
 	Hash h;
 	h.text( "vertex" );
 	h.wert( g_geo );   // lcb2: raw cluster and surface numbers - same geometry only
+	h.wert( g_spurGanz );   // lcfix: the shadow casters (P4-1)
 	h.wert( g_pass );
 	h.wert( seed );
 	h.wert( listenSigRoh( trace ) );

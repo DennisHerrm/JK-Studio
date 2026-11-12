@@ -2217,3 +2217,17 @@ BhedSig BhedSpurRaumSig( const BhedStrahlRaum& raum ){
 	}
 	return h.ende();
 }
+
+/* BehavEd lcfix: the whole trace tree (the main tree and the portal sky's) - every triangle that can cast a shadow with
+   its shader (and the image of an alpha shadow or light filter), surface and flags, the triangles of point entity
+   models with _cs and the patch subdivisions. Vertex lit surfaces and the grid trace against all of it (P4-1). */
+BhedSig BhedSpurGanzSig(){
+	if ( !g_bhedSpurDa || headNodeNum < 0 || headNodeNum >= numTraceNodes || skyboxNodeNum < 0 || skyboxNodeNum >= numTraceNodes ) {
+		return BhedSig{};
+	}
+	BhedHash h;
+	h.text( "spur ganz" );
+	h.wert( g_bhedSpurVoll[ headNodeNum ] );
+	h.wert( g_bhedSpurVoll[ skyboxNodeNum ] );
+	return h.ende();
+}
