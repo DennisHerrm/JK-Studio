@@ -6059,6 +6059,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_fix612.inc"  // FIX612: Funde der Code-Pruefung seit rc611 (modellblock BHED_MODELL_NUR=fix612, karteneditor BHED_KARTE_NUR=fix612)
 #include "selbsttest_ent3b.inc"   // ENTSCHEID3B: IK/FK-Spur wie CAT, Tempo als Faktor, Griff der Wurzel, Rig-Vorlage im Dokument (modellblock, BHED_MODELL_NUR=ent3b)
 #include "selbsttest_ent3a.inc"    // ENTSCHEID3A: Entscheidungen B7-B13, C4 - Explorer, Werkzeugleiste, Seitenleiste, Strg+Umschalt+Z, Auge, Begleitdatei, Unwrap UVW, Esc (modellblock, BHED_MODELL_NUR=ent3a / ent3afoto / ent3ahb)
+#include "selbsttest_ap11.inc"     // AP11: Modelle in Reitern, Kopieren/Einfuegen von Flaechen, In neuem Tab oeffnen (modellblock, BHED_MODELL_NUR=ap11 / ap11foto / ap11hb)
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -7081,6 +7082,7 @@ void selbsttest() {
                     for (Schritt& x : kleinkram::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // KLEIN (Kleinkram im Model-Tab, About)
                     for (Schritt& x : ent3b::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // ENTSCHEID3B (B14-B17, C1, C3)
                     for (Schritt& x : ent3a::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // ENTSCHEID3A (B7-B13, C4)
+                    for (Schritt& x : ap11::schritte(nur)) { a.schritte.push_back(std::move(x)); }      // AP11 (R5, X19, P1)
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

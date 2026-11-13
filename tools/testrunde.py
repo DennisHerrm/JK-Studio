@@ -268,6 +268,10 @@ lauf("mb_ap13k", "modellblock", 1800, MB + ["BHED_MODELL_NUR=ap13k", "BHED_FOTOS
 # (kleinneustart) prueft es mit den Einstellungen des ersten
 lauf("mb_klein", "modellblock", 2400, MB + ["BHED_MODELL_NUR=klein", "BHED_POSEN=<FOTOS>", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 lauf("mb_kleinneustart", "modellblock", 1500, MB + ["BHED_MODELL_NUR=kleinneustart", "BHED_FOTOS=<FOTOS>"], behalten="mb_klein", bereich="modell")
+# AP11: mehrere Modelle in Reitern ueber der Ansicht, je Modell bleibt alles, Schliessen/Beenden fragen je Modell, Absturzrichtungen
+# (schnell wechseln, Fenster offen, Strich offen), Kopieren/Einfuegen von Flaechen zwischen Modellen, In neuem Tab oeffnen (nicht im
+# Pool: die Bildlaeufe ap11foto, ap11hb)
+lauf("mb_ap11", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap11", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 
 # Nicht im Pool: eigene Vorbereitung, Messungen (allein und mit BHED_D3D_DEBUG=0), Bildlaeufe fuer das Handbuch
 lauf("update", "update", 1500, allein="braucht den lokalen Update-Server (tools/karte/updater_uebergang.py, ctest updater_uebergang)", bereich="update")

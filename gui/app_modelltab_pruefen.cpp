@@ -835,4 +835,23 @@ bool modellPrAktionenSuche(const std::string& such) {
     return false;
 }
 
+
+// AP11 (Modelle in Tabs): vier Ansichten je Bereich (Alt+W wie 3ds Max) und die Overlays je Ansicht gehoeren zu den Ansichten des
+// Modells. Alpha, Filter, Schwelle und die anderen Anzeige-Schalter gelten fuer alle Reiter ("gilt ueberall").
+void modellPruefenTauschen(ModellFachZeiger& f) {
+    struct Fach : ModellFach {
+        int vierJeBereich[kModellBereiche] = {-1, -1, -1, -1, -1, -1};
+        int letzterBereich = -1;
+        int letzteBedienung = -1;
+        bool overlaysAus[4]{};
+    };
+    if (!f) { f = std::make_unique<Fach>(); }
+    Fach& x = static_cast<Fach&>(*f);
+    std::swap(g_pr.vierJeBereich, x.vierJeBereich);
+    std::swap(g_pr.letzterBereich, x.letzterBereich);
+    std::swap(g_pr.letzteBedienung, x.letzteBedienung);
+    std::swap(g_pr.overlaysAus, x.overlaysAus);
+    g_pr.schattierungOeffnen = false;
+}
+
 }  // namespace bhed::gui

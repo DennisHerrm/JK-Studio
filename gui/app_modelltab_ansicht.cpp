@@ -2553,6 +2553,16 @@ void drawModellArbeitsflaeche() {
     const float sp = ImGui::GetStyle().ItemSpacing.x;
     // AP1: Dopesheet und Kurveneditor stehen als Spurbereich in der Zeitleiste (app_modelltab_zeit.cpp), nicht mehr hier
     ImVec2 ansichtenG{std::max(frei.x - befehlB - sp, 64.0F), std::max(frei.y, 64.0F)};
+    const float hoehe = ansichtenG.y;
+    // AP11 (R5): ueber den Ansichten die Reiter der geoeffneten Modelle - links vom rechten Feld, ueber UV-Editor, 2D-Bild, Ansichten
+    // und Seitenleiste (Entwurf: die Zeile "kyle/model.glm x | jedi_hm/model.glm x | +" ueber der Ansicht). Platz nur, wenn gebraucht:
+    // mit einem Modell und leerer Ablage steht der Model-Tab da wie bisher (Bilder und Selbsttests unveraendert).
+    const bool reiterZeile = modellReiterZeileSichtbar();
+    if (reiterZeile) {
+        ImGui::BeginGroup();
+        drawModellReiterZeile(ansichtenG.x);
+        ansichtenG.y = std::max(hoehe - modellReiterZeileHoehe() - ImGui::GetStyle().ItemSpacing.y, 64.0F);
+    }
     // AP4: wie Blender die Seitenleiste (N) rechts neben den Ansichten
     const float seiteB = modellSeitenleisteBreite(ansichtenG.x);
     if (seiteB > 0.0F) { ansichtenG.x = std::max(ansichtenG.x - seiteB - sp, 64.0F); }
@@ -2587,13 +2597,14 @@ void drawModellArbeitsflaeche() {
         drawModellSeitenleiste(ImGui::GetContentRegionAvail());
         ImGui::EndChild();
     }
+    if (reiterZeile) { ImGui::EndGroup(); }   // AP11
     ImGui::SameLine(0.0F, 0.0F);
-    modellFeldTrenner(sp, ansichtenG.y, frei.x);   // AP3: die Trennkante - ziehen aendert die Breite des Felds
+    modellFeldTrenner(sp, hoehe, frei.x);   // AP3: die Trennkante - ziehen aendert die Breite des Felds
     ImGui::SameLine(0.0F, 0.0F);
     // AP4: wie Blender oben der Outliner (der Baum von AP2), darunter der Eigenschaften-Editor; wie 3ds Max nur das Befehlsfeld
     const bool outliner = modellBlender();
     if (outliner) { ImGui::BeginGroup(); }
-    const float feldH = outliner ? drawModellBlOutliner(befehlB, ansichtenG.y) : ansichtenG.y;
+    const float feldH = outliner ? drawModellBlOutliner(befehlB, hoehe) : hoehe;
     ImGui::BeginChild("mtbefehlsfeld", ImVec2{befehlB, feldH}, ImGuiChildFlags_Borders);
     drawModellBefehlsfeld();
     ImGui::EndChild();
@@ -3243,6 +3254,39 @@ bool modellAnbauWelt(int anbau, float welt[16]) {
     const ModellTab& t = mt();
     if (anbau < 0 || static_cast<std::size_t>(anbau) >= t.anbauten.size()) { return false; }
     return anbauWelt(t.anbauten[static_cast<std::size_t>(anbau)], welt);
+}
+
+
+// AP11 (Modelle in Tabs): "fuer welches Modell sind die Ansichten eingepasst" gehoert dem Modell - sonst passte der Wechsel zurueck
+// die Ansichten neu ein (und verloere Kamera, Ansichtsart und Home des Reiters). Pose, Haut, Gewichtsbild und die Bilder der vier
+// Ansichten gehoeren dem alten Modell: verworfen, modellAnsichtNachWechsel rechnet die Pose des neuen.
+void modellAnsichtTauschen(ModellFachZeiger& f) {
+    struct Fach : ModellFach {
+        std::string eingepasst;
+    };
+    if (!f) { f = std::make_unique<Fach>(); }
+    std::swap(g_eingepasst, static_cast<Fach&>(*f).eingepasst);
+    g_knochen.clear();
+    g_bindepose = true;
+    ++g_poseStand;
+    g_posiertBeiStand = -1;
+    g_haut.clear();
+    g_hautPose = -1;
+    g_hautAnzeige = -1;
+    g_strichSchritt = 0;
+    g_ziehSchritt = 0;
+    g_gewModell = GlmModel{};
+    g_gewTex = ModelTextures{};
+    g_gewSchluessel.clear();
+    for (std::string& s : g_sichtStand) { s.clear(); }
+}
+
+void modellAnsichtNachWechsel() {
+    modellAnzeigeAktualisieren();
+    posieren();
+    g_posiertBeiStand = mt().dok.stand();
+    for (std::string& s : g_sichtStand) { s.clear(); }
+    g_app->modelDirty = true;
 }
 
 }  // namespace bhed::gui

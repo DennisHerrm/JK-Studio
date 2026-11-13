@@ -469,4 +469,14 @@ void drawModellAnimFeld() {
     modellAnimGruppePfade();
 }
 
+
+// AP11 (Modelle in Tabs): erkannte Vorlage und Wurzelweg sind aus dem alten Modell gerechnet - neu beim naechsten Gebrauch.
+void modellAnimWechsel() {
+    g_anim.vorlageFuer.clear();
+    g_anim.erkannt = -1;
+    g_anim.wegFuer.clear();
+    g_anim.weg = 0.0F;
+    g_anim.wegDa = false;
+}
+
 }  // namespace bhed::gui

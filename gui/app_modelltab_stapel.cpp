@@ -957,4 +957,28 @@ bool modellStapelAktionenSuche(const std::string& such) {
     return ausgeloest;
 }
 
+
+// AP11 (Modelle in Tabs): der gewaehlte Eintrag gehoert dem Modell (der Stapel selbst steht im Dokument). Zeichnung und Datei-Inhalt
+// sind aus dem alten Modell gerechnet - verworfen; die Kennung des Dokuments (dateiVon) zeigt nach dem Tausch auf dasselbe Objekt,
+// das jetzt ein anderes Modell haelt.
+void modellStapelTauschen(ModellFachZeiger& f) {
+    struct Fach : ModellFach {
+        std::uint32_t gewaehlt = 0;
+    };
+    if (!f) { f = std::make_unique<Fach>(); }
+    std::swap(g_stapel.gewaehlt, static_cast<Fach&>(*f).gewaehlt);
+    g_stapel.kontext = 0;
+    g_stapel.zeigen = 0;
+    g_stapel.zeichnung = GlmModel{};
+    g_stapel.zeichnungAn = false;
+    g_stapel.zeichnungFuer = -1;
+    g_stapel.ersetzt.clear();
+    g_stapel.stand.clear();
+    g_stapel.reglerAktiv = 0;
+    g_stapel.reglerStand = -1;
+    g_stapel.dateiInhalt = modell::Inhalt{};
+    g_stapel.dateiFuer = -1;
+    g_stapel.dateiVon = nullptr;
+}
+
 }  // namespace bhed::gui

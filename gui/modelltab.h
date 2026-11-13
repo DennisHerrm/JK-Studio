@@ -1877,5 +1877,112 @@ bool modellEnt3aKontextEsc();
 // B12 (Selbsttest): eine .glm von der Platte oeffnen wie Datei > Oeffnen, ohne Dialog (gui/app_view3d.cpp)
 void modellVonPlatteOeffnen(const std::string& pfad);
 
+
+// --- AP11 (MBENTWURF Teil B, 13.11.): mehrere Modelle in Reitern ueber der Ansicht, Kopieren/Einfuegen von Flaechen zwischen den
+// Modellen (Abgleich R5, X19, P1; gui/app_modelltabs.cpp). shank 04.11.: "Kopieren/Einfuegen, Modelle in Tabs".
+//
+// Aufbau: das aktive Modell arbeitet wie bisher in App (model, modelPath, anim, mtab ...) und in den Zustaenden der Module; die
+// anderen Reiter halten ihren Teil in einem Fach je Modul. Der Wechsel tauscht das Fach mit dem Arbeitsstand (std::swap, nichts
+// wird kopiert oder neu geladen) und laesst jeden Zwischenspeicher, der am alten Modell hing, neu rechnen. Er geschieht nur am
+// Anfang eines Bilds (modellReiterSchritt), nie mitten in einem Bild, in dem noch Verweise auf das alte Modell in der Hand sind.
+struct ModellFach {
+    virtual ~ModellFach() = default;
+};
+using ModellFachZeiger = std::unique_ptr<ModellFach>;
+// Je Modul: tauscht den Zustand, der zu EINEM Modell gehoert, mit dem Fach (leeres Fach: ein neuer Reiter - das Modul legt eins mit
+// der Vorgabe an) und verwirft, was es aus dem alten Modell abgeleitet hat.
+void modellTabTauschen(ModellFachZeiger& f);         // app_modelltab.cpp
+void modellAnsichtTauschen(ModellFachZeiger& f);     // app_modelltab_ansicht.cpp
+void modellExplorerTauschen(ModellFachZeiger& f);    // app_modelltab_explorer.cpp
+void modellMalenTauschen(ModellFachZeiger& f);       // app_modelltab_malen.cpp
+void modellGewichteTauschen(ModellFachZeiger& f);    // app_modelltab_gewichte.cpp
+void modellStapelTauschen(ModellFachZeiger& f);      // app_modelltab_stapel.cpp
+void modellEnt3aTauschen(ModellFachZeiger& f);       // app_modelltab_ent3a.cpp
+void modellAutoSkinTauschen(ModellFachZeiger& f);    // app_modelltab_autoskin.cpp
+void modellZeitTauschen(ModellFachZeiger& f);        // app_modelltab_zeit.cpp
+void modellNavTauschen(ModellFachZeiger& f);         // app_modelltab_nav.cpp
+void modellPruefenTauschen(ModellFachZeiger& f);     // app_modelltab_pruefen.cpp
+void modellRetargetTauschen(ModellFachZeiger& f);    // app_modelltab_retarget.cpp
+void modellNebenTauschen(ModellFachZeiger& f);       // app_modelltabs.cpp: die Module mit nur Zwischenspeichern (unten)
+void modellAnimWechsel();     // app_modelltab_anim.cpp: erkannte Vorlage, Wurzelweg
+void modellBlWechsel();       // app_modelltab_blender.cpp: Messpunkte, Zug in der Seitenleiste
+void modellKdWechsel();       // app_modelltab_knochen.cpp: Formen der Knochen und Griffe
+void modellKurvenWechsel();   // app_modelltab_kurven.cpp: Kurvenpunkte, Zeilen des Dopesheets
+void modellMeshWechsel();     // wof/app_modelltab_mesh.cpp: Masse der Gruppe JKA-Grenzen
+// Nach dem Tauschen aller Faecher: die Pose des neuen Modells (app_modelltab_ansicht.cpp).
+void modellAnsichtNachWechsel();
+// Zaehlt jeden Wechsel und jedes Schliessen - fuer Zwischenspeicher, die sich etwas nach Adresse oder Index merken.
+[[nodiscard]] int modellReiterStand();
+
+struct ModellReiterInfo {
+    int kennung = 0;            // bleibt, solange der Reiter offen ist
+    std::string titel;          // "kyle/model.glm" (Ordner und Datei), ohne Modell: "(kein Modell)"
+    std::string pfad;           // modelPath
+    bool aktiv = false;
+    bool ungespeichert = false;
+    bool leer = true;           // kein Modell geladen
+};
+[[nodiscard]] int modellReiterZahl();
+[[nodiscard]] int modellReiterAktiv();
+[[nodiscard]] ModellReiterInfo modellReiterInfo(int i);
+[[nodiscard]] std::string modellReiterTitel(const std::string& pfad, const std::string& name);
+// Angefordert (wirken am Anfang des naechsten Bilds): wechseln, schliessen (fragt wie heute bei ungespeicherten Aenderungen; der
+// letzte Reiter wird leer statt zu verschwinden), alle anderen schliessen.
+void modellReiterWechseln(int i);
+void modellReiterSchliessen(int i);
+void modellReiterAndereSchliessen(int i);
+// In einem neuen Reiter laden: `laden` laeuft am Anfang des naechsten Bilds im neuen (leeren) Reiter. Ist der aktive Reiter leer
+// und unveraendert, laedt er dort. Bleibt der neue Reiter danach leer (Fehler, Abbruch), schliesst er wieder. Ein Modell, das schon
+// in einem Reiter offen ist, oeffnet nicht doppelt: dann wechselt der Reiter dorthin.
+void modellInNeuemReiter(const std::string& pfad, std::function<void()> laden);
+void modellInNeuemReiterOeffnen();                         // Strg+O, "+", "In neuem Tab oeffnen": .glm/.md3 von der Platte (Dialog)
+void modellInNeuemReiterAusArchiv(const std::string& name);   // ein Modell der Spieldateien (Selbsttest, pk3-Browser)
+[[nodiscard]] bool modellNaechstesInNeuemReiter();         // der pk3-Browser wurde ueber "In neuem Tab oeffnen" geoeffnet
+// Andere Wege, ein Modell zu laden (Importieren, pk3-Browser, NPC, Szene): wie bisher in den aktiven Reiter (ungespeichert: die
+// Frage von pfix H3) - es sei denn, das Modell ist schon in einem anderen Reiter offen; dann wechselt der Reiter dorthin.
+void modellOeffnenWie(const std::string& pfad, std::function<void()> laden);
+// Am Anfang jedes Bilds (gui::draw): angeforderte Wechsel, Schliessen und Laden ausfuehren.
+void modellReiterSchritt();
+// Die Reiterzeile ueber den Ansichten (drawModellArbeitsflaeche): Reiter mit Schliessen, "+", rechts der Hinweis der Ablage.
+// Die Zeile steht, sobald sie gebraucht wird: mehr als ein Reiter oder etwas in der Ablage (mit einem Modell und leerer Ablage sieht der
+// Model-Tab aus wie bisher - "+" heisst dann "In neuem Tab oeffnen" in der Gruppe Modell, Strg+O, Datei-Menue und Suche).
+[[nodiscard]] bool modellReiterZeileSichtbar();
+void drawModellReiterZeile(float breite);
+[[nodiscard]] float modellReiterZeileHoehe();   // die Zeile selbst; darunter folgt der Abstand ItemSpacing.y
+void modellNeuerReiterMenue();                   // Inhalt des Menues von "+" und "In neuem Tab oeffnen": Datei, Spieldateien
+// Ein Befund der Grenzen als Satz (gui/app_modelltab_mb3.cpp, wie die Frage vor dem Speichern).
+[[nodiscard]] std::string modellBefundText(const modell::Befund& b);
+// Beenden: jeder Reiter mit ungespeicherten Aenderungen fragt (der aktive zuerst); false: eine Frage ist offen.
+[[nodiscard]] bool modellReiterBeendenFrage();
+void modellReiterBeendenVergessen();
+
+// Die Ablage fuer Flaechen (Strg+C / Strg+V, Rechtsklick einer Flaeche): die gewaehlten Flaechen mit allen Detailstufen, Gewichten
+// (nach Knochennamen), Shader und Modifier-Stapel. Einfuegen in jedes offene Modell als Kind einer Flaeche (-1: oberste Ebene);
+// Gewichte gehen an gleichnamige Knochen, fehlt einer, an den naechsten vorhandenen Elternknochen - die Meldung nennt jeden.
+// Ein Rueckgaengig-Schritt im Zielmodell; die Grenzen des Zielspiels (Ecken, Knochen je Flaeche, Gewichte je Ecke) werden geprueft.
+bool modellFlaechenKopieren();
+bool modellFlaechenEinfuegen(int elternTeil);
+[[nodiscard]] bool modellAblageDa();
+[[nodiscard]] std::string modellAblageHinweis();   // "Ablage: torso aus kyle/model.glm - Strg+V fuegt ein" (leer: nichts in der Ablage)
+// Rechtsklick einer Flaeche: Kopieren und "Einfuegen als Kind hiervon" (gui/app_modelltab_explorer.cpp, flaechenMenue).
+void modellAblageMenue(int teil);
+// Tasten (Strg+C, Strg+V im Model-Tab ausser im Bereich Animation - dort gehoeren sie der Pose), Suche "Alle Aktionen".
+bool modellReiterTasten();
+bool modellReiterAktionenSuche(const std::string& such);
+// Selbsttest: was die Reiterzeile im letzten Bild gezeichnet hat.
+struct ModellReiterProbe {
+    int bild = -1;
+    ImRect zeile;                                     // die ganze Zeile
+    std::vector<std::pair<std::string, ImRect>> reiter;   // Text und Rechteck je Reiter
+    ImRect plus;
+    ImRect hinweis;                                   // der Hinweis der Ablage (leer: nicht gezeichnet)
+    std::string hinweisText;
+    bool hinweisGekuerzt = false;
+    std::string tooltip;                              // der Tooltip eines Reiters oder von "+" (zuletzt gezeigt)
+    int wechsel = 0;                                  // ausgefuehrte Wechsel
+    int geschlossen = 0;                              // geschlossene Reiter
+};
+[[nodiscard]] ModellReiterProbe& modellReiterProbe();
+
 }  // namespace bhed::gui
 #endif

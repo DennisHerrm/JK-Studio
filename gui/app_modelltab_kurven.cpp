@@ -2401,4 +2401,12 @@ bool modellPfadPunktAufSchirm(int pfad, int bild, ImVec2& out) {
     return modellAufSchirm(t.ansichten[t.aktiv], w, out);
 }
 
+
+// AP11 (Modelle in Tabs): die Kurvenpunkte gehoeren zu den Schluesseln des alten Modells.
+void modellKurvenWechsel() {
+    g_kurven = KurvenStand{};
+    g_zeilen.clear();
+    g_zeileY.clear();
+}
+
 }  // namespace bhed::gui

@@ -1627,4 +1627,12 @@ void modellBlKontextMenue() {
     }
 }
 
+
+// AP11 (Modelle in Tabs): die Messpunkte liegen im Raum des alten Modells, ein Zug in der Seitenleiste gilt seinem Knochen.
+void modellBlWechsel() {
+    g_bl.messPunkte = 0;
+    g_zug = SeitenZug{};
+    g_bl.gruppeOffen.clear();
+}
+
 }  // namespace bhed::gui

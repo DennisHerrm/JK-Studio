@@ -1236,4 +1236,8 @@ float modellKdMassstab() {
     return modell::rigMassstab(g_app->anim, rigFuerSkelett().erkennung);
 }
 
+
+// AP11 (Modelle in Tabs): die Formen der Knochen und Griffe sind aus Skelett und Rig des alten Modells gebaut.
+void modellKdWechsel() { g_kd = Zustand{}; }
+
 }  // namespace bhed::gui

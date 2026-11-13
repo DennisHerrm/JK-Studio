@@ -677,17 +677,20 @@ void musterSchritte(std::vector<Schritt>& s) {
         }));
         // --- F5: Knopfraster ---
         // AP5 P1: in Modell Andere GLA, Texturen neu laden (Alt+R in beiden Bedienmodi wie im Entwurf), Importieren; Foto in "Boden und Kamera"
-        add(pruefe(zeile("F5", modus, "Modell: die Knoepfe Andere GLA, Texturen neu laden, Importieren stehen im Raster mit zwei gleich breiten Spalten, jeder mit Symbol, Texturen neu laden mit der Taste Alt+R"), [=] {
+        // AP11 P1: dazu wie im Entwurf "In neuem Tab oeffnen" (Strg+O) neben Importieren - vier Knoepfe, zwei mit Taste
+        add(pruefe(zeile("F5", modus, "Modell: die Knoepfe Andere GLA, Texturen neu laden, Importieren, In neuem Tab oeffnen stehen im Raster mit zwei gleich breiten Spalten, jeder mit Symbol, Texturen neu laden mit der Taste Alt+R, In neuem Tab oeffnen mit Strg+O"), [=] {
             const ui::RolloutProbe* m = feldGruppe(Str::MbRModell);
             const Element* a = imRoll(tr(Str::MbAndereGla));
             const Element* b = imRoll(tr(Str::MbTexNeu));
             const Element* c = imRoll(tr(Str::PqImport));
-            if (m == nullptr || a == nullptr || b == nullptr || c == nullptr) { return false; }
-            melde("F5 Raster: " + mbefoto::rechteck("gla", a->rect) + " " + mbefoto::rechteck("tex", b->rect) + " " + mbefoto::rechteck("foto", c->rect) + ", Spalten " +
-                  std::to_string(m->rasterSpalten) + ", Knoepfe " + std::to_string(m->knoepfe));
-            return m->rasterSpalten == 2 && m->knoepfe == 3 && m->symbole == 3 && m->tasten == 1 && std::fabs(a->rect.GetWidth() - b->rect.GetWidth()) < 0.5F && a->rect.Min.y == b->rect.Min.y && a->rect.Max.y == b->rect.Max.y &&
+            const Element* d = imRoll(tr(Str::MxNeuerTab));
+            if (m == nullptr || a == nullptr || b == nullptr || c == nullptr || d == nullptr) { return false; }
+            melde("F5 Raster: " + mbefoto::rechteck("gla", a->rect) + " " + mbefoto::rechteck("tex", b->rect) + " " + mbefoto::rechteck("foto", c->rect) + " " +
+                  mbefoto::rechteck("tab", d->rect) + ", Spalten " + std::to_string(m->rasterSpalten) + ", Knoepfe " + std::to_string(m->knoepfe));
+            return m->rasterSpalten == 2 && m->knoepfe == 4 && m->symbole == 4 && m->tasten == 2 && std::fabs(a->rect.GetWidth() - b->rect.GetWidth()) < 0.5F && a->rect.Min.y == b->rect.Min.y && a->rect.Max.y == b->rect.Max.y &&
                    b->rect.Min.x > a->rect.Max.x && c->rect.Min.y > a->rect.Max.y && std::fabs(c->rect.Min.x - a->rect.Min.x) < 0.5F && std::fabs(c->rect.GetWidth() - a->rect.GetWidth()) < 0.5F &&
-                   m->kasten.Contains(a->rect) && m->kasten.Contains(b->rect) && m->kasten.Contains(c->rect);
+                   d->rect.Min.y == c->rect.Min.y && std::fabs(d->rect.Min.x - b->rect.Min.x) < 0.5F && std::fabs(d->rect.GetWidth() - b->rect.GetWidth()) < 0.5F &&
+                   m->kasten.Contains(a->rect) && m->kasten.Contains(b->rect) && m->kasten.Contains(c->rect) && m->kasten.Contains(d->rect);
         }));
         // --- F8: Werte als Tabelle ---
         add(pruefe(zeile("F8", modus, "Modell: Datei, Animationen (GLA), Flaechen, Dreiecke, Ecken, Knochen als Zeilen einer Tabelle ueber die Breite der Gruppe"), [] {

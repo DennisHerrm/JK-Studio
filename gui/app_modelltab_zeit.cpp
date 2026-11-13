@@ -1525,4 +1525,26 @@ void drawModellZeitleiste() {
     z.probe = g_probe;
 }
 
+
+// AP11 (Modelle in Tabs): die Pose ohne Schluessel (Auto Key aus) haelt Rueckgaengig-Schritte DES Dokuments, in dem gezogen wurde -
+// sie geht mit in sein Fach. Auto Key, Key-Modus und Zeitkonfiguration gelten fuer alle Reiter.
+void modellZeitTauschen(ModellFachZeiger& f) {
+    struct Fach : ModellFach {
+        std::vector<std::uint64_t> offen;
+        int offenBild = -1;
+        std::string offenSequenz;
+        int offenStand = -1;
+        int zugBild = -10;
+    };
+    if (!f) { f = std::make_unique<Fach>(); }
+    Fach& x = static_cast<Fach&>(*f);
+    std::swap(g_zeit.offen, x.offen);
+    std::swap(g_zeit.offenBild, x.offenBild);
+    std::swap(g_zeit.offenSequenz, x.offenSequenz);
+    std::swap(g_zeit.offenStand, x.offenStand);
+    std::swap(g_zeit.zugBild, x.zugBild);
+    g_zeit.griffZieht = false;
+    g_zeit.skalaZieht = false;
+}
+
 }  // namespace bhed::gui

@@ -211,7 +211,10 @@ void drawModellInsSkriptFenster() {
 // --- Datei-Befehle im Model-Tab ----------------------------------------------------------------------
 
 void modellDateiMenue() {
-    if (ImGui::MenuItem(tr(Str::MbDateiOeffnen), "Ctrl+O")) { openModelFile(); }
+    // AP11 (P1): ein weiteres Modell in einem neuen Reiter (Strg+O); Oeffnen ersetzt das Modell des aktiven Reiters
+    if (ImGui::MenuItem(tr(Str::MxNeuerTab), "Ctrl+O")) { modellInNeuemReiterOeffnen(); }
+    ImGui::SetItemTooltip("%s", tr(Str::MxNeuerTabHint));
+    if (ImGui::MenuItem(tr(Str::MbDateiOeffnen), "Alt+O")) { openModelFile(); }
     if (ImGui::MenuItem(tr(Str::OpenGlmPk3))) {
         if (g_app->gamePaths.empty()) { rescanGamePaths(); }
         g_app->pk3Kind = 2;
@@ -256,7 +259,12 @@ void modellDateiTasten(bool nurRueckgaengig) {
     }
     if (nurRueckgaengig) { return; }
     const bool alt = io.KeyAlt && !io.KeyCtrl;
-    if (taste(ImGuiMod_Ctrl | ImGuiKey_O) || (alt && ImGui::IsKeyPressed(ImGuiKey_O, false))) {
+    // AP11 (P1): Strg+O oeffnet wie im Entwurf in einem neuen Reiter; Alt+O (BehavEd "&Open") wie bisher in den aktiven
+    if (taste(ImGuiMod_Ctrl | ImGuiKey_O)) {
+        modellInNeuemReiterOeffnen();
+        return;
+    }
+    if (alt && ImGui::IsKeyPressed(ImGuiKey_O, false)) {
         openModelFile();
         return;
     }

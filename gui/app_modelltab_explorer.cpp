@@ -280,8 +280,13 @@ const std::vector<int>& sequenzZeilen(const std::string& such) {
     static int gruppe = -1;
     static int sortierung = -1;
     static std::string suche;
+    static int reiterStand = -1;   // AP11: ein anderer Reiter hat eine andere Liste (auch an derselben Adresse)
     const int sort = g_z.sortierung == 1 || g_z.sortierung == 2 ? g_z.sortierung : 0;
-    if (liste == g_app->animList.data() && anzahl == g_app->animList.size() && gruppe == g_z.seqGruppe && suche == such && sortierung == sort) { return zeilen; }
+    if (liste == g_app->animList.data() && anzahl == g_app->animList.size() && gruppe == g_z.seqGruppe && suche == such && sortierung == sort &&
+        reiterStand == modellReiterStand()) {
+        return zeilen;
+    }
+    reiterStand = modellReiterStand();
     liste = g_app->animList.data();
     anzahl = g_app->animList.size();
     gruppe = g_z.seqGruppe;
@@ -823,6 +828,7 @@ void frostPunkt(bool eingefroren, const std::function<void(bool)>& setzen) {
 void flaechenMenue(int i, const std::string& name) {
     ModellTab& t = mt();
     if (ImGui::MenuItem(tr(Str::MbXInfo))) { infoOeffnen(name, infoFlaeche(i)); }
+    modellAblageMenue(i);   // AP11 (X19): Kopieren (Strg+C), Einfuegen als Kind hiervon (Strg+V)
     ImGui::Separator();
     if (ImGui::MenuItem(tr(Str::MbFlAn))) { modellFlaecheSchalten(i, 0U); }
     if (ImGui::MenuItem(tr(Str::MbFlAus))) { modellFlaecheSchalten(i, modell::kG2Aus); }
@@ -830,12 +836,13 @@ void flaechenMenue(int i, const std::string& name) {
     if (ImGui::MenuItem(tr(Str::MbFlWurzel), nullptr, t.g2.wurzel == i)) { modellWurzelSetzen(i); }
     if (ImGui::MenuItem(tr(Str::MbXWurzelLoesen), nullptr, false, t.g2.wurzel != 0)) { modellWurzelSetzen(0); }
     ImGui::Separator();
+    // AP11 (X19): Reihenfolge des Entwurfs - Alle _off-Flaechen aus, an, Alle auf Ursprungszustand
+    if (ImGui::MenuItem(tr(Str::MbFlKappenAus))) { g_app->showCaps = false; }
+    if (ImGui::MenuItem(tr(Str::MbFlKappenAn))) { g_app->showCaps = true; }
     if (ImGui::MenuItem(tr(Str::MbFlUrsprung))) {
         t.g2 = modell::G2Zustand{};
         t.hautAus.clear();   // die Haut gilt wieder
     }
-    if (ImGui::MenuItem(tr(Str::MbFlKappenAn))) { g_app->showCaps = true; }
-    if (ImGui::MenuItem(tr(Str::MbFlKappenAus))) { g_app->showCaps = false; }
     if (ImGui::MenuItem(tr(Str::MbFlAlleAn))) {
         const modell::Inhalt& in = t.dok.inhalt();
         for (std::size_t k = 0; k < in.teile.size(); ++k) {
@@ -2108,6 +2115,36 @@ void drawModellExplorer(float hoehe) {
     anbauFenster();
     infoFenster();
     ImGui::EndChild();
+}
+
+
+// AP11 (Modelle in Tabs): Einfrieren, offene Knoten und der Anker der Bereichswahl gehoeren dem Modell; Art, Filter und Sortierung
+// des Baums gelten fuer alle Reiter (wie die Anzeige-Schalter). Fenster und Menues des alten Modells gehen zu.
+void modellExplorerTauschen(ModellFachZeiger& f) {
+    struct Fach : ModellFach {
+        std::vector<char> frostTeil;
+        std::vector<char> frostKnochen;
+        bool frostAnbauten = false;
+        std::unordered_map<int, bool> offen;
+        std::string frostModell;
+        int anker = -1;
+    };
+    if (!f) { f = std::make_unique<Fach>(); }
+    Fach& x = static_cast<Fach&>(*f);
+    std::swap(g_z.frostTeil, x.frostTeil);
+    std::swap(g_z.frostKnochen, x.frostKnochen);
+    std::swap(g_z.frostAnbauten, x.frostAnbauten);
+    std::swap(g_offen, x.offen);
+    std::swap(g_frostModell, x.frostModell);
+    std::swap(g_anker, x.anker);
+    g_zeilen.clear();
+    g_z.lage.clear();
+    g_z.infoOffen = false;
+    g_z.infoText.clear();
+    g_infoOeffnen = false;
+    g_anbauOeffnen = false;
+    g_anbauZiel.clear();
+    g_zeigen = false;
 }
 
 }  // namespace bhed::gui

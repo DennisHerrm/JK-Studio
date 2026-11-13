@@ -2132,4 +2132,23 @@ void drawModellMalEditor(ImVec2 groesse) {
     ImGui::EndChild();
 }
 
+
+// AP11 (Modelle in Tabs): die Leinwaende samt Ebenen und Rueckgaengig gehoeren dem Modell - sie gehen mit in sein Fach und kommen beim
+// Zurueckwechseln wieder (vorher verwarf ein anderer Ladestand sie). Die 2D-Ansicht merkt sich Bilder nach Adresse: neue Generation.
+void modellMalenTauschen(ModellFachZeiger& f) {
+    struct Fach : ModellFach {
+        std::vector<std::unique_ptr<MalBild>> bilder;
+        int ladung = -1;
+        int lod = -1;
+    };
+    if (!f) { f = std::make_unique<Fach>(); }
+    Fach& x = static_cast<Fach&>(*f);
+    std::swap(g_bilder, x.bilder);
+    std::swap(g_bilderLadung, x.ladung);
+    std::swap(g_bilderLod, x.lod);
+    ++g_bilderGeneration;
+    g_stufen.je.clear();
+    g_stufen.datei.clear();
+}
+
 }  // namespace bhed::gui

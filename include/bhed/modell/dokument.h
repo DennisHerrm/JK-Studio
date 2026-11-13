@@ -138,6 +138,9 @@ struct Teil {
     // AP13S: der Modifier-Stapel der Flaeche in der Reihenfolge, in der die Eintraege rechnen (bhed/modell/stapel.h). Nicht in
     // der Datei; leer = die Flaeche ist, was die Stufen fuehren - Zeichnen, Speichern und Export wie ohne Stapel.
     std::vector<Modifikator> stapel;
+    // AP11: aus einem anderen Modell eingefuegt - das Bild, das die Haut der Quelle fuer die Flaeche zeigte (steht auch als Shader
+    // im Teil, so traegt es die Datei). Nicht in der Datei; leer = eine eigene Flaeche des Modells.
+    std::string hautBild;
 
     // G2SURFACEFLAG_ISBOLT (mdx_format.h): ein Tag - nur ein Dreieck, nie gezeichnet.
     [[nodiscard]] bool istTag() const noexcept { return (flaggen & GlmSurface::kFlagBolt) != 0U; }

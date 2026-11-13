@@ -493,6 +493,12 @@ void modellFlaechenAbgleichen() {
         const GlmModel gm = modell::zuGlm(in, 0);
         for (std::size_t i = f.size(); i < in.teile.size() && i < gm.surfaces.size(); ++i) {
             GlmSurface s = gm.surfaces[i];
+            // AP11: eine aus einem anderen Modell eingefuegte Flaeche bringt ihr Bild mit (Teil::hautBild)
+            if (!in.teile[i].hautBild.empty()) {
+                s.texture = in.teile[i].hautBild;
+                f.push_back(std::move(s));
+                continue;
+            }
             std::size_t laenge = 0;
             for (const GlmSurface& v : f) {
                 if (!v.name.empty() && v.name.size() > laenge && s.name.rfind(v.name, 0) == 0) {
@@ -2118,5 +2124,9 @@ bool modellRequisitBearbeiten(const std::string& vfsPfad) {
     melden(format(Str::MdRequisitGeholt, vfsPfad.c_str()));
     return true;
 }
+
+
+// AP11 (Modelle in Tabs): die Masse fuer die Gruppe "JKA-Grenzen" gehoeren zu den Flaechen des alten Modells.
+void modellMeshWechsel() { grenzStand().gueltig = false; }
 
 }  // namespace bhed::gui

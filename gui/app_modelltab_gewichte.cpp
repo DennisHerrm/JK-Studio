@@ -113,14 +113,15 @@ void grenzeMelden(std::string meldung) {
 }
 
 // --- Sperren wie Blender (object.vertex_group_lock, vgroup_lock_all) -----------------------------------------------------
+int g_sperrGeladen = -1;   // AP11: der Ladestand, fuer den `gesperrt` gilt (geht mit den Sperren in das Fach des Reiters)
+
 void sperrListeAnpassen() {
     ModellGewichte& g = gw();
     // FIX612B P2-7: die Sperren gelten dem geladenen Modell - ein anderes (auch mit gleicher Knochenzahl) beginnt ohne. Vorher
     // blieben sie stehen, wenn nur die Laenge gleich war.
-    static int geladen = -1;
     const int stand = mt().dok.ladeStand();
-    if (g.gesperrt.size() != g_app->anim.bones.size() || stand != geladen) { g.gesperrt.assign(g_app->anim.bones.size(), 0); }
-    geladen = stand;
+    if (g.gesperrt.size() != g_app->anim.bones.size() || stand != g_sperrGeladen) { g.gesperrt.assign(g_app->anim.bones.size(), 0); }
+    g_sperrGeladen = stand;
 }
 
 int gesperrteZahl() {
@@ -1150,6 +1151,34 @@ void drawModellGewichte() {
     rolloutKnochen();
     rolloutGrenzen();
     if (!modellBlender()) { rolloutErweitertMax(); }
+}
+
+
+// AP11 (Modelle in Tabs): die Sperren der Knochen gehoeren dem Modell; Werkzeug, Pinsel und Spiegel-Einstellungen gelten fuer alle
+// Reiter. Spiegelnetz, Partner und Befund sind aus dem alten Modell gerechnet: verworfen (sie entstehen beim naechsten Gebrauch neu).
+void modellGewichteTauschen(ModellFachZeiger& f) {
+    struct Fach : ModellFach {
+        std::vector<char> gesperrt;
+        int geladen = -1;
+    };
+    if (!f) { f = std::make_unique<Fach>(); }
+    Fach& x = static_cast<Fach&>(*f);
+    ModellGewichte& g = modellGewichte();
+    std::swap(g.gesperrt, x.gesperrt);
+    std::swap(g_sperrGeladen, x.geladen);
+    g.netz = modell::Schweissnetz{};
+    g.partner.clear();
+    g.befund = modell::SpiegelBefund{};
+    g.links = 0;
+    g.spiegelSchluessel.clear();
+    g.verlaufZieht = false;
+    g.verlaufAnsicht = -1;
+    g.verlaufVorher.clear();
+    g.verlaufHatte.clear();
+    g.verlaufBild = ModellEckenBild{};
+    g.verlaufSchritt = 0;
+    g.verlaufGeaendert = false;
+    g.sperrMenueOeffnen = false;
 }
 
 }  // namespace bhed::gui

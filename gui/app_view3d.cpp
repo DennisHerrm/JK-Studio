@@ -1833,7 +1833,7 @@ void openModelFile() {
     if (p.empty()) {
         return;
     }
-    modellVerwerfenDann([p] { modellDateiOeffnen(p); });   // pfix H3
+    modellOeffnenWie(p, [p] { modellDateiOeffnen(p); });   // pfix H3; AP11: ein schon offenes Modell nicht doppelt
 }
 
 namespace {

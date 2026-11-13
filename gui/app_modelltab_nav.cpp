@@ -1326,4 +1326,20 @@ void modellNavZuruecksetzen() {
     for (Flug& fl : g_flug) { fl.aktiv = false; }
 }
 
+
+// AP11 (Modelle in Tabs): der Verlauf der Ansichtsaenderungen (Umschalt+Z / Umschalt+Y) gehoert zu den Ansichten des Modells - mit ins
+// Fach. Laufende weiche Wechsel, Zuege und offene Menues enden.
+void modellNavTauschen(ModellFachZeiger& f) {
+    struct Fach : ModellFach {
+        std::array<Verlauf, 4> verlauf;
+    };
+    if (!f) { f = std::make_unique<Fach>(); }
+    std::swap(g_verlauf, static_cast<Fach&>(*f).verlauf);
+    for (Flug& fl : g_flug) { fl.aktiv = false; }
+    g_zug = Zug{};
+    g_ansichtenMenue = false;
+    g_kuchen = false;
+    g_blBereich = false;
+}
+
 }  // namespace bhed::gui

@@ -154,16 +154,19 @@ void gruppenSchritte(std::vector<Schritt>& s, int modus) {
         return feldGruppen() == soll;
     }));
     // --- P1 Modell ---
-    add(pruefe(zeile("P1", modus, "Modell: Raster mit Andere GLA, Texturen neu laden (Alt+R auch wie Blender), Importieren - zwei Spalten, jeder Knopf mit Symbol"), [] {
+    // AP11 P1: dazu wie im Entwurf "In neuem Tab oeffnen" (Strg+O) neben Importieren - vier Knoepfe, zwei mit Taste
+    add(pruefe(zeile("P1", modus, "Modell: Raster mit Andere GLA, Texturen neu laden (Alt+R auch wie Blender), Importieren, In neuem Tab oeffnen (Strg+O) - zwei Spalten, jeder Knopf mit Symbol"), [] {
         const ui::RolloutProbe* m = feldGruppe(Str::MbRModell);
         const Element* a = imRoll(tr(Str::MbAndereGla));
         const Element* b = imRoll(tr(Str::MbTexNeu));
         const Element* c = imRoll(tr(Str::PqImport));
-        if (m == nullptr || a == nullptr || b == nullptr || c == nullptr) { return false; }
+        const Element* d = imRoll(tr(Str::MxNeuerTab));
+        if (m == nullptr || a == nullptr || b == nullptr || c == nullptr || d == nullptr) { return false; }
         melde("P1: Knoepfe " + std::to_string(m->knoepfe) + ", Symbole " + std::to_string(m->symbole) + ", Tasten " + std::to_string(m->tasten) + ", Spalten " +
               std::to_string(m->rasterSpalten));
-        return m->knoepfe == 3 && m->symbole == 3 && m->tasten == 1 && m->rasterSpalten == 2 && std::fabs(a->rect.Min.y - b->rect.Min.y) < 0.5F &&
-               c->rect.Min.y > a->rect.Max.y - 0.5F && m->kasten.Contains(c->rect);
+        return m->knoepfe == 4 && m->symbole == 4 && m->tasten == 2 && m->rasterSpalten == 2 && std::fabs(a->rect.Min.y - b->rect.Min.y) < 0.5F &&
+               c->rect.Min.y > a->rect.Max.y - 0.5F && std::fabs(d->rect.Min.y - c->rect.Min.y) < 0.5F && d->rect.Min.x > c->rect.Max.x &&
+               m->kasten.Contains(c->rect) && m->kasten.Contains(d->rect);
     }));
     add(pruefe(zeile("P1", modus, "Alt+R laedt die Texturen neu - in der Tastenliste des Bedienmodus"), [modus] {
         bool da = false;

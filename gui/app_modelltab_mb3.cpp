@@ -73,6 +73,9 @@ std::string befundText(const modell::Befund& x) {
 std::string cfgBefundText(const modell::CfgBefund& x) { return modellCfgBefundText(x, zielspiel()); }
 }  // namespace
 
+// AP11: fuer die Meldung beim Einfuegen von Flaechen (gui/app_modelltabs.cpp)
+std::string modellBefundText(const modell::Befund& b) { return befundText(b); }
+
 // Stufe 7: auch fuer "Fuer das Spiel bauen" im Mission-Tab (Zielspiel aus dem Regelwerk)
 std::string modellCfgBefundText(const modell::CfgBefund& x, modell::Zielspiel s) {
     const modell::Grenzen& g = modell::grenzen(s);
@@ -202,8 +205,9 @@ bool modellUngespeichert() {
 namespace {
 std::string modellFrageName() {
     const ModellTab& t = mt();
-    if (!t.speicherPfad.empty()) { return fileName(t.speicherPfad); }
-    return g_app->modelPath.empty() ? t.dok.inhalt().name : fileName(g_app->modelPath);
+    // AP11: wie der Reiter Ordner und Datei ("kyle/model.glm") - mit mehreren Modellen heissen fast alle model.glm
+    if (!t.speicherPfad.empty()) { return modellReiterTitel(t.speicherPfad, {}); }
+    return g_app->modelPath.empty() ? t.dok.inhalt().name : modellReiterTitel(g_app->modelPath, t.dok.inhalt().name);
 }
 }  // namespace
 
@@ -220,7 +224,7 @@ void modellVerwerfenDann(std::function<void()> danach) {
 
 // pfix H3: beim Beenden (confirmQuit) - eine spaeter abgebrochene Frage vergisst die Antwort (beendenAbgebrochen)
 bool modellBeendenFrage() {
-    if (mt().beendenBeantwortet || !modellUngespeichert()) { return true; }
+    if (mt().beendenBeantwortet || !modellUngespeichert()) { return modellReiterBeendenFrage(); }   // AP11: dann die anderen Reiter
     if (g_app->frageOffen) { return false; }
     g_app->leftMode = 2;
     frage(format(Str::MbBeendenFrage, modellFrageName().c_str()),
@@ -235,7 +239,10 @@ bool modellBeendenFrage() {
     return false;
 }
 
-void modellBeendenVergessen() { mt().beendenBeantwortet = false; }
+void modellBeendenVergessen() {
+    mt().beendenBeantwortet = false;
+    modellReiterBeendenVergessen();   // AP11: auch in den anderen Reitern
+}
 
 // --- Bereich Animation ---------------------------------------------------------------------------------------------
 namespace {

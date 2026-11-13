@@ -4,11 +4,23 @@
 #include "bhed/modell/gewichte.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <unordered_map>
 
 namespace bhed::modell {
 namespace {
+
+// AP11 (Modelle in Tabs): Stand, Ladestand, Netzstand und Schrittkennung zaehlen fuer alle Dokumente gemeinsam. Mehrere Modelle
+// liegen nebeneinander in Reitern; wer sich etwas nach dem Stand eines Dokuments merkt (Anzeige, Pruefung, Malen, Stapel), sieht
+// so beim Wechsel einen anderen Stand und rechnet neu - zwei Dokumente haben nie denselben Stand. Innerhalb eines Dokuments
+// bleibt alles, wie es war: jeder Schritt, jedes Laden zaehlt weiter hoch, Rueckgaengig bringt den Netzstand mit zurueck.
+std::atomic<int> g_stand{0};
+std::atomic<int> g_ladeStand{0};
+std::atomic<int> g_netzStand{0};
+std::atomic<std::uint64_t> g_kennung{0};
+int naechsterStand() { return g_stand.fetch_add(1, std::memory_order_relaxed) + 1; }
+int naechsterNetzStand() { return g_netzStand.fetch_add(1, std::memory_order_relaxed) + 1; }
 
 Ecke eckeAus(const GlmVertex& v) {
     Ecke e;
@@ -358,17 +370,17 @@ GlmModel zuGlm(const Inhalt& in, int stufe) {
 
 void Dokument::laden(Inhalt neu) {
     jetzt_ = std::move(neu);
-    jetzt_.netzStand = ++netzZaehler_;
+    jetzt_.netzStand = netzZaehler_ = naechsterNetzStand();
     zurueck_.clear();
     vor_.clear();
     vorWeg_.clear();
     vorWegFuer_ = 0;
-    ++stand_;
-    ++ladeStand_;
+    stand_ = naechsterStand();
+    ladeStand_ = g_ladeStand.fetch_add(1, std::memory_order_relaxed) + 1;
 }
 
 std::uint64_t Dokument::aendern(const std::string& was, const std::function<void(Inhalt&)>& f, bool netz) {
-    const std::uint64_t kennung = ++kennungZaehler_;
+    const std::uint64_t kennung = kennungZaehler_ = g_kennung.fetch_add(1, std::memory_order_relaxed) + 1;
     zurueck_.push_back(Schritt{was, jetzt_, kennung});
     if (zurueck_.size() > kTiefe) { zurueck_.erase(zurueck_.begin()); }
     // FIX612B P2-5: das Wiederholen faellt nicht weg, sondern liegt beiseite, bis feststeht, dass der Schritt bleibt
@@ -377,15 +389,15 @@ std::uint64_t Dokument::aendern(const std::string& was, const std::function<void
     vorWegFuer_ = kennung;
     vor_.clear();
     f(jetzt_);
-    if (netz) { jetzt_.netzStand = ++netzZaehler_; }
-    ++stand_;
+    if (netz) { jetzt_.netzStand = netzZaehler_ = naechsterNetzStand(); }
+    stand_ = naechsterStand();
     return kennung;
 }
 
 void Dokument::vorschau(const std::function<void(Inhalt&)>& f, bool netz) {
     f(jetzt_);
-    if (netz) { jetzt_.netzStand = ++netzZaehler_; }
-    ++stand_;
+    if (netz) { jetzt_.netzStand = netzZaehler_ = naechsterNetzStand(); }
+    stand_ = naechsterStand();
 }
 
 bool Dokument::rueckgaengig() {
@@ -395,7 +407,7 @@ bool Dokument::rueckgaengig() {
     zurueck_.pop_back();
     vorWeg_.clear();
     vorWegFuer_ = 0;
-    ++stand_;
+    stand_ = naechsterStand();
     return true;
 }
 
@@ -407,7 +419,7 @@ bool Dokument::abbrechen() {
     if (juengster) { vor_ = std::move(vorWeg_); }   // FIX612B P2-5: der Stand ist wieder der, zu dem das Wiederholen gehoert
     vorWeg_.clear();
     vorWegFuer_ = 0;
-    ++stand_;
+    stand_ = naechsterStand();
     return true;
 }
 
@@ -421,7 +433,7 @@ bool Dokument::zusammenlegen() {
     const std::uint64_t kennung = zurueck_.back().kennung;
     zurueck_.pop_back();
     zurueck_.back().kennung = kennung;
-    ++stand_;
+    stand_ = naechsterStand();
     return true;
 }
 
@@ -432,7 +444,7 @@ bool Dokument::wiederholen() {
     vor_.pop_back();
     vorWeg_.clear();
     vorWegFuer_ = 0;
-    ++stand_;
+    stand_ = naechsterStand();
     return true;
 }
 

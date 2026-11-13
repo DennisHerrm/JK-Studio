@@ -2386,6 +2386,8 @@ from i18n_ent3b import zeilen_vier as _ent3b  # noqa: E402  (ENTSCHEID3B: IK/FK-
 S += _ent3b()
 from i18n_ent3a import zeilen_vier as _ent3a  # noqa: E402  (ENTSCHEID3A: Explorer, Werkzeugleiste, Seitenleiste, Strg+Umschalt+Z, Auge, Begleitdatei, Unwrap UVW)
 S += _ent3a()
+from i18n_ap11 import zeilen_vier as _ap11  # noqa: E402  (AP11: Modelle in Reitern, Kopieren/Einfuegen von Flaechen zwischen Modellen)
+S += _ap11()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

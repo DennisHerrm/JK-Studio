@@ -2258,3 +2258,16 @@ if(BEHAVED_TESTS)
   target_link_libraries(modellent3atest PRIVATE bhed_core)
   add_test(NAME modell_ent3a COMMAND modellent3atest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
 endif()
+
+# AP11 (MBENTWURF Teil B, 13.11.): mehrere Modelle in Reitern ueber der Ansicht (Abgleich R5, P1), Kopieren und Einfuegen von Flaechen
+# zwischen den Modellen (X19): gui/app_modelltabs.cpp, der Rechenteil der Ablage bhed/modell/ablage.h (Gewichte nach Knochennamen,
+# Detailstufen, Namen, Grenzen des Zielspiels); ctest modell_ablage an data/fixtures/model.glm
+target_sources(bhed_core PRIVATE src/modell/ablage.cpp)
+if(TARGET behaved)
+  target_sources(behaved PRIVATE gui/app_modelltabs.cpp)
+endif()
+if(BEHAVED_TESTS)
+  add_executable(modellablagetest tests/modell_ablage.cpp)
+  target_link_libraries(modellablagetest PRIVATE bhed_core)
+  add_test(NAME modell_ablage COMMAND modellablagetest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
+endif()

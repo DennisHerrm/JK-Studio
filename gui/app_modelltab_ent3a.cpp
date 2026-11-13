@@ -304,4 +304,34 @@ bool modellEnt3aKontextEsc() {
     return true;
 }
 
+
+// AP11 (Modelle in Tabs): die Augen von Edit Poly und Skin, der Inhalt wie geladen, die Begleitdatei und der Drehmodus je Knochen
+// gehoeren dem Modell. Die Breite der Werkzeugleiste und die Zaehler fuer den Selbsttest gelten fuer alle Reiter.
+void modellEnt3aTauschen(ModellFachZeiger& f) {
+    struct Fach : ModellFach {
+        std::vector<char> polyAus;
+        bool skinAus = false;
+        std::shared_ptr<const modell::Inhalt> geladen;
+        int geladenFuer = -1;
+        std::string begleitPfad;
+        int begleitEintraege = -1;
+        int begleitFehler = 0;
+        std::string meldungNachLaden;
+        std::map<std::string, int> drehModus;
+    };
+    if (!f) { f = std::make_unique<Fach>(); }
+    Fach& x = static_cast<Fach&>(*f);
+    std::swap(g_e.polyAus, x.polyAus);
+    std::swap(g_e.skinAus, x.skinAus);
+    std::swap(g_e.geladen, x.geladen);
+    std::swap(g_e.geladenFuer, x.geladenFuer);
+    std::swap(g_e.begleitPfad, x.begleitPfad);
+    std::swap(g_e.begleitEintraege, x.begleitEintraege);
+    std::swap(g_e.begleitFehler, x.begleitFehler);
+    std::swap(g_e.meldungNachLaden, x.meldungNachLaden);
+    std::swap(g_e.drehModus, x.drehModus);
+    ++g_e.ansichtStand;   // die Ansicht posiert und zeichnet neu
+    g_e.leisteZieht = false;
+}
+
 }  // namespace bhed::gui

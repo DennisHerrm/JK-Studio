@@ -214,4 +214,28 @@ void drawModellAutoSkinFenster() {
     ImGui::End();
 }
 
+
+// AP11 (Modelle in Tabs): der letzte Lauf (Bericht, Vergleich, Verformung) gehoert dem Modell; die Einstellungen gelten fuer alle.
+void modellAutoSkinTauschen(ModellFachZeiger& f) {
+    struct Fach : ModellFach {
+        bool gelaufen = false;
+        int ladeStand = -1;
+        std::string fehler;
+        modell::AutoSkinBericht bericht;
+        modell::GewichtVergleich vergleich;
+        modell::VerformungsFehler verformung;
+        double ms = 0.0;
+    };
+    if (!f) { f = std::make_unique<Fach>(); }
+    Fach& x = static_cast<Fach&>(*f);
+    ModellAutoSkin& z = modellAutoSkinZustand();
+    std::swap(z.gelaufen, x.gelaufen);
+    std::swap(z.ladeStand, x.ladeStand);
+    std::swap(z.fehler, x.fehler);
+    std::swap(z.bericht, x.bericht);
+    std::swap(z.vergleich, x.vergleich);
+    std::swap(z.verformung, x.verformung);
+    std::swap(z.ms, x.ms);
+}
+
 }  // namespace bhed::gui

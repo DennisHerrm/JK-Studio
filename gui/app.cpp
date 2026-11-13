@@ -3978,7 +3978,7 @@ void drawPk3Browser() {
                 if (g_app->pk3Kind == 2) {
                     // Ein Modell. Die .skin dazu suchen wir gleich mit: sie
                     // liegt neben dem Modell und heisst model_<name>.skin.
-                    modellVerwerfenDann([name = f.name] {   // pfix H3
+                    modellOeffnenWie(f.name, [name = f.name] {   // pfix H3; AP11: schon offen -> dorthin, aus "In neuem Tab oeffnen" -> neuer Reiter
                         std::string gerr;
                         if (!oeffneModellAusArchiv(name, &gerr)) { platform::showError(name + "\n" + gerr, tr(Str::AppTitle)); }
                     });
@@ -6481,6 +6481,8 @@ void draw() {
     // Stufe 3: ein laufendes Bauen im Karten-Editor weiterfuehren (q3map2 und
     // sein Rueckkanal) - auch, wenn gerade ein anderer Arbeitsbereich offen ist.
     karteneditor::bauSchritt();
+    // AP11 (Modelle in Tabs): angeforderte Wechsel, Schliessen und Laden in einem neuen Reiter - vor allem, was im Bild zeichnet
+    modellReiterSchritt();
 
     // --- Den Klangstrom nachfuellen ------------------------------------
     //

@@ -61,6 +61,7 @@ void daneben(const char* naechster) {
 }
 
 GlaAnimation g_gebacken;   // das gepackte Ergebnis (Vorschau und Backen)
+std::string g_zuFuer;      // FIX612C (PV5): die Vorlage, zu deren Ketten die Zuordnung im Dokument gehoert (AP11: je Modell)
 
 // Stufe 5b: die Zeile der animation.cfg zur Kategorie des Generators
 const char* kategorieZeile(modell::GangArt a) { return a == modell::GangArt::Laufen ? "BOTH_RUN1" : "BOTH_WALK1"; }
@@ -362,7 +363,7 @@ void modellRtAktualisieren() {
     // Vorlage auf andere Ketten, bleibt die Zuordnung der alten gemerkt (je Modell, Quelle und Vorlage) und kommt beim Zurueckwechseln
     // wieder - auch die von Hand gesetzten Ketten
     static std::map<std::string, modell::RtZuordnung> gemerkt;
-    static std::string zuFuer;   // die Vorlage, zu deren Ketten d.zu gehoert
+    std::string& zuFuer = g_zuFuer;
     const std::string schluessel = std::to_string(t.dok.ladeStand()) + "|" + r.quelleFuer + "|";
     if (d.zu.quelle.size() != r.cz.ketten.size()) {
         if (!d.zu.quelle.empty() && !zuFuer.empty()) { gemerkt[schluessel + zuFuer] = d.zu; }
@@ -1425,6 +1426,20 @@ void drawModellPresetBereich() {
     }
     ui::tipp(tr(Str::AzPresetTipp));
     ui::rolloutEnde();
+}
+
+
+// AP11 (Modelle in Tabs): das gebackene Ergebnis gehoert zur Rechnung in ModellTab::rt (mtab, schon im Fach) - beide gehen zusammen,
+// sonst zeigte ein Modell, dessen Dokument sich seit der letzten Rechnung nicht geaendert hat, das Ergebnis des anderen.
+void modellRetargetTauschen(ModellFachZeiger& f) {
+    struct Fach : ModellFach {
+        GlaAnimation gebacken;
+        std::string zuFuer;
+    };
+    if (!f) { f = std::make_unique<Fach>(); }
+    Fach& x = static_cast<Fach&>(*f);
+    std::swap(g_gebacken, x.gebacken);
+    std::swap(g_zuFuer, x.zuFuer);
 }
 
 }  // namespace bhed::gui

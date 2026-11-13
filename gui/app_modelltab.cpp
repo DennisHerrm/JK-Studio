@@ -537,7 +537,8 @@ void rolloutModell() {
     std::snprintf(info, sizeof info, trN(Str::MfInfoDreiecke, dreiecke), dreiecke);
     if (!ui::rolloutBeginn(tr(Str::MbRModell), {.kurzinfo = info, .reiter = modellReiter(MbReiter::Anzeige, MbReiterBl::Daten)})) { return; }
     std::vector<ui::WertZeile> werte;
-    werte.push_back({tr(Str::MbDatei), fileName(g_app->modelPath), ui::Ton::Normal, g_app->modelPath});
+    // AP11: Ordner und Datei wie der Reiter und der Entwurf ("kyle/model.glm") - mit mehreren Modellen heissen fast alle model.glm
+    werte.push_back({tr(Str::MbDatei), modellReiterTitel(g_app->modelPath, in.name), ui::Ton::Normal, g_app->modelPath});
     werte.push_back({tr(Str::MbGla), g_app->anim.name.empty() ? in.glaPfad : g_app->anim.name, ui::Ton::Normal, {}});
     werte.push_back({tr(Str::MbXArtFlaechen), std::to_string(flaechen), ui::Ton::Normal, {}});
     werte.push_back({tr(Str::MfDreiecke), std::to_string(dreiecke), ui::Ton::Normal, {}});
@@ -556,7 +557,15 @@ void rolloutModell() {
     if (ui::werkzeugKnopf(tr(Str::MbTexNeu), {.icon = UiIcon::Neuladen, .taste = "Alt+R", .tasteHalten = true})) { modellTexturenNeuLaden(); }
     // AP5 P1: Importieren = das heutige Oeffnen (.glm, .md3 von der Platte) und jedes Modell des Spiels aus den .pk3
     if (ui::werkzeugKnopf(tr(Str::PqImport), {.icon = UiIcon::Oeffnen, .hinweis = tr(Str::PqImportHint)})) { ImGui::OpenPopup("###pqimport"); }
+    // AP11 (P1): wie im Entwurf neben "Importieren ..." - ein weiteres Modell in einem eigenen Reiter (Strg+O)
+    if (ui::werkzeugKnopf(tr(Str::MxNeuerTab), {.icon = UiIcon::Plus, .taste = "Ctrl+O", .hinweis = tr(Str::MxNeuerTabHint), .tasteHalten = true})) {
+        ImGui::OpenPopup("###mxneutab");
+    }
     ui::rasterEnde();
+    if (ImGui::BeginPopup("###mxneutab")) {
+        modellNeuerReiterMenue();
+        ImGui::EndPopup();
+    }
     if (ImGui::BeginPopup("###pqimport")) {
         if (ImGui::MenuItem(tr(Str::PqImportDatei))) { openModelFile(); }
         ImGui::SetItemTooltip("%s", tr(Str::OpenGlmHint));
@@ -1245,6 +1254,7 @@ bool modellTasten() {
     if (modellZeitTasten()) { return true; }   // AP1: Zeitleiste (N Auto Key, Key-Modus; wie Blender Pfeil hoch/runter, K)
     if (modellKurvenTasten()) { return true; }   // Stufe 3b: Schluessel, Editor-Tasten (Bereich Animation)
     if (modellRigTasten()) { return true; }   // Stufe 3: Pose, Auswahl (Bereich Animation)
+    if (modellReiterTasten()) { return true; }   // AP11: Strg+C / Strg+V kopieren und fuegen Flaechen ein (nicht im Bereich Animation)
     if (modellUvTasten()) { return true; }    // Modell-Block 1b: UV-Editor (Bereich UV)
     if (modellMeshTasten()) { return true; }  // Modell-Block 1d: Werkzeuge (Bereich Modellieren)
     if (modellMalenTasten()) { return true; } // Modell-Block 1c: Pinsel (Bereich Painting)
@@ -1421,6 +1431,7 @@ void drawModellAktionen() {
     if (!rigAusgeloest && modellPrAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP5: Flaechenliste, Overlays, Gruppen von Ansehen/Pruefen
     if (!rigAusgeloest && modellStapelAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP13S: Modifier-Stapel
     if (!rigAusgeloest && modellKdAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP13K: Durchsicht, Im Vordergrund, Rig-Stil, Anzeigen als
+    if (!rigAusgeloest && modellReiterAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP11: In neuem Tab oeffnen, Reiter schliessen, Kopieren, Einfuegen
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
 }
@@ -1461,6 +1472,16 @@ void modellBedienungSetzen(int b) {
     // FIX612C (P3-6): das Werkzeug Knochen waehlen der Leiste wie Blender kommt nicht unsichtbar mit nach wie 3ds Max
     if (b == 0 && modellBl().werkzeug == 2) { modellBl().werkzeug = 0; }
     g_app->modelDirty = true;
+}
+
+
+// AP11 (Modelle in Tabs): die je Detailstufe gemerkte Auswahl (FIX612B P2-9) gehoert dem Modell - sie geht mit in sein Fach.
+void modellTabTauschen(ModellFachZeiger& f) {
+    struct Fach : ModellFach {
+        std::map<int, StufenWahl> stufenWahl;
+    };
+    if (!f) { f = std::make_unique<Fach>(); }
+    std::swap(stufenWahl(), static_cast<Fach&>(*f).stufenWahl);
 }
 
 }  // namespace bhed::gui
