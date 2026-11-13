@@ -1160,7 +1160,7 @@ Schritt bildVergleich2(const std::string& spiel) {
     return s;
 }
 
-// Bilder fuer die Handbuchseiten (BHED_HB_NUR=mb1a2): Weights mit Pinsel, Rechtsklick-Menue, Fenster Ins Skript,
+// Bilder fuer die Handbuchseiten (BHED_HB_NUR=mb1a2): Fenster Ins Skript, Symbole im Explorer,
 // Bedienung wie Blender (eine Ansicht, Oktaeder, Zaehlung ab 1).
 std::vector<Schritt> handbuchSchritte() {
     std::vector<Schritt> s;
@@ -1185,7 +1185,8 @@ std::vector<Schritt> handbuchSchritte() {
         if (modellFlaecheAufSchirm(teil("r_arm"), p)) { setzeMaus(p); }
     }));
     add(pause(0.4));
-    add(hilfe2::schrittFoto("h_mb2_weights"));
+    // AP14b: die Bilder h_mb2_weights und h_mb2_kontext zeigt das Handbuch nicht mehr (die Seite modell-weights ist seit AP8 die von
+    // inhalt_ap8) - die Schritte davor bleiben, damit die folgenden Bilder denselben Stand haben
     // Am Kopf, oben in der Ansicht: das Menue ist hoch, und ragt es ueber das Hauptfenster hinaus, wird es ein eigenes
     // Fenster (Viewports) und fehlt auf dem Foto (mb2_hb_mb1a2_*: am Rumpf geklickt, Menue offen, Foto ohne Menue).
     add(klickAn("MB2 Handbuch: Rechtsklick in die Ansicht", [] {
@@ -1209,7 +1210,6 @@ std::vector<Schritt> handbuchSchritte() {
         }
         diag::detail(z);
     }));
-    add(hilfe2::schrittFoto("h_mb2_kontext"));
     add(tasteKombi(ImGuiKey_Escape, "Esc"));
     add(tu("MB2 Handbuch: Fenster Ins Skript mit BOTH_WALK1, Figur kyle", [] {
         g_app->mtab.bereich = ModellBereich::Ansehen;

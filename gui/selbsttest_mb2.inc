@@ -525,7 +525,20 @@ std::vector<Schritt> handbuchSchritte() {
         animWaehlen(mb1::animNach(w.name), true);
     }));
     add(pause(0.6));
+    // AP14b: seit AP1 steht die Zeile nicht mehr als Marker unter der Zeitleiste, sondern in der Zeitkonfiguration; der Befund steht in
+    // der Gruppe animation.cfg - die Gruppe oben ins Befehlsfeld, die Zeitkonfiguration auf
+    add(tu("MB3 Handbuch: Gruppe animation.cfg oben ins Befehlsfeld, Zeitkonfiguration auf", [] {
+        const Element* e = finde(tr(Str::MbRCfg), "", 0, false);
+        for (ImGuiWindow* w : GImGui->Windows) {
+            if (e != nullptr && std::strstr(w->Name, "mtrollouts") != nullptr) {
+                ImGui::SetScrollY(w, std::clamp(w->Scroll.y + e->rect.Min.y - w->InnerRect.Min.y, 0.0F, w->ScrollMax.y));
+            }
+        }
+        modellZeit().konfigOffen = true;
+    }));
+    add(pause(0.6));
     add(hilfe2::schrittFoto("h_mb3_befund"));
+    add(tu("MB3 Handbuch: Zeitkonfiguration zu", [] { modellZeit().konfigOffen = false; }));
     add(tu("MB3 Handbuch: zurueck, hips mit 1001 Ecken fuer JKA SP, Strg+S", [] {
         while (g_app->mtab.dok.rueckgaengig()) {}
         g_app->mtab.bereich = ModellBereich::Ansehen;

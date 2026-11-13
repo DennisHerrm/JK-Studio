@@ -342,6 +342,7 @@ std::vector<Schritt> modellSchritte(bool handbuch) {
     }));
     if (handbuch) {
         add(tu("PH Handbuch: Ansicht von links (orthographisch), Figur und Sprung im Bild", [] {
+            g_app->mtab.vierAnsichten = false;   // AP14b: der Bereich Animation zeigt vier Ansichten - der Sprung in einer grossen
             ModellAnsicht& a = g_app->mtab.ansichten[g_app->mtab.aktiv];
             a.art = AnsichtArt::Links;
             modellAnsichtEinpassenAktiv();

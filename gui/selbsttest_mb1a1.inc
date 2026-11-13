@@ -941,7 +941,10 @@ std::vector<Schritt> handbuchSchritte() {
     add(klick("torso", "", 0, false, "", 1));
     add(pause(0.3));
     add(hilfe2::schrittFoto("h_mb1_menue"));
-    add(tasteKombi(ImGuiKey_Escape, "Esc"));
+    // AP14b: das Rechtsklick-Menue des Explorers schliesst Esc nicht (C4 gilt dem Menue der Ansicht) - im Bild h_mb1_vier stand es
+    // noch offen; ein Klick daneben (Statuszeile unten links) schliesst es wie im Programm
+    add(klickAn("daneben", [] { return ImVec2{12.0F, ImGui::GetIO().DisplaySize.y - 6.0F}; }));
+    add(pause(0.3));
     add(tu("MB1 Handbuch: vier Ansichten, Knochen", [] {
         g_app->mtab.suche[0] = 0;
         g_app->mtab.vierAnsichten = true;

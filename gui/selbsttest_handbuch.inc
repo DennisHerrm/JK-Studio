@@ -2653,6 +2653,16 @@ namespace ent3b {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_ent3b.inc: ENTSCHEID3B IK/FK-Spur, Griff der Wurzel, BHED_HB_NUR=ent3b
 }  // namespace ent3b
 
+// AP14b: die Ueberschrift einer Gruppe des Befehlsfelds im Model-Tab oben ins Feld rollen (fuer Bilder, die eine Zeile der Gruppe zeigen)
+void hbModellGruppeOben(Str gruppe) {
+    const Element* e = finde(tr(gruppe), "mtrollouts", 0, false);
+    for (ImGuiWindow* w : GImGui->Windows) {
+        if (e != nullptr && std::strstr(w->Name, "mtrollouts") != nullptr) {
+            ImGui::SetScrollY(w, std::clamp(w->Scroll.y + e->rect.Min.y - w->InnerRect.Min.y, 0.0F, w->ScrollMax.y));
+        }
+    }
+}
+
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
     // (tr) beim Aufbau der Liste - vorher suchten sie auf Deutsch "Cancel".
@@ -6438,18 +6448,30 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         bildTeil("m_npc", voll, [=] { return M{knopf(tr(Str::NpcBrowser))}; });
         add(tu("Kurz: NPC-Browser zu", [] { g_app->npcBrowserOffen = false; }));
         add(pause(0.5));
+        // AP14b: oben ab dem Hauptmenue - seit AP3 steht darunter die Bereichsreihe des Model-Tabs, die bei zwei Zeilenhoehen
+        // mitten durchgeschnitten war
         const auto modellR = [] {
             const ImVec2 d = ImGui::GetIO().DisplaySize;
             const ImRect band = hb::fensterRect("toolband");
-            return ImRect{0.0F, ImGui::GetFrameHeight() * 2.0F, d.x * 0.58F, band.Max.y};
+            return ImRect{0.0F, ImGui::GetFrameHeight(), d.x * 0.58F, band.Max.y};
         };
         bildTeil("m_modus", modellR, [=] { return M{knopf(tr(Str::ViewModel))}; });
-        bildTeil("m_abspielen", modellR, [=] { return M{knopf(tr(Str::MzSchleife))}; });   // AP1: "Force loop" in der Zeitleiste
+        // AP1: "Force loop" in der Zeitleiste. AP14b: der Ausschnitt reicht bis hinter den Knopf - bei 58 % der Breite stand er am Rand,
+        // deutsch "Schleife erzwingen" abgeschnitten
+        bildTeil("m_abspielen", [=] {
+            ImRect r = modellR();
+            const ImRect k = knopf(tr(Str::MzSchleife));
+            if (k.GetWidth() > 0.0F) { r.Max.x = std::max(r.Max.x, k.Max.x + ImGui::GetFontSize() * 4.0F); }
+            return r;
+        }, [=] { return M{knopf(tr(Str::MzSchleife))}; });
         bildTeil("m_insskript", modellR, [=] { return M{knopf(tr(Str::ModelAnimToScript))}; });
         bildTeil("m_details", modellR, [=] { return M{knopf(tr(Str::ModelBones)), knopf(tr(Str::ModelTextures))}; });
         bildTeil("m_caps", modellR, [=] { return M{knopf(tr(Str::ModelCaps))}; });
         bildTeil("m_gla", modellR, [=] { return M{knopf(tr(Str::ModelLoadGla))}; });
-        // AP1 Z20: Haut und Flaechenzaehler stehen im Befehlsfeld (Gruppe "Detailstufe und Skin"), der Zaehler unter der Hautliste
+        // AP1 Z20: Haut und Flaechenzaehler stehen im Befehlsfeld (Gruppe "Detailstufe und Skin"), der Zaehler unter der Hautliste.
+        // AP14b: die Gruppe oben ins Befehlsfeld - sonst lag die Zeile "Skin" unter dem Rand des Felds und die Marke darunter
+        add(tu("Kurz: Gruppe Detailstufe und Skin oben ins Befehlsfeld", [] { hbModellGruppeOben(Str::MbRLod); }));
+        add(pause(0.4));
         bildTeil("m_flaechen", voll, [=] {
             const ImRect sk = knopf(tr(Str::ModelSkin));
             if (sk.GetWidth() <= 0.0F) { return M{}; }
@@ -6991,13 +7013,18 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     add(hb::fotoTeil("h_modell", [] {
         const ImVec2 d = ImGui::GetIO().DisplaySize;
         const ImRect band = hb::fensterRect("toolband");
-        return ImRect{0.0F, ImGui::GetFrameHeight() * 2.0F, d.x * 0.58F, band.Max.y};
+        return ImRect{0.0F, ImGui::GetFrameHeight(), d.x * 0.58F, band.Max.y};   // AP14b: mit der ganzen Bereichsreihe (wie m_modus)
     }));
+    // AP14b: die Haeute stehen seit AP1 (Z20) nicht mehr in der Abspielleiste, sondern in der Gruppe "Detailstufe und Skin" des
+    // Befehlsfelds - das Bild zeigt die Gruppe (oben im Feld) statt der Leiste unter der Ansicht
+    add(tu("Handbuch: Gruppe Detailstufe und Skin oben ins Befehlsfeld", [] { hbModellGruppeOben(Str::MbRLod); }));
+    add(pause(0.4));
     add(hb::fotoTeil("k_modell_leiste", [] {
-        ImRect r = hb::fensterRect("toolband");
-        r.Min.y -= ImGui::GetFontSize() * 2.4F;
-        r.Max.x = r.Min.x + r.GetWidth() * 0.55F;
-        return r;
+        const float fs = ImGui::GetFontSize();
+        const ImRect feld = hb::fensterRect("mtrollouts");
+        const Element* e = finde(tr(Str::MbRLod), "mtrollouts", 0, false);
+        if (e == nullptr || feld.GetWidth() <= 0.0F) { return feld; }
+        return ImRect{feld.Min.x - fs * 0.4F, e->rect.Min.y - fs * 0.4F, feld.Max.x + fs * 0.4F, std::min(feld.Max.y, e->rect.Min.y + fs * 14.0F)};
     }));
     add(hb::fotoTeil("r_leiste_modell", [] {
         const float fs = ImGui::GetFontSize();

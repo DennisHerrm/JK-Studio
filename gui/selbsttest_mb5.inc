@@ -1143,15 +1143,32 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
         add(tu("MB5 Handbuch: Maus in die Ansicht (kein Tooltip im Bild)", [] { setzeMaus(fokusPunkt()); }));
         add(pause(0.3));
         add(hilfe2::schrittFoto("h_mb5_kurven"));
-        add(klickMenue(tr(Str::MbBereichAnimation), true));
-        add(pause(0.2));
-        add(klickMenue(tr(Str::MbKvMenue), false));
-        add(pause(0.2));
-        add(klickMenue(tr(Str::MbKvGruppeWerkzeuge), false));
-        add(pause(0.4));
+        // AP14b: das Untermenue Animation > Animation tools > Key tools steht seit dem laengeren Menue Animation unten ueber den Rand
+        // des Hauptfensters hinaus und wird ein eigenes Fenster (Viewports) - auf dem Foto fehlte es, nur "Animation tools" stand
+        // hervorgehoben da. Dieselben Werkzeuge mit ihren Tooltips zeigt "Alle Aktionen suchen" (X) mit "Key tools"
+        add(taste(ImGuiKey_Escape, "Esc"));
+        add(tu("MB5 Handbuch: Fokus im Model-Tab", [] { g_app->mtab.fokus = true; }));
+        add(taste(ImGuiKey_X, "X (Alle Aktionen suchen)"));
+        add(pause(0.3));
+        add(tippe(tr(Str::MbKvGruppeWerkzeuge)));
+        add(pause(0.5));
+        {
+            const int i = aktion(Str::MbKvWzBreakdown);
+            const std::string zeile = i >= 0 ? modellKurvenAktionSuchText(i) : std::string(tr(Str::MbKvWzBreakdown));
+            add(tu("MB5 Handbuch: Maus auf " + zeile + " (Tooltip im Bild)", [zeile] {
+                for (const Element& e : g_elemente) {
+                    if ((e.label == zeile || e.label.rfind(zeile + " (", 0) == 0) && e.fenster.find("##Popup_") != std::string::npos) {
+                        setzeMaus(e.rect.GetCenter());
+                        return;
+                    }
+                }
+                meldeFehler("MB5 Handbuch: " + zeile + " nicht in der Suche: " + woIst(zeile));
+            }));
+        }
+        add(pause(1.0));
         add(hilfe2::schrittFoto("h_mb5_werkzeuge"));
         add(taste(ImGuiKey_Escape, "Esc"));
-        add(taste(ImGuiKey_Escape, "Esc"));
+        add(pause(0.3));
         add(tu("MB5 Handbuch: Reduzieren", [] { g_app->mtab.dok.aendern("MB5 leer", [](modell::Inhalt& in) { in.rig.schichten.clear(); }, false); }));
         ueberSuche(s, Str::MbKvReduzieren);
         add(tu("MB5 Handbuch: Kurveneditor auf die reduzierte Sequenz, nur das Becken (Nur ausgewaehlte)", [] {
