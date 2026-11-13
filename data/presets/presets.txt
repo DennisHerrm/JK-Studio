@@ -2,16 +2,16 @@
 # Erzeugt von tools/presetbau (Quellen und Lizenzen: CREDITS.txt). Nicht von Hand aendern.
 idle|Idle|quaternius_ual/idle.bvh|Quaternius - Universal Animation Library (Standard)|CC0 1.0|BOTH_STAND1|1
 idle|Idle (sword)|quaternius_ual/sword_idle.bvh|Quaternius - Universal Animation Library (Standard)|CC0 1.0|BOTH_STAND2|1
-idle|Crouch idle|quaternius_ual/crouch_idle.bvh|Quaternius - Universal Animation Library (Standard)|CC0 1.0|BOTH_CROUCH1IDLE|1
 walk|Walk|quaternius_ual/walk.bvh|Quaternius - Universal Animation Library (Standard)|CC0 1.0|BOTH_WALK1|1
 walk|Walk (formal)|quaternius_ual/walk_formal.bvh|Quaternius - Universal Animation Library (Standard)|CC0 1.0|BOTH_WALK2|1
 walk|Walk - neutral (mocap)|100style/neutral_walk.bvh|The 100STYLE Dataset - Ian Mason|CC BY 4.0|BOTH_WALK1|1
 walk|Walk - old (mocap)|100style/old_walk.bvh|The 100STYLE Dataset - Ian Mason|CC BY 4.0|BOTH_WALK1|1
 walk|Walk - proud (mocap)|100style/proud_walk.bvh|The 100STYLE Dataset - Ian Mason|CC BY 4.0|BOTH_WALK1|1
 walk|Walk - zombie (mocap)|100style/zombie_walk.bvh|The 100STYLE Dataset - Ian Mason|CC BY 4.0|BOTH_WALK1|1
-walk|Crouch walk|quaternius_ual/crouch_walk.bvh|Quaternius - Universal Animation Library (Standard)|CC0 1.0|BOTH_WALK1|1
 run|Jog|quaternius_ual/jog.bvh|Quaternius - Universal Animation Library (Standard)|CC0 1.0|BOTH_RUN1|1
 run|Sprint|quaternius_ual/sprint.bvh|Quaternius - Universal Animation Library (Standard)|CC0 1.0|BOTH_RUN2|1
+crouch|Crouch idle|quaternius_ual/crouch_idle.bvh|Quaternius - Universal Animation Library (Standard)|CC0 1.0|BOTH_CROUCH1IDLE|1
+crouch|Crouch walk|quaternius_ual/crouch_walk.bvh|Quaternius - Universal Animation Library (Standard)|CC0 1.0|BOTH_CROUCH1WALK|1
 combat|Sword attack|quaternius_ual/sword_attack.bvh|Quaternius - Universal Animation Library (Standard)|CC0 1.0|BOTH_A1_T__B_|0
 combat|Punch jab|quaternius_ual/punch_jab.bvh|Quaternius - Universal Animation Library (Standard)|CC0 1.0|BOTH_MELEE1|0
 combat|Punch cross|quaternius_ual/punch_cross.bvh|Quaternius - Universal Animation Library (Standard)|CC0 1.0|BOTH_MELEE2|0
