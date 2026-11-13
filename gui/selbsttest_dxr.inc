@@ -202,6 +202,59 @@ double mittelHell(const stufe9c::Bild& b, bool nurMitte = false) {
     return n > 0 ? s / n : 0.0;
 }
 
+// REST612: Topologie eines Bodenbilds unter dem Gitter (wie Y:\werkzeuge\gitter\vjun2_topologie.py). Hell ist ein Bildpunkt
+// ueber 30 % des 95. Perzentils der Helligkeit. Gezaehlt werden abgeschlossene Inseln (4er-Nachbarschaft, beruehren den
+// Bildrand nicht) mit mindestens `kleinste` Bildpunkten, getrennt fuer dunkle und helle. Im Gitterbild bilden die Staebe
+// (Alpha 0) ein zusammenhaengendes Netz, die Felder (Alpha 255) einzelne Inseln: Laesst das Licht 255 - Alpha durch (q3map2,
+// Ravens q3map), gibt es viele dunkle Inseln und keine hellen; liesse es das Licht dort durch, wo das Spiel bei alphaFunc
+// LT128 zeichnet (die Felder sind dort Loecher), umgekehrt. Unabhaengig von Lichtort, Abfall und Linienbreite.
+struct Topologie {
+    int dunkel = 0;
+    int hell = 0;
+    double schwelle = 0;
+};
+Topologie topologie(const stufe9c::Bild& b, std::size_t kleinste) {
+    Topologie t;
+    const int w = b.breite;
+    const int h = b.hoehe;
+    if (w <= 2 || h <= 2) { return t; }
+    std::vector<double> l(static_cast<std::size_t>(w) * static_cast<std::size_t>(h));
+    for (std::size_t i = 0; i < l.size(); ++i) { l[i] = stufe9c::helligkeit(&b.rgba[i * 4U]); }
+    std::vector<double> sortiert = l;
+    const std::size_t p95 = sortiert.size() * 95U / 100U;
+    std::nth_element(sortiert.begin(), sortiert.begin() + static_cast<std::ptrdiff_t>(p95), sortiert.end());
+    t.schwelle = 0.3 * sortiert[p95];
+    std::vector<unsigned char> gesehen(l.size(), 0);
+    std::vector<std::size_t> stapel;
+    for (std::size_t start = 0; start < l.size(); ++start) {
+        if (gesehen[start] != 0U) { continue; }
+        const bool hell = l[start] > t.schwelle;
+        std::size_t groesse = 0;
+        bool rand = false;
+        stapel.assign(1, start);
+        gesehen[start] = 1;
+        while (!stapel.empty()) {
+            const std::size_t i = stapel.back();
+            stapel.pop_back();
+            ++groesse;
+            const int x = static_cast<int>(i % static_cast<std::size_t>(w));
+            const int y = static_cast<int>(i / static_cast<std::size_t>(w));
+            if (x == 0 || y == 0 || x == w - 1 || y == h - 1) { rand = true; }
+            const int nachbar[4][2] = {{x - 1, y}, {x + 1, y}, {x, y - 1}, {x, y + 1}};
+            for (const auto& n : nachbar) {
+                if (n[0] < 0 || n[1] < 0 || n[0] >= w || n[1] >= h) { continue; }
+                const std::size_t j = static_cast<std::size_t>(n[1]) * static_cast<std::size_t>(w) + static_cast<std::size_t>(n[0]);
+                if (gesehen[j] == 0U && (l[j] > t.schwelle) == hell) {
+                    gesehen[j] = 1;
+                    stapel.push_back(j);
+                }
+            }
+        }
+        if (!rand && groesse >= kleinste) { ++(hell ? t.hell : t.dunkel); }
+    }
+    return t;
+}
+
 // Bildpunkte, die sich unterscheiden
 std::size_t verschieden(const stufe9c::Bild& a, const stufe9c::Bild& b) {
     if (a.breite != b.breite || a.hoehe != b.hoehe) { return static_cast<std::size_t>(-1); }
@@ -229,6 +282,8 @@ struct Lauf {
     double bodenGitterR = 0;
     double bodenGitterK = 0;
     double bodenGitterG = 0;                         // ... und gebacken (q3map2 -light)
+    stufe9c::Bild topoR, topoK, topoG;               // REST612: Boden unter dem Gitter in einer Lage (Topologie)
+    std::shared_ptr<karte::Entitaet> topoGruppe;     // func_group mit dem Boden feiner Luxel
     std::size_t filterTeile = 0;
     std::shared_ptr<karte::Pinsel> gitterPinsel;
     // B3: dasselbe Gitter mit dem Shader von Jedi Academy (q3map_alphashadow) - Strahlen, Schattenkarten, Filter-Teile
@@ -300,13 +355,15 @@ Schritt backenAus() {
     });
 }
 
-// Das Gitter fuer alphashadow ist ein eigener Shader im Import-Ordner (nie im Spielordner): Die Gitter von Jedi Academy
-// schreiben "q3map_alphashadow" (53-mal in den Spieldaten, aus Ravens q3map) - q3map2 kennt nur "surfaceparm alphashadow"
-// (games.cpp:150 und 811) und uebergeht das Wort; als "trans" ohne alphashadow werfen sie in -light keinen Schatten
-// (light_trace.cpp:839-846), im Echtzeit-Licht ebenso. Die beiden Shader der Spieldaten mit "surfaceparm alphashadow"
-// (textures/fur/pink_fur, textures/jnegretetest/pink_fur) sind Fell ohne Alpha-Test. Das Bild ist das Gitter von Kejim
-// (textures/kejim/grate02_broke, mit Loechern im Alpha).
+// Das Gitter fuer alphashadow ist ein eigener Shader im Import-Ordner (nie im Spielordner), mit "surfaceparm alphashadow".
+// Die Gitter von Jedi Academy schreiben "q3map_alphashadow" (53-mal in den Spieldaten, aus Ravens q3map); q3map2 nimmt das
+// wie "surfaceparm alphashadow" (shaders.cpp:1706-1714, jedes unbekannte q3map_<x> als surfaceparm <x>) - das prueft B3. Die
+// beiden Shader der Spieldaten mit "surfaceparm alphashadow" (textures/fur/pink_fur, textures/jnegretetest/pink_fur) sind
+// Fell ohne Alpha-Test. Das Bild ist das Gitter von Kejim (textures/kejim/grate02_broke: Staebe Alpha 0, Felder Alpha 255).
+// kGitterLeer: die uebrigen Seiten des Gitters in EINER Lage (Topologie) - nicht gezeichnet, nicht fest, durchscheinend; so
+// wirft nur die obere Seite Schatten, in q3map2 (keine Flaeche, der Pinsel ist nicht deckend) wie im Echtzeit-Licht.
 const char* const kGitter = "textures/bhed_dxr/gitter";
+const char* const kGitterLeer = "textures/bhed_dxr/leer";
 const char* const kGitterJka = "textures/kejim/grate02_broke";   // B3: dasselbe Bild mit q3map_alphashadow (imperial.shader)
 std::string gitterShaderPfad() { return platform::settingsDirectory() + "\\import\\shaders\\bhed_dxr_test.shader"; }
 
@@ -317,7 +374,9 @@ void gitterShaderSchreiben() {
     f << "// DXR, Selbsttest: ein Gitter mit alphashadow\n"
          "textures/bhed_dxr/gitter\n{\n\tqer_editorimage textures/kejim/grate02_broke\n\tsurfaceparm nonopaque\n\tsurfaceparm trans\n"
          "\tsurfaceparm nonsolid\n\tsurfaceparm alphashadow\n\t{\n\t\tmap textures/kejim/grate02_broke\n\t\talphaFunc LT128\n"
-         "\t\tdepthWrite\n\t\trgbGen identity\n\t}\n\t{\n\t\tmap $lightmap\n\t\tblendFunc GL_DST_COLOR GL_ZERO\n\t\tdepthFunc equal\n\t}\n}\n";
+         "\t\tdepthWrite\n\t\trgbGen identity\n\t}\n\t{\n\t\tmap $lightmap\n\t\tblendFunc GL_DST_COLOR GL_ZERO\n\t\tdepthFunc equal\n\t}\n}\n"
+         "textures/bhed_dxr/leer\n{\n\tqer_editorimage textures/system/nodraw\n\tsurfaceparm nodraw\n\tsurfaceparm nonsolid\n"
+         "\tsurfaceparm trans\n\tsurfaceparm nonopaque\n\tsurfaceparm nolightmap\n\tsurfaceparm nomarks\n}\n";
 }
 
 // Der Testshader ist geladen, q3map2 liest alphashadow daraus, und das Spiel hat ein Bild mit Alpha-Test dafuer
@@ -649,21 +708,21 @@ std::vector<Schritt> schritte() {
     }));
     add(backenAus());
     add(pause(0.3));
-    // Massstab ist das gebaute Licht: q3map2 laesst je Gitterflaeche (255 - Alpha) / 255 durch (light_trace.cpp:1351-1356; das
-    // Bild hat im Mittel 0,39), der Pinsel hat zwei Gitterflaechen uebereinander und vier Raender, und die Helligkeit ist
-    // nicht linear im Licht - eine Zahl "Anteil von frei" laesst sich deshalb nicht vorhersagen, nur gegen -light messen.
-    // Ohne Bild (vor p07) war der Boden mit Strahlen schwarz (g3: 0,0 bei frei 52,2) - das Gitter deckte ganz.
-    // Gemessen (g6): Strahlen 4,90, Schattenkarten 5,05, gebacken 6,61 - beide Echtzeit-Arten liegen 24 bis 26 % unter der
-    // Lightmap (offen, siehe NOTIZEN_dxr_1211.md; die Lightmap mittelt je Luxel ueber das Gittermuster). Die Schranke 35 % laesst
-    // diese Abweichung mit Rand zu und trennt sicher von "deckt ganz" (0,0) und "laesst alles durch" (52,2).
-    add(pruefe("DXR: alphashadow filtert das Licht wie im gebauten Licht - der Boden unter dem Gitter ist dunkler als frei, aber nicht schwarz", [lauf] {
+    // q3map2 laesst je Gitterflaeche (255 - Alpha) / 255 durch (light_trace.cpp:1350-1356), der Pinsel hat zwei Gitterflaechen
+    // uebereinander. Ohne Bild (vor p07) war der Boden mit Strahlen schwarz (g3: 0,0 bei frei 52,2) - das Gitter deckte ganz.
+    // Die Mittelwerte von Strahlen (4,97) und gebacken (6,70) liegen nur zufaellig nah (GITTER, NOTIZEN_gitter_1311.md
+    // Abschnitt 4): Die Lightmap ist im Blickfeld fast ueberall 0 (ein Strahl je Luxel von 16 Einheiten trifft die 3 bis 4
+    // Einheiten breiten Lichtlinien beider Lagen nicht), ihr Mittel kommt aus der Rampe des naechsten freien Luxels am Bildrand.
+    // Hier deshalb nur: gefiltert, nicht gedeckt, nicht frei; ob das Licht dort durchgeht, wo es im gebauten Licht durchgeht,
+    // prueft die Topologie weiter unten (eine Lage, feine Luxel).
+    add(pruefe("DXR: alphashadow filtert das Licht - der Boden unter dem Gitter ist dunkler als frei, aber nicht schwarz (Strahlen, Schattenkarten, gebacken)", [lauf] {
         char z[300];
         std::snprintf(z, sizeof(z), "Knopftest: DXR - Boden frei %.1f, unter dem Gitter: Strahlen %.2f, Schattenkarten %.2f, gebacken %.2f; Filter-Teile %zu",
                       lauf->bodenFrei, lauf->bodenGitterR, lauf->bodenGitterK, lauf->bodenGitterG, lauf->filterTeile);
         diag::detail(z);
         if (lauf->gitter.empty() || lauf->bodenFrei < 10.0 || lauf->bodenGitterG <= 0.5) { return false; }
-        return lauf->filterTeile >= 1 && lauf->bodenGitterR > 0.5 && lauf->bodenGitterR < lauf->bodenFrei * 0.9 &&
-               std::fabs(lauf->bodenGitterR - lauf->bodenGitterG) <= 0.35 * lauf->bodenGitterG;
+        return lauf->filterTeile >= 1 && lauf->bodenGitterR > 0.5 && lauf->bodenGitterR < lauf->bodenFrei * 0.9 && lauf->bodenGitterK > 0.5 &&
+               lauf->bodenGitterK < lauf->bodenFrei * 0.9 && lauf->bodenGitterG < lauf->bodenFrei * 0.9;
     }));
     // --- B3 (12.11.): q3map_alphashadow wie im Compiler ---
     // Dasselbe Gitter mit dem Shader von Jedi Academy: textures/kejim/grate02_broke (imperial.shader) hat dasselbe Bild und
@@ -671,8 +730,8 @@ std::vector<Schritt> schritte() {
     // alphashadow". q3map2 nimmt jedes q3map_<x>, das es nicht ausdruecklich kennt, als surfaceparm <x> (shaders.cpp:1706-1714)
     // und baeckt das Gitter wie das Testgitter (Probe b3lm.py: Lightmap-Mittel 4,451 / 4,451, deckend 4,081). Das Echtzeit-Licht
     // uebersah das Wort (g6: Boden 52,15 = frei, 0 Filter-Teile) - jetzt filtert es mit Strahlen und mit Schattenkarten wie unter
-    // dem Testgitter. Doppelt definiert ist der Shader auch (bespin.shader ohne alphashadow): Editor und Compiler nehmen beide die
-    // durchscheinende Fassung (der Compiler macht daraus einen Detail-Pinsel; die Fassung aus bespin.shader waere strukturell).
+    // dem Testgitter. Den Namen definiert nur imperial.shader (GITTER 13.11.: in den Daten von Jedi Academy und Movie Duels;
+    // bespin.shader definiert textures/bespin/breakable_grate1, der nur dasselbe Bild benutzt).
     add(pruefe("DXR B3: das Gitter von Jedi Academy schreibt q3map_alphashadow statt surfaceparm alphashadow", [] {
         const ke::Editor& e = ke::editor();
         if (!e.karteSpiel) { return false; }
@@ -729,6 +788,80 @@ std::vector<Schritt> schritte() {
         diag::detail("Knopftest: DXR - zurueck: Strukturen " + std::to_string(st.teile) + ", Grafikspeicher " + std::to_string(st.bytes) + ", Schattenwuerfel " +
                      std::to_string(e.echtLicht.wuerfel));
         return !e.echtLicht.strahlenAktiv && st.teile == 0 && st.bytes == 0 && e.echtLicht.wuerfel > 0;
+    }));
+    // --- REST612: Topologie unter dem Gitter in EINER Lage, gegen das gebaute Licht ---
+    // Statt der Mittelwerte (siehe oben) die Form des Lichts am Boden: Das Gitter liegt 24 unter dem Licht (z 71 bis 73, nur die
+    // obere Seite mit dem Gitter, die uebrigen kGitterLeer), so faellt sein Muster am Boden 4-fach vergroessert (Periode rund 28
+    // Einheiten, Staebe rund 6); der Boden darunter ist eine Platte in einer func_group mit _lightmapscale 0.125 (Luxel 2) - das
+    // gebackene Licht loest das Muster damit auf. Die Kamera (-60 -60 66) liegt unter dem Gitter, abseits der Schatten von Mauer,
+    // Saeule und Platte. Erwartet (q3map2 und Ravens q3map, Licht 255 - Alpha): dunkle Inseln (Felder), keine hellen - in allen
+    // drei Bildern. BHED_DXR_GITTER_REGEL=spiel erwartet das Umgekehrte (Gegenprobe, muss rot werden).
+    add(tu("DXR Topologie: Gitter in einer Lage bei z 72, Boden mit Luxeln von 2 Einheiten", [lauf] {
+        ke::Editor& e = ke::editor();
+        if (lauf->gitterPinsel) { (void)e.karte.welt()->kindEntfernen(lauf->gitterPinsel.get()); }
+        karte::TexturProjektion proj;
+        karte::texdefStandard(karte::TexdefArt::Quake, proj);
+        auto gitter = std::make_shared<karte::Pinsel>();
+        gitter->quaderBauen(karte::Kasten(karte::Vektor3f(0, 0, 72), karte::Vektor3f(128, 128, 1)), kGitterLeer, proj, e.karte.kontext);
+        for (const auto& fl : gitter->flaechen()) {
+            if (fl->ebene().normal()[2] > 0.9) { fl->ladeShader(kGitter); }
+        }
+        e.karte.welt()->kindEinfuegen(gitter);
+        lauf->gitterPinsel = gitter;
+        auto gruppe = e.karte.neueEntitaet("func_group", true);
+        gruppe->setzen("_lightmapscale", "0.125");
+        auto boden = std::make_shared<karte::Pinsel>();
+        boden->quaderBauen(karte::Kasten(karte::Vektor3f(-64, -64, 0.5F), karte::Vektor3f(160, 160, 0.5F)), kWand, proj, e.karte.kontext);
+        gruppe->kindEinfuegen(boden);
+        e.karte.entitaetEinfuegen(gruppe);
+        lauf->topoGruppe = gruppe;
+        ke::neuZeichnen();
+        stufe9c::kameraAuf(ueber(-60.0F, -60.0F, 66.0F));
+    }));
+    add(warteBis("DXR Topologie: Texturen", [] { return ke::kameraBilderFertig(); }, 20000));
+    add(pause(0.5));
+    add(gerechnet("Topologie, Schattenkarten"));
+    add(pause(0.3));
+    add(bildNehmen("Topologie, Schattenkarten", &Lauf::topoK, lauf, "topologie_karten"));
+    add(tu("DXR Topologie: Strahlen", [] { strahlenSetzen(true); }));
+    add(warteBis("DXR Topologie: Filter-Teil des Gitters (Strahlen)", [] { return ke::editor().echtLicht.strahlenAktiv && ke::strahlenStand().filterTeile >= 1; }, 600));
+    add(pause(0.6));
+    add(bildNehmen("Topologie, Strahlen", &Lauf::topoR, lauf, "topologie_strahlen"));
+    add(tu("DXR Topologie: zurueck zu den Schattenkarten", [] { strahlenSetzen(false); }));
+    add(wiederKarten("Topologie"));
+    for (Schritt& x : backen("Topologie")) { add(std::move(x)); }
+    add(bildNehmen("Topologie, gebacken", &Lauf::topoG, lauf, "topologie_gebacken"));
+    add(backenAus());
+    add(pause(0.3));
+    add(pruefe("DXR Topologie: das Licht geht unter dem Gitter dort durch, wo es im gebauten Licht durchgeht - Strahlen, Schattenkarten und gebacken "
+               "zeigen dunkle Inseln (Felder) in einem hellen Netz (Staebe)",
+               [lauf] {
+                   const char* regel = std::getenv("BHED_DXR_GITTER_REGEL");
+                   const bool spiel = regel != nullptr && std::strcmp(regel, "spiel") == 0;   // Gegenprobe: Licht durch die Felder erwartet
+                   const std::size_t kleinste = static_cast<std::size_t>(lauf->topoR.breite) * static_cast<std::size_t>(lauf->topoR.hoehe) / 500U;
+                   const Topologie r = topologie(lauf->topoR, kleinste);
+                   const Topologie k = topologie(lauf->topoK, kleinste);
+                   const Topologie g = topologie(lauf->topoG, kleinste);
+                   char z[400];
+                   std::snprintf(z, sizeof(z), "Knopftest: DXR Topologie (Inseln ab %zu Bildpunkten, erwartet %s): Strahlen %d dunkle / %d helle (Schwelle %.1f), "
+                                               "Schattenkarten %d / %d (%.1f), gebacken %d / %d (%.1f)",
+                                 kleinste, spiel ? "Licht durch die Felder (Gegenprobe)" : "Licht 255 - Alpha", r.dunkel, r.hell, r.schwelle, k.dunkel, k.hell,
+                                 k.schwelle, g.dunkel, g.hell, g.schwelle);
+                   diag::detail(z);
+                   const auto passt = [spiel](const Topologie& t) {
+                       const int erwartet = spiel ? t.hell : t.dunkel;
+                       const int anders = spiel ? t.dunkel : t.hell;
+                       return erwartet >= 3 && anders <= 1;
+                   };
+                   return passt(r) && passt(k) && passt(g);
+               }));
+    add(tu("DXR Topologie: Gitter und Boden weg", [lauf] {
+        ke::Editor& e = ke::editor();
+        if (lauf->gitterPinsel) { (void)e.karte.welt()->kindEntfernen(lauf->gitterPinsel.get()); }
+        if (lauf->topoGruppe) { (void)e.karte.entitaetEntfernen(lauf->topoGruppe.get()); }
+        lauf->gitterPinsel.reset();
+        lauf->topoGruppe.reset();
+        ke::neuZeichnen();
     }));
     // --- Sonne ---
     add(tu("DXR: Himmelsraum (Sonne und Himmelslicht) mit Platte und Saeule, Schattenkarten", [] {
