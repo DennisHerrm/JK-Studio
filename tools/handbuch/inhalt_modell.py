@@ -92,6 +92,7 @@ QUELLEN = [
     Hinter("inhalt_fix612c", "bloecke_animationsfeld", "modell-animationsfeld", "inhalt_ap10", "rig"),
                                                     #   Animation-Rig (nur FK) backt die IK in FK-Schluessel
     Seite("inhalt_ap13k"),                          # modell-knochen: Knochen-Darstellung, Rig-Stile, Durchsicht
+    Seite("inhalt_ent3b"),                          # modell-ent3b: IK/FK-Spur je Glied wie CAT, Griff der Wurzel, Rig-Vorlage, Ducken, Tempo
     Seite("inhalt_mb3"),                            # modell-rig
     Seite("inhalt_mb3b"),                           # modell-kurven
     Seite("inhalt_mb4"),                            # modell-ik
