@@ -720,6 +720,10 @@ void b12Schritte(std::vector<Schritt>& s, const std::string& modell) {
         (void)modellStapelHinzufuegen(ModArt::Spiegeln);
         (void)modellStapelHinzufuegen(ModArt::Glaetten);
         mtab().dok.aendern("ENT3A Stufen", [](modell::Inhalt& x) { x.teile[uz(x.teilIndex("torso"))].stapel.back().stufen = 2; });
+        // E3: der Drehmodus zweier Knochen kommt mit in die Begleitdatei
+        e3().drehModus.clear();
+        e3().drehModus["pelvis"] = static_cast<int>(modell::DrehModus::Xyz);
+        e3().drehModus["cranium"] = static_cast<int>(modell::DrehModus::AchseWinkel);
         std::error_code ec;
         std::filesystem::remove(pfadIm("ent3a_b12.glm.stack"), ec);
     }));
@@ -732,7 +736,7 @@ void b12Schritte(std::vector<Schritt>& s, const std::string& modell) {
         *begleit = slurp(pfadIm("ent3a_b12.glm.stack"));
         melde("B12: .glm " + std::to_string(glm->size()) + " Bytes (soll " + std::to_string(soll.size()) + "), Begleitdatei " + std::to_string(begleit->size()) + " Bytes, Stapel " +
               *stapel + ", Meldung '" + mtab().meldung + "'");
-        return !glm->empty() && *glm == soll && begleit->rfind("JKSTUDIO-STACK 1\n", 0) == 0 && begleit->find("\nbasis ") != std::string::npos &&
+        return !glm->empty() && *glm == soll && begleit->rfind("JKSTUDIO-STACK ", 0) == 0 && begleit->find("\nbasis ") != std::string::npos &&
                mtab().meldung.find(fmt(Str::EaBegleitGeschrieben, "ent3a_b12.glm.stack")) != std::string::npos;
     }));
     add(tu("ENT3A B12: ein anderes Modell, dann die gespeicherte .glm von der Platte oeffnen", [] { modellVonPlatteOeffnen(pfadIm("ent3a_b12.glm")); }));
@@ -742,6 +746,15 @@ void b12Schritte(std::vector<Schritt>& s, const std::string& modell) {
         melde("B12: geoeffnet " + g_app->modelPath + ", Stapel " + jetzt + " (vorher " + *stapel + "), Eintraege " + std::to_string(e3().begleitEintraege) + ", Meldung '" +
               mtab().meldung + "'");
         return jetzt == *stapel && e3().begleitEintraege == 2 && !mtab().dok.kannRueckgaengig() && mtab().meldung == fmt(Str::EaBegleitGelesen, "ent3a_b12.glm.stack", 2);
+    }));
+    add(pruefe("ENT3A E3: nach dem Oeffnen sind die Drehmodi wieder da (pelvis XYZ Euler, cranium Achsenwinkel), die Begleitdatei nennt sie", [] {
+        const auto& d = e3().drehModus;
+        const auto modus = [&](const char* k) { return d.count(k) != 0U ? d.at(k) : -1; };
+        const std::string datei = slurp(pfadIm("ent3a_b12.glm.stack"));
+        melde("E3: Drehmodi pelvis " + std::to_string(modus("pelvis")) + ", cranium " + std::to_string(modus("cranium")) + ", in der Datei " +
+              std::to_string(datei.find("\ndreh ") != std::string::npos ? 1 : 0));
+        return modus("pelvis") == static_cast<int>(modell::DrehModus::Xyz) && modus("cranium") == static_cast<int>(modell::DrehModus::AchseWinkel) && d.size() == 2U &&
+               datei.find("\ndreh ") != std::string::npos;
     }));
     add(tu("ENT3A B12: torso waehlen", [] { modellWaehlen(0, ModellBereich::Modellieren); }));
     add(pause(0.6));
@@ -781,6 +794,7 @@ void b12Schritte(std::vector<Schritt>& s, const std::string& modell) {
         mtab().dok.aendern("ENT3A leeren", [](modell::Inhalt& x) {
             for (modell::Teil& t : x.teile) { t.stapel.clear(); }
         });
+        e3().drehModus.clear();   // E3: ohne Drehmodus und ohne Stapel braucht es keine Begleitdatei
         mtab().speicherPfad = pfadIm("ent3a_b12.glm");
         modellSpeichern(false);
     }));
@@ -788,6 +802,47 @@ void b12Schritte(std::vector<Schritt>& s, const std::string& modell) {
     add(pruefe("ENT3A B12: leerer Stapel - Speichern entfernt die alte Begleitdatei", [] {
         std::error_code ec;
         return !std::filesystem::exists(pfadIm("ent3a_b12.glm.stack"), ec) && e3().begleitEntfernt > 0;
+    }));
+    // --- E3: die Begleitdatei auch fuer ein .md3-Requisit ---
+    auto md3 = std::make_shared<std::string>();
+    auto stapelMd3 = std::make_shared<std::string>();
+    for (Schritt& x : mb1::laden("models/map_objects/imperial/crate_banded.md3")) { add(std::move(x)); }
+    add(tu("ENT3A E3: .md3, wie 3ds Max, Modellieren, Flaeche 0: TurboSmooth in die Datei", [] {
+        modellBedienungSetzen(0);
+        mtab().bereich = ModellBereich::Modellieren;
+        mtab().auswahl = {0};
+        ap13s::stapelLeeren();
+        (void)modellStapelHinzufuegen(ModArt::Glaetten);
+        (void)modellStapelSchalten(ap13s::kennung(0, 0), true);
+        std::error_code ec;
+        std::filesystem::remove(pfadIm("ent3a_kiste.md3.stack"), ec);
+    }));
+    add(pause(0.6));
+    add(pruefe("ENT3A E3: .md3 speichern - die .md3 Byte fuer Byte wie ohne Begleitdatei (md3Schreiben des Gezeigten), daneben ent3a_kiste.md3.stack mit Basis", [md3, stapelMd3] {
+        std::string soll;
+        const bool ok = modell::md3Schreiben(modellStapelDateiInhalt(), soll, modell::grenzen(static_cast<modell::Zielspiel>(mtab().zielspiel)).eckenJeFlaeche);
+        *stapelMd3 = ap13s::stapelText(0);
+        std::error_code ec;
+        std::filesystem::remove(pfadIm("ent3a_kiste.md3"), ec);
+        mtab().speicherPfad = pfadIm("ent3a_kiste.md3");
+        modellSpeichern(false);
+        *md3 = slurp(pfadIm("ent3a_kiste.md3"));
+        const std::string begleit = slurp(pfadIm("ent3a_kiste.md3.stack"));
+        melde("E3 md3: " + std::to_string(md3->size()) + " Bytes (soll " + std::to_string(soll.size()) + "), Begleitdatei " + std::to_string(begleit.size()) + " Bytes, Stapel " +
+              *stapelMd3 + ", Meldung '" + mtab().meldung + "'");
+        return ok && !md3->empty() && *md3 == soll && begleit.rfind("JKSTUDIO-STACK ", 0) == 0 && begleit.find("\nbasis ") != std::string::npos;
+    }));
+    add(tu("ENT3A E3: die .md3 von der Platte oeffnen", [] { modellVonPlatteOeffnen(pfadIm("ent3a_kiste.md3")); }));
+    add(pause(1.0));
+    add(pruefe("ENT3A E3: nach dem Oeffnen der .md3 ist der Stapel wieder da, die Meldung nennt es; Edit Poly hat sein Auge (Flaeche wie geladen)", [stapelMd3] {
+        const std::string jetzt = mtab().dok.inhalt().herkunft == modell::Herkunft::Md3 && !mtab().dok.inhalt().teile.empty() ? ap13s::stapelText(0) : std::string("-");
+        melde("E3 md3: geoeffnet " + g_app->modelPath + ", Stapel " + jetzt + " (vorher " + *stapelMd3 + "), Meldung '" + mtab().meldung + "'");
+        return jetzt == *stapelMd3 && mtab().meldung == fmt(Str::EaBegleitGelesen, "ent3a_kiste.md3.stack", 1) && modellEnt3aGeladen(0) != nullptr;
+    }));
+    add(pruefe("ENT3A E3: erneutes Speichern schreibt dieselbe .md3 Byte fuer Byte", [md3] {
+        mtab().speicherPfad = pfadIm("ent3a_kiste.md3");
+        modellSpeichern(false);
+        return slurp(pfadIm("ent3a_kiste.md3")) == *md3;
     }));
     for (Schritt& x : mb1::laden(modell)) { add(std::move(x)); }
 }

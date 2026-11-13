@@ -6,11 +6,14 @@
 // laedt das Modell trotzdem - der Aufrufer meldet den Grund.
 //
 // Inhalt (Text, dann wahlweise Bytes):
-//   JKSTUDIO-STACK 1
-//   glm <Bytes> <FNV-1a 64 der .glm, hex>    die .glm, zu der der Stapel gehoert (aendert sie jemand, gilt er nicht mehr)
+//   JKSTUDIO-STACK 2
+//   modell <Bytes> <FNV-1a 64, hex>          die Modelldatei (.glm oder .md3), zu der der Stapel gehoert (aendert sie jemand,
+//                                            gilt er nicht mehr); Fassung 1 schrieb "glm" - beides wird gelesen
 //   teil <Index> <Eintraege> <Name>          je Flaeche mit Stapel, danach ihre Eintraege in der Reihenfolge des Rechnens:
 //   mod <Art> <Kennung> <an> <Datei> <Achse> <vonPlus> <Stufen> <RaenderHalten>
-//   basis <Bytes>                            nur wenn ein Eintrag in die Datei ging: danach die .glm des Dokuments OHNE Stapel
+//   dreh <Modus> <Knochen>                   E3: der Drehmodus eines Knochens (modell::DrehModus, nur wenn nicht Quaternion)
+//   basis <Bytes>                            nur wenn ein Eintrag in die Datei ging: danach die Modelldatei des Dokuments OHNE Stapel
+//                                            (.glm bzw. .md3 wie die Datei daneben)
 //   ende
 // Ging ein Eintrag in die Datei (Spiegeln ab Werk), traegt die .glm schon sein Ergebnis - die Flaeche darunter steht dann nur in
 // der Basis. Beim Oeffnen wird das Dokument aus der Basis gelesen und der Stapel daraufgelegt: die Ansicht und das naechste
@@ -29,7 +32,7 @@
 namespace bhed::modell {
 
 inline constexpr const char* kBegleitEndung = ".stack";
-inline constexpr int kBegleitFassung = 1;
+inline constexpr int kBegleitFassung = 2;   // E3: 2 mit Drehmodus und .md3; Fassung 1 laedt weiter
 
 enum class BegleitFehler : std::uint8_t { Keiner = 0, Alt, Kaputt, Fassung, Flaechen };
 
@@ -42,7 +45,10 @@ struct BegleitDaten {
         std::vector<Modifikator> stapel;
     };
     std::vector<TeilStapel> teile;
-    std::string basisGlm;   // leer: die .glm selbst ist die Basis
+    std::string basisGlm;   // leer: die Modelldatei selbst ist die Basis (bei einer .md3 die .md3 ohne Stapel)
+    // E3: der Drehmodus je Knochen (Name, modell::DrehModus) - nur Knochen mit einem anderen Modus als Quaternion; aeltere
+    // Begleitdateien (Fassung 1) haben keinen
+    std::vector<std::pair<std::string, int>> drehModi;
     [[nodiscard]] int eintraege() const;
 };
 
@@ -52,7 +58,8 @@ struct BegleitDaten {
 [[nodiscard]] std::string stapelBegleitName(const std::string& glmPfad);
 // Die Begleitdatei fuer den Inhalt `in` (mit Stapel) und die geschriebene .glm `glmBytes`. `basisGlm`: die .glm des Inhalts ohne
 // Stapel - nur noetig, wenn ein Eintrag in die Datei ging (sonst nullptr). Leer: kein Eintrag auf keiner Flaeche (keine Datei).
-[[nodiscard]] std::string stapelBegleitSchreiben(const Inhalt& in, const std::string& glmBytes, const std::string* basisGlm);
+[[nodiscard]] std::string stapelBegleitSchreiben(const Inhalt& in, const std::string& glmBytes, const std::string* basisGlm,
+                                                const std::vector<std::pair<std::string, int>>* drehModi = nullptr);
 // Lesen und gegen die geoeffnete .glm pruefen.
 [[nodiscard]] BegleitFehler stapelBegleitLesen(const std::string& datei, const std::string& glmBytes, BegleitDaten& aus);
 // Den gelesenen Stapel auf den Inhalt aus der .glm legen (mit Basis: der Inhalt wird aus ihr gelesen; was die .glm sonst

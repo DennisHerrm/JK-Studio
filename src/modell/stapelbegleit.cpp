@@ -2,10 +2,12 @@
 // bhed/modell/stapelbegleit.h.
 #include "bhed/modell/stapelbegleit.h"
 
+#include "bhed/md3.h"
 #include "bhed/modell/stapel.h"
 
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <sstream>
 
 namespace bhed::modell {
@@ -50,11 +52,14 @@ std::uint64_t begleitSumme(const std::string& bytes) {
 
 std::string stapelBegleitName(const std::string& glmPfad) { return glmPfad + kBegleitEndung; }
 
-std::string stapelBegleitSchreiben(const Inhalt& in, const std::string& glmBytes, const std::string* basisGlm) {
-    if (stapelLeer(in)) { return {}; }
+std::string stapelBegleitSchreiben(const Inhalt& in, const std::string& glmBytes, const std::string* basisGlm,
+                                   const std::vector<std::pair<std::string, int>>* drehModi) {
+    // E3: auch ohne Stapel, wenn ein Knochen einen eigenen Drehmodus hat (sonst ginge er verloren)
+    const bool dreh = drehModi != nullptr && !drehModi->empty();
+    if (stapelLeer(in) && !dreh) { return {}; }
     std::string s;
     char z[200];
-    std::snprintf(z, sizeof z, "%s %d\nglm %llu %016llx\n", kKopf, kBegleitFassung, static_cast<unsigned long long>(glmBytes.size()),
+    std::snprintf(z, sizeof z, "%s %d\nmodell %llu %016llx\n", kKopf, kBegleitFassung, static_cast<unsigned long long>(glmBytes.size()),
                   static_cast<unsigned long long>(begleitSumme(glmBytes)));
     s += z;
     for (std::size_t i = 0; i < in.teile.size(); ++i) {
@@ -68,6 +73,14 @@ std::string stapelBegleitSchreiben(const Inhalt& in, const std::string& glmBytes
             std::snprintf(z, sizeof z, "mod %d %u %d %d %d %d %d %d\n", static_cast<int>(m.art), m.kennung, m.an ? 1 : 0, m.datei ? 1 : 0, static_cast<int>(m.achse),
                           m.vonPlus ? 1 : 0, static_cast<int>(m.stufen), m.raenderHalten ? 1 : 0);
             s += z;
+        }
+    }
+    if (dreh) {
+        for (const auto& [knochen, modus] : *drehModi) {
+            std::snprintf(z, sizeof z, "dreh %d ", modus);
+            s += z;
+            s += knochen;
+            s += '\n';
         }
     }
     if (basisGlm != nullptr && !basisGlm->empty()) {
@@ -98,7 +111,7 @@ BegleitFehler stapelBegleitLesen(const std::string& datei, const std::string& gl
         std::string wort;
         unsigned long long groesse = 0;
         std::string summe;
-        if (!(g >> wort >> groesse >> summe) || wort != "glm" || summe.size() != 16U) { return BegleitFehler::Kaputt; }
+        if (!(g >> wort >> groesse >> summe) || (wort != "glm" && wort != "modell") || summe.size() != 16U) { return BegleitFehler::Kaputt; }
         char* ende = nullptr;
         aus.glmGroesse = groesse;
         aus.glmSumme = std::strtoull(summe.c_str(), &ende, 16);
@@ -143,6 +156,14 @@ BegleitFehler stapelBegleitLesen(const std::string& datei, const std::string& gl
                 t.stapel.push_back(mod);
             }
             aus.teile.push_back(std::move(t));
+        } else if (art == "dreh") {   // E3 (Fassung 2): Drehmodus eines Knochens
+            long long modus = -1;
+            std::string tm;
+            std::string knochen;
+            if (!(w >> tm) || !zahl(tm, modus) || modus < 0 || modus > 7) { return BegleitFehler::Kaputt; }
+            std::getline(w >> std::ws, knochen);
+            if (knochen.empty()) { return BegleitFehler::Kaputt; }
+            aus.drehModi.emplace_back(knochen, static_cast<int>(modus));
         } else if (art == "basis") {
             long long n = -1;
             std::string tn;
@@ -154,7 +175,7 @@ BegleitFehler stapelBegleitLesen(const std::string& datei, const std::string& gl
             return BegleitFehler::Kaputt;
         }
     }
-    if (!fertig || aus.teile.empty()) { return BegleitFehler::Kaputt; }
+    if (!fertig || (aus.teile.empty() && aus.drehModi.empty())) { return BegleitFehler::Kaputt; }
     // die .glm, zu der der Stapel gehoert: aenderte sie jemand ausserhalb, gilt er nicht mehr
     if (aus.glmGroesse != glmBytes.size() || aus.glmSumme != begleitSumme(glmBytes)) { return BegleitFehler::Alt; }
     return BegleitFehler::Keiner;
@@ -164,7 +185,15 @@ BegleitFehler stapelBegleitAnwenden(const BegleitDaten& d, Inhalt& in) {
     Inhalt neu;
     if (!d.basisGlm.empty()) {
         std::string fehler;
-        if (!ausGlm(d.basisGlm, neu, &fehler)) { return BegleitFehler::Kaputt; }
+        if (in.herkunft == Herkunft::Md3) {
+            // E3: ein .md3-Requisit - die Basis ist die .md3 ohne Stapel; sie traegt fuer das naechste Speichern Bilder und Tags
+            Md3Model m;
+            if (!readMd3(d.basisGlm, m, &fehler)) { return BegleitFehler::Kaputt; }
+            ausMd3(m, neu, 0);
+            neu.md3Datei = std::make_shared<const std::string>(d.basisGlm);
+        } else if (!ausGlm(d.basisGlm, neu, &fehler)) {
+            return BegleitFehler::Kaputt;
+        }
         // die Basis ist dasselbe Modell vor dem Stapel: dieselben Flaechen in derselben Reihenfolge
         if (neu.teile.size() != in.teile.size()) { return BegleitFehler::Flaechen; }
         for (std::size_t i = 0; i < neu.teile.size(); ++i) {

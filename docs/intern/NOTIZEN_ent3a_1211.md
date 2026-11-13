@@ -2,7 +2,7 @@
 
 Auftrag ENTSCHEID3A (Opus 5.5), Entscheidungen aus `plaene/entscheidungen_1211.md` (Hauptchat im Auftrag von shank, B11 von shank
 selbst: „ja“). Worktree `Y:\p_ap6`, Zweig `p_ent3a`; begonnen auf karte1 `1c6172246`, am 12.11. ~23:15 vom Wochenlimit gestoppt (WIP vom
-Hauptchat gesichert), am 13.11. fortgesetzt, zuletzt auf karte1 `cb12d394e` gesetzt (mit DXR, AP14, KLEIN und TEMPO; der letzte Schritt dorthin ändert nur Notizen). Selbsttest `gui/selbsttest_ent3a.inc`
+Hauptchat gesichert), am 13.11. fortgesetzt, zuletzt auf karte1 `025357c8f` gesetzt (mit DXR, AP14, KLEIN, TEMPO und ENTSCHEID3B; QUELLEN mit beiden Seiten, i18n und Handbuch neu erzeugt). Nachtrag E3 (unten) vom Hauptchat im Auftrag von shank. Selbsttest `gui/selbsttest_ent3a.inc`
 (`BHED_EDITORTEST=modellblock`, `BHED_MODELL_NUR=ent3a | ent3afoto | ent3ahb`), ctest `modell_ent3a`, Skripte und Läufe
 `Y:\werkzeuge\ent3a\`.
 
@@ -23,6 +23,21 @@ Neue Dateien: `gui/app_modelltab_ent3a.cpp` (Bausteine B7, B8, B11, B12, C4; Zus
 | B12 | Der Stapel bleibt in `model.glm.stack` neben der .glm (Text, bei Einträgen „in die Datei“ dazu die .glm ohne Stapel als Basis, damit erneutes Speichern dieselbe .glm ergibt). Die .glm schreibt Speichern wie bisher; Prüfsumme der .glm in der Begleitdatei. Kaputt, neuere Fassung, andere Flächen, .glm außerhalb geändert → Modell lädt ohne Stapel, Meldung mit Grund. Leerer Stapel → eine alte eigene Begleitdatei wird entfernt | Entscheidung B12 | `bhed/modell/stapelbegleit.h`, `modellEnt3aVorLaden/NachLaden/BegleitSchreiben`, `schreibenNach` (`app_modelltab_mb3.cpp`) |
 | B13 | Wie 3ds Max steht im Stapel „Unwrap UVW“ über Edit Poly (unter den Einträgen - die rechnen mit den UVs); Klick wechselt in den Bereich UV; im Menü des Stapels und in der Suche. Im Bereich UV kein Stapel (Entwurf `e_max_uv`) | 3ds Max Unwrap UVW | `drawModellStapelGruppe`, `modellStapelMenue`, `modellStapelAktionenSuche` |
 | C4 | Esc schließt das Rechtsklick-Menü der Ansicht (auch aus einem Untermenü) und tut sonst nichts (Werkzeug, Navigation, Auswahl bleiben) | 3ds Max Quad-Menü, Blender Kontextmenü | `drawModellKontextMenue`, `modellTasten` (`app_modelltab.cpp`) |
+
+### E3 (Nachtrag, `plaene/entscheidungen_1211.md` E1-E3)
+
+E1 (Skin aus für die ganze Figur) und E2 (zwei Spalten der Leiste erst nach rc612) bleiben wie gebaut. **E3:** die Begleitdatei gilt auch
+für .md3-Requisiten (`model.md3.stack`, Basis ist dann die .md3 ohne Stapel; sie trägt beim nächsten Speichern Bilder und Tags), und der
+Drehmodus der Knochen steht darin (`dreh <Modus> <Knochen>`, nur wer nicht Quaternion hat; Fassung 2, Kopfzeile `modell`). Ältere
+Begleitdateien (Fassung 1, Kopfzeile `glm`, ohne Drehmodus) laden weiter. Ein Modell beginnt beim Öffnen mit Blenders Vorgabe, die
+Begleitdatei bringt seine Drehmodi zurück; auch nur ein Drehmodus ohne Stapel bekommt eine Begleitdatei. Die .md3 schreibt Speichern wie
+bisher. Nebenbei: das Öffnen einer .md3 merkte den Inhalt beim Laden nicht - Edit Poly hatte bei Requisiten kein Auge (B11); jetzt ja.
+Dateien: `stapelbegleit.h/.cpp`, `modellEnt3aVorLaden/BegleitSchreiben`, `schreibenNach` (.md3-Zweig), `modellMd3Oeffnen`.
+
+| E3 | rot | grün |
+|---|---|---|
+| ctest `modell_ent3a` | 4 FEHLER (Drehmodus schreiben/lesen, nur Drehmodus, .md3 öffnen, .md3 erneut bytegleich); grün schon: Fassung 1 lädt, .md3 bytegleich (Schreiber unverändert) | ALLES OK (modell_* 22 / 22) |
+| Selbsttest `ent3a` | 53 OK / 3 FEHLER (Drehmodi nach dem Öffnen, .md3 mit Begleitdatei, .md3 öffnen mit Stapel und Auge) | 56 / 0 (die Prüfzeile B12 nahm noch die Fassung 1 der Kopfzeile an: berichtigt auf jede Fassung). Danach ent3b 38 / 0, ap13s 123 / 0, ap13k 66 / 0, mb2 39 / 0, ctest modell_* 22 / 22; Lints wie karte1 (i18n meldet PrTempoHint unbenutzt - so schon auf karte1 025357c8f, nicht von ENT3A) |
 
 ### Testfund mb2 („Füße blau“)
 
@@ -115,26 +130,23 @@ ein Element je Bild, die Seitenleiste rechnet je Bild eine 3x3-Umkehrung für de
 
 ## Entscheidungen (mit Grund)
 
-1. **Skin aus gilt für die ganze Figur**, nicht je Fläche wie bei einem Skin-Modifier je Objekt in 3ds Max: eine .glm ist ein Modell an
+1. **Skin aus gilt für die ganze Figur** (bestätigt als E1), nicht je Fläche wie bei einem Skin-Modifier je Objekt in 3ds Max: eine .glm ist ein Modell an
    einem Skelett, alle Werkzeuge rechnen in der Pose der Ansicht (eine Pose für alle Flächen); je Fläche risse die Figur an den Nähten auf
    und Bearbeiten in der Bindepose ginge nur für einen Teil. Der Tooltip sagt es.
 2. **Augen sind Ansicht, kein Dokument** (wie das Auge im Explorer): kein Rückgängig-Schritt, nicht in der Begleitdatei; ein neues Modell
    beginnt mit allen Augen an. Wie Blender gelten sie nicht (dort gibt es die Zeilen nicht).
 3. **Edit Poly aus ohne geladene Fläche**: eine Fläche, die es beim Laden nicht gab (Detach, neues Requisit), hat ein graues Auge mit
    Grund im Tooltip.
-4. **Begleitdatei nur für .glm** (Entscheidung nennt die .glm); .md3-Requisiten behalten den Stapel nur bis zum Schließen.
+4. **Begleitdatei auch für .md3** (E3, nachgetragen).
 5. **Basis in der Begleitdatei**, wenn ein Eintrag in die Datei ging: sonst läge das Spiegeln beim Öffnen zweimal auf der Fläche.
-6. **Drehmodus je Knochen für die Sitzung** (nach Name), nicht gespeichert (Blender speichert ihn in der .blend; JK Studio hat dafür
-   keine Datei).
+6. **Drehmodus je Knochen in der Begleitdatei** (E3, nachgetragen; nach Name).
 7. **B7 nur wie 3ds Max**: Blender beschreibt „Disable Selection“ für den 3D-Viewport; der Outliner bleibt, wie ENTSCHEID1/AP2 ihn
    gebaut haben.
 
 ## Offen / Fragen an shank
 
-1. Skin aus für die ganze Figur (Entscheidung 1) - oder doch je Fläche wie 3ds Max je Objekt?
-2. Blender zeigt zwischen 80 und 120 Punkten zwei Spalten (`column_count = 2`) und rastet die Breite ein - nicht gebaut (B8 nennt nur die
-   Namen). Gewünscht?
-3. Begleitdatei auch für .md3-Requisiten? Drehmodus der Knochen mit speichern (in der Begleitdatei)?
+Die drei Fragen sind beantwortet (E1 so lassen, E2 nach rc612, E3 gebaut). Offen: zwei Spalten der Werkzeugleiste zwischen 80 und 120
+Punkten wie Blender (nach rc612).
 
 ## Changelog
 
@@ -147,6 +159,7 @@ ein Element je Bild, die Seitenleiste rechnet je Bild eine 3x3-Umkehrung für de
 - Modifier stack (3ds Max mode): Edit Poly and Skin have an eye. Edit Poly off shows the surface as it was loaded, Skin off shows the figure in its bind pose; only the view changes. A row "Unwrap UVW" switches to the UV area.
 - The modifier stack is kept next to the model in model.glm.stack and comes back when the model is opened again; the .glm stays byte for byte the same and the game does not read the new file. If the file cannot be read, the model opens without the stack and the status line says why.
 - Esc closes the right-click menu of the view, as in 3ds Max and Blender.
+- The modifier stack companion file also works for .md3 props (model.md3.stack) and keeps the rotation mode of each bone; older companion files still open.
 
 ## Deutsch
 
@@ -157,6 +170,7 @@ ein Element je Bild, die Seitenleiste rechnet je Bild eine 3x3-Umkehrung für de
 - Modifier-Stapel (3ds-Max-Modus): Edit Poly und Skin haben ein Auge. Edit Poly aus zeigt die Fläche wie geladen, Skin aus zeigt die Figur in der Bindepose; es ändert sich nur die Anzeige. Eine Zeile „Unwrap UVW“ wechselt in den Bereich UV.
 - Der Modifier-Stapel bleibt neben dem Modell in model.glm.stack erhalten und kommt beim nächsten Öffnen wieder; die .glm bleibt Byte für Byte gleich, und das Spiel liest die neue Datei nicht. Lässt sie sich nicht lesen, öffnet sich das Modell ohne Stapel, und die Statuszeile sagt warum.
 - Esc schließt das Rechtsklick-Menü der Ansicht, wie in 3ds Max und Blender.
+- Die Begleitdatei des Modifier-Stapels gilt auch für .md3-Requisiten (model.md3.stack) und behält den Rotationsmodus jedes Knochens; ältere Begleitdateien öffnen sich weiter.
 
 ## 中文
 
@@ -167,6 +181,7 @@ ein Element je Bild, die Seitenleiste rechnet je Bild eine 3x3-Umkehrung für de
 - 修改器堆栈 (3ds Max 模式): Edit Poly 和 Skin 有眼睛图标。关闭 Edit Poly 按加载时的样子显示面, 关闭 Skin 以绑定姿态显示角色; 只改变显示。“Unwrap UVW”行可切换到 UV 区域。
 - 修改器堆栈保存在模型旁的 model.glm.stack 中, 再次打开模型时会恢复; .glm 逐字节保持不变, 游戏不读取新文件。如果无法读取该文件, 模型会在没有堆栈的情况下打开, 状态栏会说明原因。
 - Esc 关闭视图的右键菜单, 与 3ds Max 和 Blender 相同。
+- 修改器堆栈的伴随文件也适用于 .md3 道具 (model.md3.stack), 并保存每块骨骼的旋转模式; 旧的伴随文件仍可打开。
 
 ## 日本語
 
@@ -177,6 +192,7 @@ ein Element je Bild, die Seitenleiste rechnet je Bild eine 3x3-Umkehrung für de
 - モディファイアスタック (3ds Max 風): Edit Poly と Skin に目のアイコンがあります。Edit Poly をオフにすると読み込んだときのサーフェスを、Skin をオフにするとバインドポーズのフィギュアを表示します。変わるのは表示だけです。「Unwrap UVW」の行で UV エリアに切り替わります。
 - モディファイアスタックはモデルの隣の model.glm.stack に保存され、次に開いたときに戻ります。.glm はバイト単位で同じままで、ゲームは新しいファイルを読みません。読めない場合、モデルはスタックなしで開き、ステータス行に理由が表示されます。
 - Esc でビューの右クリック メニューを閉じます (3ds Max や Blender と同じ)。
+- モディファイアスタックの付随ファイルは .md3 の小道具にも使え (model.md3.stack)、各ボーンの回転モードも保存します。古い付随ファイルも開けます。
 
 ## Español
 
@@ -187,6 +203,7 @@ ein Element je Bild, die Seitenleiste rechnet je Bild eine 3x3-Umkehrung für de
 - Pila de modificadores (modo 3ds Max): Edit Poly y Skin tienen un ojo. Con Edit Poly desactivado se ve la superficie tal como se cargó, con Skin desactivado la figura en su pose de enlace; solo cambia la vista. Una fila «Unwrap UVW» cambia al área UV.
 - La pila de modificadores se conserva junto al modelo en model.glm.stack y vuelve al abrir el modelo de nuevo; el .glm se mantiene igual byte a byte y el juego no lee el nuevo archivo. Si no se puede leer, el modelo se abre sin la pila y la línea de estado dice por qué.
 - Esc cierra el menú contextual de la vista, como en 3ds Max y Blender.
+- El archivo acompañante de la pila de modificadores sirve también para accesorios .md3 (model.md3.stack) y guarda el modo de rotación de cada hueso; los archivos antiguos se siguen abriendo.
 
 ## Čeština
 
@@ -197,3 +214,4 @@ ein Element je Bild, die Seitenleiste rechnet je Bild eine 3x3-Umkehrung für de
 - Zásobník modifikátorů (režim 3ds Max): Edit Poly a Skin mají oko. Vypnutý Edit Poly ukazuje plochu tak, jak byla načtena, vypnutý Skin postavu ve vazební póze; mění se jen zobrazení. Řádek „Unwrap UVW“ přepne do oblasti UV.
 - Zásobník modifikátorů zůstává vedle modelu v model.glm.stack a při dalším otevření se vrátí; .glm zůstává bajt po bajtu stejný a hra nový soubor nečte. Pokud ho nejde přečíst, model se otevře bez zásobníku a stavový řádek řekne proč.
 - Esc zavře nabídku pravého tlačítka v pohledu jako ve 3ds Max a Blenderu.
+- Doprovodný soubor zásobníku modifikátorů platí i pro rekvizity .md3 (model.md3.stack) a uchovává režim rotace každé kosti; starší doprovodné soubory se dál otevřou.

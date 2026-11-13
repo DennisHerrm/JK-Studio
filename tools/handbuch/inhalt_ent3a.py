@@ -163,27 +163,27 @@ X = {
         "The stack stays when the model is closed: saving writes it next to the model into **model.glm.stack**. The .glm itself is "
         "written exactly as before, and the game never reads the .stack file. Opening the .glm again brings the modifiers back; if "
         "the .stack file cannot be read (damaged, or the .glm was changed outside JK Studio), the model opens without them and the "
-        "status line says why. Saving a model without modifiers removes an old .stack file of its own.",
+        "status line says why. Saving a model without modifiers removes an old .stack file of its own. The same holds for an .md3 requisite (model.md3.stack). The file also keeps the rotation mode of each bone that is not Quaternion (sidebar like Blender); an older .stack file without rotation modes still opens.",
         "Der Stapel bleibt, wenn das Modell geschlossen wird: Speichern schreibt ihn neben das Modell in **model.glm.stack**. Die .glm "
         "selbst wird genau wie bisher geschrieben, und das Spiel liest die .stack-Datei nie. Öffnet man die .glm wieder, sind die "
         "Modifier zurück; lässt sich die .stack-Datei nicht lesen (beschädigt, oder die .glm wurde außerhalb von JK Studio geändert), "
         "öffnet sich das Modell ohne sie, und die Statuszeile sagt warum. Speichern eines Modells ohne Modifier entfernt eine alte "
-        "eigene .stack-Datei.",
+        "eigene .stack-Datei. Dasselbe gilt für ein .md3-Requisit (model.md3.stack). Die Datei behält auch den Rotationsmodus jedes Knochens, der nicht Quaternion ist (Seitenleiste wie Blender); eine ältere .stack-Datei ohne Rotationsmodi öffnet sich weiter.",
         "关闭模型后堆栈仍会保留: 保存时把它写到模型旁的 **model.glm.stack** 中。.glm 本身与以前完全一样地写入, 游戏从不读取 .stack 文件。再次打开 .glm "
         "时修改器会恢复; 如果无法读取 .stack 文件 (已损坏, 或 .glm 在 JK Studio 之外被修改), 模型会在没有修改器的情况下打开, 状态栏会说明原因。保存没有修改器的"
-        "模型时会删除其旧的 .stack 文件。",
+        "模型时会删除其旧的 .stack 文件。.md3 道具同样适用 (model.md3.stack)。该文件还会保存每个非四元数骨骼的旋转模式 (像 Blender 的侧栏); 没有旋转模式的旧 .stack 文件仍可打开。",
         "モデルを閉じてもスタックは残ります: 保存するとモデルの隣の **model.glm.stack** に書き込まれます。.glm 自体はこれまでとまったく同じに"
         "書き込まれ、ゲームは .stack ファイルを読みません。.glm を開き直すとモディファイアが戻ります。.stack ファイルが読めない場合 (壊れている、"
         "または JK Studio 以外で .glm が変更された) は、モデルはモディファイアなしで開き、ステータス行に理由が表示されます。モディファイアのない"
-        "モデルを保存すると、古い自分の .stack ファイルは削除されます。",
+        "モデルを保存すると、古い自分の .stack ファイルは削除されます。.md3 の小道具も同じです (model.md3.stack)。このファイルはクォータニオン以外のボーンの回転モードも保存します (Blender 風のサイドバー)。回転モードのない古い .stack ファイルも引き続き開けます。",
         "La pila se mantiene al cerrar el modelo: guardar la escribe junto al modelo en **model.glm.stack**. El .glm se escribe "
         "exactamente igual que antes y el juego nunca lee el archivo .stack. Al volver a abrir el .glm vuelven los modificadores; si el "
         "archivo .stack no se puede leer (dañado, o el .glm se cambió fuera de JK Studio), el modelo se abre sin ellos y la línea de "
-        "estado dice por qué. Guardar un modelo sin modificadores elimina su antiguo archivo .stack.",
+        "estado dice por qué. Guardar un modelo sin modificadores elimina su antiguo archivo .stack. Lo mismo vale para un accesorio .md3 (model.md3.stack). El archivo también guarda el modo de rotación de cada hueso que no sea cuaternio (barra lateral como Blender); un archivo .stack antiguo sin modos de rotación se sigue abriendo.",
         "Zásobník zůstane i po zavření modelu: uložení ho zapíše vedle modelu do **model.glm.stack**. Samotný .glm se zapíše přesně jako "
         "dosud a hra soubor .stack nikdy nečte. Po novém otevření .glm se modifikátory vrátí; pokud soubor .stack nejde přečíst "
         "(poškozený, nebo byl .glm změněn mimo JK Studio), model se otevře bez nich a stavový řádek řekne proč. Uložení modelu bez "
-        "modifikátorů odstraní jeho starý soubor .stack."),
+        "modifikátorů odstraní jeho starý soubor .stack. Totéž platí pro rekvizitu .md3 (model.md3.stack). Soubor uchovává i režim rotace každé kosti, který není Quaternion (postranní panel jako Blender); starší soubor .stack bez režimů rotace se dál otevře."),
 }
 
 ES = {t[0]: t[4] for t in X.values()}

@@ -17,6 +17,7 @@
 
 #include "bhed/modell/gewichte.h"
 #include "bhed/modell/glmdatei.h"
+#include "bhed/modell/md3datei.h"
 #include "bhed/modell/stapelbegleit.h"
 #include "bhed/sicherschreiben.h"
 
@@ -85,8 +86,9 @@ void modellEnt3aVorLaden(const std::string& glmBytes, modell::Inhalt& in) {
     g_e.begleitEintraege = -1;
     g_e.begleitFehler = 0;
     g_e.meldungNachLaden.clear();
+    g_e.drehModus.clear();   // E3: ein neues Modell beginnt mit Blenders Vorgabe, die Begleitdatei bringt seine Drehmodi
     const std::string pfad = g_app->modelPath;
-    if (!aufPlatte(pfad) || in.herkunft != modell::Herkunft::Glm) { return; }
+    if (!aufPlatte(pfad) || (in.herkunft != modell::Herkunft::Glm && in.herkunft != modell::Herkunft::Md3)) { return; }
     const std::string begleit = modell::stapelBegleitName(pfad);
     std::error_code ec;
     if (!std::filesystem::is_regular_file(begleit, ec)) { return; }
@@ -102,6 +104,7 @@ void modellEnt3aVorLaden(const std::string& glmBytes, modell::Inhalt& in) {
         return;
     }
     g_e.begleitEintraege = d.eintraege();
+    for (const auto& [knochen, modus] : d.drehModi) { g_e.drehModus[knochen] = modus; }
     g_e.meldungNachLaden = format(Str::EaBegleitGelesen, fileName(begleit).c_str(), d.eintraege());
     diag::detail("ENT3A Begleitdatei " + begleit + ": " + std::to_string(d.eintraege()) + " Eintraege" + (d.basisGlm.empty() ? "" : ", mit Basis"));
 }
@@ -123,7 +126,14 @@ std::string modellEnt3aBegleitSchreiben(const std::string& ziel, const std::stri
     const modell::Inhalt& in = mt().dok.inhalt();
     const std::string pfad = modell::stapelBegleitName(ziel);
     std::error_code ec;
-    if (modell::stapelLeer(in)) {
+    // E3: die Drehmodi der Knochen (nur wer nicht Quaternion hat; ein .md3-Requisit hat keine Knochen)
+    std::vector<std::pair<std::string, int>> dreh;
+    if (in.herkunft == modell::Herkunft::Glm) {
+        for (const auto& [knochen, modus] : g_e.drehModus) {
+            if (modus != 0) { dreh.emplace_back(knochen, modus); }
+        }
+    }
+    if (modell::stapelLeer(in) && dreh.empty()) {
         // eine alte eigene Begleitdatei gehoert nicht mehr zu dieser .glm (sonst kaeme beim Oeffnen ein Stapel, den es nicht mehr gibt)
         if (std::filesystem::is_regular_file(pfad, ec) && slurp(pfad).rfind("JKSTUDIO-STACK ", 0) == 0) {
             std::filesystem::remove(pfad, ec);
@@ -137,10 +147,14 @@ std::string modellEnt3aBegleitSchreiben(const std::string& ziel, const std::stri
         // die Flaechen unter dem Stapel, wie die Ansicht sie zeigt (offene Mallisten uebernommen wie beim Speichern, FIX612B P2-2)
         modell::Inhalt ohne = modell::malt(in) ? modell::wieGezeigt(in) : in;
         for (modell::Teil& x : ohne.teile) { x.stapel.clear(); }
-        if (!modell::glmSchreiben(ohne, basis)) { return format(Str::EaBegleitSchreibFehler, "glm"); }
+        // E3: ein .md3-Requisit bekommt die .md3 ohne Stapel als Basis (wie Speichern sie schreibt, mit derselben Grenze)
+        const bool ok = in.herkunft == modell::Herkunft::Md3
+                            ? modell::md3Schreiben(ohne, basis, modell::grenzen(static_cast<modell::Zielspiel>(mt().zielspiel)).eckenJeFlaeche)
+                            : modell::glmSchreiben(ohne, basis);
+        if (!ok) { return format(Str::EaBegleitSchreibFehler, in.herkunft == modell::Herkunft::Md3 ? "md3" : "glm"); }
     }
     std::string fehler;
-    if (!sicherSchreiben(pfad, modell::stapelBegleitSchreiben(in, glmBytes, mitBasis ? &basis : nullptr), &fehler)) {
+    if (!sicherSchreiben(pfad, modell::stapelBegleitSchreiben(in, glmBytes, mitBasis ? &basis : nullptr, dreh.empty() ? nullptr : &dreh), &fehler)) {
         return format(Str::EaBegleitSchreibFehler, fehler.c_str());
     }
     ++g_e.begleitGeschrieben;

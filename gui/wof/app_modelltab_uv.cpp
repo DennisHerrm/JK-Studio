@@ -1710,9 +1710,11 @@ bool modellMd3Oeffnen(const std::string& bytes, const std::string& name, std::st
     g_app->model = std::move(gm);
     g_app->modelPath = name;
     g_app->modelDir = directoryOf(name);
+    modellEnt3aVorLaden(bytes, in);   // ENTSCHEID3A (E3): der Stapel aus der Begleitdatei neben der .md3 (Fehler: ohne, mit Meldung)
     ModellTab& t = mt();
     in.kinoBelegung = t.dok.inhalt().kinoBelegung;   // REST N10: die Belegung der Ziel-GLA bleibt
     t.dok.laden(std::move(in));
+    modellEnt3aNachLaden();   // ENTSCHEID3A (B11, E3): der Inhalt wie geladen (Auge von Edit Poly), Meldung zur Begleitdatei
     t.dokModell = name;
     t.g2 = modell::G2Zustand{};
     t.verstecktTeil.clear();

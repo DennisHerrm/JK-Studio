@@ -12,16 +12,21 @@
 // Aufruf: modellent3atest <model.glm>
 #include "bhed/modell/dokument.h"
 #include "bhed/modell/drehmodus.h"
+#include "bhed/md3.h"
 #include "bhed/modell/glmdatei.h"
+#include "bhed/modell/md3datei.h"
 #include "bhed/modell/stapel.h"
 #include "bhed/modell/stapelbegleit.h"
+#include "bhed/modell/wof/poly.h"
 
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -259,7 +264,7 @@ void begleitTests(const std::string& glmPfad) {
     const std::string basis = glmVon(ohne);
     expect("die .glm traegt das Spiegeln (anders als die Basis)", !glm.empty() && glm != basis);
     const std::string datei = stapelBegleitSchreiben(in, glm, &basis);
-    expect("Begleitdatei geschrieben (Kopf, Basis)", datei.rfind("JKSTUDIO-STACK 1\n", 0) == 0 && datei.find("\nbasis ") != std::string::npos);
+    expect("Begleitdatei geschrieben (Kopf, Basis)", datei.rfind("JKSTUDIO-STACK ", 0) == 0 && datei.find("\nbasis ") != std::string::npos);
     // Oeffnen: die .glm lesen, die Begleitdatei lesen und anwenden
     Inhalt neu;
     expect("die gespeicherte .glm liest sich", ausGlm(glm, neu, &fehler));
@@ -302,6 +307,90 @@ void begleitTests(const std::string& glmPfad) {
                                                                 fremd.teile[static_cast<std::size_t>(t)].name == vorher.teile[static_cast<std::size_t>(t)].name &&
                                                                 fremd.teile.size() == vorher.teile.size());
     expect("Name der Begleitdatei: model.glm -> model.glm.stack", stapelBegleitName("a/b/model.glm") == "a/b/model.glm.stack");
+
+    // --- E3 (Hauptchat im Auftrag von shank, plaene/entscheidungen_1211.md): Drehmodus der Knochen in der Begleitdatei ---
+    in.teile[static_cast<std::size_t>(t)].stapel = {gl};
+    const std::vector<std::pair<std::string, int>> dreh = {{"pelvis", static_cast<int>(DrehModus::Xyz)}, {"cranium", static_cast<int>(DrehModus::AchseWinkel)}};
+    const std::string mitDreh = stapelBegleitSchreiben(in, glmV, nullptr, &dreh);
+    BegleitDaten dd;
+    expect("E3: Drehmodus geschrieben und gelesen (pelvis XYZ Euler, cranium Achsenwinkel), Fassung 2",
+           mitDreh.rfind("JKSTUDIO-STACK 2\n", 0) == 0 && stapelBegleitLesen(mitDreh, glmV, dd) == BegleitFehler::Keiner && dd.drehModi == dreh && dd.eintraege() == 1);
+    // eine aeltere Begleitdatei (Fassung 1, Kopfzeile "glm", ohne Drehmodus) laedt weiter
+    char alt[300];
+    std::snprintf(alt, sizeof alt, "JKSTUDIO-STACK 1\nglm %zu %016llx\nteil %d 1 %s\nmod 1 2 1 0 0 1 2 1\nende\n", glmV.size(),
+                  static_cast<unsigned long long>(begleitSumme(glmV)), t, in.teile[static_cast<std::size_t>(t)].name.c_str());
+    BegleitDaten da;
+    Inhalt neuA;
+    const bool altOk = stapelBegleitLesen(alt, glmV, da) == BegleitFehler::Keiner && da.drehModi.empty() && ausGlm(glmV, neuA, &fehler) &&
+                       stapelBegleitAnwenden(da, neuA) == BegleitFehler::Keiner && neuA.teile[static_cast<std::size_t>(t)].stapel.size() == 1U &&
+                       neuA.teile[static_cast<std::size_t>(t)].stapel[0].stufen == 2;
+    expect("E3: eine aeltere Begleitdatei (Fassung 1, ohne Drehmodus) laedt weiter", altOk);
+    // nur Drehmodus, kein Stapel: die Begleitdatei gibt es trotzdem (sonst ginge der Modus verloren)
+    Inhalt ohneStapel = in;
+    for (Teil& x : ohneStapel.teile) { x.stapel.clear(); }
+    const std::string nurDreh = stapelBegleitSchreiben(ohneStapel, glmV, nullptr, &dreh);
+    BegleitDaten dn;
+    expect("E3: nur Drehmodus ohne Stapel - Begleitdatei geschrieben und gelesen", !nurDreh.empty() && stapelBegleitLesen(nurDreh, glmV, dn) == BegleitFehler::Keiner &&
+                                                                                     dn.drehModi == dreh && dn.teile.empty());
+}
+
+// --- E3: die Begleitdatei auch fuer ein .md3-Requisit ---------------------------------------------------------------------------
+void md3Tests() {
+    // ein Kasten als .md3 von Grund auf, dann wie geoeffnet (ausMd3, die gelesene Datei dahinter)
+    Inhalt roh;
+    roh.herkunft = Herkunft::Md3;
+    roh.stufenZahl = 1;
+    Teil t;
+    t.name = "kiste";
+    t.stufen.resize(1);
+    roh.teile.push_back(t);
+    wof::PolyNetz n = wof::polyAus(roh, 0);
+    wof::GrundParam g;
+    g.form = wof::Grundform::Kasten;
+    g.laenge = g.breite = g.hoehe = 64.0F;
+    (void)wof::grundkoerper(n, g, 0);
+    wof::normalenNeu(n, 60.0F);
+    n.verdichten();
+    wof::polyZurueck(n, roh);
+    std::string datei;
+    expect("E3 md3: ein Kasten als .md3", md3Schreiben(roh, datei, 0) && !datei.empty());
+    Md3Model m;
+    Inhalt in;
+    const bool gelesen = readMd3(datei, m);
+    if (gelesen) {
+        ausMd3(m, in, 0);
+        in.md3Datei = std::make_shared<const std::string>(datei);
+    }
+    expect("E3 md3: die .md3 liest sich", gelesen && in.herkunft == Herkunft::Md3 && !in.teile.empty());
+    if (!gelesen || in.teile.empty()) { return; }
+    // Glaetten, in die Datei - die .md3 traegt das Ergebnis, die Begleitdatei die .md3 ohne Stapel als Basis
+    Modifikator gl;
+    gl.art = ModArt::Glaetten;
+    gl.kennung = 1;
+    gl.datei = true;
+    in.teile[0].stapel = {gl};
+    const StapelUmgebung u;
+    std::string mit;
+    std::string basis;
+    Inhalt ohne = in;
+    ohne.teile[0].stapel.clear();
+    const bool geschrieben = md3Schreiben(stapelFuerDatei(in, u), mit, 0) && md3Schreiben(ohne, basis, 0);
+    expect("E3 md3: die .md3 mit dem geglaetteten Netz schreibt dieselben Bytes wie ohne Begleitdatei (md3Schreiben des Gezeigten)",
+           geschrieben && mit != basis && basis == datei);
+    const std::string begleit = stapelBegleitSchreiben(in, mit, &basis);
+    Md3Model m2;
+    Inhalt neu;
+    BegleitDaten d;
+    bool ok = !begleit.empty() && readMd3(mit, m2);
+    if (ok) {
+        ausMd3(m2, neu, 0);
+        neu.md3Datei = std::make_shared<const std::string>(mit);
+    }
+    ok = ok && stapelBegleitLesen(begleit, mit, d) == BegleitFehler::Keiner && stapelBegleitAnwenden(d, neu) == BegleitFehler::Keiner;
+    expect("E3 md3: Oeffnen bringt den Stapel zurueck, die Flaeche darunter ist wieder die Basis",
+           ok && neu.teile[0].stapel == in.teile[0].stapel && neu.teile[0].stufen[0].dreiecke() == in.teile[0].stufen[0].dreiecke());
+    std::string wieder;
+    expect("E3 md3: erneutes Speichern schreibt dieselbe .md3 Byte fuer Byte", ok && md3Schreiben(stapelFuerDatei(neu, u), wieder, 0) && wieder == mit);
 }
 
 }  // namespace
@@ -311,6 +400,7 @@ int main(int argc, char** argv) {
     drehTests();
     if (argc > 1) {
         begleitTests(argv[1]);
+        md3Tests();
     } else {
         expect("Aufruf: modellent3atest <model.glm>", false);
     }

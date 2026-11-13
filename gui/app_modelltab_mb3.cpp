@@ -117,7 +117,11 @@ bool schreibenNach(const std::string& ziel) {
         }
         t.speicherPfad = ziel;
         t.gespeichertStand = t.dok.stand();
-        melden(format(Str::UvMd3Gespeichert, ziel.c_str(), static_cast<int>(bytes.size()), mb.flaechenRoh, mb.flaechenNeu));
+        std::string m = format(Str::UvMd3Gespeichert, ziel.c_str(), static_cast<int>(bytes.size()), mb.flaechenRoh, mb.flaechenNeu);
+        // ENTSCHEID3A (E3): auch eine .md3 bekommt ihren Stapel in die Begleitdatei daneben (die .md3 ist geschrieben wie bisher)
+        const std::string begleit = modellEnt3aBegleitSchreiben(ziel, bytes);
+        if (!begleit.empty()) { m += " " + begleit; }
+        melden(m);
         return true;
     }
     // FIX612B P2-2: geschrieben wird, was die Ansicht zeigt - offene Mallisten (Malen und alle Befehle des Bereichs Weights)
