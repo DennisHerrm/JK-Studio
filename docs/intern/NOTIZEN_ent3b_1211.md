@@ -1,7 +1,7 @@
 # Notizen ENTSCHEID3B (12./13.11.): B14-B17, C1, C3 - IK/FK-Spur wie CAT, Ducken, Tempo als Faktor, Griff der Wurzel, nur FK zurueck auf IK, Rig-Vorlage im Dokument - rc612
 
 Auftrag ENTSCHEID3B (Opus 5.5; am Wochenlimit 12.11. ~23:15 gestoppt, 13.11. fortgesetzt): `plaene/entscheidungen_1211.md` B14-B17, C1, C3
-(verbindlich). Worktree `Y:\p_ent2`, Zweig `p_ent3b`, begonnen auf karte1 `fe0cbece7`, rebased auf karte1 `3d0947208` (mit DXR, AP14, KLEIN). Selbsttest neu `gui/selbsttest_ent3b.inc` (`BHED_EDITORTEST=modellblock`,
+(verbindlich). Worktree `Y:\p_ent2`, Zweig `p_ent3b`, begonnen auf karte1 `fe0cbece7`, rebased auf karte1 `933dd74f8` (mit DXR, AP14, KLEIN, TEMPO). Selbsttest neu `gui/selbsttest_ent3b.inc` (`BHED_EDITORTEST=modellblock`,
 `BHED_MODELL_NUR=ent3b`; Handbuch `BHED_EDITORTEST=handbuch`, `BHED_HB_NUR=ent3b`), Proben `gui/app_modelltab_ent3b.h/.cpp` (Text des Reglers Tempo,
 Zeilen des Dopesheets), ctest neu `modell_ent3b` mit `tests/figuranim/ent3b_figur_alt.txt` (geschrieben vom Programm vor ENTSCHEID3B). Texte
 `tools/i18n_ent3b.py` (Praefix `E3`, 6 Sprachen), Handbuch `tools/handbuch/inhalt_ent3b.py`. Skripte, Patches, Laeufe `Y:\werkzeuge\ent3b\`.
@@ -53,7 +53,7 @@ Zeilen IK/FK, Arm R zwischen +5 und +15 auf 0,50) und `h_ent3b_wurzel` (wie 3ds 
 (2538 × 1472, je 2 / 0), angesehen en, de, ja. Absatz „nur FK“ von FIX612C (`inhalt_fix612c.py`) an C1 angepasst. Handbuch und Hilfe-Orte
 (`gen_handbuch.py`, `gen_hilfe_orte.py`: der Regler IK/FK-Verhältnis ist ein Ort) nach dem Rebase neu erzeugt; `gen_handbuch.py --pruefen` ok.
 
-## Schlussrunde des Zweigs (auf karte1 `3d0947208`)
+## Schlussrunde des Zweigs (auf karte1 `3d0947208`, danach nur TEMPO dazu: Nachbau und Nachlauf s. u.)
 
 Unter der Lastregel (Bau `--parallel 2`, höchstens zwei jkstudio, Leerlauf), Direct3D 12 (Vorgabe):
 
@@ -65,6 +65,10 @@ Unter der Lastregel (Bau `--parallel 2`, höchstens zwei jkstudio, Leerlauf), Di
 | ctest `modell_ent3b` | ok (alte Datei 0 Unterschied, Überblenden, ab dem Bild, Plattform, Backen, Reduzieren, Missions-Zeilen) |
 | Gruppen | ap10 72 · ent2 23 · pr 17 · rt 21 · ap13k 66 · fix612c 36 · mb3 23 - je 0 FEHLER; rig 27 / 1 (MB4 Pfad, auf karte1 ebenso rot, s. u.) |
 | Handbuchbilder | 6 Sprachen je 2 / 0 |
+
+Nachlauf nach dem letzten Rebase auf karte1 `933dd74f8` (nur TEMPO dazu, keine gemeinsame Datei ausser der Liste in CMakeLists.txt; erzeugte
+Dateien mit den Generatoren geprueft - unveraendert): Bau alle Ziele 0 Fehler, 0 Warnungen (`rebase4`); ctest `-R modell_|stabilsort|nachplatz|lint_|i18n|hilfe_orte|handbuch`
+32 / 32; `ent3b` 38 / 0 (`t_ent3b`).
 
 Bewusst nicht gelaufen: volle Runde, Sprachläufe, Fotovergleich Direct3D 11 - neu gezeichnet wird nichts: der Bodenkreis ist die Form aus AP13K
 (dieselbe Linie, gewählt weiß wie jede Griff-Form), die Zeilen des Dopesheets und der Regler sind ImGui. Keine Bildzeit-Messung: ohne Plattform
