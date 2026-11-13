@@ -595,7 +595,10 @@ void setzeWert(std::vector<RigSchluessel>& v, int bild, const float q[4], const 
 }
 
 std::vector<RigSchluessel>* liste(RigSchicht& s, int k) {
-    if (k < 0 || static_cast<std::size_t>(k) >= s.knochen.size()) { return nullptr; }
+    // ENT3B: die IK/FK-Spur eines Glieds und die Plattform sind Listen wie die eines Knochens (die IK-Ziele tragen dazu ihren
+    // IkWert und gehen eigene Wege: umsetzenIk)
+    if (k < 0) { return ikWahlSpur(k) >= 0 ? nullptr : schluesselListe(s, k); }
+    if (static_cast<std::size_t>(k) >= s.knochen.size()) { return nullptr; }
     return &s.knochen[static_cast<std::size_t>(k)];
 }
 
@@ -701,6 +704,8 @@ void henkelNeu(std::vector<RigSchluessel>& v, bool glatt) { henkelNeuGezogen(v, 
 
 void henkelNeu(RigSchicht& s) {
     for (auto& v : s.knochen) { henkelNeu(v); }
+    for (IkSpur& sp : s.ik) { henkelNeu(sp.anteil); }   // ENT3B
+    henkelNeu(s.plattform);
 }
 
 float kanalAuswerten(const std::vector<RigSchluessel>& v, int kanal, float x) {
@@ -750,9 +755,9 @@ int quatFolge(std::vector<RigSchluessel>& v) {
 
 std::vector<int> wahlIndizes(const RigSchicht& s, const Wahl& w, int knochen) {
     std::vector<int> aus;
-    const int sp = ikWahlSpur(knochen);
-    if (sp >= 0 ? static_cast<std::size_t>(sp) >= s.ik.size() : (knochen < 0 || static_cast<std::size_t>(knochen) >= s.knochen.size())) { return aus; }
-    const auto& v = sp >= 0 ? s.ik[static_cast<std::size_t>(sp)].ziel : s.knochen[static_cast<std::size_t>(knochen)];
+    const std::vector<RigSchluessel>* vp = schluesselListe(s, knochen);   // ENT3B: Knochen, IK-Ziele, IK/FK-Spur, Plattform
+    if (vp == nullptr) { return aus; }
+    const auto& v = *vp;
     for (std::size_t i = 0; i < v.size(); ++i) {
         for (const SchluesselWahl& x : w) {
             if (x.knochen == knochen && x.bild == v[i].bild) {

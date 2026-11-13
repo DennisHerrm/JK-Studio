@@ -223,6 +223,18 @@ std::vector<std::string> figurZeilen(const FigurAnim& a) {
             for (const float q : w.zehen) { d += " " + zahl(q); }
         }
         z.push_back(d);
+        // ENT3B (B14): die IK/FK-Spur des Glieds (eigene Zeile; Programme davor lesen sie nicht und rechnen mit dem Anteil im IK-Schluessel)
+        if (!sp.anteil.empty()) {
+            std::string f = std::string(kDaten) + zitat(a.figur) + " ikfk " + std::to_string(static_cast<int>(sp.art)) + " " + std::to_string(sp.anteil.size());
+            for (const RigSchluessel& k : sp.anteil) { schluesselText(k, f); }
+            z.push_back(f);
+        }
+    }
+    // ENT3B (B17): die Plattform (Griff der Wurzel)
+    if (!a.schicht.plattform.empty()) {
+        std::string d = std::string(kDaten) + zitat(a.figur) + " plattform " + std::to_string(a.schicht.plattform.size());
+        for (const RigSchluessel& k : a.schicht.plattform) { schluesselText(k, d); }
+        z.push_back(d);
     }
     for (const FremdRaum& f : a.fremd) {
         z.push_back(std::string(kDaten) + zitat(a.figur) + " fremd " + std::to_string(static_cast<int>(f.art)) + " " + zitat(f.figur) + " " +
@@ -291,6 +303,7 @@ bool figurAusZeilen(const std::vector<std::string>& zeilen, const GlaAnimation& 
         if (aus.fps == 0) { aus.fps = 20; }
     }
     aus.schicht.knochen.assign(g.bones.size(), {});
+    std::vector<std::pair<IkArt, std::vector<RigSchluessel>>> anteile;   // ENT3B (B14): die IK/FK-Spuren, nach den IK-Zeilen zugeordnet
     for (std::size_t zi = 1; zi < zeilen.size(); ++zi) {
         std::string fig;
         if (!istFigurDaten(zeilen[zi], &fig) || fig != aus.figur) { continue; }
@@ -335,6 +348,23 @@ bool figurAusZeilen(const std::vector<std::string>& zeilen, const GlaAnimation& 
             if (!angelegt) { continue; }   // ohne Rig keine Kette (die Zeile bleibt im Skript stehen)
             ikHenkelNeu(sp);
             aus.schicht.ik.push_back(std::move(sp));
+        } else if (art == "ikfk" || art == "plattform") {
+            // ENT3B: IK/FK-Spur eines Glieds (B14), Plattform (B17) - Schluessel wie die eines Knochens
+            const int a = art == "ikfk" ? l.ganz() : 0;
+            const int n = l.ganz();
+            if (!l.ok || a < 0 || a >= kIkArten || n < 0) { return falsch("Zeile " + std::to_string(zi) + ": " + art); }
+            std::vector<RigSchluessel> v;
+            for (int i = 0; i < n; ++i) {
+                RigSchluessel k;
+                if (!schluesselLesen(l, k)) { return falsch("Zeile " + std::to_string(zi) + ": " + art + "-Schluessel"); }
+                v.push_back(k);
+            }
+            henkelNeu(v);
+            if (art == "ikfk") {
+                anteile.emplace_back(static_cast<IkArt>(a), std::move(v));
+            } else {
+                aus.schicht.plattform = std::move(v);
+            }
         } else if (art == "fremd") {
             FremdRaum f;
             const int a = l.ganz();
@@ -368,6 +398,14 @@ bool figurAusZeilen(const std::vector<std::string>& zeilen, const GlaAnimation& 
             }
             if (!l.ok || n < 0) { return falsch("Zeile " + std::to_string(zi) + ": physik"); }
         }
+    }
+    // ENT3B (B14): jede Spur ihre IK/FK-Spur; eine aeltere Datei hat keine - dann wird der Anteil der IK-Schluessel (bis rc612: gilt bis
+    // zum naechsten) zu Schluesseln mit Interpolation Konstant: jedes Bild und jedes Kommabild rechnet wie vorher
+    for (IkSpur& sp : aus.schicht.ik) {
+        for (auto& [art, v] : anteile) {
+            if (art == sp.art) { sp.anteil = v; }
+        }
+        ikAnteilUebernehmen(sp);
     }
     return true;
 }

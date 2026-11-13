@@ -776,6 +776,7 @@ bool physikRechnen(const GlaAnimation& g, const Rig& r, RigSchicht& s, int erste
             t.ik.push_back(bein);
             t.ik.back().ziel.clear();
             t.ik.back().wert.clear();
+            t.ik.back().anteil.clear();   // ENT3B: der Anteil kommt aus dem Schluessel unten (IK 1)
             IkWert w;
             w.ik = 1.0F;
             w.raum = -1;

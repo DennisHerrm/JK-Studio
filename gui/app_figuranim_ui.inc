@@ -203,6 +203,12 @@ std::vector<DsZeile> dsZeilen(const FigurDaten& d, const modell::RigSchicht& s) 
         if (s.ik[i].ziel.empty()) { continue; }
         z.push_back(DsZeile{modell::ikWahlCode(static_cast<int>(i)), "    IK " + std::string(tr(kGlied[static_cast<int>(s.ik[i].art)]))});
     }
+    // ENT3B (B14): je Glied die IK/FK-Spur wie CAT - eigene Schluessel, zwischen zwei blendet das Glied ueber
+    for (std::size_t i = 0; i < s.ik.size(); ++i) {
+        if (s.ik[i].anteil.empty()) { continue; }
+        z.push_back(DsZeile{modell::ikAnteilCode(static_cast<int>(i)), "    " + format(Str::E3DsIkFk, tr(kGlied[static_cast<int>(s.ik[i].art)]))});
+    }
+    if (!s.plattform.empty()) { z.push_back(DsZeile{modell::kPlattformWahl, "    " + std::string(tr(Str::E3GriffWurzel))}); }   // ENT3B (B17)
     for (std::size_t b = 0; b < s.knochen.size() && b < d.basis.bones.size(); ++b) {
         if (s.knochen[b].empty() && static_cast<int>(b) != gewaehlt) { continue; }
         z.push_back(DsZeile{static_cast<int>(b), "    " + d.basis.bones[b].name});
@@ -213,12 +219,9 @@ std::vector<DsZeile> dsZeilen(const FigurDaten& d, const modell::RigSchicht& s) 
 std::vector<int> bilderDer(const modell::RigSchicht& s, const DsZeile& z, const std::vector<DsZeile>& alle) {
     std::set<int> b;
     const auto von = [&](int k) {
-        if (const int sp = modell::ikWahlSpur(k); sp >= 0) {
-            if (static_cast<std::size_t>(sp) < s.ik.size()) {
-                for (const modell::RigSchluessel& x : s.ik[static_cast<std::size_t>(sp)].ziel) { b.insert(x.bild); }
-            }
-        } else if (k >= 0 && static_cast<std::size_t>(k) < s.knochen.size()) {
-            for (const modell::RigSchluessel& x : s.knochen[static_cast<std::size_t>(k)]) { b.insert(x.bild); }
+        // Knochen, IK-Ziele, ENT3B: IK/FK-Spur und Plattform
+        if (const std::vector<modell::RigSchluessel>* v = modell::schluesselListe(s, k); v != nullptr) {
+            for (const modell::RigSchluessel& x : *v) { b.insert(x.bild); }
         }
     };
     if (z.knochen == -2) {

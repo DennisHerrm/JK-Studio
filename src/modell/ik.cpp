@@ -9,6 +9,7 @@
 #include "bhed/modell/animkurven.h"
 
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <cstring>
 #include <vector>
@@ -534,6 +535,8 @@ bool ikSpurAnlegen(const GlaAnimation& g, const Rig& r, IkArt art, IkSpur& aus) 
 }
 
 float ikAnteilAm(const IkSpur& sp, float bild) noexcept {
+    // ENT3B (B14): die eigene Spur des Glieds blendet zwischen zwei Schluesseln ueber (Interpolation des linken Schluessels)
+    if (!sp.anteil.empty()) { return std::clamp(kanalAuswerten(sp.anteil, kAnteilKanal, bild), 0.0F, 1.0F); }
     const std::size_t n = sp.ziel.size();
     if (n == 0 || sp.wert.size() != n) { return 0.0F; }
     const auto it = std::upper_bound(sp.ziel.begin(), sp.ziel.end(), bild, [](float b, const RigSchluessel& k) { return b < static_cast<float>(k.bild); });
@@ -541,19 +544,19 @@ float ikAnteilAm(const IkSpur& sp, float bild) noexcept {
     return std::clamp(sp.wert[i].ik, 0.0F, 1.0F);
 }
 
-IkZiel ikZielAm(const IkSpur& sp, float bild, const std::vector<BoneMatrix>& welt) {
+IkZiel ikZielAm(const IkSpur& sp, float bild, const std::vector<BoneMatrix>& welt, const BoneMatrix& plattform) {
     IkZiel z;
     const Lokal l = lokalAm(sp, bild);
     if (!l.da) { return z; }
     z.da = true;
-    z.ik = std::clamp(l.w.ik, 0.0F, 1.0F);
+    z.ik = ikAnteilAm(sp, bild);   // ENT3B (B14): aus der IK/FK-Spur (ohne sie wie bisher aus dem Schluessel)
     z.raum = l.w.raum;
     z.rolle = l.w.rolle;
     z.spitze = std::clamp(l.w.spitze, 0.0F, 1.0F);
     std::memcpy(z.zehen, l.w.zehen, sizeof z.zehen);
-    z.ziel = starr(ikAusRaum(welt, l.w.raum, l.ziel));
+    z.ziel = starr(ikAusRaum(welt, l.w.raum, l.ziel, plattform));
     BoneMatrix p;
-    raumWelt(welt, sp.polRaum, p).transform(l.w.pol, z.pol);
+    raumWelt(welt, sp.polRaum, p, plattform).transform(l.w.pol, z.pol);
     return z;
 }
 
@@ -697,14 +700,116 @@ void ikSchluesselLoeschen(IkSpur& sp, int bild) {
     ikHenkelNeu(sp);
 }
 
-BoneMatrix ikImRaum(const std::vector<BoneMatrix>& welt, int raum, const BoneMatrix& weltLage) {
+BoneMatrix ikImRaum(const std::vector<BoneMatrix>& welt, int raum, const BoneMatrix& weltLage, const BoneMatrix& plattform) {
     BoneMatrix p;
-    return starrInvers(raumWelt(welt, raum, p)) * weltLage;
+    return starrInvers(raumWelt(welt, raum, p, plattform)) * weltLage;
 }
 
-BoneMatrix ikAusRaum(const std::vector<BoneMatrix>& welt, int raum, const BoneMatrix& imRaum) {
+BoneMatrix ikAusRaum(const std::vector<BoneMatrix>& welt, int raum, const BoneMatrix& imRaum, const BoneMatrix& plattform) {
     BoneMatrix p;
-    return raumWelt(welt, raum, p) * imRaum;
+    return raumWelt(welt, raum, p, plattform) * imRaum;
+}
+
+// --- ENT3B (B14): die IK/FK-Spur je Glied ------------------------------------------------------------------------------------
+
+namespace {
+
+float anteilWert(const RigSchluessel& k) { return kanalWert(k, kAnteilKanal); }
+
+bool anteilHat(const IkSpur& sp, int bild) {
+    return std::any_of(sp.anteil.begin(), sp.anteil.end(), [bild](const RigSchluessel& k) { return k.bild == bild; });
+}
+
+// ein Schluessel der Spur ohne Henkel (die Aufrufer rechnen sie einmal am Ende)
+void anteilRoh(IkSpur& sp, int bild, float wert, Interp interp) {
+    wert = std::clamp(wert, 0.0F, 1.0F);
+    const auto it = std::lower_bound(sp.anteil.begin(), sp.anteil.end(), bild, [](const RigSchluessel& k, int b) { return k.bild < b; });
+    if (it != sp.anteil.end() && it->bild == bild) {
+        kanalSetzen(*it, kAnteilKanal, wert);   // ersetzt: Interpolation und Henkel bleiben
+        return;
+    }
+    RigSchluessel k;
+    k.bild = bild;
+    k.interp = interp;
+    k.t[0] = wert;
+    sp.anteil.insert(it, k);
+}
+
+}  // namespace
+
+void ikAnteilUebernehmen(IkSpur& sp) {
+    if (!sp.anteil.empty() || sp.ziel.empty() || sp.wert.size() != sp.ziel.size()) { return; }
+    // bis rc612 galt der Anteil eines IK-Schluessels bis zum naechsten: dieselbe Treppe als Schluessel mit Interpolation Konstant
+    // (vor dem ersten Schluessel haelt der erste, wie lokalAm) - an jedem Bild und jedem Kommabild derselbe Anteil
+    float letzter = -1.0F;
+    for (std::size_t i = 0; i < sp.ziel.size(); ++i) {
+        const float v = std::clamp(sp.wert[i].ik, 0.0F, 1.0F);
+        if (i == 0 || v != letzter) { anteilRoh(sp, sp.ziel[i].bild, v, Interp::Konstant); }
+        letzter = v;
+    }
+    henkelNeu(sp.anteil);
+}
+
+void ikAnteilSetzen(IkSpur& sp, int bild, float wert) {
+    anteilRoh(sp, bild, wert, Interp::Bezier);   // neue Schluessel wie Max und Blender (Bezier, Auto Clamped)
+    henkelNeu(sp.anteil);
+}
+
+void ikAnteilNurAmBild(IkSpur& sp, int bild, float wert) {
+    if (sp.anteil.empty()) {
+        ikAnteilSetzen(sp, bild, wert);   // der erste Schluessel gilt ueberall (wie bis rc612 ein einzelner IK-Schluessel)
+        return;
+    }
+    if (std::fabs(ikAnteilAm(sp, static_cast<float>(bild)) - wert) <= 1e-4F) { return; }
+    // die Nachbarbilder halten ihren Anteil - der Wechsel gilt nur an diesem Bild (wie ein Griff unter FK, ENT2: nur dieser Frame aendert sich)
+    const float vor = ikAnteilAm(sp, static_cast<float>(bild - 1));
+    const float nach = ikAnteilAm(sp, static_cast<float>(bild + 1));
+    if (!anteilHat(sp, bild - 1)) { anteilRoh(sp, bild - 1, vor, Interp::Bezier); }
+    if (!anteilHat(sp, bild + 1)) { anteilRoh(sp, bild + 1, nach, Interp::Bezier); }
+    anteilRoh(sp, bild, wert, Interp::Bezier);
+    henkelNeu(sp.anteil);
+}
+
+void ikAnteilBereich(IkSpur& sp, int von, int bis, float wert) {
+    if (bis < von) { return; }
+    if (sp.anteil.empty()) {
+        ikAnteilSetzen(sp, von, wert);
+        return;
+    }
+    const bool davor = sp.anteil.front().bild < von;
+    const bool danach = sp.anteil.back().bild > bis;
+    const float vor = ikAnteilAm(sp, static_cast<float>(von - 1));
+    const float nach = ikAnteilAm(sp, static_cast<float>(bis + 1));
+    sp.anteil.erase(std::remove_if(sp.anteil.begin(), sp.anteil.end(), [&](const RigSchluessel& k) { return k.bild >= von && k.bild <= bis; }), sp.anteil.end());
+    // ausserhalb von [von, bis] bleibt jeder Anteil: haltende Schluessel davor und danach, in [von, bis] konstant
+    if (davor && !anteilHat(sp, von - 1)) { anteilRoh(sp, von - 1, vor, Interp::Bezier); }
+    if (danach && !anteilHat(sp, bis + 1)) { anteilRoh(sp, bis + 1, nach, Interp::Bezier); }
+    anteilRoh(sp, von, wert, Interp::Bezier);
+    if (danach && bis > von) { anteilRoh(sp, bis, wert, Interp::Bezier); }
+    henkelNeu(sp.anteil);
+}
+
+int ikAnteilAb(IkSpur& sp, int bild, float wert) {
+    if (sp.anteil.empty()) {
+        ikAnteilSetzen(sp, bild, wert);
+        return INT_MAX;
+    }
+    const float alt = ikAnteilAm(sp, static_cast<float>(bild));
+    int naechster = INT_MAX;
+    for (const RigSchluessel& k : sp.anteil) {
+        if (k.bild > bild && std::fabs(std::clamp(anteilWert(k), 0.0F, 1.0F) - alt) > 1e-4F) {
+            naechster = k.bild;
+            break;
+        }
+    }
+    const float vor = ikAnteilAm(sp, static_cast<float>(bild - 1));
+    // die Schluessel ab dem Bild bis zum naechsten Wechsel trugen den alten Anteil: weg; davor haelt der alte Anteil bis zum Bild davor
+    sp.anteil.erase(std::remove_if(sp.anteil.begin(), sp.anteil.end(), [&](const RigSchluessel& k) { return k.bild >= bild && k.bild < naechster; }), sp.anteil.end());
+    if (!anteilHat(sp, bild - 1)) { anteilRoh(sp, bild - 1, vor, Interp::Bezier); }
+    anteilRoh(sp, bild, wert, Interp::Bezier);
+    if (naechster != INT_MAX && naechster - 1 > bild && !anteilHat(sp, naechster - 1)) { anteilRoh(sp, naechster - 1, wert, Interp::Bezier); }
+    henkelNeu(sp.anteil);
+    return naechster;
 }
 
 namespace {
@@ -780,7 +885,11 @@ void ikAufFk(const GlaAnimation& g, RigSchicht& s, int spur, int bild, float ik,
     if (spur < 0 || static_cast<std::size_t>(spur) >= s.ik.size()) { return; }
     BoneMatrix z;
     IkWert w;
-    if (zielAusFk(g, s, spur, bild, ik, raum, z, w)) { ikSchluesselSetzen(s.ik[static_cast<std::size_t>(spur)], bild, z, w); }
+    if (!zielAusFk(g, s, spur, bild, ik, raum, z, w)) { return; }
+    IkSpur& sp = s.ik[static_cast<std::size_t>(spur)];
+    ikAnteilUebernehmen(sp);   // ENT3B (B14): aeltere Anteile zuerst als Schluessel, dann der neue IK-Schluessel
+    ikSchluesselSetzen(sp, bild, z, w);
+    ikAnteilNurAmBild(sp, bild, ik);
 }
 
 void ikAufFkBereich(const GlaAnimation& g, RigSchicht& s, int spur, int von, int bis, float ik) {
@@ -808,6 +917,7 @@ void ikAufFkBereich(const GlaAnimation& g, RigSchicht& s, int spur, int von, int
         neuWert.push_back(w);
     }
     IkSpur& sp = s.ik[static_cast<std::size_t>(spur)];
+    ikAnteilUebernehmen(sp);   // ENT3B (B14): erst die aelteren Anteile als Schluessel, dann [von, bis] konstant
     std::vector<RigSchluessel> z2;
     std::vector<IkWert> w2;
     std::size_t j = 0;
@@ -829,6 +939,7 @@ void ikAufFkBereich(const GlaAnimation& g, RigSchicht& s, int spur, int von, int
     sp.ziel = std::move(z2);
     sp.wert = std::move(w2);
     ikHenkelNeu(sp);
+    ikAnteilBereich(sp, von, bis, ik);
 }
 
 namespace {
@@ -883,34 +994,38 @@ int fkAufIkBereich(const GlaAnimation& g, RigSchicht& s, int spur, int von, int 
 
 void ikFkWechseln(const GlaAnimation& g, RigSchicht& s, int spur, int bild, float ik, bool einrasten) {
     if (spur < 0 || static_cast<std::size_t>(spur) >= s.ik.size()) { return; }
-    IkSpur& sp = s.ik[static_cast<std::size_t>(spur)];
-    if (ik > 0.0F) {
-        if (einrasten || sp.ziel.empty()) {
-            ikAufFk(g, s, spur, bild, ik);
-            return;
-        }
-    } else if (einrasten) {
+    ikAnteilUebernehmen(s.ik[static_cast<std::size_t>(spur)]);
+    // ENT3B (B14): ein Schluessel der IK/FK-Spur am Bild wie CATs Regler mit Auto Key - zwischen ihm und dem Schluessel davor
+    // blendet das Glied ueber. einrasten: vorher die andere Seite am Bild angleichen (Match IK and FK)
+    if (ik > 0.0F && (einrasten || s.ik[static_cast<std::size_t>(spur)].ziel.empty())) {
+        BoneMatrix z;
+        IkWert w;
+        if (zielAusFk(g, s, spur, bild, ik, -2, z, w)) { ikSchluesselSetzen(s.ik[static_cast<std::size_t>(spur)], bild, z, w); }
+    } else if (ik <= 0.0F && einrasten) {
         (void)fkAufIk(g, s, spur, bild);
     }
-    const Lokal l = lokalAm(sp, static_cast<float>(bild));
-    IkWert w = l.w;
-    w.ik = ik;
-    ikSchluesselSetzen(sp, bild, l.ziel, w);
+    ikAnteilSetzen(s.ik[static_cast<std::size_t>(spur)], bild, ik);
 }
 
 int ikFkUmschaltenAb(const GlaAnimation& g, RigSchicht& s, int spur, int bild, float ik, bool einrasten) {
     if (spur < 0 || static_cast<std::size_t>(spur) >= s.ik.size()) { return bild; }
     ik = std::clamp(ik, 0.0F, 1.0F);
-    // die Bilder: dieses und die folgenden Schluessel, die noch den alten Anteil tragen - wie ein Schluessel der IK/FK-Spur
-    // eines CAT-Glieds, der bis zum naechsten gilt (Autodesk-Hilfe "Limb Animation Controls": IK/FK 0 = IK, 1 = FK, ein
-    // Schluessel des Reglers; im Rig dieser Szenen die Spur layerIKFKRatio je Glied, Y:/werkzeuge/ent2/cat_ikfk.txt)
+    ikAnteilUebernehmen(s.ik[static_cast<std::size_t>(spur)]);
+    // die Bilder: dieses und die IK-Schluessel bis zum naechsten Wechsel der IK/FK-Spur - wie ein Schluessel der IK/FK-Spur eines
+    // CAT-Glieds (Autodesk-Hilfe "Limb Animation Controls": IK/FK 0 = IK, 1 = FK; im Rig dieser Szenen die Spur layerIKFKRatio je
+    // Glied, Y:/werkzeuge/ent2/cat_ikfk.txt)
     const IkSpur& sp0 = s.ik[static_cast<std::size_t>(spur)];
-    const float alt = sp0.ziel.empty() ? 0.0F : ikAnteilAm(sp0, static_cast<float>(bild));
+    const float alt = sp0.anteil.empty() ? 0.0F : ikAnteilAm(sp0, static_cast<float>(bild));
+    int naechster = INT_MAX;
+    for (const RigSchluessel& k : sp0.anteil) {
+        if (k.bild > bild && std::fabs(std::clamp(kanalWert(k, kAnteilKanal), 0.0F, 1.0F) - alt) > 1e-4F) {
+            naechster = k.bild;
+            break;
+        }
+    }
     std::vector<int> bilder{bild};
-    for (std::size_t i = 0; i < sp0.ziel.size() && i < sp0.wert.size(); ++i) {
-        if (sp0.ziel[i].bild <= bild) { continue; }
-        if (std::fabs(std::clamp(sp0.wert[i].ik, 0.0F, 1.0F) - alt) > 1e-4F) { break; }   // dort schon anders umgeschaltet
-        bilder.push_back(sp0.ziel[i].bild);
+    for (const RigSchluessel& k : sp0.ziel) {
+        if (k.bild > bild && k.bild < naechster) { bilder.push_back(k.bild); }
     }
     if (einrasten) {
         // die sichtbare Pose in die FK-Schluessel (CAT "Match IK and FK" aus IK, Rigify fk2ik) - bei FK (Anteil 0) wirkt keine IK,
@@ -930,7 +1045,6 @@ int ikFkUmschaltenAb(const GlaAnimation& g, RigSchicht& s, int spur, int bild, f
                 }
             }
             for (std::size_t j = 0; j < mit.size(); ++j) { ikSchluesselSetzen(s.ik[static_cast<std::size_t>(spur)], mit[j], neu[j].first, neu[j].second); }
-            if (!mit.empty()) { return bilder.back(); }
         }
     }
     IkSpur& sp = s.ik[static_cast<std::size_t>(spur)];
@@ -939,17 +1053,7 @@ int ikFkUmschaltenAb(const GlaAnimation& g, RigSchicht& s, int spur, int bild, f
         ikAufFk(g, s, spur, bild, ik);
         return bild;
     }
-    for (const int b : bilder) {
-        const auto it = std::find_if(sp.ziel.begin(), sp.ziel.end(), [b](const RigSchluessel& k) { return k.bild == b; });
-        if (it != sp.ziel.end()) {
-            sp.wert[static_cast<std::size_t>(it - sp.ziel.begin())].ik = ik;
-            continue;
-        }
-        const Lokal l = lokalAm(sp, static_cast<float>(b));
-        IkWert w = l.w;
-        w.ik = ik;
-        ikSchluesselSetzen(sp, b, l.ziel, w);
-    }
+    (void)ikAnteilAb(sp, bild, ik);   // ENT3B (B14): ab dem Bild bis zum naechsten Wechsel, davor haelt der alte Anteil
     return bilder.back();
 }
 

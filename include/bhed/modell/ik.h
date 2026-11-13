@@ -63,10 +63,24 @@ struct IkZiel {
     float zehen[4] = {1.0F, 0.0F, 0.0F, 0.0F};
     bool da = false;
 };
-// `welt` ist die Welt des Bilds (fuer Raum und Pol-Raum).
-[[nodiscard]] IkZiel ikZielAm(const IkSpur& sp, float bild, const std::vector<BoneMatrix>& welt);
-// Der IK-Anteil am Bild (ohne Schluessel 0).
+// `welt` ist die Welt des Bilds (fuer Raum und Pol-Raum). ENT3B (B17): `plattform` ist der Raum Welt (raum -1) - die Lage der
+// Plattform am Bild (rig.h plattformAm), ohne Plattform die Einheit.
+[[nodiscard]] IkZiel ikZielAm(const IkSpur& sp, float bild, const std::vector<BoneMatrix>& welt, const BoneMatrix& plattform = BoneMatrix::identity());
+// Der IK-Anteil am Bild: ENT3B (B14) aus der IK/FK-Spur des Glieds (zwischen zwei Schluesseln uebergeblendet); ohne sie wie bis
+// rc612 der Anteil des IK-Schluessels am Bild oder davor (ohne Schluessel 0).
 [[nodiscard]] float ikAnteilAm(const IkSpur& sp, float bild) noexcept;
+// ENT3B (B14): die IK/FK-Spur schreiben. ikAnteilUebernehmen macht aus den Anteilen der IK-Schluessel (aeltere Daten) Schluessel mit
+// Interpolation Konstant - dieselbe Treppe; die Schreiber unten rufen es nicht selbst (wer IK-Schluessel neu setzt, ruft es davor).
+void ikAnteilUebernehmen(IkSpur& sp);
+// Ein Schluessel am Bild (Bezier wie die Schicht; ein vorhandener behaelt Interpolation und Henkel) - wie CATs Regler mit Auto Key.
+void ikAnteilSetzen(IkSpur& sp, int bild, float wert);
+// Nur an diesem Bild: die Nachbarbilder behalten ihren Anteil (haltende Schluessel an bild -1 und +1). Leere Spur: ein Schluessel.
+void ikAnteilNurAmBild(IkSpur& sp, int bild, float wert);
+// In [von, bis] konstant `wert`, ausserhalb bleibt jeder Anteil (haltende Schluessel an von - 1 und bis + 1).
+void ikAnteilBereich(IkSpur& sp, int von, int bis, float wert);
+// Ab dem Bild bis zum naechsten Wechsel (dem naechsten Schluessel mit anderem Anteil): davor haelt der alte Anteil bis bild - 1.
+// Gibt das Bild des naechsten Wechsels (INT_MAX: keiner).
+int ikAnteilAb(IkSpur& sp, int bild, float wert);
 
 // Die IK aller Spuren mit Anteil > 0 auf die Welt und die M (wie rigNachMalAuf sie gibt, also nach der Bindebasis)
 // anwenden. Gibt die geaenderten Knochen. ohneSpur >= 0: diese Spur auslassen (Einrasten liest die FK-Pose).
@@ -88,8 +102,9 @@ void ikSchluesselSetzen(IkSpur& sp, int bild, const BoneMatrix& zielImRaum, cons
 void ikSchluesselLoeschen(IkSpur& sp, int bild);
 void ikHenkelNeu(IkSpur& sp);
 // Weltlage <-> Lage im Raum (Knochen -1: Welt). Der Raum ist die starre Lage des Knochens (normiertes q, Ort).
-[[nodiscard]] BoneMatrix ikImRaum(const std::vector<BoneMatrix>& welt, int raum, const BoneMatrix& weltLage);
-[[nodiscard]] BoneMatrix ikAusRaum(const std::vector<BoneMatrix>& welt, int raum, const BoneMatrix& imRaum);
+// ENT3B (B17): der Raum Welt ist die Plattform (`plattform`, ohne sie die Einheit).
+[[nodiscard]] BoneMatrix ikImRaum(const std::vector<BoneMatrix>& welt, int raum, const BoneMatrix& weltLage, const BoneMatrix& plattform = BoneMatrix::identity());
+[[nodiscard]] BoneMatrix ikAusRaum(const std::vector<BoneMatrix>& welt, int raum, const BoneMatrix& imRaum, const BoneMatrix& plattform = BoneMatrix::identity());
 [[nodiscard]] BoneMatrix starr(const BoneMatrix& m) noexcept;   // die Drehung (Spalten nach Gram-Schmidt), Ort bleibt
 
 // Einrasten "IK -> FK": Ziel und Pol der Spur am Bild auf die FK-Pose (Welt ohne diese Spur), Rolle 0; ik = Anteil des
@@ -102,11 +117,11 @@ int fkAufIk(const GlaAnimation& g, RigSchicht& s, int spur, int bild);
 // Dasselbe ueber die Bilder [von, bis]: erst alle ausgewertet, dann geschrieben (Rigify "Snap & Bake").
 int fkAufIkBereich(const GlaAnimation& g, RigSchicht& s, int spur, int von, int bis);
 // IK/FK wechseln am Bild: einrasten = ohne Sprung (vorher IK -> FK bzw. FK -> IK), sonst nur der Anteil (der Sprung
-// bleibt sichtbar - die Pruefung muss ihn finden).
+// bleibt sichtbar - die Pruefung muss ihn finden). ENT3B (B14): ein Schluessel der IK/FK-Spur am Bild (CATs Regler mit Auto Key) -
+// zwischen ihm und dem Schluessel davor blendet das Glied ueber.
 void ikFkWechseln(const GlaAnimation& g, RigSchicht& s, int spur, int bild, float ik, bool einrasten);
-// ENT2: IK/FK umschalten AB dem Bild wie das IK/FK-Verhaeltnis eines CAT-Glieds (eine Spur, die bis zum naechsten Schluessel
-// gilt): der Anteil wechselt am Bild und an den folgenden Schluesseln, die noch den alten Anteil tragen (bis zum naechsten,
-// der schon anders umgeschaltet ist). einrasten = an jedem dieser Bilder vorher die andere Seite angleichen (CAT "Match IK and
+// ENT2: IK/FK umschalten AB dem Bild wie das IK/FK-Verhaeltnis eines CAT-Glieds bis zum naechsten Wechsel der IK/FK-Spur
+// (ENT3B: Schluessel der Spur an bild - 1 mit dem alten und am Bild mit dem neuen Anteil, ikAnteilAb). einrasten = an jedem dieser Bilder vorher die andere Seite angleichen (CAT "Match IK and
 // FK", Rigify-Snap): nach IK das Ziel und den Pol auf die FK-Pose, nach FK die FK-Schluessel auf die sichtbare IK-Pose - die
 // Pose an diesen Bildern bleibt. Gibt das letzte umgeschaltete Bild.
 int ikFkUmschaltenAb(const GlaAnimation& g, RigSchicht& s, int spur, int bild, float ik, bool einrasten);

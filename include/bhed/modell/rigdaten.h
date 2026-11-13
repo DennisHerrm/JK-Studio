@@ -107,13 +107,27 @@ struct IkSpur {
     float polAbstand = 0.0F;            // Abstand des Pols vom Gelenk (Laenge des oberen Glieds)
     std::vector<RigSchluessel> ziel;    // Ort (t) und Drehung (q) des Endknochens im Raum; Bezier wie die Schicht
     std::vector<IkWert> wert;           // je Schluessel von `ziel`
+    // ENT3B (B14, shank 12.11.: "Ueberblenden wie CAT. Eigene Spur je Glied"): die IK/FK-Spur des Glieds wie layerIKFKRatio eines
+    // CAT-Glieds (eine schluesselbare Bezier-Spur, Y:/werkzeuge/ent2/cat_ikfk.txt) - eigene Schluessel, zwischen zwei Schluesseln
+    // blendet der Anteil ueber (Interpolation je Schluessel wie die Schicht: Konstant, Linear, Bezier). Der Wert steht im Kanal
+    // kAnteilKanal (t[0]): Anteil IK 0..1 wie IkWert::ik (1 IK, 0 FK). Leer: der Anteil steht wie bis rc612 im IK-Schluessel
+    // (IkWert::ik, gilt bis zum naechsten) - so rechnen aeltere Daten weiter; das erste Schreiben uebernimmt ihn als Schluessel
+    // mit Interpolation Konstant (ikAnteilUebernehmen, gleiche Pose an jedem Bild).
+    std::vector<RigSchluessel> anteil;
 };
+inline constexpr int kAnteilKanal = 4;
 
 // Stufe 7 (offen aus Stufe 4): eine IK-Spur als Zeile im Dopesheet. In einer Schluesselwahl (animkurven.h) steht ihr
 // Schluessel als Knochen kIkWahl - Spur; Verschieben, Skalieren, Einrasten und Loeschen nehmen ihn wie einen FK-Schluessel.
+// ENT3B: die IK/FK-Spur eines Glieds steht als kIkAnteilWahl - Spur, die Plattform (Griff der Wurzel) als kPlattformWahl - beide
+// sind Listen wie die eines Knochens (animkurven liste()).
 inline constexpr int kIkWahl = -1000;
+inline constexpr int kIkAnteilWahl = -2000;
+inline constexpr int kPlattformWahl = -3000;
 [[nodiscard]] constexpr int ikWahlCode(int spur) noexcept { return kIkWahl - spur; }
-[[nodiscard]] constexpr int ikWahlSpur(int code) noexcept { return code <= kIkWahl ? kIkWahl - code : -1; }
+[[nodiscard]] constexpr int ikWahlSpur(int code) noexcept { return code <= kIkWahl && code > kIkAnteilWahl ? kIkWahl - code : -1; }
+[[nodiscard]] constexpr int ikAnteilCode(int spur) noexcept { return kIkAnteilWahl - spur; }
+[[nodiscard]] constexpr int ikAnteilSpur(int code) noexcept { return code <= kIkAnteilWahl && code > kPlattformWahl ? kIkAnteilWahl - code : -1; }
 
 // Stufe 6: Auto-Physik als Filter ueber der Schicht (Rechnung in bhed/modell/physik.h). Die Einstellungen gehoeren zum
 // Dokument (Rueckgaengig); die erzeugten Schluessel stehen in einer eigenen Spur `knochen` (je Bild einer, die Korrektur

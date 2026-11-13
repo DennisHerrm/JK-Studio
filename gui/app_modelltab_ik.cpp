@@ -617,7 +617,9 @@ void gliedZeilen(bool blender, int jetzt) {
             ImGui::SetItemTooltip("%s", tr(Str::MbIkFkAufIkHint));
         } else {
             const bool an = anteil >= 0.5F;
-            const char* zustand = tr(an ? Str::AzIkZuletztIk : Str::AzIkZuletztFk);
+            const bool misch = anteil > 0.0005F && anteil < 0.9995F;   // ENT3B: zwischen zwei Schluesseln der IK/FK-Spur
+            const std::string mischText = format(Str::E3IkMisch, static_cast<int>(std::lround(anteil * 100.0F)), 100 - static_cast<int>(std::lround(anteil * 100.0F)));
+            const char* zustand = misch ? mischText.c_str() : tr(an ? Str::AzIkZuletztIk : Str::AzIkZuletztFk);
             if (mitZustand) {
                 cjkTextDisabled("%s", zustand);
                 ImGui::SameLine();
@@ -625,9 +627,9 @@ void gliedZeilen(bool blender, int jetzt) {
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(ImGui::GetContentRegionAvail().x - wechselB, 0.0F));   // rechtsbuendig
             if (ImGui::Button(an ? "IK##azik" : "FK##azik", ImVec2{wechselB, 0.0F})) { (void)modellIkWechseln(art, !an); }
             if (mitZustand) {
-                ImGui::SetItemTooltip("%s", tr(Str::EnIkKnopfHint));
+                ImGui::SetItemTooltip("%s", tr(misch ? Str::E3IkMischHint : Str::EnIkKnopfHint));
             } else {
-                ImGui::SetItemTooltip("%s\n%s", zustand, tr(Str::EnIkKnopfHint));
+                ImGui::SetItemTooltip("%s\n%s", zustand, tr(misch ? Str::E3IkMischHint : Str::EnIkKnopfHint));
             }
         }
         ImGui::EndDisabled();
@@ -673,9 +675,18 @@ void drawModellIkBereich() {
         return;
     }
     const int i = modell::ikSpurIndex(s, static_cast<modell::IkArt>(jetzt));
-    const modell::IkZiel z = i >= 0 ? modell::ikZielAm(s.ik[static_cast<std::size_t>(i)], static_cast<float>(bildJetzt()), g_app->modellWelt) : modell::IkZiel{};
+    const modell::IkZiel z = i >= 0 ? modell::ikZielAm(s.ik[static_cast<std::size_t>(i)], static_cast<float>(bildJetzt()), g_app->modellWelt,
+                                                       modell::plattformAm(s, static_cast<float>(bildJetzt())))
+                                    : modell::IkZiel{};
     ui::wertTabelle({{artName(jetzt), format(Str::MbIkStand, z.da && z.ik >= 0.5F ? "IK" : "FK", i >= 0 ? static_cast<int>(s.ik[static_cast<std::size_t>(i)].ziel.size()) : 0),
                       ui::Ton::Normal, {}}});
+    if (!blender) {
+        // ENT3B (B14): wie CATs Regler IK/FK (Limb Animation: 0 = IK, 1 = FK) - ein Schluessel der IK/FK-Spur am Frame; zwischen zwei
+        // Schluesseln blendet das Glied ueber (wie Blender hat jedes Glied seinen Regler in der Zeile oben)
+        float cat = 1.0F - modellIkAnteil(jetzt);
+        if (ui::regler(tr(Str::E3IkFkAnteil), &cat, 0.0F, 1.0F, "%.2f", tr(Str::E3IkFkAnteilHint))) { (void)modellIkReglerSetzen(jetzt, cat, true); }
+        if (ImGui::IsItemDeactivated()) { t.ikZug = false; }
+    }
     // Raum (Child Of / Space Switching)
     static const Str kRaum[5] = {Str::MbIkRaumWelt, Str::MbIkRaumBecken, Str::MbIkRaumBrust, Str::MbIkRaumKopf, Str::MbIkRaumHand};
     int raumJetzt = 0;

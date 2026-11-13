@@ -17,6 +17,7 @@
 //                 gezogene Punkt das IK-Ziel an diesem Frame (wie 3ds Max Bewegung > Trajektorien: Schluessel auf der Bahn
 //                 verschieben), ein Rueckgaengig-Schritt.
 #include "app_internal.h"
+#include "app_modelltab_ent3b.h"
 #include "textumbruch.h"
 
 #include "bhed/modell/animkurven.h"
@@ -190,7 +191,8 @@ std::string figurName() {
 
 // --- Zeilen ------------------------------------------------------------------------------------------------------------
 struct Zeile {
-    int art = 0;       // 0 Zusammenfassung, 1 Glied, 2 Knochen, 3 Kanal, 4 IK-Spur (Stufe 7: knochen = ikWahlCode)
+    int art = 0;       // 0 Zusammenfassung, 1 Glied, 2 Knochen, 3 Kanal, 4 IK-Spur (Stufe 7: knochen = ikWahlCode),
+                       // ENT3B: 5 IK/FK-Spur (knochen = ikAnteilCode), 6 Plattform (knochen = kPlattformWahl)
     int glied = -1;
     int knochen = -1;
     int kanal = -1;
@@ -236,13 +238,18 @@ std::vector<Zeile> zeilen(bool kanaele) {
     for (std::size_t i = 0; i < s.ik.size() && !kanaele; ++i) {
         if (!s.ik[i].ziel.empty()) { z.push_back(Zeile{4, -1, modell::ikWahlCode(static_cast<int>(i)), -1}); }
     }
+    // ENT3B (B14): je Glied die IK/FK-Spur wie CAT (layerIKFKRatio) - eigene Schluessel, zwischen zwei blendet das Glied ueber
+    for (std::size_t i = 0; i < s.ik.size() && !kanaele; ++i) {
+        if (!s.ik[i].anteil.empty()) { z.push_back(Zeile{5, -1, modell::ikAnteilCode(static_cast<int>(i)), -1}); }
+    }
+    // ENT3B (B17): die Plattform (Griff der Wurzel)
+    if (!s.plattform.empty() && !kanaele) { z.push_back(Zeile{6, -1, modell::kPlattformWahl, -1}); }
     return z;
 }
 
 // Die Schluessel einer Zeile: Knochen oder IK-Spur (nullptr: keine)
 const std::vector<modell::RigSchluessel>* schluesselDer(const modell::RigSchicht& s, int k) {
-    if (const int sp = modell::ikWahlSpur(k); sp >= 0) { return static_cast<std::size_t>(sp) < s.ik.size() ? &s.ik[static_cast<std::size_t>(sp)].ziel : nullptr; }
-    return k >= 0 && static_cast<std::size_t>(k) < s.knochen.size() ? &s.knochen[static_cast<std::size_t>(k)] : nullptr;
+    return modell::schluesselListe(s, k);   // Knochen, IK-Ziele, ENT3B: IK/FK-Spur und Plattform
 }
 
 // pfix H6: dasselbe zum Aendern - in der Wahl stehen auch IK-Schluessel (ikWahlCode, negativ), nie s.knochen[code]
@@ -255,6 +262,8 @@ void ikHenkelDerWahl(modell::RigSchicht& s, const modell::Wahl& w) {
     std::set<int> spuren;
     for (const modell::SchluesselWahl& x : w) {
         if (const int sp = modell::ikWahlSpur(x.knochen); sp >= 0 && static_cast<std::size_t>(sp) < s.ik.size()) { spuren.insert(sp); }
+        if (const int sp = modell::ikAnteilSpur(x.knochen); sp >= 0 && static_cast<std::size_t>(sp) < s.ik.size()) { modell::henkelNeu(s.ik[static_cast<std::size_t>(sp)].anteil); }   // ENT3B
+        if (x.knochen == modell::kPlattformWahl) { modell::henkelNeu(s.plattform); }
     }
     for (const int sp : spuren) { modell::ikHenkelNeu(s.ik[static_cast<std::size_t>(sp)]); }
 }
@@ -1151,6 +1160,23 @@ void zugBeginnen(float mausX) {
 
 // --- Dopesheet ----------------------------------------------------------------------------------------------------------
 
+// Der Name einer Zeile links im Dopesheet
+std::string dsZeilenName(const Zeile& z, const std::string& figur, const modell::RigSchicht& s) {
+    static const Str kGlied[4] = {Str::MbIkArmL, Str::MbIkArmR, Str::MbIkBeinL, Str::MbIkBeinR};
+    if (z.art == 1) { return (figur.empty() ? std::string() : figur + " \xc2\xb7 ") + tr(gliedText(z.glied)); }
+    if (z.art == 2 && z.knochen >= 0 && static_cast<std::size_t>(z.knochen) < g_app->anim.bones.size()) { return g_app->anim.bones[static_cast<std::size_t>(z.knochen)].name; }
+    if (z.art == 4) {
+        const int sp = modell::ikWahlSpur(z.knochen);
+        if (sp >= 0 && static_cast<std::size_t>(sp) < s.ik.size()) { return "IK " + std::string(tr(kGlied[std::clamp(static_cast<int>(s.ik[static_cast<std::size_t>(sp)].art), 0, 3)])); }
+    }
+    if (z.art == 5) {   // ENT3B (B14)
+        const int sp = modell::ikAnteilSpur(z.knochen);
+        if (sp >= 0 && static_cast<std::size_t>(sp) < s.ik.size()) { return format(Str::E3DsIkFk, tr(kGlied[std::clamp(static_cast<int>(s.ik[static_cast<std::size_t>(sp)].art), 0, 3)])); }
+    }
+    if (z.art == 6) { return tr(Str::E3GriffWurzel); }   // ENT3B (B17)
+    return {};
+}
+
 // AP1: das Dopesheet ist der Spurbereich der Zeitleiste (Entwurf zeitleiste(max)): oben die Skala, in ihr die Zeile der
 // Auswahl (wie 3ds Max die Spurleiste, wie Blender die Zusammenfassung), darunter eine Spur je Glied und Knochen. Die
 // Schluessel wie 3ds Max als Striche (Rot = Bewegung, Gruen = Drehung) hinter einem feinen Strich je Frame, wie Blender
@@ -1189,19 +1215,25 @@ void drawDopesheet(const ImVec2 groesse) {
     modellZeitNamenText(dl, lo, tr(modellBlender() ? Str::MbKvZusammenfassung : Str::MzAuswahlSpur));
     float y = spurenOben - t.kvScrollY;
     dl->PushClipRect(ImVec2{lo.x, spurenOben}, ImVec2{f.lo.x, f.hi.y}, true);
+    Ent3bProbe& probe = ent3bProbe();   // ENT3B: die Zeilen fuer den Selbsttest
+    probe.dsZeilen.clear();
+    probe.dsBild = ImGui::GetFrameCount();
+    probe.dsOben = spurenOben;
+    probe.dsUnten = f.hi.y;
     for (std::size_t i = 0; i < g_zeilen.size(); ++i) {
         const Zeile& z = g_zeilen[i];
         if (z.art == 0) {
             g_zeileY[i] = schluesselY;
+            probe.dsZeilen.push_back({"", -2, schluesselY});
             continue;
         }
         g_zeileY[i] = y + zeileH * 0.5F;
+        probe.dsZeilen.push_back({dsZeilenName(z, figur, s), z.art == 1 ? -9 : z.knochen, g_zeileY[i]});
         if (y + zeileH >= spurenOben && y <= f.hi.y) {
-            std::string name;
+            const std::string name = probe.dsZeilen.back().name;
             float einzug = 0.0F;
             if (z.art == 1) {
                 // wie im Entwurf "Kyle - Koerper": Figur und Glied; das Dreieck davor klappt die Knochen des Glieds auf und zu
-                name = (figur.empty() ? std::string() : figur + " \xc2\xb7 ") + tr(gliedText(z.glied));
                 const bool zu = t.kvGliedZu[static_cast<std::size_t>(z.glied)] != 0;
                 const float g = std::floor(zeileH * 0.5F);
                 const ImVec2 m{std::floor(lo.x + g * 0.7F), std::floor(y + zeileH * 0.5F)};
@@ -1212,16 +1244,7 @@ void drawDopesheet(const ImVec2 groesse) {
                 }
                 einzug = fs * 0.9F;
             }
-            if (z.art == 2) {
-                name = g_app->anim.bones[static_cast<std::size_t>(z.knochen)].name;
-                einzug = fs * 1.7F;
-            }
-            if (z.art == 4) {
-                static const Str kGlied[4] = {Str::MbIkArmL, Str::MbIkArmR, Str::MbIkBeinL, Str::MbIkBeinR};
-                const int sp = modell::ikWahlSpur(z.knochen);
-                name = "IK " + std::string(tr(kGlied[std::clamp(static_cast<int>(s.ik[static_cast<std::size_t>(sp)].art), 0, 3)]));
-                einzug = fs * 1.7F;
-            }
+            if (z.art >= 2) { einzug = fs * 1.7F; }   // Knochen, IK-Spur
             const bool wahlZeile = z.art == 2 && !auswahlKnochen().empty() && auswahlKnochen().front() == z.knochen;
             dl->AddText(ImVec2{lo.x + einzug, y + (zeileH - fs) * 0.5F}, ImGui::GetColorU32(wahlZeile ? ImGuiCol_PlotHistogram : ImGuiCol_Text), name.c_str());
             ImGui::SetCursorScreenPos(ImVec2{lo.x, y});

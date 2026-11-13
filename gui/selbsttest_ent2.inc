@@ -111,6 +111,7 @@ void rigSchritte(std::vector<Schritt>& s) {
         static const modell::RigSchicht kOhne;
         modell::RigSchicht nurFk = *s;
         for (modell::IkSpur& sp : nurFk.ik) {
+            sp.anteil.clear();   // ENT3B (B14): der Anteil steht in der IK/FK-Spur - ohne sie gilt der des IK-Schluessels
             for (modell::IkWert& w : sp.wert) { w.ik = 0.0F; }
         }
         const std::vector<float> ges = modell::ikGliedAbweichung(g_app->anim, kOhne, *s, f0(), fEnde());
