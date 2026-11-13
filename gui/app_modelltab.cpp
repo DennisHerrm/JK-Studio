@@ -1141,6 +1141,16 @@ void drawModellKontextMenue() {
     ModellTab& t = mt();
     t.kontextSichtbar = ImGui::BeginPopup("##mtkontext");
     if (!t.kontextSichtbar) { return; }
+    // ENTSCHEID3A (C4): Esc schliesst das Menue wie in 3ds Max und Blender - auch aus einem offenen Untermenue (die Untermenues sind
+    // Kinder dieses Popups und schliessen mit ihm)
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+        ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+        t.kontextSichtbar = false;
+        ++modellEnt3a().kontextEscZahl;
+        modellEnt3a().kontextEscBild = ImGui::GetFrameCount();
+        return;
+    }
     const bool blender = modellBlender();
     cjkTextDisabled("%s", tr(Str::MbKontextAuswahl));
     static const Str kArten[6] = {Str::MbMaxObjekt, Str::MbMaxEcke, Str::MbMaxKante, Str::MbMaxPolygon, Str::MbMaxRand, Str::MbMaxElement};
@@ -1221,6 +1231,7 @@ bool modellBlender() { return g_app->settings.modellBedienung == 1; }
 
 bool modellTasten() {
     if (!modellFokus()) { return false; }
+    if (modellEnt3aKontextEsc()) { return true; }   // ENTSCHEID3A (C4): Esc gilt dem offenen Rechtsklick-Menue, nicht einem Werkzeug
     if (modellNavTasten()) { return true; }   // MBNAV: Esc beendet einen Navigationsmodus
     if (modellModalTasten()) {   // mb1a2: waehrend G/R/S gehoeren die Tasten der Umformung
         mt().modalEndeBild = ImGui::GetFrameCount();
