@@ -118,6 +118,9 @@ Protokolle: `Y:\werkzeuge\lcfix\rot1.txt`, `rot2.txt`, `rot3.txt`, `rot_lichthas
     Anlegereihenfolge); ohne shaderlist.txt liest es die Dateien in der Reihenfolge des Dateisystems, bespin also vor
     imperial. Welche Fassung Ravens q3map und der Renderer des Spiels nehmen, ist nicht geprüft. Die Stelle, an der der
     Shader-Leser das Flag setzt, ist für den DXR-Agenten `Q/shaders.cpp:1706-1714` (über `ApplySurfaceParm`).
+  - **Berichtigt (GITTER 13.11., `NOTIZEN_gitter_1311.md`):** Die Vermutung trifft nicht zu. Den Namen
+    `textures/kejim/grate02_broke` definiert nur `imperial.shader`, in den JKA-Daten wie in denen von Movie Duels;
+    `bespin.shader` definiert `textures/bespin/breakable_grate1`, der nur dasselbe Bild benutzt.
 
 ## Liste der Eingaben eines Lichtbaus (am Code durchgegangen)
 
@@ -177,8 +180,8 @@ begonnen hatten).
 ## Offen
 
 - Die zwei Fragen (GPU ohne double, Text für den VIS-Zwischenstand) hat shank beantwortet (B4, B5) - umgesetzt.
-- B3: doppelte Shader-Namen in den JKA-Daten (z. B. `textures/kejim/grate02_broke`) - welche Fassung Ravens q3map nimmt, ist
-  offen; nicht Teil dieses Auftrags.
+- B3: doppelte Shader-Namen in den JKA-Daten (z. B. `textures/kejim/grate02_broke`) - erledigt (GITTER 13.11.): Dieser Name
+  ist nicht doppelt definiert (siehe B3 oben und `NOTIZEN_gitter_1311.md`).
 
 ## Changelog
 

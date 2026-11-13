@@ -59,6 +59,9 @@ Auftrag: `JKStudio_Uebergabe/auftraege/welle_1211.md` Abschnitt 2. Zweig `p_dxr`
     Gitter einen Detail-Pinsel (`-meta -v`: 1 detail brush; mit der bespin-Fassung waere er strukturell) und filtert das Licht.
     Kein Fund. Nicht geprueft: alle doppelten Shader einzeln.
   - Welche Fassung Ravens q3map bei doppelten Shadern nimmt, ist offen (nicht Auftrag, nur notiert).
+  - **Berichtigt (GITTER 13.11., `NOTIZEN_gitter_1311.md`):** `textures/kejim/grate02_broke` ist nicht doppelt definiert
+    (JKA- und Movie-Duels-Daten). `bespin.shader` definiert `textures/bespin/breakable_grate1`, der nur dasselbe Bild
+    benutzt; der Absatz oben beruht auf einer Suche nach dem Bildnamen statt nach dem Shadernamen.
 
 ## Rot / Gruen je Punkt
 
@@ -105,10 +108,12 @@ Rueckfall-Laeufe auf exe n3 (vor dem Rebase); der Rueckfall-Code hat sich danach
 
 ## Offen
 
-- **Gitter gegen gebacken:** Strahlen 4,90 und Schattenkarten 5,05 liegen 24 bis 26 % unter der Lightmap (6,61). Die Lightmap
-  nimmt je Luxel eine Probe, und q3map2 laesst (255 - Alpha) durch: Bei Bildern mit `alphaFunc LT128` (sichtbar ist, was
-  Alpha unter 128 hat) leuchten damit die Staebe, und die Loecher sperren - die Strahlen zeigen genau dieses Muster scharf
-  (Foto `Y:\werkzeuge\dxr\g6_gitter.png`), die Lightmap verwischt es. Ob Ravens q3map dasselbe tat, ist offen.
+- **Gitter gegen gebacken - erledigt (GITTER 13.11., `NOTIZEN_gitter_1311.md`):** Ravens q3map liess das Licht ebenso
+  durch die Staebe von `alphaFunc LT128` (Original vjun2: 61 dunkle Inseln am Boden, 1 helle; erwartet 134/0 fuer q3map2s
+  Regel, 0/134 fuer die umgekehrte). q3map2 und beide Echtzeit-Arten haben dieselbe Richtung, also nichts zu aendern.
+  Die 24 bis 26 % sind ein Zufall der Mittelwerte: Die Lightmap ist unter dem Gitter im Blickfeld ueberall 0 (ein Strahl je
+  Luxel von 16 Einheiten trifft die 3 bis 4 Einheiten breiten Lichtlinien nicht), und ihr Mittel kommt aus der bilinearen
+  Rampe des naechsten freien Luxels am oberen Bildrand. Die Lightmap "verwischt" das Muster also nicht.
 - Pixelvergleich der Vorgabe gegen einen Bau von karte1: nur im Ruhefenster (`messung_final.sh`). Belegt bisher: der
   Vorgabeweg ist im Code unveraendert (Strahlen nur bei Wahl), Rueckfall-Laeufe Bildpunkt fuer Bildpunkt gleich,
   `leistung_editor_vorlage_spiel` von n4 gleich der Basis.
