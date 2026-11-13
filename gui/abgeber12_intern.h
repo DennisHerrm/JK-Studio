@@ -36,6 +36,9 @@ inline constexpr UINT kWurzelSrv = 20;
 inline constexpr UINT kWurzelAbtaster = 36;
 
 extern std::atomic<std::uint64_t> g_lebend;
+// REST612: davon die Objekte des jetzigen Geraets (Generation g_generation); der Rest gehoert frueheren Geraeten - waechst er mit
+// jedem Geraeteverlust, vergisst eine Zeichenschicht ihre Objekte, statt sie freizugeben (Selbsttest grafik, verlustreihe).
+extern std::atomic<std::uint64_t> g_lebendJetzt;
 // Teilabgabe: zeichnet die offene Liste so viele Takte (QueryPerformanceCounter) auf, geht sie beim naechsten Wechsel der Ziele
 // ab (0: nur am Ende des Bildes). BHED_D3D12_TEILABGABE=<Mikrosekunden>.
 extern long long g_teilAbgabe;
@@ -78,7 +81,10 @@ struct Kind : Schnittstelle {
     std::uint32_t kennung;
     std::uint32_t generation;
 
-    Kind() : kennung(++g_naechsteKennung), generation(g_generation) { ++g_lebend; }
+    Kind() : kennung(++g_naechsteKennung), generation(g_generation) {
+        ++g_lebend;
+        ++g_lebendJetzt;
+    }
     Kind(const Kind&) = delete;
     Kind& operator=(const Kind&) = delete;
 
@@ -109,7 +115,10 @@ struct Kind : Schnittstelle {
     HRESULT STDMETHODCALLTYPE SetPrivateDataInterface(REFGUID, const IUnknown*) override { return S_OK; }
 
 protected:
-    ~Kind() { --g_lebend; }
+    ~Kind() {
+        --g_lebend;
+        if (generation == g_generation) { --g_lebendJetzt; }
+    }
 };
 
 // Einen Platz des Kontexts neu belegen (zaehlt die Bindung; gibt ein schon freigegebenes Objekt frei, wenn es die letzte war).

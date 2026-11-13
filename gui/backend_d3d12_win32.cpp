@@ -1462,13 +1462,13 @@ bool befund(std::string& text) {
     std::snprintf(t, sizeof(t),
                   "Direct3D 12: Abgeber %llu Zeichenbefehle, %llu Pipeline-Zustaende in %.0f ms (%llu aus dem Zwischenspeicher, %llu Wechsel), "
                   "%llu frische Bloecke, %llu Kopien gelesener Puffer, %llu lange Bilder, %llu Zustandswechsel, "
-                  "Hochladespeicher %llu MB, %llu Objekte, %llu Ressourcen angelegt, %llu Teilabgaben, %llu-mal auf die Grafikkarte gewartet "
+                  "Hochladespeicher %llu MB, %llu Objekte (%llu von frueheren Geraeten), %llu Ressourcen angelegt, %llu Teilabgaben, %llu-mal auf die Grafikkarte gewartet "
                   "(%.0f ms); nicht umgesetzte Aufrufe %llu, Fehler der Debugschicht %u",
                   static_cast<unsigned long long>(z.zeichnen), static_cast<unsigned long long>(z.pso), static_cast<double>(z.psoMikro) / 1000.0,
                   static_cast<unsigned long long>(z.psoAusSpeicher), static_cast<unsigned long long>(z.psoWechsel),
                   static_cast<unsigned long long>(z.umbenannt), static_cast<unsigned long long>(z.inGrafik), static_cast<unsigned long long>(z.langeBilder),
                   static_cast<unsigned long long>(z.barrieren),
-                  static_cast<unsigned long long>(z.hochladeBytes >> 20U), static_cast<unsigned long long>(z.lebend),
+                  static_cast<unsigned long long>(z.hochladeBytes >> 20U), static_cast<unsigned long long>(z.lebend), static_cast<unsigned long long>(z.lebendFrueher),
                   static_cast<unsigned long long>(z.angelegt), static_cast<unsigned long long>(z.teilAbgaben),
                   static_cast<unsigned long long>(g_statistik.gewartet), g_statistik.warteMs, static_cast<unsigned long long>(z.fehlt), g_debugFehler);
     text = t;

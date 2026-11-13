@@ -38,6 +38,7 @@
 namespace bhed::render::d3d12::abgeber {
 
 std::atomic<std::uint64_t> g_lebend{0};
+std::atomic<std::uint64_t> g_lebendJetzt{0};
 long long g_teilAbgabe = 0;
 int g_teilAbgabenMax = 4;
 std::uint32_t g_naechsteKennung = 0;
@@ -1689,6 +1690,7 @@ bool anlegen() {
     ID3D12Device* dev = rahmen::geraet();
     if (dev == nullptr) { return false; }
     ++g_generation;   // was die Zeichenschichten vom frueheren Geraet noch halten, gehoert nicht zu diesem Abgeber
+    g_lebendJetzt = 0;
     g_faden = GetCurrentThreadId();
     g_wurzel = wurzelAnlegen();
     g_zielStapel = stapel(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, kZielSichten + 1U, false);   // der letzte: hilfsZiel
@@ -2247,6 +2249,7 @@ std::vector<std::string> speicherZeilen() {
 Zaehler zaehler() {
     Zaehler z = g_zaehler;
     z.lebend = g_lebend.load();
+    z.lebendFrueher = z.lebend - g_lebendJetzt.load();
     return z;
 }
 

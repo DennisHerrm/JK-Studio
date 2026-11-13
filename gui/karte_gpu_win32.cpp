@@ -1072,15 +1072,20 @@ bool bereit3() {
     sd.MaxAnisotropy = 16;
     sd.MaxLOD = D3D11_FLOAT32_MAX;
     sd.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    d->CreateSamplerState(&sd, &g.abtaster);
+    // REST612: abtasterSetzen (Texturqualitaet, app_karte_cam) kann auf einem neuen Geraet schon vor diesem Teil gelaufen sein -
+    // dann nicht ueberschreiben. Vorher wurde der Abtaster hier ein zweites Mal angelegt: Gleiche Beschreibung gibt (Direct3D 11
+    // wie der Abgeber) dasselbe Objekt mit einem Verweis mehr, den niemand freigab - je Geraeteverlust zwei Abtaster des
+    // frueheren Geraets (Selbsttest grafik, verlustreihe: 2 / 4 / 6); mit einer anderen Texturqualitaet galt danach wieder die
+    // Vorgabe statt der Einstellung.
+    if (g.abtaster == nullptr) { d->CreateSamplerState(&sd, &g.abtaster); }
     sd.AddressU = sd.AddressV = sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-    d->CreateSamplerState(&sd, &g.abtasterKlemm);
+    if (g.abtasterKlemm == nullptr) { d->CreateSamplerState(&sd, &g.abtasterKlemm); }
     sd.AddressU = sd.AddressV = sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
     sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     sd.AddressU = sd.AddressV = sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
     sd.MaxAnisotropy = 1;
     sd.MaxLOD = 0;
-    d->CreateSamplerState(&sd, &g.wuerfelAbtaster);
+    if (g.wuerfelAbtaster == nullptr) { d->CreateSamplerState(&sd, &g.wuerfelAbtaster); }
     g.gescheitert3 = g.vs3 == nullptr || g.ps3 == nullptr || g.vsl == nullptr || g.gsl == nullptr || g.psl == nullptr ||
                      g.layout3 == nullptr || g.layoutl == nullptr || g.cb3 == nullptr || g.abtaster == nullptr;
     return !g.gescheitert3;

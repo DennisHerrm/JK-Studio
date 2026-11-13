@@ -164,6 +164,140 @@ inline void verlustSchritte(std::vector<Schritt>& s) {
     }));
 }
 
+// REST612: Leck je Geraeteverlust ausserhalb des Karten-Editors. D3D12-3 hat es im Karten-Editor behoben (Puffer, Puffer3,
+// GebackenNetz, Bilder der Kamera); hier der Menue-Editor mit Figuren und Klingen (ui/saber.menu, gpumap zeichneMenueFigur und
+// zeichneMenueKlingen) und die Vorschau des Mission-Tabs (gpumap) mit dem Schwert des Spielers - je Bereich drei Verluste
+// nacheinander. Unter Direct3D 12 zaehlt der Abgeber die lebenden Objekte frueherer Geraete: Gibt eine Zeichenschicht ihre
+// Objekte nach dem Verlust frei, bleibt die Zahl nach dem Weiterzeichnen stehen; vergisst sie sie, waechst sie mit jedem Verlust.
+// Unter Direct3D 11 (kein Abgeber) nur: jede Ansicht zeichnet danach ohne Fehler weiter.
+inline long long fruehereObjekte(std::string& befund) {
+    befund.clear();
+    (void)render::grafikBefund(befund);
+    const std::size_t k = befund.find(" Objekte (");
+    if (k == std::string::npos) { return -1; }
+    return std::atoll(befund.c_str() + k + 10);
+}
+
+inline void verlustReihe(std::vector<Schritt>& s) {
+    const auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const auto reihe = [&](const std::string& was, int anzahl) {
+        auto zahlen = std::make_shared<std::vector<long long>>();
+        for (int i = 1; i <= anzahl; ++i) {
+            auto vorher = std::make_shared<int>(0);
+            add(tu("Grafikschnittstelle: Geraeteverlust " + std::to_string(i) + " mit " + was, [vorher] {
+                *vorher = g_app->grafikNeuAufbauten;
+                render::geraetVerlorenSpielen();
+            }));
+            add(warteBis("Grafikschnittstelle: Grafik neu aufgebaut (" + was + ", " + std::to_string(i) + ")",
+                         [vorher] { return g_app->grafikNeuAufbauten > *vorher; }, 300));
+            add(pause(2.5));   // weiterzeichnen: wer seine Objekte beim naechsten Gebrauch erneuert, hat es jetzt getan
+            add(tu("Grafikschnittstelle: Kamera bleibt (" + was + ")", [] {
+                if (g_app->leftMode == 1) { teil9::stelle(2500.0); }
+            }));
+            add(pause(0.5));
+            add(tu("Grafikschnittstelle: Objekte frueherer Geraete nach Verlust " + std::to_string(i) + " mit " + was, [zahlen, was, i] {
+                std::string befund;
+                const long long n = fruehereObjekte(befund);
+                zahlen->push_back(n);
+                diag::detail("Knopftest: Verlustreihe " + was + ", Verlust " + std::to_string(i) + ": " + render::backendName(render::current()) +
+                             ", Objekte frueherer Geraete " + std::to_string(n) + " | " + befund);
+            }));
+        }
+        add(pruefe("Grafikschnittstelle: " + std::to_string(anzahl) + " Geraeteverluste mit " + was +
+                       ": die Objekte frueherer Geraete wachsen nicht mit jedem Verlust (freigegeben statt vergessen), kein Fehler",
+                   [zahlen, was] {
+                       std::string befund;
+                       const bool ok = render::grafikBefund(befund);
+                       std::string t;
+                       for (const long long n : *zahlen) { t += (t.empty() ? "" : " / ") + std::to_string(n); }
+                       diag::detail("Knopftest: Verlustreihe " + was + ": Objekte frueherer Geraete nach jedem Verlust " + t);
+                       if (render::current() != render::Backend::Direct3D12) { return ok; }   // nur der Abgeber zaehlt
+                       if (zahlen->size() < 2U || zahlen->front() < 0) { return false; }
+                       return ok && zahlen->back() <= zahlen->front();
+                   }));
+    };
+    // 1. Menue-Editor: das Saebelmenue (Griff als Figur, Klingen, Gluehen) - Klingenart und Farbe wie im Selbsttest menue
+    // (Vergleich Saebel) per cvar gesetzt, dann zeigt das Menue den Saebel
+    add(tu("Grafikschnittstelle: Menue-Editor, ui/saber.menu (cg_SFXSabers 4, blau)", [] {
+        g_app->leftMode = 4;
+        menueeditor::setzeInteraktion(false);
+        menueeditor::setzeCvar("cg_SFXSabers", "4");
+        menueeditor::setzeCvar("g_saber_color", "blue");
+        menueeditor::setzeCvar("ui_saber_color", "blue");
+        if (!menueeditor::oeffneAusSpiel("ui/saber.menu")) { meldeFehler("Grafikschnittstelle: ui/saber.menu nicht geoeffnet"); }
+        menueeditor::setzeInteraktion(true);
+    }));
+    add(pause(2.5));
+    add(foto("grafik_verlustreihe_menue_vorher"));
+    add(pruefe("Grafikschnittstelle: das Saebelmenue zeichnet Modelle (Figur und Klingen ueber gpumap)", [] {
+        const auto x = menueeditor::stand();
+        diag::detail("Knopftest: Verlustreihe Menue-Editor: " + std::to_string(x.modellAufrufe) + " Modellaufrufe " + x.modellFehler);
+        return x.modellAufrufe > 0;
+    }));
+    reihe("Menue-Editor (ui/saber.menu)", 3);
+    add(foto("grafik_verlustreihe_menue"));
+    add(tu("Grafikschnittstelle: Menue-Editor zu", [] {
+        menueeditor::setzeInteraktion(false);
+        menueeditor::schliesseAlleOhneSpeichern();
+        g_app->leftMode = 0;
+    }));
+    // 2. Vorschau des Mission-Tabs (gpumap): Spieler mit brennender Klinge (wie teil10b)
+    add(tu("Grafikschnittstelle: Mission-Tab, duel_jeditemple", [] {
+        g_app->leftMode = 1;
+        (void)loadMapFromArchive("maps/duel_jeditemple.bsp");
+    }));
+    add(warteBis("Grafikschnittstelle: Karte bereit", [] { return g_app->map.path == "maps/duel_jeditemple.bsp" && g_app->mapBereit; }, 4000));
+    add(tu("Grafikschnittstelle: Spieler mit brennender Klinge", [] {
+        teil10::spielerStart(-1250.0F, 60.0F, -1150.0F, "90");
+        teil9::laden(teil9::kKopf + "affect ( \"player\", /*@AFFECT_TYPE*/ FLUSH )\r\n{\r\n"
+                     "\tset ( /*@SET_TYPES*/ \"SET_WEAPON\", \"WP_SABER\" );\r\n"
+                     "\tset ( /*@SET_TYPES*/ \"SET_SABERACTIVE\", \"true\" );\r\n"
+                     "\twait ( 30000.000 );\r\n}\r\n", "Grafikschnittstelle");
+    }));
+    add(warteBis("Grafikschnittstelle: Figuren geladen", [] {
+        return g_app->camTrackValid && jk2probe::figurenGeladen() && teil9::spieler() < g_app->scene.actors.size();
+    }, 3000));
+    add(tu("Grafikschnittstelle: Spieler zeigen (Show player), Kamera vor ihn, Klinge an (2,5 s)", [] {
+        g_app->spielerInCutscene = true;
+        g_app->followCam = false;
+        teil9::stelle(2500.0);
+    }));
+    add(pause(2.5));
+    add(foto("grafik_verlustreihe_vorschau_vorher"));
+    add(pruefe("Grafikschnittstelle: die Vorschau zeichnet den Spieler mit brennender Klinge", [] {
+        const std::size_t i = teil9::spieler();
+        const float l = i < g_app->scene.actors.size() ? klingenLaenge(g_app->scene.actors[i].at(2500.0), 0, 0, 2500.0) : 0.0F;
+        diag::detail("Knopftest: Verlustreihe Vorschau: Spieler gezeichnet " + std::to_string(teil9::gezeichnet()) + ", Klingenlaenge " + std::to_string(l));
+        return teil9::gezeichnet() && l > 0.0F;
+    }));
+    reihe("Vorschau des Mission-Tabs (Spieler mit Klinge)", 3);
+    add(foto("grafik_verlustreihe_vorschau"));
+    // 3. Gegenprobe im Karten-Editor: Echtzeit-Licht mit Raytracing-Schatten (DXR, nur Direct3D 12) auf der .map von leistung
+    if (const char* m = std::getenv("BHED_LEISTUNG_MAP"); m != nullptr && m[0] != '\0') {
+        const std::string karte = m;
+        add(tu("Grafikschnittstelle: Karten-Editor " + karte + " mit Echtzeit-Licht und Raytracing-Schatten", [karte] {
+            g_app->leftMode = 3;
+            karteDialogeZu();
+            if (!ke::karteOeffnen(karte)) { meldeFehler("Grafikschnittstelle: " + karte + " nicht geoeffnet"); }
+            ke::Editor& e = ke::editor();
+            e.kameraE.modus = karte::KameraModus::Textur;
+            e.echtLicht.an = true;
+            e.echtLicht.backen = false;
+            e.echtLicht.schattenStrahlen = true;
+            const std::vector<stufe9c::Punkt> punkte = stufe9c::kameraPunkte();
+            if (!punkte.empty()) { stufe9c::kameraAuf(punkte.front()); }
+        }));
+        add(warteBis("Grafikschnittstelle: Texturen der .map", [] { return ke::kameraBilderFertig(); }, 20000));
+        add(pause(2.0));
+        add(foto("grafik_verlustreihe_dxr_vorher"));
+        reihe("Karten-Editor mit Raytracing-Schatten", 3);
+        add(tu("Grafikschnittstelle: Raytracing-Schatten aus", [] {
+            ke::editor().echtLicht.schattenStrahlen = false;
+            ke::editor().echtLicht.an = false;
+        }));
+    }
+}
+
 }  // namespace grafik
 
 std::vector<Schritt> grafikSchritte() {
@@ -188,6 +322,11 @@ std::vector<Schritt> grafikSchritte() {
     }
     if (grafikNur != nullptr && std::strcmp(grafikNur, "verlust") == 0) {
         grafik::verlustSchritte(s);
+        return s;
+    }
+    // BHED_GRAFIK_NUR=verlustreihe (REST612): je drei Geraeteverluste im Menue-Editor und in der Vorschau des Mission-Tabs.
+    if (grafikNur != nullptr && std::strcmp(grafikNur, "verlustreihe") == 0) {
+        grafik::verlustReihe(s);
         return s;
     }
     add(pruefe("Grafikschnittstelle: ab Werk ist Direct3D 12 eingestellt (rc612), Direct3D 11 der Rueckfall", [] { return Settings{}.grafikD3d12; }));

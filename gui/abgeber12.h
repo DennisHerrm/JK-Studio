@@ -122,6 +122,7 @@ struct Zaehler {
     std::uint64_t barrieren = 0;      // Zustandswechsel von Ressourcen
     std::uint64_t fehlt = 0;          // Aufrufe nicht umgesetzter Methoden (jede einmal im Protokoll)
     std::uint64_t lebend = 0;         // lebende Objekte des Abgebers
+    std::uint64_t lebendFrueher = 0;  // davon Objekte frueherer Geraete (REST612: vergessen statt freigegeben?)
     std::uint64_t hochladeBytes = 0;  // belegter Hochladespeicher der Bloecke
     std::uint64_t angelegt = 0;       // angelegte D3D12-Ressourcen (Texturen, Puffer, Seiten und grosse Bloecke)
     std::uint64_t ruhend = 0;         // dynamische Puffer, deren ruhender Inhalt in den Grafikspeicher kopiert wurde
