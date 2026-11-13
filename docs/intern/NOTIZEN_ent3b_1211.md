@@ -45,6 +45,31 @@ Messwerte (kyle, BOTH_WALK1, Lauf `ent3b_g2`):
   Griff statt ueber `schmuck`; ihre Farbe bleibt weiss (nicht nach Seite).
 - Handbuch `inhalt_fix612c.py` (Absatz nur FK): der Satz „eine vorhandene Animation bleibt auf FK“ ersetzt durch C1 (6 Sprachen).
 
+## Handbuch
+
+Eigene Seite `tools/handbuch/inhalt_ent3b.py` (6 Sprachen): modell-ent3b „Model-Tab: IK/FK überblenden, Plattform und Rig-Vorlage“, im Register
+`tools/handbuch/inhalt_modell.py` eine Zeile `Seite("inhalt_ent3b")` hinter `inhalt_ap13k`. Bilder `h_ent3b_ikfk` (wie Blender, Dopesheet mit den
+Zeilen IK/FK, Arm R zwischen +5 und +15 auf 0,50) und `h_ent3b_wurzel` (wie 3ds Max, Bodenkreis gewählt, Figur verschoben) in 6 Sprachen
+(2538 × 1472, je 2 / 0), angesehen en, de, ja. Absatz „nur FK“ von FIX612C (`inhalt_fix612c.py`) an C1 angepasst. Handbuch und Hilfe-Orte
+(`gen_handbuch.py`, `gen_hilfe_orte.py`: der Regler IK/FK-Verhältnis ist ein Ort) nach dem Rebase neu erzeugt; `gen_handbuch.py --pruefen` ok.
+
+## Schlussrunde des Zweigs (auf karte1 `3d0947208`)
+
+Unter der Lastregel (Bau `--parallel 2`, höchstens zwei jkstudio, Leerlauf), Direct3D 12 (Vorgabe):
+
+| Schritt | Ergebnis |
+|---|---|
+| Bau alle Ziele (inkrementell, /W4 /WX) | 0 Fehler, 0 Warnungen (`rebase3`) |
+| ctest | **268 / 268** (darin modell_ent3b, modell_rigformen, hilfe_orte, die Lints und i18n) |
+| `ent3b` | 38 / 0 (rot 4 / 35) |
+| ctest `modell_ent3b` | ok (alte Datei 0 Unterschied, Überblenden, ab dem Bild, Plattform, Backen, Reduzieren, Missions-Zeilen) |
+| Gruppen | ap10 72 · ent2 23 · pr 17 · rt 21 · ap13k 66 · fix612c 36 · mb3 23 - je 0 FEHLER; rig 27 / 1 (MB4 Pfad, auf karte1 ebenso rot, s. u.) |
+| Handbuchbilder | 6 Sprachen je 2 / 0 |
+
+Bewusst nicht gelaufen: volle Runde, Sprachläufe, Fotovergleich Direct3D 11 - neu gezeichnet wird nichts: der Bodenkreis ist die Form aus AP13K
+(dieselbe Linie, gewählt weiß wie jede Griff-Form), die Zeilen des Dopesheets und der Regler sind ImGui. Keine Bildzeit-Messung: ohne Plattform
+rechnet nichts mehr als vorher (leere Spur, `plattform.empty()` übersprungen); mit Plattform eine Weltrechnung mehr je Bild.
+
 ## Offen / Fragen an shank
 
 - Die Gruppe `rig` hat auf karte1 schon einen roten Schritt (MB4 Pfad: 84 statt 21 Punkte - gleich im Bau ohne ENT3B, Lauf `n0_rig`); nicht Teil dieses
