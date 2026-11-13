@@ -59,6 +59,7 @@
 #include "wache.h"
 #include "gpumap.h"
 #include "app_modelltab_knochen.h"   // AP13K: selbsttest_ap13k.inc
+#include "app_modelltab_ent3b.h"    // ENTSCHEID3B: selbsttest_ent3b.inc
 #include "bhed/changelog.h"
 #include "bhed/entdefs.h"
 #include "bhed/navlauf.h"
@@ -6054,6 +6055,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_fix612c.inc"  // FIX612C: Funde P3-5 bis P3-10, PV4/PV5 der Codepruefung seit rc611 (modellblock, BHED_MODELL_NUR=fix612c)
 #include "selbsttest_fix612b.inc"   // FIX612B: Funde der Code-Pruefung P2 - Gewichte, Malen, Auto-Skin (modellblock, BHED_MODELL_NUR=fix612b / fix612babsturz)
 #include "selbsttest_fix612.inc"  // FIX612: Funde der Code-Pruefung seit rc611 (modellblock BHED_MODELL_NUR=fix612, karteneditor BHED_KARTE_NUR=fix612)
+#include "selbsttest_ent3b.inc"   // ENTSCHEID3B: IK/FK-Spur wie CAT, Tempo als Faktor, Griff der Wurzel, Rig-Vorlage im Dokument (modellblock, BHED_MODELL_NUR=ent3b)
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -7074,6 +7076,7 @@ void selbsttest() {
                     for (Schritt& x : fix612::modellSchritte(nur)) { a.schritte.push_back(std::move(x)); }   // FIX612 (Code-Pruefung seit rc611)
                     for (Schritt& x : ap14::schritte(nur)) { a.schritte.push_back(std::move(x)); }      // AP14 (Zusammenfuehrung, Baustein-Reste)
                     for (Schritt& x : kleinkram::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // KLEIN (Kleinkram im Model-Tab, About)
+                    for (Schritt& x : ent3b::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // ENTSCHEID3B (B14-B17, C1, C3)
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

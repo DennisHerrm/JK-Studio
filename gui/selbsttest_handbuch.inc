@@ -2649,6 +2649,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_ap13k.inc: AP13K Knoche
 namespace ap14 {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_ap14.inc: AP14 Gruppe Auto-Skin im Feld des Bereichs Weights, BHED_HB_NUR=ap14
 }  // namespace ap14
+namespace ent3b {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_ent3b.inc: ENTSCHEID3B IK/FK-Spur, Griff der Wurzel, BHED_HB_NUR=ent3b
+}  // namespace ent3b
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2745,6 +2748,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap14") == 0) {
         return ap14::handbuchSchritte();   // AP14: die Gruppe Auto-Skin im rechten Feld (h_ap12_max, h_ap12_blender)
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ent3b") == 0) {
+        return ent3b::handbuchSchritte();   // ENTSCHEID3B: IK/FK-Spur je Glied im Dopesheet, Griff der Wurzel
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste

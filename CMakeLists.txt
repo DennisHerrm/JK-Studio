@@ -2229,3 +2229,16 @@ if(BEHAVED_TESTS)
   target_link_libraries(nachplatztest PRIVATE bhed_core)
   add_test(NAME nachplatz COMMAND nachplatztest)
 endif()
+
+# ENTSCHEID3B (plaene/entscheidungen_1211.md B14-B17, C1, C3): IK/FK-Spur je Glied wie CAT (ueberblenden, Dopesheet), Tempo des
+# Generators als Faktor, der Bodenkreis als Griff der Wurzel (Plattform), Control Rig nach nur FK wieder IK, Rig-Vorlage im Dokument;
+# ctest modell_ent3b: aeltere Missions-Daten (tests/figuranim/ent3b_figur_alt.txt) laden unveraendert, Ueberblenden, Plattform
+if(TARGET behaved)
+  target_sources(behaved PRIVATE gui/app_modelltab_ent3b.cpp)
+endif()
+if(BEHAVED_TESTS)
+  add_executable(modellent3btest tests/modell_ent3b.cpp)
+  target_link_libraries(modellent3btest PRIVATE bhed_core)
+  target_include_directories(modellent3btest PRIVATE tests)
+  add_test(NAME modell_ent3b COMMAND modellent3btest ${CMAKE_CURRENT_SOURCE_DIR}/tests/figuranim/ent3b_figur_alt.txt)
+endif()

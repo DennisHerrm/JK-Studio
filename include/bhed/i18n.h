@@ -6666,6 +6666,18 @@ enum class Str {
     MkHomeZurueckHint,
     KeEditZweit,
     KeEditZweitHint,
+    E3IkFkAnteil,
+    E3IkFkAnteilHint,
+    E3DsIkFk,
+    E3IkMisch,
+    E3IkMischHint,
+    E3TempoHint,
+    E3GriffWurzel,
+    E3GriffWurzelHint,
+    E3WurzelGewaehlt,
+    E3WurzelGeloescht,
+    E3RigWiederIk,
+    E3UndoVorlage,
     Count,
 };
 

@@ -3155,3 +3155,5 @@ TEXTE.update(_klein("cs"))
 
 # NetRadiant-Custom-Menues und -Werkzeugleiste: der englische Text von NRC.
 TEXTE.update({_e[0]: _e[1] for _e in _nrc()})
+from i18n_ent3b import texte as _ent3b  # noqa: E402
+TEXTE.update(_ent3b("cs"))

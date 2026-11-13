@@ -2382,6 +2382,8 @@ from i18n_dxr import zeilen_vier as _dxr  # noqa: E402  (DXR: Raytracing-Schatte
 S += _dxr()
 from i18n_klein import zeilen_vier as _klein  # noqa: E402  (KLEIN: Tooltip Home setzen, zweite Taste in Edit > Shortcuts)
 S += _klein()
+from i18n_ent3b import zeilen_vier as _ent3b  # noqa: E402  (ENTSCHEID3B: IK/FK-Spur wie CAT, Tempo als Faktor, Griff der Wurzel, Rig-Vorlage)
+S += _ent3b()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #
