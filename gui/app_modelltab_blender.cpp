@@ -425,7 +425,7 @@ constexpr float kZiehSchwelle = 3.0F;
 // unten rechts ein kleines Dreieck und oeffnet ihre Glieder beim Halten oder Ziehen. Die Kennung ist der Text - Tooltip und
 // Selbsttest finden ihn darueber.
 bool leistenKnopf(const Werkzeug& x, float g, float breite) {
-    const bool namen = g_app->settings.modellBlWerkzeugnamen;
+    const bool namen = g_app->settings.modellBlWerkzeugnamen || modellEnt3aLeisteNamen();   // ENTSCHEID3A (B8): auch breit gezogen
     ImGui::BeginDisabled(!x.aktiv);
     const bool geklickt = ImGui::InvisibleButton(x.text.c_str(), ImVec2{namen ? breite : g, g});
     const bool ueber = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
@@ -1046,13 +1046,15 @@ ModellBlender& modellBl() { return g_bl; }
 float modellLinksSpalte() {
     if (!modellBlender()) { return kModellSpalte; }
     if (!g_bl.werkzeugleiste) { return kStreifenBreite; }
-    if (!g_app->settings.modellBlWerkzeugnamen) { return kLeisteBreite; }
+    // ENTSCHEID3A (B8): an ihrer Kante breiter gezogen wie in Blender (ueber 120 Punkte zeigt sie die Namen, leistenKnopf)
+    const float gezogen = std::max(kLeisteBreite, modellEnt3aLeisteBreite());
+    if (!g_app->settings.modellBlWerkzeugnamen) { return gezogen; }
     // ENTSCHEID1 "Werkzeugnamen zeigen": so breit, dass neben dem Symbol der laengste Name des Bereichs ganz steht (Blender zeigt die
     // Namen, wenn die Leiste breiter als 120 Punkte ist - space_toolsystem_common.py _layout_generator_detect_from_region)
     const float fs = std::max(ImGui::GetFontSize(), 1.0F);
     float laengster = 0.0F;
     for (const Werkzeug& w : werkzeuge()) { laengster = std::max(laengster, ImGui::CalcTextSize(w.text.c_str()).x); }
-    return kLeisteBreite + laengster / fs + 0.8F;
+    return std::max(gezogen, kLeisteBreite + laengster / fs + 0.8F);
 }
 
 const char* modellLinksTitel() { return modellBlender() ? tr(Str::BzWerkzeugleiste) : modellExplorerTitel(); }
@@ -1115,13 +1117,14 @@ void drawModellWerkzeugleiste(float hoehe) {
     ImGui::BeginChild("mtwerkzeugleiste", ImVec2{-1.0F, hoehe}, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
     ImGui::PopStyleVar();
     g_bl.leiste = ImRect{ImGui::GetWindowPos(), ImVec2{ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y}};
+    modellEnt3aLeisteKante(kLeisteBreite);   // ENTSCHEID3A (B8): die Kante zum Breiterziehen, vor den Knoepfen (sie bekommt die Maus)
     const float breite = std::floor(std::max(ImGui::GetContentRegionAvail().x, fs));
     const float luecke = std::floor(fs * 0.15F);
     const std::vector<Werkzeug> w = werkzeuge();
     // so gross wie die Spalte breit ist; reicht die Hoehe nicht fuer alle Knoepfe (kleines Fenster), kleiner und mittig. Mit Namen
     // bleibt das Symbol so gross wie in der schmalen Leiste, der Knopf reicht ueber die ganze Breite.
-    const bool namen = g_app->settings.modellBlWerkzeugnamen;
-    const float quadrat = namen ? std::min(breite, std::floor(fs * kLeisteBreite)) : breite;
+    const bool namen = g_app->settings.modellBlWerkzeugnamen || modellEnt3aLeisteNamen();   // ENTSCHEID3A (B8): auch breit gezogen
+    const float quadrat = std::min(breite, std::floor(fs * kLeisteBreite));
     const float n = static_cast<float>(w.size());
     const float passt = (ImGui::GetContentRegionAvail().y - luecke * 2.0F - luecke * n) / std::max(n, 1.0F);
     const float g = std::floor(std::clamp(passt, std::min(fs * 1.3F, quadrat), quadrat));
