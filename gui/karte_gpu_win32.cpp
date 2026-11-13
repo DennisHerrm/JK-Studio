@@ -547,13 +547,21 @@ void ziehen(ID3D11Buffer* vb, std::size_t anzahl, const float* matrix, float bre
 // D3D12 Stufe 1: unter Direct3D 12 ist d3dDevice() das D3D11On12-Geraet - dieselben Wege.
 bool verfuegbar() { return (render::current() == render::Backend::Direct3D11 || render::current() == render::Backend::Direct3D12) && bereit(); }
 
+// Nach einem Geraetewechsel gehoert m_vb dem frueheren Geraet: freigeben statt vergessen (der Abgeber von Direct3D 12 gibt ein
+// Objekt eines frueheren Geraets nur selbst frei, Direct3D 11 erlaubt das Freigeben ohnehin) - sonst ein Leck je Geraeteverlust.
+// Nur solange eine Grafikschnittstelle laeuft: nach render::shutdown am Programmende (statische Objekte) ist der Abgeber schon
+// abgebaut - dort bleibt es beim Vergessen wie bisher.
+namespace {
+bool freigebenErlaubt(unsigned stand) { return stand == render::texturStand() || render::ready(); }
+}  // namespace
 Puffer::~Puffer() {
-    if (m_vb != nullptr && m_stand == render::texturStand()) { static_cast<ID3D11Buffer*>(m_vb)->Release(); }
+    if (m_vb != nullptr && freigebenErlaubt(m_stand)) { static_cast<ID3D11Buffer*>(m_vb)->Release(); }
 }
 
 void Puffer::setzen(const std::vector<karte::Linie>& linien) {
     if (!bereit()) { return; }
-    if (m_stand != render::texturStand()) {   // altes Geraet: Zeiger ist ungueltig
+    if (m_stand != render::texturStand()) {   // altes Geraet: der Puffer taugt hier nicht mehr - freigeben
+        if (m_vb != nullptr) { static_cast<ID3D11Buffer*>(m_vb)->Release(); }
         m_vb = nullptr;
         m_platz = 0;
         m_stand = render::texturStand();
@@ -1262,14 +1270,15 @@ struct Zugriff3 {
 };
 
 Puffer3::~Puffer3() {
-    if (m_vb != nullptr && m_stand == render::texturStand()) { static_cast<ID3D11Buffer*>(m_vb)->Release(); }
+    if (m_vb != nullptr && freigebenErlaubt(m_stand)) { static_cast<ID3D11Buffer*>(m_vb)->Release(); }   // auch vom frueheren Geraet (siehe Puffer)
 }
 
 bool Puffer3::gueltig() const { return m_vb != nullptr && m_stand == render::texturStand(); }
 
 void Puffer3::setzen(const void* daten, std::size_t bytes) {
     if (!bereit()) { return; }
-    if (m_stand != render::texturStand()) {
+    if (m_stand != render::texturStand()) {   // altes Geraet: freigeben (siehe Puffer)
+        if (m_vb != nullptr) { static_cast<ID3D11Buffer*>(m_vb)->Release(); }
         m_vb = nullptr;
         m_platz = 0;
         m_stand = render::texturStand();
@@ -2460,7 +2469,8 @@ struct ZugriffGebacken {
 GebackenNetz::~GebackenNetz() { leeren(); }
 
 void GebackenNetz::leeren() {
-    if (m_stand == render::texturStand()) {
+    // auch vom frueheren Geraet freigeben (siehe Puffer)
+    if (freigebenErlaubt(m_stand)) {
         if (m_vb != nullptr) { static_cast<ID3D11Buffer*>(m_vb)->Release(); }
         if (m_ib != nullptr) { static_cast<ID3D11Buffer*>(m_ib)->Release(); }
     }

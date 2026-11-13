@@ -12,6 +12,8 @@
 //     ersten Schreiben (schichtBelegen). Texturen, die lange in keiner Befehlsliste vorkamen, werden ausgelagert
 //     (auslagernPruefen: Evict; gebraucht(): MakeResident) - Direct3D 11 haelt ebenso meist nur, was gebraucht wird.
 //     BHED_D3D12_AUSLAGERN=budget: nur, wenn der Prozess mehr belegt, als ihm das System zugesteht; =0: nie.
+//     Entscheidung F1 (13.11.) gemessen: nur unter Budgetdruck hielt der Abgeber nach der .map 4650 MB Grafikspeicher (D3D11
+//     2278, nach Zeit 2751) bei nicht kleinerem privatem Speicher (Spitze 7320 gegen 7218 MB, D3D11 6719) - Vorgabe nach Zeit.
 //   - D3D11_USAGE_STAGING (Texturen zum Lesen): ein Lesepuffer; Map(READ) wartet auf die Grafikkarte.
 //   - Sichten auf Texturen haben einen festen Deskriptor im gemeinsamen Stapel (den auch die Oberflaeche nutzt).
 //   - Zustandsobjekte sind Beschreibungen mit Kennung; gleiche Beschreibung -> dasselbe Objekt (wie Direct3D 11).
@@ -90,7 +92,7 @@ DWORD g_faden = 0;   // der Faden der Grafik (alle Aufrufe kommen von ihm)
 std::uint64_t g_bild = 0;   // zaehlt bildAnfang
 bool g_blockHeapEigen = true;   // Bloecke im CUSTOM-Heap (false: der Treiber lehnt ihn ab - Hochlade-Heap)
 bool g_duennGeht = false;       // reservierte Ressourcen mit leeren Kacheln, die 0 lesen (TiledResourcesTier >= 2)
-int g_auslagern = 2;            // 2: nach Zeit (Vorgabe); BHED_D3D12_AUSLAGERN=0: nie, =budget: 1, nur ueber dem Budget des Systems
+int g_auslagern = 2;            // 2: nach Zeit (Vorgabe, F1 gemessen); BHED_D3D12_AUSLAGERN=0: nie, =budget: 1, nur ueber dem Budget des Systems
 IDXGIAdapter3* g_karte3 = nullptr;      // fuer das Budget (QueryVideoMemoryInfo)
 std::uint64_t g_budgetVorgabe = 0;      // BHED_D3D12_BUDGET_MB: dieses Budget annehmen (Selbsttest), 0: das des Systems
 std::uint64_t g_budgetZuletzt = 0;      // bei der letzten Pruefung

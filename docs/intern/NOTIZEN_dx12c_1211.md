@@ -17,6 +17,8 @@ Laeufe mit Leerlauf-Prioritaet nach der Lastregel des Hauptchats). Endzahlen: `Y
 | Start | Das D3D12-Geraet entsteht in einem eigenen Faden gleich nach den Einstellungen, waehrend Befehlsmodell und Spielordner laden (`render::grafikVorwaermen`); die Startmarke wird davor geprueft und angelegt; nicht mit `BHED_D3D12_FEHLER` | main_win32.cpp, backend*.cpp/h |
 | PSO-Zwischenspeicher | ID3D12PipelineLibrary unter `<Einstellungen>\shader\pso12.bin` (WIP des Vorgaengers, `BHED_D3D12_PSOLAGER=0` aus) | abgeber12_*.cpp |
 | Grafikkarte | Portalbild: mit Mehrfachabtastung tauscht die Hauptszene ihr Ziel mit dem Portalsatz statt das Portalbild zu kopieren (8x 1920x1440: 0,28 ms GPU). Spielgamma zeichnet mit Mehrfachabtastung gleich in das aufgeloeste Bild (ein Aufloesen und ein Vollbild-Durchgang mit Proben weniger, 0,14 + 0,10 ms). Vom Pixel-Shader gelesene dynamische Puffer (Lichtliste und Kacheln des Echtzeit-Lichts) bekommen je Map eine Kopie im Grafikspeicher (`BHED_D3D12_SRVKOPIE=0` aus). Alle drei wirken unter beiden Grafikwegen bzw. nur unter D3D12, Bild bitgleich (siehe Bildvergleich) | gpumap_win32.cpp, abgeber12_*.cpp |
+| Leck je Geraeteverlust | Puffer, Puffer3 und GebackenNetz der Kartenzeichnung und die Bilder der Editor-Kamera geben die Objekte eines frueheren Geraets frei, statt sie zu vergessen (nur solange eine Grafikschnittstelle laeuft - am Programmende nach render::shutdown blieb es beim Vergessen, sonst Absturz 0xC0000005 beim Beenden, im ersten Versuch gesehen) | karte_gpu_win32.cpp, app_karte_cam.cpp |
+| Einstellungsdatei | `grafikRueckfallFassung` wird vor der langen else-if-Kette gelesen: mit den Schluesseln von ENTSCHEID3A ueberschritt die Kette die Grenze des Compilers (C1061, hoechstens 128 verschachtelte Bloecke). Hinweis fuer alle: die Kette ist voll, neue Schluessel ebenso davor lesen | src/settings.cpp |
 | Messhilfen | Zeile je Bild ueber 100 ms (`BHED_D3D12_LANGBILD=<ms>`), Zeiten des Starts (`D3D12-Start ...`), Speicherbericht des Abgebers an den Messstellen von `leistung` | abgeber12_*.cpp, selbsttest_leistung.inc |
 
 ## Rot / Gruen
@@ -30,6 +32,24 @@ Laeufe mit Leerlauf-Prioritaet nach der Lastregel des Hauptchats). Endzahlen: `Y
 | B1 (`r3/b1_lauf.py`: A gespielter Absturz, B gleiche Fassung, C Fassung des Rueckfalls rc610 wie nach einem Update) | `b1rot` (karte1-Stand dieses Zweigs): C laeuft mit Direct3D 11 weiter, Einstellung bleibt Direct3D 11, keine Fassung gemerkt; im Menue kein Eintrag (Foto `grv_absturz/grafik_menue`) | `b1gruen`: A Direct3D 11, Fassung rc611 sofort in der Datei; B bleibt Direct3D 11 mit offenem Rueckfall; C laeuft mit Direct3D 12, danach Einstellung Direct3D 12, kein Rueckfall offen (A 5/0, B 4/0, C 5/0). `b1absturz` (grafik mit gespieltem Absturz, ganzer Lauf): 25/0, Hinweis und Eintrag im Menue, Klick stellt Direct3D 12, danach kein Hinweis (Fotos `grafik_menue`, `grafik_menue_wiederversuchen`) |
 | Teilabgabe unter Last | `d_sp12` (29 Kerne Fremdlast): md_am_sith 175 / 258 ms je Bild (D3D11 12 / 20), .map oeffnen 134,8 s (D3D11 22,3 s), bis 364 Abgaben je Bild; mit `TEILABGABE=0` 14,7 / 19,0 ms und 31,8 s | `d_sp12k4`: hoechstens 7 Abgaben je Bild (4 Teilabgaben + Kopien + Ende). Unter derselben Volllast nicht wiederholt (Lastregel; keine kuenstliche Last erzeugt) |
 | Groesstes Bild beim Optimierer (duel_mos_espa, Grenze 250 ms) | karte1 (r3/basis) unter D3D12: 58 bzw. 40 ms | neu 26 ms, D3D11 28 ms (Fremdlast 8 Kerne). Die 139-262 ms des Vorgaengers kamen unter Volllast - dieselbe Ursache wie die Teilabgabe |
+
+**F1 (Entscheidung 13.11.: nur unter Budgetdruck auslagern wie Direct3D 11) - gemessen, Vorgabe bleibt nach Zeit.** Laeufe
+`f1b_e11`, `f1b_e12` (Budget), `f1b_e12z` (nach Zeit), `leistung` Abschnitt e, Fremdlast 5-12 Kerne, Leerlauf-Prioritaet (Richtwert):
+
+| MB | Direct3D 11 | D3D12 nur unter Budgetdruck | D3D12 nach Zeit (Vorgabe) |
+|---|---|---|---|
+| Grafikspeicher nach der .map | 2278 | **4650** (0 Texturen ausgelagert, Budget 5155) | 2751 (387 Texturen / 1902 MB ausgelagert) |
+| privat nach der .map | 6678 | 7242 | 7189 |
+| Spitze privat | 6719 | 7320 | 7218 |
+| Spitze Arbeitssatz | 3269 | 3242 | 3167 |
+
+Der Budget-Weg verdoppelt den Grafikspeicher gegenueber Direct3D 11 und spart keinen Arbeitsspeicher: Die +0,5-0,6 GB privat kommen
+nicht vom Auslagern (sie bleiben ohne jede Auslagerung). Bild bitgleich (Budget gegen Zeit 4/4), grafik 23/0, R1 6/0 und 5/0, R1 mit
+DXR 6/0, ctest 271/271 auch mit dem Budget-Weg als Vorgabe - der Nachteil ist allein der Speicher. Deshalb bleibt "nach Zeit" die
+Vorgabe, der Budget-Weg hinter `BHED_D3D12_AUSLAGERN=budget`. Woher die +0,5 GB privat stammen, ist offen.
+
+**Leck je Geraeteverlust:** lebende Objekte beim Abbau in R1 (fuenf Verluste nacheinander, D3D12) vorher 284 / 685 / 1356 / 1356 / 1356,
+nachher 284 / 679 / 675 / 675 / 675.
 
 Gruppen dieses Zweigs: `grafik` in allen Varianten (`gr_varianten.sh grv`: Vorgabe 23/0, D3D11 22/0, absturz, neuaufbau, dll, geraet,
 swap, abgeber, imgui je 22/0), `leistung` e und ksmrn unter beiden Wegen, Karten-Editor Stufe 5 gross unter beiden Wegen.
@@ -104,18 +124,18 @@ gemacht.
 
 ## Offen
 
-- Objekte frueherer Geraete in den Zeichenschichten (Puffer/Puffer3/GebackenNetz von karte_gpu, Bildvorraete) werden beim
-  Geraetewechsel nicht freigegeben, sondern vergessen ("beim Abbau leben noch 284-1356 Objekte"): ein Leck je Geraeteverlust,
-  kein Fehler mehr (Generation). Unter Direct3D 11 dasselbe Verhalten seit rc596.
+- Nach dem Geraeteverlust vergessen statt freigeben weiterhin: Bildvorraete ausserhalb des Karten-Editors (Menue-Editor, Zeitleiste,
+  Schwert, Malen im Model-Tab, Schachbrett der Ansichtsmodi, gpumap geteilt) - je Stelle derselbe kleine Eingriff wie in karte_gpu,
+  nicht gemacht (fremde Bereiche, laufende Agenten).
+- Woher Direct3D 12 0,5-0,6 GB mehr privaten Speicher braucht als Direct3D 11 (nicht vom Auslagern, F1).
 - B1 im Handbuch nur als Text (der Abschnitt Grafikschnittstelle hat kein Bild); ein Bild des Menues mit dem Hinweis waere ein
   Schritt in `selbsttest_handbuch` mit gespieltem Absturz.
 
 ## Fragen an shank
 
 1. (Frage zur Startmarke: entschieden als B1, gebaut.)
-2. Speicher: Direct3D 12 haelt heute 22-27 % weniger Grafikspeicher als Direct3D 11, dafuer 0,5-0,6 GB mehr Arbeitsspeicher (der
-   Inhalt ausgelagerter Texturen). Soll es lieber wie Direct3D 11 mehr Grafikspeicher und weniger Arbeitsspeicher halten (nur unter
-   Budgetdruck auslagern)?
+2. (Frage zum Speicher: entschieden als F1, gemessen - der Budget-Weg verdoppelt den Grafikspeicher und spart keinen Arbeitsspeicher;
+   die Vorgabe bleibt nach Zeit, siehe Messung.)
 
 ## Changelog
 

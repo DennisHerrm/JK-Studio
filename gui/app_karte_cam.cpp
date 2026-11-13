@@ -419,13 +419,12 @@ private:
         // MERGE4: auch nach einem Wechsel von/zu Jedi Outcast - dessen R_LoadImage sucht andere Dateien (textureCandidates)
         if (!m_neu && ed.karteSpiel == m_spiel && kartegpu::geraetStand() == m_geraet && regelwerkJediOutcast() == m_jk2) { return; }
         m_neu = false;
-        const bool gleichesGeraet = kartegpu::geraetStand() == m_geraet;
+        // Auch die Bilder eines frueheren Geraets freigeben (vorher vergessen: ein Leck je Geraeteverlust; der Abgeber von
+        // Direct3D 12 gibt Objekte eines frueheren Geraets nur selbst frei, Direct3D 11 erlaubt es ohnehin).
         for (auto& [n, b] : m_bilder) {
             (void)n;
-            if (gleichesGeraet) {
-                kartegpu::bildFreigeben(b.srv);
-                kartegpu::bildFreigeben(b.himmel);
-            }
+            kartegpu::bildFreigeben(b.srv);
+            kartegpu::bildFreigeben(b.himmel);
         }
         m_bilder.clear();
         std::lock_guard<std::mutex> l(m_sperre);

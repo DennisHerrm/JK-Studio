@@ -278,6 +278,11 @@ bool readSettings(const std::string& text, Settings& out) {
         const std::string key = trim(line.substr(0, eq));
         const std::string value = trim(line.substr(eq + 1));
 
+        // D3D12-3 B1 vor der langen Kette: MSVC erlaubt hoechstens 128 verschachtelte Bloecke (jedes "else if" ist einer, C1061)
+        if (key == "grafikRueckfallFassung") {
+            out.grafikRueckfallFassung = value;
+            continue;
+        }
         if (key.rfind("breite.", 0) == 0) {
             // Gelernte Breiten des Ereignisfensters (rc564-rc567). Seit
             // rc568 wird die Breite ausgerechnet; alte Zeilen werden
@@ -319,7 +324,6 @@ bool readSettings(const std::string& text, Settings& out) {
         else if (key == "changeHistory") { out.changeHistory = toBool(value); }
         else if (key == "updateCheck") { out.updateCheck = toBool(value); }
         else if (key == "grafikD3d12") { out.grafikD3d12 = toBool(value); }
-        else if (key == "grafikRueckfallFassung") { out.grafikRueckfallFassung = value; }
         else if (key == "updateUebersprungen") { out.updateUebersprungen = value; }
         else if (key == "highlightSame") { out.highlightSame = toBool(value); }
         else if (key == "scriptPath") { out.scriptPath = value; }
