@@ -6060,6 +6060,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_ent3b.inc"   // ENTSCHEID3B: IK/FK-Spur wie CAT, Tempo als Faktor, Griff der Wurzel, Rig-Vorlage im Dokument (modellblock, BHED_MODELL_NUR=ent3b)
 #include "selbsttest_ent3a.inc"    // ENTSCHEID3A: Entscheidungen B7-B13, C4 - Explorer, Werkzeugleiste, Seitenleiste, Strg+Umschalt+Z, Auge, Begleitdatei, Unwrap UVW, Esc (modellblock, BHED_MODELL_NUR=ent3a / ent3afoto / ent3ahb)
 #include "selbsttest_ap11.inc"     // AP11: Modelle in Reitern, Kopieren/Einfuegen von Flaechen, In neuem Tab oeffnen (modellblock, BHED_MODELL_NUR=ap11 / ap11foto / ap11hb)
+#include "selbsttest_klein2.inc"   // KLEIN2: Esc schliesst jedes Menue des Model-Tabs, Untermenues bleiben im Fenster (modellblock, BHED_MODELL_NUR=klein2)
 // --- Teil 1: Ruhe beim Oeffnen --------------------------------------------
 
 struct RuheFall {
@@ -7083,6 +7084,7 @@ void selbsttest() {
                     for (Schritt& x : ent3b::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // ENTSCHEID3B (B14-B17, C1, C3)
                     for (Schritt& x : ent3a::schritte(nur)) { a.schritte.push_back(std::move(x)); }     // ENTSCHEID3A (B7-B13, C4)
                     for (Schritt& x : ap11::schritte(nur)) { a.schritte.push_back(std::move(x)); }      // AP11 (R5, X19, P1)
+                    for (Schritt& x : klein2::schritte(nur)) { a.schritte.push_back(std::move(x)); }    // KLEIN2 (Esc, Untermenues)
                 }
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;

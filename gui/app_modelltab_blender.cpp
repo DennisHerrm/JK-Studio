@@ -542,7 +542,6 @@ void gruppenMenue() {
         if (!gewaehlt && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem)) { ImGui::CloseCurrentPopup(); }
         g_gruppeHalten = false;
     }
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
     ImGui::EndPopup();
 }
 
@@ -1517,7 +1516,6 @@ float modellBlModusKopf(ImDrawList* dl, int n, float x, float y, float hoehe, co
                 g_app->modelDirty = true;
             }
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
         ImGui::EndPopup();
     }
     float ende = o.x + gr.x;

@@ -704,9 +704,7 @@ void drawModellKopfzeile(int n, ModellAnsicht& a) {
         if (ImGui::IsPopupOpen(id)) { ImGui::SetNextWindowPos(m.ort, ImGuiCond_Appearing, ImVec2{m.pivotX, 0.0F}); }
         if (ImGui::BeginPopup(id)) {
             ++t.kopfMenueZaehler;
-            inhalt();
-            // Esc schliesst das Menue (wie die Suche: ohne das blieb ein per Rechtsklick geoeffnetes offen)
-            if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
+            inhalt();   // Esc schliesst das Menue an einer Stelle fuer den ganzen Model-Tab (KLEIN2, modellMenueEscBildAnfang)
             ImGui::EndPopup();
         }
     };

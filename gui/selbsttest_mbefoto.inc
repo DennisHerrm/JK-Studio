@@ -305,8 +305,8 @@ Schritt knochenKnoten(bool auf) {
     });
 }
 
-// Offene Rechtsklick-Menues schliessen: Esc schliesst die Menues des Baums nicht (keine Tastaturnavigation), ein stehen
-// gebliebenes Menue verdeckt sonst das naechste Foto und faengt den naechsten Klick ab.
+// Offene Rechtsklick-Menues schliessen, ohne eine Taste: ein stehen gebliebenes Menue verdeckt sonst das naechste Foto und faengt den
+// naechsten Klick ab (bis KLEIN2 schloss Esc die Menues des Baums nicht; heute tut es das, aber nur mit dem Fokus im Model-Tab).
 Schritt popupsZu() {
     return tu("MBE: Menues schliessen", [] {
         if (GImGui->OpenPopupStack.Size > 0) { ImGui::ClosePopupToLevel(0, false); }

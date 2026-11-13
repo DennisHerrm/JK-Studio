@@ -6558,6 +6558,9 @@ void draw() {
     // rc609 T1: Tabs in eigenen Fenstern - Loesen, Zurueck und Wechsel ausfuehren,
     // den Fokus bestimmen (tabfenster.h), bevor das erste Fenster zeichnet.
     tabfenster::bildAnfang();
+    // KLEIN2 (C4 fuer jedes Menue): Esc schliesst die offenen Menues des Model-Tabs, bevor irgendetwas anderes Esc liest - danach
+    // sieht es kein Werkzeug, keine Navigation und keine Auswahl. Erst nach tabfenster::bildAnfang (Fokus je Tab bestimmt).
+    modellMenueEscBildAnfang();
 
     const ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(vp->WorkPos);

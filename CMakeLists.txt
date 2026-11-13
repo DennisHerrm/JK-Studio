@@ -2070,6 +2070,11 @@ if(TARGET behaved)
   target_sources(behaved PRIVATE gui/ui_rollout.cpp gui/app_modelltab_feld.cpp)
 endif()
 
+# KLEIN2: Menues im ganzen Programm - Esc schliesst die Menues des Model-Tabs an einer Stelle (gui/ui_menue.h)
+if(TARGET behaved)
+  target_sources(behaved PRIVATE gui/ui_menue.cpp)
+endif()
+
 # AP8 (MBENTWURF Teil B): der Bereich Weights nach dem Entwurf - Gruppen wie 3ds Max (Gewichts-Werkzeug, Spiegeln) und wie
 # Blender (Pinsel, Optionen, Bereinigen, Spiegeln), Sperren je Knochen; die Werkzeuge stehen in bhed/modell/gewichte.h
 if(TARGET behaved)

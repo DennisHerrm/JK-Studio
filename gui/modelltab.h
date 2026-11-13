@@ -1846,7 +1846,7 @@ struct ModellEnt3a {
     bool leisteZieht = false;
     // B9: der Drehmodus je Knochen (Name -> modell::DrehModus; fehlt: Quaternion wie Blenders Vorgabe)
     std::map<std::string, int> drehModus;
-    // C4: Bild, in dem Esc das Rechtsklick-Menue der Ansicht schloss
+    // C4: Bild, in dem Esc das Rechtsklick-Menue der Ansicht schloss (KLEIN2: ueber modellMenueEscBildAnfang), und wie oft
     int kontextEscBild = -1;
     int kontextEscZahl = 0;
 };
@@ -1872,8 +1872,10 @@ void modellEnt3aAuftauenPunkt();   // die Menuezeile (wie 3ds Max, nur wenn Gewa
 [[nodiscard]] float modellEnt3aLeisteBreite();
 [[nodiscard]] bool modellEnt3aLeisteNamen();
 void modellEnt3aLeisteKante(float schmal);
-// C4: Esc bei offenem Rechtsklick-Menue der Ansicht (true: verbraucht - das Menue schliesst, sonst geschieht nichts)
-bool modellEnt3aKontextEsc();
+// C4, seit KLEIN2 fuer jedes Menue: hat der Model-Tab den Fokus und ist ein Menue oder Rechtsklick-Menue offen (Explorer, Zeitleiste,
+// Dopesheet, Befehlsfeld, Werkzeugleiste, Ansicht, Menueleiste), schliesst Esc alle Ebenen und tut sonst nichts (ui::menueEsc).
+// Aufruf am Anfang des Bildes vor allem, was Esc liest (gui/app.cpp draw).
+void modellMenueEscBildAnfang();
 // B12 (Selbsttest): eine .glm von der Platte oeffnen wie Datei > Oeffnen, ohne Dialog (gui/app_view3d.cpp)
 void modellVonPlatteOeffnen(const std::string& pfad);
 

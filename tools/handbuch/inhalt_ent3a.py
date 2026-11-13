@@ -45,17 +45,23 @@ X = {
         "Režim 3ds Max: zmrazená plocha torso vybraná v Průzkumníku scény, nabídka pravého tlačítka s „Rozmrazit výběr“"),
     # --- C4 ---
     "esc": (
-        "<kbd>Esc</kbd> closes the right-click menu of the view, also from an open submenu, as in 3ds Max and Blender; nothing else "
-        "happens with that key press.",
-        "<kbd>Esc</kbd> schließt das Rechtsklick-Menü der Ansicht, auch aus einem offenen Untermenü, wie in 3ds Max und Blender; sonst "
-        "geschieht mit diesem Tastendruck nichts.",
-        "<kbd>Esc</kbd> 关闭视图的右键菜单 (包括打开的子菜单), 与 3ds Max 和 Blender 相同; 这次按键不会触发其他操作。",
-        "<kbd>Esc</kbd> はビューの右クリック メニューを閉じます (開いているサブメニューからでも)。3ds Max や Blender と同じで、このキー操作で"
-        "ほかには何も起きません。",
-        "<kbd>Esc</kbd> cierra el menú contextual de la vista, también desde un submenú abierto, como en 3ds Max y Blender; esa pulsación "
-        "no hace nada más.",
-        "<kbd>Esc</kbd> zavře nabídku pravého tlačítka v pohledu, i z otevřené podnabídky, jako ve 3ds Max a Blenderu; nic jiného se "
-        "tímto stiskem nestane."),
+        "<kbd>Esc</kbd> closes every right-click menu of the Model tab (view, Scene Explorer, timeline and dope sheet, command panel, "
+        "toolbar) and the menus of the menu bar, also from an open submenu, as in 3ds Max and Blender; nothing else happens with that "
+        "key press. Without an open menu <kbd>Esc</kbd> does what it did before, for example it ends a navigation mode.",
+        "<kbd>Esc</kbd> schließt jedes Rechtsklick-Menü des Model-Tabs (Ansicht, Szenen-Explorer, Zeitleiste und Dopesheet, Befehlsfeld, "
+        "Werkzeugleiste) und die Menüs der Menüleiste, auch aus einem offenen Untermenü, wie in 3ds Max und Blender; sonst geschieht mit "
+        "diesem Tastendruck nichts. Ohne offenes Menü wirkt <kbd>Esc</kbd> wie bisher und beendet zum Beispiel einen Navigationsmodus.",
+        "<kbd>Esc</kbd> 关闭模型选项卡的每个右键菜单 (视图、场景资源管理器、时间轴和摄影表、命令面板、工具栏) 以及菜单栏的菜单, 包括打开的子菜单, "
+        "与 3ds Max 和 Blender 相同; 这次按键不会触发其他操作。没有打开的菜单时, <kbd>Esc</kbd> 的作用与以前相同, 例如结束导航模式。",
+        "<kbd>Esc</kbd> はモデルタブのすべての右クリック メニュー (ビュー、シーン エクスプローラ、タイムラインとドープシート、コマンド パネル、"
+        "ツールバー) とメニューバーのメニューを閉じます (開いているサブメニューからでも)。3ds Max や Blender と同じで、このキー操作でほかには"
+        "何も起きません。メニューが開いていないときは、<kbd>Esc</kbd> はこれまでどおりに働き、たとえばナビゲーション モードを終了します。",
+        "<kbd>Esc</kbd> cierra cualquier menú contextual de la pestaña Model (vista, Explorador de escena, línea de tiempo y hoja de claves, "
+        "panel de comandos, barra de herramientas) y los menús de la barra de menús, también desde un submenú abierto, como en 3ds Max y "
+        "Blender; esa pulsación no hace nada más. Sin un menú abierto, <kbd>Esc</kbd> hace lo de siempre, por ejemplo termina un modo de navegación.",
+        "<kbd>Esc</kbd> zavře každou nabídku pravého tlačítka na kartě Model (pohled, Průzkumník scény, časová osa a dopesheet, panel "
+        "příkazů, panel nástrojů) i nabídky panelu nabídek, i z otevřené podnabídky, jako ve 3ds Max a Blenderu; nic jiného se tímto "
+        "stiskem nestane. Bez otevřené nabídky dělá <kbd>Esc</kbd> totéž co dřív, například ukončí režim navigace."),
     # --- B8 ---
     "leiste": (
         "Like in Blender the toolbar can be dragged wider at its right edge: up to 120 points it shows only the symbols, wider it "

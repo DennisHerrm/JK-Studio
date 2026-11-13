@@ -640,7 +640,6 @@ void viewCube(int n, ModellAnsicht& a, Lage& l) {
             modellAnsichtWinkel(a, w);
             modellBlickSetzen(n, ortho ? AnsichtArt::Perspektive : AnsichtArt::Orthographisch, w, false);
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
         ImGui::EndPopup();
     }
 }

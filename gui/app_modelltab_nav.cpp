@@ -1266,7 +1266,6 @@ void drawModellNavPopups() {
         for (const auto& z : kAnsichten) {
             if (ImGui::MenuItem(modellAnsichtText(z.art), z.taste, jetzt == z.art)) { ansichtWie3dsMax(n, z.art); }
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
         ImGui::EndPopup();
     }
     if (g_kuchen) {
@@ -1311,7 +1310,6 @@ void drawModellNavPopups() {
             ImGui::EndDisabled();
             if (k.was == 6) { ImGui::SetItemTooltip("%s", tr(Str::MnBlKameraHint)); }
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
         ImGui::EndPopup();
     }
     ImGui::PopStyleColor(2);

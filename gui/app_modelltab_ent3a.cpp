@@ -10,7 +10,8 @@
 //   B11  Auge fuer Edit Poly (je Flaeche: die Flaeche, wie sie geladen wurde) und Skin (die Figur in der Bindepose, die Knochen
 //        behalten ihre Pose wie in 3ds Max) - nur die Anzeige: kein Rueckgaengig-Schritt, Modell und Speichern bleiben
 //   B12  der Modifier-Stapel in einer Begleitdatei neben der .glm (bhed/modell/stapelbegleit.h)
-//   C4   Esc schliesst das Rechtsklick-Menue der Ansicht (wie 3ds Max und Blender)
+//   C4   Esc schliesst das Rechtsklick-Menue der Ansicht (wie 3ds Max und Blender) - seit KLEIN2 (13.11.) jedes Menue des Model-Tabs,
+//        an einer Stelle am Anfang des Bildes (modellMenueEscBildAnfang ueber ui::menueEsc, gui/ui_menue.h)
 // B9 (Seitenleiste bei Knochen) steht in gui/app_modelltab_blender.cpp (seiteObjekt), B10 in den Tastenlisten
 // (gui/app_modelltab.cpp, gui/app_modelltab_mb2.cpp), B13 in der Gruppe des Stapels (gui/app_modelltab_stapel.cpp).
 #include "app_internal.h"
@@ -20,6 +21,8 @@
 #include "bhed/modell/md3datei.h"
 #include "bhed/modell/stapelbegleit.h"
 #include "bhed/sicherschreiben.h"
+#include "tabfenster.h"
+#include "ui_menue.h"
 
 #include <algorithm>
 #include <cmath>
@@ -296,12 +299,17 @@ void modellEnt3aLeisteKante(float schmal) {
     ImGui::SetCursorScreenPos(vorher);
 }
 
-// --- C4: Esc schliesst das Rechtsklick-Menue der Ansicht -------------------------------------------------------------------------
+// --- C4 (KLEIN2: jedes Menue): Esc schliesst die Menues des Model-Tabs ------------------------------------------------------------
 
-bool modellEnt3aKontextEsc() {
-    if (!mt().kontextSichtbar || !ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { return false; }
-    // verbraucht: Esc gilt dem Menue (es schliesst in drawModellKontextMenue), nicht einem Werkzeug, der Navigation oder der Auswahl
-    return true;
+void modellMenueEscBildAnfang() {
+    if (g_app == nullptr || tabfenster::fokusModus() != 2) { return; }   // 2: der Model-Tab (leftMode) hat den Fokus
+    const bool ansicht = mt().kontextSichtbar;   // das Menue der Ansicht war im letzten Bild offen
+    if (ui::menueEsc() == 0) { return; }
+    // verbraucht bis zum Loslassen: kein Werkzeug, keine Navigation und keine Auswahl sieht dieses Esc
+    if (ansicht) {
+        ++g_e.kontextEscZahl;
+        g_e.kontextEscBild = ImGui::GetFrameCount();
+    }
 }
 
 

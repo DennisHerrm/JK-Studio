@@ -619,7 +619,6 @@ void modellPrSchritt() {
             }
             ImGui::SetItemTooltip("%s", tr(kHint[a]));
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }
         ImGui::EndPopup();
     }
 }

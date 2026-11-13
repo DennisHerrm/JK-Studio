@@ -272,6 +272,9 @@ lauf("mb_kleinneustart", "modellblock", 1500, MB + ["BHED_MODELL_NUR=kleinneusta
 # (schnell wechseln, Fenster offen, Strich offen), Kopieren/Einfuegen von Flaechen zwischen Modellen, In neuem Tab oeffnen (nicht im
 # Pool: die Bildlaeufe ap11foto, ap11hb)
 lauf("mb_ap11", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap11", "BHED_FOTOS=<FOTOS>"], bereich="modell")
+# KLEIN2: Esc schliesst jedes Rechtsklick-Menue des Model-Tabs (Explorer, Zeitleiste, Dopesheet, Befehlsfeld, Werkzeugleiste, Ansicht,
+# Menueleiste) und tut sonst nichts; Untermenues, die unten nicht passen, gehen nach oben auf und bleiben im Fenster
+lauf("mb_klein2", "modellblock", 1500, MB + ["BHED_MODELL_NUR=klein2"], bereich="modell")
 
 # Nicht im Pool: eigene Vorbereitung, Messungen (allein und mit BHED_D3D_DEBUG=0), Bildlaeufe fuer das Handbuch
 lauf("update", "update", 1500, allein="braucht den lokalen Update-Server (tools/karte/updater_uebergang.py, ctest updater_uebergang)", bereich="update")
