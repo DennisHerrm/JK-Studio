@@ -51,6 +51,12 @@ def main():
 
     schreibt = set(re.findall(r'put\(o,\s*"([A-Za-z0-9_]+)"', s))
     liest = set(re.findall(r'key\s*==\s*"([A-Za-z0-9_]+)"', s))
+    # REST612: seit rc612 liest readSettings ueber die Tabelle kLeser
+    # ({"name", leser}, ...) statt ueber eine else-if-Kette.
+    tab_a = s.find("const SchluesselLeser kLeser[] = {")
+    tab_e = s.find("\n};\n", tab_a) if tab_a >= 0 else -1
+    if tab_a >= 0 and tab_e > tab_a:
+        liest |= set(re.findall(r'^\s*\{"([A-Za-z0-9_]+)",', s[tab_a:tab_e], re.M))
 
     if not schreibt or not liest:
         print("Einstellungen: keine Schluessel gefunden - hat sich die "
@@ -109,6 +115,11 @@ def main():
         return s[a:e if e > 0 else len(s)]
     schreiber = rumpf_von("std::string writeSettings(")
     leser = rumpf_von("bool readSettings(")
+    # REST612: die Leser der Tabelle (benannte Leser, kVorsatzLeser, kLeser)
+    # stehen vor readSettings, ab "struct Zeile {".
+    lz = s.find("struct Zeile {")
+    if leser and lz >= 0:
+        leser = s[lz:s.find("bool readSettings(")] + leser
     if not schreiber or not leser:
         print("Einstellungen: writeSettings/readSettings nicht gefunden - "
               "hat sich die Schreibweise geaendert?")

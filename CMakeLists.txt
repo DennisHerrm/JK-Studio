@@ -813,6 +813,10 @@ if(BEHAVED_TESTS)
     target_link_libraries(${t}_probe PRIVATE bhed_core)
     add_test(NAME ${t} COMMAND ${t}_probe)
   endforeach()
+  # REST612: readSettings liest nach dem Umbau zur Tabelle Schluessel -> Leser jede Zeile wie die alte else-if-Kette
+  add_executable(einstellungenalle tests/einstellungen_alle.cpp)
+  target_link_libraries(einstellungenalle PRIVATE bhed_core)
+  add_test(NAME einstellungen_alle COMMAND einstellungenalle ${CMAKE_CURRENT_SOURCE_DIR}/tests/einstellungen/alle_erwartet.txt)
   # FIX6 P50: Glanz/Umgebung einer skalierten Figur - der Figur-Vertex-Shader auf WARP, ohne entSkala wie mit (MSVC, D3D11).
   if(MSVC)
     add_executable(figurglanz_probe tests/figurglanz.cpp)

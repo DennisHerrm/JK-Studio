@@ -11,6 +11,8 @@
 #include <sstream>
 #include <cstdlib>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 
 namespace bhed {
 namespace {
@@ -253,6 +255,385 @@ std::string writeSettings(const Settings& s) {
     return o;
 }
 
+namespace {
+
+// REST612 (rc612): ein Leser je Schluessel statt der langen else-if-Kette. Die Kette stand an der Grenze des
+// Compilers (C1061: hoechstens 128 verschachtelte Bloecke, jedes "else if" ist einer). Ein neuer Schluessel ist eine
+// Zeile in kLeser (und ein put(...) in writeSettings). Steht ein Schluessel zweimal in kLeser, gilt der erste - wie in
+// der Kette, in der der zweite Zweig nie erreicht wurde. Schluessel mit Vorsatz ("helfer.<befehl>") stehen in
+// kVorsatzLeser; kein Schluessel aus kLeser beginnt mit einem dieser Vorsaetze. Gleich zu lesen wie die Kette belegt
+// ctest einstellungen_alle.
+struct Zeile {
+    Settings& out;
+    const std::string& key;     // getrimmt, vor dem ersten '='
+    const std::string& value;   // getrimmt, nach dem ersten '='
+    const std::string& line;    // die ganze getrimmte Zeile
+};
+using Leser = void (*)(const Zeile& z);
+struct SchluesselLeser {
+    const char* key;
+    Leser lesen;
+};
+
+// rc601 ton: die Mischpegel der Vorschau, nur 0..1 uebernehmen.
+void lies_tonEffekte(const Zeile& z) {
+    float v = 0.0F;
+    if (parseFloat(z.value, v) && v >= 0.0F && v <= 1.0F) {
+        (z.key == "tonEffekte" ? z.out.tonEffekte : z.key == "tonStimmen" ? z.out.tonStimmen : z.out.tonMusik) = v;
+    }
+}
+
+// Paket kamera, rc601: das Spielfenster. 0 = wie der Bildschirm;
+// sonst ein Seitenverhaeltnis, wie es Bildschirme haben (9:16 hochkant
+// bis 32:9) - eine von Hand verdorbene Zahl bleibt auf der Vorgabe.
+void lies_cgSaberLightIntensity(const Zeile& z) {
+    float v = 0.0F;
+    if (parseFloat(z.value, v) && v >= 0.0F && v <= 8.0F) {
+        (z.key == "cgSaberLightIntensity" ? z.out.cgSaberLightIntensity : z.out.cgSaberLightRadius) = v;
+    }
+}
+
+void lies_karte(const Zeile& z) {
+    const std::size_t gleich = z.value.find('=');
+    if (gleich != std::string::npos && gleich > 0) {
+        (z.key == "karte" ? z.out.karte : z.out.karteTasten)[z.value.substr(0, gleich)] = z.value.substr(gleich + 1);
+    }
+}
+
+const SchluesselLeser kVorsatzLeser[] = {
+    {"breite.", [](const Zeile&) {
+        // Gelernte Breiten des Ereignisfensters (rc564-rc567). Seit
+        // rc568 wird die Breite ausgerechnet; alte Zeilen werden
+        // ueberlesen und beim naechsten Speichern nicht mehr geschrieben.
+    }},
+    {"helfer.", [](const Zeile& z) {
+        z.out.helfer[z.key.substr(7)] = z.value;
+    }},
+    {"lesezeichen.", [](const Zeile& z) {
+        // Der Schluessel ist ein Dateipfad und darf '=' enthalten
+        // ("C:/a=b/skript.txt"); der Wert ist nur eine Zahlenliste. Also
+        // am LETZTEN '=' trennen - sonst ging das Lesezeichen verloren.
+        const std::size_t le = z.line.rfind('=');
+        z.out.lesezeichen[trim(z.line.substr(12, le - 12))] = trim(z.line.substr(le + 1));
+    }},
+    {"tour.", [](const Zeile& z) {   // rc601 tour
+        z.out.tourStand[z.key.substr(5)] = z.value;
+    }},
+};
+
+const SchluesselLeser kLeser[] = {
+    {"grafikRueckfallFassung", [](const Zeile& z) { z.out.grafikRueckfallFassung = z.value; }},   // D3D12-3 B1
+    {"windowPlacement", [](const Zeile& z) { z.out.windowPlacement = z.value; }},
+    {"tonEffekte", lies_tonEffekte},
+    {"tonStimmen", lies_tonEffekte},
+    {"tonMusik", lies_tonEffekte},
+    {"ersteSchritteGezeigt", [](const Zeile& z) { z.out.ersteSchritteGezeigt = toBool(z.value); }},   // H1
+    {"kiChat", [](const Zeile& z) { z.out.kiChat = toBool(z.value); }},
+    {"kiModell", [](const Zeile& z) {
+        // nur bekannte Modelle (die Datei ist kein Weg, etwas anderes anzusprechen)
+        if (z.value == "claude-sonnet-5-5" || z.value == "claude-haiku-5-5" || z.value == "claude-opus-5-5") { z.out.kiModell = z.value; }
+    }},
+    {"kiOhneNachfrage", [](const Zeile& z) { z.out.kiOhneNachfrage = toBool(z.value); }},
+    {"mcpHttp", [](const Zeile& z) { z.out.mcpHttp = toBool(z.value); }},
+    {"mcpPort", [](const Zeile& z) {
+        const int p = std::atoi(z.value.c_str());
+        if (p >= 1024 && p <= 65535) { z.out.mcpPort = p; }
+    }},
+    {"changeHistory", [](const Zeile& z) { z.out.changeHistory = toBool(z.value); }},
+    {"updateCheck", [](const Zeile& z) { z.out.updateCheck = toBool(z.value); }},
+    {"grafikD3d12", [](const Zeile& z) { z.out.grafikD3d12 = toBool(z.value); }},
+    {"updateUebersprungen", [](const Zeile& z) { z.out.updateUebersprungen = z.value; }},
+    {"highlightSame", [](const Zeile& z) { z.out.highlightSame = toBool(z.value); }},
+    {"scriptPath", [](const Zeile& z) { z.out.scriptPath = z.value; }},
+    {"ibizePath", [](const Zeile& z) { z.out.ibizePath = z.value; }},
+    {"commandFile", [](const Zeile& z) { z.out.commandFile = z.value; }},
+    {"sourcePath", [](const Zeile& z) { z.out.sourcePath = z.value; }},
+    {"reopenLastFile", [](const Zeile& z) { z.out.reopenLastFile = toBool(z.value); }},
+    {"legalExit", [](const Zeile& z) { z.out.legalExit = toBool(z.value); }},
+    {"alphaSortPulldowns", [](const Zeile& z) { z.out.alphaSortPulldowns = toBool(z.value); }},
+    {"alternativeIcons", [](const Zeile& z) { z.out.alternativeIcons = toBool(z.value); }},
+    {"queryOnDiscard", [](const Zeile& z) { z.out.queryOnDiscard = toBool(z.value); }},
+    {"dialogUsesLastDir", [](const Zeile& z) { z.out.dialogUsesLastDir = toBool(z.value); }},
+    {"lastDir", [](const Zeile& z) { z.out.lastDir = z.value; }},
+    {"mapPath", [](const Zeile& z) { z.out.mapPath = z.value; }},
+    {"language", [](const Zeile& z) { z.out.language = z.value; }},
+    {"theme", [](const Zeile& z) { z.out.theme = z.value; }},
+    {"showTypes", [](const Zeile& z) { z.out.showTypes = toBool(z.value); }},
+    {"menueReiter", [](const Zeile& z) {
+        const int v = std::atoi(z.value.c_str());
+        if (v >= 0 && v <= 3) { z.out.menueReiter = v; }
+    }},
+    {"menueRechtsBreite", [](const Zeile& z) {
+        float v = 0.0F;
+        if (parseFloat(z.value, v) && v >= 0.0F && v <= 200.0F) { z.out.menueRechtsBreite = v; }
+    }},
+    {"menueTextUnten", [](const Zeile& z) { z.out.menueTextUnten = toBool(z.value); }},
+    {"menueGanzeDatei", [](const Zeile& z) { z.out.menueGanzeDatei = toBool(z.value); }},
+    {"menueDateiSchluessel", [](const Zeile& z) { z.out.menueDateiSchluessel = toBool(z.value); }},
+    {"menueTeileHinweisWeg", [](const Zeile& z) { z.out.menueTeileHinweisWeg = toBool(z.value); }},
+    {"menueTextZoom", [](const Zeile& z) {
+        const int v = std::atoi(z.value.c_str());
+        if (v >= 50 && v <= 300) { z.out.menueTextZoom = v; }
+    }},
+    {"menueLetzteFarben", [](const Zeile& z) { z.out.menueLetzteFarben = z.value; }},
+    {"menueTextUmbruch", [](const Zeile& z) { z.out.menueUmbruch = toBool(z.value); }},
+    {"menueTon", [](const Zeile& z) { z.out.menueTon = toBool(z.value); }},
+    {"menueLeisteText", [](const Zeile& z) { z.out.menueLeisteText = toBool(z.value); }},
+    {"pk3SpeicherWeg", [](const Zeile& z) {
+        const int v = std::atoi(z.value.c_str());
+        if (v >= 0 && v <= 4) { z.out.pk3SpeicherWeg = v; }
+    }},
+    {"missionsordnerAblauf", [](const Zeile& z) { z.out.missionsordnerAblauf = toBool(z.value); }},
+    {"skriptVorlage", [](const Zeile& z) { z.out.skriptVorlage = toBool(z.value); }},
+    {"fs_dirbeforepak", [](const Zeile& z) { z.out.fsDirBeforePak = toBool(z.value); }},
+    {"entTextOffen", [](const Zeile& z) { z.out.entTextOffen = toBool(z.value); }},
+    {"insSkriptOffen", [](const Zeile& z) { z.out.insSkriptOffen = toBool(z.value); }},   // mb1a2
+    {"modelBackground", [](const Zeile& z) { z.out.modellHintergrund = std::atoi(z.value.c_str()); }},   // mb1a2
+    {"modelViewCube", [](const Zeile& z) { z.out.modellNavigation = toBool(z.value); }},   // MBKOPF
+    {"modelViewCubeAll", [](const Zeile& z) { z.out.modellNavigationAlle = toBool(z.value); }},
+    {"modelCompass", [](const Zeile& z) { z.out.modellKompass = toBool(z.value); }},
+    {"modelCompassNorth", [](const Zeile& z) { z.out.modellKompassNord = ((std::atoi(z.value.c_str()) % 360) + 360) % 360; }},
+    {"modelOrbit", [](const Zeile& z) { z.out.modellOrbitArt = std::clamp(std::atoi(z.value.c_str()), 0, 3); }},   // MBNAV
+    {"modelZoomMouseOrtho", [](const Zeile& z) { z.out.modellZoomMausOrtho = toBool(z.value); }},
+    {"modelZoomMousePersp", [](const Zeile& z) { z.out.modellZoomMausPersp = toBool(z.value); }},
+    {"modelBlenderOrbitSelection", [](const Zeile& z) { z.out.modellBlOrbitAuswahl = toBool(z.value); }},
+    {"modelBlenderZoomToMouse", [](const Zeile& z) { z.out.modellBlZoomMaus = toBool(z.value); }},
+    {"modelGridSpacing", [](const Zeile& z) { z.out.modellRasterAbstand = std::clamp(static_cast<float>(std::atof(z.value.c_str())), 0.125F, 1024.0F); }},   // MBRASTER
+    {"modelGridMajor", [](const Zeile& z) { z.out.modellRasterHaupt = std::clamp(std::atoi(z.value.c_str()), 2, 100); }},
+    {"modelGridExtent", [](const Zeile& z) { z.out.modellRasterAusdehnung = std::clamp(std::atoi(z.value.c_str()), 1, 1000); }},
+    {"modelDisplayMovedSeen", [](const Zeile& z) { z.out.modellAnzeigeUmzugGesehen = toBool(z.value); }},
+    {"modelPanelWidth", [](const Zeile& z) {   // AP3: 0 = Vorgabe, sonst 12..44 Zeichenhoehen
+        const float v = static_cast<float>(std::atof(z.value.c_str()));
+        z.out.modellFeldBreite = v <= 0.0F ? 0.0F : std::clamp(v, 12.0F, 44.0F);
+    }},
+    {"modelHome", [](const Zeile& z) {   // KLEIN: gesetztes Home je Figur
+        if (z.out.modellHome.size() < Settings::kMaxModellHome) { z.out.modellHome.push_back(z.value); }
+    }},
+    {"lumpEditOffen", [](const Zeile& z) { z.out.lumpEditOffen = toBool(z.value); }},
+    {"lumpEditKarteOffen", [](const Zeile& z) { z.out.lumpEditKarteOffen = toBool(z.value); }},
+    {"texListeOffen", [](const Zeile& z) { z.out.texListeOffen = toBool(z.value); }},
+    {"gFloats", [](const Zeile& z) { z.out.gFloats = toBool(z.value); }},
+    {"foldMacros", [](const Zeile& z) { z.out.foldMacros = toBool(z.value); }},
+    {"uiScale", [](const Zeile& z) {
+        float v = 0.0F;
+        if (parseFloat(z.value, v)) {
+            // Unsinnige Werte nicht uebernehmen: eine kaputte Datei darf
+            // das Fenster nicht unbedienbar machen.
+            if (v >= 0.5F && v <= 4.0F) { z.out.uiScale = v; }
+        }
+    }},
+    {"splitEvents", [](const Zeile& z) {
+        float v = 0.0F;
+        if (parseFloat(z.value, v)) {
+            if (v >= 0.05F && v <= 0.90F) { z.out.splitEvents = v; }
+        }
+    }},
+    // --- splitMap wurde GESCHRIEBEN, aber nie gelesen ---------------
+    //
+    // Gemeldet: "jedes Mal wenn ich das Programm starte ist die Leiste
+    // rechts wieder ausgestreckt, statt so wie ich es eingestellt habe."
+    //
+    // Im Protokoll stand es deutlich, man musste nur beide Zeilen
+    // nebeneinanderhalten:
+    //
+    //     geladen:   Karte 0.550   <- der VORGABEwert (settings.h:50)
+    //     gesichert: Karte 0.943
+    //
+    // Jede Sitzung sicherte 0.943 und lud wieder 0.550. Der Schreiber
+    // kannte den Schluessel (settings.cpp:77), der Leser nicht - also
+    // fiel der Wert bei jedem Start auf die Vorgabe zurueck.
+    //
+    // Die Grenzen wie beim Schieber selbst (gui/app.cpp: 0.12 bis 0.98).
+    {"splitMap", [](const Zeile& z) {
+        float v = 0.0F;
+        if (parseFloat(z.value, v)) {
+            // Untergrenze 0.35, nicht 0.12.
+            //
+            // In dieser Spalte liegt die GANZE Kartenansicht - Ebenen,
+            // Bild und die Einstellungsspalte. Bei 0.12 ist davon
+            // nichts zu erkennen.
+            //
+            // Und es steht wirklich so in shanks Datei: die
+            // Rueckkopplung aus rc484 hat den Wert bis zur Untergrenze
+            // heruntergeschrieben, und beim Start galt er wieder.
+            // "Das ist immer, wenn ich es starte, und dann muss ich es
+            // nach rechts ziehen."
+            //
+            // Ein gespeicherter Wert, der unbrauchbar ist, wird
+            // verworfen und nicht uebernommen.
+            if (v >= 0.35F && v <= 0.98F) { z.out.splitMap = v; }
+        }
+    }},
+    // Die Modellansicht hat ihren eigenen Wert - dieselben Grenzen,
+    // denn in ihrer Spalte steckt ebenfalls die ganze Ansicht.
+    {"splitModel", [](const Zeile& z) {
+        float v = 0.0F;
+        if (parseFloat(z.value, v)) {
+            if (v >= 0.35F && v <= 0.98F) { z.out.splitModel = v; }
+        }
+    }},
+    {"splitStatus", [](const Zeile& z) {
+        float v = 0.0F;
+        if (parseFloat(z.value, v)) {
+            if (v >= 0.05F && v <= 0.60F) { z.out.splitStatus = v; }
+        }
+    }},
+    {"timelineFrac", [](const Zeile& z) {
+        float v = 0.0F;
+        // Dieselben Grenzen wie beim Ziehen - eine Datei von Hand
+        // bearbeitet, und die Leiste waere sonst weg.
+        if (parseFloat(z.value, v) && v >= 0.08F && v <= 0.60F) {
+            z.out.timelineFrac = v;
+        }
+    }},
+    {"splitFracX", [](const Zeile& z) {
+        float v = 0.0F;
+        if (parseFloat(z.value, v) && v >= 0.15F && v <= 0.85F) {
+            z.out.splitFracX = v;
+        }
+    }},
+    {"splitFracY", [](const Zeile& z) {
+        float v = 0.0F;
+        if (parseFloat(z.value, v) && v >= 0.15F && v <= 0.85F) {
+            z.out.splitFracY = v;
+        }
+    }},
+    {"timelineFrames", [](const Zeile& z) {
+        z.out.timelineFrames = (z.value == "true" || z.value == "1");
+    }},
+    {"schattenArt", [](const Zeile& z) {
+        const int n = std::atoi(z.value.c_str());
+        z.out.schattenArt = (n >= 0 && n <= 3) ? n : 1;
+    }},
+    {"nebel", [](const Zeile& z) { z.out.nebel = toBool(z.value); }},
+    {"dynLicht", [](const Zeile& z) { z.out.dynLicht = toBool(z.value); }},
+    {"spielerInCutscene", [](const Zeile& z) { z.out.spielerInCutscene = toBool(z.value); }},
+    {"cgMotionBoneComp", [](const Zeile& z) { z.out.cgMotionBoneComp = std::clamp(std::atoi(z.value.c_str()), 0, 3); }},
+    {"cgTurnAnims", [](const Zeile& z) { z.out.cgTurnAnims = toBool(z.value); }},
+    {"gActivateAnimationStyle", [](const Zeile& z) { z.out.gActivateAnimationStyle = toBool(z.value); }},
+    {"mpZiel", [](const Zeile& z) { z.out.mpZiel = toBool(z.value); }},
+    {"cgSaberLightIntensity", lies_cgSaberLightIntensity},
+    {"cgSaberLightRadius", lies_cgSaberLightIntensity},
+    {"spielSeiten", [](const Zeile& z) {
+        float v = 0.0F;
+        if (parseFloat(z.value, v) && (v == 0.0F || (v >= 0.25F && v <= 8.0F))) { z.out.spielSeiten = v; }
+    }},
+    {"fovAspectAdjust", [](const Zeile& z) {
+        if (z.value == "-1" || z.value == "0" || z.value == "1") { z.out.fovAspectAdjust = std::atoi(z.value.c_str()); }
+    }},
+    {"spielRahmenFrei", [](const Zeile& z) { z.out.spielRahmenFrei = toBool(z.value); }},
+    {"difficulty", [](const Zeile& z) {
+        // rc601 (bewegung, Durchsicht 2): g_spskill 0-3. rc601 integ: -1 =
+        // nie gewaehlt (die Vorgabe des Regelwerks), Unsinn ebenso.
+        const int n = std::atoi(z.value.c_str());
+        z.out.schwierigkeit = (n >= -1 && n <= 3) ? n : -1;
+    }},
+    {"r_picmip", [](const Zeile& z) { z.out.bildPicmip = std::clamp(std::atoi(z.value.c_str()), 0, 3); }},
+    {"modelControls", [](const Zeile& z) { z.out.modellBedienung = z.value == "blender" ? 1 : 0; }},   // mb1a1
+    {"modelTimelineTracks", [](const Zeile& z) { z.out.modellZeitSpuren = toBool(z.value); }},   // AP1
+    {"modelTimelineAutoKey", [](const Zeile& z) { z.out.modellZeitAutoKey = toBool(z.value); }},   // ENTSCHEID1
+    {"modelBlenderToolNames", [](const Zeile& z) { z.out.modellBlWerkzeugnamen = toBool(z.value); }},   // ENTSCHEID1
+    {"modelBlenderToolbarWidth", [](const Zeile& z) { z.out.modellBlLeisteBreite = std::clamp(static_cast<float>(std::atof(z.value.c_str())), 0.0F, 2000.0F); }},   // ENTSCHEID3A (B8)
+    {"modelTimelineTracksMax", [](const Zeile& z) { z.out.modellZeitSpurHoeheMax = std::clamp(static_cast<float>(std::atof(z.value.c_str())), 2.5F, 26.0F); }},
+    {"modelTimelineTracksBlender", [](const Zeile& z) { z.out.modellZeitSpurHoeheBlender = std::clamp(static_cast<float>(std::atof(z.value.c_str())), 2.5F, 26.0F); }},
+    {"modelTimelineDisplay", [](const Zeile& z) { z.out.modellZeitAnzeige = std::atoi(z.value.c_str()) == 1 ? 1 : 0; }},
+    {"modelBoneFins", [](const Zeile& z) { z.out.modellFlossen = z.value == "1"; }},
+    {"modelBoneDisplay", [](const Zeile& z) { z.out.modellKnochenArt = std::clamp(std::atoi(z.value.c_str()), 0, 4); }},   // AP13K
+    {"modelRigStyle", [](const Zeile& z) { z.out.modellRigStil = std::clamp(std::atoi(z.value.c_str()), 0, 3); }},
+    {"modelBonesInFront", [](const Zeile& z) { z.out.modellKnochenVorn = z.value != "0"; }},
+    {"r_ext_multisample", [](const Zeile& z) {
+        const int n = std::atoi(z.value.c_str());
+        z.out.rExtMultisample = (n == 0 || n == 2 || n == 4 || n == 8) ? n : -1;
+    }},
+    {"regelwerk", [](const Zeile& z) {
+        // rc601 integ: auto/openjk/movieduels, sonst automatisch.
+        int w = kRegelwerkAuto;
+        z.out.regelwerk = regelwerkAusSchluessel(z.value, w) ? w : kRegelwerkAuto;
+    }},
+    {"flussAnsicht", [](const Zeile& z) {
+        const int n = std::atoi(z.value.c_str());
+        z.out.flussAnsicht = (n >= 0 && n <= 2) ? n : 0;
+    }},
+    {"mapSidebar", [](const Zeile& z) {
+        z.out.mapSidebar = (z.value == "true" || z.value == "1");
+    }},
+    // Doppelt: wird nie gelesen, es gilt der erste Eintrag "splitMap" weiter oben (so war es schon in der
+    // else-if-Kette).
+    {"splitMap", [](const Zeile& z) {
+        float v = 0.0F;
+        if (parseFloat(z.value, v)) {
+            if (v >= 0.05F && v <= 0.90F) { z.out.splitMap = v; }
+        }
+    }},
+    // Doppelt: wird nie gelesen, es gilt der erste Eintrag "splitModel" weiter oben (so war es schon in der
+    // else-if-Kette).
+    {"splitModel", [](const Zeile& z) {
+        float v = 0.0F;
+        if (parseFloat(z.value, v)) {
+            if (v >= 0.05F && v <= 0.90F) { z.out.splitModel = v; }
+        }
+    }},
+    {"splitButtons", [](const Zeile& z) {
+        float v = 0.0F;
+        if (parseFloat(z.value, v)) {
+            if (v >= 0.03F && v <= 0.60F) { z.out.splitButtons = v; }
+        }
+    }},
+    {"gamePath", [](const Zeile& z) {
+        // Keine Obergrenze: der Dialog nimmt beliebig viele Ordner, und
+        // was gespeichert wurde, muss auch wieder geladen werden.
+        z.out.gamePaths.push_back(z.value);
+    }},
+    {"gamePathJk2", [](const Zeile& z) {   // rc604: Spielordner von Jedi Outcast
+        z.out.gamePathsJk2.push_back(z.value);
+    }},
+    {"key", [](const Zeile& z) {
+        const std::size_t sp = z.value.find(' ');
+        if (sp != std::string::npos && sp != 0) {
+            Settings::KeyBinding b;
+            b.action = z.value.substr(0, sp);
+            try {
+                b.chord = std::stoi(z.value.substr(sp + 1));
+            } catch (...) {
+                return;   // keine Zahl - Eintrag verwerfen, Vorgabe gilt
+            }
+            z.out.keyBindings.push_back(std::move(b));
+        }
+    }},
+    {"recent", [](const Zeile& z) {
+        if (z.out.recent.size() < Settings::kMaxRecent) { z.out.recent.push_back(z.value); }
+    }},
+    {"recentMission", [](const Zeile& z) {
+        if (z.out.recentMissions.size() < Settings::kMaxRecentMissions) { z.out.recentMissions.push_back(z.value); }
+    }},
+    // Karten-Editor (Stufe 1b): zuletzt geoeffnete Karten (MRU_MAX 9),
+    // Einstellungen und Tastenbelegung als "<name>=<wert>".
+    {"karteZuletzt", [](const Zeile& z) {
+        if (z.out.karteZuletzt.size() < 9) { z.out.karteZuletzt.push_back(z.value); }
+    }},
+    {"karte", lies_karte},
+    {"karteTaste", lies_karte},
+    {"fenster", [](const Zeile& z) {   // Stufe dock1
+        const std::size_t gleich = z.value.find('=');
+        if (gleich != std::string::npos && gleich > 0) { z.out.fenster[z.value.substr(0, gleich)] = z.value.substr(gleich + 1); }
+    }},
+};
+
+Leser leserFuer(const std::string& key) {
+    for (const SchluesselLeser& v : kVorsatzLeser) {
+        if (key.rfind(v.key, 0) == 0) { return v.lesen; }
+    }
+    static const std::unordered_map<std::string_view, Leser> tabelle = [] {
+        std::unordered_map<std::string_view, Leser> t;
+        for (const SchluesselLeser& l : kLeser) { t.emplace(l.key, l.lesen); }   // emplace: der erste Eintrag gilt
+        return t;
+    }();
+    const auto it = tabelle.find(key);
+    return it == tabelle.end() ? nullptr : it->second;
+}
+
+}  // namespace
+
 bool readSettings(const std::string& text, Settings& out) {
     out.recent.clear();
     out.recentMissions.clear();
@@ -278,334 +659,7 @@ bool readSettings(const std::string& text, Settings& out) {
         const std::string key = trim(line.substr(0, eq));
         const std::string value = trim(line.substr(eq + 1));
 
-        // D3D12-3 B1 vor der langen Kette: MSVC erlaubt hoechstens 128 verschachtelte Bloecke (jedes "else if" ist einer, C1061)
-        if (key == "grafikRueckfallFassung") {
-            out.grafikRueckfallFassung = value;
-            continue;
-        }
-        if (key.rfind("breite.", 0) == 0) {
-            // Gelernte Breiten des Ereignisfensters (rc564-rc567). Seit
-            // rc568 wird die Breite ausgerechnet; alte Zeilen werden
-            // ueberlesen und beim naechsten Speichern nicht mehr geschrieben.
-        }
-        else if (key == "windowPlacement") { out.windowPlacement = value; }
-        // rc601 ton: die Mischpegel der Vorschau, nur 0..1 uebernehmen.
-        else if (key == "tonEffekte" || key == "tonStimmen" || key == "tonMusik") {
-            float v = 0.0F;
-            if (parseFloat(value, v) && v >= 0.0F && v <= 1.0F) {
-                (key == "tonEffekte" ? out.tonEffekte : key == "tonStimmen" ? out.tonStimmen : out.tonMusik) = v;
-            }
-        }
-        else if (key.rfind("helfer.", 0) == 0) {
-            out.helfer[key.substr(7)] = value;
-        }
-        else if (key.rfind("lesezeichen.", 0) == 0) {
-            // Der Schluessel ist ein Dateipfad und darf '=' enthalten
-            // ("C:/a=b/skript.txt"); der Wert ist nur eine Zahlenliste. Also
-            // am LETZTEN '=' trennen - sonst ging das Lesezeichen verloren.
-            const std::size_t le = line.rfind('=');
-            out.lesezeichen[trim(line.substr(12, le - 12))] = trim(line.substr(le + 1));
-        }
-        else if (key.rfind("tour.", 0) == 0) {   // rc601 tour
-            out.tourStand[key.substr(5)] = value;
-        }
-        else if (key == "ersteSchritteGezeigt") { out.ersteSchritteGezeigt = toBool(value); }   // H1
-        else if (key == "kiChat") { out.kiChat = toBool(value); }
-        else if (key == "kiModell") {
-            // nur bekannte Modelle (die Datei ist kein Weg, etwas anderes anzusprechen)
-            if (value == "claude-sonnet-5-5" || value == "claude-haiku-5-5" || value == "claude-opus-5-5") { out.kiModell = value; }
-        }
-        else if (key == "kiOhneNachfrage") { out.kiOhneNachfrage = toBool(value); }
-        else if (key == "mcpHttp") { out.mcpHttp = toBool(value); }
-        else if (key == "mcpPort") {
-            const int p = std::atoi(value.c_str());
-            if (p >= 1024 && p <= 65535) { out.mcpPort = p; }
-        }
-        else if (key == "changeHistory") { out.changeHistory = toBool(value); }
-        else if (key == "updateCheck") { out.updateCheck = toBool(value); }
-        else if (key == "grafikD3d12") { out.grafikD3d12 = toBool(value); }
-        else if (key == "updateUebersprungen") { out.updateUebersprungen = value; }
-        else if (key == "highlightSame") { out.highlightSame = toBool(value); }
-        else if (key == "scriptPath") { out.scriptPath = value; }
-        else if (key == "ibizePath") { out.ibizePath = value; }
-        else if (key == "commandFile") { out.commandFile = value; }
-        else if (key == "sourcePath") { out.sourcePath = value; }
-        else if (key == "reopenLastFile") { out.reopenLastFile = toBool(value); }
-        else if (key == "legalExit") { out.legalExit = toBool(value); }
-        else if (key == "alphaSortPulldowns") { out.alphaSortPulldowns = toBool(value); }
-        else if (key == "alternativeIcons") { out.alternativeIcons = toBool(value); }
-        else if (key == "queryOnDiscard") { out.queryOnDiscard = toBool(value); }
-        else if (key == "dialogUsesLastDir") { out.dialogUsesLastDir = toBool(value); }
-        else if (key == "lastDir") { out.lastDir = value; }
-        else if (key == "mapPath") { out.mapPath = value; }
-        else if (key == "language") { out.language = value; }
-        else if (key == "theme") { out.theme = value; }
-        else if (key == "showTypes") { out.showTypes = toBool(value); }
-        else if (key == "menueReiter") {
-            const int v = std::atoi(value.c_str());
-            if (v >= 0 && v <= 3) { out.menueReiter = v; }
-        }
-        else if (key == "menueRechtsBreite") {
-            float v = 0.0F;
-            if (parseFloat(value, v) && v >= 0.0F && v <= 200.0F) { out.menueRechtsBreite = v; }
-        }
-        else if (key == "menueTextUnten") { out.menueTextUnten = toBool(value); }
-        else if (key == "menueGanzeDatei") { out.menueGanzeDatei = toBool(value); }
-        else if (key == "menueDateiSchluessel") { out.menueDateiSchluessel = toBool(value); }
-        else if (key == "menueTeileHinweisWeg") { out.menueTeileHinweisWeg = toBool(value); }
-        else if (key == "menueTextZoom") {
-            const int v = std::atoi(value.c_str());
-            if (v >= 50 && v <= 300) { out.menueTextZoom = v; }
-        }
-        else if (key == "menueLetzteFarben") { out.menueLetzteFarben = value; }
-        else if (key == "menueTextUmbruch") { out.menueUmbruch = toBool(value); }
-        else if (key == "menueTon") { out.menueTon = toBool(value); }
-        else if (key == "menueLeisteText") { out.menueLeisteText = toBool(value); }
-        else if (key == "pk3SpeicherWeg") {
-            const int v = std::atoi(value.c_str());
-            if (v >= 0 && v <= 4) { out.pk3SpeicherWeg = v; }
-        }
-        else if (key == "missionsordnerAblauf") { out.missionsordnerAblauf = toBool(value); }
-        else if (key == "skriptVorlage") { out.skriptVorlage = toBool(value); }
-        else if (key == "fs_dirbeforepak") { out.fsDirBeforePak = toBool(value); }
-        else if (key == "entTextOffen") { out.entTextOffen = toBool(value); }
-        else if (key == "insSkriptOffen") { out.insSkriptOffen = toBool(value); }                       // mb1a2
-        else if (key == "modelBackground") { out.modellHintergrund = std::atoi(value.c_str()); }       // mb1a2
-        else if (key == "modelViewCube") { out.modellNavigation = toBool(value); }                       // MBKOPF
-        else if (key == "modelViewCubeAll") { out.modellNavigationAlle = toBool(value); }
-        else if (key == "modelCompass") { out.modellKompass = toBool(value); }
-        else if (key == "modelCompassNorth") { out.modellKompassNord = ((std::atoi(value.c_str()) % 360) + 360) % 360; }
-        else if (key == "modelOrbit") { out.modellOrbitArt = std::clamp(std::atoi(value.c_str()), 0, 3); }               // MBNAV
-        else if (key == "modelZoomMouseOrtho") { out.modellZoomMausOrtho = toBool(value); }
-        else if (key == "modelZoomMousePersp") { out.modellZoomMausPersp = toBool(value); }
-        else if (key == "modelBlenderOrbitSelection") { out.modellBlOrbitAuswahl = toBool(value); }
-        else if (key == "modelBlenderZoomToMouse") { out.modellBlZoomMaus = toBool(value); }
-        else if (key == "modelGridSpacing") { out.modellRasterAbstand = std::clamp(static_cast<float>(std::atof(value.c_str())), 0.125F, 1024.0F); }   // MBRASTER
-        else if (key == "modelGridMajor") { out.modellRasterHaupt = std::clamp(std::atoi(value.c_str()), 2, 100); }
-        else if (key == "modelGridExtent") { out.modellRasterAusdehnung = std::clamp(std::atoi(value.c_str()), 1, 1000); }
-        else if (key == "modelDisplayMovedSeen") { out.modellAnzeigeUmzugGesehen = toBool(value); }
-        else if (key == "modelPanelWidth") {   // AP3: 0 = Vorgabe, sonst 12..44 Zeichenhoehen
-            const float v = static_cast<float>(std::atof(value.c_str()));
-            out.modellFeldBreite = v <= 0.0F ? 0.0F : std::clamp(v, 12.0F, 44.0F);
-        }
-        else if (key == "modelHome") {   // KLEIN: gesetztes Home je Figur
-            if (out.modellHome.size() < Settings::kMaxModellHome) { out.modellHome.push_back(value); }
-        }
-        else if (key == "lumpEditOffen") { out.lumpEditOffen = toBool(value); }
-        else if (key == "lumpEditKarteOffen") { out.lumpEditKarteOffen = toBool(value); }
-        else if (key == "texListeOffen") { out.texListeOffen = toBool(value); }
-        else if (key == "gFloats") { out.gFloats = toBool(value); }
-        else if (key == "foldMacros") { out.foldMacros = toBool(value); }
-        else if (key == "uiScale") {
-            float v = 0.0F;
-            if (parseFloat(value, v)) {
-                // Unsinnige Werte nicht uebernehmen: eine kaputte Datei darf
-                // das Fenster nicht unbedienbar machen.
-                if (v >= 0.5F && v <= 4.0F) { out.uiScale = v; }
-            }
-        }
-        else if (key == "splitEvents") {
-            float v = 0.0F;
-            if (parseFloat(value, v)) {
-                if (v >= 0.05F && v <= 0.90F) { out.splitEvents = v; }
-            }
-        }
-        // --- splitMap wurde GESCHRIEBEN, aber nie gelesen ---------------
-        //
-        // Gemeldet: "jedes Mal wenn ich das Programm starte ist die Leiste
-        // rechts wieder ausgestreckt, statt so wie ich es eingestellt habe."
-        //
-        // Im Protokoll stand es deutlich, man musste nur beide Zeilen
-        // nebeneinanderhalten:
-        //
-        //     geladen:   Karte 0.550   <- der VORGABEwert (settings.h:50)
-        //     gesichert: Karte 0.943
-        //
-        // Jede Sitzung sicherte 0.943 und lud wieder 0.550. Der Schreiber
-        // kannte den Schluessel (settings.cpp:77), der Leser nicht - also
-        // fiel der Wert bei jedem Start auf die Vorgabe zurueck.
-        //
-        // Die Grenzen wie beim Schieber selbst (gui/app.cpp: 0.12 bis 0.98).
-        else if (key == "splitMap") {
-            float v = 0.0F;
-            if (parseFloat(value, v)) {
-                // Untergrenze 0.35, nicht 0.12.
-                //
-                // In dieser Spalte liegt die GANZE Kartenansicht - Ebenen,
-                // Bild und die Einstellungsspalte. Bei 0.12 ist davon
-                // nichts zu erkennen.
-                //
-                // Und es steht wirklich so in shanks Datei: die
-                // Rueckkopplung aus rc484 hat den Wert bis zur Untergrenze
-                // heruntergeschrieben, und beim Start galt er wieder.
-                // "Das ist immer, wenn ich es starte, und dann muss ich es
-                // nach rechts ziehen."
-                //
-                // Ein gespeicherter Wert, der unbrauchbar ist, wird
-                // verworfen und nicht uebernommen.
-                if (v >= 0.35F && v <= 0.98F) { out.splitMap = v; }
-            }
-        }
-        // Die Modellansicht hat ihren eigenen Wert - dieselben Grenzen,
-        // denn in ihrer Spalte steckt ebenfalls die ganze Ansicht.
-        else if (key == "splitModel") {
-            float v = 0.0F;
-            if (parseFloat(value, v)) {
-                if (v >= 0.35F && v <= 0.98F) { out.splitModel = v; }
-            }
-        }
-        else if (key == "splitStatus") {
-            float v = 0.0F;
-            if (parseFloat(value, v)) {
-                if (v >= 0.05F && v <= 0.60F) { out.splitStatus = v; }
-            }
-        }
-        else if (key == "timelineFrac") {
-            float v = 0.0F;
-            // Dieselben Grenzen wie beim Ziehen - eine Datei von Hand
-            // bearbeitet, und die Leiste waere sonst weg.
-            if (parseFloat(value, v) && v >= 0.08F && v <= 0.60F) {
-                out.timelineFrac = v;
-            }
-        }
-        else if (key == "splitFracX") {
-            float v = 0.0F;
-            if (parseFloat(value, v) && v >= 0.15F && v <= 0.85F) {
-                out.splitFracX = v;
-            }
-        }
-        else if (key == "splitFracY") {
-            float v = 0.0F;
-            if (parseFloat(value, v) && v >= 0.15F && v <= 0.85F) {
-                out.splitFracY = v;
-            }
-        }
-        else if (key == "timelineFrames") {
-            out.timelineFrames = (value == "true" || value == "1");
-        }
-        else if (key == "schattenArt") {
-            const int n = std::atoi(value.c_str());
-            out.schattenArt = (n >= 0 && n <= 3) ? n : 1;
-        }
-        else if (key == "nebel") { out.nebel = toBool(value); }
-        else if (key == "dynLicht") { out.dynLicht = toBool(value); }
-        else if (key == "spielerInCutscene") { out.spielerInCutscene = toBool(value); }
-        else if (key == "cgMotionBoneComp") { out.cgMotionBoneComp = std::clamp(std::atoi(value.c_str()), 0, 3); }
-        else if (key == "cgTurnAnims") { out.cgTurnAnims = toBool(value); }
-        else if (key == "gActivateAnimationStyle") { out.gActivateAnimationStyle = toBool(value); }
-        else if (key == "mpZiel") { out.mpZiel = toBool(value); }
-        // Paket kamera, rc601: das Spielfenster. 0 = wie der Bildschirm;
-        // sonst ein Seitenverhaeltnis, wie es Bildschirme haben (9:16 hochkant
-        // bis 32:9) - eine von Hand verdorbene Zahl bleibt auf der Vorgabe.
-        else if (key == "cgSaberLightIntensity" || key == "cgSaberLightRadius") {
-            float v = 0.0F;
-            if (parseFloat(value, v) && v >= 0.0F && v <= 8.0F) {
-                (key == "cgSaberLightIntensity" ? out.cgSaberLightIntensity : out.cgSaberLightRadius) = v;
-            }
-        }
-        else if (key == "spielSeiten") {
-            float v = 0.0F;
-            if (parseFloat(value, v) && (v == 0.0F || (v >= 0.25F && v <= 8.0F))) { out.spielSeiten = v; }
-        }
-        else if (key == "fovAspectAdjust") {
-            if (value == "-1" || value == "0" || value == "1") { out.fovAspectAdjust = std::atoi(value.c_str()); }
-        }
-        else if (key == "spielRahmenFrei") { out.spielRahmenFrei = toBool(value); }
-        else if (key == "difficulty") {
-            // rc601 (bewegung, Durchsicht 2): g_spskill 0-3. rc601 integ: -1 =
-            // nie gewaehlt (die Vorgabe des Regelwerks), Unsinn ebenso.
-            const int n = std::atoi(value.c_str());
-            out.schwierigkeit = (n >= -1 && n <= 3) ? n : -1;
-        }
-        else if (key == "r_picmip") { out.bildPicmip = std::clamp(std::atoi(value.c_str()), 0, 3); }
-        else if (key == "modelControls") { out.modellBedienung = value == "blender" ? 1 : 0; }   // mb1a1
-        else if (key == "modelTimelineTracks") { out.modellZeitSpuren = toBool(value); }           // AP1
-        else if (key == "modelTimelineAutoKey") { out.modellZeitAutoKey = toBool(value); }         // ENTSCHEID1
-        else if (key == "modelBlenderToolNames") { out.modellBlWerkzeugnamen = toBool(value); }    // ENTSCHEID1
-        else if (key == "modelBlenderToolbarWidth") { out.modellBlLeisteBreite = std::clamp(static_cast<float>(std::atof(value.c_str())), 0.0F, 2000.0F); }   // ENTSCHEID3A (B8)
-        else if (key == "modelTimelineTracksMax") { out.modellZeitSpurHoeheMax = std::clamp(static_cast<float>(std::atof(value.c_str())), 2.5F, 26.0F); }
-        else if (key == "modelTimelineTracksBlender") { out.modellZeitSpurHoeheBlender = std::clamp(static_cast<float>(std::atof(value.c_str())), 2.5F, 26.0F); }
-        else if (key == "modelTimelineDisplay") { out.modellZeitAnzeige = std::atoi(value.c_str()) == 1 ? 1 : 0; }
-        else if (key == "modelBoneFins") { out.modellFlossen = value == "1"; }
-        else if (key == "modelBoneDisplay") { out.modellKnochenArt = std::clamp(std::atoi(value.c_str()), 0, 4); }   // AP13K
-        else if (key == "modelRigStyle") { out.modellRigStil = std::clamp(std::atoi(value.c_str()), 0, 3); }
-        else if (key == "modelBonesInFront") { out.modellKnochenVorn = value != "0"; }
-        else if (key == "r_ext_multisample") {
-            const int n = std::atoi(value.c_str());
-            out.rExtMultisample = (n == 0 || n == 2 || n == 4 || n == 8) ? n : -1;
-        }
-        else if (key == "regelwerk") {
-            // rc601 integ: auto/openjk/movieduels, sonst automatisch.
-            int w = kRegelwerkAuto;
-            out.regelwerk = regelwerkAusSchluessel(value, w) ? w : kRegelwerkAuto;
-        }
-        else if (key == "flussAnsicht") {
-            const int n = std::atoi(value.c_str());
-            out.flussAnsicht = (n >= 0 && n <= 2) ? n : 0;
-        }
-        else if (key == "mapSidebar") {
-            out.mapSidebar = (value == "true" || value == "1");
-        }
-        else if (key == "splitMap") {
-            float v = 0.0F;
-            if (parseFloat(value, v)) {
-                if (v >= 0.05F && v <= 0.90F) { out.splitMap = v; }
-            }
-        }
-        else if (key == "splitModel") {
-            float v = 0.0F;
-            if (parseFloat(value, v)) {
-                if (v >= 0.05F && v <= 0.90F) { out.splitModel = v; }
-            }
-        }
-        else if (key == "splitButtons") {
-            float v = 0.0F;
-            if (parseFloat(value, v)) {
-                if (v >= 0.03F && v <= 0.60F) { out.splitButtons = v; }
-            }
-        }
-        else if (key == "gamePath") {
-            // Keine Obergrenze: der Dialog nimmt beliebig viele Ordner, und
-            // was gespeichert wurde, muss auch wieder geladen werden.
-            out.gamePaths.push_back(value);
-        }
-        else if (key == "gamePathJk2") {   // rc604: Spielordner von Jedi Outcast
-            out.gamePathsJk2.push_back(value);
-        }
-        else if (key == "key") {
-            const std::size_t sp = value.find(' ');
-            if (sp != std::string::npos && sp != 0) {
-                Settings::KeyBinding b;
-                b.action = value.substr(0, sp);
-                try {
-                    b.chord = std::stoi(value.substr(sp + 1));
-                } catch (...) {
-                    continue;   // keine Zahl - Eintrag verwerfen, Vorgabe gilt
-                }
-                out.keyBindings.push_back(std::move(b));
-            }
-        }
-        else if (key == "recent") {
-            if (out.recent.size() < Settings::kMaxRecent) { out.recent.push_back(value); }
-        }
-        else if (key == "recentMission") {
-            if (out.recentMissions.size() < Settings::kMaxRecentMissions) { out.recentMissions.push_back(value); }
-        }
-        // Karten-Editor (Stufe 1b): zuletzt geoeffnete Karten (MRU_MAX 9),
-        // Einstellungen und Tastenbelegung als "<name>=<wert>".
-        else if (key == "karteZuletzt") {
-            if (out.karteZuletzt.size() < 9) { out.karteZuletzt.push_back(value); }
-        }
-        else if (key == "karte" || key == "karteTaste") {
-            const std::size_t gleich = value.find('=');
-            if (gleich != std::string::npos && gleich > 0) {
-                (key == "karte" ? out.karte : out.karteTasten)[value.substr(0, gleich)] = value.substr(gleich + 1);
-            }
-        }
-        else if (key == "fenster") {   // Stufe dock1
-            const std::size_t gleich = value.find('=');
-            if (gleich != std::string::npos && gleich > 0) { out.fenster[value.substr(0, gleich)] = value.substr(gleich + 1); }
-        }
+        if (const Leser lesen = leserFuer(key)) { lesen(Zeile{out, key, value, line}); }
         // Unbekannte Schluessel bleiben unbeachtet.
     }
     return true;
