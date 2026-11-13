@@ -1241,22 +1241,11 @@ void modellNavMenue(int n) {
     ImGui::SetItemTooltip("%s", tr(Str::MnZoomMausHint));
 }
 
-// "Alle Aktionen suchen": die Befehle der Navigation ohne eigene Taste (die mit Taste stehen in der Tastenliste).
+// "Alle Aktionen suchen": die Befehle der Navigation ohne eigene Taste (die mit Taste stehen in der Tastenliste). ENTSCHEID3A (B10):
+// Zoom Extents All hat jetzt seine Taste wie in 3ds Max (Strg+Umschalt+Z) und steht in der Tastenliste - hier bleibt nichts.
 bool modellNavAktionenSuche(const std::string& such) {
-    if (modellBlender()) { return false; }
-    const auto passt = [&](const char* text) {
-        if (such.empty()) { return true; }
-        std::string kleinText = text;
-        for (char& c : kleinText) {
-            if (c >= 'A' && c <= 'Z') { c = static_cast<char>(c - 'A' + 'a'); }
-        }
-        return kleinText.find(such) != std::string::npos;
-    };
-    if (!passt(tr(Str::MnGrenzenAlle))) { return false; }
-    const bool gewaehlt = modellAktionZeile(tr(Str::MnGrenzenAlle));
-    ImGui::SetItemTooltip("%s", tr(Str::MnGrenzenAlleHint));
-    if (gewaehlt) { modellNavGrenzen(2); }
-    return gewaehlt;
+    (void)such;
+    return false;
 }
 
 void drawModellNavPopups() {

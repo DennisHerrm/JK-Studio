@@ -884,7 +884,8 @@ const std::vector<MaxTaste>& maxTasten() {
         {ImGuiMod_Ctrl | ImGuiKey_Y, Str::MbAktRedo, [] { (void)modellWiederholen(); }},
         {ImGuiMod_Alt | ImGuiKey_R, Str::MbAktTexNeu, [] { modellTexturenNeuLaden(); }},
         // MBNAV: Navigation wie 3ds Max (Hotkey-Tabelle der Autodesk-Hilfe 2026, Main UI > Tools / Views; gui/app_modelltab_nav.cpp).
-        // Zoom Extents All (Strg+Umschalt+Z) steht nur im Menue: die Taste ist im Model-Tab Wiederholen (modellDateiTasten).
+        // ENTSCHEID3A (B10): Strg+Umschalt+Z ist wie in 3ds Max Zoom Extents All (alle Ansichten, ganze Figur); Wiederholen ist Strg+Y
+        {ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, Str::MnGrenzenAlle, [] { modellNavGrenzen(2); }},
         {ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_Z, Str::MnGrenzen, [] { modellNavGrenzen(1); }},
         {ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiMod_Shift | ImGuiKey_Z, Str::MnZoom2xHeran, [] { modellNavZoom2x(true); }},
         {ImGuiMod_Alt | ImGuiMod_Shift | ImGuiKey_Z, Str::MnZoom2xHinaus, [] { modellNavZoom2x(false); }},
@@ -1050,7 +1051,7 @@ const std::vector<BlenderTaste>& blenderTasten() {
          },
          "3D View | wm.context_toggle | Umschalt+Alt+Z PRESS data_path=space_data.overlay.show_overlays"},
         {ImGuiMod_Ctrl | ImGuiKey_Z, Str::MbAktUndo, [] { (void)modellRueckgaengig(); }, "Screen | ed.undo | Strg+Z PRESS"},
-        {ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, Str::MbAktRedo, [] { (void)modellWiederholen(); }, "Screen | ed.redo | Strg+Umschalt+Z PRESS"},
+        {ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, Str::EaRedoBl, [] { (void)modellWiederholen(); }, "Screen | ed.redo | Strg+Umschalt+Z PRESS"},
     };
     return kListe;
 }

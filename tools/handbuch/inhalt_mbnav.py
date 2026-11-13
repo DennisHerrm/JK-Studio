@@ -64,22 +64,23 @@ X = {
            "Zoom por pasos sobre el punto bajo el ratón (**{{MnZoomMausOrtho}}** / **{{MnZoomMausPersp}}**; desactivado: sobre el centro de la vista).",
            "Zoom po krocích kolem bodu pod myší (**{{MnZoomMausOrtho}}** / **{{MnZoomMausPersp}}**; vypnuto: kolem středu pohledu)."),
     "m5": ("Zoom extents: <kbd>Z</kbd> fits the selection (without one the whole figure) into all views, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Z</kbd> the "
-           "whole figure into the active view. **{{MnGrenzenAlle}}** (all views, whole figure) is in the menu - its key in 3ds Max, "
-           "<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>, is Redo here.",
+           "whole figure into the active view, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> the whole figure into all views (**{{MnGrenzenAlle}}**) - "
+           "as in 3ds Max; Redo is <kbd>Ctrl</kbd>+<kbd>Y</kbd> there. In the mode like Blender <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> stays Redo.",
            "Zoom Grenzen: <kbd>Z</kbd> passt die Auswahl (ohne Auswahl die ganze Figur) in alle Ansichten ein, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Z</kbd> "
-           "die ganze Figur in die aktive Ansicht. **{{MnGrenzenAlle}}** (alle Ansichten, ganze Figur) steht im Menü - seine Taste in 3ds Max, "
-           "<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>, ist hier Wiederholen.",
-           "最大化显示: <kbd>Z</kbd> 将选择 (无选择时为整个角色) 适配到所有视图, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Z</kbd> 将整个角色适配到活动视图。"
-           "**{{MnGrenzenAlle}}** (所有视图, 整个角色) 在菜单中——它在 3ds Max 中的按键 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> 在此是重做。",
+           "die ganze Figur in die aktive Ansicht, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> die ganze Figur in alle Ansichten (**{{MnGrenzenAlle}}**) - "
+           "wie in 3ds Max; Wiederholen ist dort <kbd>Ctrl</kbd>+<kbd>Y</kbd>. Im Modus wie Blender bleibt <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> Wiederholen.",
+           "最大化显示: <kbd>Z</kbd> 将选择 (无选择时为整个角色) 适配到所有视图, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Z</kbd> 将整个角色适配到活动视图, "
+           "<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> 将整个角色适配到所有视图 (**{{MnGrenzenAlle}}**) - 与 3ds Max 相同; 此时重做为 <kbd>Ctrl</kbd>+<kbd>Y</kbd>。"
+           "在 Blender 模式下 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> 仍为重做。",
            "全体表示: <kbd>Z</kbd> は選択 (なければフィギュア全体) をすべてのビューに、<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Z</kbd> はフィギュア全体を"
-           "アクティブビューに合わせます。**{{MnGrenzenAlle}}** (全ビュー、フィギュア全体) はメニューにあります - 3ds Max でのキー "
-           "<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> はここではやり直しです。",
+           "アクティブビューに、<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> はフィギュア全体をすべてのビューに合わせます (**{{MnGrenzenAlle}}**) - 3ds Max と同じです。"
+           "やり直しはそこでは <kbd>Ctrl</kbd>+<kbd>Y</kbd> です。Blender 風モードでは <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> はやり直しのままです。",
            "Encuadrar: <kbd>Z</kbd> ajusta la selección (sin ella, toda la figura) en todas las vistas, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Z</kbd> toda la "
-           "figura en la vista activa. **{{MnGrenzenAlle}}** (todas las vistas, toda la figura) está en el menú: su tecla en 3ds Max, "
-           "<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>, aquí es Rehacer.",
+           "figura en la vista activa, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> toda la figura en todas las vistas (**{{MnGrenzenAlle}}**), como en 3ds Max; "
+           "allí Rehacer es <kbd>Ctrl</kbd>+<kbd>Y</kbd>. En el modo como Blender, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> sigue siendo Rehacer.",
            "Přiblížit vše: <kbd>Z</kbd> přizpůsobí výběr (bez něj celou postavu) všem pohledům, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Z</kbd> celou postavu "
-           "aktivnímu pohledu. **{{MnGrenzenAlle}}** (všechny pohledy, celá postava) je v nabídce - jeho klávesa v 3ds Max, "
-           "<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>, je zde Znovu."),
+           "aktivnímu pohledu, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> celou postavu všem pohledům (**{{MnGrenzenAlle}}**) - jako ve 3ds Max; Znovu je tam "
+           "<kbd>Ctrl</kbd>+<kbd>Y</kbd>. V režimu jako Blender zůstává <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> Znovu."),
     "m6": ("Twice as close / twice as far.", "Doppelt so nah / doppelt so weit.", "放大 2 倍 / 缩小 2 倍。", "2 倍に拡大 / 2 倍に縮小。", "El doble de cerca / el doble de lejos.",
            "Dvakrát blíž / dvakrát dál."),
     "m7": ("Navigation modes like the buttons at the bottom right of 3ds Max - Zoom, Pan, Orbit, Zoom Region: drag with the left button, the name of the "

@@ -245,8 +245,13 @@ void modellDateiTasten(bool nurRueckgaengig) {
         (void)modellRueckgaengig();
         return;
     }
-    if (taste(ImGuiMod_Ctrl | ImGuiKey_Y) || taste(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z)) {
+    // ENTSCHEID3A (B10): Strg+Umschalt+Z wiederholt nur wie Blender (ed.redo); wie 3ds Max ist es Zoom Extents All, Strg+Y wiederholt
+    if (taste(ImGuiMod_Ctrl | ImGuiKey_Y) || (modellBlender() && taste(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z))) {
         (void)modellWiederholen();
+        return;
+    }
+    if (!nurRueckgaengig && taste(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z)) {
+        modellNavGrenzen(2);
         return;
     }
     if (nurRueckgaengig) { return; }
