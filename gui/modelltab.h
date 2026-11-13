@@ -1768,6 +1768,22 @@ struct Fix612cProbe {
     int knochenHinweisBild = -1;
 };
 [[nodiscard]] Fix612cProbe& fix612cProbe();
+// --- AP14 (rc612): Zusammenfuehrung des Model-Tabs ---------------------------------------------------------------------------
+// Eine Zeile der Suche "Alle Aktionen": ImGui::Selectable(text) wie bisher. Steht derselbe sichtbare Text in der Liste noch
+// einmal ("Smear" gibt es in Weights und in Painting), nennt die Zeile rechts gedaempft ihren Bereich - so ist jede Zeile
+// eindeutig. bereich: der Bereich, zu dem die Aktion gehoert und in den sie wechselt (ModellBereich als int), -1: keiner
+// (eine Aktion des ganzen Tabs). true: angeklickt. Nur innerhalb des Fensters der Suche aufrufen (drawModellAktionen).
+bool modellAktionZeile(const char* text, int bereich = -1);
+// Selbsttest: die Zeilen des letzten Bildes der Suche - Kennung des Elements, sichtbarer Text, gezeigter Zusatz (leer: keiner).
+struct ModellAktionProbe {
+    ImGuiID id = 0;
+    std::string text;
+    std::string zusatz;
+};
+[[nodiscard]] const std::vector<ModellAktionProbe>& modellAktionProben();
+// Die Hoehe des Spurbereichs der Zeitleiste, wie er bei der laufenden Fenstergroesse gezeichnet wuerde, wenn die Spuren offen
+// sind (gui/app_modelltab_zeit.cpp: spurHoehe) - fuer den Selbsttest.
+[[nodiscard]] float modellZeitSpurHoeheJetzt();
 
 // FIX612B (Funde der Code-Pruefung P2): der Inhalt, wie die Ansicht ihn zeigt und Speichern ihn schreibt (offene Mallisten in
 // einer Kopie uebernommen); haelt ein offener Strich, Zug oder ein Kaestchen die gezeichnete Stufe; einen offenen Pinselstrich,

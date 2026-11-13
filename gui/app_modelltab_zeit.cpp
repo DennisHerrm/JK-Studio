@@ -623,12 +623,33 @@ void transport(const AnimEntry* e, Reihe& r) {
 // --- Masse der Leiste --------------------------------------------------------------------------------------------------
 float& spurEinstellung() { return modellBlender() ? g_app->settings.modellZeitSpurHoeheBlender : g_app->settings.modellZeitSpurHoeheMax; }
 
+// AP14: die Mindesthoehe des freigegebenen Entwurfs in Zeichenhoehen (plaene/modellblock_stufe0/entwurf_modelltab.html:
+// .app { min-height: 700px } bei body { font: 14px }). Das Programm laesst kleinere Fenster zu (Mindestgroesse 900 x 600 bei
+// 150 %: 35 Zeichenhoehen) - dort nahm die Zeitleiste mit offenen Spuren 45 % der Hoehe, und das rechte Feld zeigte nur seinen Kopf.
+// Unter der Mindesthoehe des Entwurfs behaelt die Zeitleiste deshalb den Anteil der Fensterhoehe, den sie bei dieser Hoehe hat;
+// der Spurbereich wird entsprechend niedriger (er rollt), nie unter 2,5 Zeichenhoehen (die kleinste Einstellung).
+constexpr float kEntwurfHoehe = 700.0F / 14.0F;
+
 // Die Hoehe des Spurbereichs: aus den Einstellungen (in Schrifthoehen, je Bedienmodus); der Kurveneditor braucht mehr.
-float spurHoehe() {
+// `fest`: die Hoehe der Leiste ohne den Spurbereich (Masse::fest).
+float spurHoehe(float fest) {
     const float fs = ImGui::GetFontSize();
     float h = std::clamp(spurEinstellung(), 2.5F, 26.0F) * fs;
     if (mt().kvArt == 1) { h = std::max(h, fs * 12.0F); }
-    return std::floor(std::min(h, std::max(ImGui::GetIO().DisplaySize.y * 0.45F, fs * 5.0F)));
+    const float hoehe = ImGui::GetIO().DisplaySize.y;
+    const float bezug = kEntwurfHoehe * fs;
+    if (hoehe < bezug) { h = std::max((fest + h) * hoehe / bezug - fest, fs * 2.5F); }
+    return std::floor(std::min(h, std::max(hoehe * 0.45F, fs * 5.0F)));
+}
+
+// Umgekehrt: die Einstellung (in Schrifthoehen), mit der der Spurbereich `pixel` hoch gezeichnet wird - der Griff folgt so der
+// Maus auch in einem Fenster unter der Mindesthoehe des Entwurfs.
+float spurEinstellungFuer(float pixel, float fest) {
+    const float fs = std::max(ImGui::GetFontSize(), 1.0F);
+    const float hoehe = std::max(ImGui::GetIO().DisplaySize.y, 1.0F);
+    const float bezug = kEntwurfHoehe * fs;
+    const float h = hoehe < bezug ? (fest + pixel) * bezug / hoehe - fest : pixel;
+    return std::clamp(h / fs, 2.5F, 26.0F);
 }
 
 struct Masse {
@@ -639,6 +660,7 @@ struct Masse {
     float hinweis = 0.0F;
     float status = 0.0F;
     float luft = 0.0F;      // Abstand zwischen den Teilen
+    float fest = 0.0F;      // alles ausser dem Spurbereich, wenn die Spuren offen sind (samt ihrem Abstand)
     float gesamt = 0.0F;
 };
 
@@ -652,13 +674,14 @@ Masse masse(const AnimEntry* e, float breite) {
     transport(e, r);
     m.transport = r.hoehe();
     m.skala = modellZeitSkalaHoehe();
+    m.hinweis = std::floor(fs + 2.0F);
+    m.status = std::floor(fs + 6.0F);
+    m.fest = m.griff + m.transport + m.luft + m.skala + m.luft + m.luft + m.hinweis + m.luft + m.status;
     switch (modellZeitFassung()) {
-        case ZeitFassung::Voll: m.spuren = mt().kvOffen ? spurHoehe() : 0.0F; break;
+        case ZeitFassung::Voll: m.spuren = mt().kvOffen ? spurHoehe(m.fest) : 0.0F; break;
         case ZeitFassung::Sequenz: m.spuren = g_zeit.sequenzAuf ? 2.0F * ImGui::GetFrameHeight() + m.luft : 0.0F; break;
         case ZeitFassung::Kurz: break;
     }
-    m.hinweis = std::floor(fs + 2.0F);
-    m.status = std::floor(fs + 6.0F);
     m.gesamt = m.griff + m.transport + m.luft + m.skala + (m.spuren > 0.0F ? m.spuren + m.luft : 0.0F) + m.luft + m.hinweis + m.luft + m.status;
     return m;
 }
@@ -709,7 +732,7 @@ void griffZeichnen(ImVec2 lo, float breite, const Masse& m) {
                 t.kvOffen = auf;
                 t.kvEinpassen = t.kvEinpassen || auf;
             }
-            if (auf) { spurEinstellung() = std::clamp(h / std::max(fs, 1.0F), 2.5F, 26.0F); }
+            if (auf) { spurEinstellung() = spurEinstellungFuer(h, m.fest); }
         } else if (fassung == ZeitFassung::Sequenz) {
             z.sequenzAuf = h >= fs * 1.5F;
         }
@@ -1292,6 +1315,8 @@ float modellZeitleisteHoehe() {
     return masse(e, g_zeit.breite).gesamt;
 }
 
+float modellZeitSpurHoeheJetzt() { return spurHoehe(masse(sequenz(), g_zeit.breite).fest); }
+
 void modellZeitAutoKey(bool an) {
     ModellZeit& z = g_zeit;
     g_app->settings.modellZeitAutoKey = an;   // ENTSCHEID1: die Wahl bleibt (behaved.cfg modelTimelineAutoKey)
@@ -1411,7 +1436,7 @@ bool modellZeitAktionenSuche(const std::string& such) {
         std::string k = text;
         for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
         if (!such.empty() && k.find(such) == std::string::npos) { continue; }
-        if (ImGui::Selectable(text.c_str())) {
+        if (modellAktionZeile(text.c_str())) {   // die Zeitleiste steht in jedem Bereich: ohne Zusatz
             aktionAusloesen(a);
             return true;
         }

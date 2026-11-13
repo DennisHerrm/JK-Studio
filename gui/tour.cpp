@@ -87,7 +87,10 @@ struct Zustand {
     bool warFertig = false;
     double pulsBis = 0.0;
     double schwebtSeit = -1.0;
-    bool gerollt = false;
+    // AP14: je gezeigtem Ziel ins Bild rollen (bis dahin einmal je Schritt) - eine Vorbedingung mit mehreren Stufen zeigt
+    // nacheinander mehrere Oeffner (Model-Tab, Bereich, Ueberschrift einer Gruppe weit unten im rechten Feld)
+    ImGuiID gerolltFuer = 0;
+    int gerolltBilder = 0;
     // Zeig es mir
     double geistStart = -1.0;
     ImVec2 geistVon{};
@@ -156,6 +159,24 @@ std::string handbuchOrdner() {
         if (gibtEsDatei(k + "\\en\\touren.json")) { return k; }
     }
     return {};
+}
+
+// AP14: der Name einer Kennung (i18n::strName) zu seiner kleingeschriebenen Form - "mgvier" -> "MgVier" (unbekannt: unveraendert).
+std::string kennungAusKlein(const std::string& klein) {
+    static const std::vector<std::pair<std::string, const char*>> kNamen = [] {
+        std::vector<std::pair<std::string, const char*>> v;
+        v.reserve(static_cast<std::size_t>(i18n::Str::Count));
+        for (int i = 0; i < static_cast<int>(i18n::Str::Count); ++i) {
+            const char* n = i18n::strName(static_cast<i18n::Str>(i));
+            std::string k = n;
+            for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+            v.emplace_back(std::move(k), n);
+        }
+        std::stable_sort(v.begin(), v.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+        return v;
+    }();
+    const auto it = std::lower_bound(kNamen.begin(), kNamen.end(), klein, [](const auto& a, const std::string& b) { return a.first < b; });
+    return it != kNamen.end() && it->first == klein ? std::string(it->second) : klein;
 }
 
 std::string kennungText(const std::string& name) {
@@ -319,6 +340,19 @@ tour::Kontext kontextBauen() {
         for (const tour::Hinweis& h : st->falsch) { karte = karte || h.wenn.find("karte.") != std::string::npos; }
     }
     tourMesswerte(k.werte, karte, ImGui::GetTime());
+    // AP14: "zahl:modell.feld.<kennung>" in der Vorbedingung eines Orts des rechten Felds im Model-Tab - steht das Element mit
+    // dieser Beschriftung gerade im Feld (seine Gruppe ist offen und gehoert zum gewaehlten Reiter)? Sonst zeigt die Tour auf die
+    // Ueberschrift der Gruppe. Die Beschriftung ist als Ziel des Schritts im Element-Register angemeldet. Die Kennung steht klein
+    // (Namen von zahl: nur aus a-z, 0-9, '.', '_' - tour::pruefungBekannt) und wird hier ohne Gross-/Kleinschreibung aufgeloest.
+    if (const tour::Schritt* st = s.ablauf.aktuell(); st != nullptr) {
+        static const std::string kVor = "zahl:modell.feld.";
+        for (std::size_t p = st->voraus.find(kVor); p != std::string::npos; p = st->voraus.find(kVor, p + 1)) {
+            std::size_t e = p + kVor.size();
+            while (e < st->voraus.size() && (std::isalnum(static_cast<unsigned char>(st->voraus[e])) != 0 || st->voraus[e] == '_')) { ++e; }
+            const std::string kennung = st->voraus.substr(p + kVor.size(), e - p - kVor.size());
+            k.werte["modell.feld." + kennung] = elemente::finde(kennungText(kennungAusKlein(kennung)), "mtrollouts", 0, false) != nullptr ? 1.0 : 0.0;
+        }
+    }
     k.hatKind = [](const std::string& block, const std::string& befehl) {
         return hatKindIn(g_app->doc.script().nodes, block, befehl);
     };
@@ -1463,14 +1497,23 @@ void tourBild() {
             s.ziele.push_back(g.r);
             s.zielFenster.push_back(g.e != nullptr ? g.e->fenster : std::string());
         }
-        // Ein Ziel in einer gerollten Liste (die Ereignisliste ist lang): einmal
-        // je Schritt dorthin rollen.
-        if (!s.ziele.empty() && !s.zielGanzSichtbar && !s.gerollt && !s.zielInnen.empty()) {
+        // Ein Ziel in einer gerollten Liste (die Ereignisliste ist lang): dorthin
+        // rollen. AP14: je gezeigtem Ziel (bis dahin einmal je Schritt) und bis
+        // zu kRollBilder Bilder lang, solange es nicht ganz zu sehen ist - nach
+        // einem Wechsel des Bereichs waechst der Inhalt des rechten Felds noch,
+        // das erste Rollen endet dann an der alten Grenze (ScrollMax). Danach
+        // rollt die Tour nicht mehr gegen die Hand des Nutzers.
+        constexpr int kRollBilder = 20;
+        if (s.zielKennung != s.gerolltFuer) {
+            s.gerolltFuer = s.zielKennung;
+            s.gerolltBilder = 0;
+        }
+        if (!s.ziele.empty() && !s.zielGanzSichtbar && s.gerolltBilder < kRollBilder && !s.zielInnen.empty()) {
             if (ImGuiWindow* w = ImGui::FindWindowByName(s.zielInnen.c_str()); w != nullptr && w->ScrollMax.y > 0.0F) {
                 const float y = w->Scroll.y + (s.ziele[0].GetCenter().y - w->InnerRect.GetCenter().y);
                 ImGui::SetScrollY(w, std::clamp(y, 0.0F, w->ScrollMax.y));
             }
-            s.gerollt = true;
+            ++s.gerolltBilder;
         }
         // Schwebt die Maus auf dem (ersten) Ziel? Und wurde es angeklickt?
         bool ueber = false;
@@ -1501,7 +1544,8 @@ void tourBild() {
         s.warFertig = s.ablauf.fertig();
         s.pulsBis = jetzt + 1.2;
         s.schwebtSeit = -1.0;
-        s.gerollt = false;
+        s.gerolltFuer = 0;
+        s.gerolltBilder = 0;
         s.geistStart = -1.0;
         s.fensterNeuSetzen = true;
         speichereStand();

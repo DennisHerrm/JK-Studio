@@ -24,6 +24,7 @@
 #include <iterator>
 #include <map>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace bhed::gui {
@@ -1266,6 +1267,60 @@ ImGuiKeyChord modellTasteChord(int i) { return maxTasten()[static_cast<std::size
 
 const char* modellTasteText(int i) { return tr(maxTasten()[static_cast<std::size_t>(i)].text); }
 
+// --- AP14: die Zeilen der Suche "Alle Aktionen" ------------------------------------------------------------------------------
+namespace {
+
+struct AktionZeilen {
+    std::unordered_map<std::string, int> zahl;          // sichtbarer Text -> wie oft in diesem Bild
+    std::unordered_map<std::string, int> zahlLetztes;   // ... im letzten Bild der Suche
+    std::vector<ModellAktionProbe> proben;
+    std::vector<ModellAktionProbe> probenLetztes;
+};
+
+AktionZeilen& aktionZeilen() {
+    static AktionZeilen z;
+    return z;
+}
+
+// Zu Beginn jeder gezeichneten Liste: was im letzten Bild stand, entscheidet, welche Texte mehrfach vorkommen.
+void aktionZeilenBild() {
+    AktionZeilen& z = aktionZeilen();
+    z.zahlLetztes.swap(z.zahl);
+    z.zahl.clear();
+    z.probenLetztes.swap(z.proben);
+    z.proben.clear();
+}
+
+}  // namespace
+
+bool modellAktionZeile(const char* text, int bereich) {
+    static const Str kBereich[kModellBereiche] = {Str::MbBereichAnsehen, Str::MbBereichModellieren, Str::MbBereichUv,
+                                                  Str::MbBereichWeights, Str::MbBereichPainting,     Str::MbBereichAnimation};
+    AktionZeilen& z = aktionZeilen();
+    const char* ende = ImGui::FindRenderedTextEnd(text);
+    const std::string sicht(text, ende);
+    const int hier = ++z.zahl[sicht];
+    const auto war = z.zahlLetztes.find(sicht);
+    const bool mehrfach = hier > 1 || (war != z.zahlLetztes.end() && war->second > 1);
+    const char* zusatz = mehrfach && bereich >= 0 && bereich < kModellBereiche ? tr(kBereich[bereich]) : "";
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float zusatzB = *zusatz != 0 ? ImGui::CalcTextSize(zusatz).x : 0.0F;
+    const float textB = ImGui::CalcTextSize(text, ende).x;
+    // der Zusatz steht rechts in der Zeile; reicht die Breite nicht fuer beide, in einer zweiten Zeile darunter (nichts wird ueberdeckt)
+    const bool darunter = zusatzB > 0.0F && textB + ImGui::GetFontSize() + zusatzB > ImGui::GetContentRegionAvail().x;
+    const bool geklickt = ImGui::Selectable(text, false, 0, ImVec2{0.0F, darunter ? ImGui::GetTextLineHeight() * 2.0F + st.ItemSpacing.y : 0.0F});
+    z.proben.push_back(ModellAktionProbe{ImGui::GetItemID(), sicht, zusatz});
+    if (zusatzB > 0.0F) {
+        const ImVec2 lo = ImGui::GetItemRectMin();
+        const ImVec2 hi = ImGui::GetItemRectMax();
+        const float y = darunter ? lo.y + ImGui::GetTextLineHeight() + st.ItemSpacing.y : lo.y;
+        ImGui::GetWindowDrawList()->AddText(ImVec2{std::floor(hi.x - zusatzB), y}, ImGui::GetColorU32(ImGuiCol_TextDisabled), zusatz);
+    }
+    return geklickt;
+}
+
+const std::vector<ModellAktionProbe>& modellAktionProben() { return aktionZeilen().probenLetztes; }
+
 // "Alle Aktionen suchen" (X): die Liste der Tasten, zum Ausfuehren anklicken.
 void drawModellAktionen() {
     ModellTab& t = mt();
@@ -1287,12 +1342,16 @@ void drawModellAktionen() {
     const bool enter = ImGui::InputTextWithHint("##aktsuche", tr(Str::MbAktionen), suche, sizeof suche, ImGuiInputTextFlags_EnterReturnsTrue);
     const std::string such = klein(suche);
     bool erster = enter;
+    aktionZeilenBild();   // AP14: gleiche Namen aus mehreren Bereichen bekommen ihren Bereich als Zusatz (modellAktionZeile)
     if (modellBlender()) {   // mb1a2: F3 sucht in der Belegung wie Blender
+        std::vector<Str> gezeigt;   // AP14: eine Aktion mit zwei Tasten (Abspielen: Leertaste, Umschalt+Leertaste) steht einmal
         for (const BlenderTaste& k : blenderTasten()) {
             // MBKOPF: die Tasten der Anzeige-Schalter stehen unten einmal - als Schalter mit Haken und Ort (Enter loest sie weiter aus)
             const std::string zeile = tastenZeile(k.text, k.chord);   // FIX612 R4
             if (!passt(zeile, such) || (modellKopfSucheHatTaste(k.chord) && !erster)) { continue; }
-            if (ImGui::Selectable(zeile.c_str()) || erster) {
+            if (std::find(gezeigt.begin(), gezeigt.end(), k.text) != gezeigt.end()) { continue; }
+            gezeigt.push_back(k.text);
+            if (modellAktionZeile(zeile.c_str()) || erster) {
                 k.tun();
                 ++t.tastenZaehler;
                 t.letzteTaste = zeile;
@@ -1309,7 +1368,7 @@ void drawModellAktionen() {
             const std::string zeile = tastenZeile(k.text, k.chord);   // FIX612 R4
             if (!passt(zeile, such) || (modellKopfSucheHatTaste(k.chord) && !erster)) { continue; }
             if (malen && (k.chord == ImGuiKey_LeftBracket || k.chord == ImGuiKey_RightBracket)) { continue; }
-            if (ImGui::Selectable(zeile.c_str()) || erster) {
+            if (modellAktionZeile(zeile.c_str()) || erster) {
                 tasteAusloesen(k);
                 ImGui::CloseCurrentPopup();
                 break;
@@ -1320,7 +1379,7 @@ void drawModellAktionen() {
     for (const ZusatzAktion& a : zusatzAktionen()) {   // mb1a2: auch die Funktionen ohne Taste des Vorbilds
         const std::string text = zusatzText(a);
         if (!passt(text, such)) { continue; }
-        if (ImGui::Selectable(text.c_str())) {
+        if (modellAktionZeile(text.c_str())) {
             zusatzAusloesen(a);
             ImGui::CloseCurrentPopup();
             rigAusgeloest = true;

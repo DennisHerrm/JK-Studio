@@ -1938,7 +1938,7 @@ bool modellExplorerAktionenSuche(const std::string& such) {
         const std::string text = aktionText(a);
         if (!passt(text, such)) { continue; }
         ImGui::PushID(&a);
-        if (ImGui::Selectable(text.c_str()) && !ausgeloest) {
+        if (modellAktionZeile(text.c_str()) && !ausgeloest) {
             a.tun();
             ausgeloest = true;
         }

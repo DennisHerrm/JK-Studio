@@ -11,6 +11,7 @@
 // Breite des Tabs mit dem Hinweis des Bedienmodus daneben.
 #include "app_internal.h"
 #include "textumbruch.h"
+#include "tour.h"   // AP14: die Felder der Bereichsreihe als Ziele des Helfers
 
 #include <algorithm>
 #include <cmath>
@@ -143,6 +144,9 @@ void modellFeldBeginn() {
     o.standard = standard;
     o.stil = blender ? ui::RolloutStil::Blender : ui::RolloutStil::Max;
     o.kontext = bereich * 2 + (blender ? 1 : 0);
+    // AP14 (Entscheidung B6): unter der Mindesthoehe des Entwurfs (50 Zeichenhoehen, wie die Zeitleiste in app_modelltab_zeit.cpp)
+    // stehen die Reiter wie 3ds Max nur als Symbole in einer Reihe - der Text braucht dort zwei (en) bis drei (de) Reihen
+    o.symbole = !blender && ImGui::GetIO().DisplaySize.y < 50.0F * ImGui::GetFontSize();
     o.leerHinweis = tr(Str::MfReiterLeer);
     ui::feldBeginn("mtrollouts", o);
 }
@@ -219,6 +223,16 @@ void drawModellBereiche() {
     g_feld.kopfY = ort.y;
     g_feld.kopfFeld = reihe / static_cast<float>(kModellBereiche);
     g_feld.kopfBild = ImGui::GetFrameCount();
+    // AP14: jedes Feld der Reihe ist ein Ziel des Helfers ("gezeichnet:modell.bereich<n>") - die Namen der Bereiche stehen auch
+    // im Hauptmenue (UV, Painting, Animation), ueber die Beschriftung waere das Ziel nicht eindeutig
+    {
+        const float unten = ImGui::GetItemRectMax().y;
+        for (int i = 0; i < kModellBereiche; ++i) {
+            const std::string name = "modell.bereich" + std::to_string(i);
+            const float x0 = ort.x + g_feld.kopfFeld * static_cast<float>(i);
+            tourZielMelden(name.c_str(), ImRect{ImVec2{x0, ort.y}, ImVec2{x0 + g_feld.kopfFeld, unten}});
+        }
+    }
     // der Hinweis: Navigation der Ansicht (MBNAV) und die Tasten des Bedienmodus fuer diesen Bereich - so weit Platz ist
     const float luecke = fs;
     const float rest = frei - reihe - luecke;

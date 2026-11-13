@@ -153,6 +153,11 @@ const ZielRoh kZiele[] = {
     {"tour:k-modell", "modell", "figurenmodell ansehen figur anschauen look at a character model view a character 查看角色模型 キャラクターのモデルを見る"},
     {"seite:k-skins.html", "modell", "skin wechseln skin aendern change skin 更换皮肤 スキンを変える"},
     {"seite:k-modell.html", "modell", "modell in der karte zeigen model in the map 模型 モデル"},
+    // --- Menue-Editor (AP14: mit den Orten des rechten Felds im Model-Tab - rund 230 Eintraege mehr - fiel "Menue wie im Spiel
+    // bedienen" in der Trefferliste zurueck; die Woerter, mit denen Leute danach fragen, haengen jetzt am Knopf) ----------
+    {"ort:knopf:MeBedienen", "menue",
+     "menue ausprobieren menue bedienen durchklicken wie im spiel knoepfe druecken try the menu use the menu click through the menu like in the game "
+     "press the buttons 试用菜单 像在游戏里一样 点击菜单 按按钮 メニューを試す ゲームのように メニューをクリック ボタンを押す"},
     // --- Einstellungen, Updates, Hilfe ------------------------------------------------------
     {"ort:menue:MenuEdit>AppPrefs", "einstellungen", "einstellungen oeffnen optionen settings preferences 打开设置 设定 設定を開く"},
     {"ort:menue:MenuView>ViewLanguage", "einstellungen", "sprache aendern sprache umstellen change the language 更改语言 切换语言 言語を変更"},

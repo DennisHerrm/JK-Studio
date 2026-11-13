@@ -330,7 +330,9 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
     add(pause(0.3));
     add(pruefe(zeile(modus == 0 ? "A6" : "A7", modus, "Gruppe IK/FK an sechster Stelle; ohne Rig steht dort der Hinweis als Kasten"), [] {
         const ui::RolloutProbe* g = gruppe(Str::MbIkRollout);
-        return g != nullptr && gruppeNr(Str::MbIkRollout) == 5 && (modellRigDa() || inGruppe(g, imRoll(tr(Str::MbRgNochKeins))));
+        // AP14: ui::absatz steht jetzt im Element-Register - derselbe Hinweis steht als Absatz auch in der Gruppe Rig weiter oben,
+        // imRoll faende diesen zuerst; gesucht ist der in der Gruppe IK/FK
+        return g != nullptr && gruppeNr(Str::MbIkRollout) == 5 && (modellRigDa() || imRollIn(g, tr(Str::MbRgNochKeins)) != nullptr);
     }));
     // --- A8: Anbauten und Vorschau ---
     add(zeige(Str::AzRAnbauten));

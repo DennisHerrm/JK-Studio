@@ -28,6 +28,7 @@ struct Roh {
     ImRect rect;
     ImRect clip;
     ImGuiWindow* fenster = nullptr;
+    bool gesperrt = false;   // AP14: ImGuiItemFlags_Disabled beim ItemAdd
 };
 std::vector<Roh> g_roh;
 // Stufe 7 Punkt 6d: Kennungen dieses Bildes und die doppelten
@@ -67,7 +68,7 @@ bool passtFilter(const char* label) {
 }
 
 // Ein wartender Eintrag bekommt sein Rechteck.
-bool wartendFuellen(ImGuiID id, const ImRect& bb, const ImGuiWindow* w) {
+bool wartendFuellen(ImGuiID id, const ImRect& bb, const ImGuiWindow* w, bool gesperrt) {
     for (std::size_t k = 0; k < g_wartend.size(); ++k) {
         if (g_wartend[k] >= g_liste.size() || g_liste[g_wartend[k]].id != id) { continue; }
         Element& e = g_liste[g_wartend[k]];
@@ -76,17 +77,19 @@ bool wartendFuellen(ImGuiID id, const ImRect& bb, const ImGuiWindow* w) {
         e.fenster = wurzelName(w);
         e.innen = w->Name;
         e.wartet = false;
+        e.gesperrt = gesperrt;
         g_wartend.erase(g_wartend.begin() + static_cast<std::ptrdiff_t>(k));
         return true;
     }
     return false;
 }
 
-void neuesElement(ImGuiID id, const ImRect& bb, const ImRect& clip, const ImGuiWindow* w) {
+void neuesElement(ImGuiID id, const ImRect& bb, const ImRect& clip, const ImGuiWindow* w, bool gesperrt) {
     Element e;
     e.id = id;
     e.rect = bb;
     e.clip = clip;
+    e.gesperrt = gesperrt;
     e.fenster = wurzelName(w);
     e.innen = w->Name;
     g_liste.push_back(std::move(e));
@@ -157,15 +160,18 @@ void bildEnde() {
     }
 }
 
-void merkeElement(ImGuiContext* ctx, ImGuiID id, const ImRect& bb) {
+void merkeElement(ImGuiContext* ctx, ImGuiID id, const ImRect& bb, const ImGuiLastItemData* daten) {
     if (g_modus == Modus::Aus || ctx->CurrentWindow == nullptr) { return; }
     ImGuiWindow* w = ctx->CurrentWindow;
-    if (!g_wartend.empty() && wartendFuellen(id, bb, w)) { return; }
+    // AP14 (Wunsch AP8): gesperrt = das Element steht in einem gesperrten Bereich von ImGui (auch ui::werkzeugKnopf, ui::schalter und
+    // ui::regler mit aktiv = false) - ItemAdd traegt es in die Fahnen des Elements ein
+    const bool gesperrt = daten != nullptr && (daten->ItemFlags & ImGuiItemFlags_Disabled) != 0;
+    if (!g_wartend.empty() && wartendFuellen(id, bb, w, gesperrt)) { return; }
     if (g_modus == Modus::Gefiltert) {
-        g_roh.push_back(Roh{id, bb, w->ClipRect, w});
+        g_roh.push_back(Roh{id, bb, w->ClipRect, w, gesperrt});
         return;
     }
-    neuesElement(id, bb, w->ClipRect, w);
+    neuesElement(id, bb, w->ClipRect, w, gesperrt);
 }
 
 void merkeText(ImGuiContext* ctx, ImGuiID id, const char* label, ImGuiItemStatusFlags flags) {
@@ -184,7 +190,7 @@ void merkeText(ImGuiContext* ctx, ImGuiID id, const char* label, ImGuiItemStatus
     if (g_modus == Modus::Gefiltert) {
         for (auto it = g_roh.rbegin(); it != g_roh.rend(); ++it) {
             if (it->id != id) { continue; }
-            neuesElement(id, it->rect, it->clip, it->fenster);
+            neuesElement(id, it->rect, it->clip, it->fenster, it->gesperrt);
             g_liste.back().label = label;
             g_liste.back().flags = flags;
             return;
@@ -197,7 +203,7 @@ void merkeText(ImGuiContext* ctx, ImGuiID id, const char* label, ImGuiItemStatus
         wartendAnlegen(id, label, flags, ctx->CurrentWindow);
         return;
     }
-    neuesElement(id, ctx->LastItemData.Rect, ctx->CurrentWindow->ClipRect, ctx->CurrentWindow);
+    neuesElement(id, ctx->LastItemData.Rect, ctx->CurrentWindow->ClipRect, ctx->CurrentWindow, (ctx->LastItemData.ItemFlags & ImGuiItemFlags_Disabled) != 0);
     g_liste.back().label = label;
     g_liste.back().flags = flags;
 }
@@ -272,7 +278,7 @@ bool ganzImBild(const Element& e) {
 void ImGuiTestEngineHook_ItemAdd(ImGuiContext* ctx, ImGuiID id, const ImRect& bb,
                                  const ImGuiLastItemData* item_data) {
     bhed::gui::elemente::merkeId(ctx, id, bb, item_data);
-    bhed::gui::elemente::merkeElement(ctx, id, bb);
+    bhed::gui::elemente::merkeElement(ctx, id, bb, item_data);
     bhed::gui::ui::hakenElement(ctx, id, bb);   // UIFORM: Bedienreihen der Fenster (nur in Messbildern)
 }
 

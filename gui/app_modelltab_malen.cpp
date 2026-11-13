@@ -1443,7 +1443,7 @@ bool modellMalenAktionenSuche(const std::string& such) {
         if (k[0] != '\0') { t += std::string(" (") + k + ")"; }
         if (!such.empty() && klein(t).find(klein(such)) == std::string::npos) { continue; }
         ImGui::PushID(&a);
-        if (ImGui::Selectable(t.c_str()) && !ausgeloest) {
+        if (modellAktionZeile(t.c_str(), static_cast<int>(ModellBereich::Painting)) && !ausgeloest) {
             ausloesen(a);
             ausgeloest = true;
         }

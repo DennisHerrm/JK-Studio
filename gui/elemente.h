@@ -52,6 +52,10 @@ struct Element {
     ImGuiItemStatusFlags flags = 0;
     // rc601: Beschriftung kam vor dem ItemAdd (Reiter); das Rechteck folgt.
     bool wartet = false;
+    // AP14 (Wunsch AP8): das Element ist gesperrt - es stand beim ItemAdd in ImGui::BeginDisabled (ImGuiItemFlags_Disabled),
+    // so auch ui::werkzeugKnopf, ui::schalter und ui::regler mit aktiv = false. Selbsttests pruefen "gesperrt" damit am
+    // Element statt nur am Verhalten.
+    bool gesperrt = false;
 };
 
 enum class Modus { Aus, Gefiltert, Voll };
@@ -88,7 +92,7 @@ const std::vector<IdKonflikt>& idKonflikte();
 void merkeId(ImGuiContext* ctx, ImGuiID id, const ImRect& bb, const ImGuiLastItemData* daten);
 
 // Die Haken (ImGuiTestEngineHook_ItemAdd/ItemInfo, gui/elemente.cpp).
-void merkeElement(ImGuiContext* ctx, ImGuiID id, const ImRect& bb);
+void merkeElement(ImGuiContext* ctx, ImGuiID id, const ImRect& bb, const ImGuiLastItemData* daten = nullptr);
 void merkeText(ImGuiContext* ctx, ImGuiID id, const char* label, ImGuiItemStatusFlags flags);
 
 // --- Suchen ---------------------------------------------------------------

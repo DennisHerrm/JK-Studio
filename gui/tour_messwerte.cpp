@@ -262,6 +262,11 @@ void tourMesswerte(std::map<std::string, double>& werte, bool karte, double jetz
     werte["mission.name"] = static_cast<double>(fnv(fnv(2166136261U, g_app->mission.name), g_app->mission.projektOrdner));
     // Modell: Haut, Kappen, Flaechenliste, Skelett.
     werte["modell.da"] = g_app->model.empty() ? 0.0 : 1.0;
+    // AP14: der Bereich des Model-Tabs (Ansehen/Pruefen 0 ... Animation 5) - die Orte des rechten Felds (tools/gen_hilfe_orte.py,
+    // modellFeld) fuehren ueber "zahl:modell.bereich<n> < gezeichnet:modell.bereich<n>" erst in ihren Bereich
+    for (int b = 0; b < kModellBereiche; ++b) {
+        werte["modell.bereich" + std::to_string(b)] = (g_app->leftMode == 2 && static_cast<int>(g_app->mtab.bereich) == b) ? 1.0 : 0.0;
+    }
     werte["modell.skin"] = g_app->modellHautWechsel;
     werte["modell.caps"] = g_app->showCaps ? 1.0 : 0.0;
     werte["modell.flaechenliste"] = g_app->modellFlaechenListen;

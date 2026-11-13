@@ -1253,7 +1253,7 @@ bool modellNavAktionenSuche(const std::string& such) {
         return kleinText.find(such) != std::string::npos;
     };
     if (!passt(tr(Str::MnGrenzenAlle))) { return false; }
-    const bool gewaehlt = ImGui::Selectable(tr(Str::MnGrenzenAlle));
+    const bool gewaehlt = modellAktionZeile(tr(Str::MnGrenzenAlle));
     ImGui::SetItemTooltip("%s", tr(Str::MnGrenzenAlleHint));
     if (gewaehlt) { modellNavGrenzen(2); }
     return gewaehlt;

@@ -766,7 +766,7 @@ bool modellKopfAktionenSuche(const std::string& such) {
         if (!such.empty() && klein(text).find(such) == std::string::npos) { return; }
         ImGui::PushID(id);
         const std::string z = std::string(haken < 0 ? "" : (haken != 0 ? "[x] " : "[  ] ")) + text;
-        if (ImGui::Selectable(z.c_str()) && !ausgeloest) {
+        if (modellAktionZeile(z.c_str()) && !ausgeloest) {
             tun();
             ausgeloest = true;
         }

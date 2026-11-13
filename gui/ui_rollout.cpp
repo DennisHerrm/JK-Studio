@@ -57,6 +57,8 @@ struct Raster {
     float reiheOben = 0.0F;
     float reiheUnten = 0.0F;
     float reiheNatur = 0.0F;   // die groesste Hoehe, die ein Knopf dieser Reihe von sich aus braucht
+    float ganz = 0.0F;         // AP14: die Breite des ganzen Rasters
+    float bedarf = 0.0F;       // AP14: so breit muss eine Zelle sein, damit das breiteste Wort ihrer Knoepfe und Schalter passt
 };
 
 struct Feld {
@@ -78,12 +80,15 @@ struct Zustand {
     std::unordered_map<ImGuiID, Gruppe> gruppen;
     std::unordered_map<ImGuiID, unsigned> belegt;   // je Feld und Kontext: Reiter mit Gruppen im letzten Bild
     std::unordered_map<ImGuiID, float> reihen;      // je Raster und Reihe: Hoehe im letzten Bild
+    std::unordered_map<ImGuiID, float> zellBedarf;  // AP14, je Raster: Zellbreite, die das breiteste Wort im letzten Bild brauchte
     float feldB = 0.0F;
     std::vector<RolloutProbe> proben;
     std::vector<RolloutProbe> probenLetztes;
     FeldProbe feldProbe;
     ImGuiID zeigen = 0;        // rolloutZeigen: diese Gruppe beim naechsten Zeichnen aufklappen und ins Bild rollen
     int zeigenBild = -1;
+    WortbruchProbe wortbruch;          // AP14: laufendes Bild
+    WortbruchProbe wortbruchLetztes;   // letztes vollstaendiges Bild
 };
 
 Zustand& z() {
@@ -149,6 +154,18 @@ float breitestesWort(const char* text, const char* ende) {
             wort = c + 1;
         }
     }
+}
+
+// AP14: ein Text bekam weniger Breite als sein breitestes Wort, obwohl die Zeile (moeglich) dafuer reicht - gezaehlt nur,
+// solange das Element-Register laeuft (Selbsttest). Ein Wort, das breiter ist als die ganze Zeile, zaehlt nicht: es muss brechen.
+void wortbruchMerken(int WortbruchProbe::*zaehler, const char* text, const char* ende, float breite, float moeglich) {
+    if (!GImGui->TestEngineHookItems || text == nullptr) { return; }
+    if (ende == nullptr) { ende = text + std::strlen(text); }
+    const float wort = breitestesWort(text, ende);
+    if (breite + 0.5F >= wort || wort > moeglich + 0.5F) { return; }
+    WortbruchProbe& p = z().wortbruch;
+    ++(p.*zaehler);
+    if (p.erster.empty()) { p.erster.assign(text, ende); }
 }
 
 Lauf* laufJetzt() {
@@ -447,8 +464,9 @@ ImVec4 tonFarbe(Ton ton) {
 
 namespace {
 
-// Ein Reiter als Knopf: Text (Max) oder Symbol (Blender). true: geklickt.
-bool reiterKnopf(const FeldReiter& r, ImVec2 ort, ImVec2 groesse, bool aktiv, bool belegt, bool senkrecht, const char* leerHinweis) {
+// Ein Reiter als Knopf: Text (Max) oder Symbol (Blender; AP14 B6: auch Max bei Mindestgroesse) - `symbol`: nur das Symbol, der
+// Name steht im Tooltip. true: geklickt.
+bool reiterKnopf(const FeldReiter& r, ImVec2 ort, ImVec2 groesse, bool aktiv, bool belegt, bool symbol, const char* leerHinweis) {
     ImGuiWindow* w = ImGui::GetCurrentWindow();
     ImGuiContext& g = *GImGui;
     const ImGuiID id = w->GetID(r.titel);
@@ -475,7 +493,7 @@ bool reiterKnopf(const FeldReiter& r, ImVec2 ort, ImVec2 groesse, bool aktiv, bo
     }
     dl->AddRectFilled(bb.Min, bb.Max, grund, rund);
     if (!aktiv) { dl->AddRect(bb.Min, bb.Max, ImGui::GetColorU32(ImGuiCol_Border, belegt ? 1.0F : 0.5F), rund); }
-    if (senkrecht && r.icon != kKeinIcon) {
+    if (symbol && r.icon != kKeinIcon) {
         const float ig = std::floor(std::min(groesse.x, groesse.y) * 0.62F);
         uiIcon(dl, r.icon, ImVec2{std::floor(bb.Min.x + (groesse.x - ig) * 0.5F), std::floor(bb.Min.y + (groesse.y - ig) * 0.5F)}, ig, text);
     } else {
@@ -488,9 +506,12 @@ bool reiterKnopf(const FeldReiter& r, ImVec2 ort, ImVec2 groesse, bool aktiv, bo
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip)) {
         const bool hatHinweis = r.hinweis != nullptr && r.hinweis[0] != '\0';
         const bool hatLeer = !belegt && leerHinweis != nullptr && leerHinweis[0] != '\0';
-        if ((senkrecht || hatHinweis || hatLeer) && ImGui::BeginTooltip()) {
+        if ((symbol || hatHinweis || hatLeer) && ImGui::BeginTooltip()) {
             ImGui::PushTextWrapPos(ImGui::GetFontSize() * 24.0F);
-            if (senkrecht) { cjkTextUnformatted(r.titel, sichtEnde(r.titel)); }
+            if (symbol) {
+                cjkTextUnformatted(r.titel, sichtEnde(r.titel));
+                z().feldProbe.reiterTooltip.assign(r.titel, sichtEnde(r.titel));   // Selbsttest (AP14 R)
+            }
             if (hatHinweis) { cjkTextDisabled("%s", r.hinweis); }
             if (hatLeer) { cjkTextDisabled("%s", leerHinweis); }
             ImGui::PopTextWrapPos();
@@ -551,7 +572,23 @@ void feldBeginn(const char* id, const FeldOpt& o) {
     }
 
     ImGui::PushID("##reiter");
-    if (!senkrecht && o.reiterZahl > 0) {
+    if (!senkrecht && o.reiterZahl > 0 && o.symbole) {
+        // AP14 (Entscheidung B6): wie 3ds Max bei Mindestgroesse nur die Symbole in einer Reihe, der Name im Tooltip (wie Blenders
+        // Eigenschaften-Reiter); die Knoepfe so gross wie in Blenders Spalte, schmaler nur, wenn die Reihe sonst nicht passt
+        const float luecke = std::floor(fs * 0.15F);
+        const float n = static_cast<float>(o.reiterZahl);
+        const float g = std::max(std::floor(std::min(fs * 1.7F, (breite - luecke * (n - 1.0F)) / n)), 1.0F);
+        ImVec2 ort = w->DC.CursorPos;
+        const float x0 = ort.x;
+        probe.reiter = ImRect{ort, ort};
+        probe.reiterSymbole = true;
+        for (int i = 0; i < o.reiterZahl; ++i) {
+            if (reiterKnopf(o.reiter[i], ort, ImVec2{g, g}, i == aktiv, (belegt & reiterBit(i)) != 0U, true, o.leerHinweis)) { aktiv = i; }
+            probe.reiter.Add(ImRect{ort, ImVec2{ort.x + g, ort.y + g}});
+            ort.x += g + luecke;
+        }
+        cursorAuf(w, ImVec2{x0, probe.reiter.Max.y + st.ItemSpacing.y});
+    } else if (!senkrecht && o.reiterZahl > 0) {
         // wie 3ds Max: eine Reihe mit Text, bricht um
         const ImVec2 saum{std::floor(fs * 0.5F), std::floor(fs * 0.22F)};
         const float luecke = std::floor(fs * 0.25F);
@@ -814,10 +851,16 @@ void rasterBeginn(int spalten, float mindestZelle) {
     r.lueckeY = std::floor(fs * 0.4F);
     int n = std::max(spalten, 1);
     float zelle = std::floor((breite - r.lueckeX * static_cast<float>(n - 1)) / static_cast<float>(n));
-    while (n > 1 && zelle < mindestZelle * fs) {
+    // AP14: eine Zelle ist auch so breit, wie das breiteste Wort ihrer Knoepfe und Schalter im letzten Bild brauchte - sonst
+    // braeche ein Wort mitten im Wort um (deutsch "Schleifenschnitt" im schmaleren Feld wie Blender). Der Bedarf haengt nicht
+    // von der Spaltenzahl ab, die Wahl schwingt also nicht.
+    const auto bedarf = s.zellBedarf.find(r.kennung);
+    const float mindest = std::max(mindestZelle * fs, bedarf != s.zellBedarf.end() ? bedarf->second : 0.0F);
+    while (n > 1 && zelle < mindest) {
         --n;
         zelle = std::floor((breite - r.lueckeX * static_cast<float>(n - 1)) / static_cast<float>(n));
     }
+    r.ganz = breite;
     r.spalten = n;
     r.zellB = std::max(zelle, 1.0F);
     r.x0 = w->DC.CursorPos.x;
@@ -839,6 +882,7 @@ void rasterEnde() {
         s.reihen[reihenSchluessel(letzte)] = r.reiheNatur;
         cursorAuf(w, ImVec2{r.x0, r.reiheUnten + ImGui::GetStyle().ItemSpacing.y});
     }
+    s.zellBedarf[r.kennung] = std::min(std::ceil(r.bedarf), r.ganz);   // breiter als das ganze Raster kann keine Zelle werden
     r.an = false;
 }
 
@@ -878,6 +922,15 @@ bool werkzeugKnopf(const char* text, const KnopfOpt& o) {
         textB = p.breite - randX * 2.0F - (hatIcon ? iconG + luecke : 0.0F);
     }
     textB = std::max(textB, fs);
+    {
+        // AP14: was die Zelle braucht, damit das breiteste Wort neben Rand und Symbol passt (rasterBeginn nimmt dann weniger
+        // Spalten); die Probe zaehlt einen Bruch nur, wenn die ganze Zeile fuer das Wort reichte
+        const float beiwerk = randX * 2.0F + (hatIcon ? iconG + luecke : 0.0F);
+        Raster& r = z().raster;
+        const bool imRaster = p.imRaster && r.an;
+        if (imRaster) { r.bedarf = std::max(r.bedarf, beiwerk + breitestesWort(text, ende)); }
+        wortbruchMerken(&WortbruchProbe::knoepfe, text, ende, textB, (imRaster ? r.ganz : p.breite) - beiwerk);
+    }
     const ImVec2 textG = cjkTextSize(text, ende, false, textB);
     const float mindest = std::floor(fs * (o.haupt ? 2.15F : 1.85F));
     const float natur = std::max(std::max(textG.y, iconG) + randY * 2.0F, mindest);
@@ -906,19 +959,25 @@ bool werkzeugKnopf(const char* text, const KnopfOpt& o) {
         ImVec4 grund = ImGui::GetStyleColorVec4(gehalten ? ImGuiCol_ButtonActive : ueber ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
         ImVec4 kante = ImGui::GetStyleColorVec4(ImGuiCol_Border);
         ImVec4 textFarbe = ImGui::GetStyleColorVec4(ImGuiCol_Text);
-        if (o.haupt) {
+        // AP14 (Wunsch AP8): ein Hauptknopf, der umschaltet, ist aus nicht gefuellt - Rahmen und Symbol in der Betonungsfarbe
+        // auf dem Grund eines gewoehnlichen Knopfs; Platz und Hoehe bleiben die des Hauptknopfs
+        const bool gefuellt = o.haupt && (!o.umschalter || o.an);
+        const bool nurRahmen = o.haupt && !gefuellt;
+        if (gefuellt) {
             grund = gehalten ? mischen(a, schwarz, 0.15F) : ueber ? mischen(a, weiss, 0.15F) : a;
             kante = mischen(a, weiss, 0.25F);
             textFarbe = helligkeit(a) > 0.6F ? schwarz : weiss;
+        } else if (nurRahmen) {
+            kante = a;
         } else if (o.an) {
             grund = mischen(ImGui::GetStyleColorVec4(ImGuiCol_Button), a, ueber ? 0.55F : 0.42F);
             kante = a;
         }
         dl->AddRectFilled(bb.Min, bb.Max, u32(grund), rund);
-        dl->AddRect(bb.Min, bb.Max, u32(kante), rund);
+        dl->AddRect(bb.Min, bb.Max, u32(kante), rund, 0, nurRahmen ? std::max(1.0F, std::floor(fs * 0.08F)) : 1.0F);
         float x = bb.Min.x + randX;
         if (hatIcon) {
-            const ImVec4 iconFarbe = o.haupt ? textFarbe : uiIconFarbe(o.icon);
+            const ImVec4 iconFarbe = gefuellt ? textFarbe : nurRahmen ? a : uiIconFarbe(o.icon);
             uiIcon(dl, o.icon, ImVec2{std::floor(x), std::floor(bb.Min.y + (hoehe - iconG) * 0.5F)}, iconG, u32(iconFarbe));
             x += iconG + luecke;
         }
@@ -926,8 +985,8 @@ bool werkzeugKnopf(const char* text, const KnopfOpt& o) {
         if (hatTaste) {
             const ImVec2 tm{bb.Max.x - randX - tasteB, std::floor(bb.Min.y + (hoehe - tasteG.y) * 0.5F) - 1.0F};
             const ImVec2 tx{tm.x + tasteB, tm.y + tasteG.y + 2.0F};
-            const ImVec4 feld = o.haupt ? mischen(a, schwarz, 0.28F) : ImGui::GetStyleColorVec4(ImGuiCol_FrameBg);
-            const ImVec4 schriftFarbe = o.haupt ? textFarbe : mischen(ImGui::GetStyleColorVec4(ImGuiCol_Text), a, 0.45F);
+            const ImVec4 feld = gefuellt ? mischen(a, schwarz, 0.28F) : ImGui::GetStyleColorVec4(ImGuiCol_FrameBg);
+            const ImVec4 schriftFarbe = gefuellt ? textFarbe : mischen(ImGui::GetStyleColorVec4(ImGuiCol_Text), a, 0.45F);
             dl->AddRectFilled(tm, tx, u32(feld), 3.0F);
             dl->AddRect(tm, tx, u32(kante), 3.0F);
             dl->AddText(schrift, tasteFs, ImVec2{tm.x + tastePol, tm.y + 1.0F}, u32(schriftFarbe), o.taste);
@@ -940,7 +999,7 @@ bool werkzeugKnopf(const char* text, const KnopfOpt& o) {
     return geklickt && o.aktiv;
 }
 
-bool schalter(const char* text, bool* wert, const char* hinweis) {
+bool schalter(const char* text, bool* wert, const char* hinweis, bool aktiv) {
     ImGuiWindow* w = ImGui::GetCurrentWindow();
     if (w->SkipItems) { return false; }
     ImGuiContext& g = *GImGui;
@@ -951,6 +1010,13 @@ bool schalter(const char* text, bool* wert, const char* hinweis) {
     const float kasten = std::floor(fs * 1.05F);
     const float luecke = std::floor(fs * 0.4F);
     const float textB = std::max(p.breite - kasten - luecke, fs);
+    {
+        // AP14: wie beim werkzeugKnopf - die Zelle so breit, dass das breiteste Wort neben dem Kasten passt
+        Raster& r = z().raster;
+        const bool imRaster = p.imRaster && r.an;
+        if (imRaster) { r.bedarf = std::max(r.bedarf, kasten + luecke + breitestesWort(text, ende)); }
+        wortbruchMerken(&WortbruchProbe::schalter, text, ende, textB, (imRaster ? r.ganz : p.breite) - kasten - luecke);
+    }
     const ImVec2 textG = cjkTextSize(text, ende, false, textB);
     const float natur = std::max(textG.y, kasten) + std::floor(fs * 0.16F);
     const float hoehe = std::floor(natur);
@@ -959,13 +1025,16 @@ bool schalter(const char* text, bool* wert, const char* hinweis) {
     const ImRect bb{p.ort, ImVec2{p.ort.x + breite, p.ort.y + hoehe}};
     ImGui::ItemSize(bb.GetSize());
     platzBelegt(p, natur, hoehe);
+    // AP14 (Wunsch AP8): aktiv = false sperrt den Schalter wie ImGui::BeginDisabled aussen herum; der Tooltip erscheint trotzdem
+    if (!aktiv) { ImGui::BeginDisabled(); }
     if (!ImGui::ItemAdd(bb, id)) {
         IMGUI_TEST_ENGINE_ITEM_INFO(id, text, ImGuiItemStatusFlags_Checkable | (wert != nullptr && *wert ? ImGuiItemStatusFlags_Checked : 0));
+        if (!aktiv) { ImGui::EndDisabled(); }
         return false;
     }
     bool ueber = false;
     bool gehalten = false;
-    const bool geklickt = ImGui::ButtonBehavior(bb, id, &ueber, &gehalten);
+    const bool geklickt = ImGui::ButtonBehavior(bb, id, &ueber, &gehalten) && aktiv;
     if (geklickt && wert != nullptr) {
         *wert = !*wert;
         ImGui::MarkItemEdited(id);
@@ -982,6 +1051,7 @@ bool schalter(const char* text, bool* wert, const char* hinweis) {
     cjkAddText(dl, nullptr, 0.0F, ImVec2{k1.x + luecke, std::floor(bb.Min.y + (hoehe - textG.y) * 0.5F)}, ImGui::GetColorU32(ImGuiCol_Text), text, ende, textB);
     ImGui::RenderNavCursor(bb, id);
     IMGUI_TEST_ENGINE_ITEM_INFO(id, text, g.LastItemData.StatusFlags | ImGuiItemStatusFlags_Checkable | (wert != nullptr && *wert ? ImGuiItemStatusFlags_Checked : 0));
+    if (!aktiv) { ImGui::EndDisabled(); }
     tooltipText(hinweis, nullptr);
     return geklickt;
 }
@@ -1155,20 +1225,41 @@ void wertZeile(const char* name, const char* wert, Ton ton, const char* hinweis,
     bool darunter = false;
     if (nameFrei.x + luecke + wertFrei.x > breite) {
         const float halb = std::floor((breite - luecke) * 0.5F);
-        if (std::strchr(wert, ' ') == nullptr) {
+        // AP14: umbrochen wird nur zwischen Woertern. Jede Spalte bleibt mindestens so breit wie ihr breitestes Wort (CJK:
+        // Zeichenpaar) - bis rc611 brach bei Mindestgroesse "counterp / art", deutsch "Flaechenuebergrei / fend". Passen die
+        // breitesten Woerter beider Spalten nicht nebeneinander, steht der Wert unter der Beschriftung.
+        const float nameWort = std::ceil(breitestesWort(name, name + std::strlen(name)));
+        const float wertWort = std::ceil(breitestesWort(wert, wert + std::strlen(wert)));
+        if (std::strchr(wert, ' ') == nullptr || nameWort + luecke + wertWort > breite) {
             darunter = true;
             nameB = breite;
             wertB = breite;
         } else if (wertFrei.x <= halb) {
             // beide brechen um: die Beschriftung bekommt hoechstens die Haelfte, der Wert den Rest (und umgekehrt)
             nameB = breite - luecke - wertFrei.x;
+            if (nameB < nameWort) {
+                nameB = nameWort;
+                wertB = breite - luecke - nameB;
+            }
         } else if (nameFrei.x <= halb) {
             wertB = breite - luecke - nameFrei.x;
+            if (wertB < wertWort) {
+                wertB = wertWort;
+                nameB = breite - luecke - wertB;
+            }
+        } else if (nameWort > halb) {
+            nameB = nameWort;
+            wertB = breite - luecke - nameB;
+        } else if (wertWort > halb) {
+            wertB = wertWort;
+            nameB = breite - luecke - wertB;
         } else {
             nameB = halb;
             wertB = halb;
         }
     }
+    wortbruchMerken(&WortbruchProbe::werte, name, nullptr, nameB, breite);
+    wortbruchMerken(&WortbruchProbe::werte, wert, nullptr, wertB, breite);
     const ImVec2 nameG = cjkTextSize(name, nullptr, false, std::max(nameB, 1.0F));
     const ImVec2 wertG = cjkTextSize(wert, nullptr, false, std::max(wertB, 1.0F));
     const float hoehe = darunter ? nameG.y + wertG.y : std::max(nameG.y, wertG.y);
@@ -1260,11 +1351,14 @@ float feldBreite() { return z().feldB; }
 
 namespace {
 
-bool reglerKern(const char* text, ImGuiDataType typ, void* wert, const void* von, const void* bis, const char* format, const char* hinweis, ImGuiSliderFlags flags) {
+bool reglerKern(const char* text, ImGuiDataType typ, void* wert, const void* von, const void* bis, const char* format, const char* hinweis, ImGuiSliderFlags flags,
+                bool aktiv) {
     ImGuiWindow* w = ImGui::GetCurrentWindow();
     if (w->SkipItems) { return false; }
     ImGuiContext& g = *GImGui;
     const float fs = ImGui::GetFontSize();
+    // AP14 (Wunsch AP8): aktiv = false sperrt Beschriftung, Schieber und Wert; der Tooltip erscheint trotzdem
+    if (!aktiv) { ImGui::BeginDisabled(); }
     // der Wert rechts neben dem Schieber, rechtsbuendig in einer gemeinsamen Spalte der Gruppe
     char wertText[64];
     ImGui::DataTypeFormatString(wertText, IM_ARRAYSIZE(wertText), typ, wert, format);
@@ -1294,17 +1388,18 @@ bool reglerKern(const char* text, ImGuiDataType typ, void* wert, const void* von
         const float b = ImGui::CalcTextSize(wertText).x;
         w->DrawList->AddText(ImVec2{std::floor(bb.Max.x + luecke + spalte - b), std::floor(bb.Min.y + g.Style.FramePadding.y)}, ImGui::GetColorU32(ImGuiCol_Text), wertText);
     }
-    return geaendert;
+    if (!aktiv) { ImGui::EndDisabled(); }
+    return geaendert && aktiv;
 }
 
 }  // namespace
 
-bool regler(const char* text, float* wert, float von, float bis, const char* format, const char* hinweis, ImGuiSliderFlags flags) {
-    return reglerKern(text, ImGuiDataType_Float, wert, &von, &bis, format, hinweis, flags);
+bool regler(const char* text, float* wert, float von, float bis, const char* format, const char* hinweis, ImGuiSliderFlags flags, bool aktiv) {
+    return reglerKern(text, ImGuiDataType_Float, wert, &von, &bis, format, hinweis, flags, aktiv);
 }
 
-bool reglerInt(const char* text, int* wert, int von, int bis, const char* format, const char* hinweis, ImGuiSliderFlags flags) {
-    return reglerKern(text, ImGuiDataType_S32, wert, &von, &bis, format, hinweis, flags);
+bool reglerInt(const char* text, int* wert, int von, int bis, const char* format, const char* hinweis, ImGuiSliderFlags flags, bool aktiv) {
+    return reglerKern(text, ImGuiDataType_S32, wert, &von, &bis, format, hinweis, flags, aktiv);
 }
 
 // --- Text ---------------------------------------------------------------------------------------------
@@ -1349,6 +1444,18 @@ void absatz(const char* text, Ton ton) {
     ImGui::PushTextWrapPos(0.0F);
     cjkTextColored(tonFarbe(ton), "%s", text);
     ImGui::PopTextWrapPos();
+    // AP14 (Wunsch AP8): der Absatz meldet sich mit seinem Text im Element-Register - Selbsttests finden Warn- und Fehlerzeilen
+    // ("3 Ecken tragen mehr als 4 Gewichte") ueber finde(text, fenster). Der Text selbst ist ein Element ohne Kennung; die
+    // Kennung hier kommt aus der Gruppe und der laufenden Nummer der Zeile.
+    ImGuiContext& g = *GImGui;
+    ImGuiWindow* w = g.CurrentWindow;
+    if (!g.TestEngineHookItems || w->SkipItems) { return; }
+    Lauf* l = laufJetzt();
+    const int nr = l != nullptr ? l->zeilenNr++ : 0;
+    const ImGuiID id = l != nullptr ? ImHashData(&nr, sizeof nr, ImHashStr("##absatz", 0, l->id)) : ImHashStr(text, 0, w->ID);
+    const ImRect bb = g.LastItemData.Rect;
+    IMGUI_TEST_ENGINE_ITEM_ADD(id, bb, &g.LastItemData);
+    IMGUI_TEST_ENGINE_ITEM_INFO(id, text, 0);
 }
 
 bool eintrag(const char* text, const char* entfernen) {
@@ -1405,10 +1512,14 @@ const RolloutProbe& rolloutProbe(int nr) {
     return nr >= 0 && nr < static_cast<int>(s.probenLetztes.size()) ? s.probenLetztes[static_cast<std::size_t>(nr)] : leer;
 }
 
+const WortbruchProbe& wortbruchProbe() { return z().wortbruchLetztes; }
+
 void rolloutBildAnfang() {
     Zustand& s = z();
     s.probenLetztes.swap(s.proben);
     s.proben.clear();
+    s.wortbruchLetztes = std::move(s.wortbruch);
+    s.wortbruch = WortbruchProbe{};
     // eine Gruppe ohne rolloutEnde() (Programmierfehler): ihr Zeichenkanal darf nicht geteilt bleiben
     for (int i = 0; i < s.tiefe; ++i) { s.lauf[i].teiler.Clear(); }
     s.tiefe = 0;

@@ -448,7 +448,7 @@ bool modellRigAktionenSuche(const std::string& such) {
         std::string k = text;
         for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
         if (!such.empty() && k.find(such) == std::string::npos) { continue; }
-        if (ImGui::Selectable(text.c_str())) {
+        if (modellAktionZeile(text.c_str(), static_cast<int>(ModellBereich::Animation))) {
             aktionAusloesen(a);
             return true;
         }

@@ -109,6 +109,9 @@ struct FeldOpt {
     RolloutStil stil = RolloutStil::Max;
     int kontext = 0;                   // wechselt der Inhalt des Felds (der Bereich): welche Reiter Gruppen haben, merkt es je Kontext
     const char* leerHinweis = nullptr; // Tooltip-Zusatz eines Reiters, der in diesem Kontext keine Gruppe hat
+    // AP14 (Entscheidung B6): wie 3ds Max die Reiter nur als Symbole (FeldReiter::icon) in EINER Reihe, der Name im Tooltip - wie
+    // Blenders Eigenschaften-Reiter. Der Aufrufer setzt es bei Mindestgroesse (der Text braucht dort zwei bis drei Reihen).
+    bool symbole = false;
 };
 // Zeichnet Titelzeile und Reiter und beginnt den rollenden Bereich (Kindfenster "<id>"). Immer mit feldEnde abschliessen.
 // Ein Reiter, zu dem im letzten Bild keine Gruppe gehoerte, ist gedaempft und nicht waehlbar (der vorgegebene bleibt es immer).
@@ -180,15 +183,22 @@ struct KnopfOpt {
     // (Entwurf UV: "Dichte angleichen" zweizeilig mit Strg+A). Ohne: die Taste faellt weg, sobald dem Text weniger als
     // min(Textbreite, 4 Zeichenhoehen) bleibt. CJK bricht zwischen den Zeichen: dort muss das breiteste Zeichenpaar passen.
     bool tasteHalten = false;
+    // Ergaenzung AP14 (Wunsch AP8): ein Hauptknopf, der umschaltet ("Gewichte malen"). Mit haupt und umschalter behaelt der Knopf
+    // Platz und Hoehe des Hauptknopfs in beiden Zustaenden: an gefuellt in der Betonungsfarbe wie jeder Hauptknopf, aus nur mit
+    // Rahmen und Symbol in der Betonungsfarbe auf dem Grund eines gewoehnlichen Knopfs. Ohne umschalter aendert sich nichts.
+    bool umschalter = false;
 };
 // Ein Knopf mit Symbol, Text und Taste. Im Raster so breit wie die Zelle, sonst ueber die ganze Breite. true: geklickt.
 bool werkzeugKnopf(const char* text, const KnopfOpt& opt = {});
 // Ein Haken mit umbrechender Beschriftung; im Raster eine Zelle (Schalterlisten in zwei Spalten). true: geaendert.
-bool schalter(const char* text, bool* wert, const char* hinweis = nullptr);
+// aktiv (AP14, Wunsch AP8) false: gesperrt wie beim werkzeugKnopf - gedaempft, ohne Wirkung, der Tooltip erscheint trotzdem
+// (ein fest angehakter Schalter wie "Hoechstens 4 je Ecke (JKA)" erklaert sich so selbst).
+bool schalter(const char* text, bool* wert, const char* hinweis = nullptr, bool aktiv = true);
 // Eine Wahl als zusammenhaengende Knopfreihe ueber die ganze Breite (LOD 1-10, Picmip 0-3, Verfahren). spalten 0: alle in
 // einer Reihe, solange die Texte passen, sonst gleichmaessig umbrochen. gesperrtAb: Eintraege ab diesem Index sind gesperrt
 // (-1: keiner). hinweise: je Eintrag ein Tooltip oder nullptr. breite: so breit statt der ganzen Breite (0: ganz).
-// true: *wahl geaendert.
+// true: *wahl geaendert. Zugesichert (AP14, Wunsch AP8): steht *wahl ausserhalb von 0..zahl-1 (ueblich -1) oder ist wahl
+// nullptr, ist kein Eintrag betont - eine Reihe von Festwerten ohne gewaehlten Wert (Weight Tool 0 .. 1).
 // umbrechen (AP10, nur mit spalten > 0): ein Text bricht in seiner Zelle um (Entwurf Animation: "Mensch (_humanoid +
 // 32 Karten-GLAs)" zweizeilig in der Vorlagen-Wahl), die Reihe wird so hoch wie ihr laengster Text; die Spalten bleiben, solange
 // das breiteste Wort (CJK: Zeichenpaar) in die Zelle passt. Ohne (Vorgabe): wie bisher eine Zeile je Eintrag.
@@ -202,7 +212,9 @@ struct WertZeile {
     Ton ton = Ton::Normal;             // Farbe des Werts
     std::string hinweis;               // Tooltip der Zeile
 };
-// Zwei Spalten: Beschriftung links, Wert rechtsbuendig (beide brechen um, wenn die Breite nicht reicht).
+// Zwei Spalten: Beschriftung links, Wert rechtsbuendig (beide brechen um, wenn die Breite nicht reicht). Umbrochen wird nur
+// zwischen Woertern (AP14): jede Spalte bleibt so breit wie ihr breitestes Wort (CJK: Zeichenpaar); passen die breitesten
+// Woerter beider Spalten nicht nebeneinander, steht der Wert rechtsbuendig unter der Beschriftung.
 void wertTabelle(const WertZeile* zeilen, int zahl);
 void wertTabelle(std::initializer_list<WertZeile> zeilen);
 // Eine Grenze des Spiels als Zeile "name ... ist / grenze" mit Balken: gruen bis zur Grenze, gelb ab 90 % (unter der Grenze),
@@ -221,16 +233,17 @@ void zeileOhne();
 // Die Feldbreite der letzten zeile()/zeileOhne() (fuer mehrere Elemente nebeneinander im Feld).
 [[nodiscard]] float feldBreite();
 // Regler: Beschriftung | Schieber | Wert rechtsbuendig. Die Kennung ist die Beschriftung ("Text###kennung"). Strg+Klick auf den
-// Schieber tippt den Wert ein. true: geaendert.
+// Schieber tippt den Wert ein. true: geaendert. aktiv (AP14, Wunsch AP8) false: gesperrt, der Tooltip erscheint trotzdem.
 bool regler(const char* text, float* wert, float von, float bis, const char* format = "%.2f", const char* hinweis = nullptr,
-            ImGuiSliderFlags flags = 0);
+            ImGuiSliderFlags flags = 0, bool aktiv = true);
 bool reglerInt(const char* text, int* wert, int von, int bis, const char* format = "%d", const char* hinweis = nullptr,
-               ImGuiSliderFlags flags = 0);
+               ImGuiSliderFlags flags = 0, bool aktiv = true);
 
 // --- Text -------------------------------------------------------------------------------------------------
 // Tipp: Kasten in der Betonungsfarbe mit Info-Symbol und umbrochenem Text (am Ende einer Gruppe).
 void tipp(const char* text);
-// Ein umbrochener Absatz in der Farbe des Zustands (Vorgabe gedaempft).
+// Ein umbrochener Absatz in der Farbe des Zustands (Vorgabe gedaempft). Er steht mit seinem Text im Element-Register (AP14,
+// Wunsch AP8): Selbsttests finden Warn- und Fehlerzeilen ueber finde(text, fenster).
 void absatz(const char* text, Ton ton = Ton::Leise);
 // Eine Listenzeile mit "x" rechts (Anbauten: "saber_1 -> *r_hand"). true: das "x" wurde geklickt. entfernen ist der Name der
 // Aktion ("Detach"): Tooltip des "x" und seine Beschriftung im Element-Register. Die Kennung kommt aus dem laufenden
@@ -269,6 +282,8 @@ struct FeldProbe {
     int reiterZahl = 0;
     int reiterAktiv = -1;
     unsigned reiterBelegt = 0;         // Bits: Reiter mit Gruppen
+    bool reiterSymbole = false;        // AP14 (B6): wie 3ds Max nur Symbole in einer Reihe
+    std::string reiterTooltip;         // AP14 (B6): der Name, den der Tooltip eines Symbol-Reiters in diesem Bild zeigte (leer: keiner)
 };
 [[nodiscard]] const FeldProbe& feldProbe();
 // Die Gruppen des letzten vollstaendigen Bildes (Reihenfolge wie gezeichnet; auch die anderer Reiter fehlen - nur gezeichnete).
@@ -276,6 +291,16 @@ struct FeldProbe {
 [[nodiscard]] const RolloutProbe& rolloutProbe(int nr);
 // Zu Beginn jedes Bildes (app.cpp, neben ui::bildAnfang): die Proben des letzten Bildes festhalten.
 void rolloutBildAnfang();
+// AP14: wo der Baustein im letzten vollstaendigen Bild einem Text weniger Breite gab als sein breitestes Wort (CJK:
+// Zeichenpaar) braucht - dort bricht ein Wort mitten im Wort um ("counterp / art"). gui/selbsttest_ap14.inc prueft je Bereich
+// und Bedienmodus bei Mindestgroesse, dass alle Zaehler 0 sind.
+struct WortbruchProbe {
+    int werte = 0;                     // Zeilen von wertTabelle (Beschriftung oder Wert)
+    int knoepfe = 0;                   // werkzeugKnopf
+    int schalter = 0;
+    std::string erster;                // der Text der ersten betroffenen Stelle
+};
+[[nodiscard]] const WortbruchProbe& wortbruchProbe();
 
 }  // namespace bhed::gui::ui
 

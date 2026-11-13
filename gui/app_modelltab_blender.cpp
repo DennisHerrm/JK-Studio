@@ -1460,7 +1460,7 @@ bool modellBlAktionenSuche(const std::string& such) {
         if (z.taste[0] != '\0') { zeile += std::string(" (") + z.taste + ")"; }
         if (!such.empty() && klein(zeile).find(klein(such)) == std::string::npos) { continue; }
         ImGui::PushID(&z);
-        if (ImGui::Selectable(zeile.c_str()) && !ausgeloest) {
+        if (modellAktionZeile(zeile.c_str()) && !ausgeloest) {
             z.tun();
             ++mt().tastenZaehler;
             mt().letzteTaste = tr(z.text);

@@ -336,7 +336,8 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 const Element* haupt = imRoll(tr(Str::MgMalenMax));
                 const ui::RolloutProbe* g = feldGruppe(Str::MgRWerkzeug);
                 melde("W2 Auswahl " + std::to_string(mtab().eckenWahl.size()) + " Ecken, Tupfer " + std::to_string(mtab().tupferZahl - p->zahl));
-                return !gw().malen && haupt != nullptr && (haupt->flags & ImGuiItemStatusFlags_Checked) == 0 && g != nullptr && g->hauptKnoepfe == 0 && mtab().tupferZahl == p->zahl &&
+                // AP14: der Knopf bleibt aus der Hauptknopf der Gruppe (KnopfOpt::umschalter: nur Rahmen betont), er ist nur nicht mehr gedrueckt
+                return !gw().malen && haupt != nullptr && (haupt->flags & ImGuiItemStatusFlags_Checked) == 0 && g != nullptr && g->hauptKnoepfe == 1 && mtab().tupferZahl == p->zahl &&
                        !mtab().eckenWahl.empty() && !mtab().dok.kannRueckgaengig();
             }));
             add(tu("AP8 W2: genau diese Ecke gewaehlt, Gewicht vorher", [p] {

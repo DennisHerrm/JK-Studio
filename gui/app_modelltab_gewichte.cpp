@@ -275,9 +275,13 @@ void verlaufArtSegment() {
 
 void hauptKnopf(Str name) {
     ModellGewichte& g = gw();
-    // der Hauptknopf traegt die Betonungsfarbe, solange gemalt wird (hoechstens ein Hauptknopf je Gruppe)
+    // der Hauptknopf ist gefuellt, solange gemalt wird (hoechstens ein Hauptknopf je Gruppe)
+    // AP14: der Hauptknopf schaltet um (KnopfOpt::umschalter) - er behaelt Platz und Hoehe, aus zeigt er nur den Rahmen in der
+    // Betonungsfarbe (bis dahin war er aus ein gewoehnlicher, niedrigerer Knopf und der Inhalt darunter sprang)
     const std::string hinweis = std::string(tr(Str::MgMalenHint)) + " " + tr(Str::FxStrichStrgZ);   // FIX612B P2-10
-    if (ui::werkzeugKnopf(tr(name), {.icon = UiIcon::GwPinsel, .hinweis = hinweis.c_str(), .haupt = g.malen, .an = g.malen})) { modellGewichteMalenSetzen(!g.malen); }
+    if (ui::werkzeugKnopf(tr(name), {.icon = UiIcon::GwPinsel, .hinweis = hinweis.c_str(), .haupt = true, .an = g.malen, .umschalter = true})) {
+        modellGewichteMalenSetzen(!g.malen);
+    }
     if (!hatKnochen()) { ui::absatz(tr(Str::MbGwKnochenWaehlen), ui::Ton::Warnung); }
 }
 
@@ -357,9 +361,7 @@ void rolloutPinselBl() {
 void vierFest() {
     // "Hoechstens 4 je Ecke (JKA)" ist fest an: die Grenze des Spiels laesst sich nicht abwaehlen
     bool an = true;
-    ImGui::BeginDisabled();
-    (void)ui::schalter(tr(Str::MgVier), &an, tr(Str::MgVierHint));
-    ImGui::EndDisabled();
+    (void)ui::schalter(tr(Str::MgVier), &an, tr(Str::MgVierHint), false);
 }
 
 void rolloutOptionenBl() {
@@ -481,9 +483,7 @@ void rolloutSpiegelnBl() {
     (void)ui::schalter(tr(Str::MbGwSpiegelMalen), &t.pinselSpiegeln, tr(Str::MbGwSpiegelHint));
     ui::rasterEnde();
     // nicht im Entwurf: ohne Toleranz findet eine Figur des Spiels kaum Gegenstuecke (Blender sucht auf 0,00002 genau)
-    ImGui::BeginDisabled(g.blTopologie);
-    (void)ui::regler(tr(Str::MgToleranz), &g.toleranz, 0.01F, 2.0F, "%.2f", tr(Str::MgToleranzHint));
-    ImGui::EndDisabled();
+    (void)ui::regler(tr(Str::MgToleranz), &g.toleranz, 0.01F, 2.0F, "%.2f", tr(Str::MgToleranzHint), 0, !g.blTopologie);
     spiegelTabelle();
     ui::rolloutEnde();
 }
@@ -1114,7 +1114,7 @@ bool modellGewichteAktionenSuche(const std::string& such) {
         if (k[0] != '\0') { zeile += std::string(" (") + k + ")"; }
         if (!such.empty() && klein(zeile).find(klein(such)) == std::string::npos) { continue; }
         ImGui::PushID(&a);
-        if (ImGui::Selectable(zeile.c_str()) && !ausgeloest) {
+        if (modellAktionZeile(zeile.c_str(), static_cast<int>(ModellBereich::Weights)) && !ausgeloest) {
             ausloesen(a);
             ausgeloest = true;
         }

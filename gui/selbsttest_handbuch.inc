@@ -2646,6 +2646,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_ap5.inc: AP5 Bereich An
 namespace ap13k {
 std::vector<Schritt> handbuchSchritte();   // selbsttest_ap13k.inc: AP13K Knochen, Rig-Stile, Durchsicht, BHED_HB_NUR=ap13k
 }  // namespace ap13k
+namespace ap14 {
+std::vector<Schritt> handbuchSchritte();   // selbsttest_ap14.inc: AP14 Gruppe Auto-Skin im Feld des Bereichs Weights, BHED_HB_NUR=ap14
+}  // namespace ap14
 
 std::vector<Schritt> handbuchSchritteInhalt() {
     // Die Sprache schon JETZT: die Klicks unten tragen ihre Beschriftung
@@ -2739,6 +2742,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap13k") == 0) {
         return ap13k::handbuchSchritte();   // AP13K: Knochen-Darstellung, Durchsicht, Rig-Stile
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "ap14") == 0) {
+        return ap14::handbuchSchritte();   // AP14: die Gruppe Auto-Skin im rechten Feld (h_ap12_max, h_ap12_blender)
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "kartemission") == 0) {
         return kartemissionSchritte(true);   // rc609 B2: h_kartemission_menue, h_kartemission_liste

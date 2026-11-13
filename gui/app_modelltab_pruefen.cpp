@@ -823,7 +823,7 @@ bool modellPrAktionenSuche(const std::string& such) {
         if (blTaste && modellBlender()) { text += std::string(" (") + e.taste + ")"; }
         if (!such.empty() && klein(text).find(such) == std::string::npos) { continue; }
         if (blTaste && !modellBlender() && e.text == Str::PqSchattierungMenue) { continue; }   // wie 3ds Max: das Menue [Standard]
-        if (ImGui::Selectable(text.c_str())) {
+        if (modellAktionZeile(text.c_str(), static_cast<int>(ModellBereich::Ansehen))) {
             e.tun();
             ++mt().tastenZaehler;
             mt().letzteTaste = tr(e.text);
