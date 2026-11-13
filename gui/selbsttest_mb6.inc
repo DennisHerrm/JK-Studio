@@ -41,6 +41,16 @@ bool ikSchluessel(int art, int bild) {
     return std::any_of(s->ziel.begin(), s->ziel.end(), [bild](const modell::RigSchluessel& k) { return k.bild == bild; });
 }
 
+// Der Wechsel auf FK am Bild: ein Schluessel der IK/FK-Spur des Glieds mit Anteil 0 (FK). Seit ENT3B (B14, a0c24eda8: eigene
+// IK/FK-Spur je Glied wie layerIKFKRatio von CAT) steht der Anteil nicht mehr im IK-Schluessel - der Wechsel auf FK setzt
+// kein Ziel mehr, nur den Schluessel der Spur (bis dahin pruefte der Test den IK-Schluessel am Bild).
+bool fkSchluessel(int art, int bild) {
+    const modell::IkSpur* s = spur(art);
+    if (s == nullptr) { return false; }
+    return std::any_of(s->anteil.begin(), s->anteil.end(),
+                       [bild](const modell::RigSchluessel& k) { return k.bild == bild && modell::kanalWert(k, modell::kAnteilKanal) <= 0.0F; });
+}
+
 void ort(const BoneMatrix& m, float p[3]) {
     p[0] = m.m[0][3];
     p[1] = m.m[1][3];
@@ -353,7 +363,7 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
     add(pause(0.3));
     add(merke(st, "vor Glied auf FK"));
     for (Schritt& x : ueberRechtsklick(Str::MbIkAufFk)) { add(std::move(x)); }
-    add(pruefe("MB6 Glied auf FK (Rechtsklick der Ansicht): FK ab Frame +24", [] { return modellIkAnteil(kArmR) <= 0.0F && ikSchluessel(kArmR, f0() + 24); }));
+    add(pruefe("MB6 Glied auf FK (Rechtsklick der Ansicht): FK ab Frame +24", [] { return modellIkAnteil(kArmR) <= 0.0F && fkSchluessel(kArmR, f0() + 24); }));
     add(ohneSprung(st, "Glied auf FK"));
     // --- 3ds Max: E am Oberarm unter IK wechselt auf FK ------------------------------------------------------------
     add(tu("MB6 Max E: Frame +20 (IK), Griff Oberarm R, E", [] {
@@ -379,8 +389,10 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
         float h1[3];
         ort(st->welt[static_cast<std::size_t>(knochen("rhand"))], h0);
         ort(g_app->modellWelt[static_cast<std::size_t>(knochen("rhand"))], h1);
-        diag::detail("Knopftest: MB6 Max E - Hand bewegt " + std::to_string(abstand(h0, h1)) + ", Anteil " + std::to_string(modellIkAnteil(kArmR)));
-        return g_app->mtab.ikZugArt == 4 && modellIkAnteil(kArmR) <= 0.0F && ikSchluessel(kArmR, f0() + 20) && abstand(h0, h1) > 0.5F &&
+        diag::detail("Knopftest: MB6 Max E - Hand bewegt " + std::to_string(abstand(h0, h1)) + ", Anteil " + std::to_string(modellIkAnteil(kArmR)) + ", Zug " +
+                     std::to_string(g_app->mtab.ikZugArt) + ", FK-Schluessel der IK/FK-Spur " + (fkSchluessel(kArmR, f0() + 20) ? "ja" : "nein") + ", IK-Schluessel " +
+                     (ikSchluessel(kArmR, f0() + 20) ? "ja" : "nein"));
+        return g_app->mtab.ikZugArt == 4 && modellIkAnteil(kArmR) <= 0.0F && fkSchluessel(kArmR, f0() + 20) && abstand(h0, h1) > 0.5F &&
                schl(knochen("rhumerus"), f0() + 20) != nullptr;
     }));
     // --- Pol (W) ---------------------------------------------------------------------------------------------------
