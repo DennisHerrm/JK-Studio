@@ -111,6 +111,11 @@ void figurLaden(std::vector<Schritt>& s, const char* modus, const char* modell =
         modellBedienungSetzen(m == "blender" ? 1 : 0);
         ModellTab& t = g_app->mtab;
         t.bereich = ModellBereich::Painting;
+        // Seit AP5 (R7, 5d7037289) nimmt jeder Bereich wie 3ds Max seine Zahl der Ansichten (Painting ab Werk vier) - im naechsten
+        // Bild, wenn der Abgleich den Wechsel sieht. Ein vierAnsichten = false im selben Schritt galt dem alten Bereich, die
+        // Malgruppen liefen seitdem in vier kleinen Ansichten (ptsprung: Strich ueber Arm und Rumpf). Erst der Abgleich wie jedes
+        // Bild, dann eine Ansicht (Alt+W, wie der Test es meint).
+        modellPrAnsichtenAbgleich();
         t.vierAnsichten = false;
         t.aktiv = 1;
         t.ansichten[1].art = AnsichtArt::Vorne;
@@ -1786,6 +1791,9 @@ std::vector<Schritt> sprungSchritte() {
                       static_cast<double>(std::hypot(st->nach.x - st->von.x, st->nach.y - st->von.y)));
         diag::detail(z);
         const ModellAnsicht& av = g_app->mtab.ansichten[g_app->mtab.aktiv];
+        std::snprintf(z, sizeof z, "Knopftest: PT Sprung - Ansicht %d von %s, %.0f x %.0f Punkte", g_app->mtab.aktiv, g_app->mtab.vierAnsichten ? "vier" : "einer",
+                      static_cast<double>(av.groesse[0]), static_cast<double>(av.groesse[1]));
+        diag::detail(z);
         const auto drin = [&av](ImVec2 p) { return p.x > av.lo[0] && p.y > av.lo[1] && p.x < av.lo[0] + av.groesse[0] && p.y < av.lo[1] + av.groesse[1]; };
         return l != nullptr && kleinPt(l->datei).find("/body.") != std::string::npos && ha && hb && drin(st->von) && drin(st->nach);
     }));
