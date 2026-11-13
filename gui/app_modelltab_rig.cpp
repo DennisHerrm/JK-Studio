@@ -87,6 +87,7 @@ bool rigSicher() {
 Str griffHinweis(const modell::Griff& g) {
     using G = modell::GriffArt;
     const bool blender = modellBlender();
+    if (g.art == G::Wurzel) { return Str::E3GriffWurzelHint; }   // ENT3B (B17)
     if (g.art == G::PolEllbogen || g.art == G::PolKnie) { return Str::MbIkPolHint; }
     if (g.art == G::Ferse || g.art == G::Ballen || g.art == G::Zehe) { return Str::MbIkRolleGriffHint; }
     if (g.art == G::Hand || g.art == G::Fuss || g.art == G::Saebelgriff) { return blender ? Str::MbIkGriffHintBlender : Str::MbIkGriffHintMax; }
@@ -97,7 +98,7 @@ Str griffText(modell::GriffArt a) {
     static const Str kText[modell::kGriffArten] = {Str::MbRgBecken,     Str::MbRgWirbel,  Str::MbRgHals,      Str::MbRgKopf,     Str::MbRgSchluessel,
                                                    Str::MbRgOberarm,    Str::MbRgUnterarm, Str::MbRgHand,     Str::MbRgOberschenkel, Str::MbRgUnterschenkel,
                                                    Str::MbRgFuss,       Str::MbRgZehen,   Str::MbRgPolEllbogen, Str::MbRgPolKnie, Str::MbRgFerse,
-                                                   Str::MbRgBallen,     Str::MbRgZehe,    Str::MbRgSaebelgriff};
+                                                   Str::MbRgBallen,     Str::MbRgZehe,    Str::MbRgSaebelgriff, Str::E3GriffWurzel};
     return kText[std::clamp(static_cast<int>(a), 0, modell::kGriffArten - 1)];
 }
 
@@ -560,6 +561,11 @@ void modellRigGriffWaehlen(int griff) {
     t.griffWahl = griff;
     t.knochenWahl = t.rig.griffe[static_cast<std::size_t>(griff)].knochen;
     const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(griff)];
+    if (g.art == modell::GriffArt::Wurzel) {   // ENT3B (B17)
+        melden(tr(Str::E3WurzelGewaehlt));
+        g_app->modelDirty = true;
+        return;
+    }
     melden(format(g.ik ? Str::MbRgGriffIk : Str::MbRgGriffGewaehlt, griffName(griff).c_str(),
                   g.knochen >= 0 ? g_app->anim.bones[static_cast<std::size_t>(g.knochen)].name.c_str() : "-"));
     g_app->modelDirty = true;
@@ -608,6 +614,13 @@ bool modellRigGriffWelt(int griff, const std::vector<BoneMatrix>& welt, float or
     const ModellTab& t = mt();
     if (griff < 0 || static_cast<std::size_t>(griff) >= t.rig.griffe.size()) { return false; }
     const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(griff)];
+    if (g.art == modell::GriffArt::Wurzel) {
+        // ENT3B (B17): die Mitte des Bodenkreises mit der Plattform des Bilds
+        const modell::RigSchicht* s = modellRigSchichtJetzt();
+        const BoneMatrix p = s != nullptr ? modell::plattformAm(*s, static_cast<float>(bildJetzt())) : BoneMatrix::identity();
+        p.transform(g.ort, ort);
+        return true;
+    }
     if (g.knochen < 0 || static_cast<std::size_t>(g.knochen) >= welt.size() || static_cast<std::size_t>(g.knochen) >= g_app->anim.bones.size()) { return false; }
     const BoneMatrix& x = welt[static_cast<std::size_t>(g.knochen)];
     const bool amKnochen = !g.ik && g.art != modell::GriffArt::Saebelgriff;
@@ -632,8 +645,17 @@ void rigZugAnwenden(int gizmoArt, const BoneMatrix& dreh, const float weg[3]) {
     ModellTab& t = mt();
     modell::RigSchicht neu = t.rigSchichtStart;
     neu.neuInterp = modell::Interp::Bezier;   // Stufe 3b: neue Schluessel wie Max und Blender (Bezier, Auto Clamped)
-    const int ik = modellIkZiehen(gizmoArt, dreh, weg, neu);
-    if (ik != 1) {
+    const bool wurzel = t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size() &&
+                        t.rig.griffe[static_cast<std::size_t>(t.griffWahl)].art == modell::GriffArt::Wurzel;
+    const int ik = wurzel ? 0 : modellIkZiehen(gizmoArt, dreh, weg, neu);
+    if (wurzel) {
+        // ENT3B (B17): der Griff der Wurzel - wie CATs Plattform: ein Schluessel der Plattform am Bild, die ganze Figur geht mit (auch die
+        // IK-Ziele im Raum Welt); gedreht wird um die Mitte des Bodenkreises beim Anfassen
+        const BoneMatrix start = modell::plattformAm(t.rigSchichtStart, static_cast<float>(t.rigZiehBild));
+        float um[3];
+        start.transform(t.rig.griffe[static_cast<std::size_t>(t.griffWahl)].ort, um);
+        modell::plattformZiehen(neu, t.rigZiehBild, start, dreh, um, weg);
+    } else if (ik != 1) {
         modell::rigGriffDrehen(g_app->anim, t.rig, t.griffWahl, t.rigZiehBild, t.rigWeltStart, dreh, weg, neu);
         modellKurvenAnimOffset(t.rigSchichtStart, neu, auswahlKnochen(), t.rigZiehBild);   // Stufe 3b
     }
@@ -650,6 +672,7 @@ bool modellRigGriffMitte(float m[3]) {
     if (t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size()) { return false; }
     const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(t.griffWahl)];
     if (g.ik) { return modellIkGriffMitte(t.griffWahl, m); }   // Stufe 4: Pol (W), Fussrolle (E)
+    if (g.art == modell::GriffArt::Wurzel) { return modellRigGriffWelt(t.griffWahl, g_app->modellWelt, m); }   // ENT3B: verschieben und drehen
     // verschieben: das Becken (FK) und Hand/Fuss/Saebelgriff (IK, Stufe 4); die anderen Griffe drehen
     const bool ende = g.art == modell::GriffArt::Hand || g.art == modell::GriffArt::Fuss || g.art == modell::GriffArt::Saebelgriff;
     if (t.gizmo == 1 && g.art != modell::GriffArt::Becken && !ende) { return false; }
@@ -713,6 +736,10 @@ bool modellRigZugMoeglich(int art, std::string* grund) {
     const ModellTab& t = mt();
     if (t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size()) { return false; }
     const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(t.griffWahl)];
+    if (g.art == modell::GriffArt::Wurzel) {   // ENT3B (B17): wie CATs Plattform verschieben und drehen, nicht skalieren
+        if (art == 3 && grund != nullptr) { *grund = tr(Str::E3GriffWurzelHint); }
+        return art == 1 || art == 2;
+    }
     // Stufe 4: G bewegt auch Hand, Fuss, Saebelgriff und Pol (IK), R rollt an Ferse/Ballen/Zehe
     const bool ende = g.art == modell::GriffArt::Hand || g.art == modell::GriffArt::Fuss || g.art == modell::GriffArt::Saebelgriff;
     const bool pol = g.art == modell::GriffArt::PolEllbogen || g.art == modell::GriffArt::PolKnie;
@@ -903,6 +930,14 @@ bool modellHandpose(modell::Seite seite, int art) {
 }
 
 bool modellRigSchluesselLoeschen() {
+    const ModellTab& t = mt();
+    if (t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size() && t.rig.griffe[static_cast<std::size_t>(t.griffWahl)].art == modell::GriffArt::Wurzel) {
+        // ENT3B (B17): der Griff der Wurzel - der Schluessel der Plattform am Bild
+        const int bild = bildJetzt();
+        schichtAendern(Str::MbRgSchluesselLoeschen, [&](modell::RigSchicht& s) { modell::rigSchluesselLoeschen(s, modell::kPlattformWahl, bild); });
+        melden(format(Str::E3WurzelGeloescht, bild));
+        return true;
+    }
     const std::vector<int> k = auswahlKnochen();
     if (k.empty()) {
         melden(tr(Str::MbRgKeineAuswahl));
@@ -1069,6 +1104,7 @@ int modellRigGriffUnter(const ModellAnsicht& a, ImVec2 maus) {
     float bd = reich;
     for (std::size_t i = 0; i < t.rig.griffe.size(); ++i) {
         if (i < t.griffVersteckt.size() && t.griffVersteckt[i] != 0) { continue; }
+        if (t.rig.griffe[i].art == modell::GriffArt::Wurzel) { continue; }   // ENT3B: im Stil Standard ohne Bodenkreis
         float p[3];
         ImVec2 s;
         if (!modellRigGriffWelt(static_cast<int>(i), g_app->modellWelt, p) || !modellAufSchirm(a, p, s)) { continue; }
@@ -1166,6 +1202,7 @@ void modellRigUeberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     for (std::size_t i = 0; i < t.rig.griffe.size(); ++i) {
         if (i < t.griffVersteckt.size() && t.griffVersteckt[i] != 0) { continue; }
         const modell::Griff& g = t.rig.griffe[i];
+        if (g.art == modell::GriffArt::Wurzel) { continue; }   // ENT3B: der Bodenkreis gehoert zu den Rig-Stilen (AP13K), Standard zeigt ihn nicht
         float p[3];
         ImVec2 s;
         if (!modellRigGriffWelt(static_cast<int>(i), g_app->modellWelt, p) || !modellAufSchirm(a, p, s)) { continue; }

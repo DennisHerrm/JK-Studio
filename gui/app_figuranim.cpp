@@ -423,7 +423,7 @@ std::vector<FaGriff> griffeBei(const FigurDaten& d, const modell::RigSchicht& s,
         v.push_back(f);
     }
     for (const modell::IkSpur& sp : s.ik) {
-        const modell::IkZiel z = modell::ikZielAm(sp, static_cast<float>(bild), w);
+        const modell::IkZiel z = modell::ikZielAm(sp, static_cast<float>(bild), w, modell::plattformAm(s, static_cast<float>(bild)));
         if (!z.da || z.ik <= 0.0F) { continue; }
         FaGriff f;
         f.art = 1;
@@ -541,14 +541,14 @@ void zugAnwenden(const FigurDaten& d, float dx, float dy) {
             const modell::IkArt art = g.art == 1 ? static_cast<modell::IkArt>(g.nr) : ikArtFuerGriff(d.rig, g.nr);
             const int sp = spurFuer(s, d, art);
             if (sp < 0) { return; }
-            const modell::IkZiel iz = modell::ikZielAm(s.ik[static_cast<std::size_t>(sp)], static_cast<float>(z.zugBild), welt);
+            const modell::IkZiel iz = modell::ikZielAm(s.ik[static_cast<std::size_t>(sp)], static_cast<float>(z.zugBild), welt, modell::plattformAm(s, static_cast<float>(z.zugBild)));
             BoneMatrix ziel = iz.da && iz.ik > 0.0F ? iz.ziel : modell::starr(welt[static_cast<std::size_t>(s.ik[static_cast<std::size_t>(sp)].ende.knochen)]);
             for (int q = 0; q < 3; ++q) { ziel.m[q][3] += weg[q]; }
             modell::ikZielSetzen(d.basis, s, sp, z.zugBild, ziel);
         } else if (g.art == 2) {
             const int sp = spurFuer(s, d, static_cast<modell::IkArt>(g.nr));
             if (sp < 0) { return; }
-            const modell::IkZiel iz = modell::ikZielAm(s.ik[static_cast<std::size_t>(sp)], static_cast<float>(z.zugBild), welt);
+            const modell::IkZiel iz = modell::ikZielAm(s.ik[static_cast<std::size_t>(sp)], static_cast<float>(z.zugBild), welt, modell::plattformAm(s, static_cast<float>(z.zugBild)));
             const float pol[3] = {iz.pol[0] + weg[0], iz.pol[1] + weg[1], iz.pol[2] + weg[2]};
             modell::ikPolSetzen(d.basis, s, sp, z.zugBild, pol);
         } else if (d.rig.griffe[static_cast<std::size_t>(g.nr)].art == modell::GriffArt::Becken) {
@@ -573,7 +573,7 @@ void zugAnwenden(const FigurDaten& d, float dx, float dy) {
         const modell::IkArt art = g.art == 1 ? static_cast<modell::IkArt>(g.nr) : ikArtFuerGriff(d.rig, g.nr);
         const int sp = spurFuer(s, d, art);
         if (sp < 0) { return; }
-        const modell::IkZiel iz = modell::ikZielAm(s.ik[static_cast<std::size_t>(sp)], static_cast<float>(z.zugBild), welt);
+        const modell::IkZiel iz = modell::ikZielAm(s.ik[static_cast<std::size_t>(sp)], static_cast<float>(z.zugBild), welt, modell::plattformAm(s, static_cast<float>(z.zugBild)));
         if (!iz.da) { return; }
         BoneMatrix ziel = iz.ziel;
         const float o[3] = {ziel.m[0][3], ziel.m[1][3], ziel.m[2][3]};
@@ -719,7 +719,7 @@ bool fussAufBoden(modell::IkArt art) {
         std::vector<BoneMatrix> welt;
         modell::rigWelt(d.basis, a.schicht, bild, bild, 0.0F, welt);
         const modell::IkSpur& spur = a.schicht.ik[static_cast<std::size_t>(sp)];
-        const modell::IkZiel iz = modell::ikZielAm(spur, static_cast<float>(bild), welt);
+        const modell::IkZiel iz = modell::ikZielAm(spur, static_cast<float>(bild), welt, modell::plattformAm(a.schicht, static_cast<float>(bild)));
         BoneMatrix ziel = iz.da && iz.ik > 0.0F ? iz.ziel : modell::starr(welt[static_cast<std::size_t>(spur.ende.knochen)]);
         std::vector<BoneMatrix> erstes;
         d.basis.worldMatrices(0, erstes);
@@ -759,7 +759,7 @@ bool zielAufPunkt(modell::IkArt art, const float punkt[3]) {
         std::vector<BoneMatrix> welt;
         modell::rigWelt(d.basis, a.schicht, bild, bild, 0.0F, welt);
         const modell::IkSpur& spur = a.schicht.ik[static_cast<std::size_t>(sp)];
-        const modell::IkZiel iz = modell::ikZielAm(spur, static_cast<float>(bild), welt);
+        const modell::IkZiel iz = modell::ikZielAm(spur, static_cast<float>(bild), welt, modell::plattformAm(a.schicht, static_cast<float>(bild)));
         BoneMatrix ziel = iz.da && iz.ik > 0.0F ? iz.ziel : modell::starr(welt[static_cast<std::size_t>(spur.ende.knochen)]);
         const BoneMatrix inv = modell::starrInvers(fwMatrix(d.fw));
         for (int q = 0; q < 3; ++q) { ziel.m[q][3] = inv.m[q][0] * punkt[0] + inv.m[q][1] * punkt[1] + inv.m[q][2] * punkt[2] + inv.m[q][3]; }
@@ -786,7 +786,7 @@ bool anFremdenKnochen(modell::IkArt art, const std::string& andere, const std::s
         std::vector<BoneMatrix> welt;
         modell::rigWelt(d.basis, d.wirk, bild, bild, 0.0F, welt);
         const modell::IkSpur& spur = a.schicht.ik[static_cast<std::size_t>(sp)];
-        const modell::IkZiel iz = modell::ikZielAm(spur, static_cast<float>(bild), welt);
+        const modell::IkZiel iz = modell::ikZielAm(spur, static_cast<float>(bild), welt, modell::plattformAm(a.schicht, static_cast<float>(bild)));
         const BoneMatrix ziel = iz.da && iz.ik > 0.0F ? iz.ziel : modell::starr(welt[static_cast<std::size_t>(spur.ende.knochen)]);
         // der Knochen der anderen Figur zur selben Zeit
         int f0 = 0;

@@ -155,7 +155,9 @@ bool ikZielLage(const modell::Griff& g, BoneMatrix& lage) {
     if (g.art != modell::GriffArt::Hand && g.art != modell::GriffArt::Fuss) { return false; }
     const modell::IkSpur* sp = ikSpurVon(g);
     if (sp == nullptr || g_app->modellWelt.size() != g_app->anim.bones.size()) { return false; }
-    const modell::IkZiel z = modell::ikZielAm(*sp, static_cast<float>(bildJetzt()), g_app->modellWelt);
+    const modell::RigSchicht* sch = modellRigSchichtJetzt();
+    const float bild = static_cast<float>(bildJetzt());
+    const modell::IkZiel z = modell::ikZielAm(*sp, bild, g_app->modellWelt, sch != nullptr ? modell::plattformAm(*sch, bild) : BoneMatrix::identity());   // ENT3B
     if (!z.da || z.ik <= 0.0F) { return false; }
     lage = z.ziel;
     return true;
@@ -462,7 +464,7 @@ void stilFormBauen(Szene& s, const modell::RigForm& q, bool alsGriff) {
     }
     const ImU32 grund = IM_COL32(q.farbe[0], q.farbe[1], q.farbe[2], 255);
     const ImU32 farbe = gewaehlt ? kWahlWeiss : mitAlpha(grund, blass);
-    const float dick = gewaehlt ? 2.6F : (q.gestalt == modell::FormGestalt::Bodenform ? 2.2F : (q.schmuck ? 1.2F : 1.6F));
+    const float dick = gewaehlt ? 2.6F : (q.gestalt == modell::FormGestalt::Bodenform ? 2.2F : (q.schmuck || q.wurzel ? 1.2F : 1.6F));   // ENT3B: der Bodenkreis wie bisher
     // Fussplatte und Hand-IK-Ziel (Rechtecke an Hand und Fuss) liegen am Ziel der IK, solange das Glied unter IK laeuft
     BoneMatrix ziel;
     const bool amZiel = !frei && griff >= 0 && static_cast<std::size_t>(griff) < t.rig.griffe.size() && q.gestalt == modell::FormGestalt::Rechteck &&
@@ -603,7 +605,7 @@ const Szene& szene() {
         // Child Of: vom Ziel der IK eine gestrichelte Linie zu seinem Raum (wie im Stil Standard, gui/app_modelltab_ik.cpp)
         if (const modell::RigSchicht* sch = modellRigSchichtJetzt()) {
             for (const modell::IkSpur& sp : sch->ik) {
-                const modell::IkZiel z = modell::ikZielAm(sp, static_cast<float>(bildJetzt()), g_app->modellWelt);
+                const modell::IkZiel z = modell::ikZielAm(sp, static_cast<float>(bildJetzt()), g_app->modellWelt, modell::plattformAm(*sch, static_cast<float>(bildJetzt())));
                 if (!z.da || z.ik <= 0.0F || z.raum < 0 || static_cast<std::size_t>(z.raum) >= g_app->modellWelt.size()) { continue; }
                 s.linien.push_back(Linie{ortVon(z.ziel), ortVon(g_app->modellWelt[static_cast<std::size_t>(z.raum)]), IM_COL32(120, 220, 255, 200), 1.5F, true});
             }

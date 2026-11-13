@@ -1600,7 +1600,15 @@ bool rigReduzieren(const GlaAnimation& g, const RigSchicht& quelle, int erstes, 
     aus = RigSchicht{};
     GlaAnimation gebacken;
     BackBericht bb;
-    if (!rigBacken(g, quelle, erstes, anzahl, false, g.name, gebacken, &bb)) {
+    // ENT3B (B17): die Plattform bleibt eine eigene Spur - gebacken wird ohne sie (sonst stuende sie danach doppelt in den Wurzelknochen)
+    RigSchicht ohnePlattform;
+    const RigSchicht* zuBacken = &quelle;
+    if (!quelle.plattform.empty()) {
+        ohnePlattform = quelle;
+        ohnePlattform.plattform.clear();
+        zuBacken = &ohnePlattform;
+    }
+    if (!rigBacken(g, *zuBacken, erstes, anzahl, false, g.name, gebacken, &bb)) {
         br.fehler = bb.fehler;
         return false;
     }
@@ -1612,6 +1620,7 @@ bool rigReduzieren(const GlaAnimation& g, const RigSchicht& quelle, int erstes, 
     aus.neuInterp = Interp::Bezier;
     aus.knochen.resize(static_cast<std::size_t>(nb));
     aus.ik = quelle.ik;   // Stufe 4: die IK wirkt auf den reduzierten Schluesseln wie vorher
+    aus.plattform = quelle.plattform;   // ENT3B (B17)
     // Stufe 4: die Spanne (relativ) und die Bytes der Quell-GLA (Anhang: Karten-GLA hinter _humanoid)
     int sv = 0;
     int sb = anzahl - 1;

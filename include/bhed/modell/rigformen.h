@@ -60,7 +60,8 @@ struct RigForm {
     int knochen = -1;          // traegt die Form (Bindung Knochen) bzw. gehoert zum Griff
     int griff = -1;            // der Griff des Rigs, den die Form zeigt (-1: keiner)
     bool skelett = false;      // Kasten des Skeletts: gezeichnet mit "Knochen"; hat der Knochen einen Griff, auch als dessen Form
-    bool schmuck = false;      // gehoert zu keinem Griff und keinem Knochen der Auswahl (Bodenkreis, Punkt ueber dem Kopf)
+    bool schmuck = false;      // gehoert zu keinem Griff und keinem Knochen der Auswahl (Punkt ueber dem Kopf)
+    bool wurzel = false;       // ENT3B (B17): der Bodenkreis bzw. die Bodenform - die Form des Griffs der Wurzel (Plattform wie CAT)
     bool innen = false;        // das Innere zaehlt beim Treffen (Kasten)
     bool gestrichelt = false;
     Rolle rolle = Rolle::Keine;
@@ -110,6 +111,10 @@ inline constexpr float kRingLuft = 1.2F;             // Control Rig: der Ring st
 // und Wirbel, Quadrate an Hand und Fuss, Kreise als Pole, der Bodenkreis - die uebrigen FK-Griffe sind die Oktaeder der Knochen.
 // Standard: leer. `in` (darf nullptr sein): das Modell fuer die Weite der Ringe.
 [[nodiscard]] RigFormen rigFormenGriffe(const GlaAnimation& g, const Rig& rig, const Inhalt* in, int stufe, RigStil stil);
+
+// ENT3B (B17): die Mitte des Bodens unter der Figur in der Grundstellung - dort steht der Bodenkreis der Rig-Stile, der Griff der
+// Wurzel (rigAnlegen legt ihn mit diesem Ort an). Ohne Erkennung (0, 0, 0).
+void rigBodenMitte(const GlaAnimation& g, const Rig& rig, float aus[3]);
 
 }  // namespace bhed::modell
 #endif

@@ -477,6 +477,18 @@ float bodenHoehe(const Figur& f, const Rig& rig) {
     return fuss - kCatKnoechel * kCatEinheit * f.m;
 }
 
+// ENT3B (B17, Entscheidung shank 12.11.): die Form am Boden (Bodenkreis, CATs Bodenform) ist der Griff der Wurzel - wie CATs
+// Plattform verschiebt und dreht sie die ganze Figur. Sie haengt am Wurzelknochen (die Plattform geht in seine Welt) und wird
+// duenn gezeichnet wie bisher (wurzel).
+void wurzelGriff(const Rig& rig, int knochen, RigForm& b) {
+    b.knochen = knochen;
+    b.wurzel = true;
+    for (std::size_t i = 0; i < rig.griffe.size(); ++i) {
+        if (rig.griffe[i].art == GriffArt::Wurzel) { b.griff = static_cast<int>(i); }
+    }
+    b.schmuck = b.griff < 0;   // ein Rig ohne Griff der Wurzel (aeltere Daten): Schmuck wie bis ENT3B
+}
+
 const Griff* griffMit(const Rig& rig, GriffArt a, Seite s, int nummer) {
     for (const Griff& g : rig.griffe) {
         if (g.art == a && g.seite == s && g.nummer == nummer) { return &g; }
@@ -515,6 +527,9 @@ V3 griffOrt(const Griff& g) { return {g.ort[0], g.ort[1], g.ort[2]}; }
 // Der Mittelpunkt, um den Bodenformen liegen: die Wurzel, sonst das Becken (nur x und y)
 V3 bodenMitte(const Figur& f, float boden, int& knochen) {
     knochen = knochenMit(f, Rolle::Wurzel, Seite::Mitte);
+    for (int b = 0; knochen < 0 && b < f.n; ++b) {   // ENT3B: sonst der erste Knochen ohne Eltern (die Form geht mit der Plattform)
+        if (f.g->bones[static_cast<std::size_t>(b)].parent < 0) { knochen = b; }
+    }
     const int becken = knochenMit(f, Rolle::Becken, Seite::Mitte);
     V3 m{0.0F, 0.0F, boden};
     const int von = becken >= 0 ? becken : knochen;
@@ -596,8 +611,7 @@ void griffeCat(const Figur& f, const Rig& rig, RigFormen& aus) {
     const auto p = [&](float quer, float vor) { return plus(m, plus(mal(waag, quer), mal(f.vorn, vor))); };
     RigForm b;
     b.gestalt = FormGestalt::Bodenform;
-    b.schmuck = true;
-    b.knochen = wurzel;
+    wurzelGriff(rig, wurzel, b);
     b.masse[0] = vo + hi;
     b.masse[1] = hb * 2.0F;
     zugAn(b, {p(-hb, -hi), p(hb, -hi), p(hb * 0.16F, vo), p(-hb * 0.16F, vo)}, true);
@@ -673,8 +687,7 @@ void griffeBlender(const Figur& f, const Rig& rig, RigFormen& aus) {
     }
     int wurzel = -1;
     RigForm b = ring(bodenMitte(f, aus.boden, wurzel), waag, f.vorn, kBlBoden * f.m);
-    b.schmuck = true;
-    b.knochen = wurzel;
+    wurzelGriff(rig, wurzel, b);
     farbe(b, kBlMitte);
     aus.formen.push_back(std::move(b));
 }
@@ -799,12 +812,12 @@ void griffeControl(const Figur& f, const Rig& rig, const Inhalt* in, int stufe, 
             case GriffArt::Ballen:
             case GriffArt::Zehe: fertig(marke(griffOrt(g), f.vorn, waag, kControl.marke * m), crFarbe(g.seite)); break;
             case GriffArt::Saebelgriff: fertig(kreuz3(griffOrt(g), 2.6F * m), crFarbe(g.seite)); break;
+            case GriffArt::Wurzel: break;   // ENT3B: der Bodenkreis unten
         }
     }
     int wurzel = -1;
     RigForm b = ring(bodenMitte(f, aus.boden, wurzel), waag, f.vorn, kControl.boden * m);
-    b.schmuck = true;
-    b.knochen = wurzel;
+    wurzelGriff(rig, wurzel, b);
     farbe(b, kCrBoden);
     aus.formen.push_back(std::move(b));
 }
@@ -926,6 +939,15 @@ RigFormen rigFormenSkelettCat(const GlaAnimation& g, const Rig& rig) {
         aus.formen.push_back(std::move(x));
     }
     return aus;
+}
+
+void rigBodenMitte(const GlaAnimation& g, const Rig& rig, float aus[3]) {
+    aus[0] = aus[1] = aus[2] = 0.0F;
+    if (g.bones.empty() || rig.erkennung.knochen.size() != g.bones.size()) { return; }
+    const Figur f = figurAus(g, rig.erkennung);
+    int wurzel = -1;
+    const V3 m = bodenMitte(f, bodenHoehe(f, rig), wurzel);
+    for (int k = 0; k < 3; ++k) { aus[k] = m[static_cast<std::size_t>(k)]; }
 }
 
 RigFormen rigFormenGriffe(const GlaAnimation& g, const Rig& rig, const Inhalt* in, int stufe, RigStil stil) {

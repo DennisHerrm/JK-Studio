@@ -74,6 +74,12 @@ int formVonGriff(int griff, int gestalt = -1) {
 
 int gestaltStil(modell::FormGestalt g) { return static_cast<int>(KdGestalt::Stil) + static_cast<int>(g); }
 
+// ENT3B (B17): die Form am Boden ist der Griff der Wurzel (bis dahin Schmuck ohne Griff)
+bool istWurzel(const KdFormInfo& f) {
+    return !f.schmuck && f.griff >= 0 && static_cast<std::size_t>(f.griff) < mtab().rig.griffe.size() &&
+           mtab().rig.griffe[static_cast<std::size_t>(f.griff)].art == modell::GriffArt::Wurzel;
+}
+
 // Der Punkt auf der sichtbaren Linie einer Form in der aktiven Ansicht (Schirm)
 ImVec2 formOrt(int form) {
     ImVec2 p{-50.0F, -50.0F};
@@ -634,7 +640,7 @@ void stilSchritte(std::vector<Schritt>& s) {
                              (mtab().rig.griffe[static_cast<std::size_t>(f.griff)].art == modell::GriffArt::PolEllbogen ||
                               mtab().rig.griffe[static_cast<std::size_t>(f.griff)].art == modell::GriffArt::PolKnie);
             kreuze += f.gestalt == gestaltStil(modell::FormGestalt::Kreuz) && pol ? 1 : 0;
-            boden += f.gestalt == gestaltStil(modell::FormGestalt::Bodenform) && f.schmuck ? 1 : 0;
+            boden += f.gestalt == gestaltStil(modell::FormGestalt::Bodenform) && istWurzel(f) ? 1 : 0;   // ENT3B: Griff der Wurzel
             ohneGriff += f.griff < 0 && !f.schmuck ? 1 : 0;
         }
         melde("S2: Formen " + std::to_string(modellKdFormZahl()) + ", Kaesten " + std::to_string(kaesten) + ", Rechtecke " + std::to_string(platten) + ", Kreuze " +
@@ -737,7 +743,7 @@ void stilSchritte(std::vector<Schritt>& s) {
         for (int i = 0; i < modellKdFormZahl(); ++i) {
             const KdFormInfo f = modellKdFormInfo(i);
             kugeln += f.gestalt == gestaltStil(modell::FormGestalt::Kugel) ? 1 : 0;
-            bodenkreise += f.schmuck && f.gestalt == gestaltStil(modell::FormGestalt::Ring) ? 1 : 0;
+            bodenkreise += istWurzel(f) && f.gestalt == gestaltStil(modell::FormGestalt::Ring) ? 1 : 0;   // ENT3B: Griff der Wurzel
         }
         melde("S3: Griffe ohne Form " + std::to_string(ohne) + ", Kugeln " + std::to_string(kugeln) + ", Bodenkreise " + std::to_string(bodenkreise) + ", Beschriftungen " +
               std::to_string(modellKd().beschriftungen));
@@ -816,7 +822,7 @@ void stilSchritte(std::vector<Schritt>& s) {
         float boden = 0.0F;
         for (int i = 0; i < modellKdFormZahl(); ++i) {
             const KdFormInfo f = modellKdFormInfo(i);
-            if (f.schmuck && f.gestalt == gestaltStil(modell::FormGestalt::Ring)) { boden = f.masse[0]; }
+            if (istWurzel(f) && f.gestalt == gestaltStil(modell::FormGestalt::Ring)) { boden = f.masse[0]; }   // ENT3B
         }
         const auto r = [](int f) { return f >= 0 ? modellKdFormInfo(f).masse[0] : -1.0F; };
         char z[240];

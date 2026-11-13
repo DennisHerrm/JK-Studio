@@ -269,12 +269,14 @@ int main() {
         int boden = 0;
         int fk = 0;
         for (const RigForm& f : gr.formen) {
-            boden += f.gestalt == FormGestalt::Bodenform && f.schmuck ? 1 : 0;
+            // ENT3B (B17): die Bodenform ist der Griff der Wurzel (bis dahin Schmuck)
+            boden += f.gestalt == FormGestalt::Bodenform && f.wurzel && !f.schmuck && f.griff >= 0 && rig.griffe[static_cast<std::size_t>(f.griff)].art == GriffArt::Wurzel ? 1 : 0;
             const bool fkArt = f.griff >= 0 && !rig.griffe[static_cast<std::size_t>(f.griff)].ik && rig.griffe[static_cast<std::size_t>(f.griff)].art != GriffArt::Hand &&
-                               rig.griffe[static_cast<std::size_t>(f.griff)].art != GriffArt::Fuss && rig.griffe[static_cast<std::size_t>(f.griff)].art != GriffArt::Saebelgriff;
+                               rig.griffe[static_cast<std::size_t>(f.griff)].art != GriffArt::Fuss && rig.griffe[static_cast<std::size_t>(f.griff)].art != GriffArt::Saebelgriff &&
+                               rig.griffe[static_cast<std::size_t>(f.griff)].art != GriffArt::Wurzel;
             fk += fkArt ? 1 : 0;
         }
-        expect("CAT: die Bodenform als Schmuck, 135/59/8; keine eigene Form fuer die uebrigen FK-Griffe (das sind die Kaesten)", boden == 1 && fk == 0);
+        expect("CAT: die Bodenform als Griff der Wurzel (ENT3B), 135/59/8; keine eigene Form fuer die uebrigen FK-Griffe (das sind die Kaesten)", boden == 1 && fk == 0);
         expect("CAT: der Boden liegt unter dem Fussgelenk", gr.boden < ort(g, knochen(g, "ltalus"))[2] - 1.0F);
     }
     // --- Blender ------------------------------------------------------------------------------------------------------------
@@ -301,7 +303,7 @@ int main() {
         float bodenR = 0.0F;
         float wirbelR[2] = {0.0F, 0.0F};
         for (const RigForm& f : gr.formen) {
-            if (f.schmuck && f.gestalt == FormGestalt::Ring) {
+            if (f.wurzel && !f.schmuck && f.griff >= 0 && f.gestalt == FormGestalt::Ring) {   // ENT3B: Griff der Wurzel
                 ++boden;
                 bodenR = f.masse[0];
             }
@@ -312,7 +314,7 @@ int main() {
         }
         std::printf("  Blender: Wirbel-Kreise %d (%.3f, %.3f), Bodenkreis %.3f\n", wirbel, static_cast<double>(wirbelR[0]), static_cast<double>(wirbelR[1]),
                     static_cast<double>(bodenR));
-        expect("Blender Bodenkreis: Radius 26,37 (boneshape.001 10,30188 x 2,56), Schmuck", boden == 1 && nah(bodenR, 26.3728F * m, 0.02F));
+        expect("Blender Bodenkreis: Radius 26,37 (boneshape.001 10,30188 x 2,56), Griff der Wurzel (ENT3B)", boden == 1 && nah(bodenR, 26.3728F * m, 0.02F));
         expect("Blender Wirbel: Kreise 9,20 (spine 0,893) und 7,71 (upper_spine 0,74844)", wirbel >= 2 && nah(wirbelR[0], 9.1996F * m, 0.02F) &&
                                                                                                  nah(wirbelR[1], 7.7103F * m, 0.02F));
     }
@@ -323,8 +325,10 @@ int main() {
         bool farbenOk = true;
         int boden = 0;
         for (const RigForm& f : gr.formen) {
-            if (f.schmuck) {
+            if (f.schmuck) { continue; }   // die Marke ueber dem Kopf
+            if (f.wurzel) {   // ENT3B: der Bodenkreis ist der Griff der Wurzel (weiss wie bisher, nicht nach Seite gefaerbt)
                 boden += f.gestalt == FormGestalt::Ring ? 1 : 0;
+                if (f.griff >= 0 && static_cast<std::size_t>(f.griff) < rig.griffe.size()) { ++jeGriff[static_cast<std::size_t>(f.griff)]; }
                 continue;
             }
             if (f.griff < 0 || static_cast<std::size_t>(f.griff) >= rig.griffe.size()) {
@@ -358,7 +362,7 @@ int main() {
         expect("Control Rig Schluesselbein: Stiel mit Kreis", schl.size() == 1U && schl[0]->gestalt == FormGestalt::Lutscher);
         expect("Control Rig Becken: Band (Ring, Kasten mit Kreuz, Pfeile), gelb", becken.size() == 1U && becken[0]->gestalt == FormGestalt::Band && becken[0]->farbe[0] > 200 &&
                                                                                       becken[0]->farbe[1] > 180);
-        expect("Control Rig: ein Bodenkreis als Schmuck", boden == 1);
+        expect("Control Rig: ein Bodenkreis als Griff der Wurzel (ENT3B)", boden == 1);
     }
     expect("Standard: keine Formen", rigFormenGriffe(g, rig, nullptr, 0, RigStil::Standard).formen.empty());
     std::printf("%s (%d)\n", fails == 0 ? "modell_rigformen: alles ok" : "modell_rigformen: FEHLER", fails);

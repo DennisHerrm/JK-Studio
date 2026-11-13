@@ -1538,7 +1538,7 @@ bool figurAnimIkZiel(const std::string& figur, int glied, int bild, float aus[3]
     if (sp < 0) { return false; }
     std::vector<BoneMatrix> w;
     modell::rigWelt(d->basis, d->wirk, bild, bild, 0.0F, w);
-    const modell::IkZiel z = modell::ikZielAm(d->wirk.ik[static_cast<std::size_t>(sp)], static_cast<float>(bild), w);
+    const modell::IkZiel z = modell::ikZielAm(d->wirk.ik[static_cast<std::size_t>(sp)], static_cast<float>(bild), w, modell::plattformAm(d->wirk, static_cast<float>(bild)));
     if (!z.da || z.ik <= 0.0F) { return false; }
     const float o[3] = {z.ziel.m[0][3], z.ziel.m[1][3], z.ziel.m[2][3]};
     inKarte(d->fw, o, aus);

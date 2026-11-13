@@ -96,9 +96,12 @@ struct TagErkennung {
 // --- Control Rig -----------------------------------------------------------------------------------------------------
 enum class GriffArt : std::uint8_t {
     Becken = 0, Wirbel, Hals, Kopf, Schluessel, Oberarm, Unterarm, Hand, Oberschenkel, Unterschenkel, Fuss, Zehen,
-    PolEllbogen, PolKnie, Ferse, Ballen, Zehe, Saebelgriff
+    PolEllbogen, PolKnie, Ferse, Ballen, Zehe, Saebelgriff,
+    // ENT3B (B17): der Griff der Wurzel (Bodenkreis bzw. Bodenform der Rig-Stile, wie CATs Plattform): verschiebt und dreht die ganze
+    // Figur ueber RigSchicht::plattform. knochen = -1 (kein FK-Knochen), ort = Mitte des Bodens unter der Figur (Grundstellung).
+    Wurzel
 };
-inline constexpr int kGriffArten = 18;
+inline constexpr int kGriffArten = 19;
 
 struct Griff {
     GriffArt art = GriffArt::Becken;
@@ -142,8 +145,10 @@ void rigNachMal(const RigSchicht& s, float bild, std::vector<std::pair<int, Bone
 // Stufe 4: dazu die IK der Spuren (bhed/modell/ik.h; `ueber` wie bei worldMatricesLerp, z. B. der Oberkoerper).
 void rigNachMalAuf(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus,
                    const std::vector<BoneFrameOverride>& ueber = {});
-// Nur die FK-Schluessel (ohne IK), wie rigNachMalAuf bis Stufe 3b.
+// Nur die FK-Schluessel (ohne IK), wie rigNachMalAuf bis Stufe 3b; ENT3B: mit der Plattform in den Wurzelknochen.
 void rigNachMalFk(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus);
+// ENT3B: dasselbe ohne die Plattform (die Schluessel, wie sie in der Schicht stehen).
+void rigNachMalFkOhnePlattform(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, float anteil, std::vector<std::pair<int, BoneMatrix>>& aus);
 // Einen Schluessel setzen (ersetzt einen am selben Bild).
 void rigSchluesselSetzen(RigSchicht& s, int knochen, int bild, const BoneMatrix& m);
 void rigSchluesselLoeschen(RigSchicht& s, int knochen, int bild);
@@ -156,6 +161,16 @@ void rigWelt(const GlaAnimation& g, const RigSchicht& s, int bildA, int bildB, f
 // `drehung` ist eine reine Drehung (Spalte 3 = 0), `weg` eine Verschiebung in Weltachsen (nur Becken/Wurzel).
 void rigGriffDrehen(const GlaAnimation& g, const Rig& r, int griff, int bild, const std::vector<BoneMatrix>& welt, const BoneMatrix& drehung,
                     const float weg[3], RigSchicht& s);
+
+// ENT3B (B17): die Plattform am Bild (Einheit ohne Schluessel) und ein Schluessel am Bild. P wirkt in der Welt auf die Wurzelknochen
+// (rigNachMalFk faltet es in ihr M: M' = M X^-1 P X, X die Welt des Knochens ohne P) und auf die IK-Ziele im Raum Welt (ik.h).
+[[nodiscard]] BoneMatrix plattformAm(const RigSchicht& s, float bild);
+void plattformSetzen(RigSchicht& s, int bild, const BoneMatrix& p);
+// Die Plattform um `weg` verschieben und um `drehung` (reine Drehung, Weltachsen) um den Punkt `um` drehen: P' = T(weg) R_um P.
+void plattformZiehen(RigSchicht& s, int bild, const BoneMatrix& start, const BoneMatrix& drehung, const float um[3], const float weg[3]);
+// Die Liste eines Codes der Schluesselwahl: Knochen, IK-Ziele (ikWahlCode), IK/FK-Spur (ikAnteilCode), Plattform (kPlattformWahl).
+[[nodiscard]] const std::vector<RigSchluessel>* schluesselListe(const RigSchicht& s, int code) noexcept;
+[[nodiscard]] std::vector<RigSchluessel>* schluesselListe(RigSchicht& s, int code) noexcept;
 
 // Stufe 3b: einen Knochen in Weltachsen verschieben (Bewegungspfad ziehen): X'(b) = T(weg) X(b), ein Schluessel am Bild.
 void rigKnochenVerschieben(const GlaAnimation& g, RigSchicht& s, int knochen, int bild, const std::vector<BoneMatrix>& welt, const float weg[3]);

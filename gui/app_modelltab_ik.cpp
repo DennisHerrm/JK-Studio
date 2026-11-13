@@ -414,7 +414,9 @@ int modellIkZiehen(int gizmoArt, const BoneMatrix& dreh, const float weg[3], mod
     const float l = std::sqrt(achse[0] * achse[0] + achse[1] * achse[1] + achse[2] * achse[2]);
     const float proj = l > 1e-6F ? (q[1] * achse[0] + q[2] * achse[1] + q[3] * achse[2]) / l : 0.0F;
     const float grad = 2.0F * std::atan2(proj, q[0]) * 180.0F / 3.14159265F;
-    const modell::IkZiel z = sp0 >= 0 ? modell::ikZielAm(t.rigSchichtStart.ik[static_cast<std::size_t>(sp0)], static_cast<float>(bild), welt) : modell::IkZiel{};
+    const modell::IkZiel z = sp0 >= 0 ? modell::ikZielAm(t.rigSchichtStart.ik[static_cast<std::size_t>(sp0)], static_cast<float>(bild), welt,
+                                                         modell::plattformAm(t.rigSchichtStart, static_cast<float>(bild)))
+                                      : modell::IkZiel{};
     const float start = z.da ? z.rolle : 0.0F;
     const float spitze = g.art == modell::GriffArt::Zehe ? 1.0F : (g.art == modell::GriffArt::Ballen ? 0.0F : (z.da ? z.spitze : 0.0F));
     // die Ferse rollt nach hinten (Rolle < 0), Ballen und Zehenspitze nach vorn (> 0) - wie die zwei Richtungen des Fersen-
@@ -431,7 +433,8 @@ bool modellIkPolWelt(int griff, const std::vector<BoneMatrix>& welt, float ort[3
     const modell::RigSchicht& sch = s != nullptr ? *s : schicht();
     const int i = art >= 0 ? modell::ikSpurIndex(sch, static_cast<modell::IkArt>(art)) : -1;
     if (i >= 0 && !sch.ik[static_cast<std::size_t>(i)].ziel.empty() && welt.size() == g_app->anim.bones.size()) {
-        const modell::IkZiel z = modell::ikZielAm(sch.ik[static_cast<std::size_t>(i)], static_cast<float>(s != nullptr ? t.rigZiehBild : bildJetzt()), welt);
+        const float b = static_cast<float>(s != nullptr ? t.rigZiehBild : bildJetzt());
+        const modell::IkZiel z = modell::ikZielAm(sch.ik[static_cast<std::size_t>(i)], b, welt, modell::plattformAm(sch, b));
         std::memcpy(ort, z.pol, sizeof(float) * 3U);
         return true;
     }
@@ -463,7 +466,7 @@ void modellIkUeberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     const float r = ImGui::GetFontSize() * 0.55F;
     const float bild = static_cast<float>(bildJetzt());
     for (const modell::IkSpur& sp : s.ik) {
-        const modell::IkZiel z = modell::ikZielAm(sp, bild, g_app->modellWelt);
+        const modell::IkZiel z = modell::ikZielAm(sp, bild, g_app->modellWelt, modell::plattformAm(s, bild));
         if (!z.da || z.ik <= 0.0F) { continue; }
         const float o[3] = {z.ziel.m[0][3], z.ziel.m[1][3], z.ziel.m[2][3]};
         ImVec2 so;

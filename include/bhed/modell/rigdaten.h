@@ -152,6 +152,11 @@ struct RigSchicht {
     // Interpolation neuer Schluessel (die Oberflaeche setzt die Vorgabe des Modus: Bezier wie Max und Blender)
     Interp neuInterp = Interp::Linear;
     PhysikSchicht physik;   // Stufe 6
+    // ENT3B (B17, shank 12.11.: "Der Bodenkreis wird Griff der Wurzel (ganze Figur verschieben und drehen, wie CATs Plattform)"):
+    // die Lage P der Plattform je Bild (q, t in der Welt; Bezier wie die Schicht). P wirkt auf die ganze Figur - die Wurzelknochen
+    // (ohne Eltern) und alles darunter - und auf die IK-Ziele im Raum Welt (raum -1), die wie CATs Glied-Ziele an der Plattform
+    // haengen (bhed/modell/rig.h plattformAm). Leer: P = Einheit, alles wie vorher.
+    std::vector<RigSchluessel> plattform;
     [[nodiscard]] bool leer() const noexcept;
     [[nodiscard]] int schluesselZahl() const noexcept;
     [[nodiscard]] bool hatSchluessel(int knochen, int bild) const noexcept;

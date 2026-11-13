@@ -247,9 +247,11 @@ Lokal lokalAm(const IkSpur& sp, float bild) {
     return l;
 }
 
-const BoneMatrix& raumWelt(const std::vector<BoneMatrix>& welt, int raum, BoneMatrix& puffer) {
+// ENT3B (B17): der Raum Welt (-1) ist die Plattform (RigSchicht::plattform, ohne Schluessel die Einheit) - die IK-Ziele haengen an ihr
+// wie die Glied-Ziele eines CAT-Rigs am CATParent
+const BoneMatrix& raumWelt(const std::vector<BoneMatrix>& welt, int raum, BoneMatrix& puffer, const BoneMatrix& plattform) {
     if (raum < 0 || static_cast<std::size_t>(raum) >= welt.size()) {
-        puffer = BoneMatrix::identity();
+        puffer = plattform;
         return puffer;
     }
     puffer = starr(welt[static_cast<std::size_t>(raum)]);
@@ -606,10 +608,11 @@ std::vector<int> ikAnwenden(const GlaAnimation& g, const RigSchicht& s, float bi
             }
         }
     }
+    const BoneMatrix plattform = plattformAm(s, bild);   // ENT3B (B17)
     for (const std::size_t i : folge) {
         if (static_cast<int>(i) == ohneSpur) { continue; }
         const IkSpur& sp = s.ik[i];
-        const IkZiel ziel = ikZielAm(sp, bild, welt);
+        const IkZiel ziel = ikZielAm(sp, bild, welt, plattform);
         if (!ziel.da || ziel.ik <= 0.0F) { continue; }
         if (ziel.ik >= 1.0F) {
             loesen(z, sp, ziel);
@@ -749,24 +752,25 @@ bool zielAusFk(const GlaAnimation& g, const RigSchicht& s, int spur, int bild, f
     w.ik = ik;
     if (raum >= -1) { w.raum = raum; }
     w.rolle = 0.0F;
+    const BoneMatrix plattform = plattformAm(s, static_cast<float>(bild));   // ENT3B (B17)
     float pol[3];
     if (!polAusKette(sp, welt, pol)) {
         // gestreckt: der bisherige Pol (oder vor dem Gelenk, eine Gliedlaenge weit)
         if (l.da) {
             BoneMatrix p;
-            raumWelt(welt, sp.polRaum, p).transform(l.w.pol, pol);
+            raumWelt(welt, sp.polRaum, p, plattform).transform(l.w.pol, pol);
         } else {
             const V3 B = ortVon(welt[static_cast<std::size_t>(sp.unten.knochen)]);
             schreib(B + V3{0.0, 0.0, 1.0} * std::max(static_cast<double>(sp.polAbstand), 1.0), pol);
         }
     }
     BoneMatrix pr;
-    starrInvers(raumWelt(welt, sp.polRaum, pr)).transform(pol, w.pol);
+    starrInvers(raumWelt(welt, sp.polRaum, pr, plattform)).transform(pol, w.pol);
     const BoneMatrix ende = starr(welt[static_cast<std::size_t>(sp.ende.knochen)]);
     if (sp.zehen.knochen >= 0 && static_cast<std::size_t>(sp.zehen.knochen) < welt.size()) {
         quatAusMatrix(transponiert(ohneOrt(ende)) * ohneOrt(starr(welt[static_cast<std::size_t>(sp.zehen.knochen)])), w.zehen);
     }
-    zielImRaum = ikImRaum(welt, w.raum, ende);
+    zielImRaum = ikImRaum(welt, w.raum, ende, plattform);
     return true;
 }
 
@@ -1016,7 +1020,8 @@ void ikRaumWechseln(const GlaAnimation& g, RigSchicht& s, int spur, int bild, in
     // der Raum darf nicht in der eigenen Kette liegen (er wuerde sich selbst ziehen)
     if (raum >= 0 && ikSpurVonKnochen(s, raum) == spur) { raum = -1; }
     IkSpur& sp = s.ik[static_cast<std::size_t>(spur)];
-    const IkZiel z = ikZielAm(sp, static_cast<float>(bild), welt);
+    const BoneMatrix plattform = plattformAm(s, static_cast<float>(bild));   // ENT3B (B17)
+    const IkZiel z = ikZielAm(sp, static_cast<float>(bild), welt, plattform);
     if (bild - 1 >= erstesBild) {
         bool da = false;
         for (const RigSchluessel& k : sp.ziel) { da = da || k.bild == bild - 1; }
@@ -1027,7 +1032,7 @@ void ikRaumWechseln(const GlaAnimation& g, RigSchicht& s, int spur, int bild, in
     }
     Lokal l = lokalAm(sp, static_cast<float>(bild));
     l.w.raum = raum;
-    ikSchluesselSetzen(sp, bild, ikImRaum(welt, raum, z.ziel), l.w);
+    ikSchluesselSetzen(sp, bild, ikImRaum(welt, raum, z.ziel, plattform), l.w);
 }
 
 void ikNurAmBild(const GlaAnimation& g, RigSchicht& s, int spur, int bild, int erstes, int letztes) {
@@ -1071,7 +1076,7 @@ void ikZielSetzen(const GlaAnimation& g, RigSchicht& s, int spur, int bild, cons
     IkSpur& sp = s.ik[static_cast<std::size_t>(spur)];
     Lokal l = lokalAm(sp, static_cast<float>(bild));
     l.w.ik = 1.0F;
-    ikSchluesselSetzen(sp, bild, ikImRaum(welt, l.w.raum, starr(weltZiel)), l.w);
+    ikSchluesselSetzen(sp, bild, ikImRaum(welt, l.w.raum, starr(weltZiel), plattformAm(s, static_cast<float>(bild))), l.w);
     (void)fkAufIk(g, s, spur, bild);
 }
 
@@ -1085,7 +1090,7 @@ void ikPolSetzen(const GlaAnimation& g, RigSchicht& s, int spur, int bild, const
     IkSpur& sp = s.ik[static_cast<std::size_t>(spur)];
     Lokal l = lokalAm(sp, static_cast<float>(bild));
     BoneMatrix pr;
-    starrInvers(raumWelt(welt, sp.polRaum, pr)).transform(weltPol, l.w.pol);
+    starrInvers(raumWelt(welt, sp.polRaum, pr, plattformAm(s, static_cast<float>(bild)))).transform(weltPol, l.w.pol);
     ikSchluesselSetzen(sp, bild, l.ziel, l.w);
     (void)fkAufIk(g, s, spur, bild);
 }
