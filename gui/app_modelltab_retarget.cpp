@@ -9,6 +9,7 @@
 // ModellTab::rt. Das Ergebnis wird sofort wie im Spiel gepackt (rtBacken, compressBone) - die Vorschau zeigt die gepackte
 // GLA, so wie das Spiel sie spielt.
 #include "app_internal.h"
+#include "app_modelltab_ent3b.h"
 #include "textumbruch.h"
 #include "platform.h"
 
@@ -1142,9 +1143,16 @@ bool gangVorschau() {
 }
 
 // Ein Regler des Generators (ein Rueckgaengig-Schritt je Zug, waehrend des Zugs Vorschau)
-void gangRegler(ModellRetarget& r, Str text, Str hinweis, float wert, float lo, float hi, const char* fmt, const std::function<void(modell::GangRegler&, float)>& f) {
+void gangRegler(ModellRetarget& r, Str text, const char* hinweis, float wert, float lo, float hi, const char* fmt, const std::function<void(modell::GangRegler&, float)>& f) {
     float v = wert;
-    if (ui::regler(tr(text), &v, lo, hi, fmt, tr(hinweis))) {
+    if (text == Str::PrTempo) {   // ENT3B (B16): was der Regler Tempo zeigt, fuer den Selbsttest
+        char z[64];
+        std::snprintf(z, sizeof z, fmt, static_cast<double>(v));
+        ent3bProbe().tempoText = z;
+        ent3bProbe().tempoHinweis = hinweis;
+        ent3bProbe().tempoBild = ImGui::GetFrameCount();
+    }
+    if (ui::regler(tr(text), &v, lo, hi, fmt, hinweis)) {
         if (r.presetZug) {
             mt().dok.vorschau([&](modell::Inhalt& in) { f(in.rig.rt.gang, v); }, false);
         } else {
@@ -1154,6 +1162,18 @@ void gangRegler(ModellRetarget& r, Str text, Str hinweis, float wert, float lo, 
         g_app->modelDirty = true;
     }
     if (ImGui::IsItemDeactivated()) { r.presetZug = false; }
+}
+
+// ENT3B (B16, Entscheidung 12.11.: "Tempo wie im Entwurf als Faktor (1,0x); die Einheiten je Sekunde im Tooltip"): der Regler zeigt
+// den Faktor auf das Tempo der NPCs des Spiels (walkSpeed 90 beim Gehen, runSpeed 300 beim Laufen, NPC_stats.cpp:1996-1997 - dieselben
+// Vorgaben wie modellPresetGangWaehlen); gespeichert bleiben Einheiten je Sekunde (GangRegler::tempo), derselbe Faktor gibt dieselbe
+// Bewegung wie bisher dasselbe Tempo. Grenzen wie vorher 10 bis 600 Einheiten je Sekunde.
+void tempoRegler(ModellRetarget& r, const modell::RetargetDaten& d) {
+    const bool laufen = d.gang.art == modell::GangArt::Laufen;
+    const float basis = laufen ? 300.0F : 90.0F;
+    char hinweis[512];
+    std::snprintf(hinweis, sizeof hinweis, tr(Str::E3TempoHint), static_cast<double>(basis), laufen ? "runSpeed" : "walkSpeed", static_cast<double>(d.gang.tempo));
+    gangRegler(r, Str::PrTempo, hinweis, d.gang.tempo / basis, 10.0F / basis, 600.0F / basis, "%.2f\xc3\x97", [basis](modell::GangRegler& g, float v) { g.tempo = v * basis; });
 }
 
 // Der Rest des Generators (Generator ...): Haltung, Schrittlaenge, Hueftschwung, Hub, Messen, Befund
@@ -1166,9 +1186,9 @@ void gangMehr(ModellRetarget& r, const modell::RetargetDaten& d) {
         (void)modellRtEinstellen(tr(Str::PrUndo), [&](modell::RetargetDaten& x) { x.gang.haltung = static_cast<modell::GangHaltung>(h); });
     }
     ImGui::SetItemTooltip("%s", tr(Str::PrHaltungHint));
-    gangRegler(r, Str::PrSchritt, Str::PrSchrittHint, d.gang.schritt, 2.0F, 120.0F, "%.1f", [](modell::GangRegler& g, float v) { g.schritt = v; });
-    gangRegler(r, Str::PrHuefte, Str::PrFaktorHint, d.gang.hueftschwung, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.hueftschwung = v; });
-    gangRegler(r, Str::PrHub, Str::PrFaktorHint, d.gang.hub, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.hub = v; });
+    gangRegler(r, Str::PrSchritt, tr(Str::PrSchrittHint), d.gang.schritt, 2.0F, 120.0F, "%.1f", [](modell::GangRegler& g, float v) { g.schritt = v; });
+    gangRegler(r, Str::PrHuefte, tr(Str::PrFaktorHint), d.gang.hueftschwung, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.hueftschwung = v; });
+    gangRegler(r, Str::PrHub, tr(Str::PrFaktorHint), d.gang.hub, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.hub = v; });
     const std::string messen = format(Str::PrMessen, kategorieZeile(d.gang.art));
     if (ui::werkzeugKnopf(messen.c_str(), {.icon = UiIcon::Zielen, .hinweis = tr(Str::PrMessenHint)})) { (void)modellPresetMessen(); }
     if (d.vonPreset && !r.welt.empty()) {
@@ -1368,8 +1388,8 @@ void drawModellPresetBereich() {
     ImGui::EndDisabled();
     // der erzeugte Gang: Tempo und Armschwung unter der Liste (Entwurf), mit Generator ... der Rest des Generators
     if (gang) {
-        gangRegler(r, Str::PrTempo, Str::PrTempoHint, d.gang.tempo, 10.0F, 600.0F, "%.0f", [](modell::GangRegler& g, float v) { g.tempo = v; });
-        gangRegler(r, Str::PrArm, Str::PrFaktorHint, d.gang.armschwung, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.armschwung = v; });
+        tempoRegler(r, d);   // ENT3B (B16): als Faktor wie im Entwurf
+        gangRegler(r, Str::PrArm, tr(Str::PrFaktorHint), d.gang.armschwung, 0.0F, 2.0F, "%.2f", [](modell::GangRegler& g, float v) { g.armschwung = v; });
     }
     ui::rasterBeginn(2);
     if (ui::werkzeugKnopf(tr(Str::AzPresetVorschau), {.icon = UiIcon::Sichtbar, .hinweis = tr(gang ? Str::PrAuflegenHint : Str::AiAuflegenHint), .aktiv = wahlDa})) {
