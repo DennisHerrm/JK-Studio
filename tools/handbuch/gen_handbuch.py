@@ -252,8 +252,16 @@ def _lade_ui_texte():
             texte.update({e[0]: e[1:] for e in _ent2()})
             from i18n_p_dx12 import zeilen_vier as _p_dx12   # D3D12 Stufe 1: Grafikschnittstelle im Menue Ansicht
             texte.update({e[0]: e[1:] for e in _p_dx12()})
-            from i18n_dxr import zeilen_vier as _dxr   # DXR: Raytracing-Schatten im Echtzeit-Licht
-            texte.update({e[0]: e[1:] for e in _dxr()})
+            # AP14: alles Weitere, was gen_i18n.py in seine Liste S nimmt ("from i18n_<kuerzel> import <liste> [as ...]",
+            # danach "S += ...") - eine neue Quelle tools/i18n_<kuerzel>.py braucht hier keine Zeile mehr; ihre Kennungen
+            # gelten im Handbuch, sobald das Programm sie kennt (i18n_ap4 ... i18n_ap9, i18n_ap12 und alle spaeteren).
+            import importlib
+            for modul, name in re.findall(r"^from (i18n_\w+) import (\w+)", quelle, re.M):
+                if modul.startswith("i18n_sprache_"):
+                    continue
+                liste = getattr(importlib.import_module(modul), name)
+                for e in (liste() if callable(liste) else liste):
+                    texte.setdefault(e[0], tuple(e[1:5]))
             # Die weiteren Sprachen (None = noch nicht uebersetzt, gilt englisch).
             for kurz in NEU:
                 weitere = sprachen.texte(kurz)

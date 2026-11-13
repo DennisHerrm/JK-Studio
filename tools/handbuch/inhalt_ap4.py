@@ -2,10 +2,7 @@
 links mit den Werkzeugen des Bereichs, der Modus im Kopf der Ansicht, der Outliner oben rechts ueber dem Eigenschaften-Editor, die
 Seitenleiste (N), das Werkzeug Messen und die Fensteranordnung je Bedienmodus; wie 3ds Max bleibt der Aufbau, wie er war.
 
-Eigene Quelle des Pakets; AP14 haengt die Seite ins Handbuch (inhalt.py: `inhalt_ap4.seite()` hinter modell-bedienung bzw.
-modell-zeitleiste, ES/CS in inhalt_es.py / inhalt_cs.py, die Texte von i18n_ap4 in gen_handbuch.py `_lade_ui_texte`; die von
-i18n_ent1 - Werkzeugnamen wie Blender, Gruppen, Seitenleiste eingebbar - laedt gen_handbuch.py schon) - wie
-AP6-AP10. Die Bilder h_ap4_max, h_ap4_blender und h_ap4_seitenleiste nimmt der Selbsttest auf (BHED_EDITORTEST=handbuch,
+Eigene Quelle des Pakets, eingehaengt im Register tools/handbuch/inhalt_modell.py (Zeile `Seite("inhalt_ap4")`). Die Bilder h_ap4_max, h_ap4_blender und h_ap4_seitenleiste nimmt der Selbsttest auf (BHED_EDITORTEST=handbuch,
 BHED_HB_NUR=ap4). Jeder Text einmal in allen sechs Sprachen (en, de, zh, ja, es, cs); {{Kennung}} setzt den Text der Oberflaeche ein.
 """
 

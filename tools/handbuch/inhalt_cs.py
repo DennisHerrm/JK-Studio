@@ -3695,12 +3695,12 @@ TEXTE = {
         "Zobrazení modelu a postavy",
     "Look at any character of the game with its skins and animations, and put an animation into the script with a double-click.":
         "Prohlédněte si libovolnou postavu hry s jejími skiny a animacemi a dvojklikem vložte animaci do skriptu.",
-    "Model mode: the animation list on the left, the model in the middle, the playback bar below.":
-        "Režim Model: seznam animací vlevo, model uprostřed, lišta přehrávání dole.",
-    "Switch to **{{ViewModel}}** in the mode bar. **{{NpcBrowser}}** lists every character of the game (from the `.npc` files) - click one to load its model and skin as the game shows it. **{{OpenGlm}}** and **{{OpenGlmPk3}}** open any model. Left mouse orbits, middle mouse pans, the wheel zooms; **{{ModelTurntable}}**, **{{ModelBones}}** and **{{ModelResetView}}** sit in the toolbar.":
-        "Přepněte na **{{ViewModel}}** v liště režimů. **{{NpcBrowser}}** vypíše každou postavu hry (ze souborů `.npc`) - kliknutím ji načtete s modelem a skinem tak, jak ji ukazuje hra. **{{OpenGlm}}** a **{{OpenGlmPk3}}** otevřou libovolný model. Levé tlačítko krouží, prostřední posouvá, kolečko přibližuje; **{{ModelTurntable}}**, **{{ModelBones}}** a **{{ModelResetView}}** jsou v liště nástrojů.",
-    "The node **{{MbXArtSequenzen}}** in the scene explorer on the left shows every animation of the skeleton with its length; filter by name or by BOTH / TORSO / LEGS / FACE. Click plays it; double-click (or **{{ModelAnimToScript}}**) puts `set ( SET_ANIM_BOTH, \"…\" )` after the selected line of the open script - `SET_ANIM_UPPER` for TORSO and `SET_ANIM_LOWER` for LEGS animations.":
-        "Uzel **{{MbXArtSequenzen}}** v průzkumníku scény vlevo ukazuje každou animaci kostry s její délkou; filtrujte podle názvu nebo podle BOTH / TORSO / LEGS / FACE. Kliknutí ji přehraje; dvojklik (nebo **{{ModelAnimToScript}}**) vloží `set ( SET_ANIM_BOTH, \"…\" )` za vybraný řádek otevřeného skriptu - `SET_ANIM_UPPER` pro animace TORSO a `SET_ANIM_LOWER` pro LEGS.",
+    "Model mode: the scene explorer on the left, the model in the middle, the timeline below.":
+        "Režim Model: průzkumník scény vlevo, model uprostřed, časová osa dole.",
+    "Switch to **{{ViewModel}}** in the mode bar. **{{NpcBrowser}}** lists every character of the game (from the `.npc` files) - click one to load its model and skin as the game shows it. **{{OpenGlm}}** and **{{OpenGlmPk3}}** open any model. Mouse and keys move the view like 3ds Max or like Blender ([[modell-ansehen#navigation]]); **{{ModelTurntable}}**, **{{ModelBones}}** and **{{ModelResetView}}** sit in the toolbar above the view.":
+        "Přepněte na **{{ViewModel}}** v liště režimů. **{{NpcBrowser}}** vypíše každou postavu hry (ze souborů `.npc`) - kliknutím ji načtete s modelem a skinem tak, jak ji ukazuje hra. **{{OpenGlm}}** a **{{OpenGlmPk3}}** otevřou libovolný model. Myš a klávesy pohybují pohledem jako v 3ds Max nebo jako v Blenderu ([[modell-ansehen#navigation]]); **{{ModelTurntable}}**, **{{ModelBones}}** a **{{ModelResetView}}** jsou v liště nástrojů nad pohledem.",
+    "The node **{{MbXArtSequenzen}}** in the scene explorer on the left shows every animation of the skeleton with its length; filter by name or by BOTH / TORSO / LEGS / FACE. Click plays it; double-click (or **{{ModelAnimToScript}}**) opens the window **{{MbInsSkriptFenster}}**, which puts `set ( SET_ANIM_BOTH, \"…\" )` into a script - `SET_ANIM_UPPER` for TORSO and `SET_ANIM_LOWER` for LEGS animations ([[modell-bedienung#skript]]).":
+        "Uzel **{{MbXArtSequenzen}}** v průzkumníku scény vlevo ukazuje každou animaci kostry s její délkou; filtrujte podle názvu nebo podle BOTH / TORSO / LEGS / FACE. Kliknutí ji přehraje; dvojklik (nebo **{{ModelAnimToScript}}**) otevře okno **{{MbInsSkriptFenster}}**, které vloží `set ( SET_ANIM_BOTH, \"…\" )` do skriptu - `SET_ANIM_UPPER` pro animace TORSO a `SET_ANIM_LOWER` pro LEGS ([[modell-bedienung#skript]]).",
     "Your own mission: take-off on Taspir":
         "Vlastní mise: vzlet na Taspiru",
     "A complete little mission for Jedi Academy, built from nothing: Kyle and Rosh walk across a landing pad, the camera follows them, the Raven's Claw lifts off and flies past the camera, the picture shakes and fades to black - and the game plays it.":
@@ -7555,50 +7555,6 @@ from inhalt_rest8 import CS as _REST8  # noqa: E402
 TEXTE.update(_REST8)
 from inhalt_rest9 import CS as _REST9  # noqa: E402
 TEXTE.update(_REST9)
-from inhalt_ap2 import CS as _AP2  # noqa: E402
-TEXTE.update(_AP2)
-from inhalt_ap3 import CS as _AP3  # noqa: E402  (AP3: rechtes Feld des Model-Tabs)
-TEXTE.update(_AP3)
-
-# Modell-Block 1a-1: Model-Tab, Ansehen/Pruefen
-from inhalt_mb1a1 import CS as _MB1  # noqa: E402
-TEXTE.update(_MB1)
-from inhalt_mbkopf import CS as _MBKOPF  # noqa: E402  (MBKOPF)
-TEXTE.update(_MBKOPF)
-from inhalt_mbraster import CS as _MBRASTER  # noqa: E402  (MBRASTER)
-TEXTE.update(_MBRASTER)
-from inhalt_mbnav import CS as _MBNAV  # noqa: E402  (MBNAV)
-TEXTE.update(_MBNAV)
-
-# Modell-Block 1a-2: Weights, Bedienung, Ins Skript
-from inhalt_mb1a2 import CS as _MB2  # noqa: E402
-TEXTE.update(_MB2)
-
-# Modell-Block Stufe 2: Speichern, GLA, Karten-GLA
-from inhalt_mb2 import CS as _MB3  # noqa: E402
-TEXTE.update(_MB3)
-from inhalt_mb3 import CS as _MB4  # noqa: E402
-TEXTE.update(_MB4)
-from inhalt_mb3b import CS as _MB5  # noqa: E402
-TEXTE.update(_MB5)
-from inhalt_ap1 import CS as _AP1  # noqa: E402  (AP1: Zeitleiste des Model-Tabs)
-TEXTE.update(_AP1)
-from inhalt_mb4 import CS as _MB6  # noqa: E402
-TEXTE.update(_MB6)
-from inhalt_mb7 import CS as _MB7  # noqa: E402
-TEXTE.update(_MB7)
-from inhalt_ph import CS as _PH  # noqa: E402
-TEXTE.update(_PH)
-from inhalt_rt import CS as _RT  # noqa: E402
-TEXTE.update(_RT)
-from inhalt_animimp import CS as _ANIMIMP  # noqa: E402
-TEXTE.update(_ANIMIMP)
-from inhalt_uv1b import CS as _UV1B  # noqa: E402
-TEXTE.update(_UV1B)
-from inhalt_md1d import CS as _MD1D  # noqa: E402
-TEXTE.update(_MD1D)
-from inhalt_paint import CS as _PAINT  # noqa: E402
-TEXTE.update(_PAINT)
 from inhalt_mr4 import CS as _MR4  # noqa: E402
 TEXTE.update(_MR4)
 from inhalt_merge2 import CS as _MERGE2  # noqa: E402
@@ -7613,7 +7569,9 @@ from inhalt_d3d12 import CS as _D3D12  # noqa: E402
 TEXTE.update(_D3D12)
 from inhalt_lcfix import CS as _LCFIX  # noqa: E402
 TEXTE.update(_LCFIX)
-from inhalt_fix612b import CS as _FIX612B  # noqa: E402
-TEXTE.update(_FIX612B)
 from inhalt_dxr import CS as _DXR  # noqa: E402
 TEXTE.update(_DXR)
+
+# Der Model-Tab: alle seine Quellen (inhalt_mb*, inhalt_ap*, ...) stehen mit einer Zeile je Quelle in inhalt_modell.py
+import inhalt_modell  # noqa: E402
+TEXTE.update(inhalt_modell.weitere("CS"))

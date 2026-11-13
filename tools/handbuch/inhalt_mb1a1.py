@@ -10,62 +10,38 @@ import inhalt_mbraster  # noqa: E402  (MBRASTER: Boden-Raster wie 3ds Max / Blen
 import inhalt_mbnav  # noqa: E402  (MBNAV: Navigation in den Ansichten wie 3ds Max / Blender)
 
 X = {
-    "titel": ("Model tab: view and check", "Model-Tab: Ansehen und Prüfen", "模型选项卡:查看与检查", "モデルタブ: 表示とチェック",
-              "Pestaña Model: ver y comprobar", "Karta Model: prohlížení a kontrola"),
+    "titel": (
+        "Model tab: overview - views, explorer and panel",
+        "Model-Tab: Überblick - Ansichten, Explorer und Feld",
+        "模型选项卡: 概览 - 视图、资源管理器和面板",
+        "モデルタブ: 概要 - ビュー、エクスプローラー、パネル",
+        "Pestaña Model: vista general - vistas, explorador y panel",
+        "Karta Model: přehled - pohledy, průzkumník a panel",
+    ),
     "kurz": (
-        "Look at a model like in ModView - surfaces, tags, bones, LODs, skins, attached sabers, primary and secondary animation - drawn the way "
-        "the game draws it, and check it against the limits of Jedi Academy, Jedi Outcast and Movie Duels. Mouse and keys work like 3ds Max.",
-        "Ein Modell ansehen wie in ModView - Flächen, Tags, Knochen, LODs, Skins, angebaute Säbel, Primär- und Sekundäranimation - so gezeichnet, "
-        "wie das Spiel es zeichnet, und gegen die Grenzen von Jedi Academy, Jedi Outcast und Movie Duels prüfen. Maus und Tasten wie in 3ds Max.",
-        "像在 ModView 中一样查看模型——面、标记、骨骼、LOD、皮肤、附加的光剑、主要和次要动画——按游戏的方式绘制,并对照 Jedi Academy、Jedi Outcast "
-        "和 Movie Duels 的限制进行检查。鼠标和按键与 3ds Max 相同。",
-        "ModView のようにモデルを表示します。サーフェス、タグ、ボーン、LOD、スキン、取り付けたセイバー、プライマリとセカンダリのアニメーションを"
-        "ゲームと同じ方法で描画し、Jedi Academy・Jedi Outcast・Movie Duels の制限に照らしてチェックします。マウスとキーは 3ds Max と同じです。",
-        "Mira un modelo como en ModView (superficies, tags, huesos, LOD, skins, sables acoplados, animación primaria y secundaria) dibujado como "
-        "lo dibuja el juego, y compruébalo con los límites de Jedi Academy, Jedi Outcast y Movie Duels. El ratón y las teclas funcionan como en 3ds Max.",
-        "Prohlížejte model jako v ModView - povrchy, tagy, kosti, LOD, skiny, připojené meče, primární a sekundární animaci - vykreslený tak, jak "
-        "ho kreslí hra, a zkontrolujte ho proti limitům Jedi Academy, Jedi Outcast a Movie Duels. Myš a klávesy fungují jako v 3ds Max."),
+        "The Model tab at a glance: six areas for one model - viewing and checking, modelling, UVs, weights, texture painting and animation - with the same views, scene explorer, panel on the right and timeline in each of them. The model is drawn the way the game draws it; mouse, keys and layout follow 3ds Max or Blender, whichever you choose.",
+        "Der Model-Tab im Überblick: sechs Bereiche für ein Modell - Ansehen und Prüfen, Modellieren, UVs, Gewichte, Texturen malen und Animation - mit denselben Ansichten, demselben Szenen-Explorer, dem Feld rechts und der Zeitleiste in jedem Bereich. Das Modell wird gezeichnet, wie das Spiel es zeichnet; Maus, Tasten und Aufbau folgen 3ds Max oder Blender, je nach deiner Wahl.",
+        "模型选项卡概览: 一个模型的六个区域 - 查看与检查、建模、UV、权重、纹理绘制和动画 - 每个区域都有相同的视图、场景资源管理器、右侧面板和时间轴。模型按游戏的方式绘制; 鼠标、按键和布局按你的选择与 3ds Max 或 Blender 相同。",
+        "モデルタブの概要: 1 つのモデルに 6 つのエリア - 表示とチェック、モデリング、UV、ウェイト、テクスチャペイント、アニメーション - があり、どのエリアにも同じビュー、シーンエクスプローラー、右側のパネル、タイムラインがあります。モデルはゲームと同じ方法で描画され、マウス、キー、レイアウトは選んだ操作モードに応じて 3ds Max または Blender と同じです。",
+        "La pestaña Model de un vistazo: seis áreas para un modelo - ver y comprobar, modelar, UV, pesos, pintar texturas y animación - con las mismas vistas, el mismo explorador de escena, el panel de la derecha y la línea de tiempo en cada una. El modelo se dibuja como lo dibuja el juego; el ratón, las teclas y la disposición siguen a 3ds Max o a Blender, según elijas.",
+        "Karta Model v kostce: šest oblastí pro jeden model - prohlížení a kontrola, modelování, UV, váhy, malování textur a animace - a v každé stejné pohledy, průzkumník scény, panel vpravo a časová osa. Model se kreslí tak, jak ho kreslí hra; myš, klávesy a rozvržení se řídí 3ds Max nebo Blenderem, podle vaší volby.",
+    ),
     "bild": (
-        "Kyle with a saber at *r_hand: on the left the scene explorer and the animations, in the middle the view, on the right the command panel "
-        "with its rollouts, below the timeline counted from 0.",
-        "Kyle mit einem Säbel an *r_hand: links Szenen-Explorer und Animationen, in der Mitte die Ansicht, rechts das Befehlsfeld mit seinen "
-        "Rollouts, unten die Zeitleiste, ab 0 gezählt.",
-        "手持光剑 (*r_hand) 的 Kyle:左侧是场景资源管理器和动画,中间是视图,右侧是带卷展栏的命令面板,下方是从 0 开始计数的时间轴。",
-        "*r_hand にセイバーを付けた Kyle。左にシーンエクスプローラーとアニメーション、中央にビュー、右にロールアウト付きのコマンドパネル、"
-        "下に 0 から数えるタイムライン。",
-        "Kyle con un sable en *r_hand: a la izquierda el explorador de escena y las animaciones, en el centro la vista, a la derecha el panel de "
-        "comandos con sus persianas, abajo la línea de tiempo contada desde 0.",
-        "Kyle s mečem na *r_hand: vlevo průzkumník scény a animace, uprostřed pohled, vpravo panel příkazů s rolety, dole časová osa počítaná od 0."),
+        "Kyle with a saber at *r_hand: on the left the scene explorer, in the middle the view, on the right the command panel with its groups, below the timeline.",
+        "Kyle mit einem Säbel an *r_hand: links der Szenen-Explorer, in der Mitte die Ansicht, rechts das Befehlsfeld mit seinen Gruppen, unten die Zeitleiste.",
+        "手持光剑 (*r_hand) 的 Kyle: 左侧是场景资源管理器, 中间是视图, 右侧是带各分组的命令面板, 下方是时间轴。",
+        "*r_hand にセイバーを付けた Kyle。左にシーンエクスプローラー、中央にビュー、右にグループの並ぶコマンドパネル、下にタイムライン。",
+        "Kyle con un sable en *r_hand: a la izquierda el explorador de escena, en el centro la vista, a la derecha el panel de comandos con sus grupos, abajo la línea de tiempo.",
+        "Kyle s mečem na *r_hand: vlevo průzkumník scény, uprostřed pohled, vpravo panel příkazů se skupinami, dole časová osa.",
+    ),
     "aufbau": (
-        "Open a model as before ({{NpcBrowser}}, `.glm`, `.pk3`). The tab starts in **{{MbBereichAnsehen}}**; the other areas "
-        "(**{{MbBereichModellieren}}**, **{{MbBereichUv}}**, **{{MbBereichWeights}}**, **{{MbBereichPainting}}**, **{{MbBereichAnimation}}**) come "
-        "in the next stages of the model block - their views, explorer and timeline already work. The model is loaded into its own document with "
-        "every level of detail; drawing an unchanged model gives exactly the same picture as before (checked with every model under "
-        "`models/players` of Jedi Academy, Jedi Outcast and Movie Duels).",
-        "Ein Modell öffnest du wie bisher ({{NpcBrowser}}, `.glm`, `.pk3`). Der Tab beginnt in **{{MbBereichAnsehen}}**; die anderen Bereiche "
-        "(**{{MbBereichModellieren}}**, **{{MbBereichUv}}**, **{{MbBereichWeights}}**, **{{MbBereichPainting}}**, **{{MbBereichAnimation}}**) kommen "
-        "in den nächsten Stufen des Modell-Blocks - Ansichten, Explorer und Zeitleiste gehen dort schon. Das Modell kommt mit allen Detailstufen "
-        "in ein eigenes Dokument; ein unverändertes Modell ergibt genau dasselbe Bild wie vorher (geprüft mit jedem Modell unter `models/players` "
-        "von Jedi Academy, Jedi Outcast und Movie Duels).",
-        "像以前一样打开模型({{NpcBrowser}}、`.glm`、`.pk3`)。选项卡从 **{{MbBereichAnsehen}}** 开始;其他区域(**{{MbBereichModellieren}}**、"
-        "**{{MbBereichUv}}**、**{{MbBereichWeights}}**、**{{MbBereichPainting}}**、**{{MbBereichAnimation}}**)将在模型模块的后续阶段提供——"
-        "它们的视图、资源管理器和时间轴已经可用。模型连同所有细节级别载入自己的文档;未修改的模型绘制出的画面与以前完全相同(已用 Jedi Academy、"
-        "Jedi Outcast 和 Movie Duels 中 `models/players` 下的每个模型检查)。",
-        "モデルはこれまでどおり開きます ({{NpcBrowser}}、`.glm`、`.pk3`)。タブは **{{MbBereichAnsehen}}** で始まります。ほかの領域 "
-        "(**{{MbBereichModellieren}}**、**{{MbBereichUv}}**、**{{MbBereichWeights}}**、**{{MbBereichPainting}}**、**{{MbBereichAnimation}}**) は"
-        "モデルブロックの次のステージで追加されます。ビュー、エクスプローラー、タイムラインはそこでも使えます。モデルはすべての詳細レベルと一緒に"
-        "専用のドキュメントに読み込まれ、変更していないモデルは以前とまったく同じ画像になります (Jedi Academy、Jedi Outcast、Movie Duels の "
-        "`models/players` にある全モデルで確認)。",
-        "Abre un modelo como antes ({{NpcBrowser}}, `.glm`, `.pk3`). La pestaña empieza en **{{MbBereichAnsehen}}**; las demás áreas "
-        "(**{{MbBereichModellieren}}**, **{{MbBereichUv}}**, **{{MbBereichWeights}}**, **{{MbBereichPainting}}**, **{{MbBereichAnimation}}**) llegan "
-        "en las próximas etapas del bloque de modelos; sus vistas, explorador y línea de tiempo ya funcionan. El modelo se carga en su propio "
-        "documento con todos los niveles de detalle; un modelo sin cambios da exactamente la misma imagen que antes (comprobado con cada modelo "
-        "de `models/players` de Jedi Academy, Jedi Outcast y Movie Duels).",
-        "Model otevřete jako dřív ({{NpcBrowser}}, `.glm`, `.pk3`). Karta začíná v **{{MbBereichAnsehen}}**; ostatní oblasti "
-        "(**{{MbBereichModellieren}}**, **{{MbBereichUv}}**, **{{MbBereichWeights}}**, **{{MbBereichPainting}}**, **{{MbBereichAnimation}}**) přijdou "
-        "v dalších fázích bloku modelů - jejich pohledy, průzkumník a časová osa už fungují. Model se načte do vlastního dokumentu se všemi "
-        "úrovněmi detailu; nezměněný model dává přesně stejný obraz jako dřív (ověřeno s každým modelem v `models/players` z Jedi Academy, "
-        "Jedi Outcast a Movie Duels)."),
+        "Open a model as before ({{NpcBrowser}}, `.glm`, `.pk3`). The tab starts in **{{MbBereichAnsehen}}** ([[modell-pruefen]]); the row of areas above the views switches to **{{MbBereichModellieren}}** ([[modell-modellieren]]), **{{MbBereichUv}}** ([[modell-uv]]), **{{MbBereichWeights}}** ([[modell-weights]]), **{{MbBereichPainting}}** ([[modell-painting]]) and **{{MbBereichAnimation}}** ([[modell-animationsfeld]]). Views, scene explorer and timeline ([[modell-zeitleiste]]) are the same in every area, and the pose keeps playing while you work. The model is loaded into its own document with every level of detail; drawing an unchanged model gives exactly the same picture as before (checked with every model under `models/players` of Jedi Academy, Jedi Outcast and Movie Duels).",
+        "Ein Modell öffnest du wie bisher ({{NpcBrowser}}, `.glm`, `.pk3`). Der Tab beginnt in **{{MbBereichAnsehen}}** ([[modell-pruefen]]); die Reihe der Bereiche über den Ansichten wechselt nach **{{MbBereichModellieren}}** ([[modell-modellieren]]), **{{MbBereichUv}}** ([[modell-uv]]), **{{MbBereichWeights}}** ([[modell-weights]]), **{{MbBereichPainting}}** ([[modell-painting]]) und **{{MbBereichAnimation}}** ([[modell-animationsfeld]]). Ansichten, Szenen-Explorer und Zeitleiste ([[modell-zeitleiste]]) sind in jedem Bereich dieselben, und die Pose läuft weiter, während du arbeitest. Das Modell kommt mit allen Detailstufen in ein eigenes Dokument; ein unverändertes Modell ergibt genau dasselbe Bild wie vorher (geprüft mit jedem Modell unter `models/players` von Jedi Academy, Jedi Outcast und Movie Duels).",
+        "像以前一样打开模型({{NpcBrowser}}、`.glm`、`.pk3`)。选项卡从 **{{MbBereichAnsehen}}** 开始 ([[modell-pruefen]]); 视图上方的区域栏可切换到 **{{MbBereichModellieren}}** ([[modell-modellieren]])、**{{MbBereichUv}}** ([[modell-uv]])、**{{MbBereichWeights}}** ([[modell-weights]])、**{{MbBereichPainting}}** ([[modell-painting]]) 和 **{{MbBereichAnimation}}** ([[modell-animationsfeld]])。视图、场景资源管理器和时间轴 ([[modell-zeitleiste]]) 在每个区域都相同, 工作时姿势继续播放。模型连同所有细节级别载入自己的文档;未修改的模型绘制出的画面与以前完全相同(已用 Jedi Academy、Jedi Outcast 和 Movie Duels 中 `models/players` 下的每个模型检查)。",
+        "モデルはこれまでどおり開きます ({{NpcBrowser}}、`.glm`、`.pk3`)。タブは **{{MbBereichAnsehen}}** ([[modell-pruefen]]) で始まります。ビューの上に並ぶエリアの行で **{{MbBereichModellieren}}** ([[modell-modellieren]])、**{{MbBereichUv}}** ([[modell-uv]])、**{{MbBereichWeights}}** ([[modell-weights]])、**{{MbBereichPainting}}** ([[modell-painting]])、**{{MbBereichAnimation}}** ([[modell-animationsfeld]]) に切り替えます。ビュー、シーンエクスプローラー、タイムライン ([[modell-zeitleiste]]) はどのエリアでも同じで、作業中もポーズは再生され続けます。モデルはすべての詳細レベルと一緒に専用のドキュメントに読み込まれ、変更していないモデルは以前とまったく同じ画像になります (Jedi Academy、Jedi Outcast、Movie Duels の `models/players` にある全モデルで確認)。",
+        "Abre un modelo como antes ({{NpcBrowser}}, `.glm`, `.pk3`). La pestaña empieza en **{{MbBereichAnsehen}}** ([[modell-pruefen]]); la fila de áreas sobre las vistas cambia a **{{MbBereichModellieren}}** ([[modell-modellieren]]), **{{MbBereichUv}}** ([[modell-uv]]), **{{MbBereichWeights}}** ([[modell-weights]]), **{{MbBereichPainting}}** ([[modell-painting]]) y **{{MbBereichAnimation}}** ([[modell-animationsfeld]]). Las vistas, el explorador de escena y la línea de tiempo ([[modell-zeitleiste]]) son los mismos en cada área, y la pose sigue reproduciéndose mientras trabajas. El modelo se carga en su propio documento con todos los niveles de detalle; un modelo sin cambios da exactamente la misma imagen que antes (comprobado con cada modelo de `models/players` de Jedi Academy, Jedi Outcast y Movie Duels).",
+        "Model otevřete jako dřív ({{NpcBrowser}}, `.glm`, `.pk3`). Karta začíná v **{{MbBereichAnsehen}}** ([[modell-pruefen]]); řada oblastí nad pohledy přepíná na **{{MbBereichModellieren}}** ([[modell-modellieren]]), **{{MbBereichUv}}** ([[modell-uv]]), **{{MbBereichWeights}}** ([[modell-weights]]), **{{MbBereichPainting}}** ([[modell-painting]]) a **{{MbBereichAnimation}}** ([[modell-animationsfeld]]). Pohledy, průzkumník scény a časová osa ([[modell-zeitleiste]]) jsou v každé oblasti stejné a póza běží dál, zatímco pracujete. Model se načte do vlastního dokumentu se všemi úrovněmi detailu; nezměněný model dává přesně stejný obraz jako dřív (ověřeno s každým modelem v `models/players` z Jedi Academy, Jedi Outcast a Movie Duels).",
+    ),
     "h_explorer": ("Scene explorer", "Szenen-Explorer", "场景资源管理器", "シーンエクスプローラー", "Explorador de escena", "Průzkumník scény"),
     "explorer": (
         "The **{{MbExplorer}}** shows the surfaces (**{{MbNachHierarchie}}** or **{{MbNachEbenen}}**), the tags and the bones of the skeleton; "
@@ -99,153 +75,38 @@ X = {
     "bild_menue": ("The right-click menu of a surface.", "Das Rechtsklick-Menü einer Fläche.", "面的右键菜单。", "サーフェスの右クリックメニュー。",
                    "El menú contextual de una superficie.", "Kontextová nabídka povrchu."),
     "anbauen": (
-        "Right-click a tag (for example `*r_hand`) or a bone and choose **{{MbAnbauen}}** to attach a model from the game archives - a saber, "
-        "a weapon, a head - like `G2API_AttachG2Model`: on a tag it follows the tag triangle, on a bone the bone. The rollout "
-        "**{{MbRAnbauten}}** lists them and detaches them again.",
-        "Rechtsklick auf einen Tag (etwa `*r_hand`) oder einen Knochen und **{{MbAnbauen}}** baut ein Modell aus den Spielarchiven an - einen "
-        "Säbel, eine Waffe, einen Kopf - wie `G2API_AttachG2Model`: an einem Tag folgt es dem Tag-Dreieck, an einem Knochen dem Knochen. Das "
-        "Rollout **{{MbRAnbauten}}** listet sie und löst sie wieder.",
-        "右键单击标记(例如 `*r_hand`)或骨骼并选择 **{{MbAnbauen}}**,即可从游戏存档附加模型——光剑、武器、头部——与 `G2API_AttachG2Model` 相同:"
-        "附加在标记上时跟随标记三角形,附加在骨骼上时跟随骨骼。卷展栏 **{{MbRAnbauten}}** 列出它们并可再次分离。",
-        "タグ (たとえば `*r_hand`) かボーンを右クリックして **{{MbAnbauen}}** を選ぶと、ゲームアーカイブからモデル (セイバー、武器、頭など) を "
-        "`G2API_AttachG2Model` と同じように取り付けます。タグに付けるとタグの三角形に、ボーンに付けるとボーンに従います。ロールアウト "
-        "**{{MbRAnbauten}}** に一覧が出て、取り外せます。",
-        "Haz clic derecho en un tag (por ejemplo `*r_hand`) o un hueso y elige **{{MbAnbauen}}** para acoplar un modelo de los archivos del "
-        "juego (un sable, un arma, una cabeza) como `G2API_AttachG2Model`: en un tag sigue el triángulo del tag, en un hueso sigue el hueso. "
-        "La persiana **{{MbRAnbauten}}** los muestra y los vuelve a desacoplar.",
-        "Pravým tlačítkem na tag (třeba `*r_hand`) nebo kost a **{{MbAnbauen}}** připojí model z archivů hry - meč, zbraň, hlavu - jako "
-        "`G2API_AttachG2Model`: na tagu sleduje trojúhelník tagu, na kosti kost. Roleta **{{MbRAnbauten}}** je vypíše a znovu odpojí."),
+        "Right-click a tag (for example `*r_hand`) or a bone and choose **{{MbAnbauen}}** to attach a model from the game archives - a saber, a weapon, a head - like `G2API_AttachG2Model`: on a tag it follows the tag triangle, on a bone the bone. The group **{{MbRAnbauten}}** lists them and detaches them again.",
+        "Rechtsklick auf einen Tag (etwa `*r_hand`) oder einen Knochen und **{{MbAnbauen}}** baut ein Modell aus den Spielarchiven an - einen Säbel, eine Waffe, einen Kopf - wie `G2API_AttachG2Model`: an einem Tag folgt es dem Tag-Dreieck, an einem Knochen dem Knochen. Die Gruppe **{{MbRAnbauten}}** listet sie und löst sie wieder.",
+        "右键单击标记(例如 `*r_hand`)或骨骼并选择 **{{MbAnbauen}}**,即可从游戏存档附加模型——光剑、武器、头部——与 `G2API_AttachG2Model` 相同:附加在标记上时跟随标记三角形,附加在骨骼上时跟随骨骼。分组 **{{MbRAnbauten}}** 列出它们并可再次分离。",
+        "タグ (たとえば `*r_hand`) かボーンを右クリックして **{{MbAnbauen}}** を選ぶと、ゲームアーカイブからモデル (セイバー、武器、頭など) を `G2API_AttachG2Model` と同じように取り付けます。タグに付けるとタグの三角形に、ボーンに付けるとボーンに従います。グループ **{{MbRAnbauten}}** に一覧が出て、取り外せます。",
+        "Haz clic derecho en un tag (por ejemplo `*r_hand`) o un hueso y elige **{{MbAnbauen}}** para acoplar un modelo de los archivos del juego (un sable, un arma, una cabeza) como `G2API_AttachG2Model`: en un tag sigue el triángulo del tag, en un hueso sigue el hueso. El grupo **{{MbRAnbauten}}** los muestra y los vuelve a desacoplar.",
+        "Pravým tlačítkem na tag (třeba `*r_hand`) nebo kost a **{{MbAnbauen}}** připojí model z archivů hry - meč, zbraň, hlavu - jako `G2API_AttachG2Model`: na tagu sleduje trojúhelník tagu, na kosti kost. Skupina **{{MbRAnbauten}}** je vypíše a znovu odpojí.",
+    ),
     "h_befehl": ("Command panel", "Befehlsfeld", "命令面板", "コマンドパネル", "Panel de comandos", "Panel příkazů"),
-    "befehl": (
-        "**{{MbRModell}}**: file, skeleton, numbers, **{{MbAndereGla}}** (GLA override from the archives), **{{MbTexNeu}}** "
-        "(<kbd>Alt</kbd>+<kbd>R</kbd>) and **{{MbFoto}}** (the active view, at least 1920 pixels wide). **{{MbRLod}}**: LOD 1-10 or "
-        "**{{MbLodAuto}}** - as in the game the distance picks the level (single player: radius 40, r_lodscale 10; multiplayer: radius 64, r_lodscale 5); picmip and "
-        "the skins. The display options are in the header of the view (see below).",
-        "**{{MbRModell}}**: Datei, Skelett, Zahlen, **{{MbAndereGla}}** (GLA-Override aus den Archiven), **{{MbTexNeu}}** "
-        "(<kbd>Alt</kbd>+<kbd>R</kbd>) und **{{MbFoto}}** (die aktive Ansicht, mindestens 1920 Punkte breit). **{{MbRLod}}**: LOD 1-10 oder "
-        "**{{MbLodAuto}}** - wie im Spiel wählt der Abstand die Stufe (Einzelspieler: Radius 40, r_lodscale 10; Mehrspieler: Radius 64, r_lodscale 5); Picmip "
-        "und die Skins. Die Anzeige-Optionen stehen in der Kopfzeile der Ansicht (siehe unten).",
-        "**{{MbRModell}}**:文件、骨架、数字、**{{MbAndereGla}}**(从存档覆盖 GLA)、**{{MbTexNeu}}** (<kbd>Alt</kbd>+<kbd>R</kbd>) 和 "
-        "**{{MbFoto}}**(当前视图,至少 1920 像素宽)。**{{MbRLod}}**:LOD 1-10 或 **{{MbLodAuto}}**——与游戏相同,由距离选择级别"
-        "(单人模式:半径 40,r_lodscale 10;多人模式:半径 64,r_lodscale 5);picmip 和皮肤。显示选项位于视图标题栏 (见下文)。",
-        "**{{MbRModell}}**: ファイル、スケルトン、数値、**{{MbAndereGla}}** (アーカイブからの GLA オーバーライド)、**{{MbTexNeu}}** "
-        "(<kbd>Alt</kbd>+<kbd>R</kbd>)、**{{MbFoto}}** (アクティブなビュー、幅 1920 ピクセル以上)。**{{MbRLod}}**: LOD 1-10 か "
-        "**{{MbLodAuto}}**。ゲームと同じく距離でレベルが決まります (シングルプレイ: 半径 40、r_lodscale 10、マルチプレイ: 半径 64、r_lodscale 5)。picmip と"
-        "スキン。表示オプションはビューのヘッダーにあります (下記参照)。",
-        "**{{MbRModell}}**: archivo, esqueleto, cifras, **{{MbAndereGla}}** (GLA override desde los archivos), **{{MbTexNeu}}** "
-        "(<kbd>Alt</kbd>+<kbd>R</kbd>) y **{{MbFoto}}** (la vista activa, al menos 1920 píxeles de ancho). **{{MbRLod}}**: LOD 1-10 o "
-        "**{{MbLodAuto}}**: como en el juego, la distancia elige el nivel (un jugador: radio 40, r_lodscale 10; multijugador: radio 64, r_lodscale 5); "
-        "picmip y las skins. Las opciones de visualización están en la cabecera de la vista (ver más abajo).",
-        "**{{MbRModell}}**: soubor, kostra, čísla, **{{MbAndereGla}}** (přepsání GLA z archivů), **{{MbTexNeu}}** (<kbd>Alt</kbd>+<kbd>R</kbd>) "
-        "a **{{MbFoto}}** (aktivní pohled, alespoň 1920 bodů široký). **{{MbRLod}}**: LOD 1-10 nebo **{{MbLodAuto}}** - jako ve hře volí "
-        "úroveň vzdálenost (jeden hráč: poloměr 40, r_lodscale 10; více hráčů: poloměr 64, r_lodscale 5); picmip a skiny. Možnosti zobrazení jsou v záhlaví pohledu (viz níže)."),
     "sequenzen": (
-        "Click a sequence under **{{MbXArtSequenzen}}** in the scene explorer to play it as **{{MbPrimaer}}** (whole body). Right-click another one and choose "
-        "**{{MbSekundaer}}** to play it on the upper body from `lower_lumbar` up, like `SET_ANIM_UPPER` in the game (another start bone: "
-        "right-click a bone). **{{MbInterpolation}}** blends between two frames like the game. The timeline counts frames from 0 like 3ds Max "
-        "and the `animation.cfg`.",
-        "Ein Klick auf eine Sequenz unter **{{MbXArtSequenzen}}** im Szenen-Explorer spielt sie als **{{MbPrimaer}}** (ganzer Körper). Rechtsklick auf eine andere "
-        "und **{{MbSekundaer}}** spielt sie auf dem Oberkörper ab `lower_lumbar`, wie `SET_ANIM_UPPER` im Spiel (ein anderer Start-Knochen: "
-        "Rechtsklick auf einen Knochen). **{{MbInterpolation}}** mischt zwischen zwei Bildern wie das Spiel. Die Zeitleiste zählt die Bilder ab 0 "
-        "wie 3ds Max und die `animation.cfg`.",
-        "单击 **{{MbXArtSequenzen}}** 中的动画即可作为 **{{MbPrimaer}}**(全身)播放。右键单击另一个动画并选择 **{{MbSekundaer}}**,即可像游戏中的 "
-        "`SET_ANIM_UPPER` 一样在 `lower_lumbar` 以上的上半身播放(其他起始骨骼:右键单击骨骼)。**{{MbInterpolation}}** 像游戏一样在两帧之间混合。"
-        "时间轴像 3ds Max 和 `animation.cfg` 一样从 0 开始计帧。",
-        "**{{MbXArtSequenzen}}** のアニメーションをクリックすると **{{MbPrimaer}}** (全身) として再生します。別のアニメーションを右クリックして "
-        "**{{MbSekundaer}}** を選ぶと、ゲームの `SET_ANIM_UPPER` と同じく `lower_lumbar` から上の上半身で再生します (別の開始ボーン: ボーンを"
-        "右クリック)。**{{MbInterpolation}}** はゲームと同じく 2 つのフレームの間を補間します。タイムラインは 3ds Max や `animation.cfg` と同じく"
-        "フレームを 0 から数えます。",
-        "Un clic en una secuencia bajo **{{MbXArtSequenzen}}** en el explorador de escena la reproduce como **{{MbPrimaer}}** (todo el cuerpo). Clic derecho en otra y "
-        "**{{MbSekundaer}}** la reproduce en el torso desde `lower_lumbar`, como `SET_ANIM_UPPER` en el juego (otro hueso de inicio: clic "
-        "derecho en un hueso). **{{MbInterpolation}}** mezcla entre dos fotogramas como el juego. La línea de tiempo cuenta los fotogramas "
-        "desde 0 como 3ds Max y el `animation.cfg`.",
-        "Klik na sekvenci pod **{{MbXArtSequenzen}}** v průzkumníku scény ji přehraje jako **{{MbPrimaer}}** (celé tělo). Pravé tlačítko na jinou a **{{MbSekundaer}}** "
-        "ji přehraje na horní části těla od `lower_lumbar`, jako `SET_ANIM_UPPER` ve hře (jiná počáteční kost: pravé tlačítko na kost). "
-        "**{{MbInterpolation}}** prolíná mezi dvěma snímky jako hra. Časová osa počítá snímky od 0 jako 3ds Max a `animation.cfg`."),
-    "h_pruefen": ("Check for the game", "Prüfen fürs Spiel", "针对游戏检查", "ゲーム向けチェック", "Comprobar para el juego", "Kontrola pro hru"),
-    "pruefen": (
-        "**{{MbRPruefen}}** checks the model against the target game: vertices and triangles per surface (Jedi Academy and Jedi Outcast stop "
-        "with an error at 1000 vertices, Movie Duels at 4000), 32 bones per surface, 4 weights per vertex, the Ghoul2 instances "
-        "(`MAX_G2_MODELS`), every line of the `animation.cfg` against the frames of the GLA (behind the end the figure stands in T-pose in "
-        "OpenJK-based games, the original keeps it standing) and surfaces without a texture or shader.",
-        "**{{MbRPruefen}}** prüft das Modell gegen das Zielspiel: Ecken und Dreiecke je Fläche (Jedi Academy und Jedi Outcast brechen bei 1000 "
-        "Ecken mit einem Fehler ab, Movie Duels bei 4000), 32 Knochen je Fläche, 4 Gewichte je Ecke, die Ghoul2-Instanzen (`MAX_G2_MODELS`), "
-        "jede Zeile der `animation.cfg` gegen die Bilder der GLA (dahinter steht die Figur in Spielen auf OpenJK-Basis in T-Pose, das Original "
-        "lässt sie stehen) und Flächen ohne Textur oder Shader.",
-        "**{{MbRPruefen}}** 针对目标游戏检查模型:每个面的顶点和三角形(Jedi Academy 和 Jedi Outcast 在 1000 个顶点时报错中止,Movie Duels 为 "
-        "4000)、每个面 32 根骨骼、每个顶点 4 个权重、Ghoul2 实例 (`MAX_G2_MODELS`)、`animation.cfg` 的每一行对照 GLA 的帧数(超出末尾时,在基于 "
-        "OpenJK 的游戏中角色会呈 T 姿势,原版则让角色保持站立),以及没有纹理或着色器的面。",
-        "**{{MbRPruefen}}** は対象ゲームに照らしてモデルをチェックします。サーフェスごとの頂点と三角形 (Jedi Academy と Jedi Outcast は頂点 1000 で"
-        "エラー停止、Movie Duels は 4000)、サーフェスごとにボーン 32、頂点ごとにウェイト 4、Ghoul2 インスタンス (`MAX_G2_MODELS`)、"
-        "`animation.cfg` の各行と GLA のフレーム数 (末尾を超えると OpenJK ベースのゲームではフィギュアが T ポーズになり、オリジナルでは立ったまま)、"
-        "テクスチャやシェーダーのないサーフェス。",
-        "**{{MbRPruefen}}** comprueba el modelo con el juego de destino: vértices y triángulos por superficie (Jedi Academy y Jedi Outcast se "
-        "detienen con un error a los 1000 vértices, Movie Duels a los 4000), 32 huesos por superficie, 4 pesos por vértice, las instancias "
-        "Ghoul2 (`MAX_G2_MODELS`), cada línea del `animation.cfg` frente a los fotogramas del GLA (más allá del final la figura queda en pose T "
-        "en los juegos basados en OpenJK, el original la deja de pie) y superficies sin textura ni shader.",
-        "**{{MbRPruefen}}** kontroluje model proti cílové hře: vrcholy a trojúhelníky na povrch (Jedi Academy a Jedi Outcast skončí chybou při "
-        "1000 vrcholech, Movie Duels při 4000), 32 kostí na povrch, 4 váhy na vrchol, instance Ghoul2 (`MAX_G2_MODELS`), každý řádek "
-        "`animation.cfg` proti snímkům GLA (za koncem stojí postava ve hrách založených na OpenJK v pozici T, originál ji nechá stát) a povrchy "
-        "bez textury nebo shaderu."),
-    "h_max": ("Controls like 3ds Max", "Bedienung wie 3ds Max", "像 3ds Max 一样操作", "3ds Max と同じ操作", "Controles como 3ds Max",
-              "Ovládání jako 3ds Max"),
-    "max": (
-        "**{{MbBedienung}}** **{{MbWieMax}}** is the default; **{{MbWieBlender}}** is chosen with a click on the control mode at the left of the status line of the tab. The keys work after a click "
-        "into the view, the explorer, the command panel or the timeline; <kbd>X</kbd> lists them all. The gizmo moves, rotates or scales the "
-        "selected surfaces in the model document (all levels of detail) - <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes it back.",
-        "**{{MbBedienung}}** **{{MbWieMax}}** ist die Vorgabe; **{{MbWieBlender}}** wählst du mit einem Klick auf den Bedienmodus links in der Statuszeile des Tabs. Die Tasten wirken nach "
-        "einem Klick in die Ansicht, den Explorer, das Befehlsfeld oder die Zeitleiste; <kbd>X</kbd> listet sie alle. Das Gizmo verschiebt, "
-        "dreht oder skaliert die gewählten Flächen im Modelldokument (alle Detailstufen) - <kbd>Strg</kbd>+<kbd>Z</kbd> nimmt es zurück.",
-        "**{{MbBedienung}}** 默认为 **{{MbWieMax}}**;单击选项卡状态栏左侧的操作方式可切换到 **{{MbWieBlender}}**。在视图、资源管理器、命令面板或时间轴中单击后按键"
-        "生效;<kbd>X</kbd> 列出全部按键。Gizmo 在模型文档中移动、旋转或缩放所选的面(所有细节级别)——<kbd>Ctrl</kbd>+<kbd>Z</kbd> 可撤销。",
-        "**{{MbBedienung}}** は **{{MbWieMax}}** が既定です。**{{MbWieBlender}}** には、タブのステータス行の左にある操作モードをクリックして切り替えます。キーはビュー、"
-        "エクスプローラー、コマンドパネル、タイムラインのいずれかをクリックした後に効きます。<kbd>X</kbd> で一覧を表示します。ギズモはモデル"
-        "ドキュメント内の選択サーフェスを移動・回転・スケールします (すべての詳細レベル)。<kbd>Ctrl</kbd>+<kbd>Z</kbd> で元に戻せます。",
-        "**{{MbBedienung}}** **{{MbWieMax}}** es el predeterminado; **{{MbWieBlender}}** se elige con un clic en el modo de control a la izquierda de la línea de estado de la pestaña. Las teclas "
-        "funcionan tras un clic en la vista, el explorador, el panel de comandos o la línea de tiempo; <kbd>X</kbd> las muestra todas. El "
-        "gizmo mueve, rota o escala las superficies seleccionadas en el documento del modelo (todos los niveles de detalle); "
-        "<kbd>Ctrl</kbd>+<kbd>Z</kbd> lo deshace.",
-        "**{{MbBedienung}}** **{{MbWieMax}}** je výchozí; **{{MbWieBlender}}** zvolíte kliknutím na režim ovládání vlevo ve stavovém řádku karty. Klávesy fungují po kliknutí do "
-        "pohledu, průzkumníku, panelu příkazů nebo časové osy; <kbd>X</kbd> je vypíše všechny. Gizmo posouvá, otáčí nebo mění měřítko vybraných "
-        "povrchů v dokumentu modelu (všechny úrovně detailu) - <kbd>Ctrl</kbd>+<kbd>Z</kbd> to vrátí."),
-    "k_maus": ("Middle mouse / Alt + middle / wheel", "Mittlere Maus / Alt + Mitte / Rad", "鼠标中键 / Alt + 中键 / 滚轮", "中ボタン / Alt + 中ボタン / ホイール",
-               "Botón central / Alt + central / rueda", "Prostřední tlačítko / Alt + prostřední / kolečko"),
-    "k_maus_t": ("Pan / orbit / zoom (Ctrl + Alt + middle: zoom by dragging)", "Schieben / kreisen / zoomen (Strg + Alt + Mitte: zoomen durch Ziehen)",
-                 "平移 / 环绕 / 缩放 (Ctrl + Alt + 中键:拖动缩放)", "パン / 周回 / ズーム (Ctrl + Alt + 中ボタン: ドラッグでズーム)",
-                 "Desplazar / orbitar / zoom (Ctrl + Alt + central: zoom arrastrando)", "Posun / kroužení / zoom (Ctrl + Alt + prostřední: zoom tažením)"),
-    "k_links": ("Left click / drag", "Linksklick / ziehen", "左键单击 / 拖动", "左クリック / ドラッグ", "Clic izquierdo / arrastrar", "Levý klik / tažení"),
-    "k_links_t": ("Select a surface / select with a frame (Ctrl adds, Alt removes)", "Fläche wählen / mit Rahmen wählen (Strg dazu, Alt weg)",
-                  "选择面 / 框选 (Ctrl 添加,Alt 移除)", "サーフェスを選択 / 枠で選択 (Ctrl で追加、Alt で除外)",
-                  "Seleccionar una superficie / seleccionar con un marco (Ctrl añade, Alt quita)", "Vybrat povrch / vybrat rámečkem (Ctrl přidá, Alt odebere)"),
-    "k_qwer": ("Q / W / E / R", "Q / W / E / R", "Q / W / E / R", "Q / W / E / R", "Q / W / E / R", "Q / W / E / R"),
-    "k_qwer_t": ("Select, move, rotate, scale (F5 / F6 / F7 restrict to X / Y / Z, F8 planes, + / - gizmo size)",
-                 "Auswählen, verschieben, drehen, skalieren (F5 / F6 / F7 auf X / Y / Z beschränken, F8 Ebenen, + / - Gizmo-Größe)",
-                 "选择、移动、旋转、缩放 (F5 / F6 / F7 限制到 X / Y / Z,F8 平面,+ / - Gizmo 大小)",
-                 "選択、移動、回転、スケール (F5 / F6 / F7 で X / Y / Z に拘束、F8 平面、+ / - ギズモの大きさ)",
-                 "Seleccionar, mover, rotar, escalar (F5 / F6 / F7 restringen a X / Y / Z, F8 planos, + / - tamaño del gizmo)",
-                 "Výběr, posun, otočení, měřítko (F5 / F6 / F7 omezí na X / Y / Z, F8 roviny, + / - velikost gizma)"),
-    "k_ansicht": ("Alt+W / P T F L B / Z", "Alt+W / P T F L B / Z", "Alt+W / P T F L B / Z", "Alt+W / P T F L B / Z", "Alt+W / P T F L B / Z",
-                  "Alt+W / P T F L B / Z"),
-    "k_ansicht_t": ("Four views or one / perspective, top, front, left, bottom / zoom extents (selection)",
-                    "Vier Ansichten oder eine / Perspektive, oben, vorn, links, unten / Zoom Grenzen (Auswahl)",
-                    "四个视图或一个 / 透视、顶、前、左、底 / 最大化显示 (所选)", "4 ビューか 1 ビュー / パース、上、前、左、下 / 全体表示 (選択)",
-                    "Cuatro vistas o una / perspectiva, superior, frontal, izquierda, inferior / encuadrar (selección)",
-                    "Čtyři pohledy nebo jeden / perspektiva, shora, zepředu, zleva, zespodu / přiblížit vše (výběr)"),
-    "k_anzeige": ("F3 / F4 / G / J / 7", "F3 / F4 / G / J / 7", "F3 / F4 / G / J / 7", "F3 / F4 / G / J / 7", "F3 / F4 / G / J / 7", "F3 / F4 / G / J / 7"),
-    "k_anzeige_t": ("Wireframe, edged faces, grid, selection bracket, statistics", "Drahtgitter, Flächen mit Kanten, Raster, Auswahlklammer, Statistik",
-                    "线框、带边面、网格、选择框、统计", "ワイヤーフレーム、エッジ面、グリッド、選択ブラケット、統計",
-                    "Alambre, caras con aristas, rejilla, corchetes de selección, estadísticas", "Drátový model, plochy s hranami, mřížka, závorky výběru, statistika"),
-    "k_zeit": ("/ , . Home End", "/ , . Pos1 Ende", "/ , . Home End", "/ , . Home End", "/ , . Inicio Fin", "/ , . Home End"),
-    "k_zeit_t": ("Play/stop, one frame back/forward, first/last frame", "Abspielen/anhalten, ein Bild zurück/vor, erstes/letztes Bild",
-                 "播放/停止、后退/前进一帧、首帧/末帧", "再生/停止、1 フレーム戻る/進む、最初/最後のフレーム",
-                 "Reproducir/detener, un fotograma atrás/adelante, primer/último fotograma", "Přehrát/zastavit, o snímek zpět/vpřed, první/poslední snímek"),
-    "k_auswahl": ("Ctrl+A / Ctrl+D / Ctrl+I / H", "Strg+A / Strg+D / Strg+I / H", "Ctrl+A / Ctrl+D / Ctrl+I / H", "Ctrl+A / Ctrl+D / Ctrl+I / H",
-                  "Ctrl+A / Ctrl+D / Ctrl+I / H", "Ctrl+A / Ctrl+D / Ctrl+I / H"),
-    "k_auswahl_t": ("Select all, none, invert; select by name", "Alles, nichts, umkehren; nach Namen auswählen", "全选、取消、反选;按名称选择",
-                    "すべて選択、解除、反転。名前で選択", "Seleccionar todo, nada, invertir; seleccionar por nombre", "Vybrat vše, nic, obrátit; vybrat podle názvu"),
-    "bild_vier": ("Four views (Alt+W) with the bones as bone objects.", "Vier Ansichten (Alt+W) mit den Knochen als Bone-Objekte.",
-                  "四个视图 (Alt+W),骨骼显示为骨骼对象。", "4 ビュー (Alt+W)。ボーンはボーンオブジェクトとして表示。",
-                  "Cuatro vistas (Alt+W) con los huesos como objetos hueso.", "Čtyři pohledy (Alt+W) s kostmi jako objekty kostí."),
+        "The secondary sequence plays on the upper body from `lower_lumbar` up, like `SET_ANIM_UPPER` in the game (another start bone: right-click a bone). **{{MbInterpolation}}** blends between two frames like the game.",
+        "Die sekundäre Sequenz spielt auf dem Oberkörper ab `lower_lumbar`, wie `SET_ANIM_UPPER` im Spiel (ein anderer Start-Knochen: Rechtsklick auf einen Knochen). **{{MbInterpolation}}** mischt zwischen zwei Bildern wie das Spiel.",
+        "次要序列像游戏中的 `SET_ANIM_UPPER` 一样在 `lower_lumbar` 以上的上半身播放 (其他起始骨骼: 右键单击骨骼)。**{{MbInterpolation}}** 像游戏一样在两帧之间混合。",
+        "セカンダリシーケンスは、ゲームの `SET_ANIM_UPPER` と同じく `lower_lumbar` から上の上半身で再生されます (別の開始ボーン: ボーンを右クリック)。**{{MbInterpolation}}** はゲームと同じく 2 つのフレームの間を補間します。",
+        "La secuencia secundaria se reproduce en el torso desde `lower_lumbar`, como `SET_ANIM_UPPER` en el juego (otro hueso de inicio: clic derecho en un hueso). **{{MbInterpolation}}** mezcla entre dos fotogramas como el juego.",
+        "Sekundární sekvence se přehrává na horní části těla od `lower_lumbar`, jako `SET_ANIM_UPPER` ve hře (jiná počáteční kost: pravé tlačítko na kost). **{{MbInterpolation}}** prolíná mezi dvěma snímky jako hra.",
+    ),
+    "auge": (
+        "Every row of the scene explorer shows what it is: model, tag, bone, root bone, attachment, rig handle, sequence; a surface shows its state in the game (dot = on, ring = off, struck ring = off with its children). A click on the eye hides a row together with its children, Ctrl or Alt+click shows only this one; **{{MbAllesEinblenden}}** is in the right-click menu and in the action search. Hidden rows are greyed out; selecting, painting and the photo pass them by. Like Blender: H, Alt+H, Shift+H.",
+        "Jede Zeile des Szenen-Explorers zeigt, was sie ist: Modell, Tag, Knochen, Wurzelknochen, Anbau, Rig-Griff, Sequenz; eine Fläche zeigt ihren Status im Spiel (Punkt = an, Ring = aus, durchgestrichener Ring = aus samt Kindern). Ein Klick auf das Auge blendet eine Zeile samt ihren Kindern aus, Strg- oder Alt+Klick zeigt nur diese; **{{MbAllesEinblenden}}** steht im Rechtsklick-Menü und in der Aktionssuche. Ausgeblendete Zeilen sind grau; Auswählen, Malen und das Foto gehen an ihnen vorbei. Wie Blender: H, Alt+H, Umschalt+H.",
+        "场景资源管理器的每一行都显示其类型:模型、标记、骨骼、根骨骼、附件、绑定控制柄、序列;LOD 位于面的标题中。面前面的标记显示其在游戏中的状态 (圆点 = 开, 圆环 = 关, 带斜线的圆环 = 连同子级一起关)。单击眼睛会连同子级一起隐藏该行,Ctrl 或 Alt+单击只显示这一个;**{{MbAllesEinblenden}}** 在右键菜单和操作搜索中。隐藏的行显示为灰色;选择、绘制和照片会跳过它们。像 Blender 一样:H、Alt+H、Shift+H。",
+        "シーンエクスプローラーの各行は種類を示します: モデル、タグ、ボーン、ルートボーン、アタッチ、リグのハンドル、シーケンス。LOD はサーフェスの見出しにあります。サーフェスの前の印はゲーム内の状態を示します (点 = オン、輪 = オフ、斜線付きの輪 = 子ごとオフ)。目をクリックすると行を子と一緒に非表示にし、Ctrl か Alt+クリックでその行だけを表示します。**{{MbAllesEinblenden}}** は右クリックメニューと操作検索にあります。非表示の行は灰色で、選択・ペイント・写真はそれを飛ばします。Blender と同じ: H、Alt+H、Shift+H。",
+        "Cada fila del explorador de escena muestra lo que es: modelo, tag, hueso, hueso raíz, acoplado, control del rig, secuencia; una superficie muestra su estado en el juego (punto = activada, anillo = desactivada, anillo tachado = desactivada con sus hijas). Un clic en el ojo oculta una fila con sus hijos, Ctrl o Alt+clic muestra solo esa; **{{MbAllesEinblenden}}** está en el menú del clic derecho y en la búsqueda de acciones. Las filas ocultas aparecen en gris; seleccionar, pintar y la foto las saltan. Como Blender: H, Alt+H, Mayús+H.",
+        "Každý řádek průzkumníku scény ukazuje, co je zač: model, tag, kost, kořenová kost, přídavek, úchyt rigu, sekvence; povrch ukazuje svůj stav ve hře (tečka = zapnuto, kroužek = vypnuto, přeškrtnutý kroužek = vypnuto i s potomky). Klik na oko skryje řádek i s potomky, Ctrl nebo Alt+klik ukáže jen tento; **{{MbAllesEinblenden}}** je v nabídce pravého tlačítka a ve hledání akcí. Skryté řádky jsou šedé; výběr, malování a fotka je přeskočí. Jako Blender: H, Alt+H, Shift+H.",
+    ),
+    "bild_auge": (
+        "The scene explorer with its symbols; the head is hidden with the eye - in the game it stays.",
+        "Der Szenen-Explorer mit seinen Symbolen; der Kopf ist mit dem Auge ausgeblendet - im Spiel bleibt er.",
+        "带符号的场景资源管理器;头部用眼睛隐藏——在游戏中它仍然存在。",
+        "記号付きのシーンエクスプローラー。頭は目で非表示 - ゲームでは残ります。",
+        "El explorador de escena con sus símbolos; la cabeza está oculta con el ojo; en el juego sigue ahí.",
+        "Průzkumník scény se symboly; hlava je skrytá okem - ve hře zůstává.",
+    ),
 }
 
 ES = {t[0]: t[4] for t in X.values()}
@@ -272,23 +133,12 @@ def seite():
             ("p", _t("explorer")),
             ("img", "h_mb1_menue", _t("bild_menue")),
             ("p", _t("anbauen")),
-            ("h2", "befehlsfeld", _t("h_befehl")),
-            ("p", _t("befehl")),
+            # hier haengt inhalt_ap2 den Baum, die Zeile je Bedienmodus und die Ebenen ein (hinter "anbauen")
             ("p", _t("sequenzen")),
-        ] + inhalt_mbkopf.bloecke() + inhalt_mbraster.bloecke() + inhalt_mbnav.bloecke() + [
-            ("h2", "pruefen", _t("h_pruefen")),
-            ("p", _t("pruefen")),
-            ("h2", "max", _t("h_max")),
-            ("p", _t("max")),
-            ("keys", [
-                (_t("k_maus"), _t("k_maus_t")),
-                (_t("k_links"), _t("k_links_t")),
-                (_t("k_qwer"), _t("k_qwer_t")),
-                (_t("k_ansicht"), _t("k_ansicht_t")),
-                (_t("k_anzeige"), _t("k_anzeige_t")),
-                (_t("k_zeit"), _t("k_zeit_t")),
-                (_t("k_auswahl"), _t("k_auswahl_t")),
-            ]),
-            ("img", "h_mb1_vier", _t("bild_vier"), "breit"),
-        ],
+            ("p", _t("auge")),
+            ("img", "h_mb2_auge", _t("bild_auge"), "breit"),
+            ("h2", "befehlsfeld", _t("h_befehl")),
+            # hier haengt inhalt_ap3 das rechte Feld ein; die Gruppen des Bereichs Ansehen/Pruefen und die Pruefung fuer das Spiel
+            # stehen auf der Seite modell-pruefen (inhalt_ap5), die Tasten wie 3ds Max auf modell-bedienung (inhalt_mb1a2)
+        ] + inhalt_mbkopf.bloecke() + inhalt_mbraster.bloecke() + inhalt_mbnav.bloecke(),
     }

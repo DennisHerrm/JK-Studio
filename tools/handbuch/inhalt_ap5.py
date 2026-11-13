@@ -3,8 +3,7 @@ Gruppen Modell (Importieren), Auswahl, Detailstufe und Skin, Boden und Kamera, A
 Pruefanzeigen von ModView in den Menues der Kopfzeile; der Hinweis "LOD - Dreiecke" in der Ansicht; vier Ansichten wie 3ds Max;
 Overlays und Schattierung wie Blender.
 
-Eigene Quelle des Pakets; AP14 haengt die Seite ins Handbuch (inhalt.py: `inhalt_ap5.seite()` hinter modell-bedienung, ES/CS in
-inhalt_es.py / inhalt_cs.py, die Texte von i18n_ap5 in gen_handbuch.py `_lade_ui_texte`) - wie AP4, AP6-AP10. Die Bilder h_ap5_max,
+Eigene Quelle des Pakets, eingehaengt im Register tools/handbuch/inhalt_modell.py (Zeile `Seite("inhalt_ap5")`). Die Bilder h_ap5_max,
 h_ap5_blender und h_ap5_pruefen nimmt der Selbsttest auf (BHED_EDITORTEST=handbuch, BHED_HB_NUR=ap5). Jeder Text einmal in allen
 sechs Sprachen (en, de, zh, ja, es, cs); {{Kennung}} setzt den Text der Oberflaeche ein.
 """
@@ -59,6 +58,14 @@ X = {
         "**{{PqRAuswahl}}** uvádí hodnoty vybrané plochy, tagu nebo kosti (vrcholy, trojúhelníky, odkazy kostí, shader, rodič, stav). "
         "**{{MbRLod}}**: všech deset úrovní lze zvolit jako r_lodbias ve hře - úroveň nad poslední úrovní modelu ukazuje tu poslední a věta pod tím to říká; skiny jsou ve dvou sloupcích. "
         "**{{PqRBoden}}**: podlaha na -24 nebo pod nejnižším bodem pózy, zorné pole 10°, 80° nebo 90°, jednobarevné pozadí, práh váhy, **{{PqAnsichtZurueck}}** a **{{PqFoto}}**."),
+    "gruppen2": (
+        "**{{MbAndereGla}}** in the group **{{MbRModell}}** loads another skeleton from the game archives (GLA override, like ModView). With **{{MbLodAuto}}** the distance picks the level of detail as in the game (single player: radius 40, r_lodscale 10; multiplayer: radius 64, r_lodscale 5); **{{MbPicmip}}** 0 to 3 stands below the levels.",
+        "**{{MbAndereGla}}** in der Gruppe **{{MbRModell}}** lädt ein anderes Skelett aus den Archiven des Spiels (GLA-Override, wie ModView). Mit **{{MbLodAuto}}** wählt wie im Spiel der Abstand die Detailstufe (Einzelspieler: Radius 40, r_lodscale 10; Mehrspieler: Radius 64, r_lodscale 5); **{{MbPicmip}}** 0 bis 3 steht unter den Stufen.",
+        "**{{MbRModell}}** 分组中的 **{{MbAndereGla}}** 从游戏存档载入另一个骨骼 (GLA 覆盖, 与 ModView 相同)。使用 **{{MbLodAuto}}** 时, 与游戏一样由距离选择细节级别 (单人: 半径 40, r_lodscale 10; 多人: 半径 64, r_lodscale 5); **{{MbPicmip}}** 0 到 3 位于各级别下方。",
+        "グループ **{{MbRModell}}** の **{{MbAndereGla}}** は、ゲームのアーカイブから別の骨格を読み込みます (ModView と同じ GLA オーバーライド)。**{{MbLodAuto}}** では、ゲームと同じく距離が詳細レベルを選びます (シングルプレイヤー: 半径 40、r_lodscale 10。マルチプレイヤー: 半径 64、r_lodscale 5)。**{{MbPicmip}}** 0 から 3 はレベルの下にあります。",
+        "**{{MbAndereGla}}**, en el grupo **{{MbRModell}}**, carga otro esqueleto desde los archivos del juego (GLA override, como ModView). Con **{{MbLodAuto}}** la distancia elige el nivel de detalle como en el juego (un jugador: radio 40, r_lodscale 10; multijugador: radio 64, r_lodscale 5); **{{MbPicmip}}** de 0 a 3 está debajo de los niveles.",
+        "**{{MbAndereGla}}** ve skupině **{{MbRModell}}** načte jinou kostru z archivů hry (přepsání GLA, jako ModView). S **{{MbLodAuto}}** volí úroveň detailu vzdálenost jako ve hře (jeden hráč: poloměr 40, r_lodscale 10; více hráčů: poloměr 64, r_lodscale 5); **{{MbPicmip}}** 0 až 3 je pod úrovněmi.",
+    ),
     "bild_pruefen": (
         "The check for the game: bars of the selected surface against the limits of the target game, the rows of the design; in the view red dashes on surfaces without their own shadow and the highlighted surface with its bone references.",
         "Die Prüfung für das Spiel: Balken der gewählten Fläche gegen die Grenzen des Zielspiels, die Zeilen des Entwurfs; in der Ansicht rote Striche auf Flächen ohne eigenen Schatten und die hervorgehobene Fläche mit ihren Knochenbezügen.",
@@ -86,26 +93,23 @@ X = {
         "**{{MbRPruefen}}** měří vybranou plochu (bez výběru tu nejblíž limitu) proti cílové hře: vrcholy a kosti na plochu, váhy na vrchol. "
         "Pod tím jsou **{{PqPrFlaechen}}**, **{{PqPrSequenzen}}** (sekvence animation.cfg, které končí za GLA), **{{PqPrTags}}** (tagy, na které kód hráče připojuje - v SP jen pro standardní kostru), "
         "**{{PqPrShader}}**, **{{PqPrLods}}** a **{{PqPrSchatten}}**: plocha s polovinou SHADER_MAX_VERTEXES nebo více vrcholy nevrhá vlastní stencilový stín; hra vezme stejnou plochu poslední LOD."),
+    "grenzen": (
+        "The limits in numbers stand as a table below the rows: Jedi Academy and Jedi Outcast stop with an error at 1000 vertices per surface, Movie Duels at 4000; a surface refers to at most 32 bones, a vertex carries at most 4 weights, and **{{MfPrInstanzen}}** counts against `MAX_G2_MODELS` (a figure with its attachments is one instance). Behind the end of the GLA a sequence shows the figure in T-pose in OpenJK-based games, the original keeps it standing.",
+        "Die Grenzen in Zahlen stehen als Tabelle unter den Zeilen: Jedi Academy und Jedi Outcast brechen bei 1000 Ecken je Fläche mit einem Fehler ab, Movie Duels bei 4000; eine Fläche bezieht sich auf höchstens 32 Knochen, eine Ecke trägt höchstens 4 Gewichte, und **{{MfPrInstanzen}}** zählt gegen `MAX_G2_MODELS` (eine Figur samt Anbauten ist eine Instanz). Hinter dem Ende der GLA zeigt eine Sequenz die Figur in Spielen auf OpenJK-Basis in T-Pose, das Original lässt sie stehen.",
+        "上限的具体数值以表格形式列在这些行的下方: Jedi Academy 和 Jedi Outcast 在每个面 1000 个顶点时报错停止, Movie Duels 为 4000; 一个面最多引用 32 根骨骼, 一个顶点最多 4 个权重, **{{MfPrInstanzen}}** 按 `MAX_G2_MODELS` 计数 (角色连同其附件算一个实例)。超出 GLA 末尾的序列, 在基于 OpenJK 的游戏中会让角色呈 T 姿势, 原版则保持站立。",
+        "上限の数値は行の下に表で並びます: Jedi Academy と Jedi Outcast はサーフェスあたり 1000 頂点でエラー停止し、Movie Duels は 4000 です。1 つのサーフェスが参照できるボーンは 32 本まで、1 つの頂点のウェイトは 4 つまでで、**{{MfPrInstanzen}}** は `MAX_G2_MODELS` に照らして数えます (アタッチを含むフィギュアが 1 インスタンス)。GLA の終わりより後のシーケンスでは、OpenJK ベースのゲームではフィギュアが T ポーズになり、オリジナルでは立ったままです。",
+        "Los límites en cifras están en una tabla bajo las filas: Jedi Academy y Jedi Outcast se detienen con un error a los 1000 vértices por superficie, Movie Duels a los 4000; una superficie hace referencia a 32 huesos como máximo, un vértice lleva como máximo 4 pesos y **{{MfPrInstanzen}}** cuenta frente a `MAX_G2_MODELS` (una figura con sus acoplados es una instancia). Más allá del final de la GLA, una secuencia deja la figura en pose T en los juegos basados en OpenJK; el original la deja de pie.",
+        "Limity v číslech jsou v tabulce pod řádky: Jedi Academy a Jedi Outcast skončí chybou při 1000 vrcholech na plochu, Movie Duels při 4000; plocha odkazuje nejvýše na 32 kostí, vrchol nese nejvýše 4 váhy a **{{MfPrInstanzen}}** se počítá proti `MAX_G2_MODELS` (postava s přídavky je jedna instance). Za koncem GLA ukáže sekvence postavu ve hrách založených na OpenJK v pozici T, originál ji nechá stát.",
+    ),
     "h_anzeige": ("Check displays of ModView", "Prüfanzeigen von ModView", "ModView 的检查显示", "ModView のチェック表示", "Indicadores de ModView", "Kontrolní zobrazení ModView"),
     "anzeige": (
-        "All display switches of ModView stand in the menus of the header of the view (like 3ds Max [Standard] and [+] > Bones and checks, like Blender Viewport Shading and Overlays), in Search all actions and in the context menu: "
-        "**{{PqAlpha}}** off draws everything opaque, **{{PqFilter}}** off shows every pixel of the textures, **{{PqSchwelle}}** leaves out small weights when posing, **{{PqHervor}}** outlines the selected surface in yellow and names the bones it references, "
-        "**{{PqSchatten}}** draws red dashes on surfaces without their own shadow. Like Blender Z chooses the shading and Shift+Alt+Z hides all overlays.",
-        "Alle Anzeige-Schalter von ModView stehen in den Menüs der Kopfzeile der Ansicht (wie 3ds Max [Standard] und [+] > Knochen und Prüfen, wie Blender Viewport Shading und Overlays), in Alle Aktionen suchen und im Rechtsklick: "
-        "**{{PqAlpha}}** aus zeichnet alles deckend, **{{PqFilter}}** aus zeigt jeden Bildpunkt der Texturen, **{{PqSchwelle}}** lässt beim Posieren kleine Gewichte weg, **{{PqHervor}}** umrandet die gewählte Fläche gelb und nennt die Knochen, auf die sie sich bezieht, "
-        "**{{PqSchatten}}** zeichnet rote Striche auf Flächen ohne eigenen Schatten. Wie Blender wählt Z die Schattierung, und Umschalt+Alt+Z blendet alle Overlays aus.",
-        "ModView 的所有显示开关都位于视图标题栏的菜单中 (像 3ds Max 的 [标准] 和 [+] > 骨骼与检查, 像 Blender 的视图着色和叠加层), 也在“搜索所有操作”和右键菜单中: "
-        "关闭 **{{PqAlpha}}** 时全部不透明绘制, 关闭 **{{PqFilter}}** 时可看到纹理的每个像素, **{{PqSchwelle}}** 在摆姿势时略去小权重, **{{PqHervor}}** 用黄色勾勒所选面并标出其引用的骨骼, "
-        "**{{PqSchatten}}** 在无自身阴影的面上画红色虚线。像 Blender 一样, Z 选择着色, Shift+Alt+Z 隐藏所有叠加层。",
-        "ModView のすべての表示スイッチは、ビューのヘッダーのメニュー (3ds Max 風は [標準] と [+] > ボーンとチェック、Blender 風はビューポートシェーディングとオーバーレイ)、「すべてのアクションを検索」、右クリックメニューにあります: "
-        "**{{PqAlpha}}** をオフにするとすべて不透明、**{{PqFilter}}** をオフにするとテクスチャのピクセルが見え、**{{PqSchwelle}}** はポーズ時に小さなウェイトを省き、**{{PqHervor}}** は選択したサーフェスを黄色で囲み参照ボーンを示し、"
-        "**{{PqSchatten}}** は自前の影を落とさないサーフェスに赤い破線を描きます。Blender と同じく Z でシェーディングを選び、Shift+Alt+Z ですべてのオーバーレイを隠します。",
-        "Todos los interruptores de visualización de ModView están en los menús de la cabecera de la vista (como 3ds Max [Estándar] y [+] > Huesos y comprobación, como Blender Sombreado de la vista y Superposiciones), en Buscar todas las acciones y en el menú contextual: "
-        "**{{PqAlpha}}** desactivado dibuja todo opaco, **{{PqFilter}}** desactivado muestra cada píxel de las texturas, **{{PqSchwelle}}** omite pesos pequeños al posar, **{{PqHervor}}** rodea de amarillo la superficie elegida y nombra los huesos a los que hace referencia, "
-        "**{{PqSchatten}}** dibuja trazos rojos en superficies sin sombra propia. Como Blender, Z elige el sombreado y Mayús+Alt+Z oculta todas las superposiciones.",
-        "Všechny přepínače zobrazení ModView jsou v nabídkách záhlaví pohledu (jako 3ds Max [Standard] a [+] > Kosti a kontrola, jako Blender Stínování pohledu a Překryvy), ve Vyhledat všechny akce a v místní nabídce: "
-        "vypnuté **{{PqAlpha}}** kreslí vše neprůhledně, vypnuté **{{PqFilter}}** ukazuje každý pixel textur, **{{PqSchwelle}}** při pózování vynechá malé váhy, **{{PqHervor}}** žlutě orámuje vybranou plochu a pojmenuje kosti, na které odkazuje, "
-        "**{{PqSchatten}}** kreslí červené čárky na plochách bez vlastního stínu. Jako v Blenderu volí Z stínování a Shift+Alt+Z skryje všechny překryvy."),
+        "All display switches of ModView stand in the menus of the header of the view (like 3ds Max [Standard] and [+] > Bones and checks, like Blender Viewport Shading and Overlays), in Search all actions and in the context menu: **{{PqAlpha}}** off draws everything opaque, **{{PqFilter}}** off shows every pixel of the textures, **{{PqSchwelle}}** leaves out small weights when posing, **{{PqHervor}}** outlines the selected surface in yellow and names the bones it references, **{{PqSchatten}}** draws red dashes on surfaces without their own shadow. Like Blender Z chooses the shading and Shift+Alt+Z hides all overlays.",
+        "Alle Anzeige-Schalter von ModView stehen in den Menüs der Kopfzeile der Ansicht (wie 3ds Max [Standard] und [+] > Knochen und Prüfen, wie Blender Viewport Shading und Überlagerungen), in Alle Aktionen suchen und im Rechtsklick: **{{PqAlpha}}** aus zeichnet alles deckend, **{{PqFilter}}** aus zeigt jeden Bildpunkt der Texturen, **{{PqSchwelle}}** lässt beim Posieren kleine Gewichte weg, **{{PqHervor}}** umrandet die gewählte Fläche gelb und nennt die Knochen, auf die sie sich bezieht, **{{PqSchatten}}** zeichnet rote Striche auf Flächen ohne eigenen Schatten. Wie Blender wählt Z die Schattierung, und Umschalt+Alt+Z blendet alle Überlagerungen aus.",
+        "ModView 的所有显示开关都位于视图标题栏的菜单中 (像 3ds Max 的 [标准] 和 [+] > 骨骼与检查, 像 Blender 的视图着色和叠加层), 也在“搜索所有操作”和右键菜单中: 关闭 **{{PqAlpha}}** 时全部不透明绘制, 关闭 **{{PqFilter}}** 时可看到纹理的每个像素, **{{PqSchwelle}}** 在摆姿势时略去小权重, **{{PqHervor}}** 用黄色勾勒所选面并标出其引用的骨骼, **{{PqSchatten}}** 在无自身阴影的面上画红色虚线。像 Blender 一样, Z 选择着色, Shift+Alt+Z 隐藏所有叠加层。",
+        "ModView のすべての表示スイッチは、ビューのヘッダーのメニュー (3ds Max 風は [標準] と [+] > ボーンとチェック、Blender 風はビューポートシェーディングとオーバーレイ)、「すべてのアクションを検索」、右クリックメニューにあります: **{{PqAlpha}}** をオフにするとすべて不透明、**{{PqFilter}}** をオフにするとテクスチャのピクセルが見え、**{{PqSchwelle}}** はポーズ時に小さなウェイトを省き、**{{PqHervor}}** は選択したサーフェスを黄色で囲み参照ボーンを示し、**{{PqSchatten}}** は自前の影を落とさないサーフェスに赤い破線を描きます。Blender と同じく Z でシェーディングを選び、Shift+Alt+Z ですべてのオーバーレイを隠します。",
+        "Todos los interruptores de visualización de ModView están en los menús de la cabecera de la vista (como 3ds Max [Estándar] y [+] > Huesos y comprobación, como Blender Sombreado de la vista y Superposiciones), en Buscar todas las acciones y en el menú contextual: **{{PqAlpha}}** desactivado dibuja todo opaco, **{{PqFilter}}** desactivado muestra cada píxel de las texturas, **{{PqSchwelle}}** omite pesos pequeños al posar, **{{PqHervor}}** rodea de amarillo la superficie elegida y nombra los huesos a los que hace referencia, **{{PqSchatten}}** dibuja trazos rojos en superficies sin sombra propia. Como Blender, Z elige el sombreado y Mayús+Alt+Z oculta todas las superposiciones.",
+        "Všechny přepínače zobrazení ModView jsou v nabídkách záhlaví pohledu (jako 3ds Max [Standard] a [+] > Kosti a kontrola, jako Blender Stínování pohledu a Překryvy), ve Vyhledat všechny akce a v místní nabídce: vypnuté **{{PqAlpha}}** kreslí vše neprůhledně, vypnuté **{{PqFilter}}** ukazuje každý pixel textur, **{{PqSchwelle}}** při pózování vynechá malé váhy, **{{PqHervor}}** žlutě orámuje vybranou plochu a pojmenuje kosti, na které odkazuje, **{{PqSchatten}}** kreslí červené čárky na plochách bez vlastního stínu. Jako v Blenderu volí Z stínování a Shift+Alt+Z skryje všechny překryvy.",
+    ),
     "h_szene": ("Scene and views", "Szene und Ansichten", "场景与视图", "シーンとビュー", "Escena y vistas", "Scéna a pohledy"),
     "szene": (
         "**{{PqSzeneSpeichern}}** writes model, skin, attachments, primary and secondary sequence, surfaces on and off, root, level of detail and view as a ModView script (.mvs) - ModView reads it too; **{{PqMvsLesen}}** reads such a script and names what it does not take over. "
@@ -144,9 +148,11 @@ def seite():
             ("img", "h_ap5_blender", _t("bild_blender"), "breit"),
             ("h2", "gruppen", _t("h_gruppen")),
             ("p", _t("gruppen")),
+            ("p", _t("gruppen2")),
             ("img", "h_ap5_pruefen", _t("bild_pruefen"), "breit"),
             ("h2", "pruefen", _t("h_pruefen")),
             ("p", _t("pruefen")),
+            ("p", _t("grenzen")),
             ("h2", "anzeige", _t("h_anzeige")),
             ("p", _t("anzeige")),
             ("h2", "szene", _t("h_szene")),

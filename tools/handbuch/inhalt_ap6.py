@@ -4,12 +4,7 @@ Haengt Absaetze und zwei Bilder an die Seite modell-modellieren (inhalt_md1d.py)
 das Bild h_md_modell und ersetzt im ersten Absatz den Satz ueber die Rollouts "Edit Poly" (bis rc611). Jeder Text einmal in allen
 sechs Sprachen (en, de, zh, ja, es, cs) wie in inhalt_ap2.py.
 
-Einbinden (macht AP14 beim Zusammenfuehren des Handbuchs):
-    tools/handbuch/inhalt.py        import inhalt_ap6
-                                    inhalt_ap6.einhaengen(next(_s for _s in SEITEN if _s["id"] == "modell-modellieren"))
-    tools/handbuch/inhalt_es.py     from inhalt_ap6 import ES as _AP6 ; TEXTE.update(_AP6)
-    tools/handbuch/inhalt_cs.py     from inhalt_ap6 import CS as _AP6 ; TEXTE.update(_AP6)
-    tools/handbuch/gen_handbuch.py  from i18n_ap6 import zeilen_vier as _ap6 (bei den anderen i18n_*-Listen)
+Eingehaengt im Register tools/handbuch/inhalt_modell.py (Zeile `Anhang("inhalt_ap6", "modell-modellieren")`).
 Bilder: handbuch/bilder/<sprache>/h_ap6_max.webp, h_ap6_blender.webp (Selbsttest BHED_MODELL_NUR=ap6hb, je Sprache).
 """
 import inhalt_md1d

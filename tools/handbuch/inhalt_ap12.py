@@ -1,9 +1,8 @@
 """AP12 (Auto-Skin, Kern): der Abschnitt "Model-Tab: Auto-Skin" - Gewichte eines Netzes automatisch aus dem Skelett, drei
 Verfahren, die Grenzen des Spiels, was das Ergebnis taugt (gemessen an Ravens Figuren, docs/intern/NOTIZEN_ap12_1011.md).
 
-Eigene Quelle des Pakets; AP14 haengt die Seite ins Handbuch (inhalt.py, inhalt_es.py, inhalt_cs.py) und nimmt die Bilder
-beider Bedienmodi auf, sobald AP8 die Gruppe ins rechte Feld des Bereichs Weights gesetzt hat (bis dahin zeigt sie das
-Fenster aus "Auto-Skin: Einstellungen"). Jeder Text einmal in allen sechs Sprachen (en, de, zh, ja, es, cs) wie in
+Eigene Quelle des Pakets, eingehaengt im Register tools/handbuch/inhalt_modell.py (Zeile `Seite("inhalt_ap12")`). Die Bilder
+h_ap12_max und h_ap12_blender (Gruppe Auto-Skin im Feld des Bereichs Weights) nimmt BHED_HB_NUR=ap14 auf. Jeder Text einmal in allen sechs Sprachen (en, de, zh, ja, es, cs) wie in
 inhalt_ph.py; {{Kennung}} setzt den Text der Oberflaeche ein.
 """
 
@@ -19,26 +18,29 @@ X = {
         "Dejte síti váhy kostí jedním kliknutím: z originálu ze hry se stejnou kostrou, nebo spočítané z kostry vnitřkem sítě. Výsledek vždy odpovídá hře: nejvýše 4 váhy na vrchol, nejvýše 32 kostí na povrch, uložené v 10 bitech."),
     "h_wo": ("Where to find it", "Wo es steht", "在哪里", "場所", "Dónde está", "Kde to je"),
     "wo": (
-        "Open a model that has a skeleton (a .glm whose .gla is found). **{{AsAusfuehren}}** and **{{AsOeffnen}}** are in the search of all actions (X, F3 in "
-        "Blender mode) and in the right-click of the view under Weights. **{{AsOeffnen}}** shows the window **{{AsGruppe}}** with all settings, the main button "
-        "and the result of the last run. A run is one undo step; the animation keeps playing, so you see the new weights in the pose at once.",
-        "Ein Modell mit Skelett öffnen (eine .glm, deren .gla gefunden wird). **{{AsAusfuehren}}** und **{{AsOeffnen}}** stehen in der Suche aller Aktionen "
-        "(X, im Blender-Modus F3) und im Rechtsklick der Ansicht unter Weights. **{{AsOeffnen}}** zeigt das Fenster **{{AsGruppe}}** mit allen Einstellungen, "
-        "dem Hauptknopf und dem Ergebnis des letzten Laufs. Ein Lauf ist ein Rückgängig-Schritt; die Animation läuft weiter, die neuen Gewichte sind also "
-        "sofort in der Pose zu sehen.",
-        "打开带骨架的模型 (能找到其 .gla 的 .glm)。**{{AsAusfuehren}}** 和 **{{AsOeffnen}}** 位于全部动作的搜索 (X, Blender 模式为 F3) 以及视图右键的 "
-        "Weights 之下。**{{AsOeffnen}}** 显示窗口 **{{AsGruppe}}**, 其中有全部设置、主按钮和上次运行的结果。一次运行是一步撤销; 动画继续播放, 因此新的权重"
-        "会立即显示在姿势中。",
-        "スケルトン付きのモデル (.gla が見つかる .glm) を開きます。**{{AsAusfuehren}}** と **{{AsOeffnen}}** は、すべてのアクションの検索 (X、Blender 風は "
-        "F3) と、ビューの右クリックの Weights の下にあります。**{{AsOeffnen}}** でウィンドウ **{{AsGruppe}}** が開き、すべての設定、メインボタン、前回の結果が"
-        "表示されます。1 回の実行は元に戻す 1 回分です。アニメーションは再生し続けるので、新しいウェイトがすぐにポーズで見えます。",
-        "Abre un modelo con esqueleto (un .glm cuyo .gla se encuentre). **{{AsAusfuehren}}** y **{{AsOeffnen}}** están en la búsqueda de todas las acciones "
-        "(X, F3 en modo Blender) y en el clic derecho de la vista, bajo Weights. **{{AsOeffnen}}** muestra la ventana **{{AsGruppe}}** con todos los ajustes, el "
-        "botón principal y el resultado de la última ejecución. Una ejecución es un paso de deshacer; la animación sigue reproduciéndose, así que los pesos "
-        "nuevos se ven enseguida en la pose.",
-        "Otevřete model s kostrou (.glm, jehož .gla se najde). **{{AsAusfuehren}}** a **{{AsOeffnen}}** jsou ve vyhledávání všech akcí (X, v režimu Blender "
-        "F3) a v pravém kliknutí pohledu pod Weights. **{{AsOeffnen}}** ukáže okno **{{AsGruppe}}** se všemi nastaveními, hlavním tlačítkem a výsledkem "
-        "posledního běhu. Běh je jeden krok zpět; animace běží dál, takže nové váhy jsou hned vidět v póze."),
+        "Open a model that has a skeleton (a .glm whose .gla is found). The group **{{AsGruppe}}** stands in the panel on the right of the area **{{MbBereichWeights}}** ([[modell-weights]]), in both control modes: the method, the settings, the main button **{{AsAusfuehren}}** and the result of the last run. **{{AsAusfuehren}}** and **{{AsOeffnen}}** are also in the search of all actions (X, F3 in Blender mode) and in the right-click of the view under Weights; **{{AsOeffnen}}** shows the same group as a window of its own. A run is one undo step; the animation keeps playing, so you see the new weights in the pose at once.",
+        "Ein Modell mit Skelett öffnen (eine .glm, deren .gla gefunden wird). Die Gruppe **{{AsGruppe}}** steht im rechten Feld des Bereichs **{{MbBereichWeights}}** ([[modell-weights]]), in beiden Bedienmodi: das Verfahren, die Einstellungen, der Hauptknopf **{{AsAusfuehren}}** und das Ergebnis des letzten Laufs. **{{AsAusfuehren}}** und **{{AsOeffnen}}** stehen außerdem in der Suche aller Aktionen (X, im Blender-Modus F3) und im Rechtsklick der Ansicht unter Weights; **{{AsOeffnen}}** zeigt dieselbe Gruppe als eigenes Fenster. Ein Lauf ist ein Rückgängig-Schritt; die Animation läuft weiter, die neuen Gewichte sind also sofort in der Pose zu sehen.",
+        "打开带骨架的模型 (能找到其 .gla 的 .glm)。**{{AsGruppe}}** 分组位于 **{{MbBereichWeights}}** 区域的右侧面板中 ([[modell-weights]]), 两种操作模式都有: 方法、设置、主按钮 **{{AsAusfuehren}}** 和上次运行的结果。**{{AsAusfuehren}}** 和 **{{AsOeffnen}}** 也位于全部动作的搜索 (X, Blender 模式为 F3) 以及视图右键的 Weights 之下; **{{AsOeffnen}}** 把同一分组显示为独立窗口。一次运行是一步撤销; 动画继续播放, 因此新的权重会立即显示在姿势中。",
+        "スケルトン付きのモデル (.gla が見つかる .glm) を開きます。グループ **{{AsGruppe}}** は、どちらの操作モードでもエリア **{{MbBereichWeights}}** の右側のパネルにあります ([[modell-weights]]): 方式、設定、メインボタン **{{AsAusfuehren}}**、前回の結果。**{{AsAusfuehren}}** と **{{AsOeffnen}}** は、すべてのアクションの検索 (X、Blender 風は F3) と、ビューの右クリックの Weights の下にもあります。**{{AsOeffnen}}** は同じグループを独立したウィンドウで表示します。1 回の実行は元に戻す 1 回分です。アニメーションは再生し続けるので、新しいウェイトがすぐにポーズで見えます。",
+        "Abre un modelo con esqueleto (un .glm cuyo .gla se encuentre). El grupo **{{AsGruppe}}** está en el panel de la derecha del área **{{MbBereichWeights}}** ([[modell-weights]]), en ambos modos de control: el método, los ajustes, el botón principal **{{AsAusfuehren}}** y el resultado de la última ejecución. **{{AsAusfuehren}}** y **{{AsOeffnen}}** están también en la búsqueda de todas las acciones (X, F3 en modo Blender) y en el clic derecho de la vista, bajo Weights; **{{AsOeffnen}}** muestra el mismo grupo como ventana propia. Una ejecución es un paso de deshacer; la animación sigue reproduciéndose, así que los pesos nuevos se ven enseguida en la pose.",
+        "Otevřete model s kostrou (.glm, jehož .gla se najde). Skupina **{{AsGruppe}}** je v panelu vpravo v oblasti **{{MbBereichWeights}}** ([[modell-weights]]), v obou režimech ovládání: metoda, nastavení, hlavní tlačítko **{{AsAusfuehren}}** a výsledek posledního běhu. **{{AsAusfuehren}}** a **{{AsOeffnen}}** jsou také ve vyhledávání všech akcí (X, v režimu Blender F3) a v pravém kliknutí pohledu pod Weights; **{{AsOeffnen}}** ukáže stejnou skupinu jako vlastní okno. Běh je jeden krok zpět; animace běží dál, takže nové váhy jsou hned vidět v póze.",
+    ),
+    "bild_max": (
+        "The Auto-skin group in the command panel of the area Weights after a run on kyle: method, settings, main button and the result with the limits of the game.",
+        "Die Gruppe Auto-Skin im Befehlsfeld des Bereichs Weights nach einem Lauf an kyle: Verfahren, Einstellungen, Hauptknopf und das Ergebnis mit den Grenzen des Spiels.",
+        "在 kyle 上运行后, Weights 区域命令面板中的自动蒙皮分组: 方法、设置、主按钮以及带游戏限制的结果。",
+        "kyle で実行したあとの、Weights エリアのコマンドパネルにあるオートスキンのグループ: 方式、設定、メインボタン、ゲームの制限を含む結果。",
+        "El grupo Auto-skin en el panel de comandos del área Weights tras una ejecución en kyle: método, ajustes, botón principal y el resultado con los límites del juego.",
+        "Skupina Auto-skin v panelu příkazů oblasti Weights po běhu na kyleovi: metoda, nastavení, hlavní tlačítko a výsledek s mezemi hry.",
+    ),
+    "bild_blender": (
+        "The same group like Blender in the properties editor, as a rounded panel.",
+        "Dieselbe Gruppe wie Blender im Eigenschaften-Editor, als abgerundeter Kasten.",
+        "与 Blender 相同时, 属性编辑器中的同一分组, 显示为圆角面板。",
+        "Blender 風のプロパティエディターにある同じグループ。角の丸いパネルです。",
+        "El mismo grupo como en Blender, en el editor de propiedades, como panel redondeado.",
+        "Stejná skupina jako v Blenderu v editoru vlastností, jako zaoblený panel.",
+    ),
     "h_verfahren": ("Three methods", "Drei Verfahren", "三种方法", "3 つの方式", "Tres métodos", "Tři metody"),
     "verfahren": (
         "**{{AsVerfUebertragen}}** takes the weights from the nearest point of an original with the same skeleton, surface by surface - type its path under "
@@ -130,62 +132,25 @@ X = {
     "h_ergebnis": ("The result and the limits of the game", "Das Ergebnis und die Grenzen des Spiels", "结果与游戏的限制", "結果とゲームの制限",
                    "El resultado y los límites del juego", "Výsledek a meze hry"),
     "ergebnis": (
-        "Under **{{AsErgebnis}}** the window lists what the run produced. **{{AsErgGewichte}}**: a .glm carries at most 4 weights per vertex; where more bones "
-        "pulled at a vertex, the smallest were dropped and the rest brought back to a sum of 1. **{{AsErgKnochen}}**: a surface can refer to at most 32 bones; "
-        "if a surface had more, its weakest bones were dropped - at a seam the neighbouring surface changes with it, so the seam stays closed. "
-        "**{{AsErgBit}}**: the weights are stored in 10 bits and the last one as the rest to 1, exactly as the game reads them - what you see is what the game "
-        "shows. **{{AsErgAbweichung}}** compares with the weights the model had before the run: how far a vertex lies from its old place, over 200 frames "
-        "spread across the animations of the skeleton, and at how many vertices the strongest bone stayed the same. For an original of the game this is the "
-        "distance to Raven's weights. Highlighted lines name bones that lie outside the mesh and loose parts that no bone reaches through the mesh.",
-        "Unter **{{AsErgebnis}}** nennt das Fenster, was der Lauf ergab. **{{AsErgGewichte}}**: eine .glm trägt höchstens 4 Gewichte je Ecke; wo mehr Knochen "
-        "an einer Ecke zogen, fielen die kleinsten weg und der Rest wurde wieder auf die Summe 1 gebracht. **{{AsErgKnochen}}**: eine Fläche kann auf höchstens "
-        "32 Knochen verweisen; hatte eine Fläche mehr, fielen ihre schwächsten Knochen weg - an einer Naht ändert sich die Nachbarfläche mit, die Naht bleibt "
-        "also zu. **{{AsErgBit}}**: die Gewichte liegen in 10 Bit und das letzte als Rest zu 1, genau wie das Spiel sie liest - was du siehst, zeigt auch das "
-        "Spiel. **{{AsErgAbweichung}}** vergleicht mit den Gewichten, die das Modell vor dem Lauf hatte: wie weit eine Ecke von ihrem alten Ort liegt, über "
-        "200 Bilder, verteilt über die Animationen des Skeletts, und an wie vielen Ecken der stärkste Knochen gleich blieb. Bei einem Original des Spiels ist "
-        "das der Abstand zu Ravens Gewichten. Hervorgehobene Zeilen nennen Knochen, die außerhalb des Netzes liegen, und lose Teile, die kein Knochen durch das Netz "
-        "erreicht.",
-        "窗口在 **{{AsErgebnis}}** 下列出运行的结果。**{{AsErgGewichte}}**: .glm 每个顶点最多承载 4 个权重; 当更多骨骼作用于一个顶点时, 最小的被去掉, 其余"
-        "重新归一为总和 1。**{{AsErgKnochen}}**: 一个表面最多引用 32 根骨骼; 超过时去掉该表面最弱的骨骼 - 接缝处相邻表面随之改变, 因此接缝保持闭合。"
-        "**{{AsErgBit}}**: 权重以 10 位存储, 最后一个为到 1 的余数, 与游戏读取的方式完全相同 - 所见即游戏所显示。**{{AsErgAbweichung}}** 与模型运行前的权重"
-        "比较: 顶点离其旧位置有多远 (取骨架动画中均匀分布的 200 帧), 以及有多少顶点的最强骨骼保持不变。对于游戏原版模型, 这就是与 Raven 权重的距离。高亮的行"
-        "指出位于网格之外的骨骼, 以及没有骨骼能通过网格到达的松散部件。",
-        "ウィンドウの **{{AsErgebnis}}** に実行の結果が並びます。**{{AsErgGewichte}}**: .glm は頂点ごとに最大 4 個のウェイトしか持てません。それより多くの"
-        "ボーンが頂点を引いていた場合は、最小のものを削除し、残りを合計 1 に戻します。**{{AsErgKnochen}}**: サーフェスが参照できるボーンは最大 32 本です。"
-        "それより多い場合は、そのサーフェスの最も弱いボーンを削除します。継ぎ目では隣のサーフェスも一緒に変わるので、継ぎ目は閉じたままです。"
-        "**{{AsErgBit}}**: ウェイトは 10 ビットで、最後の 1 つは 1 までの残りとして保存されます。ゲームが読むとおりなので、見えているものがゲームでも表示されます。"
-        "**{{AsErgAbweichung}}** は、実行前にモデルが持っていたウェイトと比べます: 頂点が元の位置からどれだけ離れているか (スケルトンのアニメーション全体に"
-        "散らした 200 フレーム)、そして最も強いボーンが同じままの頂点がどれだけあるか。ゲームのオリジナルでは Raven のウェイトとの差です。強調表示された行は、"
-        "メッシュの外にあるボーンと、どのボーンもメッシュを通って届かない離れたパーツを示します。",
-        "Bajo **{{AsErgebnis}}** la ventana muestra lo que dio la ejecución. **{{AsErgGewichte}}**: un .glm lleva como máximo 4 pesos por vértice; donde "
-        "tiraban más huesos de un vértice, se quitaron los menores y el resto se llevó de nuevo a suma 1. **{{AsErgKnochen}}**: una superficie puede "
-        "referirse como máximo a 32 huesos; si tenía más, se quitaron sus huesos más débiles: en una costura la superficie vecina cambia con ella, así que la "
-        "costura sigue cerrada. **{{AsErgBit}}**: los pesos se guardan en 10 bits y el último como resto hasta 1, exactamente como los lee el juego: lo que ves "
-        "es lo que muestra el juego. **{{AsErgAbweichung}}** compara con los pesos que tenía el modelo antes de la ejecución: a qué distancia queda un vértice "
-        "de su lugar anterior, en 200 fotogramas repartidos por las animaciones del esqueleto, y en cuántos vértices el hueso más fuerte sigue siendo el mismo. "
-        "En un original del juego es la distancia a los pesos de Raven. Las líneas resaltadas nombran huesos fuera de la malla y piezas sueltas a las que "
-        "ningún hueso llega por la malla.",
-        "Pod **{{AsErgebnis}}** okno uvádí, co běh přinesl. **{{AsErgGewichte}}**: .glm nese nejvýše 4 váhy na vrchol; kde za vrchol tahalo víc kostí, "
-        "nejmenší odpadly a zbytek byl znovu upraven na součet 1. **{{AsErgKnochen}}**: povrch může odkazovat nejvýše na 32 kostí; měl-li jich víc, odpadly "
-        "jeho nejslabší kosti - na švu se sousední povrch změní s ním, šev tedy zůstane zavřený. **{{AsErgBit}}**: váhy jsou uloženy v 10 bitech a poslední "
-        "jako zbytek do 1, přesně jak je hra čte - co vidíte, ukáže i hra. **{{AsErgAbweichung}}** porovnává s váhami, které model měl před během: jak daleko "
-        "leží vrchol od svého starého místa přes 200 snímků rozložených po animacích kostry a u kolika vrcholů zůstala nejsilnější kost stejná. U originálu "
-        "ze hry je to vzdálenost od vah Ravenu. Zvýrazněné řádky jmenují kosti ležící mimo síť a volné díly, ke kterým žádná kost sítí nedosáhne."),
-    "bild_fenster": ("The Auto-skin window after a run on kyle: settings, main button and the result with the limits of the game.",
-                     "Das Fenster Auto-Skin nach einem Lauf an kyle: Einstellungen, Hauptknopf und das Ergebnis mit den Grenzen des Spiels.",
-                     "在 kyle 上运行后的自动蒙皮窗口: 设置、主按钮以及带游戏限制的结果。",
-                     "kyle で実行したあとのオートスキンのウィンドウ: 設定、メインボタン、ゲームの制限を含む結果。",
-                     "La ventana Auto-skin tras una ejecución en kyle: ajustes, botón principal y el resultado con los límites del juego.",
-                     "Okno Auto-skin po běhu na kyleovi: nastavení, hlavní tlačítko a výsledek s mezemi hry."),
+        "Under **{{AsErgebnis}}** the group lists what the run produced. **{{AsErgGewichte}}**: a .glm carries at most 4 weights per vertex; where more bones pulled at a vertex, the smallest were dropped and the rest brought back to a sum of 1. **{{AsErgKnochen}}**: a surface can refer to at most 32 bones; if a surface had more, its weakest bones were dropped - at a seam the neighbouring surface changes with it, so the seam stays closed. **{{AsErgBit}}**: the weights are stored in 10 bits and the last one as the rest to 1, exactly as the game reads them - what you see is what the game shows. **{{AsErgAbweichung}}** compares with the weights the model had before the run: how far a vertex lies from its old place, over 200 frames spread across the animations of the skeleton, and at how many vertices the strongest bone stayed the same. For an original of the game this is the distance to Raven's weights. Highlighted lines name bones that lie outside the mesh and loose parts that no bone reaches through the mesh.",
+        "Unter **{{AsErgebnis}}** nennt die Gruppe, was der Lauf ergab. **{{AsErgGewichte}}**: eine .glm trägt höchstens 4 Gewichte je Ecke; wo mehr Knochen an einer Ecke zogen, fielen die kleinsten weg und der Rest wurde wieder auf die Summe 1 gebracht. **{{AsErgKnochen}}**: eine Fläche kann auf höchstens 32 Knochen verweisen; hatte eine Fläche mehr, fielen ihre schwächsten Knochen weg - an einer Naht ändert sich die Nachbarfläche mit, die Naht bleibt also zu. **{{AsErgBit}}**: die Gewichte liegen in 10 Bit und das letzte als Rest zu 1, genau wie das Spiel sie liest - was du siehst, zeigt auch das Spiel. **{{AsErgAbweichung}}** vergleicht mit den Gewichten, die das Modell vor dem Lauf hatte: wie weit eine Ecke von ihrem alten Ort liegt, über 200 Bilder, verteilt über die Animationen des Skeletts, und an wie vielen Ecken der stärkste Knochen gleich blieb. Bei einem Original des Spiels ist das der Abstand zu Ravens Gewichten. Hervorgehobene Zeilen nennen Knochen, die außerhalb des Netzes liegen, und lose Teile, die kein Knochen durch das Netz erreicht.",
+        "分组在 **{{AsErgebnis}}** 下列出运行的结果。**{{AsErgGewichte}}**: .glm 每个顶点最多承载 4 个权重; 当更多骨骼作用于一个顶点时, 最小的被去掉, 其余重新归一为总和 1。**{{AsErgKnochen}}**: 一个表面最多引用 32 根骨骼; 超过时去掉该表面最弱的骨骼 - 接缝处相邻表面随之改变, 因此接缝保持闭合。**{{AsErgBit}}**: 权重以 10 位存储, 最后一个为到 1 的余数, 与游戏读取的方式完全相同 - 所见即游戏所显示。**{{AsErgAbweichung}}** 与模型运行前的权重比较: 顶点离其旧位置有多远 (取骨架动画中均匀分布的 200 帧), 以及有多少顶点的最强骨骼保持不变。对于游戏原版模型, 这就是与 Raven 权重的距离。高亮的行指出位于网格之外的骨骼, 以及没有骨骼能通过网格到达的松散部件。",
+        "グループの **{{AsErgebnis}}** に実行の結果が並びます。**{{AsErgGewichte}}**: .glm は頂点ごとに最大 4 個のウェイトしか持てません。それより多くのボーンが頂点を引いていた場合は、最小のものを削除し、残りを合計 1 に戻します。**{{AsErgKnochen}}**: サーフェスが参照できるボーンは最大 32 本です。それより多い場合は、そのサーフェスの最も弱いボーンを削除します。継ぎ目では隣のサーフェスも一緒に変わるので、継ぎ目は閉じたままです。**{{AsErgBit}}**: ウェイトは 10 ビットで、最後の 1 つは 1 までの残りとして保存されます。ゲームが読むとおりなので、見えているものがゲームでも表示されます。**{{AsErgAbweichung}}** は、実行前にモデルが持っていたウェイトと比べます: 頂点が元の位置からどれだけ離れているか (スケルトンのアニメーション全体に散らした 200 フレーム)、そして最も強いボーンが同じままの頂点がどれだけあるか。ゲームのオリジナルでは Raven のウェイトとの差です。強調表示された行は、メッシュの外にあるボーンと、どのボーンもメッシュを通って届かない離れたパーツを示します。",
+        "Bajo **{{AsErgebnis}}** el grupo muestra lo que dio la ejecución. **{{AsErgGewichte}}**: un .glm lleva como máximo 4 pesos por vértice; donde tiraban más huesos de un vértice, se quitaron los menores y el resto se llevó de nuevo a suma 1. **{{AsErgKnochen}}**: una superficie puede referirse como máximo a 32 huesos; si tenía más, se quitaron sus huesos más débiles: en una costura la superficie vecina cambia con ella, así que la costura sigue cerrada. **{{AsErgBit}}**: los pesos se guardan en 10 bits y el último como resto hasta 1, exactamente como los lee el juego: lo que ves es lo que muestra el juego. **{{AsErgAbweichung}}** compara con los pesos que tenía el modelo antes de la ejecución: a qué distancia queda un vértice de su lugar anterior, en 200 fotogramas repartidos por las animaciones del esqueleto, y en cuántos vértices el hueso más fuerte sigue siendo el mismo. En un original del juego es la distancia a los pesos de Raven. Las líneas resaltadas nombran huesos fuera de la malla y piezas sueltas a las que ningún hueso llega por la malla.",
+        "Pod **{{AsErgebnis}}** skupina uvádí, co běh přinesl. **{{AsErgGewichte}}**: .glm nese nejvýše 4 váhy na vrchol; kde za vrchol tahalo víc kostí, nejmenší odpadly a zbytek byl znovu upraven na součet 1. **{{AsErgKnochen}}**: povrch může odkazovat nejvýše na 32 kostí; měl-li jich víc, odpadly jeho nejslabší kosti - na švu se sousední povrch změní s ním, šev tedy zůstane zavřený. **{{AsErgBit}}**: váhy jsou uloženy v 10 bitech a poslední jako zbytek do 1, přesně jak je hra čte - co vidíte, ukáže i hra. **{{AsErgAbweichung}}** porovnává s váhami, které model měl před během: jak daleko leží vrchol od svého starého místa přes 200 snímků rozložených po animacích kostry a u kolika vrcholů zůstala nejsilnější kost stejná. U originálu ze hry je to vzdálenost od vah Ravenu. Zvýrazněné řádky jmenují kosti ležící mimo síť a volné díly, ke kterým žádná kost sítí nedosáhne.",
+    ),
 }
 
 
 def _t(schluessel):
-    return X[schluessel][:4]
+    from inhalt_basis import T
+    t = X[schluessel]
+    return T(t[0], t[1], t[2], t[3])
 
 
 def seite():
-    """Die Seite modell-autoskin (Gruppe Model, nach den Gewichten). Das Bild h_ap12_fenster nimmt AP14 auf."""
+    """Die Seite modell-autoskin (Gruppe Model, nach den Gewichten). Die Bilder h_ap12_max und h_ap12_blender nimmt der
+    Selbsttest auf (BHED_EDITORTEST=handbuch, BHED_HB_NUR=ap14: die Gruppe im rechten Feld des Bereichs Weights)."""
     return {
         "id": "modell-autoskin",
         "gruppe": "mission",
@@ -194,7 +159,8 @@ def seite():
         "bloecke": [
             ("h2", "wo", _t("h_wo")),
             ("p", _t("wo")),
-            ("img", "h_ap12_fenster", _t("bild_fenster"), "breit"),
+            ("img", "h_ap12_max", _t("bild_max"), "breit"),
+            ("img", "h_ap12_blender", _t("bild_blender"), "breit"),
             ("h2", "verfahren", _t("h_verfahren")),
             ("p", _t("verfahren")),
             ("h2", "einstellungen", _t("h_einstellungen")),

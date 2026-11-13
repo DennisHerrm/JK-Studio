@@ -2,8 +2,7 @@
 Entwurf: Animation, Rig erstellen (Vorlagen), Presets, Vorhandene Animation bearbeiten, Uebertragen, IK/FK, Anbauten und
 Vorschau, Fuer das Spiel bauen; dahinter die weiteren Gruppen.
 
-Eigene Quelle des Pakets; AP14 haengt die Seite ins Handbuch (inhalt.py: `inhalt_ap10.seite()` hinter modell-zeitleiste,
-ES/CS in inhalt_es.py / inhalt_cs.py, die Texte von i18n_ap3 und i18n_ap10 in gen_handbuch.py `_lade_ui_texte`) - wie AP6-AP9.
+Eigene Quelle des Pakets, eingehaengt im Register tools/handbuch/inhalt_modell.py (Zeile `Seite("inhalt_ap10")`).
 Die Bilder h_ap10_max und h_ap10_blender nimmt der Selbsttest auf (BHED_EDITORTEST=handbuch, BHED_HB_NUR=ap10). Jeder Text
 einmal in allen sechs Sprachen (en, de, zh, ja, es, cs) wie in inhalt_ap1.py; {{Kennung}} setzt den Text der Oberflaeche ein.
 """

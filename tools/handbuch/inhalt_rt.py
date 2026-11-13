@@ -16,34 +16,13 @@ X = {
         "Dejte postavě animaci jiné kostry - JK2 na JKA, JKA na postavu Movie Duels, lidskou chůzi na tvora nebo vlastní rig - se stejnou pózou, přiřazenými řetězy, škálovanými kroky, pevnými chodidly a výsledkem zapečeným do GLA podle volby."),
     "h_quelle": ("Choose the source", "Die Quelle wählen", "选择来源", "ソースを選ぶ", "Elegir el origen", "Výběr zdroje"),
     "quelle": (
-        "Open your figure in the model tab and go to the area **Animation**. In the rollout **{{RtRollout}}** of the command panel (under Auto physics), in the menu "
-        "**Animation > {{RtRollout}}**, in the right-click of the view (**Control Rig > {{RtRollout}}**) or in the search (X, F3 in Blender mode) choose **{{RtQuelleWaehlen}}**: "
-        "any GLA of the game data or a .gla on disk. Then pick the **{{RtSequenz}}** of the source (a line of its animation.cfg). **{{RtUebertragen}}** shows the result "
-        "on your figure at once and the source as a skeleton beside it; **{{RtAbspielen}}** plays both together. The figure shows the result packed like the game "
-        "(compressBone): what you see is what the game plays.",
-        "Öffne deine Figur im Model-Tab und gehe in den Bereich **Animation**. Im Rollout **{{RtRollout}}** des Befehlsfelds (unter Auto-Physik), im Menü "
-        "**Animation > {{RtRollout}}**, im Rechtsklick der Ansicht (**Control Rig > {{RtRollout}}**) oder in der Suche (X, im Blender-Modus F3) wählst du **{{RtQuelleWaehlen}}**: "
-        "jede GLA der Spieldaten oder eine .gla auf der Platte. Dann die **{{RtSequenz}}** der Quelle (eine Zeile ihrer animation.cfg). **{{RtUebertragen}}** zeigt das "
-        "Ergebnis sofort auf deiner Figur und die Quelle als Skelett daneben; **{{RtAbspielen}}** spielt beide zusammen. Die Figur zeigt das Ergebnis gepackt wie im "
-        "Spiel (compressBone): du siehst, was das Spiel spielt.",
-        "在模型选项卡中打开角色, 进入 **Animation** 区域。在命令面板的 **{{RtRollout}}** 卷展栏 (自动物理下方)、菜单 **Animation > {{RtRollout}}**、视图右键 "
-        "(**Control Rig > {{RtRollout}}**) 或搜索 (X, Blender 模式为 F3) 中选择 **{{RtQuelleWaehlen}}**: 游戏数据中的任意 GLA 或磁盘上的 .gla。然后选择来源的 "
-        "**{{RtSequenz}}** (其 animation.cfg 中的一行)。**{{RtUebertragen}}** 立即在角色上显示结果, 并在旁边以骨架显示来源; **{{RtAbspielen}}** 同时播放两者。角色显示"
-        "按游戏方式压缩 (compressBone) 的结果: 所见即游戏所播放。",
-        "モデルタブでフィギュアを開き、**Animation** の領域へ。コマンドパネルのロールアウト **{{RtRollout}}** (オートフィジックスの下)、メニュー **Animation > {{RtRollout}}**、"
-        "ビューの右クリック (**Control Rig > {{RtRollout}}**)、または検索 (X、Blender 風は F3) で **{{RtQuelleWaehlen}}** を選びます: ゲームデータの任意の GLA かディスク上の "
-        ".gla。次にソースの **{{RtSequenz}}** (animation.cfg の 1 行) を選びます。**{{RtUebertragen}}** で結果がすぐフィギュアに表示され、ソースはスケルトンとして隣に"
-        "表示されます。**{{RtAbspielen}}** で両方を一緒に再生します。フィギュアはゲームと同じく圧縮 (compressBone) した結果を表示します: 見えるものがゲームの再生です。",
-        "Abre tu figura en la pestaña Model y ve al área **Animation**. En el panel **{{RtRollout}}** del panel de comandos (bajo Física automática), en el menú "
-        "**Animation > {{RtRollout}}**, en el clic derecho de la vista (**Control Rig > {{RtRollout}}**) o en la búsqueda (X, F3 en modo Blender) elige **{{RtQuelleWaehlen}}**: "
-        "cualquier GLA de los datos del juego o un .gla del disco. Después la **{{RtSequenz}}** del origen (una línea de su animation.cfg). **{{RtUebertragen}}** muestra "
-        "el resultado al instante en tu figura y el origen como esqueleto al lado; **{{RtAbspielen}}** reproduce ambos a la vez. La figura muestra el resultado "
-        "empaquetado como el juego (compressBone): lo que ves es lo que reproduce el juego.",
-        "Otevřete postavu v kartě Model a přejděte do oblasti **Animation**. V rolloutu **{{RtRollout}}** panelu příkazů (pod automatickou fyzikou), v nabídce "
-        "**Animation > {{RtRollout}}**, v pravém kliknutí pohledu (**Control Rig > {{RtRollout}}**) nebo ve vyhledávání (X, v režimu Blender F3) zvolte **{{RtQuelleWaehlen}}**: "
-        "libovolné GLA z dat hry nebo soubor .gla na disku. Pak **{{RtSequenz}}** zdroje (řádek jeho animation.cfg). **{{RtUebertragen}}** ukáže výsledek hned na "
-        "postavě a zdroj jako kostru vedle ní; **{{RtAbspielen}}** přehraje oba spolu. Postava ukazuje výsledek zabalený jako ve hře (compressBone): vidíte, co hra "
-        "přehraje."),
+        "Open your figure in the model tab and go to the area **Animation**. In the group **{{AzRUebertragen}}** of the panel on the right, in the menu **Animation > {{RtRollout}}**, in the right-click of the view (**Control Rig > {{RtRollout}}**) or in the search (X, F3 in Blender mode) choose **{{RtQuelleWaehlen}}**: any GLA of the game data or a .gla on disk. Then pick the **{{RtSequenz}}** of the source (a line of its animation.cfg). **{{RtUebertragen}}** shows the result on your figure at once and the source as a skeleton beside it; **{{RtAbspielen}}** plays both together. The figure shows the result packed like the game (compressBone): what you see is what the game plays.",
+        "Öffne deine Figur im Model-Tab und gehe in den Bereich **Animation**. In der Gruppe **{{AzRUebertragen}}** des rechten Felds, im Menü **Animation > {{RtRollout}}**, im Rechtsklick der Ansicht (**Control Rig > {{RtRollout}}**) oder in der Suche (X, im Blender-Modus F3) wählst du **{{RtQuelleWaehlen}}**: jede GLA der Spieldaten oder eine .gla auf der Platte. Dann die **{{RtSequenz}}** der Quelle (eine Zeile ihrer animation.cfg). **{{RtUebertragen}}** zeigt das Ergebnis sofort auf deiner Figur und die Quelle als Skelett daneben; **{{RtAbspielen}}** spielt beide zusammen. Die Figur zeigt das Ergebnis gepackt wie im Spiel (compressBone): du siehst, was das Spiel spielt.",
+        "在模型选项卡中打开角色, 进入 **Animation** 区域。在右侧面板的 **{{AzRUebertragen}}** 分组、菜单 **Animation > {{RtRollout}}**、视图右键 (**Control Rig > {{RtRollout}}**) 或搜索 (X, Blender 模式为 F3) 中选择 **{{RtQuelleWaehlen}}**: 游戏数据中的任意 GLA 或磁盘上的 .gla。然后选择来源的 **{{RtSequenz}}** (其 animation.cfg 中的一行)。**{{RtUebertragen}}** 立即在角色上显示结果, 并在旁边以骨架显示来源; **{{RtAbspielen}}** 同时播放两者。角色显示按游戏方式压缩 (compressBone) 的结果: 所见即游戏所播放。",
+        "モデルタブでフィギュアを開き、**Animation** の領域へ。右側のパネルのグループ **{{AzRUebertragen}}**、メニュー **Animation > {{RtRollout}}**、ビューの右クリック (**Control Rig > {{RtRollout}}**)、または検索 (X、Blender 風は F3) で **{{RtQuelleWaehlen}}** を選びます: ゲームデータの任意の GLA かディスク上の .gla。次にソースの **{{RtSequenz}}** (animation.cfg の 1 行) を選びます。**{{RtUebertragen}}** で結果がすぐフィギュアに表示され、ソースはスケルトンとして隣に表示されます。**{{RtAbspielen}}** で両方を一緒に再生します。フィギュアはゲームと同じく圧縮 (compressBone) した結果を表示します: 見えるものがゲームの再生です。",
+        "Abre tu figura en la pestaña Model y ve al área **Animation**. En el grupo **{{AzRUebertragen}}** del panel de la derecha, en el menú **Animation > {{RtRollout}}**, en el clic derecho de la vista (**Control Rig > {{RtRollout}}**) o en la búsqueda (X, F3 en modo Blender) elige **{{RtQuelleWaehlen}}**: cualquier GLA de los datos del juego o un .gla del disco. Después la **{{RtSequenz}}** del origen (una línea de su animation.cfg). **{{RtUebertragen}}** muestra el resultado al instante en tu figura y el origen como esqueleto al lado; **{{RtAbspielen}}** reproduce ambos a la vez. La figura muestra el resultado empaquetado como el juego (compressBone): lo que ves es lo que reproduce el juego.",
+        "Otevřete postavu v kartě Model a přejděte do oblasti **Animation**. Ve skupině **{{AzRUebertragen}}** panelu vpravo, v nabídce **Animation > {{RtRollout}}**, v pravém kliknutí pohledu (**Control Rig > {{RtRollout}}**) nebo ve vyhledávání (X, v režimu Blender F3) zvolte **{{RtQuelleWaehlen}}**: libovolné GLA z dat hry nebo soubor .gla na disku. Pak **{{RtSequenz}}** zdroje (řádek jeho animation.cfg). **{{RtUebertragen}}** ukáže výsledek hned na postavě a zdroj jako kostru vedle ní; **{{RtAbspielen}}** přehraje oba spolu. Postava ukazuje výsledek zabalený jako ve hře (compressBone): vidíte, co hra přehraje.",
+    ),
     "bild_uebertragen": ("The JK2 walk on a Movie Duels figure, the JK2 skeleton beside it, the rollout Retargeting with foot sliding meter.",
                          "Der JK2-Gang auf einer Movie-Duels-Figur, das JK2-Skelett daneben, das Rollout Retargeting mit Fußrutsch-Messer.",
                          "JK2 的步行在 Movie Duels 角色上, 旁边是 JK2 骨架, 重定向卷展栏带脚打滑计。",

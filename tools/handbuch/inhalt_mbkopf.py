@@ -132,12 +132,14 @@ X = {
         "ViewCube は WhiteoutDex (max_viewcube.h、BSD 3-Clause ライセンス、Copyright (c) 2026 WhiteoutDex Contributors) と WhiteoutFlakes (BSD 3-Clause ライセンス、AI 派生物の注記付き、Copyright (c) 2026 Fernando Sahmkow) に由来します。ナビゲーションギズモは JK Studio 独自の描画で、Autodesk や Blender のグラフィックは使っていません。",
         "El ViewCube deriva de WhiteoutDex (max_viewcube.h, licencia BSD 3-Clause, Copyright (c) 2026 WhiteoutDex Contributors) y de WhiteoutFlakes (licencia BSD 3-Clause con aviso de obras derivadas por IA, Copyright (c) 2026 Fernando Sahmkow); el gizmo de navegación lo dibuja JK Studio: sin gráficos de Autodesk ni de Blender.",
         "ViewCube je odvozen z WhiteoutDex (max_viewcube.h, licence BSD 3-Clause, Copyright (c) 2026 WhiteoutDex Contributors) a z WhiteoutFlakes (licence BSD 3-Clause s upozorněním na díla odvozená AI, Copyright (c) 2026 Fernando Sahmkow); navigační gizmo kreslí JK Studio samo - žádná grafika Autodesku ani Blenderu."),
-    "bild_bl": ("Blender mode: the menu Overlays open, the shading buttons beside it, below them the navigation gizmo.",
-                "Modus wie Blender: das Menü Overlays offen, daneben die Knöpfe der Schattierung, darunter das Navigations-Gizmo.",
-                "Blender 模式: 叠加层菜单已打开, 旁边是着色按钮, 下方是导航 Gizmo。",
-                "Blender モード: オーバーレイメニューを開いたところ。横にシェーディングのボタン、その下にナビゲーションギズモ。",
-                "Modo Blender: el menú Superposiciones abierto, al lado los botones de sombreado, debajo el gizmo de navegación.",
-                "Režim Blender: otevřená nabídka Překryvy, vedle tlačítka stínování, pod nimi navigační gizmo."),
+    "bild_bl": (
+        "Blender mode: the menu Overlays open, the shading buttons beside it, below them the navigation gizmo.",
+        "Modus wie Blender: das Menü Überlagerungen offen, daneben die Knöpfe der Schattierung, darunter das Navigations-Gizmo.",
+        "Blender 模式: 叠加层菜单已打开, 旁边是着色按钮, 下方是导航 Gizmo。",
+        "Blender モード: オーバーレイメニューを開いたところ。横にシェーディングのボタン、その下にナビゲーションギズモ。",
+        "Modo Blender: el menú Superposiciones abierto, al lado los botones de sombreado, debajo el gizmo de navegación.",
+        "Režim Blender: otevřená nabídka Překryvy, vedle tlačítka stínování, pod nimi navigační gizmo.",
+    ),
 }
 
 ES = {t[0]: t[4] for t in X.values()}

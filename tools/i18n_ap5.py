@@ -203,7 +203,7 @@ ZEILEN = [
      "LOD %d · %d {2:trojúhelník|trojúhelníky|trojúhelníků} · vykresleno jako ve hře (Ghoul2 z karty Mission)"),
     ("PqSchattierungMenue", "Shading (pie menu)", "Schattierung (Auswahl)", "着色 (饼菜单)", "シェーディング (パイメニュー)", "Sombreado (menú circular)",
      "Stínování (koláčové menu)"),
-    ("PqOverlays", "Show overlays", "Overlays zeigen", "显示叠加层", "オーバーレイを表示", "Mostrar superposiciones", "Zobrazit překryvy"),
+    ("PqOverlays", "Show overlays", "Überlagerungen zeigen", "显示叠加层", "オーバーレイを表示", "Mostrar superposiciones", "Zobrazit překryvy"),
     ("PqOverlaysHint", "Like Blender: grid, floor, axes and everything drawn over the model (bones, tags, numbers, selection) on or off; the header and "
      "the navigation gizmo stay.",
      "Wie Blender: Raster, Boden, Achsen und alles, was über dem Modell liegt (Knochen, Tags, Nummern, Auswahl), an oder aus; Kopfzeile und "

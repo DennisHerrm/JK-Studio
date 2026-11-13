@@ -1,11 +1,8 @@
 """AP9 (MBENTWURF Teil B): das rechte Feld des Bereichs Painting nach dem freigegebenen Entwurf - Gruppen Ziel, Werkzeuge,
 Pinsel, Ebenen, Fuer das Spiel; Tasten [ und ] fuer die Pinselgroesse.
 
-Eigene Quelle fuer die Seite modell-painting (inhalt_paint.py); AP14 fuehrt das Handbuch zusammen:
-    import inhalt_ap9
-    inhalt_ap9.einhaengen(next(s for s in SEITEN if s["id"] == "modell-painting"))
-dazu in inhalt_es.py / inhalt_cs.py `from inhalt_ap9 import ES / CS` wie bei inhalt_ap2 und in gen_handbuch.py die Texte aus
-tools/i18n_ap9.py (wie i18n_ap1). Bilder: h_ap9_max, h_ap9_blender (BHED_EDITORTEST=handbuch, BHED_HB_NUR=ap9).
+Eigene Quelle fuer die Seite modell-painting (inhalt_paint.py), eingehaengt im Register
+tools/handbuch/inhalt_modell.py (Zeile `Anhang("inhalt_ap9", "modell-painting")`). Bilder: h_ap9_max, h_ap9_blender (BHED_EDITORTEST=handbuch, BHED_HB_NUR=ap9).
 Jeder Text einmal in allen sechs Sprachen (en, de, zh, ja, es, cs) wie in inhalt_ap2.py.
 """
 

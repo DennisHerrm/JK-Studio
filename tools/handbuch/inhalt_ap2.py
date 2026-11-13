@@ -197,9 +197,12 @@ def _t(schluessel):
 
 
 def einhaengen(ansehen):
-    """Absaetze und Bilder ans Ende des Abschnitts "Szenen-Explorer" der Seite modell-ansehen (vor "Befehlsfeld")."""
+    """Absaetze und Bilder in den Abschnitt "Szenen-Explorer" der Seite modell-ansehen: hinter das Rechtsklick-Menue und das
+    Anbauen (Bild h_mb1_menue, ein Absatz), vor die Absaetze zu Sekundaersequenz, Symbolen und Auge."""
     b = ansehen["bloecke"]
-    i = next(n for n, x in enumerate(b) if x[0] == "h2" and x[1] == "befehlsfeld")
+    i = next(n for n, x in enumerate(b) if x[0] == "img" and x[1] == "h_mb1_menue") + 2
+    if b[i - 1][0] != "p":
+        raise SystemExit("inhalt_ap2: hinter dem Bild h_mb1_menue steht kein Absatz")
     neu = [
         ("p", _t("baum")),
         ("img", "h_ap2_max", _t("bild_max"), "breit"),

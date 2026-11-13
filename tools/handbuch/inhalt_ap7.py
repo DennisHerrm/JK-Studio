@@ -1,9 +1,8 @@
 """AP7 (MBENTWURF Teil B): das rechte Feld des Bereichs UV im Model-Tab nach dem freigegebenen Entwurf.
 
 Eigene Quelle fuer die Seite modell-uv (inhalt_uv1b.py): ein Abschnitt "Das Feld rechts" mit zwei Bildern (wie 3ds Max, wie
-Blender) hinter dem Bild des UV-Editors, ein Absatz zur Gruppe Pruefen und ein Hinweis zu den neuen Tasten. AP14 fuehrt das
-Handbuch zusammen: `inhalt_ap7.einhaengen(<Seite modell-uv>)` in inhalt.py, ES/CS in inhalt_es.py / inhalt_cs.py - wie
-inhalt_ap2.py. Bilder: BHED_EDITORTEST=handbuch, BHED_HB_NUR=ap7 (h_ap7_max, h_ap7_blender).
+Blender) hinter dem Bild des UV-Editors, ein Absatz zur Gruppe Pruefen und ein Hinweis zu den neuen Tasten. Eingehaengt im Register
+tools/handbuch/inhalt_modell.py (Zeile `Anhang("inhalt_ap7", "modell-uv")`). Bilder: BHED_EDITORTEST=handbuch, BHED_HB_NUR=ap7 (h_ap7_max, h_ap7_blender).
 Jeder Text einmal in allen sechs Sprachen (en, de, zh, ja, es, cs) wie in inhalt_uv1b.py.
 """
 

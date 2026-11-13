@@ -1,8 +1,8 @@
 """AP1 (MBENTWURF Teil B): die Seite "Model-Tab: die Zeitleiste" - die Zeitleiste nach dem freigegebenen Entwurf, je
 Bedienmodus wie 3ds Max (Zeitschieber, Spurleiste, Auto Key / Set Key) bzw. wie Blender (Timeline), in jedem Bereich.
 
-Jeder Text einmal in allen sechs Sprachen (en, de, zh, ja, es, cs) wie in inhalt_mb3b.py. AP14 fuehrt die Seiten des
-Model-Tabs am Ende zusammen.
+Jeder Text einmal in allen sechs Sprachen (en, de, zh, ja, es, cs) wie in inhalt_mb3b.py. Eingehaengt im Register
+tools/handbuch/inhalt_modell.py (Zeile `Seite("inhalt_ap1")`).
 """
 
 X = {

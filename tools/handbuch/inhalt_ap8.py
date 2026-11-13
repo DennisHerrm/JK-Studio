@@ -2,7 +2,7 @@
 die Werkzeuge (Gewichts-Werkzeug, Pinsel mit Verlauf und Verwischen, Bereinigen), Spiegeln, Sperren, JKA-Grenzen
 (docs/intern/NOTIZEN_ap8_1111.md).
 
-Eigene Quelle des Pakets; AP14 haengt die Seite ins Handbuch (inhalt.py, inhalt_es.py, inhalt_cs.py). Die Bilder h_ap8_max,
+Eigene Quelle des Pakets, eingehaengt im Register tools/handbuch/inhalt_modell.py (Zeile `Seite("inhalt_ap8")`). Die Bilder h_ap8_max,
 h_ap8_spiegeln und h_ap8_blender nimmt der Selbsttest auf (BHED_EDITORTEST=handbuch, BHED_HB_NUR=ap8). Jeder Text einmal in
 allen sechs Sprachen (en, de, zh, ja, es, cs) wie in inhalt_ap12.py; {{Kennung}} setzt den Text der Oberflaeche ein.
 """
@@ -76,6 +76,14 @@ X = {
         "začátku plná váha, na konci nic, lineárně nebo radiálně) a **{{MgVerwischen}}** (táhne váhy se štětcem). Jako ve 3ds Max jsou tyto a poloměr, síla a zrcadlení při malování pod "
         "**{{MgMalOptionen}}**. S **{{MgAutoNorm}}** (jako 3ds Max: **{{MgNormMax}}**, od začátku zapnuto) dávají váhy vrcholu vždy 1: malovaná kost si hodnotu ponechá a ostatní si rozdělí "
         "zbytek. Jeden tah je jeden krok zpět."),
+    "tasten_bl": (
+        "In Blender mode the keys of Blender's weight paint apply: a stroke with Ctrl subtracts, with Shift it smooths; Shift+X samples the weight under the mouse (**{{MrGwAufnehmen}}**), Ctrl+X sets it on the selection; F, Shift+F and Ctrl+F drag radius, strength and weight - a click confirms, Esc or a right-click cancels.",
+        "Im Blender-Modus gelten die Tasten aus Blenders Weight Paint: ein Strich mit Strg zieht ab, mit Umschalt glättet er; Umschalt+X nimmt das Gewicht unter der Maus auf (**{{MrGwAufnehmen}}**), Strg+X setzt es auf die Auswahl; F, Umschalt+F und Strg+F ziehen Radius, Stärke und Gewicht - ein Klick übernimmt, Esc oder Rechtsklick bricht ab.",
+        "在 Blender 模式下适用 Blender 权重绘制的按键: 按住 Ctrl 绘制为减去, 按住 Shift 为平滑; Shift+X 采样鼠标下的权重 (**{{MrGwAufnehmen}}**), Ctrl+X 把它设置到所选; F、Shift+F 和 Ctrl+F 拖动半径、强度和权重——单击确认, Esc 或右键取消。",
+        "Blender 風では Blender のウェイトペイントのキーが使えます: Ctrl を押しながらのストロークは減算、Shift でスムーズ。Shift+X でマウスの下のウェイトを取得 (**{{MrGwAufnehmen}}**)、Ctrl+X で選択に設定。F、Shift+F、Ctrl+F で半径・強さ・ウェイトをドラッグし、クリックで確定、Esc か右クリックで取り消します。",
+        "En modo Blender valen las teclas del weight paint de Blender: un trazo con Ctrl resta, con Mayús suaviza; Mayús+X muestrea el peso bajo el ratón (**{{MrGwAufnehmen}}**), Ctrl+X lo aplica a la selección; F, Mayús+F y Ctrl+F arrastran radio, intensidad y peso: un clic confirma, Esc o clic derecho cancela.",
+        "V režimu Blender platí klávesy weight paint z Blenderu: tah s Ctrl odečítá, se Shift vyhlazuje; Shift+X odebere váhu pod myší (**{{MrGwAufnehmen}}**), Ctrl+X ji nastaví na výběr; F, Shift+F a Ctrl+F táhnou poloměr, sílu a váhu - klepnutí potvrdí, Esc nebo pravé tlačítko zruší.",
+    ),
     "h_werkzeug": ("Weight tool and clean-up", "Gewichts-Werkzeug und Bereinigen", "权重工具与清理", "ウェイトツールとクリーンアップ", "Herramienta de pesos y limpieza",
                    "Nástroj vah a vyčištění"),
     "werkzeug": (
@@ -207,11 +215,13 @@ X = {
 
 
 def _t(schluessel):
-    return X[schluessel][:4]
+    from inhalt_basis import T
+    t = X[schluessel]
+    return T(t[0], t[1], t[2], t[3])
 
 
 def seite():
-    """Die Seite modell-weights (Gruppe Model, vor Auto-Skin). Die Bilder h_ap8_* nimmt BHED_HB_NUR=ap8 auf; AP14 haengt ein."""
+    """Die Seite modell-weights (Gruppe Model, vor Auto-Skin). Die Bilder h_ap8_* nimmt BHED_HB_NUR=ap8 auf."""
     return {
         "id": "modell-weights",
         "gruppe": "mission",
@@ -224,6 +234,7 @@ def seite():
             ("img", "h_ap8_blender", _t("bild_blender"), "breit"),
             ("h2", "malen", _t("h_malen")),
             ("p", _t("malen")),
+            ("p", _t("tasten_bl")),
             ("h2", "werkzeug", _t("h_werkzeug")),
             ("p", _t("werkzeug")),
             ("h2", "spiegeln", _t("h_spiegeln")),

@@ -75,38 +75,21 @@ X = {
                   "Las cuatro vistas: en Superior, Frontal e Izquierda la rejilla llena la vista detrás de la figura; en perspectiva está sobre el suelo.",
                   "Čtyři pohledy: v pohledech Shora, Zepředu a Zleva mřížka vyplní pohled za postavou, v perspektivě leží na podlaze."),
     "blender": (
-        "In Blender mode the grid looks and behaves like Blender's overlays: the floor fades out towards the horizon and seems endless, the X "
-        "axis is red and the Y axis green (Z blue when you switch it on); in the side views the subdivisions change with the zoom. "
-        "**{{MkBlOverlays}} > {{MrHilfslinien}}** has **{{MkRaster}}** (the side views), **{{MrBoden}}** (perspective), **{{MrAchsen}}** X Y Z, "
-        "**{{MrMassstab}}** and **{{MrUnterteil}}** - each view keeps its own switches; scale and subdivisions are the spacing and the major "
-        "lines from above.",
-        "Im Modus wie Blender sieht das Raster aus und verhält sich wie Blenders Overlays: der Boden blendet zum Horizont aus und wirkt "
-        "unendlich, die X-Achse ist rot, die Y-Achse grün (Z blau, wenn du sie einschaltest); in den Seitenansichten wechseln die "
-        "Unterteilungen mit dem Zoom. **{{MkBlOverlays}} > {{MrHilfslinien}}** hat **{{MkRaster}}** (die Seitenansichten), **{{MrBoden}}** "
-        "(Perspektive), **{{MrAchsen}}** X Y Z, **{{MrMassstab}}** und **{{MrUnterteil}}** - jede Ansicht behält ihre eigenen Schalter; "
-        "Maßstab und Unterteilungen sind der Abstand und die Hauptlinien von oben.",
-        "在 Blender 模式下, 栅格的外观和行为与 Blender 的叠加层相同: 地面向地平线淡出, 看起来无边无际, X 轴为红色, Y 轴为绿色 (开启后 Z 为蓝色); "
-        "侧视图中细分随缩放变化。**{{MkBlOverlays}} > {{MrHilfslinien}}** 包含 **{{MkRaster}}** (侧视图)、**{{MrBoden}}** (透视)、**{{MrAchsen}}** "
-        "X Y Z、**{{MrMassstab}}** 和 **{{MrUnterteil}}**——每个视图保留自己的开关; 缩放和细分即上文的间距和主线。",
-        "Blender モードでは、グリッドの見た目と動作は Blender のオーバーレイと同じです: 床は地平線に向かってフェードアウトして果てしなく見え、X 軸は赤、"
-        "Y 軸は緑 (オンにすると Z は青)。側面ビューでは細分化がズームで変わります。**{{MkBlOverlays}} > {{MrHilfslinien}}** には **{{MkRaster}}** "
-        "(側面ビュー)、**{{MrBoden}}** (パース)、**{{MrAchsen}}** X Y Z、**{{MrMassstab}}**、**{{MrUnterteil}}** があります - ビューごとに"
-        "スイッチを持ち、スケールと細分化は上の間隔とメジャーラインです。",
-        "En modo Blender la rejilla se ve y se comporta como las superposiciones de Blender: el suelo se desvanece hacia el horizonte y parece "
-        "infinito, el eje X es rojo y el eje Y verde (Z azul si lo activas); en las vistas laterales las subdivisiones cambian con el zoom. "
-        "**{{MkBlOverlays}} > {{MrHilfslinien}}** tiene **{{MkRaster}}** (las vistas laterales), **{{MrBoden}}** (perspectiva), **{{MrAchsen}}** "
-        "X Y Z, **{{MrMassstab}}** y **{{MrUnterteil}}**; cada vista conserva sus propios interruptores; escala y subdivisiones son la "
-        "separación y las líneas principales de arriba.",
-        "V režimu Blender mřížka vypadá a chová se jako překryvy Blenderu: podlaha k horizontu slábne a působí nekonečně, osa X je červená a "
-        "osa Y zelená (Z modrá, když ji zapnete); v bočních pohledech se dělení mění s přiblížením. **{{MkBlOverlays}} > {{MrHilfslinien}}** "
-        "má **{{MkRaster}}** (boční pohledy), **{{MrBoden}}** (perspektiva), **{{MrAchsen}}** X Y Z, **{{MrMassstab}}** a **{{MrUnterteil}}** - "
-        "každý pohled si drží své přepínače; měřítko a dělení jsou rozteč a hlavní čáry z výše uvedeného."),
-    "bild_bl": ("Blender mode: the floor with the red X and the green Y axis fades out towards the horizon, the menu Overlays with the guides.",
-                "Modus wie Blender: der Boden mit roter X- und grüner Y-Achse blendet zum Horizont aus, das Menü Overlays mit den Hilfslinien.",
-                "Blender 模式: 带红色 X 轴和绿色 Y 轴的地面向地平线淡出, 叠加层菜单中的参考线。",
-                "Blender モード: 赤い X 軸と緑の Y 軸のある床が地平線に向かってフェードアウト、オーバーレイメニューのガイド。",
-                "Modo Blender: el suelo con el eje X rojo y el eje Y verde se desvanece hacia el horizonte; el menú Superposiciones con las guías.",
-                "Režim Blender: podlaha s červenou osou X a zelenou osou Y k horizontu slábne, nabídka Překryvy s vodítky."),
+        "In Blender mode the grid looks and behaves like Blender's overlays: the floor fades out towards the horizon and seems endless, the X axis is red and the Y axis green (Z blue when you switch it on); in the side views the subdivisions change with the zoom. **{{MkBlOverlays}} > {{MrHilfslinien}}** has **{{MkRaster}}** (the side views), **{{MrBoden}}** (perspective), **{{MrAchsen}}** X Y Z, **{{MrMassstab}}** and **{{MrUnterteil}}** - each view keeps its own switches; scale and subdivisions are the spacing and the major lines from above.",
+        "Im Modus wie Blender sieht das Raster aus und verhält sich wie Blenders Überlagerungen: der Boden blendet zum Horizont aus und wirkt unendlich, die X-Achse ist rot, die Y-Achse grün (Z blau, wenn du sie einschaltest); in den Seitenansichten wechseln die Unterteilungen mit dem Zoom. **{{MkBlOverlays}} > {{MrHilfslinien}}** hat **{{MkRaster}}** (die Seitenansichten), **{{MrBoden}}** (Perspektive), **{{MrAchsen}}** X Y Z, **{{MrMassstab}}** und **{{MrUnterteil}}** - jede Ansicht behält ihre eigenen Schalter; Maßstab und Unterteilungen sind der Abstand und die Hauptlinien von oben.",
+        "在 Blender 模式下, 栅格的外观和行为与 Blender 的叠加层相同: 地面向地平线淡出, 看起来无边无际, X 轴为红色, Y 轴为绿色 (开启后 Z 为蓝色); 侧视图中细分随缩放变化。**{{MkBlOverlays}} > {{MrHilfslinien}}** 包含 **{{MkRaster}}** (侧视图)、**{{MrBoden}}** (透视)、**{{MrAchsen}}** X Y Z、**{{MrMassstab}}** 和 **{{MrUnterteil}}**——每个视图保留自己的开关; 缩放和细分即上文的间距和主线。",
+        "Blender モードでは、グリッドの見た目と動作は Blender のオーバーレイと同じです: 床は地平線に向かってフェードアウトして果てしなく見え、X 軸は赤、Y 軸は緑 (オンにすると Z は青)。側面ビューでは細分化がズームで変わります。**{{MkBlOverlays}} > {{MrHilfslinien}}** には **{{MkRaster}}** (側面ビュー)、**{{MrBoden}}** (パース)、**{{MrAchsen}}** X Y Z、**{{MrMassstab}}**、**{{MrUnterteil}}** があります - ビューごとにスイッチを持ち、スケールと細分化は上の間隔とメジャーラインです。",
+        "En modo Blender la rejilla se ve y se comporta como las superposiciones de Blender: el suelo se desvanece hacia el horizonte y parece infinito, el eje X es rojo y el eje Y verde (Z azul si lo activas); en las vistas laterales las subdivisiones cambian con el zoom. **{{MkBlOverlays}} > {{MrHilfslinien}}** tiene **{{MkRaster}}** (las vistas laterales), **{{MrBoden}}** (perspectiva), **{{MrAchsen}}** X Y Z, **{{MrMassstab}}** y **{{MrUnterteil}}**; cada vista conserva sus propios interruptores; escala y subdivisiones son la separación y las líneas principales de arriba.",
+        "V režimu Blender mřížka vypadá a chová se jako překryvy Blenderu: podlaha k horizontu slábne a působí nekonečně, osa X je červená a osa Y zelená (Z modrá, když ji zapnete); v bočních pohledech se dělení mění s přiblížením. **{{MkBlOverlays}} > {{MrHilfslinien}}** má **{{MkRaster}}** (boční pohledy), **{{MrBoden}}** (perspektiva), **{{MrAchsen}}** X Y Z, **{{MrMassstab}}** a **{{MrUnterteil}}** - každý pohled si drží své přepínače; měřítko a dělení jsou rozteč a hlavní čáry z výše uvedeného.",
+    ),
+    "bild_bl": (
+        "Blender mode: the floor with the red X and the green Y axis fades out towards the horizon, the menu Overlays with the guides.",
+        "Modus wie Blender: der Boden mit roter X- und grüner Y-Achse blendet zum Horizont aus, das Menü Überlagerungen mit den Hilfslinien.",
+        "Blender 模式: 带红色 X 轴和绿色 Y 轴的地面向地平线淡出, 叠加层菜单中的参考线。",
+        "Blender モード: 赤い X 軸と緑の Y 軸のある床が地平線に向かってフェードアウト、オーバーレイメニューのガイド。",
+        "Modo Blender: el suelo con el eje X rojo y el eje Y verde se desvanece hacia el horizonte; el menú Superposiciones con las guías.",
+        "Režim Blender: podlaha s červenou osou X a zelenou osou Y k horizontu slábne, nabídka Překryvy s vodítky.",
+    ),
 }
 
 ES = {t[0]: t[4] for t in X.values()}

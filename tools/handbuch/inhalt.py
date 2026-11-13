@@ -16,19 +16,7 @@ import inhalt_r2a  # rc610 R2a: Gras im Echtzeit-Licht, Spiegel mit allen Stufen
 import inhalt_r3  # rc610 R3: weitere Stufen und Glow im Echtzeit-Licht, gespiegelte Modelle
 import inhalt_rest8  # REST8: doppelte Shadernamen - Echtzeit-Licht nach q3map2, Spielbild nach dem Spiel
 import inhalt_rest9  # REST9: die Update-Leiste oben (wie im Programm G2C)
-import inhalt_mb1a1  # Modell-Block 1a-1: Model-Tab, Ansehen/Pruefen wie ModView, Bedienung wie 3ds Max
-import inhalt_mb1a2  # Modell-Block 1a-2: Weights, Bedienung wie 3ds Max oder Blender, Ins Skript
-import inhalt_mb2  # Modell-Block Stufe 2: Speichern, GLA, Karten-GLA
-import inhalt_mb3  # Modell-Block Stufe 3: Control Rig, Posen, Ghosts, Pfade
-import inhalt_mb3b  # Modell-Block Stufe 3b: Dopesheet, Kurveneditor, Animationswerkzeuge
-import inhalt_mb4  # Modell-Block Stufe 4: IK/FK, Fussrolle, Pfade, Raumwechsel
-import inhalt_mb7  # Modell-Block Stufe 7: Figuren im Mission-Tab animieren
-import inhalt_ph  # Modell-Block Stufe 6: Auto-Physik
-import inhalt_rt  # Modell-Block Stufe 5: Retargeting
-import inhalt_animimp  # Animations-Import und Preset-Bibliothek
-import inhalt_uv1b  # Modell-Block 1b: UV erstellen
-import inhalt_md1d  # Modell-Block 1d: Modellieren, Requisite in die Karte
-import inhalt_paint  # Modell-Block 1c: Texture Painting
+import inhalt_modell  # der Model-Tab: alle Quellen (inhalt_mb*, inhalt_ap*, ...) mit EINER Zeile je Quelle, siehe dort
 import inhalt_funktionen
 import inhalt_skript
 import inhalt_karte
@@ -83,15 +71,7 @@ inhalt_rest8.einhaengen(inhalt_karte7.KARTE_TEMPO)
 inhalt_rest9.einhaengen(inhalt_referenz.EINSTELLUNGEN)
 
 SEITEN = (inhalt_start.SEITEN[:1] + inhalt_hilfe1.SEITEN + inhalt_funktionen.SEITEN + inhalt_start.SEITEN[1:] + [inhalt_skript.FENSTER] + inhalt_dock.SEITEN + inhalt_skript.SEITEN + inhalt_karte.SEITEN + inhalt_karteneditor.SEITEN + inhalt_karteneditor2.SEITEN + inhalt_kartebauen.SEITEN + inhalt_karte4.SEITEN + inhalt_bspmerge.SEITEN + inhalt_karte5.SEITEN + inhalt_karte6.SEITEN + inhalt_karte7.SEITEN + inhalt_karte8.SEITEN + inhalt_karte8b.SEITEN + inhalt_karte8g.SEITEN + inhalt_karte9.SEITEN + inhalt_menue.SEITEN + inhalt_menue3.SEITEN + inhalt_menue5.SEITEN + inhalt_menue5b.SEITEN + inhalt_menue6.SEITEN + inhalt_menue7.SEITEN +
-          inhalt_mission.SEITEN + [inhalt_mb1a1.seite()] + inhalt_mb1a2.seiten() + [inhalt_mb2.seite()] + [inhalt_mb3.seite()] + [inhalt_mb3b.seite()] + [inhalt_mb4.seite()] + [inhalt_ph.seite()] + [inhalt_rt.seite()] + [inhalt_animimp.seite()] + [inhalt_paint.seite()] + [inhalt_uv1b.seite()] + [inhalt_md1d.seite()] + [inhalt_mb7.seite()] + inhalt_tutorials.SEITEN + inhalt_karte8c.SEITEN + inhalt_hilfe2.SEITEN + [inhalt_tutgeo.seite()] + inhalt_kurz.SEITEN + inhalt_kurz2.SEITEN + inhalt_kurz3.SEITEN + inhalt_referenz.SEITEN + inhalt_knoepfe.SEITEN + inhalt_befehle.SEITEN + inhalt_befehlseiten.SEITEN)
-
-import inhalt_ap2  # AP0+AP2: Szenen-Explorer (wie 3ds Max) / Outliner (wie Blender) des Model-Tabs
-inhalt_ap2.einhaengen(next(_s for _s in SEITEN if _s["id"] == "modell-ansehen"))
-import inhalt_ap3  # noqa: E402  (AP3: das rechte Feld - Befehlsfeld mit Reitern / Eigenschaften-Editor)
-inhalt_ap3.einhaengen(next(_s for _s in SEITEN if _s["id"] == "modell-ansehen"))
-# AP1: die Seite "Model-Tab: die Zeitleiste" hinter modell-bedienung
-import inhalt_ap1  # noqa: E402
-SEITEN.insert(next(i for i, x in enumerate(SEITEN) if x["id"] == "modell-bedienung") + 1, inhalt_ap1.seite())
+          inhalt_mission.SEITEN + inhalt_modell.seiten() + inhalt_tutorials.SEITEN + inhalt_karte8c.SEITEN + inhalt_hilfe2.SEITEN + [inhalt_tutgeo.seite()] + inhalt_kurz.SEITEN + inhalt_kurz2.SEITEN + inhalt_kurz3.SEITEN + inhalt_referenz.SEITEN + inhalt_knoepfe.SEITEN + inhalt_befehle.SEITEN + inhalt_befehlseiten.SEITEN)
 
 import inhalt_schritte
 inhalt_schritte.anwenden(SEITEN)

@@ -130,28 +130,13 @@ X = {
         "dostala třetí polygon) a nic nezmění. Nové vrcholy převezmou UV svého polygonu a smíchají váhy kostí sousedů (nejvýše čtyři, součet 1)."),
     "h_grenzen": ("JKA limits and LODs", "JKA-Grenzen und LODs", "JKA 限制与 LOD", "JKA の上限と LOD", "Límites de JKA y LOD", "Limity JKA a LOD"),
     "grenzen": (
-        "The rollout **{{MdGrGrenzen}}** counts each surface as it would be written: fewer than 1000 vertices (SHADER_MAX_VERTEXES), at most 32 bones per surface "
-        "and four weights per vertex, names and textures up to 63 characters (MAX_QPATH), and each tag exactly one triangle; a line turns orange as soon as a "
-        "limit is crossed, and the caddy shows it during the preview. Too many vertices: split the surface with **{{MdDetach}}**. A .glm keeps its other LOD "
-        "levels; **{{MdLods}}** gives all levels the mesh of the drawn one.",
-        "Das Rollout **{{MdGrGrenzen}}** zählt jede Fläche so, wie sie geschrieben würde: weniger als 1000 Ecken (SHADER_MAX_VERTEXES), höchstens 32 Knochen je "
-        "Fläche und vier Gewichte je Ecke, Namen und Texturen bis 63 Zeichen (MAX_QPATH), jeder Tag genau ein Dreieck; eine Zeile wird orange, sobald eine "
-        "Grenze überschritten ist, und das Kästchen zeigt es schon während der Vorschau. Zu viele Ecken: die Fläche mit **{{MdDetach}}** teilen. Eine .glm behält "
-        "ihre anderen LOD-Stufen; **{{MdLods}}** gibt allen Stufen das Netz der gezeichneten.",
-        "卷展栏 **{{MdGrGrenzen}}** 按写入文件的方式统计每个表面: 少于 1000 个顶点 (SHADER_MAX_VERTEXES)、每表面最多 32 根骨骼、每顶点四个权重、名称和纹理最多 63 个字符 "
-        "(MAX_QPATH), 每个标签正好一个三角形; 一旦超限该行变为橙色, 工具框在预览时就会显示。顶点过多: 用 **{{MdDetach}}** 拆分表面。.glm 保留其他 LOD 层级; **{{MdLods}}** "
-        "让所有层级使用当前绘制层级的网格。",
-        "ロールアウト **{{MdGrGrenzen}}** は各サーフェスを書き出す形で数えます: 頂点 1000 未満 (SHADER_MAX_VERTEXES)、サーフェスごとのボーン最大 32、頂点ごとのウェイト 4、"
-        "名前とテクスチャは 63 文字まで (MAX_QPATH)、タグはちょうど三角形 1 つ。上限を超えると行がオレンジになり、プレビュー中もボックスに表示されます。頂点が多すぎるときは "
-        "**{{MdDetach}}** でサーフェスを分けます。.glm の他の LOD レベルはそのまま。**{{MdLods}}** で全レベルを表示中のメッシュにします。",
-        "El panel **{{MdGrGrenzen}}** cuenta cada superficie tal como se escribiría: menos de 1000 vértices (SHADER_MAX_VERTEXES), como máximo 32 huesos por "
-        "superficie y cuatro pesos por vértice, nombres y texturas de hasta 63 caracteres (MAX_QPATH) y cada etiqueta exactamente un triángulo; una línea se vuelve "
-        "naranja en cuanto se supera un límite, y la caja lo muestra ya durante la vista previa. Demasiados vértices: divide la superficie con **{{MdDetach}}**. Un "
-        ".glm conserva sus otros niveles LOD; **{{MdLods}}** da a todos los niveles la malla del nivel mostrado.",
-        "Rollout **{{MdGrGrenzen}}** počítá každou plochu tak, jak by se zapsala: méně než 1000 vrcholů (SHADER_MAX_VERTEXES), nejvýše 32 kostí na plochu a čtyři "
-        "váhy na vrchol, názvy a textury do 63 znaků (MAX_QPATH) a každý tag přesně jeden trojúhelník; řádek zoranžoví, jakmile je limit překročen, a schránka to "
-        "ukáže už během náhledu. Příliš mnoho vrcholů: rozdělte plochu pomocí **{{MdDetach}}**. Soubor .glm si ponechá ostatní úrovně LOD; **{{MdLods}}** dá všem "
-        "úrovním síť zobrazené úrovně."),
+        "The rollout **{{MdGrGrenzen}}** counts each surface as it would be written: fewer than 1000 vertices (SHADER_MAX_VERTEXES), at most 32 bones per surface and four weights per vertex, names and textures up to 63 characters (MAX_QPATH), and each tag exactly one triangle; a bar turns yellow from 90 % of a limit and red above it, and the caddy shows it during the preview. Too many vertices: split the surface with **{{MdDetach}}**. A .glm keeps its other LOD levels; **{{MdLods}}** gives all levels the mesh of the drawn one.",
+        "Das Rollout **{{MdGrGrenzen}}** zählt jede Fläche so, wie sie geschrieben würde: weniger als 1000 Ecken (SHADER_MAX_VERTEXES), höchstens 32 Knochen je Fläche und vier Gewichte je Ecke, Namen und Texturen bis 63 Zeichen (MAX_QPATH), jeder Tag genau ein Dreieck; ein Balken wird ab 90 % einer Grenze gelb und darüber rot, und das Kästchen zeigt es schon während der Vorschau. Zu viele Ecken: die Fläche mit **{{MdDetach}}** teilen. Eine .glm behält ihre anderen LOD-Stufen; **{{MdLods}}** gibt allen Stufen das Netz der gezeichneten.",
+        "卷展栏 **{{MdGrGrenzen}}** 按写入文件的方式统计每个表面: 少于 1000 个顶点 (SHADER_MAX_VERTEXES)、每表面最多 32 根骨骼、每顶点四个权重、名称和纹理最多 63 个字符 (MAX_QPATH), 每个标签正好一个三角形; 条形在达到上限的 90 % 时变黄, 超过后变红, 工具框在预览时就会显示。顶点过多: 用 **{{MdDetach}}** 拆分表面。.glm 保留其他 LOD 层级; **{{MdLods}}** 让所有层级使用当前绘制层级的网格。",
+        "ロールアウト **{{MdGrGrenzen}}** は各サーフェスを書き出す形で数えます: 頂点 1000 未満 (SHADER_MAX_VERTEXES)、サーフェスごとのボーン最大 32、頂点ごとのウェイト 4、名前とテクスチャは 63 文字まで (MAX_QPATH)、タグはちょうど三角形 1 つ。バーは上限の 90 % から黄色、超えると赤になり、プレビュー中もボックスに表示されます。頂点が多すぎるときは **{{MdDetach}}** でサーフェスを分けます。.glm の他の LOD レベルはそのまま。**{{MdLods}}** で全レベルを表示中のメッシュにします。",
+        "El panel **{{MdGrGrenzen}}** cuenta cada superficie tal como se escribiría: menos de 1000 vértices (SHADER_MAX_VERTEXES), como máximo 32 huesos por superficie y cuatro pesos por vértice, nombres y texturas de hasta 63 caracteres (MAX_QPATH) y cada etiqueta exactamente un triángulo; una barra se vuelve amarilla desde el 90 % de un límite y roja por encima, y la caja lo muestra ya durante la vista previa. Demasiados vértices: divide la superficie con **{{MdDetach}}**. Un .glm conserva sus otros niveles LOD; **{{MdLods}}** da a todos los niveles la malla del nivel mostrado.",
+        "Rollout **{{MdGrGrenzen}}** počítá každou plochu tak, jak by se zapsala: méně než 1000 vrcholů (SHADER_MAX_VERTEXES), nejvýše 32 kostí na plochu a čtyři váhy na vrchol, názvy a textury do 63 znaků (MAX_QPATH) a každý tag přesně jeden trojúhelník; pruh zežloutne od 90 % limitu a nad ním zčervená, a schránka to ukáže už během náhledu. Příliš mnoho vrcholů: rozdělte plochu pomocí **{{MdDetach}}**. Soubor .glm si ponechá ostatní úrovně LOD; **{{MdLods}}** dá všem úrovním síť zobrazené úrovně.",
+    ),
     "h_karte": ("A prop into the map with one click", "Ein Requisit mit einem Klick in die Karte", "一键把道具放入地图", "ワンクリックで小道具をマップへ",
                 "Un accesorio en el mapa con un clic", "Rekvizita do mapy jedním kliknutím"),
     "karte": (
