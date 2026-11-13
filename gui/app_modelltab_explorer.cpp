@@ -758,7 +758,10 @@ void infoFenster() {
 
 void waehleFlaeche(int i) {
     ModellTab& t = mt();
-    if (!modellFlaecheWaehlbar(i, true)) { return; }
+    // ENTSCHEID3A (B7): wie 3ds Max (Scene Explorer) waehlt der Klick in der Liste auch eine eingefrorene Flaeche - in der Ansicht geht
+    // er hindurch; wie Blender (Pfeil "waehlbar" aus) nicht
+    const bool frostListe = modellEnt3aFrostInListeWaehlbar();
+    if (!frostListe && !modellFlaecheWaehlbar(i, true)) { return; }
     const ImGuiIO& io = ImGui::GetIO();
     if (io.KeyShift && g_anker >= 0 && g_anker != i) {
         // Bereich in der Reihenfolge des Baums: alle Flaechenzeilen zwischen der zuletzt angeklickten und dieser
@@ -773,7 +776,7 @@ void waehleFlaeche(int i) {
             if (!io.KeyCtrl) { t.auswahl.clear(); }
             for (int r = std::min(a, b); r <= std::max(a, b); ++r) {
                 const Zeile& z = g_zeilen[static_cast<std::size_t>(r)];
-                if (z.art != ExplorerArt::Flaeche || modellTeilEingefroren(z.index)) { continue; }
+                if (z.art != ExplorerArt::Flaeche || (!frostListe && modellTeilEingefroren(z.index))) { continue; }
                 if (std::find(t.auswahl.begin(), t.auswahl.end(), z.index) == t.auswahl.end()) { t.auswahl.push_back(z.index); }
             }
         }
@@ -814,6 +817,7 @@ void sequenzKopieren(int i) {
 void frostPunkt(bool eingefroren, const std::function<void(bool)>& setzen) {
     if (ImGui::MenuItem(tr(eingefroren ? Str::MbXAuftauen : Str::MbXEinfrieren))) { setzen(!eingefroren); }
     tipp(tr(modellBlender() ? Str::MbXWaehlbarHint : Str::MbXFrostHint));
+    modellEnt3aAuftauenPunkt();   // ENTSCHEID3A (B7): wie 3ds Max "Unfreeze Scene Explorer Selection", wenn Gewaehltes eingefroren ist
 }
 
 void flaechenMenue(int i, const std::string& name) {
@@ -1428,6 +1432,10 @@ void zeichneZeile(const Zeile& r, const Masse& m) {
             case ExplorerArt::Anbau: info = t.anbauten[static_cast<std::size_t>(r.index)].pfad + "\n" + t.anbauten[static_cast<std::size_t>(r.index)].ziel; break;
             default: break;
         }
+        // ENTSCHEID3A (B7): wie 3ds Max ist die eingefrorene Zeile in der Liste waehlbar - der Tooltip sagt es
+        if (eingefroren && modellEnt3aFrostInListeWaehlbar() && (r.art == ExplorerArt::Flaeche || r.art == ExplorerArt::Tag || r.art == ExplorerArt::Knochen)) {
+            info += std::string(tr(Str::EaFrostListeHint)) + "\n";
+        }
         if (lage.gekuerzt || !info.empty()) {
             const std::string tip = text.voll + (info.empty() ? std::string() : "\n" + info);
             if (ImGui::BeginTooltip()) {
@@ -1444,7 +1452,7 @@ void zeichneZeile(const Zeile& r, const Masse& m) {
         switch (r.art) {
             case ExplorerArt::Flaeche: waehleFlaeche(r.index); break;
             case ExplorerArt::Tag:
-                if (eingefroren) {
+                if (eingefroren && !modellEnt3aFrostInListeWaehlbar()) {   // ENTSCHEID3A (B7): wie 3ds Max waehlbar
                     meldeFrost(text.name);
                 } else {
                     t.tagWahl = r.index;
@@ -1453,7 +1461,7 @@ void zeichneZeile(const Zeile& r, const Masse& m) {
                 }
                 break;
             case ExplorerArt::Knochen:
-                if (eingefroren) {
+                if (eingefroren && !modellEnt3aFrostInListeWaehlbar()) {   // ENTSCHEID3A (B7): wie 3ds Max waehlbar
                     meldeFrost(text.name);
                 } else {
                     t.knochenWahl = r.index;
@@ -1726,6 +1734,7 @@ const std::vector<Aktion>& aktionen() {
         {Str::MbXAktSeqInsSkript, Str::MbInsSkriptHint, [] {
              if (g_app->animIndex >= 0) { modellInsSkriptOeffnen(g_app->animIndex); }
          }},
+        {Str::EaAuswahlAuftauen, Str::EaAuswahlAuftauenHint, [] { modellEnt3aAuswahlAuftauen(); }},   // ENTSCHEID3A (B7)
     };
     return k;
 }

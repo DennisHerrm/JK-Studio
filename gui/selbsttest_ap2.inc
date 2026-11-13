@@ -377,11 +377,12 @@ void maxSchritte(std::vector<Schritt>& s) {
     add(klickAn("AP2 X13: Klick auf die eingefrorene Zeile torso", ort("torso", 0, static_cast<int>(ExplorerArt::Flaeche))));
     add(pause(0.3));
     add(foto("ap2_max_eingefroren"));
-    add(pruefe("AP2 X13: eingefroren - der Klick im Baum waehlt torso nicht und meldet es", [] {
+    // ENTSCHEID3A (B7, shank 12.11.): wie im Scene Explorer von 3ds Max waehlt der Klick in der Liste auch die eingefrorene Zeile (vorher:
+    // nicht gewaehlt, Meldung); in der Ansicht geht der Klick weiter hindurch (unten). Ausfuehrlich in selbsttest_ent3a.inc.
+    add(pruefe("AP2 X13: eingefroren - der Klick im Baum waehlt torso wie der Scene Explorer von 3ds Max, torso bleibt eingefroren", [] {
         const ModellTab& t = g_app->mtab;
         melde("X13: Meldung '" + t.meldung + "'");
-        return modellTeilEingefroren(mb1::teil("torso")) && std::find(t.auswahl.begin(), t.auswahl.end(), mb1::teil("torso")) == t.auswahl.end() &&
-               t.meldung.find("torso") != std::string::npos;
+        return modellTeilEingefroren(mb1::teil("torso")) && t.auswahl.size() == 1U && t.auswahl.front() == mb1::teil("torso");
     }));
     // In der Ansicht (ENTSCHEID1, shank 11.11.: "hindurch auf die flaeche dahinter"): wie 3ds Max nimmt eine eingefrorene Flaeche am
     // Treffertest nicht teil - der Klick waehlt die Flaeche dahinter (Autodesk-Hilfe "Freezing and Unfreezing Objects": eingefrorene
@@ -508,18 +509,26 @@ void maxSchritte(std::vector<Schritt>& s) {
     add(ziehenAn("AP2 X16: Umschalt+Klick auf torso", ort("torso", 0, static_cast<int>(ExplorerArt::Flaeche)), 0.0F, 0.0F, 0, ImGuiMod_Shift));
     add(pause(0.3));
     add(foto("ap2_max_bereich"));
-    add(pruefe("AP2 X16: Umschalt+Klick waehlt alle Flaechenzeilen von hips bis torso (ohne Eingefrorene)", [] {
+    // ENTSCHEID3A (B7): wie im Scene Explorer von 3ds Max sind eingefrorene Zeilen in der Liste waehlbar - der Bereich nimmt sie mit
+    // (vorher: ohne Eingefrorene, z. B. die Kappen ab Werk); wie Blender (Pfeil "waehlbar" aus) weiter ohne
+    add(pruefe("AP2 X16: Umschalt+Klick waehlt alle Flaechenzeilen von hips bis torso (wie 3ds Max auch die eingefrorenen)", [] {
         const ModellTab& t = g_app->mtab;
         const ExplorerLage* a = zeile("hips", static_cast<int>(ExplorerArt::Flaeche));
         const ExplorerLage* b = zeile("torso", static_cast<int>(ExplorerArt::Flaeche));
-        if (a == nullptr || b == nullptr) { return false; }
+        if (a == nullptr || b == nullptr) {
+            melde(std::string("X16: Zeile nicht im Bild - hips ") + (a != nullptr ? "da" : "fehlt") + ", torso " + (b != nullptr ? "da" : "fehlt"));
+            return false;
+        }
         const float y0 = std::min(a->y0, b->y0);
         const float y1 = std::max(a->y0, b->y0);
         int soll = 0;
         for (const ExplorerLage& l : ex().lage) {
-            if (l.art != ExplorerArt::Flaeche || l.y0 < y0 - 0.5F || l.y0 > y1 + 0.5F || l.eingefroren) { continue; }
+            if (l.art != ExplorerArt::Flaeche || l.y0 < y0 - 0.5F || l.y0 > y1 + 0.5F || (l.eingefroren && modellBlender())) { continue; }
             ++soll;
-            if (std::find(t.auswahl.begin(), t.auswahl.end(), l.index) == t.auswahl.end()) { return false; }
+            if (std::find(t.auswahl.begin(), t.auswahl.end(), l.index) == t.auswahl.end()) {
+                melde("X16: Zeile " + std::to_string(l.index) + " im Bereich nicht gewaehlt (gewaehlt " + std::to_string(t.auswahl.size()) + ")");
+                return false;
+            }
         }
         melde("X16: Bereich " + std::to_string(soll) + " Zeilen, gewaehlt " + std::to_string(t.auswahl.size()));
         return soll >= 2 && static_cast<int>(t.auswahl.size()) == soll;
