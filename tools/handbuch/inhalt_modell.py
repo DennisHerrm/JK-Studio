@@ -101,6 +101,12 @@ QUELLEN = [
     Seite("inhalt_animimp"),                        # modell-animimport
     # --- ueber den Tab hinaus -------------------------------------------------------------------------------------------
     Seite("inhalt_mb7"),                            # mission-animieren: Figuren im Mission-Tab animieren
+    # --- ENTSCHEID3A (Entscheidungen B7-B13, C4): Bausteine hinter Absaetzen anderer Quellen ------------------------------
+    Hinter("inhalt_ent3a", "bloecke_explorer", "modell-ansehen", "inhalt_ap2", "ebenen"),       # B7 eingefrorene Zeile waehlbar
+    Hinter("inhalt_ent3a", "bloecke_bedienung", "modell-bedienung", "inhalt_mb1a2", "b_text"),  # C4 Esc schliesst das Rechtsklick-Menue
+    Hinter("inhalt_ent3a", "bloecke_leiste", "modell-blender", "inhalt_ap4", "gruppen"),        # B8 Leiste breiter ziehen
+    Hinter("inhalt_ent3a", "bloecke_seite", "modell-blender", "inhalt_ap4", "seite"),           # B9 Seitenleiste bei Knochen
+    Hinter("inhalt_ent3a", "bloecke_stapel", "modell-modellieren", "inhalt_ap13s", "bedienen"), # B11-B13 im Modifier-Stapel
 ]
 
 
