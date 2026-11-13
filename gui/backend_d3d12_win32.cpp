@@ -43,8 +43,17 @@ namespace {
 constexpr UINT kPuffer = 3;            // Swapchain-Puffer und Bildplaetze
 constexpr UINT kDeskriptoren = 65536;  // Texturen gleichzeitig (ImGui-Schrift, eigene Bilder, Sichten der 3D-Ansichten)
 constexpr DXGI_FORMAT kFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-constexpr UINT64 kVorGrenze = 256ULL << 20U;   // so viel Hochladespeicher der Vor-Liste, dann abschicken und freigeben
-constexpr UINT64 kHochladeSeite = 2ULL << 20U; // uebliche Groesse eines Hochladepuffers je Bildplatz (groessere nach Bedarf)
+// Hochladespeicher (REST612, rc612). Beim Laden einer Karte fuellte die Vor-Liste jeden Bildplatz bis 256 MB, bevor sie abschickte
+// und wartete, und die Puffer eines Platzes gingen erst zurueck, wenn er wieder dran war: Drei Plaetze hielten so bis 800 MB
+// (Bildplaetze mit 280, 310 und 219 MB nacheinander), und der Treiber behielt Freigegebenes noch Sekunden - privat nach der .map
+// 0,5-0,6 GB mehr als Direct3D 11. Jetzt geht die Vor-Liste alle kVorGrenze ab, ohne zu warten; ihre Puffer (und die der Liste
+// des Bildes) sind "unterwegs", bis die Grafikkarte den Zaunwert erreicht, und kommen dann in den Vorrat, aus dem neue Puffer
+// genommen werden. Gewartet wird nur, wenn mehr als kUnterwegsGrenze unterwegs ist. Puffer, die kVorratRuhe Bilder lang im
+// Vorrat lagen, gehen an das System zurueck - waehrend des Ladens werden sie Bild fuer Bild wiederverwendet.
+constexpr UINT64 kVorGrenze = 16ULL << 20U;          // so viel Hochladespeicher der Vor-Liste, dann abschicken (ohne Warten)
+constexpr UINT64 kUnterwegsGrenze = 32ULL << 20U;    // mehr unterwegs: auf den aeltesten Zaunwert warten
+constexpr UINT64 kHochladeSeite = 2ULL << 20U;       // uebliche Groesse eines Hochladepuffers je Bildplatz (groessere nach Bedarf)
+constexpr std::uint32_t kVorratRuhe = 60;            // Bilder im Vorrat, dann zurueck an das System
 
 template <typename T>
 void frei(T*& p) {
@@ -59,6 +68,7 @@ struct Hochlade {
     UINT64 groesse = 0;
     UINT64 belegt = 0;
     unsigned char* zeiger = nullptr;
+    std::uint32_t freiSeit = 0;   // im Vorrat: Bild (g_hochBild), in dem er hineinkam
 };
 
 struct Platz {
@@ -98,6 +108,15 @@ std::vector<UINT> g_srvFrei;
 UINT g_srvNaechster = 0;
 Platz g_plaetze[kPuffer];
 UINT g_platz = 0;
+// Hochladepuffer, die abgeschickte Listen noch lesen (bis zum Zaunwert), und freie im Vorrat (kVorGrenze).
+struct Unterwegs {
+    UINT64 zaun = 0;
+    std::vector<Hochlade> puffer;
+};
+std::deque<Unterwegs> g_hochUnterwegs;
+UINT64 g_hochUnterwegsBytes = 0;
+std::vector<Hochlade> g_hochVorrat;
+std::uint32_t g_hochBild = 0;   // zaehlt die Bildplatz-Wechsel (Ruhe im Vorrat)
 ID3D12GraphicsCommandList* g_liste = nullptr;      // die offene Befehlsliste des Bildes (nullptr: keine offen)
 ID3D12GraphicsCommandList* g_vorListe = nullptr;   // die offene Vor-Liste
 bool g_hauptOffen = false;
@@ -323,16 +342,88 @@ void imguiSrvNehmen(ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE* cpu, 
 
 void imguiSrvFrei(ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE cpu, D3D12_GPU_DESCRIPTOR_HANDLE) { g_srvFrei.push_back(srvIndex(cpu)); }
 
+void vorratZurueck(Hochlade h) {
+    h.belegt = 0;
+    h.freiSeit = g_hochBild;
+    g_hochVorrat.push_back(h);
+}
+
+// Einen freien Puffer mit mindestens `groesse` Bytes aus dem Vorrat (der kleinste passende).
+bool ausVorrat(UINT64 groesse, Hochlade& aus) {
+    std::size_t best = g_hochVorrat.size();
+    for (std::size_t i = 0; i < g_hochVorrat.size(); ++i) {
+        if (g_hochVorrat[i].groesse >= groesse && (best == g_hochVorrat.size() || g_hochVorrat[i].groesse < g_hochVorrat[best].groesse)) { best = i; }
+    }
+    if (best == g_hochVorrat.size()) { return false; }
+    aus = g_hochVorrat[best];
+    g_hochVorrat[best] = g_hochVorrat.back();
+    g_hochVorrat.pop_back();
+    return true;
+}
+
+// Was die Grafikkarte abgearbeitet hat, in den Vorrat (ohne zu warten).
+void unterwegsEinsammeln() {
+    while (!g_hochUnterwegs.empty() && (g_zaun == nullptr || geraetWeg() || g_zaun->GetCompletedValue() >= g_hochUnterwegs.front().zaun)) {
+        for (const Hochlade& h : g_hochUnterwegs.front().puffer) {
+            g_hochUnterwegsBytes -= h.groesse;
+            vorratZurueck(h);
+        }
+        g_hochUnterwegs.pop_front();
+    }
+}
+
+// Puffer, die kVorratRuhe Bilder ungebraucht im Vorrat lagen, an das System zurueck (alle: `alle`).
+void vorratKuerzen(bool alle) {
+    for (std::size_t i = 0; i < g_hochVorrat.size();) {
+        if (alle || g_hochBild - g_hochVorrat[i].freiSeit >= kVorratRuhe) {
+            g_hochVorrat[i].puffer->Release();
+            g_hochVorrat[i] = g_hochVorrat.back();
+            g_hochVorrat.pop_back();
+        } else {
+            ++i;
+        }
+    }
+}
+
 void hochladeFrei(std::vector<Hochlade>& v) {
-    // Den ersten Hochladepuffer behalten (der Normalfall passt hinein), die uebrigen freigeben. Ein uebergrosser erster
+    // Den ersten Hochladepuffer behalten (der Normalfall passt hinein), die uebrigen in den Vorrat. Ein uebergrosser erster
     // (eine einzelne grosse Textur beim Laden) bleibt nicht liegen.
     std::size_t behalten = 0;
     if (!v.empty() && v[0].groesse <= kHochladeSeite) {
         v[0].belegt = 0;
         behalten = 1;
     }
-    for (std::size_t i = behalten; i < v.size(); ++i) { v[i].puffer->Release(); }
+    for (std::size_t i = behalten; i < v.size(); ++i) { vorratZurueck(v[i]); }
     v.resize(behalten);
+}
+
+// Ein neuer Hochladepuffer mit mindestens `groesse` Bytes: aus dem Vorrat, sonst angelegt.
+bool hochladeNeu(UINT64 groesse, Hochlade& neu) {
+    if (ausVorrat(groesse, neu)) { return true; }
+    neu.groesse = groesse;
+    D3D12_HEAP_PROPERTIES hp{};
+    hp.Type = D3D12_HEAP_TYPE_UPLOAD;
+    D3D12_RESOURCE_DESC rd{};
+    rd.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    rd.Width = neu.groesse;
+    rd.Height = 1;
+    rd.DepthOrArraySize = 1;
+    rd.MipLevels = 1;
+    rd.SampleDesc.Count = 1;
+    rd.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    if (FAILED(g_dev->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &rd, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+                                              IID_PPV_ARGS(&neu.puffer)))) {
+        return false;
+    }
+    const D3D12_RANGE nichts{0, 0};
+    void* z = nullptr;
+    if (FAILED(neu.puffer->Map(0, &nichts, &z))) {
+        neu.puffer->Release();
+        return false;
+    }
+    neu.zeiger = static_cast<unsigned char*>(z);
+    ++g_statistik.hochladePuffer;
+    return true;
 }
 
 // Platz im Hochladepuffer des laufenden Bildplatzes (Ausrichtung 512, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT).
@@ -340,29 +431,7 @@ bool hochladePlatzIn(std::vector<Hochlade>& v, UINT64 groesse, ID3D12Resource*& 
     constexpr UINT64 kAusrichtung = D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT;
     if (v.empty() || ((v.back().belegt + kAusrichtung - 1) & ~(kAusrichtung - 1)) + groesse > v.back().groesse) {
         Hochlade neu;
-        neu.groesse = std::max<UINT64>(groesse, kHochladeSeite);
-        D3D12_HEAP_PROPERTIES hp{};
-        hp.Type = D3D12_HEAP_TYPE_UPLOAD;
-        D3D12_RESOURCE_DESC rd{};
-        rd.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-        rd.Width = neu.groesse;
-        rd.Height = 1;
-        rd.DepthOrArraySize = 1;
-        rd.MipLevels = 1;
-        rd.SampleDesc.Count = 1;
-        rd.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-        if (FAILED(g_dev->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &rd, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                                                  IID_PPV_ARGS(&neu.puffer)))) {
-            return false;
-        }
-        const D3D12_RANGE nichts{0, 0};
-        void* z = nullptr;
-        if (FAILED(neu.puffer->Map(0, &nichts, &z))) {
-            neu.puffer->Release();
-            return false;
-        }
-        neu.zeiger = static_cast<unsigned char*>(z);
-        ++g_statistik.hochladePuffer;
+        if (!hochladeNeu(std::max<UINT64>(groesse, kHochladeSeite), neu)) { return false; }
         v.push_back(neu);
     }
     Hochlade& h = v.back();
@@ -480,6 +549,9 @@ void naechsterPlatz() {
     p.haupt->Reset();
     p.vor->Reset();
     platzFrei(p);
+    ++g_hochBild;
+    unterwegsEinsammeln();
+    vorratKuerzen(false);
 }
 
 // --- Debugschicht -----------------------------------------------------------------
@@ -802,13 +874,28 @@ ID3D12GraphicsCommandList* vorListe() {
 bool hochladePlatz(std::uint64_t groesse, bool vor, ID3D12Resource*& puffer, std::uint64_t& versatz, unsigned char*& zeiger) {
     Platz& p = g_plaetze[g_platz];
     if (vor) {
-        // Viel hochgeladen, ohne dass ein Bild gezeigt wurde (Laden einer Karte): abschicken, warten, den Speicher wiederverwenden.
+        // Viel hochgeladen, ohne dass ein Bild gezeigt wurde (Laden einer Karte): abschicken; die Puffer dieses Platzes (beide
+        // Listen sind abgeschickt) sind unterwegs bis zu diesem Zaunwert. Ist zu viel unterwegs, auf den aeltesten warten.
         if (p.vorBytes > kVorGrenze) {
-            wartenAuf(abschicken());
-            platzFrei(p);
+            Unterwegs u;
+            u.zaun = abschicken();
+            for (std::vector<Hochlade>* v : {&p.hoch, &p.hochVor}) {
+                for (const Hochlade& h : *v) {
+                    g_hochUnterwegsBytes += h.groesse;
+                    u.puffer.push_back(h);
+                }
+                v->clear();
+            }
+            g_hochUnterwegs.push_back(std::move(u));
+            p.vorBytes = 0;
+            while (g_hochUnterwegsBytes > kUnterwegsGrenze && !g_hochUnterwegs.empty()) {
+                wartenAuf(g_hochUnterwegs.front().zaun);
+                unterwegsEinsammeln();
+            }
         }
         p.vorBytes += groesse;
     }
+    if (!g_hochUnterwegs.empty()) { unterwegsEinsammeln(); }
     g_statistik.hochladeBytes += groesse;
     return hochladePlatzIn(vor ? p.hochVor : p.hoch, groesse, puffer, versatz, zeiger);
 }
@@ -886,6 +973,8 @@ bool fertig(std::uint64_t zaun) { return g_zaun == nullptr || g_zaun->GetComplet
 std::uint64_t ausfuehrung() { return g_ausfuehrung; }
 Statistik statistik() {
     Statistik s = g_statistik;
+    s.hochladeJetzt += g_hochUnterwegsBytes;
+    for (const Hochlade& h : g_hochVorrat) { s.hochladeJetzt += h.groesse; }
     for (const Platz& p : g_plaetze) {
         for (const Hochlade& h : p.hoch) { s.hochladeJetzt += h.groesse; }
         for (const Hochlade& h : p.hochVor) { s.hochladeJetzt += h.groesse; }
@@ -1149,6 +1238,12 @@ void shutdown() {
         p.vorBytes = 0;
         p.zaun = 0;
     }
+    for (const Unterwegs& u : g_hochUnterwegs) {
+        for (const Hochlade& h : u.puffer) { h.puffer->Release(); }
+    }
+    g_hochUnterwegs.clear();
+    g_hochUnterwegsBytes = 0;
+    vorratKuerzen(true);
     g_platz = 0;
     hintenFrei();
     if (g_bildFrei != nullptr) {
@@ -1309,6 +1404,8 @@ void trimmen() {
     wartenAuf(g_zaunWert);
     einsammeln();
     abgeber::einsammeln();
+    unterwegsEinsammeln();
+    vorratKuerzen(true);
 }
 
 long verlustGrund() { return g_dev != nullptr ? g_dev->GetDeviceRemovedReason() : S_OK; }
