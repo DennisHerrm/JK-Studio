@@ -25,12 +25,12 @@ X = {
         "Tras **{{MbRgAnlegen}}** cada brazo y pierna del rig tiene IK de dos huesos: el hueso final (mano, pie) alcanza su objetivo, el codo o la rodilla quedan en el plano de raíz, objetivo y objetivo de polo y apuntan al polo, la regla con la que Blender coloca su objetivo de polo y el objetivo de giro del solucionador HI de 3ds Max. Como en Blender, la IK es un cambio sobre la pose del fotograma, así se conserva el giro de los miembros de la animación. El resultado son claves FK del segmento superior, el inferior y el hueso final en la misma capa: la hoja de claves y las curvas lo muestran al instante y hornear en el GLA funciona como antes. **Como 3ds Max:** agarrar la mano o el pie con W es IK y el cambio es una clave; girar un segmento con E es FK. Con **{{MbIkAuto}}** (activado de serie) cada cambio ajusta antes el otro lado y nada salta. El grupo **{{MbIkRollout}}** tiene una fila por miembro, cuyo botón muestra IK o FK y lo cambia, y **{{MbIkKnopfEinrasten}}** para el miembro elegido ([[modell-animationsfeld#ikfk]]). **Como Blender:** cada miembro tiene el deslizador IK-FK de Rigify (0 = IK, 1 = FK) y los botones **{{MbIkKnopfIkFk}}** (objetivo IK y polo a la pose FK) y **{{MbIkKnopfFkIk}}** (claves FK a la pose IK); primero ajusta y luego mueve el deslizador, y el miembro no salta. G mueve el objetivo IK solo en IK; si no, un mensaje dice qué hacer. Cada acción está también en el menú **{{MbBereichAnimation}}** (grupo **{{MbIkGruppe}}**), en el clic derecho de la vista y del control y en la búsqueda X / F3.",
         "Po **{{MbRgAnlegen}}** má každá paže a noha rigu dvoukostní IK: koncová kost (ruka, chodidlo) dosáhne cíle, loket nebo koleno leží v rovině z kořene, cíle a cíle pólu a míří k pólu - pravidlo, podle kterého Blender nastavuje cíl pólu, a cíl natočení HI řešiče v 3ds Max. IK je jako v Blenderu změna pózy snímku, takže zkrut končetin z animace zůstane. Výsledkem jsou klíče FK horní a dolní části a koncové kosti ve stejné vrstvě: dopesheet a křivky to ukážou hned a zapečení do GLA funguje jako dřív. **Jako 3ds Max:** uchopit ruku nebo chodidlo pomocí W je IK, přepnutí je klíč; otočit horní nebo dolní část pomocí E je FK. S **{{MbIkAuto}}** (výchozí zapnuto) každé přepnutí nejprve přichytí druhou stranu a nic neskočí. Skupina **{{MbIkRollout}}** má pro každou končetinu řádek, jehož tlačítko ukazuje IK nebo FK a přepíná je, a pro vybranou končetinu **{{MbIkKnopfEinrasten}}** ([[modell-animationsfeld#ikfk]]). **Jako Blender:** každá končetina má posuvník IK-FK z Rigify (0 = IK, 1 = FK) a tlačítka **{{MbIkKnopfIkFk}}** (cíl IK a pól na pózu FK) a **{{MbIkKnopfFkIk}}** (klíče FK na pózu IK); nejprve přichytit, pak posunout posuvník a končetina neskočí. G posouvá cíl IK jen v IK, jinak zpráva řekne, co dělat. Každá akce je i v nabídce **{{MbBereichAnimation}}** (skupina **{{MbIkGruppe}}**), v pravém tlačítku pohledu a ovladače a ve vyhledávání X / F3.",
     ),
-    "bild_ik": ("IK on the right arm like 3ds Max: the target cross at the hand, the line from the shoulder, the pole target behind the elbow and the rollout IK/FK.",
-                "IK am rechten Arm wie 3ds Max: das Zielkreuz an der Hand, die Linie von der Schulter, das Pol-Ziel hinter dem Ellbogen und das Rollout IK/FK.",
-                "像 3ds Max 一样在右臂上使用 IK: 手上的目标十字、来自肩部的线、肘后的极向目标以及 IK/FK 卷展栏。",
-                "3ds Max 風の右腕の IK: 手のターゲットの十字、肩からの線、肘の後ろのポールターゲット、IK/FK ロールアウト。",
-                "IK en el brazo derecho como 3ds Max: la cruz del objetivo en la mano, la línea desde el hombro, el objetivo de polo tras el codo y el panel IK/FK.",
-                "IK na pravé paži jako v 3ds Max: křížek cíle u ruky, čára od ramene, cíl pólu za loktem a rollout IK/FK."),
+    "bild_ik": ("IK on the right arm like 3ds Max: the target cross at the hand, the line from the shoulder, the pole target behind the elbow and the group IK/FK.",
+                "IK am rechten Arm wie 3ds Max: das Zielkreuz an der Hand, die Linie von der Schulter, das Pol-Ziel hinter dem Ellbogen und die Gruppe IK/FK.",
+                "像 3ds Max 一样在右臂上使用 IK: 手上的目标十字、来自肩部的线、肘后的极向目标以及 IK/FK 分组。",
+                "3ds Max 風の右腕の IK: 手のターゲットの十字、肩からの線、肘の後ろのポールターゲット、IK/FK グループ。",
+                "IK en el brazo derecho como 3ds Max: la cruz del objetivo en la mano, la línea desde el hombro, el objetivo de polo tras el codo y el grupo IK/FK.",
+                "IK na pravé paži jako v 3ds Max: křížek cíle u ruky, čára od ramene, cíl pólu za loktem a skupina IK/FK."),
     "h_rolle": ("Foot roll", "Fußrolle", "脚部滚动", "フットロール", "Balanceo del pie", "Odval chodidla"),
     "rolle": (
         "Rotate the heel, ball or toe tip control (E like 3ds Max, R like Blender) or use **{{MbIkRolle}}** in the rollout: like the heel control of Rigify the "
@@ -108,11 +108,11 @@ X = {
         "**{{MbIkRollout}}** nebo v nabídce. Přepnutí zapíše klíč o snímek dříve ve starém prostoru a klíč na snímku v novém, nic neskočí. **{{MbIkSaebelHand}}** "
         "nechá ruku s mečem sledovat druhou ruku, pro úchop oběma rukama a předání meče; zpět pomocí **{{MbIkRaumWelt}}**. Hra připojuje meč k *r_hand kódem, "
         "animace tedy vždy hýbe rukama."),
-    "bild_raum": ("The right hand follows the left hand (dashed line to the space); the saber grip is selected, the rollout shows the space.",
-                  "Die rechte Hand folgt der linken (gestrichelte Linie zum Raum); der Säbelgriff ist gewählt, das Rollout zeigt den Raum.",
-                  "右手跟随左手 (到空间的虚线); 光剑握把已选中, 卷展栏显示空间。", "右手が左手に従います (スペースへの破線)。セーバーグリップを選択中で、ロールアウトにスペースが出ます。",
-                  "La mano derecha sigue a la izquierda (línea discontinua hacia el espacio); el agarre del sable está seleccionado y el panel muestra el espacio.",
-                  "Pravá ruka sleduje levou (přerušovaná čára k prostoru); úchop meče je vybrán, rollout ukazuje prostor."),
+    "bild_raum": ("The right hand follows the left hand (dashed line to the space); the saber grip is selected, the group IK/FK shows the space.",
+                  "Die rechte Hand folgt der linken (gestrichelte Linie zum Raum); der Säbelgriff ist gewählt, die Gruppe IK/FK zeigt den Raum.",
+                  "右手跟随左手 (到空间的虚线); 光剑握把已选中, IK/FK 分组显示空间。", "右手が左手に従います (スペースへの破線)。セーバーグリップを選択中で、IK/FK グループにスペースが出ます。",
+                  "La mano derecha sigue a la izquierda (línea discontinua hacia el espacio); el agarre del sable está seleccionado y el grupo IK/FK muestra el espacio.",
+                  "Pravá ruka sleduje levou (přerušovaná čára k prostoru); úchop meče je vybrán, skupina IK/FK ukazuje prostor."),
     "h_mehr": ("Reduce a selection, pose library as a file", "Auswahl reduzieren, Posen-Bibliothek als Datei", "精简所选内容, 姿势库作为文件",
                "選択の削減、ファイルとしてのポーズライブラリ", "Reducir una selección, biblioteca de poses como archivo", "Redukce výběru, knihovna póz jako soubor"),
     "mehr": (

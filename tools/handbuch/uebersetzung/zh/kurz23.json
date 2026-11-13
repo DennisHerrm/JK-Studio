@@ -227,7 +227,7 @@
  "Skins and skeletons of a model": "模型的皮肤和骨架",
  "Another skin, another skeleton, and the surfaces a skin switches on or off.": "换一个皮肤、换一套骨架,以及皮肤打开或关闭的表面。",
  "**Switch skins.** In the **{{ViewModel}}** tab the **{{ModelSkin}}** list shows the skins that come with the model; **{{OpenSkin}}** loads another one.": "**切换皮肤。** 在 **{{ViewModel}}** 标签页中,**{{ModelSkin}}** 列表显示模型自带的皮肤;**{{OpenSkin}}** 加载其他皮肤。",
- "The playback bar with the skin list.": "带有皮肤列表的播放栏。",
+ "The skin list in the command panel.": "命令面板中的皮肤列表。",
  "**Surfaces.** The counter of surfaces shows how many the skin draws; click it to list them all in the detail log.": "**表面。** 表面计数显示该皮肤绘制了多少个表面;单击它可在详细日志中列出全部表面。",
  "**Caps.** **{{ModelCaps}}** shows the `_off` surfaces that close the holes where limbs attach.": "**封盖。** **{{ModelCaps}}** 显示 `_off` 表面,它们封住肢体连接处的孔洞。",
  "**Another skeleton.** **{{ModelLoadGla}}** loads a different `.gla` with its animations.": "**另一套骨架。** **{{ModelLoadGla}}** 加载另一个 `.gla` 及其动画。",

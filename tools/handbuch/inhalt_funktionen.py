@@ -57,7 +57,7 @@ SEITE = {
         ("p", T("Start a mission on any map with one click, open the missions of the game or a mod, continue them from their folder. **{{MissionSave}}** checks everything, compiles every script and packs one `.pk3` with map, entities, scripts and ROFF files - ready for `devmap`. NPC waypoint networks are created and checked on the way. [[missionen]], [[tut-projekt]], [[k-wegpunkte]]")),
 
         ("h2", "modell", T("Character models and their animations")),
-        ("img", "h_modell", T("A character in the model view, with its animation list.")),
+        ("img", "h_modell", T("A character in the Model tab: scene explorer, view and timeline.")),
         ("p", T("Every character of the game with its skin, every animation with its frames - click to play, double-click to put it into the script. [[modell]], [[k-animation-abspielen]], [[k-modell]]")),
 
         ("h2", "werkzeuge", T("The tools around it")),

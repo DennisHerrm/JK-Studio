@@ -538,14 +538,14 @@ TEXTE = {
         "Postavy · pět kroků",
     "**Load the figure's model.** Switch to **{{ViewModel}}** and press **{{NpcBrowser}}**: click a character - its model and skin load as in the game.":
         "**Načtěte model postavy.** Přepněte na **{{ViewModel}}** a stiskněte **{{NpcBrowser}}**: klikněte na postavu - její model a skin se načtou jako ve hře.",
-    "**Find an animation.** Type into **{{MbSuche}}**, for example `TALK`. **BOTH**, **TORSO**, **LEGS** filter by body part.":
-        "**Najděte animaci.** Pište do **{{MbSuche}}**, například `TALK`. **BOTH**, **TORSO**, **LEGS** filtrují podle části těla.",
-    "The model view with its animation list.":
-        "Zobrazení modelu se seznamem animací.",
-    "**Watch it.** Click an animation: it plays. **{{ModelLoop}}**, the speed and the frame buttons help to look closely.":
-        "**Prohlédněte si ji.** Klikněte na animaci: přehraje se. **{{ModelLoop}}**, rychlost a tlačítka snímků pomohou podívat se zblízka.",
-    "**Into the script.** Select a line in your script first (inside the figure's `affect` block), then double-click the animation or press **{{ModelAnimToScript}}**: `set ( SET_ANIM_BOTH, \"…\" )` is inserted after that line.":
-        "**Do skriptu.** Nejdřív vyberte řádek ve svém skriptu (uvnitř bloku `affect` postavy), pak dvakrát klikněte na animaci nebo stiskněte **{{ModelAnimToScript}}**: za tento řádek se vloží `set ( SET_ANIM_BOTH, \"…\" )`.",
+    "**Find an animation.** In the **{{MbExplorer}}** open **{{MbXArtSequenzen}}** and type into **{{MbSuche}}**, for example `TALK`. The node lists one group at a time (BOTH_, TORSO_, LEGS_, FACE_).":
+        "**Najděte animaci.** V **{{MbExplorer}}** rozbalte **{{MbXArtSequenzen}}** a pište do **{{MbSuche}}**, například `TALK`. Uzel ukazuje vždy jednu skupinu (BOTH_, TORSO_, LEGS_, FACE_).",
+    "The Model tab: scene explorer, view and timeline.":
+        "Karta Model: průzkumník scény, pohled a časová osa.",
+    "**Watch it.** Click a sequence: it plays. **{{MzSchleife}}**, the speed and the frame buttons of the timeline help to look closely.":
+        "**Prohlédněte si ji.** Klikněte na sekvenci: přehraje se. **{{MzSchleife}}**, rychlost a tlačítka snímků na časové ose pomohou podívat se zblízka.",
+    "**Into the script.** Double-click the sequence or press **{{MbInsSkriptFenster}}** in the head of the scene explorer: choose the script, the character and the command, **{{MbInsSkriptEinfuegen}}** puts `set ( SET_ANIM_BOTH, \"…\" )` into the script.":
+        "**Do skriptu.** Dvakrát klikněte na sekvenci nebo stiskněte **{{MbInsSkriptFenster}}** v záhlaví průzkumníku scény: vyberte skript, postavu a příkaz, **{{MbInsSkriptEinfuegen}}** vloží `set ( SET_ANIM_BOTH, \"…\" )` do skriptu.",
     "**See it on the map.** Switch back to **{{ViewMap}}** and play the timeline: the figure plays the animation at that point.":
         "**Podívejte se na ni v mapě.** Přepněte zpět na **{{ViewMap}}** a přehrajte časovou osu: postava v tom místě přehraje animaci.",
     "Add a line of dialogue":
@@ -767,8 +767,8 @@ TEXTE = {
         "**Rozhlédněte se.** Levé tlačítko otáčí, prostřední posouvá, kolečko přibližuje. **{{ModelTurntable}}** ji otáčí samo, **{{ModelResetView}}** ji vrátí zepředu.",
     "The model view.":
         "Zobrazení modelu.",
-    "**Details.** **{{ModelSkin}}** switches skins, **{{ModelBones}}** shows the skeleton, **{{ModelTextures}}** switches textures off.":
-        "**Podrobnosti.** **{{ModelSkin}}** přepíná skiny, **{{ModelBones}}** ukáže kostru, **{{ModelTextures}}** vypne textury.",
+    "**Details.** **{{ModelBones}}** in the toolbar above the view shows the skeleton, **{{ModelTextures}}** switches textures off; the skins are in the group **{{MbRLod}}** of the command panel.":
+        "**Podrobnosti.** **{{ModelBones}}** na liště nástrojů nad pohledem ukáže kostru, **{{ModelTextures}}** vypne textury; skiny jsou ve skupině **{{MbRLod}}** panelu příkazů.",
     "Tutorials: scripts":
         "Tutoriály: skripty",
     "Tutorials: camera and timeline":
@@ -1237,8 +1237,8 @@ TEXTE = {
         "Jiný skin, jiná kostra a povrchy, které skin zapíná nebo vypíná.",
     "**Switch skins.** In the **{{ViewModel}}** tab the **{{ModelSkin}}** list shows the skins that come with the model; **{{OpenSkin}}** loads another one.":
         "**Přepínání skinů.** Na kartě **{{ViewModel}}** ukazuje seznam **{{ModelSkin}}** skiny, které k modelu patří; **{{OpenSkin}}** načte jiný.",
-    "The playback bar with the skin list.":
-        "Lišta přehrávání se seznamem skinů.",
+    "The skin list in the command panel.":
+        "Seznam skinů v panelu příkazů.",
     "**Surfaces.** The counter of surfaces shows how many the skin draws; click it to list them all in the detail log.":
         "**Povrchy.** Počítadlo povrchů ukazuje, kolik jich skin kreslí; kliknutím je všechny vypíšete do podrobného protokolu.",
     "**Caps.** **{{ModelCaps}}** shows the `_off` surfaces that close the holes where limbs attach.":
@@ -1603,8 +1603,8 @@ TEXTE = {
         "Začněte misi na libovolné mapě jedním kliknutím, otevřete mise hry nebo modu, pokračujte v nich z jejich složky. **{{MissionSave}}** vše zkontroluje, zkompiluje každý skript a zabalí jeden `.pk3` s mapou, entitami, skripty a soubory ROFF - připravený pro `devmap`. Sítě navigačních bodů NPC se po cestě vytvoří a zkontrolují. [[missionen]], [[tut-projekt]], [[k-wegpunkte]]",
     "Character models and their animations":
         "Modely postav a jejich animace",
-    "A character in the model view, with its animation list.":
-        "Postava v zobrazení modelu se seznamem animací.",
+    "A character in the Model tab: scene explorer, view and timeline.":
+        "Postava na kartě Model: průzkumník scény, pohled a časová osa.",
     "Every character of the game with its skin, every animation with its frames - click to play, double-click to put it into the script. [[modell]], [[k-animation-abspielen]], [[k-modell]]":
         "Každá postava hry se svým skinem, každá animace se svými snímky - kliknutím ji přehrajete, dvojklikem ji vložíte do skriptu. [[modell]], [[k-animation-abspielen]], [[k-modell]]",
     "The tools around it":
@@ -6105,8 +6105,8 @@ TEXTE = {
         "Kruh na jdoucí postavě.",
     "The NPC browser.":
         "Prohlížeč NPC.",
-    "Loop in the playback bar.":
-        "Smyčka v liště přehrávání.",
+    "Force loop in the timeline.":
+        "Vynutit smyčku na časové ose.",
     "Into script.":
         "Do skriptu.",
     "The figure in the scene.":
@@ -6315,8 +6315,8 @@ TEXTE = {
         "**Přepněte na {{ViewModel}}** v liště režimů vlevo.",
     "Model in the mode bar.":
         "Model v liště režimů.",
-    "Skin, Bones and Textures.":
-        "Skin, Kosti a Textury.",
+    "Bones and Textures in the toolbar.":
+        "Kosti a Textury na liště nástrojů.",
     "**Find the scene.** In the **{{ViewMap}}** tab, **Scripts (N)** on the map toolbar lists the scripts the map uses - pick the intro. The timeline shows its camera.":
         "**Najděte scénu.** Na kartě **{{ViewMap}}** vypíše **Skripty (N)** na liště mapy skripty, které mapa používá - vyberte úvod. Časová osa ukazuje jeho kameru.",
     "The scripts of the map.":
@@ -6403,8 +6403,8 @@ TEXTE = {
         "task, dowait a wait pro každý bod.",
     "**Watch.** Play the timeline - the guard walks the round.":
         "**Sledujte.** Přehrajte časovou osu - strážný obchází pochůzku.",
-    "**Switch skins.** In the **{{ViewModel}}** tab the **{{ModelSkin}}** list in the playback bar shows the skins that come with the model; **{{OpenSkin}}** loads another one.":
-        "**Přepínání skinů.** Na kartě **{{ViewModel}}** ukazuje seznam **{{ModelSkin}}** v liště přehrávání skiny, které k modelu patří; **{{OpenSkin}}** načte jiný.",
+    "**Switch skins.** In the **{{ViewModel}}** tab the group **{{MbRLod}}** of the command panel lists the skins that come with the model; **{{OpenSkin}}** in the toolbar loads another one.":
+        "**Přepínání skinů.** Na kartě **{{ViewModel}}** ukazuje skupina **{{MbRLod}}** panelu příkazů skiny, které k modelu patří; **{{OpenSkin}}** na liště nástrojů načte jiný.",
     "**Surfaces.** The counter next to it shows how many surfaces the skin draws; click it to list them all in the detail log.":
         "**Povrchy.** Počítadlo vedle ukazuje, kolik povrchů skin kreslí; kliknutím je všechny vypíšete do podrobného protokolu.",
     "The surface counter.":

@@ -63,12 +63,12 @@ X = {
         "V oblasti **{{MbBereichAnimation}}** panel příkazů ukáže GLA modelu (snímky, kosti, zásobu) a jeho animation.cfg. **{{MbGlaSpeichern}}** a **{{MbCfgSpeichern}}** je zapíší; beze změny jsou to bajt po bajtu stejné soubory. Každý řádek animation.cfg je značka na časové ose: v okně **{{MzZeitKonfig}}** ([[modell-zeitleiste#zeitkonfig]]) je první snímek, počet, loopFrames a fps vybrané sekvence - změňte čísla nebo táhněte konce pruhu, každá změna je jeden krok zpět. Kontroly říkají, co cílová hra s řádky udělá: sekvence za koncem GLA (T-póza v Movie Duels a OpenJK, stoj v originálu), snímky nad 65535, loopFrames mimo -1..127, soubor příliš dlouhý pro čtečku (79998 bajtů v JKA pro jednoho hráče, 59998 ve hře více hráčů, 39998 v Jedi Outcast) a jména, která hra nezná.",
     ),
     "bild_befund": (
-        "The last sequence ends ten frames behind the end of the GLA: the check names it; below the timeline the marker of the line.",
-        "Die letzte Sequenz endet zehn Frames hinter dem Ende der GLA: die Prüfung nennt sie; unter der Zeitleiste der Marker der Zeile.",
-        "最后一个序列在 GLA 末尾之后十帧结束:检查会指出它;时间轴下方是该行的标记。",
-        "最後のシーケンスが GLA の末尾から 10 フレーム後ろで終わっています: チェックがそれを示します。タイムラインの下にその行のマーカー。",
-        "La última secuencia termina diez fotogramas después del final del GLA: la comprobación la nombra; bajo la línea de tiempo, el marcador de la línea.",
-        "Poslední sekvence končí deset snímků za koncem GLA: kontrola ji uvede; pod časovou osou značka řádku."),
+        "The last sequence ends ten frames behind the end of the GLA: the group animation.cfg names it; the window Time configuration shows the line.",
+        "Die letzte Sequenz endet zehn Frames hinter dem Ende der GLA: die Gruppe animation.cfg nennt sie; das Fenster Zeitkonfiguration zeigt die Zeile.",
+        "最后一个序列在 GLA 末尾之后十帧结束:animation.cfg 分组会指出它; 时间配置窗口显示该行。",
+        "最後のシーケンスが GLA の末尾から 10 フレーム後ろで終わっています: animation.cfg グループがそれを示します。時間設定ウィンドウにその行が表示されます。",
+        "La última secuencia termina diez fotogramas después del final del GLA: el grupo animation.cfg la nombra; la ventana Configuración de tiempo muestra la línea.",
+        "Poslední sekvence končí deset snímků za koncem GLA: skupina animation.cfg ji uvede; okno Nastavení času ukazuje řádek."),
     "h_karte": ("Map GLA and slots", "Karten-GLA und Plätze", "地图 GLA 和槽位", "マップ GLA とスロット", "GLA de mapa y huecos", "Mapové GLA a sloty"),
     "karte": (
         "Cutscenes play BOTH_CIN_1 to BOTH_CIN_50 (Movie Duels 125) from the GLA models/players/_humanoid_<map>/, which the single player of Jedi Academy and "

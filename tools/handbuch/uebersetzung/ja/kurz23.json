@@ -227,7 +227,7 @@
  "Skins and skeletons of a model": "モデルのスキンとスケルトン",
  "Another skin, another skeleton, and the surfaces a skin switches on or off.": "別のスキン、別のスケルトン、そしてスキンがオン・オフするサーフェス。",
  "**Switch skins.** In the **{{ViewModel}}** tab the **{{ModelSkin}}** list shows the skins that come with the model; **{{OpenSkin}}** loads another one.": "**スキンを切り替える。** **{{ViewModel}}** タブの **{{ModelSkin}}** 一覧には、モデルに付属するスキンが表示されます。**{{OpenSkin}}** で別のスキンを読み込みます。",
- "The playback bar with the skin list.": "スキン一覧のある再生バー。",
+ "The skin list in the command panel.": "コマンドパネルのスキン一覧。",
  "**Surfaces.** The counter of surfaces shows how many the skin draws; click it to list them all in the detail log.": "**サーフェス。** サーフェスの件数は、そのスキンが描くサーフェスの数を示します。クリックすると、詳細ログにすべて一覧表示されます。",
  "**Caps.** **{{ModelCaps}}** shows the `_off` surfaces that close the holes where limbs attach.": "**キャップ。** **{{ModelCaps}}** は、手足の付け根の穴をふさぐ `_off` サーフェスを表示します。",
  "**Another skeleton.** **{{ModelLoadGla}}** loads a different `.gla` with its animations.": "**別のスケルトン。** **{{ModelLoadGla}}** で、アニメーション付きの別の `.gla` を読み込みます。",

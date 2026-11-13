@@ -324,10 +324,10 @@ FIGUREN = [
         T("Figures · five steps"), "h_modell",
         [
             T("**Load the figure's model.** Switch to **{{ViewModel}}** and press **{{NpcBrowser}}**: click a character - its model and skin load as in the game."),
-            (T("**Find an animation.** Type into **{{MbSuche}}**, for example `TALK`. **BOTH**, **TORSO**, **LEGS** filter by body part."),
-             "h_modell", T("The model view with its animation list.")),
-            T("**Watch it.** Click an animation: it plays. **{{ModelLoop}}**, the speed and the frame buttons help to look closely."),
-            T("**Into the script.** Select a line in your script first (inside the figure's `affect` block), then double-click the animation or press **{{ModelAnimToScript}}**: `set ( SET_ANIM_BOTH, \"…\" )` is inserted after that line."),
+            (T("**Find an animation.** In the **{{MbExplorer}}** open **{{MbXArtSequenzen}}** and type into **{{MbSuche}}**, for example `TALK`. The node lists one group at a time (BOTH_, TORSO_, LEGS_, FACE_)."),
+             "h_modell", T("The Model tab: scene explorer, view and timeline.")),
+            T("**Watch it.** Click a sequence: it plays. **{{MzSchleife}}**, the speed and the frame buttons of the timeline help to look closely."),
+            T("**Into the script.** Double-click the sequence or press **{{MbInsSkriptFenster}}** in the head of the scene explorer: choose the script, the character and the command, **{{MbInsSkriptEinfuegen}}** puts `set ( SET_ANIM_BOTH, \"…\" )` into the script."),
             T("**See it on the map.** Switch back to **{{ViewMap}}** and play the timeline: the figure plays the animation at that point."),
         ]),
 
@@ -508,7 +508,7 @@ MODELL = [
             T("**Pick a character.** **{{NpcBrowser}}** lists every character of the game - type to search, click to load it with its skin."),
             (T("**Look around.** Left mouse turns, middle mouse moves, the wheel zooms. **{{ModelTurntable}}** turns it by itself, **{{ModelResetView}}** brings it back to the front."),
              "h_modell", T("The model view.")),
-            T("**Details.** **{{ModelSkin}}** switches skins, **{{ModelBones}}** shows the skeleton, **{{ModelTextures}}** switches textures off."),
+            T("**Details.** **{{ModelBones}}** in the toolbar above the view shows the skeleton, **{{ModelTextures}}** switches textures off; the skins are in the group **{{MbRLod}}** of the command panel."),
         ]),
 ]
 

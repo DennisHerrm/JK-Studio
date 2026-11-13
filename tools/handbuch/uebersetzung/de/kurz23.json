@@ -227,7 +227,7 @@
  "Skins and skeletons of a model": "Skins und Skelette eines Modells",
  "Another skin, another skeleton, and the surfaces a skin switches on or off.": "Ein anderer Skin, ein anderes Skelett und die Flächen, die ein Skin ein- oder ausschaltet.",
  "**Switch skins.** In the **{{ViewModel}}** tab the **{{ModelSkin}}** list shows the skins that come with the model; **{{OpenSkin}}** loads another one.": "**Skins wechseln.** Im Tab **{{ViewModel}}** zeigt die Liste **{{ModelSkin}}** die Skins, die zum Modell gehören; **{{OpenSkin}}** lädt einen anderen.",
- "The playback bar with the skin list.": "Die Abspielleiste mit der Skin-Liste.",
+ "The skin list in the command panel.": "Die Skin-Liste im Befehlsfeld.",
  "**Surfaces.** The counter of surfaces shows how many the skin draws; click it to list them all in the detail log.": "**Flächen.** Der Flächenzähler zeigt, wie viele Flächen der Skin zeichnet; ein Klick darauf listet sie alle im Detailprotokoll.",
  "**Caps.** **{{ModelCaps}}** shows the `_off` surfaces that close the holes where limbs attach.": "**Kappen.** **{{ModelCaps}}** zeigt die `_off`-Flächen, die die Löcher schließen, wo Gliedmaßen ansetzen.",
  "**Another skeleton.** **{{ModelLoadGla}}** loads a different `.gla` with its animations.": "**Ein anderes Skelett.** **{{ModelLoadGla}}** lädt eine andere `.gla` mit ihren Animationen.",

@@ -27,12 +27,12 @@ X = {
         "Karta Model v kostce: šest oblastí pro jeden model - prohlížení a kontrola, modelování, UV, váhy, malování textur a animace - a v každé stejné pohledy, průzkumník scény, panel vpravo a časová osa. Model se kreslí tak, jak ho kreslí hra; myš, klávesy a rozvržení se řídí 3ds Max nebo Blenderem, podle vaší volby.",
     ),
     "bild": (
-        "Kyle with a saber at *r_hand: on the left the scene explorer, in the middle the view, on the right the command panel with its groups, below the timeline.",
-        "Kyle mit einem Säbel an *r_hand: links der Szenen-Explorer, in der Mitte die Ansicht, rechts das Befehlsfeld mit seinen Gruppen, unten die Zeitleiste.",
-        "手持光剑 (*r_hand) 的 Kyle: 左侧是场景资源管理器, 中间是视图, 右侧是带各分组的命令面板, 下方是时间轴。",
-        "*r_hand にセイバーを付けた Kyle。左にシーンエクスプローラー、中央にビュー、右にグループの並ぶコマンドパネル、下にタイムライン。",
-        "Kyle con un sable en *r_hand: a la izquierda el explorador de escena, en el centro la vista, a la derecha el panel de comandos con sus grupos, abajo la línea de tiempo.",
-        "Kyle s mečem na *r_hand: vlevo průzkumník scény, uprostřed pohled, vpravo panel příkazů se skupinami, dole časová osa.",
+        "The stormtrooper with a saber at *r_hand: on the left the scene explorer, in the middle the view, on the right the command panel with its groups, below the timeline.",
+        "Der Sturmtruppler mit einem Säbel an *r_hand: links der Szenen-Explorer, in der Mitte die Ansicht, rechts das Befehlsfeld mit seinen Gruppen, unten die Zeitleiste.",
+        "手持光剑 (*r_hand) 的冲锋队员: 左侧是场景资源管理器, 中间是视图, 右侧是带各分组的命令面板, 下方是时间轴。",
+        "*r_hand にセイバーを付けたストームトルーパー。左にシーンエクスプローラー、中央にビュー、右にグループの並ぶコマンドパネル、下にタイムライン。",
+        "El soldado de asalto con un sable en *r_hand: a la izquierda el explorador de escena, en el centro la vista, a la derecha el panel de comandos con sus grupos, abajo la línea de tiempo.",
+        "Stormtrooper s mečem na *r_hand: vlevo průzkumník scény, uprostřed pohled, vpravo panel příkazů se skupinami, dole časová osa.",
     ),
     "aufbau": (
         "Open a model as before ({{NpcBrowser}}, `.glm`, `.pk3`). The tab starts in **{{MbBereichAnsehen}}** ([[modell-pruefen]]); the row of areas above the views switches to **{{MbBereichModellieren}}** ([[modell-modellieren]]), **{{MbBereichUv}}** ([[modell-uv]]), **{{MbBereichWeights}}** ([[modell-weights]]), **{{MbBereichPainting}}** ([[modell-painting]]) and **{{MbBereichAnimation}}** ([[modell-animationsfeld]]). Views, scene explorer and timeline ([[modell-zeitleiste]]) are the same in every area, and the pose keeps playing while you work. The model is loaded into its own document with every level of detail; drawing an unchanged model gives exactly the same picture as before (checked with every model under `models/players` of Jedi Academy, Jedi Outcast and Movie Duels).",

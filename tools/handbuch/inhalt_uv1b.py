@@ -177,12 +177,12 @@ X = {
         "chybu plochy a hustotu texelů na jednotku. **{{UvDehnungZeigen}}**, **{{UvUeberlappZeigen}}** a **{{UvSchachbrett}}** ukážou totéž v editoru. Textura je "
         "namalovaná pro rozložení, se kterým model přišel - posunete-li ostrov, obraz jde s ním, Zpět ho vrátí. Ukládání Ctrl+S: .glm přes zapisovač GLM, .md3 se "
         "všemi snímky a tagy; bez změny jsou obě bajt po bajtu soubor, který jste otevřeli."),
-    "bild_schnell": ("Quick unwrap Character on the stormtrooper: the limbs opened, mirrored halves stacked, the rollout Check with the measurements.",
-                     "Schnell abwickeln Figur am Sturmtruppler: die Glieder geöffnet, gespiegelte Hälften gestapelt, das Rollout Prüfen mit den Messwerten.",
-                     "在冲锋队员上快速展开 '角色': 四肢已打开, 镜像两半已堆叠, 检查卷展栏显示测量值。",
-                     "ストームトルーパーにクイック展開「キャラクター」: 手足を開き、ミラーの半分を重ね、チェックのロールアウトに測定値。",
-                     "Despliegue rápido Personaje en el soldado de asalto: extremidades abiertas, mitades reflejadas apiladas, el panel Comprobar con las medidas.",
-                     "Rychlé rozbalení Postava na stormtrooperovi: otevřené končetiny, zrcadlové poloviny na stohu, rollout Kontrola s měřeními."),
+    "bild_schnell": ("Quick unwrap Character on the stormtrooper: the limbs opened, mirrored halves stacked, the group Check with the measurements.",
+                     "Schnell abwickeln Figur am Sturmtruppler: die Glieder geöffnet, gespiegelte Hälften gestapelt, die Gruppe Prüfen mit den Messwerten.",
+                     "在冲锋队员上快速展开 '角色': 四肢已打开, 镜像两半已堆叠, 检查分组显示测量值。",
+                     "ストームトルーパーにクイック展開「キャラクター」: 手足を開き、ミラーの半分を重ね、チェックのグループに測定値。",
+                     "Despliegue rápido Personaje en el soldado de asalto: extremidades abiertas, mitades reflejadas apiladas, el grupo Comprobar con las medidas.",
+                     "Rychlé rozbalení Postava na stormtrooperovi: otevřené končetiny, zrcadlové poloviny na stohu, skupina Kontrola s měřeními."),
     "h_lizenz": ("Origin and licence", "Herkunft und Lizenz", "来源与许可", "出典とライセンス", "Origen y licencia", "Původ a licence"),
     "lizenz": (
         "The UV tools are derived from WhiteoutLib and WhiteoutFlakes (BSD 3-Clause licence with the AI-derived works notice, Copyright (c) 2026 Fernando Sahmkow); "

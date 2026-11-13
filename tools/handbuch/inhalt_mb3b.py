@@ -33,12 +33,12 @@ X = {
         "**{{MbKvDsOeffnen}}** (nabídka **{{MbBereichAnimation}}** > **{{MbKvMenue}}** > **{{MbKvGruppeEditor}}**, pravé tlačítko pohledu, vyhledávání X/F3 nebo skupina **{{MbKvRollout}}**) otevře stopy časové osy jako dopesheet; jako v 3ds Max se jmenuje **{{MbKvDsMax}}**, jako v Blenderu **{{MbKvDsBl}}**. Úchyt nad časovou osou nastaví jejich výšku. Vlevo jsou řádky: **{{MbKvZusammenfassung}}**, souhrnný řádek pro každou končetinu (kliknutím se sbalí) a řádek pro každou kost; vpravo je každý klíč vybrané sekvence kosočtverec. Kliknutí na kosočtverec ho vybere (Shift přidá), rámeček kolem klíčů je vybere, tažení vybraných klíčů je posune v čase - vždy o celé snímky, protože GLA ukládá celé snímky. Kliknutí na souhrnný řádek vybere všechny klíče toho snímku v končetině. Světlý pruh je sekvence řádku animation.cfg, oranžová čára aktuální snímek; kliknutí do pravítka ho nastaví. Kolečko přibližuje, prostřední tlačítko posouvá. **{{MbKvNurAnimierte}}** a **{{MbKvNurGewaehlte}}** filtrují řádky, **{{MbKvAllesZeigen}}** přizpůsobí sekvenci. Jako v Blenderu maže X, posouvá G a škáluje S vybrané klíče, dokud je myš nad editorem.",
     ),
     "bild_ds": (
-        "Dope sheet like 3ds Max (Track View - Dope Sheet) under the views: summary, limbs and bones with their keys of BOTH_WALK1, the selected key orange.",
-        "Dopesheet wie 3ds Max (Spuransicht - Dope Sheet) unter den Ansichten: Zusammenfassung, Glieder und Knochen mit ihren Schlüsseln in BOTH_WALK1, der gewählte Schlüssel orange.",
-        "视图下方像 3ds Max 的摄影表 (轨迹视图 - 摄影表): BOTH_WALK1 的汇总、肢体和骨骼及其关键帧, 所选关键帧为橙色。",
-        "ビューの下の 3ds Max 風ドープシート (トラック ビュー - ドープ シート): BOTH_WALK1 のサマリー、肢、ボーンとそのキー。選択キーはオレンジ。",
-        "Hoja de claves como en 3ds Max (Vista de pistas - Hoja de claves) bajo las vistas: resumen, miembros y huesos con sus claves de BOTH_WALK1; la clave seleccionada en naranja.",
-        "Dopesheet jako v 3ds Max (Track View - Dope Sheet) pod pohledy: souhrn, končetiny a kosti s jejich klíči v BOTH_WALK1, vybraný klíč oranžově."),
+        "Dope sheet like 3ds Max (Track View - Dope Sheet) in the tracks of the timeline: the track bar of the selection, limbs and bones with their keys of BOTH_WALK1 (green = rotate), the selected key framed in white.",
+        "Dopesheet wie 3ds Max (Spuransicht - Dope Sheet) in den Spuren der Zeitleiste: die Spurleiste der Auswahl, Glieder und Knochen mit ihren Schlüsseln in BOTH_WALK1 (grün = drehen), der gewählte Schlüssel weiß gerahmt.",
+        "时间轴轨道中像 3ds Max 的摄影表 (轨迹视图 - 摄影表): 所选对象的轨迹栏, BOTH_WALK1 的肢体和骨骼及其关键帧 (绿色 = 旋转), 所选关键帧带白框。",
+        "タイムラインのトラックにある 3ds Max 風ドープシート (トラック ビュー - ドープ シート): 選択のトラック バー、BOTH_WALK1 の肢、ボーンとそのキー (緑 = 回転)。選択キーは白枠。",
+        "Hoja de claves como en 3ds Max (Vista de pistas - Hoja de claves) en las pistas de la línea de tiempo: la barra de pista de la selección, miembros y huesos con sus claves de BOTH_WALK1 (verde = rotar); la clave seleccionada con marco blanco.",
+        "Dopesheet jako v 3ds Max (Track View - Dope Sheet) ve stopách časové osy: lišta stop výběru, končetiny a kosti s jejich klíči v BOTH_WALK1 (zelená = otáčení), vybraný klíč v bílém rámečku."),
     "h_kurven": ("Curve editor", "Kurveneditor", "曲线编辑器", "カーブエディター", "Editor de curvas", "Editor křivek"),
     "kurven": (
         "**{{MbKvKeOeffnen}}** (like 3ds Max **{{MbKvKeMax}}**, like Blender **{{MbKvKeBl}}**) shows one curve per channel: the rotation as quaternion "
@@ -163,12 +163,12 @@ X = {
         "je použije, i zrcadlově. **{{MbKvGruppeMarker}}** používají řádek animation.cfg: klíče na jeho prvním a posledním snímku, uzavřít smyčku, vybrat "
         "klíče uvnitř."),
     "bild_werkzeuge": (
-        "The menu Animation > Animation tools > Key tools with every slider tool and its tooltip.",
-        "Das Menü Animation > Animationswerkzeuge > Schlüssel-Werkzeuge mit jedem Schieber und seinem Tooltip.",
-        "菜单 动画 > 动画工具 > 关键帧工具, 包含每个滑块工具及其提示。",
-        "メニュー アニメーション > アニメーションツール > キーツール。各スライダーツールとツールチップ。",
-        "El menú Animación > Herramientas de animación > Herramientas de claves con cada deslizador y su descripción.",
-        "Nabídka Animace > Nástroje animace > Nástroje klíčů s každým posuvníkem a jeho nápovědou."),
+        "Search all actions (X) with Key tools: every slider tool of Animation > Animation tools > Key tools, with the tooltip of Breakdown.",
+        "Alle Aktionen suchen (X) mit Schlüssel-Werkzeuge: jeder Schieber aus Animation > Animationswerkzeuge > Schlüssel-Werkzeuge, dazu der Tooltip von Breakdown.",
+        "用“关键帧工具”搜索所有操作 (X): 动画 > 动画工具 > 关键帧工具中的每个滑块工具, 以及“细分”的提示。",
+        "「キーツール」ですべての操作を検索 (X): アニメーション > アニメーションツール > キーツールの各スライダーツールと、ブレークダウンのツールチップ。",
+        "Buscar todas las acciones (X) con Herramientas de claves: cada deslizador de Animación > Herramientas de animación > Herramientas de claves, con la descripción de Intermedio.",
+        "Hledat všechny akce (X) s Nástroje klíčů: každý posuvník z Animace > Nástroje animace > Nástroje klíčů, k tomu nápověda k Mezifáze."),
     "h_aufraeumen": ("Clean up and reduce", "Aufräumen und Reduzieren", "清理和精简", "クリーンアップと削減", "Limpiar y reducir", "Úklid a redukce"),
     "aufraeumen": (
         "A GLA stores every frame. **{{MbKvReduzieren}}** turns the frames of the selected sequence (with the rig keys on top) into few keys you can edit: per "

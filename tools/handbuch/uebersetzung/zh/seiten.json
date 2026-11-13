@@ -49,7 +49,7 @@
  "Saving a mission: every file, every check.": "保存任务:每个文件、每项检查。",
  "Start a mission on any map with one click, open the missions of the game or a mod, continue them from their folder. **{{MissionSave}}** checks everything, compiles every script and packs one `.pk3` with map, entities, scripts and ROFF files - ready for `devmap`. NPC waypoint networks are created and checked on the way. [[missionen]], [[tut-projekt]], [[k-wegpunkte]]": "一键在任意地图上开始任务,打开游戏或模组中的任务,从其文件夹继续制作。**{{MissionSave}}** 检查一切、编译每个脚本,并打包成一个包含地图、实体、脚本和 ROFF 文件的 `.pk3`——可直接用于 `devmap`。NPC 路径点网络也会在此过程中创建并检查。[[missionen]]、[[tut-projekt]]、[[k-wegpunkte]]",
  "Character models and their animations": "角色模型及其动画",
- "A character in the model view, with its animation list.": "模型视图中的角色及其动画列表。",
+ "A character in the Model tab: scene explorer, view and timeline.": "模型选项卡中的角色: 场景资源管理器、视图和时间轴。",
  "Every character of the game with its skin, every animation with its frames - click to play, double-click to put it into the script. [[modell]], [[k-animation-abspielen]], [[k-modell]]": "游戏中的每个角色及其皮肤,每个动画及其帧——单击播放,双击放入脚本。[[modell]]、[[k-animation-abspielen]]、[[k-modell]]",
  "The tools around it": "周边工具",
  "Find and replace in one script or in all open ones. [[k-suchen-ersetzen]]": "在一个脚本或所有打开的脚本中查找和替换。[[k-suchen-ersetzen]]",

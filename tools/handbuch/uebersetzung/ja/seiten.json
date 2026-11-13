@@ -49,7 +49,7 @@
  "Saving a mission: every file, every check.": "ミッションの保存:すべてのファイル、すべてのチェック。",
  "Start a mission on any map with one click, open the missions of the game or a mod, continue them from their folder. **{{MissionSave}}** checks everything, compiles every script and packs one `.pk3` with map, entities, scripts and ROFF files - ready for `devmap`. NPC waypoint networks are created and checked on the way. [[missionen]], [[tut-projekt]], [[k-wegpunkte]]": "どのマップでもワンクリックでミッションを始められ、ゲームや MOD のミッションを開いて、そのフォルダーから続きを作れます。**{{MissionSave}}** はすべてをチェックし、すべてのスクリプトをコンパイルして、マップ・エンティティ・スクリプト・ROFF ファイルを 1 つの `.pk3` にまとめます。そのまま `devmap` で使えます。NPC ウェイポイントのネットワークもその過程で作成・チェックされます。[[missionen]]、[[tut-projekt]]、[[k-wegpunkte]]",
  "Character models and their animations": "キャラクターモデルとアニメーション",
- "A character in the model view, with its animation list.": "モデルビューのキャラクターとアニメーション一覧。",
+ "A character in the Model tab: scene explorer, view and timeline.": "モデルタブのキャラクター: シーンエクスプローラー、ビュー、タイムライン。",
  "Every character of the game with its skin, every animation with its frames - click to play, double-click to put it into the script. [[modell]], [[k-animation-abspielen]], [[k-modell]]": "ゲームの全キャラクターをスキン付きで、全アニメーションをフレーム付きで。クリックで再生、ダブルクリックでスクリプトに入れます。[[modell]]、[[k-animation-abspielen]]、[[k-modell]]",
  "The tools around it": "周辺のツール",
  "Find and replace in one script or in all open ones. [[k-suchen-ersetzen]]": "1 つのスクリプト、または開いているすべてのスクリプトで検索と置換。[[k-suchen-ersetzen]]",

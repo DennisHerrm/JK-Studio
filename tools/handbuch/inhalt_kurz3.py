@@ -210,7 +210,7 @@ MODELLE = [
         T("Model · four steps"), "k_modell_leiste",
         [
             (T("**Switch skins.** In the **{{ViewModel}}** tab the **{{ModelSkin}}** list shows the skins that come with the model; **{{OpenSkin}}** loads another one."),
-             "k_modell_leiste", T("The playback bar with the skin list.")),
+             "k_modell_leiste", T("The skin list in the command panel.")),
             T("**Surfaces.** The counter of surfaces shows how many the skin draws; click it to list them all in the detail log."),
             T("**Caps.** **{{ModelCaps}}** shows the `_off` surfaces that close the holes where limbs attach."),
             T("**Another skeleton.** **{{ModelLoadGla}}** loads a different `.gla` with its animations."),

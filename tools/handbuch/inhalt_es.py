@@ -541,14 +541,14 @@ TEXTE = {
         "Figuras · cinco pasos",
     "**Load the figure's model.** Switch to **{{ViewModel}}** and press **{{NpcBrowser}}**: click a character - its model and skin load as in the game.":
         "**Carga el modelo de la figura.** Cambia a **{{ViewModel}}** y pulsa **{{NpcBrowser}}**: pulsa un personaje y su modelo y su skin se cargan como en el juego.",
-    "**Find an animation.** Type into **{{MbSuche}}**, for example `TALK`. **BOTH**, **TORSO**, **LEGS** filter by body part.":
-        "**Busca una animación.** Escribe en **{{MbSuche}}**, por ejemplo `TALK`. **BOTH**, **TORSO**, **LEGS** filtran por parte del cuerpo.",
-    "The model view with its animation list.":
-        "La vista de modelos con su lista de animaciones.",
-    "**Watch it.** Click an animation: it plays. **{{ModelLoop}}**, the speed and the frame buttons help to look closely.":
-        "**Mírala.** Pulsa una animación: se reproduce. **{{ModelLoop}}**, la velocidad y los botones de fotograma ayudan a mirar de cerca.",
-    "**Into the script.** Select a line in your script first (inside the figure's `affect` block), then double-click the animation or press **{{ModelAnimToScript}}**: `set ( SET_ANIM_BOTH, \"…\" )` is inserted after that line.":
-        "**Al script.** Selecciona antes una línea de tu script (dentro del bloque `affect` de la figura) y luego haz doble clic en la animación o pulsa **{{ModelAnimToScript}}**: se inserta `set ( SET_ANIM_BOTH, \"…\" )` tras esa línea.",
+    "**Find an animation.** In the **{{MbExplorer}}** open **{{MbXArtSequenzen}}** and type into **{{MbSuche}}**, for example `TALK`. The node lists one group at a time (BOTH_, TORSO_, LEGS_, FACE_).":
+        "**Busca una animación.** En el **{{MbExplorer}}** abre **{{MbXArtSequenzen}}** y escribe en **{{MbSuche}}**, por ejemplo `TALK`. El nodo muestra un grupo cada vez (BOTH_, TORSO_, LEGS_, FACE_).",
+    "The Model tab: scene explorer, view and timeline.":
+        "La pestaña Model: explorador de escena, vista y línea de tiempo.",
+    "**Watch it.** Click a sequence: it plays. **{{MzSchleife}}**, the speed and the frame buttons of the timeline help to look closely.":
+        "**Mírala.** Pulsa una secuencia: se reproduce. **{{MzSchleife}}**, la velocidad y los botones de fotograma de la línea de tiempo ayudan a mirar de cerca.",
+    "**Into the script.** Double-click the sequence or press **{{MbInsSkriptFenster}}** in the head of the scene explorer: choose the script, the character and the command, **{{MbInsSkriptEinfuegen}}** puts `set ( SET_ANIM_BOTH, \"…\" )` into the script.":
+        "**Al script.** Haz doble clic en la secuencia o pulsa **{{MbInsSkriptFenster}}** en la cabecera del explorador de escena: elige el script, la figura y el comando; **{{MbInsSkriptEinfuegen}}** pone `set ( SET_ANIM_BOTH, \"…\" )` en el script.",
     "**See it on the map.** Switch back to **{{ViewMap}}** and play the timeline: the figure plays the animation at that point.":
         "**Mírala en el mapa.** Vuelve a **{{ViewMap}}** y reproduce la línea de tiempo: la figura reproduce la animación en ese punto.",
     "Add a line of dialogue":
@@ -770,8 +770,8 @@ TEXTE = {
         "**Mira alrededor.** El botón izquierdo gira, el central mueve, la rueda amplía. **{{ModelTurntable}}** lo hace girar solo, **{{ModelResetView}}** lo devuelve de frente.",
     "The model view.":
         "La vista de modelos.",
-    "**Details.** **{{ModelSkin}}** switches skins, **{{ModelBones}}** shows the skeleton, **{{ModelTextures}}** switches textures off.":
-        "**Detalles.** **{{ModelSkin}}** cambia de skin, **{{ModelBones}}** muestra el esqueleto, **{{ModelTextures}}** desactiva las texturas.",
+    "**Details.** **{{ModelBones}}** in the toolbar above the view shows the skeleton, **{{ModelTextures}}** switches textures off; the skins are in the group **{{MbRLod}}** of the command panel.":
+        "**Detalles.** **{{ModelBones}}** en la barra de herramientas sobre la vista muestra el esqueleto, **{{ModelTextures}}** desactiva las texturas; las skins están en el grupo **{{MbRLod}}** del panel de comandos.",
     "Tutorials: scripts":
         "Tutoriales: scripts",
     "Tutorials: camera and timeline":
@@ -1240,8 +1240,8 @@ TEXTE = {
         "Otra skin, otro esqueleto, y las superficies que una skin activa o desactiva.",
     "**Switch skins.** In the **{{ViewModel}}** tab the **{{ModelSkin}}** list shows the skins that come with the model; **{{OpenSkin}}** loads another one.":
         "**Cambia de skin.** En la pestaña **{{ViewModel}}**, la lista **{{ModelSkin}}** muestra las skins que trae el modelo; **{{OpenSkin}}** carga otra.",
-    "The playback bar with the skin list.":
-        "La barra de reproducción con la lista de skins.",
+    "The skin list in the command panel.":
+        "La lista de skins en el panel de comandos.",
     "**Surfaces.** The counter of surfaces shows how many the skin draws; click it to list them all in the detail log.":
         "**Superficies.** El contador de superficies muestra cuántas dibuja la skin; púlsalo para listarlas todas en el registro detallado.",
     "**Caps.** **{{ModelCaps}}** shows the `_off` surfaces that close the holes where limbs attach.":
@@ -1606,8 +1606,8 @@ TEXTE = {
         "Empieza una misión en cualquier mapa con un clic, abre las misiones del juego o de un mod, continúalas desde su carpeta. **{{MissionSave}}** lo comprueba todo, compila cada script y empaqueta un `.pk3` con mapa, entidades, scripts y archivos ROFF, listo para `devmap`. Por el camino se crean y comprueban las redes de waypoints de NPC. [[missionen]], [[tut-projekt]], [[k-wegpunkte]]",
     "Character models and their animations":
         "Modelos de personajes y sus animaciones",
-    "A character in the model view, with its animation list.":
-        "Un personaje en la vista de modelos, con su lista de animaciones.",
+    "A character in the Model tab: scene explorer, view and timeline.":
+        "Un personaje en la pestaña Model: explorador de escena, vista y línea de tiempo.",
     "Every character of the game with its skin, every animation with its frames - click to play, double-click to put it into the script. [[modell]], [[k-animation-abspielen]], [[k-modell]]":
         "Cada personaje del juego con su skin, cada animación con sus fotogramas: pulsa para reproducirla, doble clic para ponerla en el script. [[modell]], [[k-animation-abspielen]], [[k-modell]]",
     "The tools around it":
@@ -6108,8 +6108,8 @@ TEXTE = {
         "El anillo en una figura que camina.",
     "The NPC browser.":
         "El navegador de NPC.",
-    "Loop in the playback bar.":
-        "Bucle en la barra de reproducción.",
+    "Force loop in the timeline.":
+        "Forzar bucle en la línea de tiempo.",
     "Into script.":
         "Al script.",
     "The figure in the scene.":
@@ -6318,8 +6318,8 @@ TEXTE = {
         "**Cambia a {{ViewModel}}** en la barra de modos de la izquierda.",
     "Model in the mode bar.":
         "Modelo en la barra de modos.",
-    "Skin, Bones and Textures.":
-        "Skin, Huesos y Texturas.",
+    "Bones and Textures in the toolbar.":
+        "Huesos y Texturas en la barra de herramientas.",
     "**Find the scene.** In the **{{ViewMap}}** tab, **Scripts (N)** on the map toolbar lists the scripts the map uses - pick the intro. The timeline shows its camera.":
         "**Busca la escena.** En la pestaña **{{ViewMap}}**, **Scripts (N)** en la barra del mapa lista los scripts que usa el mapa: elige la introducción. La línea de tiempo muestra su cámara.",
     "The scripts of the map.":
@@ -6406,8 +6406,8 @@ TEXTE = {
         "Una task, dowait y wait por cada punto.",
     "**Watch.** Play the timeline - the guard walks the round.":
         "**Mira.** Reproduce la línea de tiempo: el guardia hace la ronda.",
-    "**Switch skins.** In the **{{ViewModel}}** tab the **{{ModelSkin}}** list in the playback bar shows the skins that come with the model; **{{OpenSkin}}** loads another one.":
-        "**Cambia de skin.** En la pestaña **{{ViewModel}}**, la lista **{{ModelSkin}}** de la barra de reproducción muestra las skins que trae el modelo; **{{OpenSkin}}** carga otra.",
+    "**Switch skins.** In the **{{ViewModel}}** tab the group **{{MbRLod}}** of the command panel lists the skins that come with the model; **{{OpenSkin}}** in the toolbar loads another one.":
+        "**Cambia de skin.** En la pestaña **{{ViewModel}}**, el grupo **{{MbRLod}}** del panel de comandos muestra las skins que trae el modelo; **{{OpenSkin}}** en la barra de herramientas carga otra.",
     "**Surfaces.** The counter next to it shows how many surfaces the skin draws; click it to list them all in the detail log.":
         "**Superficies.** El contador de al lado muestra cuántas superficies dibuja la skin; púlsalo para listarlas todas en el registro detallado.",
     "The surface counter.":

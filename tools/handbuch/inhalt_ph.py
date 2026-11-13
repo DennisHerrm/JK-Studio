@@ -111,12 +111,12 @@ X = {
         "vycházejí z dotyků chodidel; **{{PhAbsprungHier}}** a **{{PhLandungHier}}** je nastaví na časovém ukazateli, **{{PhFlugAutomatisch}}** je opět vezme z "
         "dotyků. S **{{PhKontakte}}** chodidlo na zemi neklouže: IK nohy drží jeho nejnižší bod tam, kde dotyk začal; odvalování přes bříško a výška zůstanou z "
         "vašich klíčů."),
-    "bild_sprung": ("A jump with auto physics: the path of the centre of mass is a parabola (orange), the rollout shows take-off, landing and the result.",
-                    "Ein Sprung mit Auto-Physik: der Weg des Schwerpunkts ist eine Parabel (orange), das Rollout zeigt Absprung, Landung und das Ergebnis.",
-                    "带自动物理的跳跃: 重心路径为抛物线 (橙色), 卷展栏显示起跳、落地和结果。",
-                    "オートフィジックスのジャンプ: 重心の軌跡は放物線 (オレンジ)、ロールアウトに踏み切り・着地・結果が表示されます。",
-                    "Un salto con física automática: la trayectoria del centro de masa es una parábola (naranja); el panel muestra despegue, aterrizaje y resultado.",
-                    "Skok s automatickou fyzikou: dráha těžiště je parabola (oranžově), rollout ukazuje odraz, dopad a výsledek."),
+    "bild_sprung": ("A jump with auto physics: the path of the centre of mass is a parabola (orange), the group Auto physics shows take-off, landing and the result.",
+                    "Ein Sprung mit Auto-Physik: der Weg des Schwerpunkts ist eine Parabel (orange), die Gruppe Auto-Physik zeigt Absprung, Landung und das Ergebnis.",
+                    "带自动物理的跳跃: 重心路径为抛物线 (橙色), “自动物理”分组显示起跳、落地和结果。",
+                    "オートフィジックスのジャンプ: 重心の軌跡は放物線 (オレンジ)、グループ「オートフィジックス」に踏み切り・着地・結果が表示されます。",
+                    "Un salto con física automática: la trayectoria del centro de masa es una parábola (naranja); el grupo Física automática muestra despegue, aterrizaje y resultado.",
+                    "Skok s automatickou fyzikou: dráha těžiště je parabola (oranžově), skupina Automatická fyzika ukazuje odraz, dopad a výsledek."),
     "h_federn": ("Spring chains", "Federketten", "弹簧链", "スプリングチェーン", "Cadenas elásticas", "Pružné řetězy"),
     "federn": (
         "Cloaks, coat tails, hair and straps can follow through: select a bone and click **{{PhKetteHier}}** (also in the right-click of a control), or let "
@@ -155,12 +155,12 @@ X = {
         "Okno **{{FaTitel}}** má stejný rollout **{{PhRollout}}** a stejnojmennou nabídku. Tam je podlahou mapa pod chodidly (traceRay) a gravitace je gravitace "
         "mapy (worldspawn \"gravity\"). Při sestavení pro hru jde fyzika do mapového GLA; v Movie Duels i v původním JKA pak postava letí stejnou parabolu jako v "
         "náhledu."),
-    "bild_figur": ("The same jump on the map: centre of mass with its path, rollout Auto physics in the window Animate figure.",
-                   "Derselbe Sprung auf der Karte: Schwerpunkt mit seinem Weg, Rollout Auto-Physik im Fenster Figur animieren.",
-                   "地图上的同一跳跃: 重心及其路径, 窗口“为角色制作动画”中的“自动物理”卷展栏。",
-                   "マップ上の同じジャンプ: 重心とその軌跡、ウィンドウ「フィギュアをアニメート」のロールアウト「オートフィジックス」。",
-                   "El mismo salto en el mapa: centro de masa con su trayectoria, panel Física automática en la ventana Animar figura.",
-                   "Tentýž skok na mapě: těžiště s dráhou, rollout Automatická fyzika v okně Animovat postavu."),
+    "bild_figur": ("The same jump on the map: centre of mass with its path, group Auto physics in the window Animate figure.",
+                   "Derselbe Sprung auf der Karte: Schwerpunkt mit seinem Weg, Gruppe Auto-Physik im Fenster Figur animieren.",
+                   "地图上的同一跳跃: 重心及其路径, 窗口“为角色制作动画”中的“自动物理”分组。",
+                   "マップ上の同じジャンプ: 重心とその軌跡、ウィンドウ「フィギュアをアニメート」のグループ「オートフィジックス」。",
+                   "El mismo salto en el mapa: centro de masa con su trayectoria, grupo Física automática en la ventana Animar figura.",
+                   "Tentýž skok na mapě: těžiště s dráhou, skupina Automatická fyzika v okně Animovat postavu."),
 }
 
 
