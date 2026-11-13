@@ -261,13 +261,29 @@ Schritt rundlauf(const std::string& spiel) {
                               fk = fk || k.rolle == modell::Rolle::Becken || k.rolle == modell::Rolle::Wirbel || k.rolle == modell::Rolle::Hals ||
                                    k.rolle == modell::Rolle::Kopf || modell::armRolle(k.rolle) || modell::beinRolle(k.rolle);
                           }
-                          if (!fk) {
-                              ++z->figurenOhne;
-                              z->bericht += "  ohne Griff-Rolle: " + f + "\n";
-                          } else if (r.leer()) {
-                              z->bericht += "  Rig leer trotz Griff-Rolle: " + f + "\n";
+                          // ENT3B (B17, 40bc342dd): jedes Rig traegt am Ende den Griff der Wurzel (Plattform wie CATParent, Rigify root) -
+                          // er ist kein FK-Griff. Eine Figur mit FK-Rolle braucht mindestens einen Griff daneben, eine ohne hat genau
+                          // den Griff der Wurzel (bis ENT3B war ihr Rig leer).
+                          int fkGriffe = 0;
+                          int wurzelGriffe = 0;
+                          for (const modell::Griff& gr : r.griffe) {
+                              if (gr.art == modell::GriffArt::Wurzel) {
+                                  ++wurzelGriffe;
+                              } else {
+                                  ++fkGriffe;
+                              }
                           }
-                          z->figurenRig += r.leer() ? 0 : 1;
+                          if (!fk) {
+                              if (fkGriffe == 0 && wurzelGriffe == 1) {
+                                  ++z->figurenOhne;
+                                  z->bericht += "  ohne Griff-Rolle (nur der Griff der Wurzel): " + f + "\n";
+                              } else {
+                                  z->bericht += "  ohne Griff-Rolle, aber " + std::to_string(fkGriffe) + " Griffe und " + std::to_string(wurzelGriffe) + " Wurzel: " + f + "\n";
+                              }
+                          } else if (fkGriffe == 0 || wurzelGriffe != 1) {
+                              z->bericht += "  Rig ohne Griff (oder ohne genau einen Griff der Wurzel) trotz Griff-Rolle: " + f + "\n";
+                          }
+                          z->figurenRig += fk && fkGriffe > 0 && wurzelGriffe == 1 ? 1 : 0;
                       }
                       // Backen: ohne Aenderung Byte fuer Byte, ganz neu innerhalb der Stufen
                       const modell::RigSchicht leer;
