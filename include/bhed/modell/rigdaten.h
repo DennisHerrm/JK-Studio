@@ -247,6 +247,11 @@ struct RigDaten {
     // FIX612C (P3-5): "Animation-Rig (nur FK)" - im Dokument, damit Rueckgaengig den Modus zusammen mit den IK-Spuren
     // zurueckholt, die der Wechsel in FK gebacken hat. Mit nur FK traegt keine Schicht eine IK-Spur.
     bool nurFk = false;
+    // ENT3B (C3): die Wahl der Rig-Vorlage (-2 automatisch, -1 eigenes Skelett, sonst Index in modell::rtVorlagen()) - im Dokument,
+    // damit Rueckgaengig/Wiederholen den Wechsel mitnehmen. Sie gilt fuer das Skelett `vorlageFuer` (Name|Skelett|Knochenzahl der GLA);
+    // mit einem anderen Skelett gilt wieder automatisch.
+    int vorlage = -2;
+    std::string vorlageFuer;
 };
 
 }  // namespace bhed::modell

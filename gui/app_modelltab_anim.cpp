@@ -82,12 +82,21 @@ const char* gruppeText(const std::string& g) {
 }
 
 // Die Wahl gilt fuer ein Skelett: mit einem anderen wieder automatisch, die erkannte Vorlage neu gesucht.
+std::string skelettSchluessel() { return g_app->anim.name + "|" + g_app->anim.skeletonName + "|" + std::to_string(g_app->anim.bones.size()); }
+
+// ENT3B (C3): die Wahl der Vorlage steht im Dokument (RigDaten::vorlage, Rueckgaengig/Wiederholen); hier nur die erkannte Vorlage des
+// Skeletts (zwischengespeichert, die Erkennung ist teuer)
 void vorlageAbgleich() {
-    const std::string k = g_app->anim.name + "|" + g_app->anim.skeletonName + "|" + std::to_string(g_app->anim.bones.size());
+    const std::string k = skelettSchluessel();
     if (g_anim.vorlageFuer == k) { return; }
     g_anim.vorlageFuer = k;
-    g_anim.vorlage = -2;
     g_anim.erkannt = g_app->anim.bones.empty() ? -1 : modell::rtVorlageFuer(g_app->anim, g_app->anim.skeletonName + ".gla");
+}
+
+// Die Wahl im Dokument - fuer ein anderes Skelett gilt wieder automatisch
+int vorlageImDokument() {
+    const modell::RigDaten& r = mt().dok.inhalt().rig;
+    return r.vorlageFuer == skelettSchluessel() ? r.vorlage : -2;
 }
 
 int gruppeVon(int vorlage) {
@@ -109,7 +118,7 @@ void modellRigNurFkSetzen(bool an) {
 
 int modellAnimVorlageWahl() {
     vorlageAbgleich();
-    return g_anim.vorlage;
+    return vorlageImDokument();
 }
 
 int modellAnimVorlageErkannt() {
@@ -119,7 +128,8 @@ int modellAnimVorlageErkannt() {
 
 int modellAnimVorlage() {
     vorlageAbgleich();
-    return g_anim.vorlage == -2 ? g_anim.erkannt : g_anim.vorlage;
+    const int w = vorlageImDokument();
+    return w == -2 ? g_anim.erkannt : w;
 }
 
 void modellAnimVorlageSetzen(int wahl) {
@@ -127,8 +137,13 @@ void modellAnimVorlageSetzen(int wahl) {
     wahl = std::clamp(wahl, -2, static_cast<int>(vorlagen().size()) - 1);
     // die erkannte Vorlage von Hand gewaehlt ist "automatisch"
     if (wahl >= 0 && wahl == g_anim.erkannt) { wahl = -2; }
-    if (wahl == g_anim.vorlage) { return; }
-    g_anim.vorlage = wahl;
+    if (wahl == vorlageImDokument()) { return; }
+    // ENT3B (C3): ein Schritt des Dokuments - Strg+Z/Strg+Y nehmen den Wechsel mit, das Rig folgt (rigSchluessel enthaelt die Wahl)
+    const std::string fuer = skelettSchluessel();
+    (void)mt().dok.aendern(tr(Str::E3UndoVorlage), [&](modell::Inhalt& in) {
+        in.rig.vorlage = wahl;
+        in.rig.vorlageFuer = fuer;
+    }, false);
     const int w = modellAnimVorlage();
     melden(format(Str::AzVorlageGesetzt, w >= 0 ? vorlagen()[static_cast<std::size_t>(w)].name.c_str() : tr(Str::AzVorEigen)));
     // ein vorhandenes Rig bekommt die Rollen der neuen Vorlage
@@ -268,9 +283,10 @@ void drawModellAnimVorlage() {
     char massstab[32];
     std::snprintf(massstab, sizeof massstab, "%.3g", static_cast<double>(a.scale));
     std::string erkannt = tr(Str::AzErkanntEigen);
-    ui::Ton ton = g_anim.vorlage == -1 ? ui::Ton::Normal : ui::Ton::Warnung;
+    const int wahlJetzt = vorlageImDokument();
+    ui::Ton ton = wahlJetzt == -1 ? ui::Ton::Normal : ui::Ton::Warnung;
     if (wirksam >= 0) {
-        const bool vonHand = g_anim.vorlage >= 0;
+        const bool vonHand = wahlJetzt >= 0;
         erkannt = format(vonHand ? Str::AzErkanntHand : Str::AzErkanntVorlage, v[static_cast<std::size_t>(wirksam)].name.c_str());
         ton = vonHand ? ui::Ton::Normal : ui::Ton::Gut;
     }

@@ -1496,8 +1496,7 @@ void modellEckenBild(const ModellAnsicht& a, ModellEckenBild& aus);
 // Baustein gui/ui_rollout.h. gui/app_modelltab_anim.cpp haelt die Reihenfolge, die Rig-Vorlagen, den Wurzelweg und die Gruppe
 // Anbauten und Vorschau; jede andere Gruppe steht in der Datei ihrer Funktion (rig, ik, physik, retarget, kurven, mb3).
 struct ModellAnim {
-    int vorlage = -2;             // Rig-Vorlage: -2 automatisch (modell::rtVorlageFuer), -1 eigenes Skelett (Ketten vorgeschlagen), sonst Index in modell::rtVorlagen()
-    std::string vorlageFuer;      // das Skelett, fuer das die Wahl gilt (ein anderes Skelett: wieder automatisch)
+    std::string vorlageFuer;      // das Skelett, fuer das `erkannt` gilt (ENT3B C3: die Wahl der Vorlage steht im Dokument, RigDaten::vorlage)
     int erkannt = -1;             // die erkannte Vorlage dieses Skeletts (-1 keine)
     bool generatorOffen = false;  // Presets: der Generator ist aufgeklappt
     std::string wegFuer;          // Wurzelweg: wofuer er gerechnet ist (GLA, Sequenz, Stand des Dokuments)

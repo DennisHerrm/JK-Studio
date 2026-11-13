@@ -74,6 +74,7 @@ std::string rigSchluessel() {
         k += std::to_string(z.knochen) + ":" + std::to_string(static_cast<int>(z.rolle)) + ":" + std::to_string(static_cast<int>(z.seite)) + ",";
     }
     k += in.rig.nurFk ? "|fk" : "|ik";   // FIX612C: Rueckgaengig/Wiederholen des Modus baut die Griffe neu
+    k += "|v" + std::to_string(modellAnimVorlageWahl());   // ENT3B (C3): ebenso die Wahl der Rig-Vorlage (im Dokument)
     return k;
 }
 
