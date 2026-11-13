@@ -243,8 +243,18 @@ std::vector<Schritt> mb2Schritte() {
         g_app->mtab.knochenWahl = *kopfKnochen;
         g_app->modelDirty = true;
     }));
+    // ENTSCHEID3A (Testfund): seit AP13K stehen Knochen und Griffe im Bild der Ansicht vor der Figur - die Probe in der Mitte von r_leg
+    // traf einen Knochenstab (Foto mb2_weights_kopf: Fuss 108/116/71 statt blau). Gemessen werden soll die Farbe der Haut: fuer
+    // diese Probe sind die Knochen aus; Orte, Bedingungen und Schwellen bleiben, die Probe prueft dazu, dass sie wirklich aus sind.
+    auto knochenVorher = std::make_shared<bool>(true);
+    add(tu("MB2 Weights: Knochen fuer die Farbprobe aus (gemessen wird die Haut)", [knochenVorher] {
+        *knochenVorher = g_app->modellKnochen;
+        g_app->modellKnochen = false;
+        g_app->modelDirty = true;
+    }));
     add(pause(0.4));
     add(pruefe("MB2 Weights: die Farbe wie Blender weight_to_rgb - der Kopf an seinem Knochen rot (Gewicht 1), die Fuesse blau", [kopfEcke, kopfGewicht] {
+        if (g_app->modellKnochen) { return false; }   // ENTSCHEID3A: die Probe misst ohne Knochen im Bild
         AnsichtBild b;
         ImVec2 p;
         ImVec2 fuss;
@@ -264,6 +274,10 @@ std::vector<Schritt> mb2Schritte() {
                       static_cast<double>(*kopfGewicht), k[0], k[1], k[2], f[0], f[1], f[2]);
         diag::detail(z);
         return *kopfGewicht > 0.95F && k[0] > 2 * k[1] && k[0] > 2 * k[2] && f[2] > f[0] && f[2] > f[1];
+    }));
+    add(tu("MB2 Weights: Knochen wieder wie vorher", [knochenVorher] {
+        g_app->modellKnochen = *knochenVorher;
+        g_app->modelDirty = true;
     }));
     add(tu("MB2 Weights: zurueck auf rhand", [rhand] {
         g_app->mtab.knochenWahl = *rhand;
