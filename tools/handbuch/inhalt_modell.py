@@ -107,6 +107,7 @@ QUELLEN = [
     Hinter("inhalt_ent3a", "bloecke_leiste", "modell-blender", "inhalt_ap4", "gruppen"),        # B8 Leiste breiter ziehen
     Hinter("inhalt_ent3a", "bloecke_seite", "modell-blender", "inhalt_ap4", "seite"),           # B9 Seitenleiste bei Knochen
     Hinter("inhalt_ent3a", "bloecke_stapel", "modell-modellieren", "inhalt_ap13s", "bedienen"), # B11-B13 im Modifier-Stapel
+    Anhang("inhalt_ap11", "modell-ansehen"),        # AP11: Abschnitt Mehrere Modelle in Reitern, Flaechen kopieren und einfuegen
 ]
 
 
