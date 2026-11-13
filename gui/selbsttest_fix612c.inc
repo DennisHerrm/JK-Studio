@@ -205,10 +205,12 @@ void nurFkSchritte(std::vector<Schritt>& s) {
         (void)modellAnimRigErstellen(false);
     }));
     add(pause(0.5));
-    add(pruefe("FIX612C P3-5i: Control Rig erstellen nach nur FK: IK-Griffe wieder da, die Schicht bleibt unberuehrt, ein Strg+Z fuehrt zurueck auf nur FK", [=] {
-        const bool voll = !modellRigNurFk() && ikGriffe() > 0 && ap10::schluessel() == *schichtVor && ikSpurenMitSchluesseln() == 0;
+    // ENT3B (C1, Entscheidung 12.11.): Control Rig erstellen nach nur FK stellt die Glieder wieder auf IK (FK -> IK wie beim ersten
+    // Erstellen) - bis dahin blieb die Schicht unberuehrt (FIX612C-Vorgabe)
+    add(pruefe("FIX612C P3-5i: Control Rig erstellen nach nur FK: IK-Griffe wieder da, die Glieder wieder auf IK (ENT3B C1), ein Strg+Z fuehrt zurueck auf nur FK mit derselben Schicht", [=] {
+        const bool voll = !modellRigNurFk() && ikGriffe() > 0 && ikSpurenMitSchluesseln() == 4;
         (void)modellRueckgaengig();
-        const bool zurueck = modellRigNurFk() && ap10::schluessel() == *schichtVor;
+        const bool zurueck = modellRigNurFk() && ap10::schluessel() == *schichtVor && ikSpurenMitSchluesseln() == 0;
         melde(std::string("P3-5i: voll ") + (voll ? "ja" : "nein") + ", zurueck " + (zurueck ? "ja" : "nein"));
         return voll && zurueck;
     }));

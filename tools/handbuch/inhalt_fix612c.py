@@ -12,26 +12,26 @@ X = {
     "nurfk": (
         "**{{AzRigFk}}** after **{{AzRigErstellen}}**: limbs that are on IK in a sequence are first baked into FK keys at every frame (in every sequence of the "
         "figure), then the IK tracks are removed - the motion stays exactly the same and every rotation control turns its bone. Ctrl+Z brings the IK tracks, "
-        "the IK targets and poles back in one step. **{{AzRigErstellen}}** turns the IK targets on again; an existing animation stays on FK until you switch a "
-        "limb to IK in **{{MbIkRollout}}** or use **{{AzAufRig}}**.",
+        "the IK targets and poles back in one step. **{{AzRigErstellen}}** turns the IK targets on again and puts the limbs back on IK in every "
+        "sequence - their FK keys go to IK targets and poles like the first time; one Ctrl+Z takes it back.",
         "**{{AzRigFk}}** nach **{{AzRigErstellen}}**: Glieder, die in einer Sequenz auf IK stehen, werden zuerst an jedem Bild in FK-Schlüssel gebacken (in jeder "
         "Sequenz der Figur), danach fallen die IK-Spuren weg - die Bewegung bleibt genau gleich, und jeder Dreh-Griff dreht seinen Knochen. Strg+Z holt IK-Spuren, "
-        "IK-Ziele und Pole in einem Schritt zurück. **{{AzRigErstellen}}** schaltet die IK-Ziele wieder ein; eine vorhandene Animation bleibt auf FK, bis du ein "
-        "Glied in **{{MbIkRollout}}** auf IK stellst oder **{{AzAufRig}}** nimmst.",
+        "IK-Ziele und Pole in einem Schritt zurück. **{{AzRigErstellen}}** schaltet die IK-Ziele wieder ein und stellt die Glieder in jeder Sequenz wieder auf "
+        "IK - ihre FK-Schlüssel gehen wie beim ersten Erstellen auf IK-Ziele und Pole; ein Strg+Z nimmt es zurück.",
         "在 **{{AzRigErstellen}}** 之后使用 **{{AzRigFk}}**: 序列中处于 IK 的肢体会先在每一帧烘焙为 FK 关键帧 (角色的每个序列都会处理), 然后移除 IK 轨道 - 动作完全不变, "
-        "每个旋转控制器都能旋转其骨骼。Ctrl+Z 一步恢复 IK 轨道、IK 目标和极向。**{{AzRigErstellen}}** 会重新打开 IK 目标; 现有动画保持 FK, 直到你在 **{{MbIkRollout}}** "
-        "中把某个肢体切换为 IK 或使用 **{{AzAufRig}}**。",
+        "每个旋转控制器都能旋转其骨骼。Ctrl+Z 一步恢复 IK 轨道、IK 目标和极向。**{{AzRigErstellen}}** 会重新打开 IK 目标, 并在每个序列中把肢体重新设为 IK "
+        "- 其 FK 关键帧像首次创建时一样转到 IK 目标和极向; 一次 Ctrl+Z 即可撤销。",
         "**{{AzRigErstellen}}** の後の **{{AzRigFk}}**: シーケンスで IK になっている手足は、まず各フレームで FK キーにベイクされ (フィギュアのすべてのシーケンス)、その後 IK "
         "トラックが削除されます。動きはまったく変わらず、各回転コントロールがボーンを回します。Ctrl+Z で IK トラック、IK ターゲット、ポールが 1 ステップで戻ります。"
-        "**{{AzRigErstellen}}** で IK ターゲットが再び有効になります。既存のアニメーションは、**{{MbIkRollout}}** で手足を IK に切り替えるか **{{AzAufRig}}** を使うまで FK のままです。",
+        "**{{AzRigErstellen}}** で IK ターゲットが再び有効になり、すべてのシーケンスで手足が再び IK になります - FK キーは最初の作成時と同じく IK ターゲットとポールに移り、1 回の Ctrl+Z で戻せます。",
         "**{{AzRigFk}}** después de **{{AzRigErstellen}}**: las extremidades que están en IK en una secuencia se hornean primero en claves FK en cada fotograma (en "
         "todas las secuencias de la figura) y después se quitan las pistas IK; el movimiento queda exactamente igual y cada control de giro gira su hueso. Ctrl+Z "
-        "recupera en un paso las pistas IK, los objetivos IK y los polos. **{{AzRigErstellen}}** vuelve a activar los objetivos IK; una animación existente sigue "
-        "en FK hasta que pases una extremidad a IK en **{{MbIkRollout}}** o uses **{{AzAufRig}}**.",
+        "recupera en un paso las pistas IK, los objetivos IK y los polos. **{{AzRigErstellen}}** vuelve a activar los objetivos IK y pone las extremidades de nuevo en IK "
+        "en cada secuencia; sus claves FK pasan a objetivos IK y polos como la primera vez, y un Ctrl+Z lo deshace.",
         "**{{AzRigFk}}** po **{{AzRigErstellen}}**: končetiny, které jsou v sekvenci na IK, se nejdřív v každém snímku zapečou do klíčů FK (ve všech sekvencích "
         "postavy), potom stopy IK zmizí - pohyb zůstane přesně stejný a každý otočný ovladač otáčí svou kostí. Ctrl+Z vrátí jedním krokem stopy IK, cíle IK a "
-        "póly. **{{AzRigErstellen}}** cíle IK znovu zapne; existující animace zůstane na FK, dokud končetinu nepřepneš v **{{MbIkRollout}}** na IK nebo nepoužiješ "
-        "**{{AzAufRig}}**."),
+        "póly. **{{AzRigErstellen}}** cíle IK znovu zapne a vrátí končetiny ve všech sekvencích na IK "
+        "- jejich klíče FK přejdou jako při prvním vytvoření na cíle IK a póly; jedno Ctrl+Z to vrátí."),
     "knochen": (
         "Like 3ds Max, **{{BzKnochenWaehlen}}** is a switch like **{{BzMessenMax}}**: Search all actions and the context menu of the view turn it on and off "
         "(with a check mark in the menu), and while it is on, the top of the view says so. Q, W, E and R end it, and so does changing from like Blender to "

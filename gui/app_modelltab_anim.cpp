@@ -202,6 +202,49 @@ bool modellAnimRigErstellen(bool nurFk) {
         g_app->animPlaying = false;
     }
     if (!modellRigAnlegen()) { return false; }
+    if (wechsel && !nurFk) {
+        // ENT3B (C1, Entscheidung 12.11.): zurueck von "nur FK" stellt die Glieder jeder Schicht wieder auf IK - mit der Uebertragung
+        // FK -> IK wie beim ersten Erstellen (ENT2: ein IK-Schluessel je Bild auf der FK-Pose, Anteil 1, die FK-Kette an jedem Bild);
+        // mit dem Wechsel des Modus EIN Rueckgaengig-Schritt
+        int wieder = 0;
+        int sequenzenIk = 0;
+        float abweichung = 0.0F;
+        bool geaendert = false;
+        (void)t.dok.aendern(tr(Str::MbRgAnlegen), [&](modell::Inhalt& in) {
+            const int letztes = std::max(g_app->anim.bildZahl(), 1) - 1;
+            for (auto& [name, sch] : in.rig.schichten) {
+                if (sch.schluesselZahl() == 0 || !sch.ik.empty()) { continue; }
+                int von = 0;
+                int bis = letztes;
+                for (const AnimEntry& e : g_app->animList) {
+                    if (e.name != name) { continue; }
+                    von = std::clamp(e.firstFrame, 0, letztes);
+                    bis = std::clamp(e.firstFrame + std::max(e.numFrames, 1) - 1, von, letztes);
+                    break;
+                }
+                const modell::RigSchicht vorher = sch;
+                int glieder = 0;
+                for (int art = 0; art < modell::kIkArten; ++art) {
+                    const int sp = modellIkSpur(art, sch);
+                    if (sp < 0) { continue; }
+                    modell::ikKetteJedesBild(g_app->anim, sch, sp, von, bis);
+                    modell::ikAufFkBereich(g_app->anim, sch, sp, von, bis, 1.0F);
+                    ++glieder;
+                }
+                if (glieder == 0) { continue; }
+                wieder += glieder;
+                ++sequenzenIk;
+                geaendert = true;
+                for (const float d : modell::ikGliedAbweichung(g_app->anim, vorher, sch, von, bis)) { abweichung = std::max(abweichung, d); }
+            }
+        }, false);
+        if (geaendert) {
+            (void)t.dok.zusammenlegen();   // mit dem Wechsel des Modus ein Schritt
+            melden(format(Str::E3RigWiederIk, wieder, sequenzenIk, static_cast<double>(abweichung)));
+        } else {
+            (void)t.dok.abbrechen();   // nichts aufgelegt (keine Schicht mit Schluesseln): kein leerer Schritt
+        }
+    }
     // ENT2 (shank 12.11.: "bei Control Rig Erstellung von FK auf IK uebertragen ... wie das CAT Rig"): eine Animation der Sequenz
     // geht beim Erstellen des Control Rigs von FK auf IK auf das Rig (wie "Auf Rig legen"), danach arbeitet man an den Griffen.
     // Eine Schicht mit Schluesseln - schon aufgelegt oder bearbeitet - bleibt (Neu erkennen); "Auf Rig legen" legt neu auf.
