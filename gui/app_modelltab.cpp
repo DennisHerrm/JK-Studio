@@ -178,6 +178,7 @@ void modellDokumentLaden(const std::string& bytes) {
     }
     in.kinoBelegung = t.dok.inhalt().kinoBelegung;   // REST N10: die Belegung der Ziel-GLA bleibt
     t.dok.laden(std::move(in));
+    modellEnt3aNachLaden();   // ENTSCHEID3A (B11, B12): der Inhalt wie geladen, Meldung zur Begleitdatei
     t.dokModell = g_app->modelPath;
     t.gespeichertStand = -1;   // pfix H3: ein neues Modell ist ungeaendert
     t.g2 = modell::G2Zustand{};
@@ -216,6 +217,7 @@ void modellAnzeigeAktualisieren() {
         modell::ausGlmModell(g_app->model, in);
         in.kinoBelegung = t.dok.inhalt().kinoBelegung;   // REST N10: die Belegung der Ziel-GLA bleibt
     t.dok.laden(std::move(in));
+        modellEnt3aNachLaden();   // ENTSCHEID3A (B11)
         t.dokModell = g_app->modelPath;
         t.g2 = modell::G2Zustand{};
         t.hautAus.clear();

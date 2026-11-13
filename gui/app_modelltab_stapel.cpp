@@ -175,7 +175,10 @@ void zeichnungBauen() {
     z.ersetzt.assign(t.anzeige.surfaces.size(), 0);
     z.stand.clear();
     const modell::Inhalt& in = t.dok.inhalt();
-    if (in.teile.size() != t.anzeige.surfaces.size() || !modell::stapelWirkt(in, StapelZweck::Ansicht)) {
+    // ENTSCHEID3A (B11): eine Flaeche mit Edit Poly aus zeichnet das Netz, wie es geladen wurde
+    bool polyAus = false;
+    for (std::size_t i = 0; i < in.teile.size(); ++i) { polyAus = polyAus || modellEnt3aPolyAus(zi(i)); }
+    if (in.teile.size() != t.anzeige.surfaces.size() || (!modell::stapelWirkt(in, StapelZweck::Ansicht) && !polyAus)) {
         if (!z.zeichnung.empty()) { z.zeichnung = GlmModel{}; }
         return;
     }
@@ -183,8 +186,14 @@ void zeichnungBauen() {
     GlmModel m = t.anzeige;
     z.stand.resize(in.teile.size());
     for (std::size_t i = 0; i < in.teile.size(); ++i) {
-        const modell::Teil& teil = in.teile[i];
-        if (!modell::stapelWirkt(teil, StapelZweck::Ansicht) || uz(t.lodJetzt) >= teil.stufen.size()) { continue; }
+        const bool ausGeladen = modellEnt3aPolyAus(zi(i));
+        modell::Teil wieGeladen;
+        if (ausGeladen) {   // die Flaeche wie geladen, mit den Eintraegen von jetzt darauf
+            wieGeladen = *modellEnt3aGeladen(zi(i));
+            wieGeladen.stapel = in.teile[i].stapel;
+        }
+        const modell::Teil& teil = ausGeladen ? wieGeladen : in.teile[i];
+        if ((!ausGeladen && !modell::stapelWirkt(teil, StapelZweck::Ansicht)) || uz(t.lodJetzt) >= teil.stufen.size()) { continue; }
         ModellStapel::TeilStand& s = z.stand[i];
         std::vector<wof::Ablehnung> status;
         const modell::Netz netz = modell::stapelNetz(teil, t.lodJetzt, StapelZweck::Ansicht, u, &status, &s.nach);
@@ -502,6 +511,11 @@ struct ZeileOpt {
     bool datei = true;
     bool warnung = false;         // der Eintrag konnte nicht rechnen
     const char* hinweis = nullptr;
+    // ENTSCHEID3A (B11): das Auge von Edit Poly und Skin traegt einen eigenen Namen und Hinweis (die Suche des Selbsttests und der
+    // Tooltip unterscheiden es vom Auge der Eintraege); nicht aktiv: es gibt nichts umzuschalten (der Hinweis sagt warum)
+    Str augeName = Str::StpAn;
+    Str augeHinweis = Str::StpAnHint;
+    bool augeAktiv = true;
 };
 
 // Eine Zeile des Stapels in der Form des Entwurfs (.stapel: Kasten mit Name links und Symbolen rechts, die gewaehlte in der
@@ -553,21 +567,23 @@ unsigned stapelZeile(const std::string& text, const ZeileOpt& o, ImRect* rechtec
     const float symbol = std::floor(knopf * 0.72F);
     // von rechts: "in die Datei", davor das Auge (Entwurf wie Blender: Auge, dann der Schalter der Ausgabe)
     float x = bb.Max.x - std::floor(randX * 0.5F);
-    const auto zeilenKnopf = [&](Str name, Str hinweis, UiIcon icon, bool an) {
+    const auto zeilenKnopf = [&](Str name, Str hinweis, UiIcon icon, bool an, bool aktiv) {
         x -= knopf;
         const ImVec2 ort{x, std::floor(bb.Min.y + (hoehe - knopf) * 0.5F)};
         ImGui::SetCursorScreenPos(ort);
+        ImGui::BeginDisabled(!aktiv);
         const bool klick = ImGui::InvisibleButton(tr(name), ImVec2{knopf, knopf});
+        ImGui::EndDisabled();
         IMGUI_TEST_ENGINE_ITEM_INFO(ImGui::GetItemID(), tr(name), g.LastItemData.StatusFlags | (an ? ImGuiItemStatusFlags_Checked : 0));
-        if (ImGui::IsItemHovered()) { dl->AddRectFilled(ort, ImVec2{ort.x + knopf, ort.y + knopf}, ImGui::GetColorU32(ImGuiCol_ButtonHovered), rund); }
+        if (aktiv && ImGui::IsItemHovered()) { dl->AddRectFilled(ort, ImVec2{ort.x + knopf, ort.y + knopf}, ImGui::GetColorU32(ImGuiCol_ButtonHovered), rund); }
         tippUmbrochen(std::string(tr(name)) + "\n" + tr(hinweis));
         ImVec4 farbe = schrift;
-        if (!an) { farbe.w *= 0.4F; }
+        if (!an || !aktiv) { farbe.w *= 0.4F; }
         uiIcon(dl, icon, ImVec2{std::floor(ort.x + (knopf - symbol) * 0.5F), std::floor(ort.y + (knopf - symbol) * 0.5F)}, symbol, ImGui::GetColorU32(farbe));
-        return klick;
+        return klick && aktiv;
     };
-    if (o.dateiKnopf && zeilenKnopf(Str::StpDatei, Str::StpDateiHint, UiIcon::Speichern, o.datei)) { r |= kDatei; }
-    if (o.auge && zeilenKnopf(Str::StpAn, Str::StpAnHint, o.an ? UiIcon::Sichtbar : UiIcon::Versteckt, o.an)) { r |= kAuge; }
+    if (o.dateiKnopf && zeilenKnopf(Str::StpDatei, Str::StpDateiHint, UiIcon::Speichern, o.datei, true)) { r |= kDatei; }
+    if (o.auge && zeilenKnopf(o.augeName, o.augeHinweis, o.an ? UiIcon::Sichtbar : UiIcon::Versteckt, o.an, o.augeAktiv)) { r |= kAuge; }
     ImGui::SetCursorScreenPos(danach);
     return r;
 }
@@ -775,16 +791,32 @@ void drawModellStapelGruppe() {
             }
         }
     };
-    const auto stufenZeile = [&](const char* kennung, const std::string& text, bool gew, const char* hinweis, ModellBereich ziel, bool wechselt) {
+    // `auge`: ENTSCHEID3A (B11) - 1 Edit Poly (diese Flaeche wie geladen), 2 Skin (die Figur in der Bindepose); nur die Anzeige
+    const auto stufenZeile = [&](const char* kennung, const std::string& text, bool gew, const char* hinweis, ModellBereich ziel, bool wechselt, int auge) {
         ZeileOpt o;
         o.gewaehlt = gew;
         o.hinweis = hinweis;
+        if (auge != 0) {
+            const bool geladen = auge != 1 || modellEnt3aGeladen(teil) != nullptr;
+            o.auge = true;
+            o.an = auge == 1 ? !modellEnt3aPolyAus(teil) : !modellEnt3aSkinAus();
+            o.gedaempft = !o.an;
+            o.augeName = auge == 1 ? Str::EaPolyAn : Str::EaSkinAn;
+            o.augeHinweis = auge == 1 ? (geladen ? Str::EaPolyAnHint : Str::EaPolyNeu) : Str::EaSkinAnHint;
+            o.augeAktiv = geladen;
+        }
         ImRect r;
         ImGui::PushID(kennung);
         const unsigned e = stapelZeile(text, o, &r);
         ImGui::PopID();
         merken(text, r, gew);
-        if ((e & kKlick) != 0U) {
+        if ((e & kAuge) != 0U) {   // Ansicht, kein Schritt des Dokuments: sofort
+            if (auge == 1) {
+                modellEnt3aPolySchalten(teil);
+            } else {
+                modellEnt3aSkinSchalten();
+            }
+        } else if ((e & kKlick) != 0U) {
             waehlen(0);
             if (wechselt && t.bereich != ziel) {
                 t.bereich = ziel;
@@ -799,16 +831,16 @@ void drawModellStapelGruppe() {
         // Bindepose, die Figur wird danach verformt - deshalb steht Skin ueber ihnen.
         if (skelett) {
             stufenZeile("skin", tr(Str::MgStapelSkin), gewaehlt == 0U && t.bereich == ModellBereich::Weights,
-                        tr(t.bereich == ModellBereich::Weights ? Str::MgStapelSkinHint : Str::StpSkinWechsel), ModellBereich::Weights, true);
+                        tr(t.bereich == ModellBereich::Weights ? Str::MgStapelSkinHint : Str::StpSkinWechsel), ModellBereich::Weights, true, 2);
         }
         for (int i = zi(tl->stapel.size()) - 1; i >= 0; --i) { eintragZeile(i); }
         // ENTSCHEID3A (B13): wie 3ds Max "Unwrap UVW" ueber Edit Poly - die UVs der Flaeche; die Eintraege darueber rechnen mit ihnen
         // (Spiegeln uebernimmt sie, Glaetten mittelt sie). Ein Klick wechselt in den Bereich UV (dort zeigt der Entwurf keinen Stapel).
-        stufenZeile("unwrap", tr(Str::EaUnwrap), false, tr(Str::EaUnwrapHint), ModellBereich::Uv, true);
+        stufenZeile("unwrap", tr(Str::EaUnwrap), false, tr(Str::EaUnwrapHint), ModellBereich::Uv, true, 0);
         stufenZeile("poly", tr(Str::MgStapelPoly), gewaehlt == 0U && t.bereich == ModellBereich::Modellieren,
-                    tr(t.bereich == ModellBereich::Modellieren ? Str::StpPolyHier : Str::MgStapelPolyHint), ModellBereich::Modellieren, true);
+                    tr(t.bereich == ModellBereich::Modellieren ? Str::StpPolyHier : Str::MgStapelPolyHint), ModellBereich::Modellieren, true, 1);
         stufenZeile("basis", format(in.herkunft == modell::Herkunft::Md3 ? Str::StpBasisMd3 : Str::StpBasisGlm, tl->name.c_str()), false, tr(Str::StpBasisHint),
-                    t.bereich, false);
+                    t.bereich, false, 0);
     }
     ImGui::PopStyleVar();
     // wieder der volle Abstand nach der Liste: zurueck um den engen, dann der Anker (Dummy rueckt um ItemSpacing.y weiter)
@@ -874,6 +906,12 @@ void modellStapelMenue() {
     if (!modellBlender()) {   // ENTSCHEID3A (B13)
         if (ImGui::MenuItem(tr(Str::EaUnwrap))) { mt().bereich = ModellBereich::Uv; }
         ImGui::SetItemTooltip("%s", tr(Str::EaUnwrapHint));
+        // ENTSCHEID3A (B11): die Augen von Edit Poly (gezeigte Flaeche) und Skin
+        const int teil = modellStapelTeil();
+        if (ImGui::MenuItem(tr(Str::EaPolyAn), nullptr, !modellEnt3aPolyAus(teil), modellEnt3aGeladen(teil) != nullptr)) { modellEnt3aPolySchalten(teil); }
+        ImGui::SetItemTooltip("%s", tr(modellEnt3aGeladen(teil) != nullptr ? Str::EaPolyAnHint : Str::EaPolyNeu));
+        if (ImGui::MenuItem(tr(Str::EaSkinAn), nullptr, !modellEnt3aSkinAus(), mt().dok.inhalt().herkunft == modell::Herkunft::Glm)) { modellEnt3aSkinSchalten(); }
+        ImGui::SetItemTooltip("%s", tr(Str::EaSkinAnHint));
     }
     ImGui::EndMenu();
 }
@@ -901,6 +939,8 @@ bool modellStapelAktionenSuche(const std::string& such) {
     std::vector<Eintrag> alle = liste;
     if (!bl) {   // ENTSCHEID3A (B13): wie 3ds Max die Zeile Unwrap UVW
         alle.push_back({tr(Str::EaUnwrap), tr(Str::EaUnwrapHint), [] { mt().bereich = ModellBereich::Uv; }});
+        alle.push_back({tr(Str::EaPolyAn), tr(Str::EaPolyAnHint), [] { modellEnt3aPolySchalten(modellStapelTeil()); }});   // ENTSCHEID3A (B11)
+        alle.push_back({tr(Str::EaSkinAn), tr(Str::EaSkinAnHint), [] { modellEnt3aSkinSchalten(); }});
     }
     bool ausgeloest = false;
     for (const Eintrag& e : alle) {

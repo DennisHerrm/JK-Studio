@@ -197,6 +197,12 @@ void posieren() {
     (void)modellRtPose(g_app->modellWelt);   // Stufe 5: die Vorschau des Retargetings (gepackt wie im Spiel)
     gpu::baueKnochenmatrizen(g_app->modellWelt, a.bones, g_knochen);
     g_bindepose = modell::bindepose(a.bones, g_app->modellWelt);
+    // ENTSCHEID3A (B11): Skin aus wie 3ds Max - die Haut steht in der Bindepose (ihre Knochenmatrizen sind die Einheit), die Knochen
+    // behalten ihre Pose (modellWelt); gezeigt, gewaehlt und bearbeitet wird wie in der Bindepose
+    if (modellEnt3aSkinAus()) {
+        for (BoneMatrix& m : g_knochen) { m = BoneMatrix::identity(); }
+        g_bindepose = true;
+    }
 }
 
 // mbvers: die Pose, in der bearbeitet wird (Knochenmatrizen wie gezeigt) - leer ohne Skelett und in der exakten Bindepose:
@@ -2522,10 +2528,14 @@ void drawModellArbeitsflaeche() {
             modellStartansicht(3);
         }
     }
-    const bool neu = g_app->modelDirty || t.dok.stand() != g_posiertBeiStand;
+    // ENTSCHEID3A (B11): ein Auge im Modifier-Stapel (nur Anzeige, kein Schritt des Dokuments) posiert und zeichnet neu - das Feld
+    // steht hinter der Ansicht, modelDirty ginge vorher am Ende des Bilds aus
+    static int ent3aStand = -1;
+    const bool neu = g_app->modelDirty || t.dok.stand() != g_posiertBeiStand || modellEnt3a().ansichtStand != ent3aStand;
     if (neu) {
         posieren();
         g_posiertBeiStand = t.dok.stand();
+        ent3aStand = modellEnt3a().ansichtStand;
     }
     g_app->modellKnochenLinien = 0;
     for (int& u : t.ueber) { u = 0; }
