@@ -154,21 +154,21 @@ X = {
         "Jako Blender: skupina Modifikátory se Zrcadlením a Dělením povrchu; každý řádek má oko a přepínač pro soubor."),
     "datei": (
         "As long as a surface has no modifier - or only modifiers marked preview only - saving writes exactly the same file as "
-        "without the stack. The stack itself is not stored in the model file: after the model is closed the modifiers are gone, and "
-        "what went into the file is ordinary mesh from then on.",
+        "without the stack. The stack itself is not stored in the model file but next to it (model.glm.stack, see below); what went "
+        "into the file is ordinary mesh for the game.",
         "Solange eine Fläche keinen Modifier hat - oder nur solche mit „nur Vorschau“ -, schreibt Speichern genau dieselbe Datei wie "
-        "ohne Stapel. Der Stapel selbst steht nicht in der Modelldatei: nach dem Schließen des Modells sind die Modifier weg, und was "
-        "in die Datei ging, ist von da an gewöhnliches Netz.",
-        "只要一个面没有修改器 (或只有标为“仅预览”的修改器), 保存时写出的文件就与没有堆栈时完全相同。堆栈本身不保存在模型文件中: 关闭模型后修改器即消失, "
-        "已写入文件的部分此后就是普通网格。",
+        "ohne Stapel. Der Stapel selbst steht nicht in der Modelldatei, sondern daneben (model.glm.stack, siehe unten); was in die "
+        "Datei ging, ist für das Spiel gewöhnliches Netz.",
+        "只要一个面没有修改器 (或只有标为“仅预览”的修改器), 保存时写出的文件就与没有堆栈时完全相同。堆栈本身不保存在模型文件中, 而是保存在其旁边 "
+        "(model.glm.stack, 见下文); 已写入文件的部分对游戏来说是普通网格。",
         "サーフェスにモディファイアがない (または「プレビューのみ」のものしかない) 間は、保存で書かれるファイルはスタックがない場合とまったく同じです。"
-        "スタック自体はモデルファイルに保存されません: モデルを閉じるとモディファイアは消え、ファイルに書き込まれた分はそれ以降ふつうのメッシュになります。",
+        "スタック自体はモデルファイルではなくその隣 (model.glm.stack、下記参照) に保存されます。ファイルに書き込まれた分はゲームにとってふつうのメッシュです。",
         "Mientras una superficie no tenga modificadores, o solo tenga los marcados como «solo vista previa», guardar escribe exactamente "
-        "el mismo archivo que sin la pila. La pila en sí no se guarda en el archivo del modelo: al cerrar el modelo los modificadores "
-        "desaparecen, y lo que pasó al archivo es desde entonces malla normal.",
+        "el mismo archivo que sin la pila. La pila en sí no se guarda en el archivo del modelo, sino a su lado (model.glm.stack, ver "
+        "abajo); lo que pasó al archivo es malla normal para el juego.",
         "Dokud povrch nemá žádný modifikátor - nebo jen takové, které jsou „jen náhled“ -, zapíše uložení přesně stejný soubor jako bez "
-        "zásobníku. Samotný zásobník se do souboru modelu neukládá: po zavření modelu modifikátory zmizí a to, co šlo do souboru, je od "
-        "té chvíle běžná síť."),
+        "zásobníku. Samotný zásobník se neukládá do souboru modelu, ale vedle něj (model.glm.stack, viz níže); to, co šlo do souboru, je "
+        "pro hru běžná síť."),
 }
 
 ES = {t[0]: t[4] for t in X.values()}

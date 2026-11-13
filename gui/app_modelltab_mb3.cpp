@@ -138,6 +138,10 @@ bool schreibenNach(const std::string& ziel) {
     std::string m = format(Str::MbSpGespeichert, ziel.c_str(), static_cast<int>(bytes.size()), br.flaechenRoh, br.flaechenNeu);
     if (br.umgelegt) { m += " " + format(Str::MbSpUmgelegt, br.knochen); }
     if (malListen) { m += " " + std::string(tr(Str::FxSpMalListen)); }   // FIX612B P2-2
+    // ENTSCHEID3A (B12): der Stapel in die Begleitdatei daneben (die .glm ist geschrieben wie bisher; ohne Stapel verschwindet eine
+    // alte eigene Begleitdatei)
+    const std::string begleit = modellEnt3aBegleitSchreiben(ziel, bytes);
+    if (!begleit.empty()) { m += " " + begleit; }
     melden(m);
     diag::detail("Model-Tab: .glm geschrieben " + ziel + ", " + std::to_string(bytes.size()) + " Bytes, roh " + std::to_string(br.flaechenRoh) +
                  ", neu " + std::to_string(br.flaechenNeu) + " (" + std::to_string(br.eckenNeu) + " Ecken)");

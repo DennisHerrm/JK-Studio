@@ -176,6 +176,7 @@ void modellDokumentLaden(const std::string& bytes) {
         diag::detail("Modelldokument: " + fehler);
         modell::ausGlmModell(g_app->model, in);
     }
+    modellEnt3aVorLaden(bytes, in);   // ENTSCHEID3A (B12): der Stapel aus der Begleitdatei neben der .glm (Fehler: ohne, mit Meldung)
     in.kinoBelegung = t.dok.inhalt().kinoBelegung;   // REST N10: die Belegung der Ziel-GLA bleibt
     t.dok.laden(std::move(in));
     modellEnt3aNachLaden();   // ENTSCHEID3A (B11, B12): der Inhalt wie geladen, Meldung zur Begleitdatei
