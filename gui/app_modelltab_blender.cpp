@@ -15,6 +15,8 @@
 // Die Werkzeuge der Bereiche kommen aus deren Aktionstabellen (Modellieren, UV, Malen) bzw. Schnittstellen (Weights:
 // modellGewichte, Animation: modellAnimWerkzeug von AP10) - dieselbe Aktion wie Knopf, Taste, Suche und Rechtsklick.
 #include "app_internal.h"
+
+#include "bhed/modell/drehmodus.h"
 #include "app_modelltab_knochen.h"   // AP13K: die Form eines Knochens unter der Maus
 #include "platform.h"
 #include "textumbruch.h"
@@ -751,6 +753,9 @@ struct SeitenZug {
     float mitte[3]{};
     float euler[3]{};           // Griff: die Drehung beim Anfassen (Euler XYZ)
     BoneMatrix dreh = BoneMatrix::identity();   // Griff: die Drehung beim Anfassen (Spalten normiert, ohne Ort)
+    // ENTSCHEID3A (B9): die Werte des Drehmodus beim Anfassen und der Traeger der Ruhelage (Elternpose * Ruhelage relativ)
+    float werte[4]{};
+    BoneMatrix traeger = BoneMatrix::identity();
 };
 SeitenZug g_zug;
 
@@ -865,6 +870,170 @@ void zugLoslassenRig() {
     g_zug = SeitenZug{};
 }
 
+// --- ENTSCHEID3A (B9): Seitenleiste bei Knochen wie Blender ---------------------------------------------------------------------
+// Blenders Item-Panel zeigt fuer den aktiven Knochen im Posenmodus die Kanaele des Pose-Kanals (matrix_basis: Ort, Drehung im
+// Drehmodus des Knochens, Massstab) - bezogen auf die Ruhelage, in den Achsen des Knochens. Blender: pose_mat = parent_pose *
+// (parent_rest^-1 * bone_rest) * matrix_basis. Hier ist die Ruhelage die Grundpose der .gla (GlaBone::basePose, im Modellraum)
+// und die Pose die Weltmatrix des Knochens (modellWelt): basis = traeger^-1 * welt mit traeger = parent_pose * parent_rest^-1 *
+// bone_rest (ohne Eltern: bone_rest). In der Grundpose ist basis die Einheit (Ort 0, Quaternion 1 0 0 0, Massstab 1).
+
+// Umkehrung einer 3x4-Matrix (Drehung mit Massstab und Ort)
+BoneMatrix umkehrung(const BoneMatrix& b) {
+    const auto& m = b.m;
+    const float det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+                      m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+    BoneMatrix r = BoneMatrix::identity();
+    if (std::fabs(det) < 1e-12F) { return r; }
+    const float d = 1.0F / det;
+    r.m[0][0] = (m[1][1] * m[2][2] - m[1][2] * m[2][1]) * d;
+    r.m[0][1] = (m[0][2] * m[2][1] - m[0][1] * m[2][2]) * d;
+    r.m[0][2] = (m[0][1] * m[1][2] - m[0][2] * m[1][1]) * d;
+    r.m[1][0] = (m[1][2] * m[2][0] - m[1][0] * m[2][2]) * d;
+    r.m[1][1] = (m[0][0] * m[2][2] - m[0][2] * m[2][0]) * d;
+    r.m[1][2] = (m[0][2] * m[1][0] - m[0][0] * m[1][2]) * d;
+    r.m[2][0] = (m[1][0] * m[2][1] - m[1][1] * m[2][0]) * d;
+    r.m[2][1] = (m[0][1] * m[2][0] - m[0][0] * m[2][1]) * d;
+    r.m[2][2] = (m[0][0] * m[1][1] - m[0][1] * m[1][0]) * d;
+    for (int z = 0; z < 3; ++z) { r.m[z][3] = -(r.m[z][0] * m[0][3] + r.m[z][1] * m[1][3] + r.m[z][2] * m[2][3]); }
+    return r;
+}
+
+BoneMatrix traegerVon(int k) {
+    const GlaAnimation& a = g_app->anim;
+    const GlaBone& bone = a.bones[static_cast<std::size_t>(k)];
+    const int p = bone.parent;
+    if (p < 0 || static_cast<std::size_t>(p) >= g_app->modellWelt.size()) { return bone.basePose; }
+    return g_app->modellWelt[static_cast<std::size_t>(p)] * a.bones[static_cast<std::size_t>(p)].basePoseInv * bone.basePose;
+}
+
+modell::DrehModus drehModusVon(const std::string& knochen) {
+    const auto it = modellEnt3a().drehModus.find(knochen);
+    return it != modellEnt3a().drehModus.end() ? static_cast<modell::DrehModus>(std::clamp(it->second, 0, modell::kDrehModi - 1)) : modell::DrehModus::Quaternion;
+}
+
+const Str kDrehModusName[modell::kDrehModi] = {Str::EaModusQuat, Str::EaModusXyz, Str::EaModusXzy, Str::EaModusYxz,
+                                               Str::EaModusYzx, Str::EaModusZxy, Str::EaModusZyx, Str::EaModusAchse};
+
+// Die Drehung (3x3) einer Knochenmatrix ohne Massstab als float[3][3] und zurueck
+void drei(const BoneMatrix& b, float r[3][3]) {
+    const BoneMatrix n = nurDrehung(b);
+    for (int z = 0; z < 3; ++z) {
+        for (int c = 0; c < 3; ++c) { r[z][c] = n.m[z][c]; }
+    }
+}
+BoneMatrix ausDrei(const float r[3][3]) {
+    BoneMatrix b = BoneMatrix::identity();
+    for (int z = 0; z < 3; ++z) {
+        for (int c = 0; c < 3; ++c) { b.m[z][c] = r[z][c]; }
+    }
+    return b;
+}
+
+// Die Felder eines Knochens wie Blender: Ort, Drehung im Drehmodus, Modus, Massstab (nur ablesbar). `griff`: im Posenmodus am Griff
+// des Rigs - eingebbar, soweit der Griff den Zug kann.
+void knochenLokal(int knochen, const char* gesperrt, bool ortFrei, bool drehFrei) {
+    ModellTab& t = mt();
+    const BoneMatrix& b = g_app->modellWelt[static_cast<std::size_t>(knochen)];
+    const std::string& kname = g_app->anim.bones[static_cast<std::size_t>(knochen)].name;
+    const BoneMatrix traeger = traegerVon(knochen);
+    const BoneMatrix basis = umkehrung(traeger) * b;
+    const modell::DrehModus modus = drehModusVon(kname);
+    const auto beschriftet = [](Str was, int i, const char* achse) { return std::string(i == 0 ? tr(was) : "") + " " + achse; };
+    static const char* const kXyz[3] = {"X", "Y", "Z"};
+    static const char* const kWxyz[4] = {"W", "X", "Y", "Z"};
+    for (int i = 0; i < 3; ++i) {
+        const std::string id = "ort" + std::to_string(i);
+        const float jetzt = basis.m[i][3];
+        const FeldStatus s = seitenFeld(id, beschriftet(Str::BzOrt, i, kXyz[i]), gerundet(jetzt, 0.005F), ortFrei, ortTempo(), 0.0F, "%.2f", zahl(jetzt), gesperrt);
+        if (s.anfang) {
+            g_zug = SeitenZug{};
+            g_zug.id = id;
+            g_zug.echt = jetzt;
+            g_zug.wert = gerundet(jetzt, 0.005F);
+            g_zug.traeger = traeger;
+        }
+        if (s.wert && g_zug.id == id) {
+            g_zug.wert = s.neu;
+            if (!t.rigZieht) { ++g_bl.seitenSchritte; }
+            // der Weg in den Achsen der Ruhelage in Weltachsen: die Spalte i des Traegers
+            float w[3];
+            for (int z = 0; z < 3; ++z) { w[z] = g_zug.traeger.m[z][i] * (s.neu - g_zug.echt); }
+            modellRigZiehen(1, w);
+        }
+        if (s.ende && g_zug.id == id) { zugLoslassenRig(); }
+    }
+    float r[3][3];
+    drei(basis, r);
+    float werte[4];
+    modell::drehWerte(r, modus, werte);
+    const int n = modell::drehWerteZahl(modus);
+    const bool euler = modell::istEuler(modus);
+    for (int c = 0; c < n; ++c) {
+        const std::string id = "dreh" + std::to_string(c);
+        // Euler und der Winkel von Achse/Winkel in Grad wie Blender, die uebrigen Werte als Zahl
+        const bool winkel = euler || (modus == modell::DrehModus::AchseWinkel && c == 0);
+        const float jetzt = winkel ? werte[c] * 180.0F / kPi : werte[c];
+        const char* achse = euler ? kXyz[c] : kWxyz[c];
+        char anzeige[48];
+        if (winkel) {
+            std::snprintf(anzeige, sizeof anzeige, "%.1f\xc2\xb0", std::fabs(jetzt) < 0.05F ? 0.0 : static_cast<double>(jetzt));
+        } else {
+            std::snprintf(anzeige, sizeof anzeige, "%.3f", std::fabs(jetzt) < 0.0005F ? 0.0 : static_cast<double>(jetzt));
+        }
+        const float gezeigt = winkel ? gerundet(jetzt, 0.05F) : gerundet(jetzt, 0.0005F);
+        const FeldStatus s = seitenFeld(id, beschriftet(Str::BzDrehung, c, achse), gezeigt, drehFrei, winkel ? kDrehTempo : 0.005F, 0.0F, winkel ? "%.1f\xc2\xb0" : "%.3f",
+                                        anzeige, gesperrt);
+        if (s.anfang) {
+            g_zug = SeitenZug{};
+            g_zug.id = id;
+            g_zug.echt = jetzt;
+            g_zug.wert = gezeigt;
+            std::copy(werte, werte + 4, g_zug.werte);
+            g_zug.dreh = nurDrehung(b);
+            g_zug.traeger = traeger;
+        }
+        if (s.wert && g_zug.id == id) {
+            g_zug.wert = s.neu;
+            if (!t.rigZieht) { ++g_bl.seitenSchritte; }
+            float neu[4];
+            std::copy(g_zug.werte, g_zug.werte + 4, neu);
+            neu[c] = g_zug.werte[c] + (s.neu - g_zug.echt) * (winkel ? kPi / 180.0F : 1.0F);
+            float rb[3][3];
+            modell::matrixAusDrehWerten(neu, modus, rb);
+            // die neue Drehung in Weltachsen (Traeger * Basis) gegen die beim Anfassen
+            modellRigDrehen(nurDrehung(g_zug.traeger) * ausDrei(rb) * transponiert(g_zug.dreh));
+        }
+        if (s.ende && g_zug.id == id) { zugLoslassenRig(); }
+    }
+    // der Drehmodus (Blender: die Auswahl unter der Drehung, rotation_mode, ohne Beschriftung ueber die ganze Breite - der Name steht im
+    // Tooltip) - aendert nur Anzeige und Eingabe. Mit der Beschriftung links war "Quaternion (WXYZ)" abgeschnitten (Foto ent3a_seite_modi).
+    {
+        const float breite = ImGui::GetContentRegionAvail().x;
+        const float fs = ImGui::GetFontSize();
+        const std::string titel = tr(Str::EaDrehModus);
+        ImGui::SetNextItemWidth(breite);
+        const char* jetzt = tr(kDrehModusName[static_cast<int>(modus)]);
+        if (ImGui::BeginCombo("##ent3adrehmodus", jetzt)) {
+            for (int m = 0; m < modell::kDrehModi; ++m) {
+                if (ImGui::Selectable(tr(kDrehModusName[m]), m == static_cast<int>(modus))) { modellEnt3a().drehModus[kname] = m; }
+            }
+            ImGui::EndCombo();
+        }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { feldTooltip((titel + "\n" + tr(Str::EaDrehModusHint)).c_str()); }
+        g_bl.seitenFelder.push_back({"drehmodus", ImRect{ImGui::GetItemRectMin(), ImGui::GetItemRectMax()}, true, false, std::string(), 0.0F, fs});
+        g_bl.seiteText += std::string(g_bl.seiteText.empty() ? "" : "|") + titel + "=" + jetzt;
+    }
+    // Massstab: das Rig skaliert Knochen nicht - nur zum Ablesen (Blender zeigt ihn an dieser Stelle)
+    for (int i = 0; i < 3; ++i) {
+        float l = 0.0F;
+        for (int z = 0; z < 3; ++z) { l += basis.m[z][i] * basis.m[z][i]; }
+        l = std::sqrt(l);
+        char anzeige[48];
+        std::snprintf(anzeige, sizeof anzeige, "%.3f", static_cast<double>(l));
+        (void)seitenFeld("skal" + std::to_string(i), beschriftet(Str::EaSkalierung, i, kXyz[i]), l, false, 0.0F, 0.0F, "%.3f", anzeige, tr(Str::EaSkalierungHint));
+    }
+}
+
 void seiteObjekt() {
     ModellTab& t = mt();
     if (seitenPanel(tr(Str::BzTransform))) {
@@ -892,54 +1061,14 @@ void seiteObjekt() {
             std::snprintf(z, sizeof z, tr(Str::BeUndoSeite), (std::string(tr(was)) + " " + achse[i]).c_str());
             return std::string(z);
         };
-        if (knochen >= 0 && static_cast<std::size_t>(knochen) < g_app->modellWelt.size()) {
-            const BoneMatrix& b = g_app->modellWelt[static_cast<std::size_t>(knochen)];
+        if (knochen >= 0 && static_cast<std::size_t>(knochen) < g_app->modellWelt.size() && static_cast<std::size_t>(knochen) < g_app->anim.bones.size()) {
             (void)seitenZeile(tr(Str::BzGewaehlt), name);
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { feldTooltip(tr(Str::EaLokalHint)); }
             const bool ortFrei = griff && modellRigZugMoeglich(1, nullptr);
             const bool drehFrei = griff && modellRigZugMoeglich(2, nullptr);
             const char* gesperrt = griff ? tr(Str::BeFeldGesperrt) : tr(Str::BeFeldNurPose);
-            for (int i = 0; i < 3; ++i) {
-                const std::string id = "ort" + std::to_string(i);
-                const float jetzt = b.m[i][3];
-                const FeldStatus s = seitenFeld(id, beschriftung(Str::BzOrt, i), gerundet(jetzt, 0.005F), ortFrei, ortTempo(), 0.0F, "%.2f", zahl(jetzt), gesperrt);
-                if (s.anfang) {
-                    g_zug = SeitenZug{};
-                    g_zug.id = id;
-                    g_zug.echt = jetzt;
-                    g_zug.wert = gerundet(jetzt, 0.005F);
-                }
-                if (s.wert && g_zug.id == id) {
-                    g_zug.wert = s.neu;
-                    if (!t.rigZieht) { ++g_bl.seitenSchritte; }
-                    float w[3] = {0.0F, 0.0F, 0.0F};
-                    w[i] = s.neu - g_zug.echt;
-                    modellRigZiehen(1, w);
-                }
-                if (s.ende && g_zug.id == id) { zugLoslassenRig(); }
-            }
-            float e[3];
-            eulerXyz(b, e);
-            for (int i = 0; i < 3; ++i) {
-                const std::string id = "dreh" + std::to_string(i);
-                const FeldStatus s = seitenFeld(id, beschriftung(Str::BzDrehung, i), gerundet(e[i], 0.05F), drehFrei, kDrehTempo, 0.0F, "%.1f\xc2\xb0", grad(e[i]), gesperrt);
-                if (s.anfang) {
-                    g_zug = SeitenZug{};
-                    g_zug.id = id;
-                    g_zug.echt = e[i];
-                    g_zug.wert = gerundet(e[i], 0.05F);
-                    std::copy(e, e + 3, g_zug.euler);
-                    g_zug.dreh = nurDrehung(b);
-                }
-                if (s.wert && g_zug.id == id) {
-                    g_zug.wert = s.neu;
-                    if (!t.rigZieht) { ++g_bl.seitenSchritte; }
-                    float ziel[3] = {g_zug.euler[0], g_zug.euler[1], g_zug.euler[2]};
-                    ziel[i] = g_zug.euler[i] + (s.neu - g_zug.echt);
-                    // die Drehung, die den Knochen von seiner Drehung beim Anfassen auf die eingegebene bringt (in Weltachsen)
-                    modellRigDrehen(ausEuler(ziel) * transponiert(g_zug.dreh));
-                }
-                if (s.ende && g_zug.id == id) { zugLoslassenRig(); }
-            }
+            // ENTSCHEID3A (B9): wie Blender die lokalen Werte und die Drehung im Drehmodus des Knochens (bis ENT3A: Weltachsen, Euler XYZ)
+            knochenLokal(knochen, gesperrt, ortFrei, drehFrei);
         } else if (!t.auswahl.empty()) {
             // Flaechen: Mitte und Abmessungen des Kastens in der Pose
             std::string namen;

@@ -571,6 +571,44 @@ void euler(const BoneMatrix& b, float out[3]) {
     out[2] = std::atan2(r[1][0], r[0][0]) * grad;
 }
 
+// ENTSCHEID3A (B9): die lokalen Werte eines Knochens wie Blenders Seitenleiste (matrix_basis: Traeger^-1 * Pose, der Traeger ist
+// Elternpose * Elternruhe^-1 * Ruhe) - eigene Rechnung des Tests. Die Matrizen der _humanoid.gla tragen den Massstab 0,64 (Ruhe und
+// Pose): der Traeger wird darum voll umgekehrt (Kofaktoren), nicht nur transponiert.
+BoneMatrix lokalMatrix(int k) {
+    const GlaAnimation& a = g_app->anim;
+    const GlaBone& bone = a.bones[static_cast<std::size_t>(k)];
+    BoneMatrix tg = bone.basePose;
+    if (bone.parent >= 0) { tg = g_app->modellWelt[static_cast<std::size_t>(bone.parent)] * a.bones[static_cast<std::size_t>(bone.parent)].basePoseInv * bone.basePose; }
+    const auto& m = tg.m;
+    double inv[3][3];
+    inv[0][0] = static_cast<double>(m[1][1]) * m[2][2] - static_cast<double>(m[1][2]) * m[2][1];
+    inv[0][1] = static_cast<double>(m[0][2]) * m[2][1] - static_cast<double>(m[0][1]) * m[2][2];
+    inv[0][2] = static_cast<double>(m[0][1]) * m[1][2] - static_cast<double>(m[0][2]) * m[1][1];
+    inv[1][0] = static_cast<double>(m[1][2]) * m[2][0] - static_cast<double>(m[1][0]) * m[2][2];
+    inv[1][1] = static_cast<double>(m[0][0]) * m[2][2] - static_cast<double>(m[0][2]) * m[2][0];
+    inv[1][2] = static_cast<double>(m[0][2]) * m[1][0] - static_cast<double>(m[0][0]) * m[1][2];
+    inv[2][0] = static_cast<double>(m[1][0]) * m[2][1] - static_cast<double>(m[1][1]) * m[2][0];
+    inv[2][1] = static_cast<double>(m[0][1]) * m[2][0] - static_cast<double>(m[0][0]) * m[2][1];
+    inv[2][2] = static_cast<double>(m[0][0]) * m[1][1] - static_cast<double>(m[0][1]) * m[1][0];
+    const double det = m[0][0] * inv[0][0] + m[0][1] * inv[1][0] + m[0][2] * inv[2][0];
+    const BoneMatrix& w = g_app->modellWelt[static_cast<std::size_t>(k)];
+    BoneMatrix b = BoneMatrix::identity();
+    for (int z = 0; z < 3; ++z) {
+        for (int c = 0; c < 4; ++c) {
+            double sum = 0.0;
+            for (int i = 0; i < 3; ++i) { sum += inv[z][i] / det * (c < 3 ? w.m[i][c] : w.m[i][3] - m[i][3]); }
+            b.m[z][c] = static_cast<float>(sum);
+        }
+    }
+    return b;
+}
+
+void lokal(int k, float ort[3], float e[3]) {
+    const BoneMatrix b = lokalMatrix(k);
+    for (int z = 0; ort != nullptr && z < 3; ++z) { ort[z] = b.m[z][3]; }
+    if (e != nullptr) { euler(b, e); }
+}
+
 int griffNach(modell::GriffArt art) {
     const auto& g = mtab().rig.griffe;
     for (std::size_t i = 0; i < g.size(); ++i) {
@@ -734,11 +772,10 @@ void seitenEingabeSchritte(std::vector<Schritt>& s) {
         }
         return mtab().griffWahl >= 0 && n == 6;
     }));
-    add(tu("AP4 ENTSCHEID1: Stand des Beckens merken", [st] {
+    add(tu("AP4 ENTSCHEID1: Stand des Beckens merken (lokal wie Blender, ENTSCHEID3A B9)", [st] {
         const int k = griffKnochen();
         if (k < 0 || static_cast<std::size_t>(k) >= g_app->modellWelt.size()) { return; }
-        const BoneMatrix& b = g_app->modellWelt[static_cast<std::size_t>(k)];
-        for (int i = 0; i < 3; ++i) { st->o[i] = b.m[i][3]; }
+        lokal(k, st->o, nullptr);
         st->schritte = modellBl().seitenSchritte;
         st->ziel = std::round(st->o[0] * 10.0F + 53.0F) / 10.0F;
     }));
@@ -754,15 +791,16 @@ void seitenEingabeSchritte(std::vector<Schritt>& s) {
                 }});
     add(taste(ImGuiKey_Enter, "Enter"));
     add(pause(0.5));
-    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Position X des Beckens eingetippt - der Knochen steht dort (in der Pose), ein Rueckgaengig-Schritt"), [st] {
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Position X des Beckens eingetippt (lokal, ENTSCHEID3A B9) - der Knochen steht dort, ein Rueckgaengig-Schritt"), [st] {
         const int k = griffKnochen();
         if (k < 0 || static_cast<std::size_t>(k) >= g_app->modellWelt.size()) { return false; }
-        const BoneMatrix& b = g_app->modellWelt[static_cast<std::size_t>(k)];
+        float o[3];
+        lokal(k, o, nullptr);
         char z[200];
-        std::snprintf(z, sizeof z, "Becken X: soll %.2f, ist %.3f (vorher %.3f), Y %.3f -> %.3f, Schritte %d", static_cast<double>(st->ziel), static_cast<double>(b.m[0][3]),
-                      static_cast<double>(st->o[0]), static_cast<double>(st->o[1]), static_cast<double>(b.m[1][3]), modellBl().seitenSchritte - st->schritte);
+        std::snprintf(z, sizeof z, "Becken X (lokal): soll %.2f, ist %.3f (vorher %.3f), Y %.3f -> %.3f, Schritte %d", static_cast<double>(st->ziel), static_cast<double>(o[0]),
+                      static_cast<double>(st->o[0]), static_cast<double>(st->o[1]), static_cast<double>(o[1]), modellBl().seitenSchritte - st->schritte);
         melde(z);
-        return std::fabs(b.m[0][3] - st->ziel) < 0.02F && std::fabs(b.m[1][3] - st->o[1]) < 0.02F && modellBl().seitenSchritte == st->schritte + 1;
+        return std::fabs(o[0] - st->ziel) < 0.02F && std::fabs(o[1] - st->o[1]) < 0.02F && modellBl().seitenSchritte == st->schritte + 1;
     }));
     add(tu("AP4 ENTSCHEID1: Fokus im Model-Tab", [] { mtab().fokus = true; }));
     add(strgZ());
@@ -770,12 +808,15 @@ void seitenEingabeSchritte(std::vector<Schritt>& s) {
     add(pruefe(zeile("R18", 1, "ENTSCHEID1: Strg+Z stellt das Becken zurueck"), [st] {
         const int k = griffKnochen();
         if (k < 0 || static_cast<std::size_t>(k) >= g_app->modellWelt.size()) { return false; }
-        const BoneMatrix& b = g_app->modellWelt[static_cast<std::size_t>(k)];
-        return std::fabs(b.m[0][3] - st->o[0]) < 1e-3F && std::fabs(b.m[1][3] - st->o[1]) < 1e-3F;
+        float o[3];
+        lokal(k, o, nullptr);
+        return std::fabs(o[0] - st->o[0]) < 1e-3F && std::fabs(o[1] - st->o[1]) < 1e-3F;
     }));
     // Kopf: nur drehen (wie im Gizmo/R); Rotation Z eintippen
-    add(tu("AP4 ENTSCHEID1: Griff Kopf", [st] {
+    add(tu("AP4 ENTSCHEID1: Griff Kopf, Drehmodus XYZ Euler (ENTSCHEID3A B9: Blenders Vorgabe ist Quaternion)", [st] {
         modellRigGriffWaehlen(griffNach(modell::GriffArt::Kopf));
+        const int k = griffKnochen();
+        if (k >= 0) { modellEnt3a().drehModus[g_app->anim.bones[static_cast<std::size_t>(k)].name] = static_cast<int>(modell::DrehModus::Xyz); }
         g_app->modelDirty = true;
     }));
     add(pause(0.5));
@@ -792,12 +833,12 @@ void seitenEingabeSchritte(std::vector<Schritt>& s) {
             falsch += (f.eingebbar && f.grau) || (!f.eingebbar && !f.grau) ? 1 : 0;
         }
         melde("Felder grau " + std::to_string(grau) + ", falsch " + std::to_string(falsch));
-        return grau == 3 && falsch == 0;
+        return grau == 6 && falsch == 0;   // ENTSCHEID3A (B9): Position 3 und Skalierung 3 (wie Blender, nur ablesbar)
     }));
     add(tu("AP4 ENTSCHEID1: Drehung des Kopfs merken", [st] {
         const int k = griffKnochen();
         if (k < 0 || static_cast<std::size_t>(k) >= g_app->modellWelt.size()) { return; }
-        euler(g_app->modellWelt[static_cast<std::size_t>(k)], st->e);
+        lokal(k, nullptr, st->e);
         st->schritte = modellBl().seitenSchritte;
         st->ziel = std::round(st->e[2] * 10.0F + 200.0F) / 10.0F;
     }));
@@ -813,11 +854,11 @@ void seitenEingabeSchritte(std::vector<Schritt>& s) {
                 }});
     add(taste(ImGuiKey_Enter, "Enter"));
     add(pause(0.5));
-    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Rotation Z des Kopfs eingetippt - der Knochen hat diese Rotation (Euler XYZ wie Blender), X und Y bleiben"), [st] {
+    add(pruefe(zeile("R18", 1, "ENTSCHEID1: Rotation Z des Kopfs eingetippt - der Knochen hat diese Rotation (lokal, Euler XYZ wie Blender), X und Y bleiben"), [st] {
         const int k = griffKnochen();
         if (k < 0 || static_cast<std::size_t>(k) >= g_app->modellWelt.size()) { return false; }
         float e[3];
-        euler(g_app->modellWelt[static_cast<std::size_t>(k)], e);
+        lokal(k, nullptr, e);
         char z[200];
         std::snprintf(z, sizeof z, "Kopf Rotation: soll Z %.1f, ist %.2f / %.2f / %.2f (vorher %.2f / %.2f / %.2f)", static_cast<double>(st->ziel), static_cast<double>(e[0]),
                       static_cast<double>(e[1]), static_cast<double>(e[2]), static_cast<double>(st->e[0]), static_cast<double>(st->e[1]), static_cast<double>(st->e[2]));
@@ -832,7 +873,7 @@ void seitenEingabeSchritte(std::vector<Schritt>& s) {
         const int k = griffKnochen();
         if (k < 0 || static_cast<std::size_t>(k) >= g_app->modellWelt.size()) { return false; }
         float e[3];
-        euler(g_app->modellWelt[static_cast<std::size_t>(k)], e);
+        lokal(k, nullptr, e);
         return std::fabs(std::remainder(e[2] - st->e[2], 360.0F)) < 0.01F;
     }));
     add(tu("AP4 ENTSCHEID1: Seitenleiste aus, zurueck nach Ansehen/Pruefen", [] {
