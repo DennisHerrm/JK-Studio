@@ -120,8 +120,12 @@ std::vector<Schritt> modellSchritte() {
             if (!pf.weg && teil < t.dok.inhalt().teile.size() && (t.dok.inhalt().teile[teil].flaggen & GlmSurface::kFlagBolt) == 0U) { f = static_cast<int>(i); }
         }
         md1d::waehle(w::PAuswahl{{}, {}, {f}}, AuswahlArt::Dreieck);
-        mz().art = 1;
         (void)modellMeshWerkzeugStarten(MeshWerkzeug::Detach);
+        // Art "In einen neuen Teil" im offenen Kaestchen waehlen (wie das Feld Art: neu planen, Vorschau) - seit KLEIN 4 (9cfb323c8)
+        // merkt sich jedes Werkzeug seine eigene Art und setzt sie beim Start; ein ModellMesh::art davor galt nicht mehr
+        mz().art = 1;
+        mz().neuPlanen = true;
+        modellMeshVorschau();
     }));
     add(pause(0.5));
     add(pruefe("PF H2: Vorschau mit neuem Teil - das Dokument behaelt die Aenderung (Name, Rueckgaengig)", [st] {

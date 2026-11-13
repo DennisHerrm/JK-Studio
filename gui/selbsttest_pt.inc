@@ -1028,6 +1028,7 @@ std::vector<Schritt> fix3Schritte() {
     auto helm = std::make_shared<int>(0);
     auto rumpf = std::make_shared<int>(0);
     auto zahl = std::make_shared<int>(0);
+    auto teileVorher = std::make_shared<std::size_t>(0);   // P30: Teile vor dem Detach (der neue Teil kommt dazu)
     figurLaden(s, "max");
     // --- P25 ---
     add(gruppeVon("head"));
@@ -1162,10 +1163,11 @@ std::vector<Schritt> fix3Schritte() {
     }));
     add(pause(0.5));
     // --- P30a ---
-    add(tu("PT fix3 P30: Dreiecke der Leinwand torso merken", [zahl] {
+    add(tu("PT fix3 P30: Dreiecke der Leinwand torso merken", [zahl, teileVorher] {
         g_app->mtab.auswahl = {teilVon("torso")};
         mz().gruppe = -1;
         *zahl = lw() != nullptr ? static_cast<int>(lw()->dreiecke.size()) : -1;
+        *teileVorher = g_app->mtab.dok.inhalt().teile.size();
     }));
     add(tu("PT fix3 P30: Bereich Modellieren, ein Polygon des Rumpfs, Detach in einen neuen Teil", [] {
         ModellTab& t = g_app->mtab;
@@ -1178,8 +1180,12 @@ std::vector<Schritt> fix3Schritte() {
             if (!pf.weg && pf.teil == rumpfTeil) { f = static_cast<int>(i); }
         }
         md1d::waehle(modell::wof::PAuswahl{{}, {}, {f}}, AuswahlArt::Dreieck);
-        t.mesh.art = 1;
         (void)modellMeshWerkzeugStarten(MeshWerkzeug::Detach);
+        // Art "In einen neuen Teil" im offenen Kaestchen (wie das Feld Art: neu planen, Vorschau) - seit KLEIN 4 (9cfb323c8) setzt
+        // der Start die gemerkte Art des Werkzeugs, ein ModellMesh::art davor galt nicht mehr (Detach blieb im Teil)
+        t.mesh.art = 1;
+        t.mesh.neuPlanen = true;
+        modellMeshVorschau();
     }));
     add(pause(0.5));
     add(tu("PT fix3 P30: Uebernehmen, zurueck nach Painting", [] {
@@ -1189,11 +1195,13 @@ std::vector<Schritt> fix3Schritte() {
         mz().gruppe = -1;
     }));
     add(pause(0.5));
-    add(pruefe("PT fix3 P30: nach dem Detach traegt die Leinwand torso alle Dreiecke (auch die des neuen Teils)", [zahl] {
+    add(pruefe("PT fix3 P30: nach dem Detach traegt die Leinwand torso alle Dreiecke (auch die des neuen Teils)", [zahl, teileVorher] {
         const int n = lw() != nullptr ? static_cast<int>(lw()->dreiecke.size()) : -1;
+        const std::size_t teile = g_app->mtab.dok.inhalt().teile.size();
         diag::detail("Knopftest: PT fix3 P30 - Dreiecke der Leinwand " + std::to_string(n) + " (vorher " + std::to_string(*zahl) + "), Teile " +
-                     std::to_string(g_app->mtab.dok.inhalt().teile.size()));
-        return n == *zahl && n > 0;
+                     std::to_string(teile) + " (vorher " + std::to_string(*teileVorher) + ")");
+        // der neue Teil muss da sein - sonst traegt die Leinwand ihre Dreiecke trivial (Detach im Teil, so bis zur Anpassung an KLEIN 4)
+        return n == *zahl && n > 0 && teile == *teileVorher + 1U;
     }));
     add(ausloesen(Str::PtUmbacken));
     add(pause(0.3));
