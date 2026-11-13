@@ -689,9 +689,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Detalles.** **{{ModelSkin}}** cambia de skin, **{{ModelBones}}** muestra el esqueleto, **{{ModelTextures}}** desactiva las texturas.",
+      "text": "**Detalles.** **{{ModelBones}}** en la barra de herramientas sobre la vista muestra el esqueleto, **{{ModelTextures}}** desactiva las texturas; las skins están en el grupo **{{MbRLod}}** del panel de comandos.",
       "bild": "m_details",
-      "unter": "Skin, Huesos y Texturas.",
+      "unter": "Huesos y Texturas en la barra de herramientas.",
       "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
       "fertig": "zahl:modell.details~",
       "voraus": "modus:2 < knopf:ViewModel@modebar",
@@ -982,9 +982,9 @@
    "ansichten": {
     "classic": [
      {
-      "text": "**Cambia de skin.** En la pestaña **{{ViewModel}}**, la lista **{{ModelSkin}}** de la barra de reproducción muestra las skins que trae el modelo; **{{OpenSkin}}** carga otra.",
+      "text": "**Cambia de skin.** En la pestaña **{{ViewModel}}**, el grupo **{{MbRLod}}** del panel de comandos muestra las skins que trae el modelo; **{{OpenSkin}}** en la barra de herramientas carga otra.",
       "bild": "k_modell_leiste",
-      "unter": "La barra de reproducción con la lista de skins.",
+      "unter": "La lista de skins en el panel de comandos.",
       "ziel": "knopf:ModelSkin;knopf:OpenSkin",
       "fertig": "zahl:modell.skin+",
       "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",

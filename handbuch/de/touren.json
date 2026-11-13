@@ -689,9 +689,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Details.** **{{ModelSkin}}** wechselt die Skins, **{{ModelBones}}** zeigt das Skelett, **{{ModelTextures}}** schaltet die Texturen ab.",
+      "text": "**Details.** **{{ModelBones}}** in der Werkzeugleiste über der Ansicht zeigt das Skelett, **{{ModelTextures}}** schaltet die Texturen ab; die Skins stehen in der Gruppe **{{MbRLod}}** des Befehlsfelds.",
       "bild": "m_details",
-      "unter": "Haut, Knochen und Texturen.",
+      "unter": "Knochen und Texturen in der Werkzeugleiste.",
       "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
       "fertig": "zahl:modell.details~",
       "voraus": "modus:2 < knopf:ViewModel@modebar",
@@ -982,9 +982,9 @@
    "ansichten": {
     "classic": [
      {
-      "text": "**Wechsle den Skin.** Im Tab **{{ViewModel}}** zeigt die Liste **{{ModelSkin}}** in der Abspielleiste die Skins, die zum Modell gehören; **{{OpenSkin}}** lädt einen anderen.",
+      "text": "**Wechsle den Skin.** Im Tab **{{ViewModel}}** listet die Gruppe **{{MbRLod}}** des Befehlsfelds die Skins, die zum Modell gehören; **{{OpenSkin}}** in der Werkzeugleiste lädt einen anderen.",
       "bild": "k_modell_leiste",
-      "unter": "Die Abspielleiste mit der Skin-Liste.",
+      "unter": "Die Skin-Liste im Befehlsfeld.",
       "ziel": "knopf:ModelSkin;knopf:OpenSkin",
       "fertig": "zahl:modell.skin+",
       "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",

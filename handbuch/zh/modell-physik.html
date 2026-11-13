@@ -33,7 +33,7 @@
     <p class="einleitung">让物理检查并修正动画: 重心、双脚的支撑面、不打滑的脚、按游戏重力沿真实抛物线的跳跃、空中守恒的角动量以及弹簧链 - 作为关键帧之上的过滤器。</p>
     <h2 id="filter">关键帧之上的过滤器<a class="anker" href="#filter">#</a></h2>
 <p>先创建控制绑定, 然后打开 <strong><span class="ui">启用自动物理</span></strong> - 在命令面板的 <strong><span class="ui">自动物理</span></strong> 卷展栏 (IK/FK 下方)、菜单 <strong>Animation &gt; <span class="ui">自动物理</span></strong>、视图右键 (<strong>Control Rig &gt; <span class="ui">自动物理</span></strong>) 或搜索 (X, Blender 模式为 F3) 中。物理读取每一帧的姿势 - 你的 FK 关键帧和 IK - 并在其上写入自己的轨道; 你的关键帧保持不变。关闭后动画与之前完全相同, 烘焙的 GLA 也逐字节相同。<strong><span class="ui">强度</span></strong> 以 0 到 1 混合。每次修改设置都是一步撤销; 关键帧每次修改后轨道都会重新计算。</p>
-<figure class="bild breit"><a href="../bilder/zh/h_ph_sprung.webp" class="zoom"><img src="../bilder/zh/h_ph_sprung.webp" alt="带自动物理的跳跃: 重心路径为抛物线 (橙色), 卷展栏显示起跳、落地和结果。" loading="lazy"></a><figcaption>带自动物理的跳跃: 重心路径为抛物线 (橙色), 卷展栏显示起跳、落地和结果。</figcaption></figure>
+<figure class="bild breit"><a href="../bilder/zh/h_ph_sprung.webp" class="zoom"><img src="../bilder/zh/h_ph_sprung.webp" alt="带自动物理的跳跃: 重心路径为抛物线 (橙色), “自动物理”分组显示起跳、落地和结果。" loading="lazy"></a><figcaption>带自动物理的跳跃: 重心路径为抛物线 (橙色), “自动物理”分组显示起跳、落地和结果。</figcaption></figure>
 <h2 id="schwerpunkt">重心与支撑面<a class="anker" href="#schwerpunkt">#</a></h2>
 <p>视图显示重心 (带两个填充四分之一的圆形符号)、到地面的虚线、其在序列中的路径 (空中为橙色) 以及双脚在地面上的支撑面 (绿色)。身体各部分的质量来自 D. A. Winter 的表 (Biomechanics and Motor Control of Human Movement, 依据 Dempster): 头颈 8.1 %、躯干 49.7 %、上臂 2.8 %、前臂 1.6 %、手 0.6 %、大腿 10 %、小腿 4.65 %、脚 1.45 %。当角色双脚站立而重心离开支撑面时, 一切变红, 卷展栏会列出这些帧 - 角色会摔倒。脚的最低点不高于其在序列中最低位置加 <strong><span class="ui">接触高度</span></strong> 时视为着地, 相对地面测量 (模型选项卡的地面, 任务选项卡中为脚下地图的地面) - 各模型站立高度不同。</p>
 <h2 id="sprung">跳跃与双脚<a class="anker" href="#sprung">#</a></h2>
@@ -42,7 +42,7 @@
 <p>披风、衣摆、头发和带子可以随动: 选择一根骨骼并点击 <strong><span class="ui">从所选骨骼建立链</span></strong> (控制器的右键中也有), 或让 <strong><span class="ui">建议链</span></strong> 添加骨骼识别找到的悬挂骨骼。每条链像阻尼弹簧一样跟在其悬挂的骨骼后面摆动: <strong><span class="ui">频率</span></strong> 决定快慢, <strong><span class="ui">阻尼</span></strong> 决定多快静止 (1 为无过冲)。</p>
 <h2 id="mission">在任务选项卡中<a class="anker" href="#mission">#</a></h2>
 <p>窗口 <strong><span class="ui">角色动画</span></strong> 有相同的 <strong><span class="ui">自动物理</span></strong> 卷展栏和同名菜单。在那里, 地面是脚下的地图 (traceRay), 重力是地图的重力 (worldspawn &quot;gravity&quot;)。为游戏生成时物理进入地图 GLA; 在 Movie Duels 和原版 JKA 中, 角色随后沿与预览相同的抛物线飞行。</p>
-<figure class="bild breit"><a href="../bilder/zh/h_ph_figur.webp" class="zoom"><img src="../bilder/zh/h_ph_figur.webp" alt="地图上的同一跳跃: 重心及其路径, 窗口“为角色制作动画”中的“自动物理”卷展栏。" loading="lazy"></a><figcaption>地图上的同一跳跃: 重心及其路径, 窗口“为角色制作动画”中的“自动物理”卷展栏。</figcaption></figure>
+<figure class="bild breit"><a href="../bilder/zh/h_ph_figur.webp" class="zoom"><img src="../bilder/zh/h_ph_figur.webp" alt="地图上的同一跳跃: 重心及其路径, 窗口“为角色制作动画”中的“自动物理”分组。" loading="lazy"></a><figcaption>地图上的同一跳跃: 重心及其路径, 窗口“为角色制作动画”中的“自动物理”分组。</figcaption></figure>
     <nav class="blaettern"><a class="vor" href="modell-ik.html"><span>上一页</span>模型选项卡: IK/FK、脚部滚动、路径和空间切换</a><a class="nach" href="modell-retarget.html"><span>下一页</span>模型选项卡: 重定向</a></nav>
   </article>
   <footer>JK Studio 手册——Jedi Knight: Jedi Academy 与 Jedi Outcast 的模组工具。图片展示的是程序本身,由其自检功能截取。与 Lucasfilm、Disney 或 Raven Software 无关联。</footer>

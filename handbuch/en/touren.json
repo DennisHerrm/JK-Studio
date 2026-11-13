@@ -689,9 +689,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Details.** **{{ModelSkin}}** switches skins, **{{ModelBones}}** shows the skeleton, **{{ModelTextures}}** switches textures off.",
+      "text": "**Details.** **{{ModelBones}}** in the toolbar above the view shows the skeleton, **{{ModelTextures}}** switches textures off; the skins are in the group **{{MbRLod}}** of the command panel.",
       "bild": "m_details",
-      "unter": "Skin, Bones and Textures.",
+      "unter": "Bones and Textures in the toolbar.",
       "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
       "fertig": "zahl:modell.details~",
       "voraus": "modus:2 < knopf:ViewModel@modebar",
@@ -982,9 +982,9 @@
    "ansichten": {
     "classic": [
      {
-      "text": "**Switch skins.** In the **{{ViewModel}}** tab the **{{ModelSkin}}** list in the playback bar shows the skins that come with the model; **{{OpenSkin}}** loads another one.",
+      "text": "**Switch skins.** In the **{{ViewModel}}** tab the group **{{MbRLod}}** of the command panel lists the skins that come with the model; **{{OpenSkin}}** in the toolbar loads another one.",
       "bild": "k_modell_leiste",
-      "unter": "The playback bar with the skin list.",
+      "unter": "The skin list in the command panel.",
       "ziel": "knopf:ModelSkin;knopf:OpenSkin",
       "fertig": "zahl:modell.skin+",
       "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",

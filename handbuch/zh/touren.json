@@ -689,9 +689,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**细节。** **{{ModelSkin}}** 切换皮肤,**{{ModelBones}}** 显示骨骼,**{{ModelTextures}}** 关闭纹理。",
+      "text": "**细节。** 视图上方工具栏中的 **{{ModelBones}}** 显示骨骼,**{{ModelTextures}}** 关闭纹理;皮肤位于命令面板的 **{{MbRLod}}** 分组中。",
       "bild": "m_details",
-      "unter": "皮肤、骨骼和纹理。",
+      "unter": "工具栏中的骨骼和纹理。",
       "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
       "fertig": "zahl:modell.details~",
       "voraus": "modus:2 < knopf:ViewModel@modebar",
@@ -982,9 +982,9 @@
    "ansichten": {
     "classic": [
      {
-      "text": "**切换皮肤。** 在 **{{ViewModel}}** 标签页中,播放栏里的 **{{ModelSkin}}** 列表显示模型自带的皮肤;**{{OpenSkin}}** 可加载其他皮肤。",
+      "text": "**切换皮肤。** 在 **{{ViewModel}}** 标签页中,命令面板的 **{{MbRLod}}** 分组列出模型自带的皮肤;工具栏中的 **{{OpenSkin}}** 可加载其他皮肤。",
       "bild": "k_modell_leiste",
-      "unter": "带有皮肤列表的播放栏。",
+      "unter": "命令面板中的皮肤列表。",
       "ziel": "knopf:ModelSkin;knopf:OpenSkin",
       "fertig": "zahl:modell.skin+",
       "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",

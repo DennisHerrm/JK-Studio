@@ -689,9 +689,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**詳細。** **{{ModelSkin}}** でスキンを切り替え、**{{ModelBones}}** で骨格を表示し、**{{ModelTextures}}** でテクスチャをオフにします。",
+      "text": "**詳細。** ビュー上のツールバーの **{{ModelBones}}** で骨格を表示し、**{{ModelTextures}}** でテクスチャをオフにします。スキンはコマンドパネルのグループ **{{MbRLod}}** にあります。",
       "bild": "m_details",
-      "unter": "スキン、ボーン、テクスチャ。",
+      "unter": "ツールバーのボーンとテクスチャ。",
       "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
       "fertig": "zahl:modell.details~",
       "voraus": "modus:2 < knopf:ViewModel@modebar",
@@ -982,9 +982,9 @@
    "ansichten": {
     "classic": [
      {
-      "text": "**スキンを切り替えます。** **{{ViewModel}}** タブで、再生バーの **{{ModelSkin}}** リストにモデル付属のスキンが表示されます。**{{OpenSkin}}** で別のスキンを読み込みます。",
+      "text": "**スキンを切り替えます。** **{{ViewModel}}** タブで、コマンドパネルのグループ **{{MbRLod}}** にモデル付属のスキンが並びます。ツールバーの **{{OpenSkin}}** で別のスキンを読み込みます。",
       "bild": "k_modell_leiste",
-      "unter": "スキン一覧のある再生バー。",
+      "unter": "コマンドパネルのスキン一覧。",
       "ziel": "knopf:ModelSkin;knopf:OpenSkin",
       "fertig": "zahl:modell.skin+",
       "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",

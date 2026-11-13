@@ -689,9 +689,9 @@
       "ueberspringen": ""
      },
      {
-      "text": "**Podrobnosti.** **{{ModelSkin}}** přepíná skiny, **{{ModelBones}}** ukáže kostru, **{{ModelTextures}}** vypne textury.",
+      "text": "**Podrobnosti.** **{{ModelBones}}** na liště nástrojů nad pohledem ukáže kostru, **{{ModelTextures}}** vypne textury; skiny jsou ve skupině **{{MbRLod}}** panelu příkazů.",
       "bild": "m_details",
-      "unter": "Skin, Kosti a Textury.",
+      "unter": "Kosti a Textury na liště nástrojů.",
       "ziel": "knopf:ModelSkin;knopf:ModelBones;knopf:ModelTextures",
       "fertig": "zahl:modell.details~",
       "voraus": "modus:2 < knopf:ViewModel@modebar",
@@ -982,9 +982,9 @@
    "ansichten": {
     "classic": [
      {
-      "text": "**Přepínání skinů.** Na kartě **{{ViewModel}}** ukazuje seznam **{{ModelSkin}}** v liště přehrávání skiny, které k modelu patří; **{{OpenSkin}}** načte jiný.",
+      "text": "**Přepínání skinů.** Na kartě **{{ViewModel}}** ukazuje skupina **{{MbRLod}}** panelu příkazů skiny, které k modelu patří; **{{OpenSkin}}** na liště nástrojů načte jiný.",
       "bild": "k_modell_leiste",
-      "unter": "Lišta přehrávání se seznamem skinů.",
+      "unter": "Seznam skinů v panelu příkazů.",
       "ziel": "knopf:ModelSkin;knopf:OpenSkin",
       "fertig": "zahl:modell.skin+",
       "voraus": "modus:2 < knopf:ViewModel@modebar && zahl:modell.da < knopf:NpcBrowser",
