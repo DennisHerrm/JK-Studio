@@ -1,7 +1,7 @@
 # Notizen ENTSCHEID3B (12./13.11.): B14-B17, C1, C3 - IK/FK-Spur wie CAT, Ducken, Tempo als Faktor, Griff der Wurzel, nur FK zurueck auf IK, Rig-Vorlage im Dokument - rc612
 
 Auftrag ENTSCHEID3B (Opus 5.5; am Wochenlimit 12.11. ~23:15 gestoppt, 13.11. fortgesetzt): `plaene/entscheidungen_1211.md` B14-B17, C1, C3
-(verbindlich). Worktree `Y:\p_ent2`, Zweig `p_ent3b` auf karte1 `fe0cbece7`. Selbsttest neu `gui/selbsttest_ent3b.inc` (`BHED_EDITORTEST=modellblock`,
+(verbindlich). Worktree `Y:\p_ent2`, Zweig `p_ent3b`, begonnen auf karte1 `fe0cbece7`, rebased auf karte1 `3d0947208` (mit DXR, AP14, KLEIN). Selbsttest neu `gui/selbsttest_ent3b.inc` (`BHED_EDITORTEST=modellblock`,
 `BHED_MODELL_NUR=ent3b`; Handbuch `BHED_EDITORTEST=handbuch`, `BHED_HB_NUR=ent3b`), Proben `gui/app_modelltab_ent3b.h/.cpp` (Text des Reglers Tempo,
 Zeilen des Dopesheets), ctest neu `modell_ent3b` mit `tests/figuranim/ent3b_figur_alt.txt` (geschrieben vom Programm vor ENTSCHEID3B). Texte
 `tools/i18n_ent3b.py` (Praefix `E3`, 6 Sprachen), Handbuch `tools/handbuch/inhalt_ent3b.py`. Skripte, Patches, Laeufe `Y:\werkzeuge\ent3b\`.
@@ -25,7 +25,8 @@ Zeilen des Dopesheets), ctest neu `modell_ent3b` mit `tests/figuranim/ent3b_figu
 | `ent3b_rot` | karte1 + Selbsttest, Proben, Felder im Kopf (ohne Behebung) | **4 OK, 35 FEHLER** - jeder Punkt rot (`Y:\werkzeuge\ent3b\rot_ent3b.out`) |
 | `ent3b_g1` | Umsetzung | 33 / 7 (Testfehler: Klick auf Vorschau ausserhalb des Felds, Zeile IK/FK weggerollt; Laufen misst sein Tempo) |
 | `ent3b_g2` | Test berichtigt | 35 / 3 (Zeile IK/FK des Dopesheets weggerollt) |
-| `ent3b_g3` | Dopesheet gerollt | siehe Schluss |
+| `ent3b_g3` | Dopesheet gerollt | **38 OK, 0 FEHLER** |
+| `s_ent3b` | nach dem Rebase auf karte1 `3d0947208` | **38 OK, 0 FEHLER** |
 
 Messwerte (kyle, BOTH_WALK1, Lauf `ent3b_g2`):
 - B14 Anteil zwischen +5 (IK) und +15 (FK): +10 = 0,500; angeglichen (nach Control Rig erstellen) an jedem Frame +4..+16 Pose wie vorher **0,000020** (Grenze 0,0001 wie ENT2); nicht angeglichen (Ziele 6 hoch): +5 = IK-Pose 0,000000, +15 = FK-Pose 0,000000, groesster Schritt der Hand je Zehntel-Frame **0,115** bei 6,0 Abstand IK/FK (rot mit der Treppe bis rc612: 6,029).
