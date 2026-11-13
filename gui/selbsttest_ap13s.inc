@@ -280,7 +280,7 @@ void stapelSchritte(std::vector<Schritt>& s, int modus) {
         }));
     } else {
         add(pruefe(zeile(nr, modus, "ohne Eintrag von oben: Skin, Edit Poly (gewaehlt), GLM-Flaeche torso - der Stapel liest sich von unten nach oben"), [] {
-            return zeilen() == liste({tr(Str::MgStapelSkin), tr(Str::MgStapelPoly), nBasis("torso")}) && gewaehlteZeile() == tr(Str::MgStapelPoly);
+            return zeilen() == liste({tr(Str::MgStapelSkin), tr(Str::EaUnwrap), tr(Str::MgStapelPoly), nBasis("torso")}) && gewaehlteZeile() == tr(Str::MgStapelPoly);
         }));
     }
     add(pruefe(zeile(nr, modus, bl ? "der Knopf Modifier hinzufuegen steht ueber der Liste" : "der Knopf Modifier-Liste steht ueber dem Stapel"), [=] {
@@ -299,7 +299,7 @@ void stapelSchritte(std::vector<Schritt>& s, int modus) {
     add(pause(0.6));
     add(pruefe(zeile(nr, modus, bl ? "Subdivision (nur Vorschau) steht in der Liste und ist gewaehlt, mit Auge (an) und Datei-Schalter (aus)"
                                    : "TurboSmooth (nur Vorschau) steht ueber Edit Poly und ist gewaehlt, mit Auge (an)"), [=] {
-        const std::string soll = bl ? nGlaetten(true) : liste({tr(Str::MgStapelSkin), nGlaetten(false), tr(Str::MgStapelPoly), nBasis("torso")});
+        const std::string soll = bl ? nGlaetten(true) : liste({tr(Str::MgStapelSkin), nGlaetten(false), tr(Str::EaUnwrap), tr(Str::MgStapelPoly), nBasis("torso")});
         const Element* auge = imRoll(tr(Str::StpAn));
         const Element* datei = imRoll(tr(Str::StpDatei));
         const bool knoepfe = auge != nullptr && (auge->flags & ImGuiItemStatusFlags_Checked) != 0 &&
@@ -382,7 +382,7 @@ void stapelSchritte(std::vector<Schritt>& s, int modus) {
     add(pause(0.7));
     add(pruefe(zeile(nr, modus, bl ? "Mirror (X) steht unter Subdivision (er rechnet danach), ist gewaehlt, Auge und Datei-Schalter an"
                                    : "Symmetry (X) steht ueber TurboSmooth (er rechnet danach) und ist gewaehlt"), [=] {
-        const std::string soll = bl ? liste({nGlaetten(true), nSpiegeln(true)}) : liste({tr(Str::MgStapelSkin), nSpiegeln(false), nGlaetten(false), tr(Str::MgStapelPoly), nBasis("torso")});
+        const std::string soll = bl ? liste({nGlaetten(true), nSpiegeln(true)}) : liste({tr(Str::MgStapelSkin), nSpiegeln(false), nGlaetten(false), tr(Str::EaUnwrap), tr(Str::MgStapelPoly), nBasis("torso")});
         const auto& stapel = teilVon(torso()).stapel;
         melde("Zeilen " + zeilen() + ", Stapel " + stapelText(torso()));
         return zeilen() == soll && gewaehlteZeile() == nSpiegeln(bl) && stapel.size() == 2 && stapel[1].art == ModArt::Spiegeln && stapel[1].datei && stapel[1].an;
@@ -426,7 +426,7 @@ void stapelSchritte(std::vector<Schritt>& s, int modus) {
     add(klickRoll(tr(bl ? Str::StpHoch : Str::StpRunter)));
     add(pause(0.6));
     add(pruefe(zeile(nr, modus, bl ? "Nach oben: Mirror steht jetzt ueber Subdivision und rechnet zuerst" : "Nach unten: Symmetry steht jetzt unter TurboSmooth und rechnet zuerst"), [=] {
-        const std::string soll = bl ? liste({nSpiegeln(true), nGlaetten(true)}) : liste({tr(Str::MgStapelSkin), nGlaetten(false), nSpiegeln(false), tr(Str::MgStapelPoly), nBasis("torso")});
+        const std::string soll = bl ? liste({nSpiegeln(true), nGlaetten(true)}) : liste({tr(Str::MgStapelSkin), nGlaetten(false), nSpiegeln(false), tr(Str::EaUnwrap), tr(Str::MgStapelPoly), nBasis("torso")});
         melde("Zeilen " + zeilen() + ", Stapel " + stapelText(torso()));
         return zeilen() == soll && eintrag(0).art == ModArt::Spiegeln && gewaehlteZeile() == nSpiegeln(bl);
     }));
@@ -621,7 +621,7 @@ void weightsSchritte(std::vector<Schritt>& s) {
     add(pruefe(zeile("W1", 0, "im Bereich Weights steht die Gruppe Modifier-Stapel zuoberst im Reiter Aendern: Skin (gewaehlt) ueber Edit Poly ueber der Flaeche"), [] {
         melde("Weights: Gruppen " + gruppen() + ", Zeilen " + zeilen());
         return feldFrisch() && ui::rolloutProbeZahl() > 0 && ui::rolloutProbe(0).titel == tr(Str::MgRStapel) &&
-               zeilen() == liste({tr(Str::MgStapelSkin), tr(Str::MgStapelPoly), nBasis("torso")}) && gewaehlteZeile() == tr(Str::MgStapelSkin);
+               zeilen() == liste({tr(Str::MgStapelSkin), tr(Str::EaUnwrap), tr(Str::MgStapelPoly), nBasis("torso")}) && gewaehlteZeile() == tr(Str::MgStapelSkin);
     }));
     add(tu("AP13S W1: TurboSmooth hinzufuegen", [] { (void)modellStapelHinzufuegen(ModArt::Glaetten); }));
     add(pause(0.8));
@@ -630,7 +630,7 @@ void weightsSchritte(std::vector<Schritt>& s) {
         (void)mb1::ansichtLesen(jetzt);
         const int anders = mb1::unterschied(bildOhne->px, jetzt.px);
         melde("Gewichtsansicht: Bildpunkte anders " + std::to_string(anders));
-        return zeilen() == liste({tr(Str::MgStapelSkin), nGlaetten(false), tr(Str::MgStapelPoly), nBasis("torso")}) && modellStapelErsetzt(torso()) &&
+        return zeilen() == liste({tr(Str::MgStapelSkin), nGlaetten(false), tr(Str::EaUnwrap), tr(Str::MgStapelPoly), nBasis("torso")}) && modellStapelErsetzt(torso()) &&
                dreieckeGezeichnet(torso()) == netzVon(torso()).dreiecke() * 6 && anders > 50;
     }));
     add(pruefe(zeile("W1", 0, "jede Ecke der Vorschau traegt hoechstens vier Knochen mit Summe 1 (wie die Datei)"), [] {
@@ -646,7 +646,7 @@ void weightsSchritte(std::vector<Schritt>& s) {
     add(pause(0.5));
     add(pruefe(zeile("W1", 0, "ein Klick auf Edit Poly wechselt in den Bereich Modellieren - dort ist Edit Poly gewaehlt und der Eintrag steht weiter da"), [] {
         return mtab().bereich == ModellBereich::Modellieren && gewaehlteZeile() == tr(Str::MgStapelPoly) &&
-               zeilen() == liste({tr(Str::MgStapelSkin), nGlaetten(false), tr(Str::MgStapelPoly), nBasis("torso")});
+               zeilen() == liste({tr(Str::MgStapelSkin), nGlaetten(false), tr(Str::EaUnwrap), tr(Str::MgStapelPoly), nBasis("torso")});
     }));
     add(klickRoll(tr(Str::MgStapelSkin)));
     add(pause(0.5));
@@ -834,7 +834,7 @@ void requisitSchritte(std::vector<Schritt>& s) {
     add(pruefe("AP13S Requisit: ohne Auswahl zeigt der Stapel die einzige Flaeche - Edit Poly (gewaehlt) ueber der MD3-Flaeche, kein Skin", [] {
         const int t = modellStapelTeil();
         melde("Requisit: Flaeche " + std::to_string(t) + ", Zeilen " + zeilen());
-        return t == 0 && zeilen() == liste({tr(Str::MgStapelPoly), nBasis(teilVon(0).name, true)}) && gewaehlteZeile() == tr(Str::MgStapelPoly);
+        return t == 0 && zeilen() == liste({tr(Str::EaUnwrap), tr(Str::MgStapelPoly), nBasis(teilVon(0).name, true)}) && gewaehlteZeile() == tr(Str::MgStapelPoly);
     }));
     add(merke(0, vorher));
     add(tu("AP13S Requisit: TurboSmooth", [] { (void)modellStapelHinzufuegen(ModArt::Glaetten); }));

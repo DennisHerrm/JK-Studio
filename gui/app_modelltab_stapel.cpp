@@ -802,6 +802,9 @@ void drawModellStapelGruppe() {
                         tr(t.bereich == ModellBereich::Weights ? Str::MgStapelSkinHint : Str::StpSkinWechsel), ModellBereich::Weights, true);
         }
         for (int i = zi(tl->stapel.size()) - 1; i >= 0; --i) { eintragZeile(i); }
+        // ENTSCHEID3A (B13): wie 3ds Max "Unwrap UVW" ueber Edit Poly - die UVs der Flaeche; die Eintraege darueber rechnen mit ihnen
+        // (Spiegeln uebernimmt sie, Glaetten mittelt sie). Ein Klick wechselt in den Bereich UV (dort zeigt der Entwurf keinen Stapel).
+        stufenZeile("unwrap", tr(Str::EaUnwrap), false, tr(Str::EaUnwrapHint), ModellBereich::Uv, true);
         stufenZeile("poly", tr(Str::MgStapelPoly), gewaehlt == 0U && t.bereich == ModellBereich::Modellieren,
                     tr(t.bereich == ModellBereich::Modellieren ? Str::StpPolyHier : Str::MgStapelPolyHint), ModellBereich::Modellieren, true);
         stufenZeile("basis", format(in.herkunft == modell::Herkunft::Md3 ? Str::StpBasisMd3 : Str::StpBasisGlm, tl->name.c_str()), false, tr(Str::StpBasisHint),
@@ -868,6 +871,10 @@ void modellStapelMenue() {
     ImGui::Separator();
     if (ImGui::MenuItem(tr(Str::StpAktZeigen))) { modellStapelZeigen(); }
     ImGui::SetItemTooltip("%s", tr(Str::StpAktZeigenHint));
+    if (!modellBlender()) {   // ENTSCHEID3A (B13)
+        if (ImGui::MenuItem(tr(Str::EaUnwrap))) { mt().bereich = ModellBereich::Uv; }
+        ImGui::SetItemTooltip("%s", tr(Str::EaUnwrapHint));
+    }
     ImGui::EndMenu();
 }
 
@@ -891,8 +898,12 @@ bool modellStapelAktionenSuche(const std::string& such) {
         {tr(Str::StpAktEntfernen), tr(Str::StpEntfernenHint), [] { (void)modellStapelEntfernen(gewaehlterEintrag()); }},
         {tr(Str::StpAktZeigen), tr(Str::StpAktZeigenHint), [] { modellStapelZeigen(); }},
     };
+    std::vector<Eintrag> alle = liste;
+    if (!bl) {   // ENTSCHEID3A (B13): wie 3ds Max die Zeile Unwrap UVW
+        alle.push_back({tr(Str::EaUnwrap), tr(Str::EaUnwrapHint), [] { mt().bereich = ModellBereich::Uv; }});
+    }
     bool ausgeloest = false;
-    for (const Eintrag& e : liste) {
+    for (const Eintrag& e : alle) {
         if (!such.empty() && klein(e.text).find(such) == std::string::npos) { continue; }
         if (ImGui::Selectable(e.text.c_str())) {
             e.tun();
