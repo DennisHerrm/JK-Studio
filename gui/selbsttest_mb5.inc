@@ -811,7 +811,8 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
     auto pfadVorher = std::make_shared<std::array<float, 3>>();
     // MBKOPF: von der Seite wie bis rc611 - der Gang laeuft dann quer durchs Bild, die Punkte bei +8 und +9 liegen auseinander
     // (von vorne laeuft er auf die Kamera zu, die Punkte liegen fast aufeinander: in schmaleren Ansichten - ja, es - griff
-    // der Zug den Punkt bei +9)
+    // der Zug den Punkt bei +9). ROT612: auch von der Seite liegen sie unter einem Punkt auseinander - der Zug sucht deshalb
+    // seinen Startpunkt (unten)
     add(mb1::seitenAnsicht());
     add(tu("MB5 Pfad: Schicht leer, Pfad pelvis und upper_lumbar, Frame +8", [pfadVorher] {
         g_app->mtab.dok.aendern("MB5 leer", [](modell::Inhalt& in) { in.rig.schichten.clear(); }, false);
@@ -833,15 +834,61 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
         *pfadVorher = {x.m[0][3], x.m[1][3], x.m[2][3]};
     }));
     auto ziel = std::make_shared<ImVec2>();
+    // Der Griff nimmt den Pfadpunkt, der der Maus am naechsten liegt - und ImGui rundet die Maus auf ganze Punkte ab (ImFloor in
+    // UpdateMouseInputs). Der Gang laeuft auf der Stelle: die Punkte bei +7, +8, +9 liegen weniger als einen Punkt auseinander
+    // (eine Ansicht 1315 x 789: 1,0 und 0,6; jede der vier Ansichten 656 x 393: 0,5 und 0,3). Der Zug beginnt deshalb auf dem ganzen
+    // Punkt nahe +8 (hoechstens sqrt(2) entfernt, so weit wie die Rundung bisher), dem +8 am naechsten liegt (Abstand zu jedem anderen
+    // Bild mindestens 0,05 groesser) - sonst griff er, je nach
+    // Rundung, +9. Seit FIX612 P3-4 (e77c27be3) kehrt der Bereich Animation nach "wie Blender" -> "wie 3ds Max" (oben) mit seinen
+    // vier Ansichten zurueck (R7); bis dahin lief der Test hier in einer Ansicht, wo die Rundung zufaellig +8 traf.
     add(mb3::ziehenVonNach("den Punkt des Beckenpfads bei +8 um (40, -30)", [ziel] {
         ImVec2 p;
         (void)modellPfadPunktAufSchirm(0, f0() + 8, p);
-        *ziel = ImVec2{p.x + 40.0F, p.y - 30.0F};
-        return p;
+        std::vector<ImVec2> andere;   // die Punkte der anderen Bilder, die der Griff kennt (pfadDavor / pfadDanach um das Bild)
+        const int von = std::max(f0(), f0() + 8 - g_app->mtab.pfadDavor);
+        const int bis = std::min(f0() + seq().numFrames - 1, f0() + 8 + g_app->mtab.pfadDanach);
+        for (int f = von; f <= bis; ++f) {
+            ImVec2 q;
+            if (f != f0() + 8 && modellPfadPunktAufSchirm(0, f, q)) { andere.push_back(q); }
+        }
+        ImVec2 start{std::floor(p.x), std::floor(p.y)};
+        float bestD = 1e9F;
+        float bestRand = -1.0F;
+        for (int dy = -3; dy <= 3; ++dy) {
+            for (int dx = -3; dx <= 3; ++dx) {
+                const ImVec2 m{std::floor(p.x) + static_cast<float>(dx), std::floor(p.y) + static_cast<float>(dy)};
+                const float d8 = std::hypot(m.x - p.x, m.y - p.y);
+                float naechster = 1e9F;
+                for (const ImVec2& q : andere) { naechster = std::min(naechster, std::hypot(m.x - q.x, m.y - q.y)); }
+                if (naechster - d8 >= 0.05F && d8 <= 1.415F && d8 < bestD) {   // hoechstens sqrt(2) wie die Rundung bisher (Pruefung: 1,5 Punkte)
+                    bestD = d8;
+                    bestRand = naechster - d8;
+                    start = m;
+                }
+            }
+        }
+        if (bestRand < 0.0F) { meldeFehler("MB5 Pfad: kein ganzer Punkt nahe +8, dem +8 am naechsten liegt"); }
+        *ziel = ImVec2{start.x + 40.0F, start.y - 30.0F};
+        ImVec2 p7;
+        ImVec2 p9;
+        const bool da = modellPfadPunktAufSchirm(0, f0() + 7, p7) && modellPfadPunktAufSchirm(0, f0() + 9, p9);
+        const ModellAnsicht& av = g_app->mtab.ansichten[g_app->mtab.aktiv];
+        char z[320];
+        std::snprintf(z, sizeof z,
+                      "Knopftest: MB5 Pfad vor dem Zug - Ansicht %d von %s (%.0f x %.0f), Punkt +8 (%.1f, %.1f), +7 %.1f und +9 %.1f Punkte daneben; Zug ab (%.0f, %.0f), "
+                      "+8 %.2f entfernt, das naechste andere Bild %.2f weiter",
+                      g_app->mtab.aktiv, g_app->mtab.vierAnsichten ? "vier" : "einer", static_cast<double>(av.groesse[0]), static_cast<double>(av.groesse[1]),
+                      static_cast<double>(p.x), static_cast<double>(p.y), da ? static_cast<double>(std::hypot(p7.x - p.x, p7.y - p.y)) : -1.0,
+                      da ? static_cast<double>(std::hypot(p9.x - p.x, p9.y - p.y)) : -1.0, static_cast<double>(start.x), static_cast<double>(start.y),
+                      static_cast<double>(bestD), static_cast<double>(bestRand));
+        diag::detail(z);
+        return start;
     }, [ziel] { return *ziel; }));
     add(pause(0.3));
     add(pruefe("MB5 Pfad ziehen: das Becken steht bei +8 unter der Maus (1,5 Punkte), in der Bildebene, ein Schluessel", [pfadVorher, ziel] {
         ImVec2 p;
+        diag::detail(std::string("Knopftest: MB5 Pfad - Schluessel am Becken bei +8 ") + (schl(boneIndex(g_app->anim, "pelvis"), f0() + 8) != nullptr ? "ja" : "nein") +
+                     ", bei +9 " + (schl(boneIndex(g_app->anim, "pelvis"), f0() + 9) != nullptr ? "ja" : "nein"));
         if (!modellPfadPunktAufSchirm(0, f0() + 8, p) || schl(boneIndex(g_app->anim, "pelvis"), f0() + 8) == nullptr) { return false; }
         // Weg senkrecht zur Blickrichtung: Bildebene der Ansicht
         const float* vp = g_app->mtab.ansichten[g_app->mtab.aktiv].viewProj;

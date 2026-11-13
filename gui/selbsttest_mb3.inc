@@ -755,8 +755,14 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
         const std::vector<std::array<float, 3>> p = modell::bewegungsPfad(g_app->anim, sch != nullptr ? *sch : modell::RigSchicht{}, h, g_app->animFrame, g_app->animFrame);
         const BoneMatrix& m = g_app->modellWelt[static_cast<std::size_t>(h)];
         const bool ort = p.size() == 1U && std::fabs(p[0][0] - m.m[0][3]) < 1e-3F && std::fabs(p[0][1] - m.m[1][3]) < 1e-3F && std::fabs(p[0][2] - m.m[2][3]) < 1e-3F;
-        diag::detail("Knopftest: MB4 Pfad - Punkte " + std::to_string(g_app->mtab.pfadPunkte) + ", Schluessel " + std::to_string(g_app->mtab.pfadSchluessel));
-        return g_app->mtab.pfadPunkte == 21 && g_app->mtab.pfadSchluessel == 1 && ort;
+        // Jede gezeichnete Ansicht zeigt den Pfad (pfadPunkte zaehlt ueber alle): wie 3ds Max nach dem Wechsel ueber wie Blender
+        // zurueck die vier Ansichten des Bereichs Animation (R7, FIX612 P3-4 e77c27be3 - bis dahin ging der Wechsel mit einer Ansicht
+        // weiter, der Test zaehlte 21). Je Ansicht 21 Punkte und der eine Schluessel.
+        int ansichten = 0;
+        for (const ModellAnsicht& a : g_app->mtab.ansichten) { ansichten += a.sichtbar ? 1 : 0; }
+        diag::detail("Knopftest: MB4 Pfad - Punkte " + std::to_string(g_app->mtab.pfadPunkte) + ", Schluessel " + std::to_string(g_app->mtab.pfadSchluessel) + ", Ansichten " +
+                     std::to_string(ansichten) + (g_app->mtab.vierAnsichten ? " (vier)" : " (eine)"));
+        return ansichten == (g_app->mtab.vierAnsichten ? 4 : 1) && g_app->mtab.pfadPunkte == 21 * ansichten && g_app->mtab.pfadSchluessel == ansichten && ort;
     }));
     if (handbuch) {
         add(tu("MB4 Handbuch: Ansicht von schraeg vorn eingepasst, kein Gizmo", [] {
