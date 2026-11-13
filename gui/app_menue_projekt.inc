@@ -497,7 +497,7 @@ void zeichneProjektKnopf() {
     const std::string titel = z.projektDatei.empty() ? std::string(tr(Str::MePrjProjekt))
                                                      : std::string(tr(Str::MePrjProjekt)) + ": " + fs::path(utf8Pfad(z.projektDatei)).stem().string();
     if (leistenKnopf(titel.c_str(), UiIcon::Mission, tr(Str::MePrjTip))) { ImGui::OpenPopup("##projekt"); }
-    if (ImGui::BeginPopup("##projekt")) {
+    if (ui::popup("##projekt")) {
         zeichneNeuDialekt();
         if (ImGui::MenuItem(tr(Str::MePrjNeu))) { neuesProjektWaehlen(); }
         if (ImGui::MenuItem(tr(Str::MePrjOeffnen))) { projektOeffnenWaehlen(); }
@@ -553,7 +553,7 @@ void zeichneProjektLeer() {
     if (wahl == 0) { neuesProjektWaehlen(); }
     if (wahl == 1) { projektOeffnenWaehlen(); }
     if (wahl == 2) { ImGui::OpenPopup("##start_menue"); }
-    if (ImGui::BeginPopup("##start_menue")) {
+    if (ui::popup("##start_menue")) {
         if (ImGui::MenuItem(tr(Str::MeAusSpiel))) { Z().spielListeOffen = true; }
         if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MeStartAusSpielTip)); }
         if (ImGui::MenuItem(tr(Str::MeDateiOeffnen))) { dateiOeffnenWaehlen(); }

@@ -2070,7 +2070,8 @@ if(TARGET behaved)
   target_sources(behaved PRIVATE gui/ui_rollout.cpp gui/app_modelltab_feld.cpp)
 endif()
 
-# KLEIN2: Menues im ganzen Programm - Esc schliesst die Menues des Model-Tabs an einer Stelle (gui/ui_menue.h)
+# KLEIN2: Menues im ganzen Programm - Esc schliesst die Menues des Model-Tabs an einer Stelle, Menues und Untermenues bleiben
+# im Fenster, aus dem sie aufgehen (ui::menue statt ImGui::BeginMenu, tools/lint_menue.py) - gui/ui_menue.h
 if(TARGET behaved)
   target_sources(behaved PRIVATE gui/ui_menue.cpp)
 endif()

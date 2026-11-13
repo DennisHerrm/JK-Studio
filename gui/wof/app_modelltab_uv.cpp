@@ -37,6 +37,7 @@
 // original copyright notice, license conditions, and disclaimer as required by the BSD-3-Clause License.
 // (Diese Datei ist ein solches Werk: von einer KI nach dem Lesen der genannten Quellen geschrieben.)
 #include "../app_internal.h"
+#include "../ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "../backend.h"
 
 #include "bhed/md3.h"
@@ -532,7 +533,7 @@ void alsMenue(int nurGruppe) {
             gruppe = a.gruppe;
             if (nurGruppe < 0) {
                 // jede Gruppe ein Untermenue: Platz nur, wenn noetig (wie die Weights im Rechtsklick)
-                unter = ImGui::BeginMenu(tr(kGruppen[uz(gruppe)]));
+                unter = ui::menue(tr(kGruppen[uz(gruppe)]));
                 if (!unter) {
                     while (i + 1 < liste.size() && liste[i + 1].gruppe == gruppe) { ++i; }
                     continue;
@@ -598,7 +599,7 @@ void modellUvAktionAusloesen(int i) { ausloesen(aktionen()[uz(i)]); }
 void modellUvMenue() { alsMenue(-1); }
 
 void modellUvKontextMenue() {
-    if (ImGui::BeginMenu(tr(Str::UvMenue))) {
+    if (ui::menue(tr(Str::UvMenue))) {
         alsMenue(-1);
         ImGui::EndMenu();
     }
@@ -652,7 +653,7 @@ void drawModellUvPopups() {
         ImGui::OpenPopup("###uvabwickeln");
         u.menueOeffnen = false;
     }
-    if (ImGui::BeginPopup("###uvabwickeln")) {
+    if (ui::popup("###uvabwickeln")) {
         ImGui::TextDisabled("%s", tr(Str::UvGrAbwickeln));
         alsMenue(2);
         ImGui::Separator();
@@ -663,7 +664,7 @@ void drawModellUvPopups() {
         ImGui::OpenPopup("###uvkontext");
         u.kontextOeffnen = false;
     }
-    if (ImGui::BeginPopup("###uvkontext")) {
+    if (ui::popup("###uvkontext")) {
         alsMenue(-1);
         ImGui::EndPopup();
     }
@@ -672,7 +673,7 @@ void drawModellUvPopups() {
         ImGui::OpenPopup("###uvausrichten");
         u.ausrichtenOeffnen = false;
     }
-    if (ImGui::BeginPopup("###uvausrichten")) {
+    if (ui::popup("###uvausrichten")) {
         ImGui::TextDisabled("%s", tr(Str::MrUvAusrichten));
         for (const UvAktion& a : aktionen()) {
             if (a.text != Str::UvBegradigen && a.text != Str::UvAusrichten) { continue; }

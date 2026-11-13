@@ -14,6 +14,7 @@
 // optionen koennen dann oben rein in das aufklappbare menu bei perspective und standard usw"); dieselben Menues hat das
 // Rechtsklick-Menue der Ansicht, und "Alle Aktionen suchen" (X / F3) findet jeden Schalter mit seinem Ort im Tooltip.
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "app_modelltab_knochen.h"   // AP13K: Knochen-Darstellung, Rig-Stil, Durchsicht in den Menues
 #include "textumbruch.h"
 #include <algorithm>
@@ -213,7 +214,7 @@ void rasterZahlen() {
 
 // MBRASTER: 3ds Max - das Untermenue unter "Raster (G)" (in Max: Grid and Snap Settings > Home Grid)
 void rasterEinstellungenMax() {
-    const bool offen = ImGui::BeginMenu(tr(Str::MrRasterEinst));
+    const bool offen = ui::menue(tr(Str::MrRasterEinst));
     ImGui::SetItemTooltip("%s", tr(Str::MrRasterEinstHint));
     if (!offen) { return; }
     ++mt().kopfMenueZaehler;
@@ -317,7 +318,7 @@ void navigationZeilen() {
 
 // AP3 R4: der Bedienmodus des Model-Tabs als Untermenue (bis rc611 zwei Knoepfe im rechten Feld).
 void bedienmodusMenue() {
-    if (!ImGui::BeginMenu(tr(Str::MbBedienung))) { return; }
+    if (!ui::menue(tr(Str::MbBedienung))) { return; }
     const bool blender = modellBlender();
     if (ImGui::MenuItem(tr(Str::MbWieMax), nullptr, !blender)) { modellBedienungSetzen(0); }
     if (ImGui::MenuItem(tr(Str::MbWieBlender), nullptr, blender)) { modellBedienungSetzen(1); }
@@ -349,17 +350,17 @@ void menueAllgemein(int n) {
     }
     hintergrundZeile();
     ImGui::Separator();
-    if (ImGui::BeginMenu(tr(Str::MkKnochenPruefen))) {
+    if (ui::menue(tr(Str::MkKnochenPruefen))) {
         ++t.kopfMenueZaehler;
         schalterDerArt(Ort::Knochen, n);
         modellKdMenue(n);   // AP13K: Im Vordergrund, Anzeigen als, Rig-Stil
         ImGui::EndMenu();
     }
-    if (ImGui::BeginMenu(tr(Str::MkViewCube))) {
+    if (ui::menue(tr(Str::MkViewCube))) {
         navigationZeilen();
         ImGui::EndMenu();
     }
-    if (ImGui::BeginMenu(tr(Str::MbAnFov))) {
+    if (ui::menue(tr(Str::MbAnFov))) {
         sichtfeldZeile();
         ImGui::EndMenu();
     }
@@ -418,7 +419,7 @@ void menueAnsichtMax(int n) {
     }
     ImGui::SetItemTooltip("%s", tr(Str::MkEinpassenHint));
     // MBNAV: die Befehle der Ansichtssteuerung von 3ds Max (unten rechts) und die Einstellungen der Maus
-    if (ImGui::BeginMenu(tr(Str::MkBlNavigation))) {
+    if (ui::menue(tr(Str::MkBlNavigation))) {
         ++mt().kopfMenueZaehler;
         modellNavMenue(n);
         ImGui::EndMenu();
@@ -470,7 +471,7 @@ void menueAnsichtBlender(int n) {
     ImGui::SetItemTooltip("%s", tr(Str::MkHomeHint));
     ImGui::Separator();
     blenderZeilen(n, {{Str::MkBlPersp, "Numpad 5", [] { modellPerspektiveUmschalten(); }}});
-    if (ImGui::BeginMenu(tr(Str::MkBlBlickpunkt))) {
+    if (ui::menue(tr(Str::MkBlBlickpunkt))) {
         ++t.kopfMenueZaehler;
         const AnsichtArt jetzt = t.ansichten[n].art;
         for (const AnsichtZeile& z : kAnsichten) {
@@ -479,7 +480,7 @@ void menueAnsichtBlender(int n) {
         }
         ImGui::EndMenu();
     }
-    if (ImGui::BeginMenu(tr(Str::MkBlNavigation))) {
+    if (ui::menue(tr(Str::MkBlNavigation))) {
         ++t.kopfMenueZaehler;
         blenderZeilen(n, {{Str::MkBlKreisLinks, "Numpad 4", [] { modellKreisenSchritt(15.0F, 0.0F); }},
                           {Str::MkBlKreisRechts, "Numpad 6", [] { modellKreisenSchritt(-15.0F, 0.0F); }},
@@ -702,7 +703,7 @@ void drawModellKopfzeile(int n, ModellAnsicht& a) {
     // --- die Menues ------------------------------------------------------------------------------------------------
     const auto menue = [&](const char* id, const MenueAnker& m, auto&& inhalt) {
         if (ImGui::IsPopupOpen(id)) { ImGui::SetNextWindowPos(m.ort, ImGuiCond_Appearing, ImVec2{m.pivotX, 0.0F}); }
-        if (ImGui::BeginPopup(id)) {
+        if (ui::popup(id)) {
             ++t.kopfMenueZaehler;
             inhalt();   // Esc schliesst das Menue an einer Stelle fuer den ganzen Model-Tab (KLEIN2, modellMenueEscBildAnfang)
             ImGui::EndPopup();
@@ -726,29 +727,29 @@ void modellAnzeigeKontext() {
     ModellTab& t = mt();
     const int n = std::clamp(t.aktiv, 0, 3);
     if (modellBlender()) {
-        if (ImGui::BeginMenu(tr(Str::MkBlOverlays))) {
+        if (ui::menue(tr(Str::MkBlOverlays))) {
             menueOverlays(n);
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu(tr(Str::MkBlShading))) {
+        if (ui::menue(tr(Str::MkBlShading))) {
             menueShadingBlender(n);
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu(tr(Str::MkBlNavigation))) {   // MBNAV
+        if (ui::menue(tr(Str::MkBlNavigation))) {   // MBNAV
             modellNavMenue(n);
             ImGui::EndMenu();
         }
         return;
     }
-    if (ImGui::BeginMenu(tr(Str::MkSchattierung))) {
+    if (ui::menue(tr(Str::MkSchattierung))) {
         menueSchattierungMax(n);
         ImGui::EndMenu();
     }
-    if (ImGui::BeginMenu(tr(Str::MbRAnzeige))) {
+    if (ui::menue(tr(Str::MbRAnzeige))) {
         menueAllgemein(n);
         ImGui::EndMenu();
     }
-    if (ImGui::BeginMenu(tr(Str::MkBlNavigation))) {   // MBNAV: die Befehle der Ansichtssteuerung auch im Rechtsklick-Menue
+    if (ui::menue(tr(Str::MkBlNavigation))) {   // MBNAV: die Befehle der Ansichtssteuerung auch im Rechtsklick-Menue
         modellNavMenue(n);
         ImGui::EndMenu();
     }

@@ -14,6 +14,7 @@
 #include "tabfenster.h"
 
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue/popup - Menues bleiben im Fenster
 #include "fenster_dock.h"
 #include "bhed/diag.h"
 #include "bhed/fensteranordnung.h"
@@ -576,7 +577,7 @@ void leisteKnopf(int modus) {
     if (g_app == nullptr) { return; }
     Stand& s = st();
     // Rechtsklick: in ein eigenes Fenster bzw. zurueck
-    if (ImGui::BeginPopupContextItem()) {
+    if (ui::popupKontext()) {
         if (eigenes(modus)) {
             if (ImGui::MenuItem(tr(Str::TfZurueck))) { zurueck(modus); }
         } else {

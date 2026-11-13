@@ -9,6 +9,7 @@
 // steht, braucht die Grafikschnittstelle und die Formatleser; was in
 // app.cpp bleibt, ist Baum, Dialoge und Dateiverwaltung.
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "textumbruch.h"
 #include "tour.h"   // H2: die Kamerazeile der Zeitleiste als Ziel der Touren
 
@@ -8691,7 +8692,7 @@ float ansichtsSchalter(bool nurMessen) {
         if (iconKnopf(tr(Str::Grid), UiIcon::Raster, hilfe, g_app->rasterSchritt > 0, true, true)) {
             ImGui::OpenPopup("##raster");
         }
-        if (ImGui::BeginPopup("##raster")) {
+        if (ui::popup("##raster")) {
             if (ImGui::MenuItem(tr(Str::GridOff), nullptr, g_app->rasterSchritt == 0)) { g_app->rasterSchritt = 0; }
             for (const int r : {8, 16, 32, 64}) {
                 if (ImGui::MenuItem(std::to_string(r).c_str(), nullptr, g_app->rasterSchritt == r)) { g_app->rasterSchritt = r; }
@@ -8705,7 +8706,7 @@ float ansichtsSchalter(bool nurMessen) {
         g_app->ansichtEinstellungenOeffnen = false;
         ImGui::OpenPopup("##ansichteinstellungen");
     }
-    if (ImGui::BeginPopup("##ansichteinstellungen")) {
+    if (ui::popup("##ansichteinstellungen")) {
         ansichtEinstellungen();
         ImGui::EndPopup();
     }

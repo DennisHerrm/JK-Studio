@@ -17,6 +17,7 @@
 //                 gezogene Punkt das IK-Ziel an diesem Frame (wie 3ds Max Bewegung > Trajektorien: Schluessel auf der Bahn
 //                 verschieben), ein Rueckgaengig-Schritt.
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "app_modelltab_ent3b.h"
 #include "textumbruch.h"
 
@@ -505,7 +506,7 @@ void drawRegler() {
     if (t.kvRegler == 0) { return; }
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSize(ImVec2{fs * 22.0F, 0.0F}, ImGuiCond_Appearing);
-    if (!ImGui::BeginPopup("###kvregler")) {
+    if (!ui::popup("###kvregler")) {
         // ausserhalb geklickt: wie Abbrechen
         if (t.kvRegler != 0) { reglerZu(false); }
         return;
@@ -1066,9 +1067,9 @@ void gruppeAlsMenue(int g) {
 
 void alleAlsUntermenues() {
     for (int g = 0; g < kKvGruppen; ++g) {
-        if (ImGui::BeginMenu(tr(kKvGruppenText[g]))) {
+        if (ui::menue(tr(kKvGruppenText[g]))) {
             gruppeAlsMenue(g);
-            if (g == 8 && ImGui::BeginMenu(tr(Str::MbIkPosenLaden))) {   // Stufe 4: die Bibliothek aus einer Datei
+            if (g == 8 && ui::menue(tr(Str::MbIkPosenLaden))) {   // Stufe 4: die Bibliothek aus einer Datei
                 posenLadenMenue();
                 ImGui::EndMenu();
             }
@@ -1405,7 +1406,7 @@ void drawDopesheet(const ImVec2 groesse) {
         t.kvZiehArt = 0;
     }
     if (ueber && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && ImGui::GetMouseDragDelta(ImGuiMouseButton_Right).x == 0.0F) { ImGui::OpenPopup("##kvkontext"); }
-    if (ImGui::BeginPopup("##kvkontext")) {
+    if (ui::popup("##kvkontext")) {
         alleAlsUntermenues();
         ImGui::EndPopup();
     }
@@ -1778,7 +1779,7 @@ void drawKurven(const ImVec2 groesse) {
         t.kvZiehArt = 0;
     }
     if (ueber && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && ImGui::GetMouseDragDelta(ImGuiMouseButton_Right).x == 0.0F) { ImGui::OpenPopup("##kvkontext"); }
-    if (ImGui::BeginPopup("##kvkontext")) {
+    if (ui::popup("##kvkontext")) {
         alleAlsUntermenues();
         ImGui::EndPopup();
     }
@@ -1845,7 +1846,7 @@ int modellKurvenAktionNach(int text) {
 }
 
 void modellKurvenMenue() {
-    if (ImGui::BeginMenu(tr(Str::MbKvMenue))) {
+    if (ui::menue(tr(Str::MbKvMenue))) {
         alleAlsUntermenues();
         ImGui::EndMenu();
     }
@@ -2098,7 +2099,7 @@ void modellAnimGruppePosenBibliothek() {
     }
     if (ui::werkzeugKnopf(tr(Str::MbIkPosenLaden), {.icon = UiIcon::Oeffnen, .hinweis = tr(Str::MbIkPosenLadenHint)})) { ImGui::OpenPopup("##posenladen"); }
     ui::rasterEnde();
-    if (ImGui::BeginPopup("##posenladen")) {
+    if (ui::popup("##posenladen")) {
         posenLadenMenue();
         ImGui::EndPopup();
     }

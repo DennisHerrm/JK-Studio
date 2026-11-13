@@ -86,7 +86,7 @@ def hauptmenue(zeilen):
         z = zeilen[i]
         if "ImGui::EndMenuBar()" in z:
             break
-        m = re.search(r"ImGui::BeginMenu\(tr\(Str::(\w+)\)", z)
+        m = re.search(r"(?:ImGui::BeginMenu|ui::menue)\(tr\(Str::(\w+)\)", z)   # KLEIN2: Menues ueber ui::menue
         if m:
             stapel.append(m.group(1))
             # das Untermenue selbst ist auch ein Ort ("View > Language")
@@ -122,7 +122,7 @@ def fenstermenue():
     for z in zeilen[start + 1:]:
         if z.startswith("}"):
             break
-        m = re.search(r"ImGui::BeginMenu\(tr\(Str::(\w+)\)", z)
+        m = re.search(r"(?:ImGui::BeginMenu|ui::menue)\(tr\(Str::(\w+)\)", z)   # KLEIN2: Menues ueber ui::menue
         if m:
             kette = stapel + [m.group(1)]
             aus.append(["programm", "menue:" + ">".join(kette), ">".join(kette), "", "", ""])

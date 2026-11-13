@@ -19,6 +19,7 @@
 // 0,4 Grad je Bildpunkt, pad_rot_angle 15, smooth_viewtx 200, USER_AUTOPERSP an, USER_ZOOM_DOLLY, Orbit Around Selection und
 // Zoom to Mouse Position aus), Tasten aus blender_default.py (km_view3d).
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 
 #include <algorithm>
 #include <array>
@@ -1226,7 +1227,7 @@ void modellNavMenue(int n) {
     navZeile({Str::MnRueck, Str::MnRueckHint, [] { (void)modellNavRueck(false); }});
     navZeile({Str::MnWieder, Str::MnRueckHint, [] { (void)modellNavRueck(true); }});
     ImGui::Separator();
-    if (ImGui::BeginMenu(tr(Str::MnOrbitArt))) {
+    if (ui::menue(tr(Str::MnOrbitArt))) {
         ++t.kopfMenueZaehler;
         static const Str kArt[4] = {Str::MnOrbitMitte, Str::MnOrbitAuswahl, Str::MnOrbitUnter, Str::MnOrbitPunkt};
         for (int i = 0; i < 4; ++i) {
@@ -1255,7 +1256,7 @@ void drawModellNavPopups() {
         ImGui::OpenPopup("##mnansichten");
         g_ansichtenMenue = false;
     }
-    if (ImGui::BeginPopup("##mnansichten")) {
+    if (ui::popup("##mnansichten")) {
         // 3ds Max: das Quad-Menue "Viewports" (V) - die Ansichten, wie die Tasten T/B/F/L/P/U
         static const struct {
             AnsichtArt art;
@@ -1283,7 +1284,7 @@ void drawModellNavPopups() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
-    if (ImGui::BeginPopup("##mnkuchen", ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+    if (ui::popup("##mnkuchen", ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
         static const struct {
             float x;
             float y;

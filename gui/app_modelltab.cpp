@@ -7,6 +7,7 @@
 // Gliederung und Funktionen, gezeichnet wird wie im Spiel ueber den
 // Ghoul2-Weg des Mission-Tabs; die Regeln dafuer stehen in bhed/modell/g2.h.
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "app_modelltab_knochen.h"   // AP13K: Alt+X / Alt+Z, Suche
 #include "textumbruch.h"
 #include "gpumap.h"
@@ -562,11 +563,11 @@ void rolloutModell() {
         ImGui::OpenPopup("###mxneutab");
     }
     ui::rasterEnde();
-    if (ImGui::BeginPopup("###mxneutab")) {
+    if (ui::popup("###mxneutab")) {
         modellNeuerReiterMenue();
         ImGui::EndPopup();
     }
-    if (ImGui::BeginPopup("###pqimport")) {
+    if (ui::popup("###pqimport")) {
         if (ImGui::MenuItem(tr(Str::PqImportDatei))) { openModelFile(); }
         ImGui::SetItemTooltip("%s", tr(Str::OpenGlmHint));
         if (ImGui::MenuItem(tr(Str::PqImportPk3))) {
@@ -1148,7 +1149,7 @@ void modellZusatzAusloesen(int i) { zusatzAusloesen(zusatzAktionen()[static_cast
 // Ins Skript; jede Zeile mit Tooltip.
 void drawModellKontextMenue() {
     ModellTab& t = mt();
-    t.kontextSichtbar = ImGui::BeginPopup("##mtkontext");
+    t.kontextSichtbar = ui::popup("##mtkontext");
     if (!t.kontextSichtbar) { return; }
     // ENTSCHEID3A (C4): Esc schliesst das Menue wie in 3ds Max und Blender, auch aus einem offenen Untermenue - seit KLEIN2 fuer jedes
     // Menue des Model-Tabs an einer Stelle am Anfang des Bildes (modellMenueEscBildAnfang, ui::menueEsc)
@@ -1177,7 +1178,7 @@ void drawModellKontextMenue() {
             gruppe = a.gruppe;
             if (gruppe == 0 || gruppe == 4) {
                 ImGui::Separator();
-                unter = ImGui::BeginMenu(tr(gruppe == 0 ? Str::MbBereichWeights : Str::MbBereichAnimation));
+                unter = ui::menue(tr(gruppe == 0 ? Str::MbBereichWeights : Str::MbBereichAnimation));
                 zeigen = unter;
             } else {
                 ImGui::Separator();
@@ -1348,7 +1349,7 @@ void drawModellAktionen() {
     }
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSize(ImVec2{fs * 24.0F, fs * 24.0F}, ImGuiCond_Appearing);
-    t.aktionenSichtbar = ImGui::BeginPopup("###mtaktionen");
+    t.aktionenSichtbar = ui::popup("###mtaktionen");
     if (!t.aktionenSichtbar) { return; }
     static char suche[64] = "";
     if (ImGui::IsWindowAppearing()) {
@@ -1436,7 +1437,7 @@ void drawModellModusMenue() {
         ImGui::OpenPopup("###mtmodus");
         t.bereichMenue = false;
     }
-    t.modusMenueSichtbar = ImGui::BeginPopup("###mtmodus");
+    t.modusMenueSichtbar = ui::popup("###mtmodus");
     if (!t.modusMenueSichtbar) { return; }
     if (ImGui::MenuItem(tr(Str::MbBlObjektModus), nullptr, t.auswahlArt == AuswahlArt::Objekt)) {
         t.bereich = ModellBereich::Ansehen;

@@ -8,6 +8,7 @@
 //   Marker                     die Zeile der animation.cfg zur Sequenz in der Zeitleiste: Zahlen und Balkenenden, ueber das
 //                              Dokument (ein Rueckgaengig-Schritt je Aenderung)
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue/popup - Menues bleiben im Fenster
 #include "textumbruch.h"
 #include "platform.h"
 
@@ -878,7 +879,7 @@ void gruppePlaetze() {
                 }
                 ImGui::EndDragDropTarget();
             }
-            if (ImGui::BeginPopupContextItem("##platzkontext")) {
+            if (ui::popupKontext("##platzkontext")) {
                 if (ImGui::MenuItem(tr(Str::MbKgHierher), nullptr, false, g_app->animIndex >= 0)) {
                     hierher = i;
                     hierherAnim = g_app->animIndex;

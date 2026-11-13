@@ -9,6 +9,7 @@
 // ModellTab::rt. Das Ergebnis wird sofort wie im Spiel gepackt (rtBacken, compressBone) - die Vorschau zeigt die gepackte
 // GLA, so wie das Spiel sie spielt.
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue/popup - Menues bleiben im Fenster
 #include "app_modelltab_ent3b.h"
 #include "textumbruch.h"
 #include "platform.h"
@@ -1293,7 +1294,7 @@ void drawModellPresetBereich() {
             }
             ImGui::SetItemTooltip("%s", tr(Str::EnGangHint));
             (void)rechts(name, tr(Str::EnGangQuelle), istWahl);
-            if (ImGui::BeginPopupContextItem("##engang")) {
+            if (ui::popupKontext("##engang")) {
                 if (r.gangWahl != gangHier || gewaehlt) { modellPresetGangWaehlen(gangHier); }
                 if (ImGui::MenuItem(tr(Str::AzPresetVorschau))) { (void)gangVorschau(); }
                 if (ImGui::MenuItem(tr(Str::AzPresetAuflegen)) && gangVorschau()) { (void)modellRtBacken(); }
@@ -1322,7 +1323,7 @@ void drawModellPresetBereich() {
             const bool passt = rechts(b[i].name.c_str(), quelleKurz(b[i]), istWahl);
             wahlQuellePasst = wahlQuellePasst || (passt && istWahl);
             // Rechtsklick: die Befehle des Eintrags
-            if (ImGui::BeginPopupContextItem("##aieintrag")) {
+            if (ui::popupKontext("##aieintrag")) {
                 r.bibliothekWahl = static_cast<int>(i);
                 r.gangWahl = -1;
                 if (ImGui::MenuItem(tr(Str::AzPresetVorschau))) { (void)presetVorschau(static_cast<int>(i)); }

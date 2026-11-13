@@ -141,7 +141,7 @@ const Str kGruppen[6] = {Str::FaGruppeFigur, Str::FaGruppePosieren, Str::MbIkGru
 
 void alleMenues() {
     for (int g = 0; g < 6; ++g) {
-        if (ImGui::BeginMenu(tr(kGruppen[g]))) {
+        if (ui::menue(tr(kGruppen[g]))) {
             aktionMenue(g);
             ImGui::EndMenu();
         }
@@ -158,7 +158,7 @@ void drawSuche() {
     }
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSize(ImVec2{fs * 24.0F, fs * 20.0F}, ImGuiCond_Appearing);
-    z.sucheSichtbar = ImGui::BeginPopup("###fasuche");
+    z.sucheSichtbar = ui::popup("###fasuche");
     if (!z.sucheSichtbar) { return; }
     static char suche[64] = "";
     if (ImGui::IsWindowAppearing()) {
@@ -1455,7 +1455,7 @@ void drawFigurAnimKontext() {
         ImGui::OpenPopup("###fakontext");
         z.kontextOeffnen = false;
     }
-    z.kontextSichtbar = ImGui::BeginPopup("###fakontext");
+    z.kontextSichtbar = ui::popup("###fakontext");
     if (z.kontextSichtbar) {
         ImGui::TextDisabled("%s", z.figur.c_str());
         alleMenues();

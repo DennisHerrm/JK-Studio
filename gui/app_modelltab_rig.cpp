@@ -14,6 +14,7 @@
 //   Backen             die Sequenz mit der Schicht ueber compressBone in eine GLA, auf den naechsten freien Platz des Ziels
 //                      aus Stufe 2 (Karten-GLA, _humanoid.gla, eigene GLA)
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "app_modelltab_knochen.h"   // AP13K: Rig-Stile
 #include "textumbruch.h"
 #include "gpumap.h"
@@ -387,7 +388,7 @@ void aktionenAlsMenue(int gruppeNur) {
             // Stufe 5: Retargeting ebenso
             const Str menue = gruppe == 5 ? Str::MbIkGruppe : (gruppe == 6 ? Str::PhRollout : (gruppe == 7 ? Str::RtRollout : Str::PrRollout));
             const Str hinweis = gruppe == 5 ? Str::MbIkRolloutHint : (gruppe == 6 ? Str::PhRolloutHint : (gruppe == 7 ? Str::RtRolloutHint : Str::PrRolloutHint));
-            if (ImGui::BeginMenu(tr(menue))) {
+            if (ui::menue(tr(menue))) {
                 aktionenAlsMenue(gruppe);
                 ImGui::EndMenu();
             }
@@ -466,7 +467,7 @@ void modellAnimationMenue() {
 }
 
 void modellRigKontextMenue() {
-    if (ImGui::BeginMenu(tr(Str::MbRgGruppeRig))) {
+    if (ui::menue(tr(Str::MbRgGruppeRig))) {
         aktionenAlsMenue(-1);
         ImGui::EndMenu();
     }
@@ -1280,14 +1281,14 @@ void modellRigExplorerGriffMenue(int griff) {
     aktionenAlsMenue(2);
     if (modellIkArtFuerGriff(griff) >= 0) {   // Stufe 4: IK/FK als Untermenue wie im Menue Animation
         ImGui::Separator();
-        if (ImGui::BeginMenu(tr(Str::MbIkGruppe))) {
+        if (ui::menue(tr(Str::MbIkGruppe))) {
             aktionenAlsMenue(5);
             ImGui::EndMenu();
         }
         ImGui::SetItemTooltip("%s", tr(Str::MbIkRolloutHint));
     }
     ImGui::Separator();   // Stufe 6: Auto-Physik (Federkette ab diesem Knochen)
-    if (ImGui::BeginMenu(tr(Str::PhRollout))) {
+    if (ui::menue(tr(Str::PhRollout))) {
         aktionenAlsMenue(6);
         ImGui::EndMenu();
     }
@@ -1630,7 +1631,7 @@ void drawModellRigUebersicht() {
         for (const int b : knochenMit(rolle, seite)) {
             ImGui::PushID(b);
             if (ImGui::Selectable(g_app->anim.bones[static_cast<std::size_t>(b)].name.c_str(), t.knochenWahl == b)) { (void)knochenWaehlen(b); }
-            if (ImGui::BeginPopupContextItem("##k")) {
+            if (ui::popupKontext("##k")) {
                 if (ImGui::MenuItem(tr(Str::MbRgRolleWeg))) { modellRigZuordnen(b, modell::Rolle::Keine, modell::Seite::Mitte); }
                 ImGui::EndPopup();
             }

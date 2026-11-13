@@ -22,6 +22,7 @@
 // Vorbilder: Hammers Objekteigenschaften (SmartEdit, Flags als Haekchen),
 // Radiants Entity-Inspektor, Unreals "auf die Oberflaeche ziehen".
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "textumbruch.h"
 #include "update.h"
 #include "tour.h"   // rc601 tour: "Interaktive Tour" auf der Startflaeche
@@ -631,7 +632,7 @@ void entityNeuMenue(bool amMauspunkt) {
             neueEntityHier(a.klasse, amMauspunkt);
         }
     }
-    if (ImGui::BeginMenu(tr(Str::EntAllClasses))) {
+    if (ui::menue(tr(Str::EntAllClasses))) {
         static char filter[48] = "";
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 12.0F);
         ImGui::InputTextWithHint("##entklassen", tr(Str::EntitySearch), filter, sizeof(filter));
@@ -2887,7 +2888,7 @@ void gangartMenueInhalt() {
     ImGui::Separator();
     if (ImGui::MenuItem(tr(Str::BahnRueckwaerts))) { rueckwaertsLaufen(g_app->bahnMenuePfad); }
     if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::BahnBlickHinweis)); }
-    if (ImGui::BeginMenu(tr(Str::BahnAnsehen))) {
+    if (ui::menue(tr(Str::BahnAnsehen))) {
         // Die anderen Figuren der Szene - wen man beim Laufen ansieht.
         std::string selbst;
         for (const Actor& a : g_app->scene.actors) {
@@ -3079,7 +3080,7 @@ void bahnGriffeMaus() {
 }
 
 void bahnGriffeZeichnen() {
-    if (ImGui::BeginPopup("##gangart")) {
+    if (ui::popup("##gangart")) {
         tourZielMelden("vorschau.gangartmenue", ImGui::GetCurrentWindow()->Rect());   // H2: Tour k-gangart
         gangartMenueInhalt();
         ImGui::EndPopup();
@@ -3715,7 +3716,7 @@ void drawEntityInspector(float hoehe) {
         if (npcTyp) {
             ImGui::SameLine();
             if (ImGui::SmallButton(tr(Str::EntPickNpc))) { ImGui::OpenPopup("npcwahl"); }
-            if (ImGui::BeginPopup("npcwahl")) {
+            if (ui::popup("npcwahl")) {
                 static char filter[48] = "";
                 if (ImGui::IsWindowAppearing()) { ImGui::SetKeyboardFocusHere(); }
                 ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14.0F);

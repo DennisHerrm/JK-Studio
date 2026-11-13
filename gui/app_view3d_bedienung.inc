@@ -600,7 +600,7 @@ void drawMapToolbar() {
         g_app->kartenMehrOeffnen = false;
         ImGui::OpenPopup("##kartenmehr");
     }
-    if (ImGui::BeginPopup("##kartenmehr")) {
+    if (ui::popup("##kartenmehr")) {
         if (ImGui::MenuItem(tr(Str::MissionOpenFolder))) { missionsOrdnerWaehlen(); }
         if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tr(Str::MissionOpenFolderHint)); }
         ImGui::Separator();
@@ -5551,11 +5551,11 @@ g_app->gizmoAxis = g_app->gizmoHover;
                 g_app->rechtsklickBild[1] = io2.MousePos.y;
             }
         }
-        if (ImGui::BeginPopup("gizmomodus")) {
+        if (ui::popup("gizmomodus")) {
             // Eine Entity an die Stelle setzen, auf die man geklickt hat -
             // der schnellste Weg, eine Figur oder ein Laufziel hinzustellen.
             ImGui::BeginDisabled(g_app->geo.empty() || g_app->camViewActive);
-            if (ImGui::BeginMenu(tr(Str::EntNewHere))) {
+            if (ui::menue(tr(Str::EntNewHere))) {
                 entityNeuMenue(true);
                 ImGui::EndMenu();
             }

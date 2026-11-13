@@ -25,6 +25,7 @@
 // Gezeichnet wird ein flacher Zeilenvorrat mit ImGuiListClipper: _humanoid hat ueber 1800 Sequenzen, gebaut werden nur
 // die sichtbaren Zeilen.
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue/popup - Menues bleiben im Fenster
 #include "textumbruch.h"
 #include "tour.h"
 
@@ -727,7 +728,7 @@ void infoFenster() {
         ImGui::OpenPopup("###mtinfo");
         g_infoOeffnen = false;
     }
-    g_z.infoOffen = ImGui::BeginPopup("###mtinfo");
+    g_z.infoOffen = ui::popup("###mtinfo");
     if (!g_z.infoOffen) { return; }
     const std::string& t = g_z.infoText;
     const std::size_t ende = t.find('\n');
@@ -1490,7 +1491,7 @@ void zeichneZeile(const Zeile& r, const Masse& m) {
                 break;
         }
     }
-    if (ImGui::BeginPopupContextItem("##m")) {
+    if (ui::popupKontext("##m")) {
         switch (r.art) {
             case ExplorerArt::Flaeche: flaechenMenue(r.index, text.name); break;
             case ExplorerArt::Tag:
@@ -1680,7 +1681,7 @@ void zeichneKopf(bool blender) {
         for (const bool f : g_z.filterAus) { gefiltert = gefiltert || f; }
         const char* filterName = tr(Str::MbXFilter);   // (nicht im Ortskatalog des Helfers: den Ausklapper gibt es nur wie Blender)
         if (iconKnopf(filterName, UiIcon::MbFilter, tr(Str::MbXFilterHint), gefiltert)) { ImGui::OpenPopup("##mtfilter"); }
-        if (ImGui::BeginPopup("##mtfilter")) {
+        if (ui::popup("##mtfilter")) {
             for (int k = 0; k < kFilterZahl; ++k) {
                 bool an = !g_z.filterAus[k];
                 if (ImGui::Checkbox(tr(filterArten()[k].text), &an)) { filterSchalten(k, ImGui::GetIO().KeyCtrl); }

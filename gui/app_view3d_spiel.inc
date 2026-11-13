@@ -5780,7 +5780,7 @@ void drawEntityLayers(float height) {
                     ImGui::TextDisabled("%s", tr(Str::EntityRowHint));
                     ImGui::EndTooltip();
                 }
-                if (ImGui::BeginPopupContextItem("entmenu")) {
+                if (ui::popupKontext("entmenu")) {
                     g_app->pickedEntity = static_cast<int>(i);
                     entityMenue(i);
                     ImGui::EndPopup();

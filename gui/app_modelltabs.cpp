@@ -16,6 +16,7 @@
 // mitten in einem Bild haetten Zeichner und Ereignisse noch Indizes und Verweise auf das alte Modell in der Hand (die Codepruefung
 // fand diese Fehlerart mehrfach: R2, P2-3, P3-1).
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue/popup - Menues bleiben im Fenster
 
 #include "bhed/modell/ablage.h"
 
@@ -536,7 +537,7 @@ void drawModellReiterZeile(float breite) {
                 ImGui::SetTooltip("%s", tipp.c_str());
                 p.tooltip = tipp;
             }
-            if (ImGui::BeginPopupContextItem("##mxreitermenue")) {
+            if (ui::popupKontext("##mxreitermenue")) {
                 if (ImGui::MenuItem(tr(Str::MxSchliessen))) { modellReiterSchliessen(i); }
                 ImGui::SetItemTooltip("%s", tr(Str::MxSchliessenHint));
                 if (ImGui::MenuItem(tr(Str::MxAndereSchliessen), nullptr, false, g_reiter.size() > 1U)) { modellReiterAndereSchliessen(i); }
@@ -558,7 +559,7 @@ void drawModellReiterZeile(float breite) {
             p.tooltip = gezeigt.empty() && !hinweis.empty() ? std::string(tr(Str::MxPlusHint)) + "\n" + hinweis : std::string(tr(Str::MxPlusHint));
             ImGui::SetTooltip("%s", p.tooltip.c_str());
         }
-        if (ImGui::BeginPopup("###mxneumenue")) {
+        if (ui::popup("###mxneumenue")) {
             modellNeuerReiterMenue();
             ImGui::EndPopup();
         }

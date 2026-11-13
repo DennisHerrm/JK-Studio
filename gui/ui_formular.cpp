@@ -2,6 +2,7 @@
 #include "ui_formular.h"
 
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue/popup - Menues bleiben im Fenster
 #include "menueeditor.h"
 #include "textumbruch.h"
 
@@ -540,7 +541,7 @@ bool Formular::eingabeMitListe(const char* id, char* puffer, std::size_t groesse
     ImGui::SetNextWindowPos(ImVec2{f0.x, b.y});
     ImGui::SetNextWindowSizeConstraints(ImVec2{breite, 0.0F},
                                         ImVec2{std::max(breite, ImGui::GetFontSize() * 24.0F), ImGui::GetTextLineHeightWithSpacing() * 12.0F});
-    if (ImGui::BeginPopup("##liste")) {
+    if (ui::popup("##liste")) {
         for (const std::string& n : liste) {
             if (ImGui::Selectable(n.c_str(), std::strcmp(n.c_str(), puffer) == 0)) {
                 std::snprintf(puffer, groesse, "%s", n.c_str());

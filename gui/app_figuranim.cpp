@@ -14,6 +14,7 @@
 //   Erreichbar Inspektor der Figur, Rechtsklick (Entity und Ansicht), Aktionssuche (X wie Max, F3 wie Blender), Menue im
 //             Fenster, Tooltip mit Taste an jeder Zeile
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "textumbruch.h"
 
 #include "bhed/ibi.h"

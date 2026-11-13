@@ -163,12 +163,12 @@ X = {
         "je použije, i zrcadlově. **{{MbKvGruppeMarker}}** používají řádek animation.cfg: klíče na jeho prvním a posledním snímku, uzavřít smyčku, vybrat "
         "klíče uvnitř."),
     "bild_werkzeuge": (
-        "Search all actions (X) with Key tools: every slider tool of Animation > Animation tools > Key tools, with the tooltip of Breakdown.",
-        "Alle Aktionen suchen (X) mit Schlüssel-Werkzeuge: jeder Schieber aus Animation > Animationswerkzeuge > Schlüssel-Werkzeuge, dazu der Tooltip von Breakdown.",
-        "用“关键帧工具”搜索所有操作 (X): 动画 > 动画工具 > 关键帧工具中的每个滑块工具, 以及“细分”的提示。",
-        "「キーツール」ですべての操作を検索 (X): アニメーション > アニメーションツール > キーツールの各スライダーツールと、ブレークダウンのツールチップ。",
-        "Buscar todas las acciones (X) con Herramientas de claves: cada deslizador de Animación > Herramientas de animación > Herramientas de claves, con la descripción de Intermedio.",
-        "Hledat všechny akce (X) s Nástroje klíčů: každý posuvník z Animace > Nástroje animace > Nástroje klíčů, k tomu nápověda k Mezifáze."),
+        "The menu Animation > Animation tools > Key tools with every slider tool, with the tooltip of Breakdown. Near the bottom of the window the submenus open upwards and stay in the window.",
+        "Das Menü Animation > Animationswerkzeuge > Schlüssel-Werkzeuge mit jedem Schieber, dazu der Tooltip von Breakdown. Nahe am unteren Rand gehen die Untermenüs nach oben auf und bleiben im Fenster.",
+        "菜单 动画 > 动画工具 > 关键帧工具, 包含每个滑块工具, 以及“细分”的提示。靠近窗口底部时, 子菜单向上展开并留在窗口内。",
+        "メニュー アニメーション > アニメーションツール > キーツール。各スライダーツールと、ブレークダウンのツールチップ。ウィンドウの下端近くでは、サブメニューは上に開き、ウィンドウ内に収まります。",
+        "El menú Animación > Herramientas de animación > Herramientas de claves con cada deslizador, con la descripción de Intermedio. Cerca del borde inferior de la ventana, los submenús se abren hacia arriba y quedan dentro de la ventana.",
+        "Nabídka Animace > Nástroje animace > Nástroje klíčů s každým posuvníkem, k tomu nápověda k Mezifáze. U dolního okraje okna se podnabídky otevírají nahoru a zůstávají v okně."),
     "h_aufraeumen": ("Clean up and reduce", "Aufräumen und Reduzieren", "清理和精简", "クリーンアップと削減", "Limpiar y reducir", "Úklid a redukce"),
     "aufraeumen": (
         "A GLA stores every frame. **{{MbKvReduzieren}}** turns the frames of the selected sequence (with the rig keys on top) into few keys you can edit: per "

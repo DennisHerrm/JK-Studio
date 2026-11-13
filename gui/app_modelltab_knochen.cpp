@@ -10,6 +10,7 @@
 //   Treffen     die sichtbare Form unter der Maus: zuerst die naechste Linie (Toleranz), sonst der Koerper, in dem die Maus liegt;
 //               verdeckt die Figur die Formen (nicht im Vordergrund, keine Durchsicht), zaehlt nur, was vor der Haut liegt.
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "app_modelltab_knochen.h"
 
 #include "gpumap.h"
@@ -1097,7 +1098,7 @@ void modellKdMenue(int) {
         geaendert(tr(Str::KdVorn));
     }
     ImGui::SetItemTooltip("%s", tr(Str::KdVornHint));
-    const bool artOffen = ImGui::BeginMenu(tr(Str::KdAnzeigenAls));
+    const bool artOffen = ui::menue(tr(Str::KdAnzeigenAls));
     if (!artOffen) { ImGui::SetItemTooltip("%s", tr(Str::KdAnzeigenAlsHint)); }   // offen verdeckte er die Arten
     if (artOffen) {
         const bool wieBl = modellKnochenWieBlender();
@@ -1107,7 +1108,7 @@ void modellKdMenue(int) {
         }
         ImGui::EndMenu();
     }
-    const bool stilOffen = ImGui::BeginMenu(tr(Str::KdRigStil));
+    const bool stilOffen = ui::menue(tr(Str::KdRigStil));
     if (!stilOffen) { ImGui::SetItemTooltip("%s", tr(Str::KdRigStilHint)); }
     if (stilOffen) {
         for (int i = 0; i < modell::kRigStile; ++i) {

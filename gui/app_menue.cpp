@@ -20,6 +20,7 @@
 #include "schrift_ttf.h"
 
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue/popup - Menues bleiben im Fenster
 #include "tabfenster.h"   // rc609 T1
 #include "tour.h"   // H2: leerer Zustand mit Tutorial
 #include "fenster_dock.h"   // dock1: die Panels als eigene Fenster
@@ -1391,7 +1392,7 @@ bool suchListe(const char* id, const char* knopf, std::string& filter, const std
         ImGui::OpenPopup(id);
     }
     ImGui::SetNextWindowSizeConstraints(ImVec2{ImGui::GetFontSize() * 18.0F, 0}, ImVec2{ImGui::GetFontSize() * 30.0F, ImGui::GetFontSize() * 24.0F});
-    if (ImGui::BeginPopup(id)) {
+    if (ui::popup(id)) {
         if (ImGui::IsWindowAppearing()) { ImGui::SetKeyboardFocusHere(); }
         ImGui::SetNextItemWidth(-FLT_MIN);
         (void)eingabe("##suche", &filter, 0, tr(Str::MeListeSuche));
@@ -3008,7 +3009,7 @@ void zeichneFlaeche(Dokument& d, ImVec2 groesse) {
         if (unterMaus >= 0 && std::find(d.auswahl.begin(), d.auswahl.end(), unterMaus) == d.auswahl.end()) { d.auswahl.assign(1, unterMaus); }
         ImGui::OpenPopup("##flaechekontext");
     }
-    if (ImGui::BeginPopup("##flaechekontext")) {
+    if (ui::popup("##flaechekontext")) {
         kontextEintraege(d, mi, m, &z.unterZeiger);
         ImGui::EndPopup();
     }
@@ -6148,7 +6149,7 @@ void zeichneEbene(Dokument& d, int menu, int i) {
             if (std::find(d.auswahl.begin(), d.auswahl.end(), i) == d.auswahl.end()) { waehle(i, false); }
             ImGui::OpenPopup("##zeilekontext");
         }
-        if (ImGui::BeginPopup("##zeilekontext")) {
+        if (ui::popup("##zeilekontext")) {
             kontextEintraege(d, menu, me, nullptr);
             ImGui::EndPopup();
         }
@@ -6553,7 +6554,7 @@ void zeichneSpielListe() {
         ImGui::OpenPopup("##spielmenues");
         z.spielListeOffen = false;
     }
-    if (ImGui::BeginPopup("##spielmenues")) {
+    if (ui::popup("##spielmenues")) {
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 20);
         if (ImGui::IsWindowAppearing()) { ImGui::SetKeyboardFocusHere(); }
         eingabe("##filter", &z.spielFilter);
@@ -6823,7 +6824,7 @@ void zeichneLeiste(Dokument* d) {
         if (leistenKnopf(tr(Str::MeFluss), UiIcon::Pfad, tr(Str::MeFlussTip), z.flussOffen)) { z.flussOffen = !z.flussOffen; }   // M6 Punkt 1
         ImGui::SameLine();
         if (leistenKnopf(tr(Str::MeExportPk3), UiIcon::Paket, tr(Str::MeExportPk3Hint))) { ImGui::OpenPopup("##export"); }
-        if (ImGui::BeginPopup("##export")) {
+        if (ui::popup("##export")) {
             if (ImGui::MenuItem(tr(Str::MeExportPk3))) {
                 const std::string ziel = z.speichernDialog ? z.speichernDialog() : platform::saveFileDialog(tr(Str::MeExportPk3), "pk3 (*.pk3)|*.pk3|", z.ordnerAusgabe, "zz_menu.pk3");
                 if (!ziel.empty()) { (void)exportierePk3(ziel); }
@@ -6886,7 +6887,7 @@ void zeichneLeiste(Dokument* d) {
     };
     if (ImGui::GetIO().DisplaySize.y < ImGui::GetFontSize() * 24.0F) {
         if (leistenKnopf(tr(Str::MeAnsichtKnopf), UiIcon::Sichtbar, tr(Str::MeAnsichtKnopfTip))) { ImGui::OpenPopup("##ansichtmehr"); }
-        if (ImGui::BeginPopup("##ansichtmehr")) {
+        if (ui::popup("##ansichtmehr")) {
             ImGui::Dummy(ImVec2{ImGui::GetFontSize() * 18.0F, 0.0F});
             ansicht();
             ImGui::EndPopup();
@@ -6963,7 +6964,7 @@ void seiteVonMenue(Dokument& d, int menu) {
 
 void zeichneSeitenKontext(Dokument& d, const std::vector<Seite>& s) {
     Zustand& z = Z();
-    if (!ImGui::BeginPopup("##seitekontext")) { return; }
+    if (!ui::popup("##seitekontext")) { return; }
     if (z.seiteKontext < 0 || static_cast<std::size_t>(z.seiteKontext) >= s.size()) {
         ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
@@ -7066,7 +7067,7 @@ void zeichneSeiten(Dokument& d) {
     zeichneSeitenKontext(d, s);
     if (ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing | ImGuiTabItemFlags_NoTooltip)) { ImGui::OpenPopup("##neueSeite"); }
     if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s\n%s", tr(Str::MeNeueSeite), tr(Str::MeVorlageTip)); }
-    if (ImGui::BeginPopup("##neueSeite")) {   // M6 Punkt 5: leere Seite oder Vorlage eines ganzen Menues
+    if (ui::popup("##neueSeite")) {   // M6 Punkt 5: leere Seite oder Vorlage eines ganzen Menues
         if (ImGui::MenuItem(tr(Str::MeVorlageLeer))) { neueSeite(d, -1); }
         const Str namen[] = {Str::MeVorlageHaupt, Str::MeVorlageEinst, Str::MeVorlageCredits, Str::MeVorlageLaden};
         for (int k = 0; k < 4; ++k) {

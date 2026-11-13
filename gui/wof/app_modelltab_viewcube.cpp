@@ -49,6 +49,7 @@
 // original copyright notice, license conditions, and disclaimer as required by the BSD-3-Clause License.
 // (Diese Datei ist ein solches Werk: von einer KI nach dem Lesen der genannten Quellen geschrieben.)
 #include "../app_internal.h"
+#include "../ui_menue.h"   // KLEIN2: ui::menue/popup - Menues bleiben im Fenster
 
 #include <algorithm>
 #include <array>
@@ -626,7 +627,7 @@ void viewCube(int n, ModellAnsicht& a, Lage& l) {
     }
     // --- Rechtsklick-Menue wie das von Max: Home, aktuelle Ansicht als Home setzen, orthographisch ---
     if (ueber && ImGui::IsMouseReleased(ImGuiMouseButton_Right)) { ImGui::OpenPopup("##mkwuerfelmenue"); }
-    if (ImGui::BeginPopup("##mkwuerfelmenue")) {
+    if (ui::popup("##mkwuerfelmenue")) {
         if (ImGui::MenuItem(tr(Str::MkStartansicht))) { modellHomeFlug(n); }
         ImGui::SetItemTooltip("%s", tr(Str::MkHomeHint));
         if (ImGui::MenuItem(tr(Str::MkHomeSetzen))) { modellHomeSetzen(n); }

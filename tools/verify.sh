@@ -209,6 +209,12 @@ python3 tools/lint_cbuffer.py
 python3 tools/lint_feldinit.py
 python3 tools/lint_feldinit.py --gegentest
 
+# Jedes Menue ueber ui::menue (KLEIN2, gui/ui_menue.h): ein direktes ImGui::BeginMenu
+# rechnet mit mehreren Viewports im Bildschirm statt im Fenster - ein Untermenue
+# ragte unten aus dem Hauptfenster und wurde ein eigenes Windows-Fenster.
+python3 tools/lint_menue.py
+python3 tools/lint_menue.py --gegentest
+
 # Hinweis: dieses Skript uebersetzt jedes Mal aus den Quellen (siehe SRC
 # oben) und hat deshalb nie einen veralteten Stand geprueft.
 #

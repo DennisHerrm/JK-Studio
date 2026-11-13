@@ -33,7 +33,8 @@ AUSNAHMEN = {'BehavEd', 'ICARUS', 'OpenJK', 'ImGui', 'Dear ImGui', 'JKA', 'JK2',
              # Ownerdraws einstellt - ihr Name wie in der Konsole des Spiels
              'g_jediVmerc', 'g_forceBasedTeams'}
 
-CALL = re.compile(r'ImGui::(' + '|'.join(SHOWN) + r')\s*\(\s*("(?:[^"\\]|\\.)*")')
+# KLEIN2: Menues gehen ueber ui::menue (gui/ui_menue.h) - auch dort sieht der Nutzer den ersten Text
+CALL = re.compile(r'(?:ImGui|ui)::(' + '|'.join(SHOWN + ['menue']) + r')\s*\(\s*("(?:[^"\\]|\\.)*")')
 
 def harmlos(lit):
     # Was hinter ## steht, zeigt ImGui nicht (Kennung des Elements).

@@ -16,6 +16,7 @@
 // Entities der Karte, demselben Rueckgaengig-Verlauf und derselben Auswahl
 // (selectedPath). Umschalten verliert nichts.
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue/popup - Menues bleiben im Fenster
 #include "tabfenster.h"   // rc609 T1
 #include "textumbruch.h"
 
@@ -577,7 +578,7 @@ void befehlsListe(Path& editorFuer, float rest) {
                 selectByPath(weg);
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) { editorFuer = weg; }
             }
-            if (ImGui::BeginPopupContextItem("##befehlsmenue")) {
+            if (ui::popupKontext("##befehlsmenue")) {
                 bool ed = false;
                 geaendert = befehlsMenue(weg, ed);
                 if (ed) { editorFuer = g_app->selectedPath; }
@@ -991,7 +992,7 @@ void drawGraphAnsicht() {
         z.ziehtUmlenk.clear();
         z.ziehtUmlenkNr = -1;
     }
-    if (ImGui::BeginPopup("##verbindungsart")) {
+    if (ui::popup("##verbindungsart")) {
         ImGui::TextDisabled("%s", tr(Str::GraphConnectAs));
         for (const char* schl : {"spawnscript", "deathscript", "painscript", "awakescript", "angerscript", "fleescript", "usescript"}) {
             if (ImGui::MenuItem(schl)) {
@@ -1322,7 +1323,7 @@ void drawSpurenAnsicht() {
                 selectByPath(b.pfad);
                 editorFuer = b.pfad;
             }
-            if (!b.pfad.empty() && ImGui::BeginPopupContextItem((std::string(id) + "m").c_str())) {
+            if (!b.pfad.empty() && ui::popupKontext((std::string(id) + "m").c_str())) {
                 bool ed = false;
                 geaendert = befehlsMenue(b.pfad, ed);
                 if (ed) { editorFuer = g_app->selectedPath; }

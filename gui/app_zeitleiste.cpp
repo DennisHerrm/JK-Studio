@@ -12,6 +12,7 @@
 // Navigationsleiste und die Erklaerung "Was passiert hier?" fuer die rechte
 // Seitenleiste.
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue/popup - Menues bleiben im Fenster
 #include "textumbruch.h"
 #include "tour.h"
 
@@ -1359,7 +1360,7 @@ void zeitleisteSpuren(float x0, float w, float labelW, double sichtStart, double
             darstellerZeilen(r, d, d.figur, auswahlFigur);
         }
     }
-    if (ImGui::BeginPopup("##gangart_tl")) {
+    if (ui::popup("##gangart_tl")) {
         gangartMenueInhalt();
         ImGui::EndPopup();
     }

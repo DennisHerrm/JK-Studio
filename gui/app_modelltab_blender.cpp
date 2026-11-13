@@ -15,6 +15,7 @@
 // Die Werkzeuge der Bereiche kommen aus deren Aktionstabellen (Modellieren, UV, Malen) bzw. Schnittstellen (Weights:
 // modellGewichte, Animation: modellAnimWerkzeug von AP10) - dieselbe Aktion wie Knopf, Taste, Suche und Rechtsklick.
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue/popup - Menues bleiben im Fenster
 
 #include "bhed/modell/drehmodus.h"
 #include "app_modelltab_knochen.h"   // AP13K: die Form eines Knochens unter der Maus
@@ -502,7 +503,7 @@ bool leistenKnopf(const Werkzeug& x, float g, float breite) {
 // Die Glieder der offenen Gruppe als Menue rechts neben dem Knopf (Blender WM_MT_toolsystem_submenu: Symbol und Name, doppelt hoch).
 void gruppenMenue() {
     if (ImGui::IsPopupOpen(kGruppeMenue)) { ImGui::SetNextWindowPos(g_gruppeOrt, ImGuiCond_Appearing); }
-    if (!ImGui::BeginPopup(kGruppeMenue)) {
+    if (!ui::popup(kGruppeMenue)) {
         g_bl.gruppeOffen.clear();
         g_bl.gruppeOffenNach = -1.0F;
         g_bl.gruppenEintraege.clear();
@@ -1269,7 +1270,7 @@ void drawModellWerkzeugleiste(float hoehe) {
             g_bl.trennstrich = 4;
         }
         if (leistenKnopf(w[i], g, breite)) { ausloesen(w[i]); }
-        if (ImGui::BeginPopupContextItem()) {
+        if (ui::popupKontext()) {
             leistenMenue();
             ImGui::EndPopup();
         }
@@ -1277,7 +1278,7 @@ void drawModellWerkzeugleiste(float hoehe) {
     if (rand > 0.0F) { ImGui::Unindent(rand); }
     ImGui::PopStyleVar();
     gruppenMenue();
-    if (ImGui::BeginPopupContextWindow("##blleistemenue", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
+    if (ui::popupKontextFenster("##blleistemenue", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
         leistenMenue();
         ImGui::EndPopup();
     }
@@ -1499,7 +1500,7 @@ float modellBlModusKopf(ImDrawList* dl, int n, float x, float y, float hoehe, co
         ImGui::OpenPopup(popup);
     }
     if (ImGui::IsPopupOpen(popup)) { ImGui::SetNextWindowPos(ImVec2{o.x, o.y + gr.y}, ImGuiCond_Appearing); }
-    if (ImGui::BeginPopup(popup)) {
+    if (ui::popup(popup)) {
         // rechts daneben der Bereich, in den der Modus fuehrt (wie die Kuerzel-Spalte eines Menues)
         struct M {
             const char* name;

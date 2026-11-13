@@ -16,6 +16,7 @@
 //             K = Menue "Vertex Group Locks".
 // Die Rechnung steht in bhed/modell/gewichte.h; der Pinsel in der Ansicht in app_modelltab_ansicht.cpp (modellTupfer).
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "textumbruch.h"
 
 #include "bhed/modell/gewichte.h"
@@ -622,7 +623,7 @@ void sperrMenue() {
         ImGui::OpenPopup("###mgsperren");
         g.sperrMenueOeffnen = false;
     }
-    g.sperrMenueSichtbar = ImGui::BeginPopup("###mgsperren");
+    g.sperrMenueSichtbar = ui::popup("###mgsperren");
     if (!g.sperrMenueSichtbar) { return; }
     struct Zeile {
         Str text;
@@ -652,7 +653,7 @@ void alsMenue() {
         if (a.gruppe != gruppe) {
             if (unter) { ImGui::EndMenu(); }
             gruppe = a.gruppe;
-            unter = ImGui::BeginMenu(tr(kGruppen[uz(gruppe)]));
+            unter = ui::menue(tr(kGruppen[uz(gruppe)]));
             if (!unter) {
                 while (i + 1 < liste.size() && liste[i + 1].gruppe == gruppe) { ++i; }
                 continue;
@@ -1127,7 +1128,7 @@ bool modellGewichteAktionenSuche(const std::string& such) {
 
 void modellGewichteKontextMenue() {
     if (g_app->model.empty()) { return; }
-    if (ImGui::BeginMenu(tr(Str::MgMenue))) {
+    if (ui::menue(tr(Str::MgMenue))) {
         alsMenue();
         ImGui::EndMenu();
     }

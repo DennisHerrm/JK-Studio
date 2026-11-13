@@ -43,6 +43,7 @@
 // original copyright notice, license conditions, and disclaimer as required by the BSD-3-Clause License.
 // (Diese Datei ist ein solches Werk: von einer KI nach dem Lesen der genannten Quellen geschrieben.)
 #include "../app_internal.h"
+#include "../ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "../karteneditor.h"
 #include "../platform.h"
 #include "../textumbruch.h"
@@ -926,7 +927,7 @@ void alsMenue(int nurGruppe) {
             unter = false;
             gruppe = a.gruppe;
             if (nurGruppe < 0) {
-                unter = ImGui::BeginMenu(tr(kGruppen[uz(gruppe)]));
+                unter = ui::menue(tr(kGruppen[uz(gruppe)]));
                 if (!unter) {
                     while (i + 1 < liste.size() && liste[i + 1].gruppe == gruppe) { ++i; }
                     continue;
@@ -1013,7 +1014,7 @@ void modellMeshMenue() {
 }
 
 void modellMeshKontextMenue() {
-    if (ImGui::BeginMenu(tr(Str::MdMenue))) {
+    if (ui::menue(tr(Str::MdMenue))) {
         alsMenue(-1);
         ImGui::EndMenu();
     }
@@ -1440,7 +1441,7 @@ void drawModellMeshPopups() {
         ImGui::OpenPopup("###meshmenue");
         z.menueOeffnen = false;
     }
-    if (ImGui::BeginPopup("###meshmenue")) {
+    if (ui::popup("###meshmenue")) {
         if (z.menueArt == kMenueHinzufuegen) {
             hinzufuegenMenue();
         } else {

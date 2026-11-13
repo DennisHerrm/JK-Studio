@@ -25,6 +25,7 @@
 #include "textumbruch.h"
 #include "update.h"
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "bhed/menue/menue.h"   // REST4 Punkt 2: Menues und HUD vor der Welt (menueListeRegistrieren)
 #include "bhed/vorwelt.h"        // REST4 Punkt 2
 #include "bhed/sicherschreiben.h"
@@ -1676,7 +1677,7 @@ void drawEditor() {
                 if (ImGui::IsItemHovered()) {
                     ImGui::SetTooltip("%s", tr(Str::MapPick));
                 }
-                if (ImGui::BeginPopup("mappick")) {
+                if (ui::popup("mappick")) {
                     for (const std::string& t : list) {
                         if (ImGui::Selectable(t.c_str())) {
                             v = t;
@@ -7674,7 +7675,7 @@ bool befehlsMenue(const Path& p, bool& editor) {
     ImGui::Separator();
     // Neue Befehle kommen hinter diese Zeile (bei einem offenen Block
     // hinein) - wie der Doppelklick in der Ereignisliste.
-    if (ImGui::BeginMenu(tr(Str::GroupEvents))) {
+    if (ui::menue(tr(Str::GroupEvents))) {
         for (const Command& c : g_app->db.commands) {
             if (ImGui::MenuItem((c.name + "  " + signatureText(c)).c_str())) {
                 insertCommand(c);
@@ -7683,7 +7684,7 @@ bool befehlsMenue(const Path& p, bool& editor) {
         }
         ImGui::EndMenu();
     }
-    if (ImGui::BeginMenu(tr(Str::MsgMacros))) {
+    if (ui::menue(tr(Str::MsgMacros))) {
         for (const Macro& mm : g_app->db.macroBodies) {
             if (ImGui::MenuItem(mm.name.c_str())) {
                 insertMacro(mm);

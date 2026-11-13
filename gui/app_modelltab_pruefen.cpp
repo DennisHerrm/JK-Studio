@@ -14,6 +14,7 @@
 // Vorbild ModView (Raven, JACoders/OpenJK-tools ModView/, GPL v2): model.h (AppVars), r_glm.cpp (Schwelle), r_surface.cpp
 // (Hervorheben, Unshadowable), model.cpp (Knochenbezuege), textures.cpp (Filter), script.cpp (Szene, bhed/modell/szene.h).
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue/popup - Menues bleiben im Fenster
 #include "platform.h"
 #include "textumbruch.h"
 #include "tour.h"
@@ -604,7 +605,7 @@ void modellPrSchritt() {
         ImGui::OpenPopup("###pqschattierung");
         p.schattierungOeffnen = false;
     }
-    p.schattierungSichtbar = ImGui::BeginPopup("###pqschattierung");
+    p.schattierungSichtbar = ui::popup("###pqschattierung");
     if (p.schattierungSichtbar) {
         ModellSchattierung& sch = t.ansichten[static_cast<std::size_t>(std::clamp(t.aktiv, 0, 3))].sch;
         cjkTextDisabled("%s", tr(Str::PqSchattierungMenue));

@@ -461,7 +461,7 @@ void drawUndoListe() {
     }
     ImGui::SetNextWindowSizeConstraints(ImVec2{ImGui::GetFontSize() * 22.0F, 0.0F},
                                         ImVec2{ImGui::GetFontSize() * 64.0F, FLT_MAX});
-    if (!ImGui::BeginPopup("##undoliste")) {
+    if (!ui::popup("##undoliste")) {
         return;
     }
     ImGui::TextDisabled("%s", tr(g_app->undoListeRedo ? Str::RedoListTitle : Str::UndoListTitle));
@@ -1871,7 +1871,7 @@ void drawEbenenInhalt(const Layout& l) {
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort | ImGuiHoveredFlags_AllowWhenDisabled)) {
             ImGui::SetTooltip("%s", tr(Str::EntNewHint));
         }
-        if (ImGui::BeginPopup("##entneu")) {
+        if (ui::popup("##entneu")) {
             entityNeuMenue(false);
             ImGui::EndPopup();
         }
@@ -2945,7 +2945,7 @@ void drawSplitTree(const Layout& l, int pane, float breite, float hoehe) {
             }
             // Rechtsklick: in die Ablage des LINKEN Dokuments legen. Danach
             // fuegt Strg+V dort ein - genau der Weg, um den es geht.
-            if (ImGui::BeginPopupContextItem("szeile")) {
+            if (ui::popupKontext("szeile")) {
                 sp.selected = static_cast<int>(i);
                 sp.path = r.path;
                 if (ImGui::MenuItem(tr(Str::ActCopy))) {
@@ -3026,7 +3026,7 @@ void drawSplitTree(const Layout& l, int pane, float breite, float hoehe) {
             }
             // Das Fenster mit dem vollen Text - je Zeile eines, damit die
             // Kennung eindeutig bleibt.
-            if (ImGui::BeginPopup("##splittext")) {
+            if (ui::popup("##splittext")) {
                 ImGui::TextUnformatted(g_app->splitShowText.c_str());
                 ImGui::EndPopup();
             }
@@ -3988,7 +3988,7 @@ void drawTree(const Layout& l, int pane, float breite, float hoehe) {
                 ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
                 ImGui::SetTooltip("%s", tr(Str::MacroRowHint));
             }
-            if (ImGui::BeginPopupContextItem("zeile")) {
+            if (ui::popupKontext("zeile")) {
                 // Der Rechtsklick WAEHLT die Zeile auch - wie der Linksklick.
                 //
                 // Bisher wurden nur `selected` und `selectedPath` gesetzt.
@@ -4055,7 +4055,7 @@ void drawTree(const Layout& l, int pane, float breite, float hoehe) {
                 // Eintrag, dazu "jeder <befehl>" nur nach dem Namen.
                 if (const Node* fn = nodeAt(g_app->doc.script(), r.path);
                     fn != nullptr && fn->kind == Node::Kind::Command) {
-                    if (ImGui::BeginMenu(tr(Str::ActFindSimilar))) {
+                    if (ui::menue(tr(Str::ActFindSimilar))) {
                         char jeder[160];
                         std::snprintf(jeder, sizeof(jeder), tr(Str::FindSimilarAny),
                                       fn->name.c_str());
@@ -4162,7 +4162,7 @@ void drawTree(const Layout& l, int pane, float breite, float hoehe) {
                                                        : tr(Str::InsertAfter));
                     }
                 }
-                if (ImGui::BeginMenu(tr(Str::GroupEvents))) {
+                if (ui::menue(tr(Str::GroupEvents))) {
                     for (const Command& c : g_app->db.commands) {
                         if (ImGui::MenuItem((c.name + "  " + signatureText(c)).c_str())) {
                             insertCommand(c);
@@ -4171,7 +4171,7 @@ void drawTree(const Layout& l, int pane, float breite, float hoehe) {
                     }
                     ImGui::EndMenu();
                 }
-                if (ImGui::BeginMenu(tr(Str::MsgMacros))) {
+                if (ui::menue(tr(Str::MsgMacros))) {
                     for (const Macro& mm : g_app->db.macroBodies) {
                         if (ImGui::MenuItem(mm.name.c_str())) {
                             insertMacro(mm);
@@ -4589,7 +4589,7 @@ void drawButtonColumns(const Layout& l) {
         g_app->mruOeffnen = false;   // Alt+M
         ImGui::OpenPopup("mru");
     }
-    if (ImGui::BeginPopup("mru")) {
+    if (ui::popup("mru")) {
         if (g_app->settings.recent.empty()) {
             ImGui::TextDisabled("%s", tr(Str::MsgNoRecent));
         }
@@ -5009,7 +5009,7 @@ void drawMessages() {
 void drawMenu() {
     if (!ImGui::BeginMenuBar()) { return; }
     dock::eigenesFensterWennVerdeckt();
-    if (ImGui::BeginMenu(tr(Str::MenuFile))) {
+    if (ui::menue(tr(Str::MenuFile))) {
         if (g_app->leftMode == 2) {
             modellDateiMenue();   // mb1a2: im Model-Tab gelten die Datei-Befehle dem Modell
         } else {
@@ -5023,7 +5023,7 @@ void drawMenu() {
         // Entities und alle Skripte der Mission in ihren Reitern.
         {
             const std::vector<LetzteMission> missionen = letzteMissionenAlle();
-            if (ImGui::BeginMenu(tr(Str::RecentMissions), !missionen.empty())) {
+            if (ui::menue(tr(Str::RecentMissions), !missionen.empty())) {
                 for (const LetzteMission& lm : missionen) {
                     ImGui::PushID(lm.eintrag.c_str());
                     if (ImGui::MenuItem(lm.name.c_str(), lm.ort.c_str())) {
@@ -5035,7 +5035,7 @@ void drawMenu() {
                 ImGui::EndMenu();
             }
         }
-        if (g_app->leftMode != 2 && ImGui::BeginMenu(tr(Str::MsgRecent), !g_app->settings.recent.empty())) {
+        if (g_app->leftMode != 2 && ui::menue(tr(Str::MsgRecent), !g_app->settings.recent.empty())) {
             for (const std::string& r : g_app->settings.recent) {
                 if (ImGui::MenuItem(r.c_str())) {
                 const std::string rp = r;
@@ -5076,7 +5076,7 @@ void drawMenu() {
         // einem Hinweis, statt still nichts zu tun.
         const bool imSkriptmodus = (g_app->leftMode == 0);
         ImGui::BeginDisabled(!imSkriptmodus);
-        if (ImGui::BeginMenu(tr(Str::SplitToggle))) {
+        if (ui::menue(tr(Str::SplitToggle))) {
             // Nicht mehr Felder als SKRIPTE.
             //
             // "Das split view sollte nur gehen wenn es neue tabs gibt und
@@ -5174,27 +5174,27 @@ void drawMenu() {
     }
     dock::eigenesFensterWennVerdeckt();
     // Stufe 3: im Model-Tab ein Menue "Animation" wie in 3ds Max (Rig, Posen, Auswahl, Ghosts, Pfade, Backen)
-    if (g_app->leftMode == 2 && ImGui::BeginMenu(tr(Str::MbBereichAnimation))) {
+    if (g_app->leftMode == 2 && ui::menue(tr(Str::MbBereichAnimation))) {
         modellAnimationMenue();
         ImGui::EndMenu();
     }
     // Modell-Block 1d: ein Menue "Modellieren" (3ds Max: Edit Poly; Blender: die Menues Mesh/Vertex/Edge/Face)
-    if (g_app->leftMode == 2 && ImGui::BeginMenu(tr(Str::MdMenue))) {
+    if (g_app->leftMode == 2 && ui::menue(tr(Str::MdMenue))) {
         modellMeshMenue();
         ImGui::EndMenu();
     }
     // Modell-Block 1c: ein Menue "Painting" (3ds Max: Viewport Canvas; Blender: Texture Paint)
-    if (g_app->leftMode == 2 && ImGui::BeginMenu(tr(Str::PtMenue))) {
+    if (g_app->leftMode == 2 && ui::menue(tr(Str::PtMenue))) {
         modellMalenMenue();
         ImGui::EndMenu();
     }
     // Modell-Block 1b: ein Menue "UV" (3ds Max: Unwrap UVW; Blender: das Menue UV)
-    if (g_app->leftMode == 2 && ImGui::BeginMenu(tr(Str::UvMenue))) {
+    if (g_app->leftMode == 2 && ui::menue(tr(Str::UvMenue))) {
         modellUvMenue();
         ImGui::EndMenu();
     }
-    if (ImGui::BeginMenu(tr(Str::MenuEdit))) {
-        if (ImGui::BeginMenu(tr(Str::MenuBookmarks))) {
+    if (ui::menue(tr(Str::MenuEdit))) {
+        if (ui::menue(tr(Str::MenuBookmarks))) {
             if (ImGui::MenuItem(tr(Str::ActBookmarkToggle), chordName(keys::Action::BookmarkToggle))) {
                 lesezeichenUmschalten(selectionOrCurrent());
             }
@@ -5267,7 +5267,7 @@ void drawMenu() {
     // Er hat recht - "View" beantwortet die Frage "wie sieht es aus",
     // "Debug" die Frage "was ist da los". Zwei verschiedene Fragen.
     dock::eigenesFensterWennVerdeckt();
-    if (ImGui::BeginMenu(tr(Str::MenuDebug))) {
+    if (ui::menue(tr(Str::MenuDebug))) {
 
         // Auf Zuruf, nicht dauernd: bei 62 Figuren und sechzig Bildern je
         // Sekunde waeren das 3720 Zeilen in der Sekunde.
@@ -5381,11 +5381,11 @@ void drawMenu() {
     }
 
     dock::eigenesFensterWennVerdeckt();
-    if (ImGui::BeginMenu(tr(Str::MenuView))) {
+    if (ui::menue(tr(Str::MenuView))) {
         // Zielspiel. Im Multiplayer tut vieles aus dem Singleplayer nichts -
         // meist ohne jede Meldung im Spiel (@Seph, MP-Bericht 08.10.,
         // nachgeprueft gegen codemp/game/g_ICARUScb.c).
-        if (ImGui::BeginMenu(tr(Str::ViewTarget))) {
+        if (ui::menue(tr(Str::ViewTarget))) {
             if (ImGui::MenuItem(tr(Str::TargetSp), nullptr, !g_app->settings.mpZiel)) {
                 g_app->settings.mpZiel = false;
                 rebuildTree();
@@ -5426,7 +5426,7 @@ void drawMenu() {
                 ImGui::PopTextWrapPos();
                 ImGui::EndTooltip();
             };
-            if (ImGui::BeginMenu(tr(Str::GrafikMenu))) {
+            if (ui::menue(tr(Str::GrafikMenu))) {
                 // B1 (Entscheidung 12.11.): nach einem abgestuerzten Start mit Direct3D 12 der Hinweis und "Direct3D 12 wieder versuchen"
                 if (grafikRueckfallOffen()) {
                     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 24.0F);
@@ -5544,7 +5544,7 @@ void drawMenu() {
             ImGui::SetTooltip("%s", tr(Str::ViewLookRotationHint));
         }
 
-        if (ImGui::BeginMenu(tr(Str::ViewTheme))) {
+        if (ui::menue(tr(Str::ViewTheme))) {
             for (const theme::Theme& t : theme::themes()) {
                 const bool sel = (g_app->activeTheme != nullptr &&
                                   g_app->activeTheme->id == t.id);
@@ -5555,7 +5555,7 @@ void drawMenu() {
             }
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu(tr(Str::ViewLanguage))) {
+        if (ui::menue(tr(Str::ViewLanguage))) {
             for (const i18n::LanguageInfo& l : i18n::languages()) {
                 const bool sel = (i18n::currentLanguage() == l.language);
                 if (ImGui::MenuItem(l.nativeName, nullptr, sel)) {
@@ -5575,7 +5575,7 @@ void drawMenu() {
         // Feiner einstellen geht weiter mit Strg + Mausrad; dort ist ein
         // stufenloser Wert am richtigen Platz, weil man dabei sieht, was
         // passiert.
-        if (ImGui::BeginMenu(tr(Str::ViewDpiScale))) {
+        if (ui::menue(tr(Str::ViewDpiScale))) {
             for (const int step : {75, 100, 125, 150, 175, 200, 250, 300}) {
                 const float want = static_cast<float>(step) / 100.0F;
                 char label[16];
@@ -5604,7 +5604,7 @@ void drawMenu() {
     // Changelog rein". Vorher standen Update und Changelog im Datei-Menue
     // und About nur als Knopf bei den Programmknoepfen (der bleibt).
     dock::eigenesFensterWennVerdeckt();
-    if (ImGui::BeginMenu(tr(Str::MenuHelp))) {
+    if (ui::menue(tr(Str::MenuHelp))) {
         // H1: der Helfer - "Was willst du tun?" (F1).
         if (ImGui::MenuItem(tr(Str::HlfMenu), chordName(keys::Action::Guide))) { hilfeOeffnen(); }
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::HlfMenuHint)); }

@@ -8,6 +8,7 @@
 // AP9 (rc612): das rechte Feld in der Form des freigegebenen Entwurfs - Gruppen Ziel, Werkzeuge, Pinsel, Ebenen, Fuer das
 // Spiel ueber den Baustein gui/ui_rollout.h; die Tasten [ und ] fuer die Pinselgroesse.
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "backend.h"
 #include "gpumap.h"
 #include "textumbruch.h"
@@ -1382,7 +1383,7 @@ void alsMenue() {
         if (a.gruppe != gruppe) {
             if (unter) { ImGui::EndMenu(); }
             gruppe = a.gruppe;
-            unter = ImGui::BeginMenu(tr(kGruppen[uz(gruppe)]));
+            unter = ui::menue(tr(kGruppen[uz(gruppe)]));
             if (!unter) {
                 while (i + 1 < liste.size() && liste[i + 1].gruppe == gruppe) { ++i; }
                 continue;
@@ -1429,7 +1430,7 @@ void modellMalenMenue() { alsMenue(); }
 
 void modellMalenKontextMenue() {
     if (!modellMalenAktiv()) { return; }
-    if (ImGui::BeginMenu(tr(Str::PtMenue))) {
+    if (ui::menue(tr(Str::PtMenue))) {
         alsMenue();
         ImGui::EndMenu();
     }

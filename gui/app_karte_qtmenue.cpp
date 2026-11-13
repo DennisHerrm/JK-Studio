@@ -55,6 +55,7 @@
 
 #include "app_internal.h"
 #include "fenster_dock.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue fuer den Stil des Programms
 #include "platform.h"
 
 #include <algorithm>
@@ -538,7 +539,7 @@ bool qtMenueAnfang(const char* id, bool aktiv, const char* nrc, bool abriss) {
         // Stil des Programms: ein ImGui-Menue wie in app.cpp drawMenu
         programmPolsterAn(m, abriss);
         if (leiste) { dock::eigenesFensterWennVerdeckt(); }
-        const bool offen = ImGui::BeginMenuEx(id, nullptr, aktiv);
+        const bool offen = ui::menue(id, aktiv);   // KLEIN2: wie die Menues des Programms - bleibt im Fenster (ui_menue.h)
         ImGui::PopStyleVar();
         if (!leiste) {
             if (Menue* eltern = oben()) {
@@ -575,7 +576,8 @@ bool qtMenueAnfang(const char* id, bool aktiv, const char* nrc, bool abriss) {
         fenster->Size.x = spalte.GetWidth();
     }
     if (leiste) { dock::eigenesFensterWennVerdeckt(); }
-    const bool offen = ImGui::BeginMenuEx(id, nullptr, aktiv);
+    // lint-menue: im Stil von NetRadiant wie Qt - ein QMenu darf bis zum Bildschirmrand (UseFullScreenForPopupMenu), nicht nur ins Fenster
+    const bool offen = ImGui::BeginMenuEx(id, nullptr, aktiv);   // lint-menue: NRC/Qt (siehe Zeile davor)
     if (spaltig) {
         fenster->Pos.x = fensterX;
         fenster->Size.x = fensterB;

@@ -7,6 +7,7 @@
 #include "fenster_dock.h"
 
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "bhed/diag.h"
 #include "bhed/fensteranordnung.h"
 #include "dockvorgabe.h"
@@ -694,13 +695,13 @@ void menueInhalt(int bereich) {
         z().name[0] = '\0';
     }
     const std::vector<std::string> namen = gespeicherte(bereich);
-    if (ImGui::BeginMenu(tr(Str::DockLoad), !namen.empty())) {
+    if (ui::menue(tr(Str::DockLoad), !namen.empty())) {
         for (const std::string& n : namen) {
             if (ImGui::MenuItem((n + "##dockladen").c_str())) { (void)laden(bereich, n); }
         }
         ImGui::EndMenu();
     }
-    if (ImGui::BeginMenu(tr(Str::DockDelete), !namen.empty())) {
+    if (ui::menue(tr(Str::DockDelete), !namen.empty())) {
         for (const std::string& n : namen) {
             if (ImGui::MenuItem((n + "##dockloeschen").c_str())) { (void)loeschen(bereich, n); }
         }
@@ -745,7 +746,7 @@ void eigenesFensterWennVerdeckt() {
 
 void menue(int bereich) {
     eigenesFensterWennVerdeckt();
-    if (ImGui::BeginMenu(tr(Str::DockMenu))) {
+    if (ui::menue(tr(Str::DockMenu))) {
         menueInhalt(bereich);
         ImGui::EndMenu();
     }

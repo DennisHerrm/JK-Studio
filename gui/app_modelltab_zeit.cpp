@@ -20,6 +20,7 @@
 //                 3ds Max und wie Blender ohne Auto-Keying).
 // Eigene Zeichnung: alle Symbole hier aus Strichen und Flaechen, nichts aus 3ds Max oder Blender.
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "textumbruch.h"
 
 #include <algorithm>
@@ -897,7 +898,7 @@ void statusZeile(ImVec2 lo, float breite, const Masse& m) {
         ImGui::OpenPopup("##mzmodusmenue");
         z.modusOeffnen = false;
     }
-    if (ImGui::BeginPopup("##mzmodusmenue")) {
+    if (ui::popup("##mzmodusmenue")) {
         cjkTextDisabled("%s", tr(Str::MbBedienung));
         if (ImGui::MenuItem(tr(Str::MbWieMax), nullptr, !blender)) { modellBedienungSetzen(0); }
         if (ImGui::MenuItem(tr(Str::MbWieBlender), nullptr, blender)) { modellBedienungSetzen(1); }
@@ -985,7 +986,7 @@ void kvAktionAlsZeile(Str text) {
 }
 
 void tempoMenue() {
-    if (!ImGui::BeginMenu(tr(Str::ModelSpeed))) { return; }
+    if (!ui::menue(tr(Str::ModelSpeed))) { return; }
     for (const float v : kTempi) {
         char n[16];
         std::snprintf(n, sizeof n, "%g\xc3\x97", static_cast<double>(v));
@@ -1009,7 +1010,7 @@ void menueZeichnen() {
         ImGui::OpenPopup("##mzmenue");
         z.menueOeffnen = false;
     }
-    if (!ImGui::BeginPopup("##mzmenue")) { return; }
+    if (!ui::popup("##mzmenue")) { return; }
     const auto wiedergabe = [] {
         if (ImGui::MenuItem(tr(g_app->animPlaying ? Str::ModelStop : Str::ModelPlay), modellBlender() ? "Space" : "/")) { spielenUmschalten(sequenz()); }
         tempoMenue();
@@ -1030,19 +1031,19 @@ void menueZeichnen() {
         kvAktionAlsZeile(Str::MbKvMkWaehlen);
     };
     if (modellBlender()) {
-        if (ImGui::BeginMenu(tr(Str::MzMenuePlayback))) {
+        if (ui::menue(tr(Str::MzMenuePlayback))) {
             wiedergabe();
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu(tr(Str::MzKeying))) {
+        if (ui::menue(tr(Str::MzKeying))) {
             keyingZeilen();
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu(tr(Str::MzMenueView))) {
+        if (ui::menue(tr(Str::MzMenueView))) {
             ansicht();
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu(tr(Str::MzMenueMarker))) {
+        if (ui::menue(tr(Str::MzMenueMarker))) {
             marker();
             ImGui::EndMenu();
         }
@@ -1067,7 +1068,7 @@ void keyingMenue() {
         ImGui::OpenPopup("##mzkeying");
         z.keyingOeffnen = false;
     }
-    if (!ImGui::BeginPopup("##mzkeying")) { return; }
+    if (!ui::popup("##mzkeying")) { return; }
     cjkTextDisabled("%s", tr(Str::MzKeying));
     keyingZeilen();
     ImGui::EndPopup();

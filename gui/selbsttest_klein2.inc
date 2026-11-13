@@ -10,7 +10,9 @@
 //   unter  Ein Untermenue, das unten nicht mehr ins Fenster passt, geht wie ein Windows-Menue nach oben auf und bleibt im Fenster:
 //          Animation > Animation tools im Hauptfenster des Selbsttests (so gross wie der Arbeitsbereich, 2538 x 1472 auf diesem
 //          Rechner) ragte unten hinaus und wurde ein eigenes Fenster (Viewport) - im Programm sichtbar, auf dem Foto des
-//          Hauptfensters fehlte es (h_mb5_werkzeuge_untermenue_zu.bmp). Gilt fuer alle Untermenues (ui::menue, ui_menue.h).
+//          Hauptfensters fehlte es (h_mb5_werkzeuge_untermenue_zu.bmp). Gilt fuer alle Untermenues (ui::menue, ui_menue.h) und die
+//          Rechtsklick-Menues der ersten Ebene (ui::popup*): das Menue der Zeitleiste unten an der Skala ragte ebenso hinaus, und sein
+//          Untermenue Animation tools mit ihm.
 // Eingebunden in selbsttest.cpp (nach selbsttest_ap11.inc, benutzt die Helfer von mb1, rig3, kv5, mbefoto, ap1, ap2, ap4, ap13s).
 namespace klein2 {
 
@@ -267,6 +269,38 @@ void unterSchritte(std::vector<Schritt>& s) {
         if (w == nullptr) { return false; }
         melde("unter: Key tools " + rechteck(w->Rect()) + ", eigenes Fenster " + std::to_string(w->Viewport != vp ? 1 : 0));
         return w->Viewport == vp && haupt.Contains(w->Rect());
+    }));
+    add(mbefoto::popupsZu());
+    add(pause(0.2));
+    // Das Rechtsklick-Menue der Zeitleiste (erste Ebene, wie 3ds Max eine lange Spalte) geht unten an der Skala auf: ImGui setzt es an
+    // die Maus und hielt es nur im Bildschirm - es ragte unten hinaus und wurde ein eigenes Fenster, sein Untermenue Animation tools mit
+    // ihm (gemessen nach dem ersten Schritt von Teil 2: 1414,668..1850,1524 und 1844,1176..2090,1524, beide eigene Fenster)
+    add(tu("KLEIN2 unter: wie 3ds Max, Weights (wie AP1 Z9: im Bereich Animation liegen auf der Skala die Spuren)", [] { figur(0, ModellBereich::Weights); }));
+    add(pause(0.6));
+    add(rechtsklick("auf die Skala der Zeitleiste", [] { return ap1::r4(ap1::P().skala).GetCenter(); }));
+    add(pause(0.5));
+    add(tu("KLEIN2 unter: Maus auf Animation tools im Menue der Zeitleiste", [] {
+        if (const Element* e = rig3::imMenue(tr(Str::MbKvMenue))) {
+            setzeMaus(e->rect.GetCenter());
+        } else {
+            meldeFehler("KLEIN2 unter: Animation tools steht nicht im Menue der Zeitleiste (" + rig3::woIst(tr(Str::MbKvMenue)) + ")");
+        }
+    }));
+    add(pause(0.6));
+    add(pruefe("KLEIN2 unter: das Rechtsklick-Menue der Zeitleiste und sein Untermenue Animation tools stehen ganz im Hauptfenster, ohne eigenes Fenster", [] {
+        const ImGuiViewport* vp = ImGui::GetMainViewport();
+        const ImRect haupt(vp->Pos, ImVec2{vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y});
+        std::string z = "unter Zeitleiste:";
+        int drin = 0;
+        for (int i = 0; i < offeneMenues(); ++i) {
+            const ImGuiWindow* w = GImGui->OpenPopupStack[i].Window;
+            if (w == nullptr) { continue; }
+            const bool ok = w->Viewport == vp && haupt.Contains(w->Rect());
+            drin += ok ? 1 : 0;
+            z += std::string(" [") + w->Name + " " + rechteck(w->Rect()) + (w->Viewport != vp ? " eigenes Fenster" : " im Hauptfenster") + "]";
+        }
+        melde(z);
+        return offeneMenues() == 2 && drin == 2;
     }));
     add(mbefoto::popupsZu());
     add(pause(0.2));

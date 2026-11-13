@@ -464,7 +464,7 @@ void zeichneRefBild(ImDrawList* dl, const Abbildung& ab, ImVec2 o, bool oben) {
 void zeichneRefKnopf() {
     Zustand& z = Z();
     if (leistenKnopf(tr(Str::MeRefBild), UiIcon::Bildschirm, tr(Str::MeRefBildTip), z.refTex.tex != nullptr)) { ImGui::OpenPopup("##refbild"); }
-    if (!ImGui::BeginPopup("##refbild")) { return; }
+    if (!ui::popup("##refbild")) { return; }
     if (ImGui::Button(tr(Str::MeRefWaehlen))) {
         const std::string p = platform::openFileDialog(tr(Str::MeRefBild), "Bild (*.png;*.jpg;*.jpeg;*.tga)|*.png;*.jpg;*.jpeg;*.tga|", "");
         if (!p.empty()) { refBildLaden(p); }

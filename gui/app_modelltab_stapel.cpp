@@ -22,6 +22,7 @@
 //              wechseln; wie Blender die Gruppe "Modifier" (Reiter Modifier) nur mit den Eintraegen. Zeilen wie die Ebenen
 //              des Paintings (dieselbe Form im Entwurf), Einstellungen des gewaehlten Eintrags darunter.
 #include "app_internal.h"
+#include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "textumbruch.h"
 
 #include "bhed/modell/gewichte.h"
@@ -730,7 +731,7 @@ void drawModellStapelGruppe() {
     const std::string hinzuHinweis = (tl->stapel.empty() ? std::string(tr(bl ? Str::StpLeerBl : Str::StpLeerMax)) + "\n\n" : std::string()) +
                                      tr(Str::StpHinzuHint) + "\n\n" + tr(Str::StpTipp);
     if (ui::werkzeugKnopf(tr(bl ? Str::StpHinzuBl : Str::StpHinzuMax), {.icon = UiIcon::Plus, .hinweis = hinzuHinweis.c_str()})) { ImGui::OpenPopup("##stpneu"); }
-    if (ImGui::BeginPopup("##stpneu")) {
+    if (ui::popup("##stpneu")) {
         hinzuZeilen();
         ImGui::EndPopup();
     }
@@ -851,7 +852,7 @@ void drawModellStapelGruppe() {
         waehlen(kontext);
         ImGui::OpenPopup("##stpkontext");
     }
-    if (ImGui::BeginPopup("##stpkontext")) {
+    if (ui::popup("##stpkontext")) {
         eintragZeilen(z.kontext);
         ImGui::EndPopup();
     }
@@ -893,8 +894,8 @@ void drawModellStapelGruppe() {
 
 void modellStapelMenue() {
     if (mt().dok.inhalt().leer() || g_app->model.empty()) { return; }
-    if (!ImGui::BeginMenu(tr(modellBlender() ? Str::StpGruppeBl : Str::MgRStapel))) { return; }
-    if (ImGui::BeginMenu(tr(modellBlender() ? Str::StpHinzuBl : Str::StpHinzuMax), modellStapelTeil() >= 0)) {
+    if (!ui::menue(tr(modellBlender() ? Str::StpGruppeBl : Str::MgRStapel))) { return; }
+    if (ui::menue(tr(modellBlender() ? Str::StpHinzuBl : Str::StpHinzuMax), modellStapelTeil() >= 0)) {
         hinzuZeilen();
         ImGui::EndMenu();
     }
