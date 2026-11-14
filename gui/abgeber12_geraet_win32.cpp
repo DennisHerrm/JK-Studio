@@ -829,8 +829,13 @@ void wechsle(ID3D12GraphicsCommandList* cl, Textur* t, D3D12_RESOURCE_STATES nac
 
 void wechsle(ID3D12GraphicsCommandList* cl, const Wechsel* w, UINT n) {
     D3D12_RESOURCE_BARRIER b[kSrvPlaetze];
+    const UINT m = wechselSammeln(cl, w, n, b, kSrvPlaetze);
+    if (m != 0U) { cl->ResourceBarrier(m, b); }
+}
+
+UINT wechselSammeln(ID3D12GraphicsCommandList* cl, const Wechsel* w, UINT n, D3D12_RESOURCE_BARRIER* b, UINT frei) {
     UINT m = 0;
-    for (UINT i = 0; i < n && m < kSrvPlaetze; ++i) {
+    for (UINT i = 0; i < n && m < frei; ++i) {
         Textur* t = w[i].t;
         if (t == nullptr) { continue; }
         gebraucht(t);
@@ -848,7 +853,7 @@ void wechsle(ID3D12GraphicsCommandList* cl, const Wechsel* w, UINT n) {
         ++m;
         ++g_zaehler.barrieren;
     }
-    if (m != 0U) { cl->ResourceBarrier(m, b); }
+    return m;
 }
 
 void pufferLesbar(ID3D12GraphicsCommandList* cl, Puffer* p) {

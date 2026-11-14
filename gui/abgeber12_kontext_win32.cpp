@@ -691,9 +691,8 @@ void Kontext::allesLoesen() {
     kontextAllesNeu();
 }
 
-void Kontext::zieleAnwenden() {
+UINT Kontext::zieleSammeln(D3D12_CPU_DESCRIPTOR_HANDLE* griffe, D3D12_RESOURCE_BARRIER* b, UINT frei) {
     ID3D12GraphicsCommandList* cl = offeneListe;
-    D3D12_CPU_DESCRIPTOR_HANDLE griffe[kZiele]{};
     Wechsel w[kZiele + 1U];
     UINT n = 0;
     for (UINT i = 0; i < ziele; ++i) {
@@ -706,40 +705,50 @@ void Kontext::zieleAnwenden() {
         griffe[i] = ziel[i]->griff;
     }
     if (tiefeZiel != nullptr) { w[n++] = Wechsel{tiefeZiel->textur, D3D12_RESOURCE_STATE_DEPTH_WRITE}; }
-    wechsle(cl, w, n);
+    const UINT m = wechselSammeln(cl, w, n, b, frei);
     if (protokoll::g_an) {
         std::string t = "Ziele";
         for (UINT i = 0; i < ziele; ++i) { t += " [" + protokoll::nenne(ziel[i] != nullptr ? ziel[i]->textur : nullptr) + "]"; }
         if (tiefeZiel != nullptr) { t += " Tiefe [" + protokoll::nenne(tiefeZiel->textur) + "]"; }
         protokoll::eintrag(cl, std::move(t));
     }
-    cl->OMSetRenderTargets(ziele, ziele != 0U ? griffe : nullptr, FALSE, tiefeZiel != nullptr ? &tiefeZiel->griff : nullptr);
+    return m;
 }
 
 // D3D12-4: alle Puffer, die seit dem letzten Zeichenbefehl kopiert wurden, in einem Aufruf zurueck in ihren Lesezustand.
-void Kontext::kopierZieleLesbar() {
-    if (offeneListe == nullptr || kopierZiele.empty()) {
-        kopierZiele.clear();
-        return;
-    }
+// Haengt die Wechsel an b an (hoechstens frei); was nicht mehr passt, bleibt in kopierZiele fuer den naechsten Aufruf.
+UINT Kontext::kopierZieleSammeln(D3D12_RESOURCE_BARRIER* b, UINT frei) {
     const std::uint64_t jetzt = rahmen::ausfuehrung();
-    std::vector<D3D12_RESOURCE_BARRIER> b;
-    b.reserve(kopierZiele.size());
-    for (Puffer* p : kopierZiele) {
+    UINT m = 0;
+    std::size_t k = 0;
+    for (; k < kopierZiele.size() && m < frei; ++k) {
+        Puffer* p = kopierZiele[k];
         if (p->kopierSerie != jetzt) { continue; }
-        D3D12_RESOURCE_BARRIER e{};
+        D3D12_RESOURCE_BARRIER& e = b[m++];
+        e = D3D12_RESOURCE_BARRIER{};
         e.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         e.Transition.pResource = p->res;
         e.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         e.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
         e.Transition.StateAfter = p->lesen;
-        b.push_back(e);
         p->kopierSerie = ~0ULL;
         p->serie = jetzt;   // im Lesezustand
         zaehleBarriere();
     }
-    kopierZiele.clear();
-    if (!b.empty()) { offeneListe->ResourceBarrier(static_cast<UINT>(b.size()), b.data()); }
+    kopierZiele.erase(kopierZiele.begin(), kopierZiele.begin() + static_cast<std::ptrdiff_t>(k));
+    return m;
+}
+
+void Kontext::kopierZieleLesbar() {
+    if (offeneListe == nullptr) {
+        kopierZiele.clear();
+        return;
+    }
+    D3D12_RESOURCE_BARRIER b[32];
+    while (!kopierZiele.empty()) {
+        const UINT m = kopierZieleSammeln(b, 32);
+        if (m != 0U) { offeneListe->ResourceBarrier(m, b); }
+    }
 }
 
 void kopierZieleLesbar() {
@@ -756,10 +765,16 @@ bool Kontext::vorZeichnen() {
         QueryPerformanceCounter(&t);
         listeSeit = t.QuadPart;
     }
-    if (!kopierZiele.empty()) { kopierZieleLesbar(); }
-    if (schmutz == 0U && cbSchmutz == 0U && srvSchmutz == 0U && abtasterSchmutz == 0U) { return true; }
+    if (schmutz == 0U && cbSchmutz == 0U && srvSchmutz == 0U && abtasterSchmutz == 0U && kopierZiele.empty()) { return true; }
     if ((schmutz & kSWurzel) != 0U) { cl->SetGraphicsRootSignature(wurzelSignatur()); }
-    if ((schmutz & kSZiele) != 0U) { zieleAnwenden(); }
+    // D3D12-4: alle Zustandswechsel vor diesem Zeichenbefehl - Ziele, gelesene Texturen, eben kopierte Puffer - in EINEM
+    // ResourceBarrier-Aufruf (jeder Aufruf ist ein Wartepunkt der Grafikkarte), danach die Ziele setzen.
+    constexpr UINT kSammel = kZiele + 1U + kSrvPlaetze + 16U;
+    D3D12_RESOURCE_BARRIER sammel[kSammel];
+    UINT ns = 0;
+    D3D12_CPU_DESCRIPTOR_HANDLE griffe[kZiele]{};
+    const bool zieleNeu = (schmutz & kSZiele) != 0U;
+    if (zieleNeu) { ns += zieleSammeln(griffe, sammel + ns, kSammel - ns); }
     if ((schmutz & kSSrvZustand) != 0U) {
         Wechsel w[kSrvPlaetze];
         UINT n = 0;
@@ -769,8 +784,12 @@ bool Kontext::vorZeichnen() {
             gebraucht(s->textur);
             if (s->textur->zustand != kLesbar) { w[n++] = Wechsel{s->textur, kLesbar}; }
         }
-        wechsle(cl, w, n);
+        ns += wechselSammeln(cl, w, n, sammel + ns, kSammel - ns);
     }
+    if (!kopierZiele.empty()) { ns += kopierZieleSammeln(sammel + ns, kSammel - ns); }
+    if (ns != 0U) { cl->ResourceBarrier(ns, sammel); }
+    if (!kopierZiele.empty()) { kopierZieleLesbar(); }   // mehr als 16 kopierte Puffer: der Rest in eigenen Aufrufen
+    if (zieleNeu) { cl->OMSetRenderTargets(ziele, ziele != 0U ? griffe : nullptr, FALSE, tiefeZiel != nullptr ? &tiefeZiel->griff : nullptr); }
     if ((schmutz & kSPso) != 0U) {
         PsoSchluessel k;
         k.vs = vs != nullptr ? vs->kennung : 0U;

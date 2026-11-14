@@ -373,6 +373,8 @@ struct Wechsel {
     D3D12_RESOURCE_STATES nach = D3D12_RESOURCE_STATE_COMMON;
 };
 void wechsle(ID3D12GraphicsCommandList* l, const Wechsel* w, UINT n);
+// D3D12-4: wie wechsle, gibt die Wechsel aber nicht ab, sondern haengt sie an b an (hoechstens frei); Rueckgabe: wie viele.
+UINT wechselSammeln(ID3D12GraphicsCommandList* l, const Wechsel* w, UINT n, D3D12_RESOURCE_BARRIER* b, UINT frei);
 // Einen Puffer im Grafikspeicher lesend gebrauchen (merkt die Ausfuehrung; Zustandswechsel nur, wo Direct3D 12 ihn verlangt).
 void pufferLesbar(ID3D12GraphicsCommandList* l, Puffer* p);
 // Einen dynamischen Eck- oder Indexpuffer binden: ruht sein Inhalt, zeigt va danach auf die Kopie im Grafikspeicher.
@@ -692,7 +694,8 @@ struct Kontext final : ID3D11DeviceContext1 {
     ID3D12GraphicsCommandList* liste() { return offeneListe != nullptr ? offeneListe : rahmen::liste(); }
     bool vorZeichnen();
     void kopierZieleLesbar();
-    void zieleAnwenden();
+    UINT kopierZieleSammeln(D3D12_RESOURCE_BARRIER* b, UINT frei);
+    UINT zieleSammeln(D3D12_CPU_DESCRIPTOR_HANDLE* griffe, D3D12_RESOURCE_BARRIER* b, UINT frei);
     void setzeCb(UINT stufe, UINT anfang, UINT anzahl, ID3D11Buffer* const* puffer, const UINT* erste);
     void allesLoesen();
     bool istZiel(const Textur* t) const;
