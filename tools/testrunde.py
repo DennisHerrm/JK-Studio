@@ -126,7 +126,7 @@ KE_TEILE = {   # die langen zuerst (Zeiten mit Pausen nach Bildern am 11.11.: 54
     "ke_befehle": "befehle,stufe6",
     "ke_licht": "stufe7,stufe8b,gross",
     "ke_bau": "stufe3,stufe4,stufe5",
-    "ke_karte": "stufe8c,stufe8g,stufe9,stufe9c,stufe9d,licht1,modobj,aseb,kreste,r2a,r3,rd,rest8,reste1,dxr,fotos",
+    "ke_karte": "stufe8c,stufe8g,stufe9,stufe9c,stufe9d,licht1,modobj,aseb,kreste,r2a,r3,rd,rest8,cwpruef,reste1,dxr,fotos",
     "ke_grund": "rahmen,tasten,numpad,mass,xy,kamera,auswahl,textur,entitaeten,konsole,stufe2",
 }
 

@@ -346,6 +346,9 @@ std::vector<Schritt> handbuchSchritte();   // selbsttest_rest9.inc: REST9, das B
 namespace rest8 {
 std::vector<Schritt> schritte();   // selbsttest_rest8.inc: REST8, doppelte Shadernamen (Echtzeit-Licht, Kartenpruefung)
 }  // namespace rest8
+namespace cwpruef {
+std::vector<Schritt> schritte();   // selbsttest_cwpruef.inc: CW-PRUEF, Pruefungen der Clone-Wars-Kette im Optimierer
+}  // namespace cwpruef
 namespace rd {   // p_render (selbsttest_rd.inc)
 std::vector<Schritt> schritte();
 std::vector<Schritt> cjkSchritte();
@@ -734,6 +737,13 @@ std::vector<Schritt> karteneditorSchritte() {
         add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
         return s;
     }
+    // =cwpruef: CW-PRUEF - Pruefungen der Clone-Wars-Kette im Optimierer (Sicht gegen Kollision, Masse, Modelle), JSON-Bericht
+    if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "cwpruef") == 0) {
+        for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+        for (Schritt& x : cwpruef::schritte()) { add(std::move(x)); }
+        add(tu("Karten-Editor: zurueck zu Events", [] { g_app->leftMode = 0; }));
+        return s;
+    }
     // =rdglm: MRESTE 4 - Ghoul2 als model2 und misc_model_ghoul im Editor und im Spielbild
     if (const char* nur = std::getenv("BHED_KARTE_NUR"); nur != nullptr && std::strcmp(nur, "rdglm") == 0) {
         for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
@@ -882,6 +892,9 @@ std::vector<Schritt> karteneditorSchritte() {
     gruppe("rest8");
     einrichten();
     for (Schritt& x : rest8::schritte()) { add(std::move(x)); }   // REST8: doppelte Shadernamen (Echtzeit-Licht, Kartenpruefung)
+    gruppe("cwpruef");
+    einrichten();
+    for (Schritt& x : cwpruef::schritte()) { add(std::move(x)); }   // CW-PRUEF: Pruefungen der Clone-Wars-Kette, JSON-Bericht
     gruppe("reste1");
     einrichten();
     for (Schritt& x : reste1::schritte()) { add(std::move(x)); }    // Liste reste1: Decals in der Echtzeit-Ansicht
