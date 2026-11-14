@@ -286,7 +286,9 @@ const char* const kOptimiererDetailVorlagen[] = {
     "%s images smaller than %s or larger than %s pixels",
     "%s models with a surface over %s vertices or %s indexes (the game stops with ERR_DROP)",
     "%s models whose geometry lies away from their origin (exported in world coordinates?)",
-    "%s .md3 files over the format limits of qfiles.h (64 surfaces, 4096 vertices, 8192 triangles)"
+    "%s .md3 files over the format limits of qfiles.h (64 surfaces, 4096 vertices, 8192 triangles)",
+    "%s props float in the air (they touch no collision within %s units)",
+    "%s props reach more than %s units into the floor (deepest %s)"
 };
 const std::size_t kOptimiererDetailVorlagenAnzahl = sizeof(kOptimiererDetailVorlagen) / sizeof(kOptimiererDetailVorlagen[0]);
 

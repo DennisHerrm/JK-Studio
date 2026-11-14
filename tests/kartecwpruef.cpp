@@ -441,6 +441,20 @@ void testeModelle() {
     }
 }
 
+void testeRequisiten() {
+    const auto karte = [](double z0) {
+        KartenAbbild a = welt({kasten(-512, -512, -16, 512, 512, 0, kFest)});
+        a.ents.push_back(ent("misc_model", {{"origin", "0 0 " + std::to_string(z0)}, {"model", "models/test/kiste.md3"}}));
+        PruefOptionen o = optionen();
+        o.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(-16, -16, z0, 16, 16, z0 + 32), true));
+        return pruefen(a, o);
+    };
+    pruefe(anzahl(karte(10), "requisitschwebt") == 1, "requisitschwebt: Kiste 10 ueber dem Boden (rot)");
+    pruefe(anzahl(karte(0), "requisitschwebt") == 0 && anzahl(karte(0), "requisitsteckt") == 0, "Requisiten: Kiste auf dem Boden (schweigt)");
+    pruefe(anzahl(karte(0.5), "requisitschwebt") == 0, "requisitschwebt: 0,5 ueber dem Boden (schweigt, Toleranz 1)");
+    pruefe(anzahl(karte(-8), "requisitsteckt") == 1, "requisitsteckt: Kiste 8 im Boden (rot)");
+}
+
 std::string lies(const std::string& pfad) {
     std::ifstream f(pfad, std::ios::binary);
     std::ostringstream s;
@@ -460,6 +474,7 @@ int main(int argc, char** argv) {
     testeMasse();
     testeTexturen();
     testeModelle();
+    testeRequisiten();
     // eine echte Karte (nur lesen): die neuen Befunde und ihre Zeiten
     if (argc > 1) {
         using Uhr = std::chrono::steady_clock;

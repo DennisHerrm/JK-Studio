@@ -620,6 +620,8 @@ public:
         messen("cw_texturen");
         modelle();
         messen("cw_modelle");
+        requisiten();
+        messen("cw_requisiten");
     }
 
 private:
@@ -1693,6 +1695,91 @@ private:
         return false;
     }
 
+    // --- 7. Requisiten: schwebend oder im Boden ---------------------------------------------------------------------
+    void requisiten() {
+        static const char* const kQuelle =
+            "Clone Wars list: nothing floats, props stand on the floor (at most 1 unit, adjustable); q3map2 surface.cpp AddReferenceToLeaf (baked "
+            "triangles inside solid are dropped)";
+        Befund schwebt = neu("requisitschwebt", Schwere::Warnung, kQuelle);
+        Befund steckt = neu("requisitsteckt", Schwere::Hinweis, kQuelle);
+        const double tol = m_o.masse.toleranz;
+        double tiefste = 0;
+        for (std::size_t i = 0; i < m_o.modelle.size(); ++i) {
+            const AbbildModell& m = m_o.modelle[i];
+            const auto& k = m_modellKasten[i];
+            if (!m.modell || m.modell->null || k[0] > k[3]) { continue; }
+            const double mn[3] = {k[0] - tol, k[1] - tol, k[2] - tol};
+            const double mx[3] = {k[3] + tol, k[4] + tol, k[5] + tol};
+            bool beruehrt = false;
+            m_w.imKasten(
+                mn, mx,
+                [&](const Vol& v) {
+                    if (beruehrt || !v.kollision) { return; }
+                    if (v.mn[0] > mx[0] || v.mx[0] < mn[0] || v.mn[1] > mx[1] || v.mx[1] < mn[1] || v.mn[2] > mx[2] || v.mx[2] < mn[2]) { return; }
+                    for (const AbbildFlaeche& f : v.p->flaechen) {   // Trennebene: alle Ecken des Kastens davor?
+                        bool alleDavor = true;
+                        for (int c = 0; c < 8 && alleDavor; ++c) {
+                            const V e((c & 1) ? mx[0] : mn[0], (c & 2) ? mx[1] : mn[1], (c & 4) ? mx[2] : mn[2]);
+                            if (abstandZuPunkt(f.ebene, e) <= 0) { alleDavor = false; }
+                        }
+                        if (alleDavor) { return; }
+                    }
+                    beruehrt = true;
+                },
+                [&](const Dr& d, int) {
+                    if (beruehrt || !d.kollision || d.modell == static_cast<int>(i)) { return; }
+                    const float tx0 = std::min({d.a[0], d.b[0], d.c[0]});
+                    const float tx1 = std::max({d.a[0], d.b[0], d.c[0]});
+                    const float ty0 = std::min({d.a[1], d.b[1], d.c[1]});
+                    const float ty1 = std::max({d.a[1], d.b[1], d.c[1]});
+                    const float tz0 = std::min({d.a[2], d.b[2], d.c[2]});
+                    const float tz1 = std::max({d.a[2], d.b[2], d.c[2]});
+                    if (tx0 > mx[0] || tx1 < mn[0] || ty0 > mx[1] || ty1 < mn[1] || tz0 > mx[2] || tz1 < mn[2]) { return; }
+                    beruehrt = true;
+                });
+            // ein anderes Modell, auf dem es steht (Vase auf dem Tisch)
+            for (std::size_t j = 0; j < m_o.modelle.size() && !beruehrt; ++j) {
+                const auto& k2 = m_modellKasten[j];
+                if (j == i || k2[0] > k2[3]) { continue; }
+                if (k2[0] <= mx[0] && k2[3] >= mn[0] && k2[1] <= mx[1] && k2[4] >= mn[1] && k2[2] <= mx[2] && k2[5] >= mn[2]) { beruehrt = true; }
+            }
+            const V boden((k[0] + k[3]) * 0.5, (k[1] + k[4]) * 0.5, k[2]);
+            if (!beruehrt) {
+                const Treffer t = m_w.strahl(boden, V(0, 0, -1), 65536, Modus::Kollision, m_art);
+                ObjektRef r{m.entitaet, -1, -1, stelle(m.entitaet, -1) + " " + m.pfad + ": " + (t.ja ? zahl(t.t) + " units above the floor" : std::string("no floor below"))};
+                punktSetzen(r, boden);
+                add(schwebt, r);
+                continue;
+            }
+            // im Boden: von der Mitte des Modells hinab liegt der erste Boden ueber seiner Unterkante. Steckt schon die Mitte in der
+            // Kollision, ist es in eine Wand oder Decke eingelassen (Lampe, Tafel) - keine Requisite auf dem Boden. Ein Modell mit
+            // eigener Kollision (Clip) steht auf seinen eigenen Dreiecken: nicht geprueft.
+            if (m.eingebacken && clipModellDa(i)) { continue; }
+            const V mitte((k[0] + k[3]) * 0.5, (k[1] + k[4]) * 0.5, (k[2] + k[5]) * 0.5);
+            bool innen = false;
+            m_w.enthaltend(mitte, 0.01, [&](const Vol& v) {
+                if (v.kollision) { innen = true; }
+            });
+            if (innen) { continue; }
+            const Treffer t = m_w.strahl(mitte, V(0, 0, -1), mitte[2] - k[2] + 1, Modus::Kollision, m_art);
+            if (!t.ja || t.innen || t.n[2] < m_fig.gehen) { continue; }
+            const double tiefe = (mitte[2] - t.t) - k[2];
+            if (tiefe > tol) {
+                ObjektRef r{m.entitaet, -1, -1, stelle(m.entitaet, -1) + " " + m.pfad + ": " + zahl(tiefe) + " units in the floor"};
+                punktSetzen(r, boden);
+                add(steckt, r);
+                tiefste = std::max(tiefste, tiefe);
+            }
+        }
+        if (schwebt.anzahl > 0) {
+            detailSetzen(schwebt, "%s props float in the air (they touch no collision within %s units)", {std::to_string(schwebt.anzahl), zahl(tol)});
+            m_out.push_back(schwebt);
+        }
+        if (steckt.anzahl > 0) {
+            detailSetzen(steckt, "%s props reach more than %s units into the floor (deepest %s)", {std::to_string(steckt.anzahl), zahl(tol), zahl(tiefste)});
+            m_out.push_back(steckt);
+        }
+    }
 };
 
 }  // namespace

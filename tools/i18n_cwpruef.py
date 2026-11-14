@@ -311,6 +311,40 @@ ZEILEN = [
      "Soubor .md3 má víc než 64 ploch (MD3_MAX_SURFACES 32 + 32), plochu s víc než 4096 vrcholy (MD3_MAX_VERTS) nebo víc než 8192 "
      "trojúhelníky (MD3_MAX_TRIANGLES). Limity jsou v qfiles.h, ale OpenJK ani q3map2 je nevynucují - q3map2 jen varuje (assimp). Jiné "
      "nástroje pro tento formát mohou takové soubory odmítnout."),
+    ("KeOptPrSchwebt", "Floating prop", "Schwebende Requisite", "悬浮的道具", "浮いている小道具", "Accesorio flotante", "Levitující rekvizita"),
+    ("KeOptPrSchwebtE",
+     "These models touch no collision and no other model within the tolerance (1 unit, adjustable): they hang in the air. Props on a wall "
+     "or a ceiling touch it and are not reported.",
+     "Diese Modelle berühren innerhalb der Toleranz (1 Einheit, einstellbar) keine Kollision und kein anderes Modell: sie hängen in der "
+     "Luft. Requisiten an einer Wand oder Decke berühren diese und werden nicht gemeldet.",
+     "这些模型在容差(1 单位,可调)范围内既不接触碰撞也不接触其他模型:它们悬在空中。挂在墙上或天花板上的道具会接触墙或天花板,不会报告。",
+     "これらのモデルは許容値(1 ユニット、変更可)の範囲でコリジョンにもほかのモデルにも触れていません。宙に浮いています。壁や天井に付いた"
+     "小道具はそれに触れているので報告しません。",
+     "Estos modelos no tocan ninguna colisión ni otro modelo dentro de la tolerancia (1 unidad, ajustable): cuelgan en el aire. Los "
+     "accesorios en una pared o un techo la tocan y no se informan.",
+     "Tyto modely se v rámci tolerance (1 jednotka, nastavitelné) nedotýkají žádné kolize ani jiného modelu: visí ve vzduchu. Rekvizity na "
+     "stěně nebo stropě se jich dotýkají a nehlásí se."),
+    ("KeOptPrSteckt", "Prop stuck in the floor", "Requisite steckt im Boden", "陷入地面的道具", "床に埋まった小道具",
+     "Accesorio hundido en el suelo", "Rekvizita zapadlá v podlaze"),
+    ("KeOptPrStecktE",
+     "Straight down from the middle of these models the first floor lies more than the tolerance above their lowest point. q3map2 drops "
+     "baked triangles inside solid; that part is not drawn. Models whose middle is inside collision (set into a wall or ceiling) and "
+     "models with their own clip are left out. Rocks and roots are often set into the ground on purpose.",
+     "Senkrecht unter der Mitte dieser Modelle liegt der erste Boden mehr als die Toleranz über ihrem tiefsten Punkt. q3map2 verwirft "
+     "eingebackene Dreiecke im Festen; dieser Teil wird nicht gezeichnet. Modelle, deren Mitte in der Kollision steckt (in Wand oder "
+     "Decke eingelassen), und Modelle mit eigenem Clip bleiben außen vor. Felsen und Wurzeln stecken oft mit Absicht im Boden.",
+     "从这些模型的中心垂直向下,第一个地面比模型最低点高出超过容差。q3map2 会丢弃位于实体内部的烘焙三角形;那部分不会被绘制。中心位于碰撞内部的模型"
+     "(嵌入墙壁或天花板)以及带自身 clip 的模型不在检查范围内。岩石和树根常常是故意嵌入地面的。",
+     "これらのモデルの中心から真下にある最初の床が、モデルの最も低い点より許容値を超えて高くなっています。q3map2 は固体内部の焼き込み三角形を"
+     "捨てるため、その部分は描画されません。中心がコリジョンの中にあるモデル(壁や天井に埋め込んだもの)と、自分の clip を持つモデルは対象外です。"
+     "岩や根はわざと地面に埋めることがよくあります。",
+     "Justo debajo del centro de estos modelos, el primer suelo está más de la tolerancia por encima de su punto más bajo. q3map2 "
+     "descarta los triángulos integrados que quedan dentro de lo sólido; esa parte no se dibuja. Quedan fuera los modelos cuyo centro está "
+     "dentro de la colisión (empotrados en una pared o un techo) y los que tienen clip propio. Las rocas y raíces suelen hundirse a "
+     "propósito.",
+     "Svisle pod středem těchto modelů leží první podlaha víc než o toleranci nad jejich nejnižším bodem. q3map2 zahodí zapečené "
+     "trojúhelníky v pevném; ta část se nekreslí. Modely, jejichž střed je v kolizi (zapuštěné do stěny či stropu), a modely s vlastním "
+     "clipem se nepočítají. Kameny a kořeny bývají do země zapuštěné záměrně."),
     # --- Angaben (KeOptD39..54, englisch = kOptimiererDetailVorlagen) ---
     ("KeOptD39", "%s visible walkable {face|faces} without collision below {it|them} (the player falls through)",
      "%s {sichtbare begehbare Fläche|sichtbare begehbare Flächen} ohne Kollision darunter (man fällt durch)",
@@ -381,6 +415,16 @@ ZEILEN = [
      "qfiles.h の形式上限(面 64、頂点 4096、三角形 8192)を超える .md3 ファイル %s 個",
      "%s {archivo .md3|archivos .md3} por encima de los límites de formato de qfiles.h (64 superficies, 4096 vértices, 8192 triángulos)",
      "%s {soubor .md3|soubory .md3|souborů .md3} nad limity formátu z qfiles.h (64 ploch, 4096 vrcholů, 8192 trojúhelníků)"),
+    ("KeOptD53", "%s {prop floats|props float} in the air ({it touches|they touch} no collision within %s units)",
+     "%s {Requisite schwebt|Requisiten schweben} in der Luft (keine Kollision innerhalb von %s Einheiten)",
+     "%s 个道具悬在空中(%s 单位内没有接触碰撞)", "宙に浮いている小道具 %s 個(%s ユニット以内でコリジョンに触れていません)",
+     "%s {accesorio flota|accesorios flotan} en el aire (sin tocar colisión dentro de %s unidades)",
+     "%s {rekvizita levituje|rekvizity levitují|rekvizit levituje} ve vzduchu (do %s jednotek se nedotýkají kolize)"),
+    ("KeOptD54", "%s {prop reaches|props reach} more than %s units into the floor (deepest %s)",
+     "%s {Requisite steckt|Requisiten stecken} mehr als %s Einheiten im Boden (am tiefsten %s)",
+     "%s 个道具陷入地面超过 %s 单位(最深 %s)", "小道具 %s 個が床に %s ユニットを超えて埋まっています(最も深いもので %s)",
+     "%s {accesorio se hunde|accesorios se hunden} más de %s unidades en el suelo (el más hondo %s)",
+     "%s {rekvizita zasahuje|rekvizity zasahují|rekvizit zasahuje} víc než %s jednotek do podlahy (nejhlouběji %s)"),
     # --- Einstellungen (Seite Optimizer) ---
     ("KePrOptToleranz", "Visible/collision gap", "Abstand Sicht/Kollision", "可见/碰撞间距", "見た目とコリジョンの差",
      "Separación visible/colisión", "Mezera vidět/kolize"),
