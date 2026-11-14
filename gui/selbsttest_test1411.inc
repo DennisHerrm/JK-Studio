@@ -6,6 +6,9 @@
 //      Rad-Rasten heraus und herein; dazu das Drahtgitter ab Werk im Bereich Modellieren (Objektebene ohne Kanten) und die
 //      Geister (Ghosts) nur im Bereich Animation
 //   I  Bereich Animation ohne Control Rig: ein Klick auf die Figur waehlt einen Knochen, keine Meldung "eingefroren"
+//   H  Knochen als saubere Kette je Glied: je Knochen eine Form, kein Kasten schneidet einen anderen ausser an den Gelenken, die
+//      Kaesten reichen bis zum Gelenk der Kette, Drehhilfen als Punkt, Klick trifft, GLA unberuehrt (_humanoid von Movie Duels, rancor)
+//   fotos  Fotos fuer D, I, H (BHED_FOTOS)
 //   F  Zeitleiste: die Knoepfe rechts der Bildanzeige stehen still, wenn die Bildzahl waechst (0, 9, 10, 99, 100, letztes Bild der
 //      laengsten Sequenz - unter Movie Duels BOTH_MD_CIN_51 mit 660 Bildern)
 // Eingebunden in selbsttest.cpp (am Ende der Modell-Block-Gruppen).
@@ -63,6 +66,31 @@ const char* artName(AnsichtArt a) {
         default: break;
     }
     return "other";
+}
+
+// Ein Schirmpunkt AUF der Flaeche: die Mitte ihres groessten Dreiecks auf dem Schirm (die Mitte aller Ecken kann in einem Loch liegen -
+// hips ist ein Ring um die Huefte)
+ImVec2 flaechenPunkt(const char* name) {
+    const int i = teil(name);
+    const auto& h = modellHaut();
+    const GlmModel& m = mtab().anzeige;
+    ImVec2 best{0.0F, 0.0F};
+    float bestF = -1.0F;
+    if (i < 0 || uz(i) >= h.size() || uz(i) >= m.surfaces.size()) { return best; }
+    const GlmSurface& sf = m.surfaces[uz(i)];
+    const ModellAnsicht& a = mtab().ansichten[mtab().aktiv];
+    for (std::size_t k = 0; k + 2 < sf.indexes.size(); k += 3) {
+        ImVec2 p[3];
+        bool ok = true;
+        for (std::size_t e = 0; e < 3 && ok; ++e) { ok = modellAufSchirm(a, h[uz(i)][sf.indexes[k + e]].data(), p[e]); }
+        if (!ok) { continue; }
+        const float f = std::fabs((p[1].x - p[0].x) * (p[2].y - p[0].y) - (p[2].x - p[0].x) * (p[1].y - p[0].y));
+        if (f > bestF) {
+            bestF = f;
+            best = ImVec2{std::floor((p[0].x + p[1].x + p[2].x) / 3.0F), std::floor((p[0].y + p[1].y + p[2].y) / 3.0F)};
+        }
+    }
+    return best;
 }
 
 ImVec2 ansichtMitte() {
@@ -381,12 +409,13 @@ void iSchritte(std::vector<Schritt>& s) {
     auto dr = std::make_shared<IDreh>();
     const char* const ziele[2] = {"torso", "hips"};
     for (int k = 0; k < 2; ++k) {
-        add(tu(std::string("T1411 I: View/Check mit Knochen aus, dann Animation, wie 3ds Max, kein Rig - Klick auf ") + ziele[k], [] {
+        add(tu(std::string("T1411 I: View/Check, wie 3ds Max, kein Rig - Klick auf ") + ziele[k], [] {
             modellBedienungSetzen(0);
             mtab().bereich = ModellBereich::Ansehen;
-            g_app->modellKnochen = false;
         }));
         add(pause(0.2));
+        add(tu("T1411 I: in View/Check die Knochen aus", [] { g_app->modellKnochen = false; }));
+        add(pause(0.1));
         add(tu("T1411 I: Bereich Animation, SBD_WALK_NORMAL Bild 0", [] {
             ModellTab& t = mtab();
             t.bereich = ModellBereich::Animation;
@@ -418,11 +447,7 @@ void iSchritte(std::vector<Schritt>& s) {
             }));
         }
         const std::string name = ziele[k];
-        add(klickAn("T1411 I: auf " + name + " (Mitte der Flaeche auf dem Schirm)", [name] {
-            ImVec2 p{0.0F, 0.0F};
-            (void)modellFlaecheAufSchirm(teil(name.c_str()), p);
-            return ImVec2{std::floor(p.x), std::floor(p.y)};
-        }));
+        add(klickAn("T1411 I: auf " + name + " (Mitte ihres groessten Dreiecks auf dem Schirm)", [name] { return flaechenPunkt(name.c_str()); }));
         add(pause(0.3));
         add(tu("T1411 I: was der Klick gewaehlt hat", [st, k, name] {
             IStand& i = (*st)[uz(k)];
@@ -479,6 +504,7 @@ void iSchritte(std::vector<Schritt>& s) {
     add(tu("T1411 I: anhalten, Bild des Schluessels", [dr] {
         g_app->animPlaying = false;
         g_app->animFrame = dr->bild;
+        g_app->animTime = 0.0F;   // wie bildSetzen der Zeitleiste: genau das Bild, nicht zwischen ihm und dem naechsten
         g_app->modelDirty = true;
     }));
     add(pause(0.3));
@@ -493,6 +519,360 @@ void iSchritte(std::vector<Schritt>& s) {
     add(pruefe("T1411 I: K setzt einen Schluessel auf dem Knochen", [dr] { return dr->schluessel; }));
     add(pruefe("T1411 I: nach dem Abspielen zeigt das Bild die Drehung (30 Grad gegen die GLA)", [dr] { return std::fabs(dr->nachSpielen - 30.0F) < 0.5F; }));
     add(tu("T1411 I: zurueck", [] {
+        mtab().gizmo = 0;
+        mtab().knochenWahl = -1;
+        mtab().bereich = ModellBereich::Ansehen;
+    }));
+}
+
+// --- H: Knochen als saubere Kette je Glied --------------------------------------------------------------------------------
+
+struct HSeg {
+    int knochen = -1;
+    float a[3]{};
+    float b[3]{};
+    float breite = 0.0F;
+};
+
+struct HStand {
+    std::string modell;
+    int knochen = 0;
+    int mehrfach = 0;          // Knochen mit mehr als einer Form
+    int kaesten = 0;
+    int ueberlappt = 0;        // Paare von Kaesten, die sich ausserhalb der Gelenke schneiden
+    std::string paare;
+    std::vector<std::string> kette;   // Pruefungen am _humanoid: "<knochen> -> <folge>: ok|<abstand>"
+    bool hilfePunkt = true;    // lradiusX, lhumerusX, lfemurX ohne Kasten
+    bool glaGleich = false;
+    bool klickTrifft = false;
+    std::uint64_t glaVorher = 0;
+};
+
+float hAbstandPunktStrecke(const float p[3], const float a[3], const float b[3], float& u) {
+    float ab[3];
+    float ap[3];
+    for (int k = 0; k < 3; ++k) {
+        ab[k] = b[k] - a[k];
+        ap[k] = p[k] - a[k];
+    }
+    const float l2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
+    u = l2 > 0.0F ? std::clamp((ap[0] * ab[0] + ap[1] * ab[1] + ap[2] * ab[2]) / l2, 0.0F, 1.0F) : 0.0F;
+    float d = 0.0F;
+    for (int k = 0; k < 3; ++k) {
+        const float q = a[k] + ab[k] * u - p[k];
+        d += q * q;
+    }
+    return std::sqrt(d);
+}
+
+float hAbstand(const float a[3], const float b[3]) {
+    return std::sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
+}
+
+// Schneiden sich zwei Kaesten (verjuengt von voller Breite am Gelenk auf 10 % am Ende) ausserhalb ihrer Gelenke? Abgetastet von 20 %
+// bis 80 % der Laenge von x; ein Punkt nahe einem Gelenk von y (Anfang oder Ende, im Abstand der beiden vollen Breiten dort) ist die
+// Beruehrung an diesem Gelenk - ein Ast beginnt dort (thoracic -> lclavical) oder die Kette geht weiter (l_d2_j1 -> l_d2_j2).
+bool hUeberlappt(const HSeg& x, const HSeg& y) {
+    for (int i = 4; i <= 16; ++i) {
+        const float t = static_cast<float>(i) / 20.0F;
+        float p[3];
+        for (int k = 0; k < 3; ++k) { p[k] = x.a[k] + (x.b[k] - x.a[k]) * t; }
+        float u = 0.0F;
+        const float d = hAbstandPunktStrecke(p, y.a, y.b, u);
+        const float hx = 0.5F * x.breite * (1.0F - 0.9F * t);
+        const float hy = 0.5F * y.breite * (1.0F - 0.9F * u);
+        const bool amGelenk = hAbstand(p, y.a) < x.breite + y.breite || hAbstand(p, y.b) < x.breite + y.breite * 0.1F;
+        if (d < hx + hy && !amGelenk) { return true; }
+    }
+    return false;
+}
+
+std::uint64_t hGlaSumme() {
+    const GlaAnimation& a = g_app->anim;
+    std::uint64_t h = 1469598103934665603ULL;
+    const auto dazu = [&h](const void* p, std::size_t n) {
+        const auto* c = static_cast<const unsigned char*>(p);
+        for (std::size_t i = 0; i < n; ++i) { h = (h ^ c[i]) * 1099511628211ULL; }
+    };
+    for (const GlaBone& b : a.bones) {
+        dazu(b.name.data(), b.name.size());
+        dazu(&b.parent, sizeof b.parent);
+        dazu(&b.basePose, sizeof b.basePose);
+        dazu(&b.flags, sizeof b.flags);
+    }
+    if (!a.bonePool.empty()) { dazu(a.bonePool.data(), a.bonePool.size()); }
+    if (!a.indexes.empty()) { dazu(a.indexes.data(), a.indexes.size() * sizeof(std::uint32_t)); }
+    return h;
+}
+
+// H.1: je Knochen Elternteil, Kinder, Teilbaum, Laenge zum Elternteil, Richtung der eigenen X-Achse zu jedem Kind (cos) - aus der
+// Grundstellung der GLA; dazu der Kasten, den die Ansicht zeichnet (Anfang/Ende), ins Protokoll
+void hListe(const std::string& modell) {
+    const GlaAnimation& a = g_app->anim;
+    const std::size_t n = a.bones.size();
+    std::vector<std::vector<int>> kinder(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        const int p = a.bones[i].parent;
+        if (p >= 0 && uz(p) < n && uz(p) != i) { kinder[uz(p)].push_back(static_cast<int>(i)); }
+    }
+    std::vector<int> teil(n, 1);
+    const std::vector<int> ord = a.topologicalOrder();
+    for (auto it = ord.rbegin(); it != ord.rend(); ++it) {
+        const int p = a.bones[uz(*it)].parent;
+        if (p >= 0 && uz(p) < n && p != *it) { teil[uz(p)] += teil[uz(*it)]; }
+    }
+    melde("H Liste " + modell + " (" + a.name + ", " + std::to_string(n) + " Knochen, " + std::to_string(a.numFrames) + " Bilder):");
+    for (std::size_t i = 0; i < n; ++i) {
+        const BoneMatrix& m = a.bones[i].basePose;
+        float x[3] = {m.m[0][0], m.m[1][0], m.m[2][0]};
+        const float lx = std::sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2]);
+        for (float& v : x) { v /= std::max(lx, 1e-9F); }
+        const int p = a.bones[i].parent;
+        float laengeEltern = 0.0F;
+        if (p >= 0 && uz(p) < n) {
+            for (int k = 0; k < 3; ++k) { laengeEltern += (m.m[k][3] - a.bones[uz(p)].basePose.m[k][3]) * (m.m[k][3] - a.bones[uz(p)].basePose.m[k][3]); }
+            laengeEltern = std::sqrt(laengeEltern);
+        }
+        std::string z;
+        for (const int c : kinder[i]) {
+            const BoneMatrix& cm = a.bones[uz(c)].basePose;
+            float d[3];
+            float l = 0.0F;
+            for (int k = 0; k < 3; ++k) {
+                d[k] = cm.m[k][3] - m.m[k][3];
+                l += d[k] * d[k];
+            }
+            l = std::sqrt(l);
+            const float c0 = l > 1e-6F ? (d[0] * x[0] + d[1] * x[1] + d[2] * x[2]) / l : 0.0F;
+            char t[96];
+            std::snprintf(t, sizeof t, " %s(%d, %.1f, cos %.2f)", a.bones[uz(c)].name.c_str(), teil[uz(c)], static_cast<double>(l), static_cast<double>(c0));
+            z += t;
+        }
+        char k[200];
+        std::snprintf(k, sizeof k, "H %2d %-18s Eltern %-14s Laenge %5.2f, %d Kinder:", static_cast<int>(i), a.bones[i].name.c_str(),
+                      p >= 0 && uz(p) < n ? a.bones[uz(p)].name.c_str() : "-", static_cast<double>(laengeEltern), static_cast<int>(kinder[i].size()));
+        melde(k + z);
+    }
+}
+
+void hMessen(HStand& h) {
+    const GlaAnimation& an = g_app->anim;
+    h.knochen = static_cast<int>(an.bones.size());
+    std::vector<int> formen(an.bones.size(), 0);
+    std::vector<HSeg> seg;
+    for (int f = 0; f < modellKdFormZahl(); ++f) {
+        const KdFormInfo i = modellKdFormInfo(f);
+        if (i.knochen < 0 || uz(i.knochen) >= formen.size()) { continue; }
+        ++formen[uz(i.knochen)];
+        HSeg x;
+        x.knochen = i.knochen;
+        if (modellKdFormAchse(f, x.a, x.b, x.breite)) { seg.push_back(x); }
+    }
+    for (const int z : formen) { h.mehrfach += z > 1 ? 1 : 0; }
+    h.kaesten = static_cast<int>(seg.size());
+    for (std::size_t i = 0; i < seg.size(); ++i) {
+        for (std::size_t j = 0; j < seg.size(); ++j) {
+            if (i != j && hUeberlappt(seg[i], seg[j])) {
+                ++h.ueberlappt;
+                if (h.paare.size() < 600) { h.paare += " " + an.bones[uz(seg[i].knochen)].name + "/" + an.bones[uz(seg[j].knochen)].name; }
+            }
+        }
+    }
+    // am _humanoid: das Ende der Kaesten an den Gelenken der Kette, die Drehhilfen ohne Kasten
+    const auto ende = [&](const char* k, const char* folge) {
+        const int b = boneIndex(an, k);
+        const int c = boneIndex(an, folge);
+        if (b < 0 || c < 0 || uz(c) >= g_app->modellWelt.size()) { return; }
+        const BoneMatrix& w = g_app->modellWelt[uz(c)];
+        std::string z = std::string(k) + " -> " + folge + ": ";
+        bool da = false;
+        for (const HSeg& x : seg) {
+            if (x.knochen != b) { continue; }
+            da = true;
+            const float d = std::sqrt((x.b[0] - w.m[0][3]) * (x.b[0] - w.m[0][3]) + (x.b[1] - w.m[1][3]) * (x.b[1] - w.m[1][3]) + (x.b[2] - w.m[2][3]) * (x.b[2] - w.m[2][3]));
+            z += d < 0.01F ? "ok" : "Ende " + std::to_string(d) + " vom Gelenk";
+        }
+        h.kette.push_back(z + (da ? "" : "kein Kasten"));
+    };
+    ende("lhumerus", "lradius");
+    ende("lradius", "lhand");
+    ende("thoracic", "cervical");
+    ende("lclavical", "lhumerus");
+    ende("l_d1_j1", "l_d1_j2");
+    ende("lfemurYZ", "ltibia");
+    for (const char* hilfe : {"lhumerusX", "lradiusX", "lfemurX"}) {
+        const int b = boneIndex(an, hilfe);
+        for (const HSeg& x : seg) { h.hilfePunkt = h.hilfePunkt && x.knochen != b; }
+    }
+    std::string k;
+    for (const std::string& z : h.kette) { k += " | " + z; }
+    melde("H " + h.modell + ": " + std::to_string(h.knochen) + " Knochen, " + std::to_string(h.kaesten) + " Kaesten, mehrfach " + std::to_string(h.mehrfach) +
+          ", ueberlappend " + std::to_string(h.ueberlappt) + (h.paare.empty() ? std::string() : " (" + h.paare + ")") + ", Drehhilfen als Punkt " + std::to_string(h.hilfePunkt ? 1 : 0) + k);
+}
+
+void hSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    const char* const modelle[2] = {"models/players/alora/model.glm", "models/players/rancor/model.glm"};
+    auto st = std::make_shared<std::array<HStand, 2>>();
+    for (int m = 0; m < 2; ++m) {
+        if (m > 0) {
+            for (Schritt& x : mb1::laden(modelle[m])) { add(std::move(x)); }
+        }
+        add(tu(std::string("T1411 H: ") + modelle[m] + " - Bereich Animation, wie 3ds Max, Rig-Stil Standard, Knochen an", [st, m, modelle] {
+            HStand& h = (*st)[uz(m)];
+            h.modell = modelle[m];
+            modellBedienungSetzen(0);
+            ModellTab& t = mtab();
+            t.bereich = ModellBereich::Animation;
+            t.vierAnsichten = false;
+            t.aktiv = 3;
+            t.rig = modell::Rig{};
+            t.rigFuer.clear();
+            t.griffWahl = -1;
+            t.knochenWahl = -1;
+            modellRigStilSetzen(modell::RigStil::Standard);
+            g_app->animIndex = -1;
+            g_app->animFrame = 0;
+            t.ansichten[3].art = AnsichtArt::Vorne;
+            modellAnsichtEinpassenAktiv();
+            h.glaVorher = hGlaSumme();
+            g_app->modelDirty = true;
+        }));
+        add(pause(0.3));
+        add(tu("T1411 H: Knochen an, eine Ansicht", [] {
+            g_app->modellKnochen = true;
+            mtab().vierAnsichten = false;
+            mtab().aktiv = 3;
+            g_app->modelDirty = true;
+        }));
+        add(pause(0.4));
+        add(tu("T1411 H: Liste und Kaesten", [st, m] {
+            hListe((*st)[uz(m)].modell);
+            hMessen((*st)[uz(m)]);
+        }));
+        add(foto(std::string("t1411_h_") + (m == 0 ? "alora" : "rancor") + "_vorne"));
+        if (m == 0) {
+            add(tu("T1411 H: Seite", [] {
+                mtab().ansichten[3].art = AnsichtArt::Links;
+                modellAnsichtEinpassenAktiv();
+                g_app->modelDirty = true;
+            }));
+            add(pause(0.3));
+            add(foto("t1411_h_alora_seite"));
+            add(tu("T1411 H: Perspektive", [] {
+                mtab().ansichten[3].art = AnsichtArt::Perspektive;
+                modellAnsichtEinpassenAktiv();
+                g_app->modelDirty = true;
+            }));
+            add(pause(0.3));
+            add(foto("t1411_h_alora_perspektive"));
+            // ein Klick auf die Mitte des Kastens von lhumerus waehlt lhumerus
+            add(klickAn("T1411 H: auf den Kasten von lhumerus (30 % der Laenge)", [] {
+                const int b = boneIndex(g_app->anim, "lhumerus");
+                for (int f = 0; f < modellKdFormZahl(); ++f) {
+                    HSeg x;
+                    if (modellKdFormInfo(f).knochen != b || !modellKdFormAchse(f, x.a, x.b, x.breite)) { continue; }
+                    // bei 30 % der Laenge: in der Mitte liegt der Hilfspunkt der Drehhilfe lhumerusX
+                    const float mitte[3] = {x.a[0] + (x.b[0] - x.a[0]) * 0.3F, x.a[1] + (x.b[1] - x.a[1]) * 0.3F, x.a[2] + (x.b[2] - x.a[2]) * 0.3F};
+                    ImVec2 p;
+                    if (modellAufSchirm(mtab().ansichten[mtab().aktiv], mitte, p)) { return ImVec2{std::floor(p.x), std::floor(p.y)}; }
+                }
+                return ansichtMitte();
+            }));
+            add(pause(0.3));
+            add(tu("T1411 H: welcher Knochen gewaehlt ist", [st] {
+                const int k = mtab().knochenWahl;
+                (*st)[0].klickTrifft = k >= 0 && k == boneIndex(g_app->anim, "lhumerus");
+                melde("H Klick auf den Kasten von lhumerus (30 %): " + std::string(k >= 0 && uz(k) < g_app->anim.bones.size() ? g_app->anim.bones[uz(k)].name : "-"));
+            }));
+        }
+        add(tu("T1411 H: GLA unberuehrt", [st, m] {
+            HStand& h = (*st)[uz(m)];
+            h.glaGleich = hGlaSumme() == h.glaVorher;
+        }));
+    }
+    add(pruefe("T1411 H: je Knochen hoechstens eine Form (_humanoid und rancor)", [st] { return (*st)[0].knochen > 0 && (*st)[1].knochen > 0 && (*st)[0].mehrfach == 0 && (*st)[1].mehrfach == 0; }));
+    add(pruefe("T1411 H: kein Knochen-Kasten schneidet einen anderen ausser an den Gelenken (_humanoid und rancor)",
+               [st] { return (*st)[0].kaesten > 0 && (*st)[1].kaesten > 0 && (*st)[0].ueberlappt == 0 && (*st)[1].ueberlappt == 0; }));
+    add(pruefe("T1411 H: am _humanoid reicht jeder Kasten bis zum Gelenk der Kette (lhumerus -> lradius, lradius -> lhand, lclavical -> lhumerus, l_d1_j1 -> l_d1_j2 ...)",
+               [st] {
+                   bool ok = !(*st)[0].kette.empty();
+                   for (const std::string& z : (*st)[0].kette) { ok = ok && z.size() > 2 && z.compare(z.size() - 2, 2, "ok") == 0; }
+                   return ok;
+               }));
+    add(pruefe("T1411 H: die Drehhilfen lhumerusX, lradiusX, lfemurX sind ab Werk ein Hilfspunkt, kein Kasten", [st] { return (*st)[0].hilfePunkt; }));
+    add(pruefe("T1411 H: ein Klick auf den Kasten von lhumerus waehlt lhumerus", [st] { return (*st)[0].klickTrifft; }));
+    add(pruefe("T1411 H: die GLA bleibt unberuehrt (nur Darstellung)", [st] { return (*st)[0].glaGleich && (*st)[1].glaGleich; }));
+    for (Schritt& x : mb1::laden("models/players/alora/model.glm")) { add(std::move(x)); }
+}
+
+// --- Fotos (BHED_FOTOS): D, F, I wie shanks Fotos ---------------------------------------------------------------------------
+
+void fotoSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto zoom = [](int rasten) {
+        return Schritt{"T1411 Foto: Rad-Rasten", [rasten](int b) {
+                           if (b == 0) {
+                               setzeMaus(ansichtMitte());
+                               return false;
+                           }
+                           if (b <= std::abs(rasten)) {
+                               ImGui::GetIO().AddMouseWheelEvent(0.0F, rasten < 0 ? -1.0F : 1.0F);
+                               return false;
+                           }
+                           return b >= std::abs(rasten) + 6;
+                       }};
+    };
+    // D wie Foto 14.11. (Modeling, Perspective, herausgezoomt): auf der Objektebene ohne Gitter, auf der Kanten-Ebene deckungsgleich
+    add(tu("T1411 Foto D: Modeling, Perspective, Objektebene", [] {
+        modellBedienungSetzen(0);
+        ModellTab& t = mtab();
+        t.bereich = ModellBereich::Modellieren;
+        t.vierAnsichten = false;
+        t.aktiv = 3;
+        t.auswahlArt = AuswahlArt::Objekt;
+        t.ansichten[3].art = AnsichtArt::Perspektive;
+        modellAnsichtEinpassenAktiv();
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.4));
+    add(zoom(-6));
+    add(foto("t1411_d_modeling_objekt_herausgezoomt"));
+    add(tu("T1411 Foto D: Kanten-Ebene (2)", [] {
+        mtab().auswahlArt = AuswahlArt::Kante;
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.3));
+    add(foto("t1411_d_modeling_kanten_herausgezoomt"));
+    add(tu("T1411 Foto D: wie Blender, Edit Mode Kanten", [] {
+        modellBedienungSetzen(1);
+        mtab().auswahlArt = AuswahlArt::Kante;
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.3));
+    add(foto("t1411_d_modeling_blender_kanten"));
+    // I/D wie Foto 14.11. (Animation, Orthographic, SBD_WALK_NORMAL Bild 7): Knochen gewaehlt, herausgezoomt
+    add(tu("T1411 Foto I: Animation, wie 3ds Max, Orthographic, SBD_WALK_NORMAL Bild 7", [] {
+        modellBedienungSetzen(0);
+        ModellTab& t = mtab();
+        t.bereich = ModellBereich::Animation;
+        t.auswahlArt = AuswahlArt::Objekt;
+        t.ansichten[3].art = AnsichtArt::Orthographisch;
+        const int q = sequenz("SBD_WALK_NORMAL");
+        if (q >= 0) {
+            animWaehlen(q, false);
+            g_app->animFrame = g_app->animList[uz(q)].firstFrame + 7;
+        }
+        t.knochenWahl = boneIndex(g_app->anim, "lradius");
+        t.griffWahl = -1;
+        t.gizmo = 2;
+        modellAnsichtEinpassenAktiv();
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.4));
+    add(zoom(-4));
+    add(foto("t1411_i_animation_knochen_gewaehlt"));
+    add(tu("T1411 Foto: zurueck", [] {
         mtab().gizmo = 0;
         mtab().knochenWahl = -1;
         mtab().bereich = ModellBereich::Ansehen;
@@ -596,6 +976,8 @@ std::vector<Schritt> schritte(const char* nur) {
     if (abschnitt("d")) { dSchritte(s); }
     if (abschnitt("i")) { iSchritte(s); }
     if (abschnitt("f")) { fSchritte(s); }
+    if (abschnitt("h")) { hSchritte(s); }
+    if (abschnitt("fotos")) { fotoSchritte(s); }
     add(tu("T1411: zurueck", [=] {
         modellBedienungSetzen(*bedienung);
         g_app->settings.splitModel = *teiler;

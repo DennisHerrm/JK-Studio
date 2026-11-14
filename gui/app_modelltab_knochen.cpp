@@ -95,6 +95,7 @@ struct Form {
     int scheibenBis = 0;
     int koerperVon = 0;        // Dreiecke des Koerpers fuer das Treffen (nicht gezeichnet)
     int koerperBis = 0;
+    std::array<V3, 2> achse{};  // TEST1411 H: Anfang und Ende eines Knochenkastens (sonst beide 0)
 };
 struct Szene {
     std::vector<Form> formen;
@@ -242,10 +243,157 @@ void kreis(Bauer& b, const V3& mitte, const V3& u, const V3& v, float r, ImU32 f
     }
 }
 
-// --- die Knochen der Darstellungsarten (vom Gelenk des Elternknochens zum Gelenk des Knochens, wie bis rc611) --------------------
+// --- TEST1411 H: die Kette je Glied -------------------------------------------------------------------------------------------
+//
+// shank 14.11.: "wenn ich mir die bones anschaue dann ist das keine ordentliche hierachy wie vor der GLA". Die GLA haengt viele Knochen
+// flach an einen Elternteil (_humanoid: lradius hat zehn Kinder - lradiusX, lhand, sechs Fingerglieder, lhang_tag_bone; face acht).
+// Bis rc612 zeichnete JEDES Kind einen Kasten vom Gelenk des Elternteils zu seinem eigenen - zehn Kaesten faechern vom Ellbogen aus.
+// Jetzt wie ein Bone-/Biped-Rig in 3ds Max (dort zeigt die X-Achse eines Bones zu seinem Kind, Autodesk-Hilfe "Bone Tools"): jeder
+// Knochen ist EIN Kasten von seinem Gelenk entlang seiner eigenen X-Achse - die Grundstellung der GLA traegt sie noch (Carcass schrieb
+// die Achsen der Max-Szene; gemessen an _humanoid: X zeigt bei lhumerus zu lradius, bei lclavical zu lhumerus, bei l_d1_j1 zu
+// l_d1_j2, je cos 1,00, Liste in Y:\werkzeuge\test1411\h). Das Ende des Kastens, alles aus den Daten, keine Namensliste:
+//   - das Folgegelenk: das Kind in der Achse (Winkel unter 25,8 Grad, cos > 0,9) mit dem groessten Teilbaum, bei Gleichstand das
+//     naechste (lhumerus -> lradius, thoracic -> cervical, lradius -> lhand);
+//   - ohne solches Kind das naechste Geschwister in der Achse (die Kette, die die GLA flach gemacht hat: lclavical -> lhumerus,
+//     lhand -> l_d4_j1, l_d1_j1 -> l_d1_j2);
+//   - sonst ein Endknochen: halb so lang wie der Kasten, der an seinem Gelenk endet (sonst wie der Weg vom Elternteil).
+// Drehhilfen (lhumerusX, lradiusX, lfemurX): Blaetter in der Achse des Elternteils, mit derselben Ausrichtung (cos > 0,999), vor
+// einem Geschwister in derselben Achse - ab Werk ein kleiner Hilfspunkt, mit "Hilfsknochen zeigen" ein Endknochen. Wurzeln
+// (model_root) sind ein Punkt wie die Wurzel eines Biped. Am Anfang einer Kette, die nicht das Folgegelenk ihres Elternteils ist
+// (lhumerus an thoracic, lfemurYZ an pelvis), eine duenne Linie zum Elternteil wie 3ds Max "Display Links" - an Blaettern keine.
+struct Kette {
+    std::vector<int> folge;          // Gelenk, bis zu dem der Kasten reicht (-1: Endknochen)
+    std::vector<float> endLaenge;    // Endknochen: Laenge entlang der eigenen X-Achse (Einheiten der Grundstellung)
+    std::vector<char> hilfe;         // Drehhilfe
+    std::vector<char> verbindung;    // duenne Linie zum Elternteil
+    std::string fuer;
+};
+Kette g_kette;
 
-// Der FK-Griff, den der Abschnitt vom Elternknochen `p` aus zeigt (Stil Blender-Oktaeder: der Knochen ist sein eigener Griff):
-// der Griff von p, bei einem Drehknochen der seines Glieds.
+V3 achseX(const BoneMatrix& m) {
+    const V3 x{m.m[0][0], m.m[1][0], m.m[2][0]};
+    const float l = laenge(x);
+    return l > 1e-9F ? mal(x, 1.0F / l) : V3{0.0F, 0.0F, 1.0F};
+}
+
+const Kette& kette() {
+    const GlaAnimation& an = g_app->anim;
+    const std::string fuer = an.name + "|" + an.skeletonName + "|" + std::to_string(an.bones.size());
+    if (g_kette.fuer == fuer) { return g_kette; }
+    const std::size_t n = an.bones.size();
+    Kette k;
+    k.fuer = fuer;
+    k.folge.assign(n, -1);
+    k.endLaenge.assign(n, 0.0F);
+    k.hilfe.assign(n, 0);
+    k.verbindung.assign(n, 0);
+    std::vector<V3> p(n);
+    std::vector<V3> x(n);
+    std::vector<std::vector<int>> kinder(n);
+    V3 mn{1e9F, 1e9F, 1e9F};
+    V3 mx{-1e9F, -1e9F, -1e9F};
+    for (std::size_t i = 0; i < n; ++i) {
+        p[i] = ortVon(an.bones[i].basePose);
+        x[i] = achseX(an.bones[i].basePose);
+        for (int a = 0; a < 3; ++a) {
+            mn[a] = std::min(mn[a], p[i][a]);
+            mx[a] = std::max(mx[a], p[i][a]);
+        }
+        const int e = an.bones[i].parent;
+        if (e >= 0 && static_cast<std::size_t>(e) < n && static_cast<std::size_t>(e) != i) { kinder[static_cast<std::size_t>(e)].push_back(static_cast<int>(i)); }
+    }
+    const float groesse = std::max(laenge(minus(mx, mn)), 1.0F);
+    const float eps = groesse * 1e-4F;
+    std::vector<int> teilbaum(n, 1);
+    const std::vector<int> ordnung = an.topologicalOrder();   // Eltern vor Kindern: rueckwaerts summieren
+    for (auto it = ordnung.rbegin(); it != ordnung.rend(); ++it) {
+        const int e = an.bones[static_cast<std::size_t>(*it)].parent;
+        if (e >= 0 && static_cast<std::size_t>(e) < n && e != *it) { teilbaum[static_cast<std::size_t>(e)] += teilbaum[static_cast<std::size_t>(*it)]; }
+    }
+    // in der Achse von a: Abstand entlang der Achse (t) und Winkel (cos)
+    const auto inAchse = [&](std::size_t a, std::size_t b, float grenze, float& t) {
+        const V3 d = minus(p[b], p[a]);
+        const float l = laenge(d);
+        if (l <= eps) { return false; }
+        t = punkt(d, x[a]);
+        return t / l > grenze;
+    };
+    for (std::size_t i = 0; i < n; ++i) {
+        const int e = an.bones[i].parent;
+        if (e < 0 || static_cast<std::size_t>(e) >= n || !kinder[i].empty()) { continue; }
+        const auto pe = static_cast<std::size_t>(e);
+        float t = 0.0F;
+        if (!inAchse(pe, i, 0.99F, t) || punkt(x[i], x[pe]) <= 0.999F) { continue; }
+        for (const int s : kinder[pe]) {
+            float ts = 0.0F;
+            if (static_cast<std::size_t>(s) != i && inAchse(pe, static_cast<std::size_t>(s), 0.9F, ts) && ts > t + eps) {
+                k.hilfe[i] = 1;
+                break;
+            }
+        }
+    }
+    for (std::size_t i = 0; i < n; ++i) {
+        int best = -1;
+        float bestT = 0.0F;
+        for (const int c : kinder[i]) {
+            float t = 0.0F;
+            const auto uc = static_cast<std::size_t>(c);
+            if (k.hilfe[uc] != 0 || !inAchse(i, uc, 0.9F, t)) { continue; }
+            if (best < 0 || teilbaum[uc] > teilbaum[static_cast<std::size_t>(best)] || (teilbaum[uc] == teilbaum[static_cast<std::size_t>(best)] && t < bestT)) {
+                best = c;
+                bestT = t;
+            }
+        }
+        const int e = an.bones[i].parent;
+        if (best < 0 && e >= 0 && static_cast<std::size_t>(e) < n) {
+            for (const int s : kinder[static_cast<std::size_t>(e)]) {
+                float t = 0.0F;
+                const auto us = static_cast<std::size_t>(s);
+                if (us == i || k.hilfe[us] != 0 || !inAchse(i, us, 0.9F, t)) { continue; }
+                if (best < 0 || t < bestT) {
+                    best = s;
+                    bestT = t;
+                }
+            }
+        }
+        k.folge[i] = best;
+    }
+    // Hilfsknochen ohne eigene Kette an (fast) derselben Stelle wie der Elternknochen oder (als Blatt) wie ein Geschwister (face auf
+    // cranium, Motion auf pelvis, die Lippenwinkel 0,14 Einheiten voneinander): ein Punkt wie die Drehhilfen - zwei Kaesten am selben Ort lagen
+    // aufeinander. "Fast": naeher als 2 % der Groesse des Skeletts (_humanoid: 1,4 Einheiten bei 70 Einheiten Hoehe).
+    const float nah = groesse * 0.02F;
+    for (std::size_t i = 0; i < n; ++i) {
+        const int e = an.bones[i].parent;
+        if (e < 0 || static_cast<std::size_t>(e) >= n || k.folge[i] >= 0 || k.hilfe[i] != 0) { continue; }
+        // am Ort des Elternknochens (auch mit Kindern: face traegt die Gesichtsknochen), sonst ein Blatt am Ort eines Geschwisters
+        bool dicht = laenge(minus(p[i], p[static_cast<std::size_t>(e)])) < nah;
+        for (const int s2 : kinder[static_cast<std::size_t>(e)]) {
+            dicht = dicht || (kinder[i].empty() && static_cast<std::size_t>(s2) != i && laenge(minus(p[i], p[static_cast<std::size_t>(s2)])) < nah);
+        }
+        if (dicht) { k.hilfe[i] = 1; }
+    }
+    for (std::size_t i = 0; i < n; ++i) {
+        const int e = an.bones[i].parent;
+        if (e >= 0 && static_cast<std::size_t>(e) < n && k.folge[static_cast<std::size_t>(e)] != static_cast<int>(i) && k.hilfe[i] == 0 && teilbaum[i] > 1 &&
+            laenge(minus(p[i], p[static_cast<std::size_t>(e)])) > eps) {
+            k.verbindung[i] = 1;
+        }
+        if (k.folge[i] >= 0) { continue; }
+        float vor = 0.0F;
+        for (std::size_t q = 0; q < n; ++q) {
+            if (k.folge[q] == static_cast<int>(i)) { vor = std::max(vor, laenge(minus(p[i], p[q]))); }
+        }
+        if (vor <= eps && e >= 0 && static_cast<std::size_t>(e) < n) { vor = laenge(minus(p[i], p[static_cast<std::size_t>(e)])); }
+        k.endLaenge[i] = vor > eps ? vor * 0.5F : groesse * 0.02F;
+    }
+    g_kette = std::move(k);
+    return g_kette;
+}
+
+// --- die Knochen der Darstellungsarten (TEST1411 H: vom Gelenk des Knochens bis zu seinem Folgegelenk, siehe oben) -----------------
+
+// Der FK-Griff, den der Kasten des Knochens `p` zeigt (Stil Blender-Oktaeder: der Knochen ist sein eigener Griff): der Griff von p,
+// bei einem Drehknochen der seines Glieds.
 int griffVonKnochen(int p) {
     const modell::Rig& rig = mt().rig;
     int g = rig.griffVon(p);
@@ -261,27 +409,45 @@ void knochenBauen(Szene& s, bool wieBlender, KnochenArt art, bool alsGriffe) {
     const GlaAnimation& an = g_app->anim;
     const std::size_t n = std::min(w.size(), an.bones.size());
     const bool flossen = g_app->settings.modellFlossen;
+    const Kette& kt = kette();   // TEST1411 H
+    if (kt.folge.size() < n) { return; }
     Bauer b(s);
     for (std::size_t i = 0; i < n; ++i) {
         const int nr = static_cast<int>(i);
         if (modellKnochenVersteckt(nr)) { continue; }   // mb1a2: Auge im Explorer
         const int p = an.bones[i].parent;
-        const V3 e = ortVon(w[i]);
+        const V3 o = ortVon(w[i]);   // TEST1411 H: der Kasten beginnt am eigenen Gelenk
         const bool spiel = modellSpielKnochen(an.bones[i].name);
-        if (p < 0 || static_cast<std::size_t>(p) >= n) {
-            if (spiel) { s.scheiben.push_back(Scheibe{e, 3.0F, kSpielPunkt, true}); }
+        const int griff = alsGriffe ? griffVonKnochen(nr) : -1;
+        const bool gewaehlt = t.knochenWahl == nr || (griff >= 0 && t.griffWahl == griff);
+        // die Verbindung zum Elternteil am Anfang einer Kette (wie 3ds Max "Display Links"), duenn und gestrichelt, keine eigene Form
+        if (kt.verbindung[i] != 0 && p >= 0 && static_cast<std::size_t>(p) < n) {
+            s.linien.push_back(Linie{ortVon(w[static_cast<std::size_t>(p)]), o, wieBlender ? kBlRand : kMaxRand, 1.0F, true});
+        }
+        // Wurzeln und Drehhilfen (ohne "Hilfsknochen zeigen"): ein Hilfspunkt, der den Knochen waehlt
+        if (p < 0 || static_cast<std::size_t>(p) >= n || (kt.hilfe[i] != 0 && !modellKd().hilfsknochen)) {
+            b.beginn();
+            b.f.skelett = true;
+            b.f.info.knochen = nr;
+            b.f.info.griff = griff;
+            b.f.info.gewaehlt = gewaehlt;
+            b.f.info.schmuck = true;
+            b.scheibe(o, gewaehlt ? 4.0F : 3.0F, gewaehlt ? (wieBlender ? kBlWahlRand : kMaxWahlRand) : (spiel ? kSpielRand : (wieBlender ? kBlRand : kMaxRand)), false);
+            b.ende();
             continue;
         }
-        const V3 o = ortVon(w[static_cast<std::size_t>(p)]);
+        // das Ende: das Folgegelenk, sonst die eigene X-Achse als Endknochen
+        const V3 e = kt.folge[i] >= 0 && static_cast<std::size_t>(kt.folge[i]) < n ? ortVon(w[static_cast<std::size_t>(kt.folge[i])])
+                                                                                 : plus(o, mal(achseX(w[i]), kt.endLaenge[i]));
         V3 x = minus(e, o);
         const float len = laenge(x);
         if (len < 0.05F) {
-            if (spiel) { s.scheiben.push_back(Scheibe{e, 3.0F, kSpielPunkt, true}); }
+            if (spiel) { s.scheiben.push_back(Scheibe{o, 3.0F, kSpielPunkt, true}); }
             continue;
         }
         x = mal(x, 1.0F / len);
-        // Quer: die z-Achse des Elternknochens, senkrecht zur Laenge gemacht.
-        const BoneMatrix& pm = w[static_cast<std::size_t>(p)];
+        // Quer: die z-Achse des Knochens, senkrecht zur Laenge gemacht.
+        const BoneMatrix& pm = w[i];
         V3 up{pm.m[0][2], pm.m[1][2], pm.m[2][2]};
         V3 y = minus(up, mal(x, punkt(up, x)));
         if (laenge(y) < 1e-3F) {
@@ -291,8 +457,6 @@ void knochenBauen(Szene& s, bool wieBlender, KnochenArt art, bool alsGriffe) {
         }
         y = mal(y, 1.0F / laenge(y));
         const V3 z = kreuz(x, y);
-        const int griff = alsGriffe ? griffVonKnochen(p) : -1;
-        const bool gewaehlt = t.knochenWahl == nr || (griff >= 0 && t.griffWahl == griff);
         const float dick = gewaehlt ? 2.0F : 1.2F;
         b.beginn();
         b.f.skelett = true;
@@ -300,6 +464,8 @@ void knochenBauen(Szene& s, bool wieBlender, KnochenArt art, bool alsGriffe) {
         b.f.info.griff = griff;
         b.f.info.gewaehlt = gewaehlt;
         b.f.info.masse[0] = len;
+        b.f.achse[0] = o;   // TEST1411 H: fuer den Selbsttest (Kasten schneidet keinen anderen)
+        b.f.achse[1] = e;
         if (!wieBlender) {
             // wie 3ds Max: Bone-Objekt - ein Kasten, zum Ende hin auf 10 % verjuengt (Taper 90 %), Flossen schaltbar
             const ImU32 rand = gewaehlt ? kMaxWahlRand : (spiel ? kSpielRand : kMaxRand);
@@ -396,7 +562,7 @@ void knochenBauen(Szene& s, bool wieBlender, KnochenArt art, bool alsGriffe) {
                     break;
             }
         }
-        if (spiel) { b.scheibe(e, 3.0F, kSpielPunkt, true); }
+        if (spiel) { b.scheibe(o, 3.0F, kSpielPunkt, true); }
         b.ende();
         if (spiel) { --s.formen.back().info.punkte; }   // die Marke des Spielcodes zaehlt nicht zu den Punkten der Form (Stick: zwei, Draht: keiner)
         ++s.knochen;
@@ -544,7 +710,7 @@ std::uint64_t szeneSchluessel() {
     if (!w.empty()) { h = fnv(h, w.data(), w.size() * sizeof(BoneMatrix)); }
     const int werte[] = {t.knochenWahl, t.griffWahl, g_app->modellKnochen ? 1 : 0, rigGezeigt() ? 1 : 0, static_cast<int>(t.bereich), st.modellKnochenArt, st.modellRigStil,
                          st.modellFlossen ? 1 : 0, st.modellBedienung, g_app->animFrame, t.dok.stand(), static_cast<int>(g_app->anim.bones.size()),
-                         static_cast<int>(t.rig.griffe.size()), t.lodJetzt, static_cast<int>(ImGui::GetFontSize() * 16.0F)};
+                         static_cast<int>(t.rig.griffe.size()), t.lodJetzt, static_cast<int>(ImGui::GetFontSize() * 16.0F), modellKd().hilfsknochen ? 1 : 0};
     h = fnv(h, werte, sizeof werte);
     h = fnv(h, t.rigFuer.data(), t.rigFuer.size());
     h = fnv(h, g_app->modelPath.data(), g_app->modelPath.size());
@@ -1072,6 +1238,10 @@ bool modellKdAktionenSuche(const std::string& such) {
         g_app->settings.modellKnochenVorn = !g_app->settings.modellKnochenVorn;
         geaendert(tr(Str::KdVorn));
     }, 13001);
+    zeile(tr(Str::T1Hilfsknochen), modellKd().hilfsknochen, tr(Str::T1HilfsknochenHint), [] {   // TEST1411 H
+        modellKd().hilfsknochen = !modellKd().hilfsknochen;
+        geaendert(tr(Str::T1Hilfsknochen));
+    }, 13002);
     for (int i = 0; i < modell::kRigStile; ++i) {
         zeile(std::string(tr(Str::KdRigStil)) + ": " + tr(kStilText[i]), static_cast<int>(modellRigStil()) == i, tr(kStilHinweis[i]),
               [i] { modellRigStilSetzen(static_cast<modell::RigStil>(i)); }, 13010 + i);
@@ -1098,6 +1268,11 @@ void modellKdMenue(int) {
         geaendert(tr(Str::KdVorn));
     }
     ImGui::SetItemTooltip("%s", tr(Str::KdVornHint));
+    if (ImGui::MenuItem(tr(Str::T1Hilfsknochen), nullptr, modellKd().hilfsknochen)) {   // TEST1411 H
+        modellKd().hilfsknochen = !modellKd().hilfsknochen;
+        geaendert(tr(Str::T1Hilfsknochen));
+    }
+    ImGui::SetItemTooltip("%s", tr(Str::T1HilfsknochenHint));
     const bool artOffen = ui::menue(tr(Str::KdAnzeigenAls));
     if (!artOffen) { ImGui::SetItemTooltip("%s", tr(Str::KdAnzeigenAlsHint)); }   // offen verdeckte er die Arten
     if (artOffen) {
@@ -1180,6 +1355,28 @@ void modellKdRollout() {
 // --- Selbsttest -----------------------------------------------------------------------------------------------------------------
 
 int modellKdFormZahl() { return static_cast<int>(szene().formen.size()); }
+
+bool modellKdFormAchse(int form, float a[3], float b[3], float& breite) {
+    const Szene& s = szene();
+    if (form < 0 || static_cast<std::size_t>(form) >= s.formen.size()) { return false; }
+    const Form& f = s.formen[static_cast<std::size_t>(form)];
+    const float l = laenge(minus(f.achse[1], f.achse[0]));
+    if (l <= 0.0F) { return false; }
+    std::copy(f.achse[0].begin(), f.achse[0].end(), a);
+    std::copy(f.achse[1].begin(), f.achse[1].end(), b);
+    breite = std::clamp(l * 0.12F, 0.3F, 2.5F);   // wie der Kasten wie 3ds Max (knochenBauen: halbe Breite w0 am Gelenk)
+    return true;
+}
+
+int modellKdKetteFolge(int knochen) {
+    const Kette& k = kette();
+    return knochen >= 0 && static_cast<std::size_t>(knochen) < k.folge.size() ? k.folge[static_cast<std::size_t>(knochen)] : -1;
+}
+
+bool modellKdKetteHilfe(int knochen) {
+    const Kette& k = kette();
+    return knochen >= 0 && static_cast<std::size_t>(knochen) < k.hilfe.size() && k.hilfe[static_cast<std::size_t>(knochen)] != 0;
+}
 
 KdFormInfo modellKdFormInfo(int form) {
     const Szene& s = szene();

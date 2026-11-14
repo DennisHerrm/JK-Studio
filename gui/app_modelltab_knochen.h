@@ -57,6 +57,7 @@ struct KdFormInfo {
 
 struct ModellKd {
     bool durchsicht[4]{};         // je Ansicht
+    bool hilfsknochen = false;    // TEST1411 H: Drehhilfen (lradiusX ...) als Kasten statt als Hilfspunkt
     bool oeffnen = false;         // Aktion: die Gruppe im rechten Feld aufklappen und zeigen
     // Selbsttest: was das letzte Bild gezeichnet hat
     int formenGezeichnet = 0;     // Formen der aktiven Ansicht
@@ -104,6 +105,11 @@ void modellKdRollout();                                 // die Gruppe im rechten
 
 // --- Selbsttest ---
 [[nodiscard]] int modellKdFormZahl();
+// TEST1411 H: Anfang und Ende des Kastens einer Knochen-Form und seine volle Breite am Gelenk (false: kein Kasten, z. B. ein Hilfspunkt)
+[[nodiscard]] bool modellKdFormAchse(int form, float a[3], float b[3], float& breite);
+// TEST1411 H: das Folgegelenk der Kette (-1: Endknochen) und ob ein Knochen als Drehhilfe gilt
+[[nodiscard]] int modellKdKetteFolge(int knochen);
+[[nodiscard]] bool modellKdKetteHilfe(int knochen);
 [[nodiscard]] KdFormInfo modellKdFormInfo(int form);
 [[nodiscard]] int modellKdFormVonGriff(int griff);       // -1 keine
 [[nodiscard]] int modellKdFormVonKnochen(int knochen);   // -1 keine
