@@ -28,7 +28,7 @@ defaults:
 jobs:
   build-test:
     runs-on: windows-2025
-    timeout-minutes: 120
+    timeout-minutes: 300   # rc612: Bau ~60 min + Unit-Tests mit den Licht-Bau-Teilen von q3map2_teilbau (je bis ~60 min auf dem Runner)
     steps:
       - name: Line endings as committed
         run: git config --global core.autocrlf false

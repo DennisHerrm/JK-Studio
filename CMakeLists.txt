@@ -1348,7 +1348,8 @@ if(BEHAVED_TESTS)
                  COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_teilbau.py
                          $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2
                          ${CMAKE_CURRENT_BINARY_DIR}/${bhed_teilbau})
-        set_tests_properties(${bhed_teilbau} PROPERTIES TIMEOUT 1800 ENVIRONMENT "BHED_TEILBAU_NUR=${teil}")
+        # rc612: auf dem GitHub-Runner (4 Kerne) brauchte _geometrie ueber 1800 s (lokal 104 s) - Grenze 3600 s.
+        set_tests_properties(${bhed_teilbau} PROPERTIES TIMEOUT 3600 ENVIRONMENT "BHED_TEILBAU_NUR=${teil}")
       endforeach()
       # Stufe 8a Punkt 5c: Zur fertigen Karte hinzufuegen (-mergebsp -world -fixnames, Pruefungen, Kollision)
       add_test(NAME q3map2_zusammen

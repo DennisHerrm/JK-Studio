@@ -45,7 +45,7 @@ jobs:
     # windows-2025 = Windows Server 2025 mit Visual Studio 2026 (seit Juni
     # 2026). Fest statt windows-latest: -latest wandert.
     runs-on: windows-2025
-    timeout-minutes: 150   # rc612: Bau ~55 min + Unit-Tests > 34 min sprengten 90 min
+    timeout-minutes: 300   # rc612: Bau ~60 min + Unit-Tests mit den Licht-Bau-Teilen von q3map2_teilbau (je bis ~60 min auf dem Runner)
     env:
       # Stufe 8d: die Release-Signatur. Das Geheimnis RELEASE_SIGNING_KEY (PEM des privaten
       # ECDSA-P-256-Schluessels) legt der Koordinator einmalig an (docs/intern/NOTIZEN_karte8d.md);
