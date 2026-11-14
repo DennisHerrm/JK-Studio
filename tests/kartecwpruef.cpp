@@ -285,6 +285,37 @@ void testeStufen() {
     }
 }
 
+void testeMasse() {
+    // Tueren
+    {
+        KartenAbbild a = welt({kasten(-512, -512, -16, 512, 512, 0, kFest)});
+        AbbildEntitaet t = ent("func_door");
+        t.behaelter = true;
+        t.prims.push_back(kasten(0, 0, 0, 8, 48, 96, kFest));
+        a.ents.push_back(t);
+        AbbildEntitaet gut = ent("func_door");
+        gut.behaelter = true;
+        gut.prims.push_back(kasten(100, 0, 0, 108, 64, 112, kFest));
+        a.ents.push_back(gut);
+        const auto b = pruefen(a, optionen());
+        const Befund* x = befund(b, "tuerklein");
+        pruefe(x != nullptr && x->anzahl == 1 && x->objekte[0].entitaet == 1, "tuerklein: Tuer 96 x 48 (rot), Tuer 112 x 64 (schweigt)");
+    }
+    // ein Gang 48 breit, 100 hoch, 512 lang (Waende und Decke aus festen Pinseln)
+    {
+        const auto gang = [](double breite, double hoehe, double laenge) {
+            return welt({kasten(0, -256, -16, laenge, 256, 0, kFest), kasten(0, -256, 0, laenge, -breite / 2, hoehe, kFest),
+                         kasten(0, breite / 2, 0, laenge, 256, hoehe, kFest), kasten(0, -256, hoehe, laenge, 256, hoehe + 16, kFest)});
+        };
+        const auto b = pruefen(gang(80, 120, 1024), optionen());
+        pruefe(anzahl(b, "gangeng") >= 1 && anzahl(b, "durchgangeng") == 0, "gangeng: Gang 120 x 80 ueber 1024 Laenge (rot als Gang)");
+        const auto g = pruefen(gang(128, 160, 1024), optionen());
+        pruefe(anzahl(g, "gangeng") == 0 && anzahl(g, "durchgangeng") == 0, "gangeng: Gang 160 x 128 (schweigt)");
+        const auto d = pruefen(gang(48, 100, 64), optionen());
+        pruefe(anzahl(d, "durchgangeng") >= 1, "durchgangeng: kurzer Durchgang 100 x 48 (rot als Durchgang)");
+    }
+}
+
 std::string lies(const std::string& pfad) {
     std::ifstream f(pfad, std::ios::binary);
     std::ostringstream s;
@@ -301,6 +332,7 @@ int main(int argc, char** argv) {
     testeSichtGegenKollision();
     testeDeckung();
     testeStufen();
+    testeMasse();
     // eine echte Karte (nur lesen): die neuen Befunde und ihre Zeiten
     if (argc > 1) {
         using Uhr = std::chrono::steady_clock;

@@ -277,7 +277,10 @@ const char* const kOptimiererDetailVorlagen[] = {
     "%s collision faces the player cannot see (invisible floor or wall)",
     "%s visible walkable faces more than %s units away from the collision (largest gap %s)",
     "%s pairs of drawn faces of different parts face the same way less than %s units apart (z-fighting)",
-    "%s steps higher than STEPSIZE %s on walkable ground (highest %s)"
+    "%s steps higher than STEPSIZE %s on walkable ground (highest %s)",
+    "%s doors smaller than %s x %s (height x width)",
+    "%s places in passages lower or narrower than a door (%s x %s)",
+    "%s places in corridors lower or narrower than %s x %s"
 };
 const std::size_t kOptimiererDetailVorlagenAnzahl = sizeof(kOptimiererDetailVorlagen) / sizeof(kOptimiererDetailVorlagen[0]);
 

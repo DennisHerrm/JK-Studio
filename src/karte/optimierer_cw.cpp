@@ -614,6 +614,8 @@ public:
         messen("cw_deckung");
         stufen();
         messen("cw_stufen");
+        durchgaenge();
+        messen("cw_masse");
     }
 
 private:
@@ -1317,6 +1319,157 @@ private:
         if (b.anzahl > 0) {
             detailSetzen(b, "%s steps higher than STEPSIZE %s on walkable ground (highest %s)", {std::to_string(b.anzahl), zahl(m_fig.stufe), zahl(hoechste)});
             m_out.push_back(b);
+        }
+    }
+
+    // --- 4. Tueren und Gaenge -------------------------------------------------------------------------------------
+    struct Weite {
+        bool ok = false;     // man kann hier stehen (nicht im Festen)
+        double hoehe = 0;    // bis zur Decke (hoechstens die Gangmasse + 1)
+        double breite = 0;   // die engste Spanne waagerecht
+        V achse{1, 0, 0};    // die Richtung der weitesten Spanne (der Gang)
+    };
+    Weite weiteBei(const V& p) const {
+        Weite w;
+        const double hMax = std::max(m_o.masse.gangHoehe, m_o.masse.tuerHoehe) + 1;
+        const double bMax = std::max(m_o.masse.gangBreite, m_o.masse.tuerBreite) + 1;
+        const Treffer h = m_w.strahl(p + V(0, 0, 0.1), V(0, 0, 1), hMax, Modus::Kollision, m_art);
+        if (h.innen) { return w; }
+        w.hoehe = h.ja ? h.t + 0.1 : hMax;
+        const double z = p[2] - m_fig.unten + (m_fig.oben + m_fig.unten) * 0.5;   // Mitte der Spielfigur
+        double eng = 1e30;
+        double weit = -1;
+        for (int k = 0; k < 4; ++k) {
+            const double win = k * 3.14159265358979323846 / 4;
+            const V d(std::cos(win), std::sin(win), 0);
+            const V o(p[0], p[1], z);
+            const Treffer a = m_w.strahl(o, d, bMax, Modus::Kollision, m_art);
+            const Treffer c = m_w.strahl(o, d * -1.0, bMax, Modus::Kollision, m_art);
+            if (a.innen || c.innen) { return w; }
+            const double spanne = (a.ja ? a.t : bMax) + (c.ja ? c.t : bMax);
+            eng = std::min(eng, spanne);
+            if (spanne > weit) {
+                weit = spanne;
+                w.achse = d;
+            }
+        }
+        w.breite = eng;
+        w.ok = true;
+        return w;
+    }
+    void durchgaenge() {
+        static const char* const kQuelle =
+            "Clone Wars list: doors at least 110 x 64, corridors at least 128 x 96 (height x width, adjustable); player box OpenJK "
+            "code/game/g_client.cpp:55-58, code/game/bg_public.h:51-53 (crouched 40 high)";
+        const CwMasse& m = m_o.masse;
+        // a) Tueren: func_door, je Team zusammen (G_FindTeams: "team")
+        Befund tuer = neu("tuerklein", Schwere::Warnung, kQuelle);
+        std::map<std::string, std::vector<int>> teams;
+        for (std::size_t e = 0; e < m_a.ents.size(); ++e) {
+            if (klein(m_a.ents[e].klasse) != "func_door" || m_a.ents[e].prims.empty()) { continue; }
+            const std::string t = m_a.ents[e].wert("team");
+            teams[t.empty() ? "#" + std::to_string(e) : "team " + t].push_back(static_cast<int>(e));
+        }
+        for (const auto& [name, liste] : teams) {
+            double mn[3] = {1e30, 1e30, 1e30};
+            double mx[3] = {-1e30, -1e30, -1e30};
+            for (const int e : liste) {
+                for (const AbbildPrimitiv& pr : m_a.ents[static_cast<std::size_t>(e)].prims) {
+                    bool ursprung = !pr.flaechen.empty();
+                    for (const AbbildFlaeche& f : pr.flaechen) {
+                        if (!m_art(f.shader).ursprung && klein(f.shader).find("/origin") == std::string::npos) { ursprung = false; }
+                    }
+                    if (ursprung) { continue; }
+                    for (int a = 0; a < 3; ++a) {
+                        mn[a] = std::min(mn[a], static_cast<double>(pr.mins[static_cast<std::size_t>(a)]));
+                        mx[a] = std::max(mx[a], static_cast<double>(pr.maxs[static_cast<std::size_t>(a)]));
+                    }
+                }
+            }
+            if (mn[0] > mx[0]) { continue; }
+            const double hoehe = mx[2] - mn[2];
+            const double breite = std::max(mx[0] - mn[0], mx[1] - mn[1]);
+            if (hoehe + 0.01 >= m.tuerHoehe && breite + 0.01 >= m.tuerBreite) { continue; }
+            const int e = liste.front();
+            ObjektRef r{e, -1, -1, stelle(e, -1) + (name[0] == '#' ? std::string() : " (" + name + ")") + ": " + zahl(hoehe) + " x " + zahl(breite)};
+            punktSetzen(r, V((mn[0] + mx[0]) * 0.5, (mn[1] + mx[1]) * 0.5, mn[2]));
+            add(tuer, r);
+        }
+        if (tuer.anzahl > 0) {
+            detailSetzen(tuer, "%s doors smaller than %s x %s (height x width)", {std::to_string(tuer.anzahl), zahl(m.tuerHoehe), zahl(m.tuerBreite)});
+            m_out.push_back(tuer);
+        }
+        // b) Durchgaenge und Gaenge auf den begehbaren Flaechen (Tueren und andere Mover stehen offen)
+        m_w.ohneMover = true;
+        Befund eng = neu("durchgangeng", Schwere::Warnung, kQuelle);
+        Befund gang = neu("gangeng", Schwere::Hinweis, kQuelle);
+        for (const Vol& v : m_w.vol) {
+            if (!v.kollision || v.mover) { continue; }
+            for (std::size_t s = 0; s < v.p->flaechen.size(); ++s) {
+                const AbbildFlaeche& f = v.p->flaechen[s];
+                const V n = f.ebene.normal();
+                if (n[2] < m_fig.gehen || f.punkte.size() < 3) { continue; }
+                double engsteTuer = 1e30;
+                Weite wTuer;
+                V pTuer;
+                double engsterGang = 1e30;
+                Weite wGang;
+                V pGang;
+                for (const V& p : proben(f.punkte, n, 32, 4096)) {
+                    if (!erreichbarNahe(p, 24, 2, 2)) { continue; }
+                    bool verdeckt = false;
+                    if (bedeckt(p + V(0, 0, 0.25), verdeckt) > -1e29 || verdeckt) { continue; }
+                    const Weite w = weiteBei(p);
+                    if (!w.ok || w.hoehe < m_fig.hoeheGeduckt() || w.breite < 2 * m_fig.halb) { continue; }
+                    const bool engGang = w.breite + 0.01 < m.gangBreite || w.hoehe + 0.01 < m.gangHoehe;
+                    if (!engGang) { continue; }
+                    // ein Gang: auch eine Gangbreite weiter in beide Richtungen eng
+                    int engeSeiten = 0;
+                    for (const double richtung : {1.0, -1.0}) {
+                        const V q = p + w.achse * (m.gangBreite * richtung);
+                        const Treffer boden = m_w.strahl(V(q[0], q[1], p[2] + m_fig.stufe + 0.5), V(0, 0, -1), 2 * m_fig.stufe + 1, Modus::Kollision, m_art);
+                        if (!boden.ja || boden.innen) { continue; }
+                        const Weite w2 = weiteBei(V(q[0], q[1], p[2] + m_fig.stufe + 0.5 - boden.t));
+                        if (w2.ok && (w2.breite + 0.01 < m.gangBreite || w2.hoehe + 0.01 < m.gangHoehe)) { ++engeSeiten; }
+                    }
+                    const double mass = std::min(w.breite / m.gangBreite, w.hoehe / m.gangHoehe);
+                    if (engeSeiten == 2) {
+                        if (mass < engsterGang) {
+                            engsterGang = mass;
+                            wGang = w;
+                            pGang = p;
+                        }
+                    } else if (w.breite + 0.01 < m.tuerBreite || w.hoehe + 0.01 < m.tuerHoehe) {
+                        const double mt = std::min(w.breite / m.tuerBreite, w.hoehe / m.tuerHoehe);
+                        if (mt < engsteTuer) {
+                            engsteTuer = mt;
+                            wTuer = w;
+                            pTuer = p;
+                        }
+                    }
+                }
+                if (engsterGang < 1e29) {
+                    ObjektRef r = flaechenRef(v, static_cast<int>(s));
+                    r.text += ": corridor " + zahl(wGang.hoehe) + " x " + zahl(wGang.breite) + " at " + ort(pGang);
+                    punktSetzen(r, pGang);
+                    add(gang, r);
+                }
+                if (engsteTuer < 1e29) {
+                    ObjektRef r = flaechenRef(v, static_cast<int>(s));
+                    r.text += ": passage " + zahl(wTuer.hoehe) + " x " + zahl(wTuer.breite) + " at " + ort(pTuer);
+                    punktSetzen(r, pTuer);
+                    add(eng, r);
+                }
+            }
+        }
+        m_w.ohneMover = false;
+        if (eng.anzahl > 0) {
+            detailSetzen(eng, "%s places in passages lower or narrower than a door (%s x %s)", {std::to_string(eng.anzahl), zahl(m.tuerHoehe), zahl(m.tuerBreite)});
+            m_out.push_back(eng);
+        }
+        if (gang.anzahl > 0) {
+            detailSetzen(gang, "%s places in corridors lower or narrower than %s x %s", {std::to_string(gang.anzahl), zahl(m.gangHoehe), zahl(m.gangBreite)});
+            m_out.push_back(gang);
         }
     }
 

@@ -140,6 +140,53 @@ ZEILEN = [
      "skok bez Síly (JUMP_VELOCITY 225 při g_gravity 800: 31,6 jednotky); vyšší jsou stěny. Na obou stranách je místo ke stání (výška "
      "postavy) a horní plocha patří k pochozí ploše spojené chůzí o velikosti aspoň 96 x 96 jednotek (nastavitelné) - malé vrchy beden a "
      "pultů jsou překážky, ne schody. Náprava: schody nejvýš 18 jednotek, nebo clip rampa nad schodištěm."),
+    ("KeOptPrTuer", "Door below the minimum size", "Tür unter dem Mindestmaß", "门小于最小尺寸", "最小寸法未満のドア",
+     "Puerta por debajo del tamaño mínimo", "Dveře pod minimální velikostí"),
+    ("KeOptPrTuerE",
+     "A func_door (the doors of one team together) is lower or narrower than the minimum door size (110 x 64, height x width, adjustable). "
+     "The size of the door brushes counts, without origin brushes.",
+     "Eine func_door (die Türen eines Teams zusammen) ist niedriger oder schmaler als das Mindestmaß einer Tür (110 x 64, Höhe x Breite, "
+     "einstellbar). Es zählt die Größe der Türpinsel ohne Ursprungspinsel.",
+     "某个 func_door(同一 team 的门合在一起)低于或窄于门的最小尺寸(110 x 64,高 x 宽,可调)。按门笔刷的尺寸计算,不含原点笔刷。",
+     "func_door(同じ team のドアはまとめて)がドアの最小寸法(110 x 64、高さ x 幅、変更可)より低いか狭くなっています。原点ブラシを除いたドア"
+     "ブラシの大きさで判定します。",
+     "Una func_door (las puertas de un mismo team juntas) es más baja o más estrecha que el tamaño mínimo de puerta (110 x 64, alto x "
+     "ancho, ajustable). Cuenta el tamaño de los brushes de la puerta, sin los brushes de origen.",
+     "Entita func_door (dveře jednoho týmu dohromady) je nižší nebo užší než minimální velikost dveří (110 x 64, výška x šířka, "
+     "nastavitelné). Počítá se velikost brushů dveří bez origin brushů."),
+    ("KeOptPrDurchgang", "Passage smaller than a door", "Durchgang kleiner als eine Tür", "通道小于门", "ドアより小さい通路",
+     "Paso más pequeño que una puerta", "Průchod menší než dveře"),
+    ("KeOptPrDurchgangE",
+     "At these places on walkable ground a passage is lower or narrower than a door (110 x 64), but the player still fits (crouched 40 high, "
+     "32 wide). Measured from the floor to the collision above and across in four directions at the player's middle height. A narrow "
+     "place that stays narrow for a corridor width in both directions counts as a corridor instead.",
+     "An diesen Stellen auf begehbarem Boden ist ein Durchgang niedriger oder schmaler als eine Tür (110 x 64), die Spielfigur passt aber "
+     "noch hindurch (geduckt 40 hoch, 32 breit). Gemessen vom Boden bis zur Kollision darüber und quer in vier Richtungen auf halber Höhe "
+     "der Spielfigur. Eine Engstelle, die eine Gangbreite weit in beide Richtungen eng bleibt, zählt stattdessen als Gang.",
+     "在可行走地面上的这些位置,通道低于或窄于一扇门(110 x 64),但玩家仍能通过(蹲下时高 40、宽 32)。测量方式:从地面到上方的碰撞,以及在玩家半身"
+     "高度处沿四个方向横向测量。向两侧延伸一个走廊宽度仍然狭窄的地方改算作走廊。",
+     "歩ける床のこれらの場所では、通路がドア(110 x 64)より低いか狭くなっていますが、プレイヤーはまだ通れます(しゃがみで高さ 40、幅 32)。"
+     "床から上のコリジョンまでと、プレイヤーの中ほどの高さで 4 方向に横方向を測ります。両方向に廊下の幅だけ狭いままの場所は代わりに廊下として"
+     "扱います。",
+     "En estos puntos del suelo transitable un paso es más bajo o más estrecho que una puerta (110 x 64), pero el jugador aún cabe "
+     "(agachado 40 de alto, 32 de ancho). Se mide desde el suelo hasta la colisión de arriba y de lado en cuatro direcciones a media altura "
+     "del jugador. Un estrechamiento que sigue estrecho a lo largo de un ancho de pasillo en ambas direcciones cuenta como pasillo.",
+     "Na těchto místech pochozí podlahy je průchod nižší nebo užší než dveře (110 x 64), ale postava jím ještě projde (přikrčená 40 vysoká, "
+     "32 široká). Měří se od podlahy ke kolizi nad ní a napříč ve čtyřech směrech v polovině výšky postavy. Zúžení, které zůstává úzké o "
+     "šířku chodby oběma směry, se počítá jako chodba."),
+    ("KeOptPrGang", "Corridor below the minimum size", "Gang unter dem Mindestmaß", "走廊小于最小尺寸", "最小寸法未満の廊下",
+     "Pasillo por debajo del tamaño mínimo", "Chodba pod minimální velikostí"),
+    ("KeOptPrGangE",
+     "Corridors (narrow for at least a corridor width in both directions) lower or narrower than the minimum corridor size (128 x 96, "
+     "height x width, adjustable).",
+     "Gänge (mindestens eine Gangbreite weit in beide Richtungen eng), die niedriger oder schmaler sind als das Mindestmaß eines Gangs "
+     "(128 x 96, Höhe x Breite, einstellbar).",
+     "走廊(向两侧至少一个走廊宽度都狭窄)低于或窄于走廊的最小尺寸(128 x 96,高 x 宽,可调)。",
+     "廊下(両方向に少なくとも廊下の幅だけ狭い)が廊下の最小寸法(128 x 96、高さ x 幅、変更可)より低いか狭くなっています。",
+     "Pasillos (estrechos a lo largo de al menos un ancho de pasillo en ambas direcciones) más bajos o más estrechos que el tamaño mínimo "
+     "de pasillo (128 x 96, alto x ancho, ajustable).",
+     "Chodby (úzké alespoň o šířku chodby oběma směry), které jsou nižší nebo užší než minimální velikost chodby (128 x 96, výška x "
+     "šířka, nastavitelné)."),
     # --- Angaben (KeOptD39..54, englisch = kOptimiererDetailVorlagen) ---
     ("KeOptD39", "%s visible walkable {face|faces} without collision below {it|them} (the player falls through)",
      "%s {sichtbare begehbare Fläche|sichtbare begehbare Flächen} ohne Kollision darunter (man fällt durch)",
@@ -166,6 +213,20 @@ ZEILEN = [
      "可行走地面上有 %s 个高于 STEPSIZE %s 的台阶(最高 %s)", "歩ける床の段差 %s 個が STEPSIZE %s より高くなっています(最大 %s)",
      "%s {escalón|escalones} más {alto|altos} que STEPSIZE %s en suelo transitable (el más alto %s)",
      "%s {schod|schody|schodů} vyšší než STEPSIZE %s na pochozí ploše (nejvyšší %s)"),
+    ("KeOptD44", "%s {door|doors} smaller than %s x %s (height x width)", "%s {Tür|Türen} kleiner als %s x %s (Höhe x Breite)",
+     "%s 扇门小于 %s x %s(高 x 宽)", "ドア %s 個が %s x %s(高さ x 幅)より小さくなっています",
+     "%s {puerta|puertas} más {pequeña|pequeñas} que %s x %s (alto x ancho)",
+     "%s {dveře|dveře|dveří} menší než %s x %s (výška x šířka)"),
+    ("KeOptD45", "%s {place|places} in passages lower or narrower than a door (%s x %s)",
+     "%s {Stelle|Stellen} in Durchgängen niedriger oder schmaler als eine Tür (%s x %s)",
+     "通道中有 %s 处低于或窄于一扇门(%s x %s)", "通路の場所 %s 個がドア(%s x %s)より低いか狭くなっています",
+     "%s {punto|puntos} en pasos más bajos o estrechos que una puerta (%s x %s)",
+     "%s {místo|místa|míst} v průchodech nižších nebo užších než dveře (%s x %s)"),
+    ("KeOptD46", "%s {place|places} in corridors lower or narrower than %s x %s",
+     "%s {Stelle|Stellen} in Gängen niedriger oder schmaler als %s x %s",
+     "走廊中有 %s 处低于或窄于 %s x %s", "廊下の場所 %s 個が %s x %s より低いか狭くなっています",
+     "%s {punto|puntos} en pasillos más bajos o estrechos que %s x %s",
+     "%s {místo|místa|míst} v chodbách nižších nebo užších než %s x %s"),
     # --- Einstellungen (Seite Optimizer) ---
     ("KePrOptToleranz", "Visible/collision gap", "Abstand Sicht/Kollision", "可见/碰撞间距", "見た目とコリジョンの差",
      "Separación visible/colisión", "Mezera vidět/kolize"),
