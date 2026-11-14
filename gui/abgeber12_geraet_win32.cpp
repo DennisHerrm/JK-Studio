@@ -2127,6 +2127,7 @@ ID3D12Resource* ressource(ID3D11Resource* r, std::uint64_t* versatz) {
             if (versatz != nullptr) { *versatz = p->block.versatz; }
             return p->block.res;
         }
+        if (p->kopierSerie == rahmen::ausfuehrung()) { kopierZieleLesbar(); }   // eben beschrieben: erst lesbar (D3D12-4)
         return p->res;
     }
     Textur* t = static_cast<Textur*>(static_cast<ID3D11Texture2D*>(r));

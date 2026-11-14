@@ -163,6 +163,7 @@ struct Puffer final : Kind<Puffer, ID3D11Buffer> {
     // von der Reihenfolge des Gebrauchs abhinge.
     bool ausdruecklich = false;
     std::uint64_t serie = ~0ULL;   // rahmen::ausfuehrung(), in der res gebraucht wurde und im Lesezustand steht
+    std::uint64_t kopierSerie = ~0ULL;   // D3D12-4: rahmen::ausfuehrung(), in der res nach UpdateSubresource in COPY_DEST steht
     // Ruhende dynamische Eck- und Indexpuffer (seit kRuheBilder Bildern kein Map, mindestens kRuheAb Bytes): der Inhalt liegt als
     // Kopie im Grafikspeicher, va zeigt dorthin. Sonst liest die Grafikkarte ihn bei jedem Zeichenbefehl aus dem Arbeitsspeicher.
     // Puffer, die der Pixel-Shader liest (D3D11_BIND_SHADER_RESOURCE: Lichtliste, Kacheln des Echtzeit-Lichts), bekommen die Kopie
@@ -546,6 +547,9 @@ struct Kontext final : ID3D11DeviceContext1 {
     std::uint32_t teilBild = ~0U;                      // Teilabgaben: das Bild (g_gebrauchBild) ...
     int teilImBild = 0;                                // ... und wie viele darin schon abgingen
     long long listeSeit = 0;                           // QueryPerformanceCounter beim Oeffnen der Liste (Teilabgabe); 0: noch keine Arbeit
+    // D3D12-4: Puffer, die in der offenen Liste nach UpdateSubresource in COPY_DEST stehen; vor dem naechsten Zeichenbefehl alle
+    // zusammen zurueck in ihren Lesezustand (kopierZieleLesbar).
+    std::vector<Puffer*> kopierZiele;
     ID3D12PipelineState* psoJetzt = nullptr;   // in der Liste gesetzt
     PsoSchluessel schluesselJetzt;
 
@@ -687,6 +691,7 @@ struct Kontext final : ID3D11DeviceContext1 {
     // eigene Helfer
     ID3D12GraphicsCommandList* liste() { return offeneListe != nullptr ? offeneListe : rahmen::liste(); }
     bool vorZeichnen();
+    void kopierZieleLesbar();
     void zieleAnwenden();
     void setzeCb(UINT stufe, UINT anfang, UINT anzahl, ID3D11Buffer* const* puffer, const UINT* erste);
     void allesLoesen();
@@ -698,6 +703,8 @@ struct Kontext final : ID3D11DeviceContext1 {
     void bindeSrv(UINT platz, Sicht* neu);
 };
 [[nodiscard]] Kontext* kontextZeiger();
+// D3D12-4: steht dieser Puffer nach UpdateSubresource noch in COPY_DEST, jetzt (mit allen anderen) zurueck in den Lesezustand.
+void kopierZieleLesbar();
 
 }  // namespace bhed::render::d3d12::abgeber
 #endif

@@ -476,6 +476,7 @@ void listeNeu(ID3D12GraphicsCommandList* cl) {
     Kontext* c = kontextZeiger();
     if (c == nullptr || !aktiv()) { return; }
     c->offeneListe = cl;
+    c->kopierZiele.clear();   // eine neue Ausfuehrung: Puffer stehen wieder in COMMON
     LARGE_INTEGER t{};
     QueryPerformanceCounter(&t);
     c->listeSeit = t.QuadPart;
@@ -487,7 +488,10 @@ void listeNeu(ID3D12GraphicsCommandList* cl) {
 void fremdGezeichnet() { kontextAllesNeu(); }
 
 void nachAbschicken(std::uint64_t zaun) {
-    if (Kontext* c = kontextZeiger(); c != nullptr) { c->offeneListe = nullptr; }
+    if (Kontext* c = kontextZeiger(); c != nullptr) {
+        c->offeneListe = nullptr;
+        c->kopierZiele.clear();   // Puffer fallen nach der Ausfuehrung auf COMMON zurueck
+    }
     // rahmen::ausfuehrung() zaehlt schon die naechste; die eben abgeschickte ist die davor
     const std::uint64_t serie = rahmen::ausfuehrung() - 1U;
     g_zaunVon[serie % kZaunRing] = zaun;
@@ -712,6 +716,36 @@ void Kontext::zieleAnwenden() {
     cl->OMSetRenderTargets(ziele, ziele != 0U ? griffe : nullptr, FALSE, tiefeZiel != nullptr ? &tiefeZiel->griff : nullptr);
 }
 
+// D3D12-4: alle Puffer, die seit dem letzten Zeichenbefehl kopiert wurden, in einem Aufruf zurueck in ihren Lesezustand.
+void Kontext::kopierZieleLesbar() {
+    if (offeneListe == nullptr || kopierZiele.empty()) {
+        kopierZiele.clear();
+        return;
+    }
+    const std::uint64_t jetzt = rahmen::ausfuehrung();
+    std::vector<D3D12_RESOURCE_BARRIER> b;
+    b.reserve(kopierZiele.size());
+    for (Puffer* p : kopierZiele) {
+        if (p->kopierSerie != jetzt) { continue; }
+        D3D12_RESOURCE_BARRIER e{};
+        e.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        e.Transition.pResource = p->res;
+        e.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        e.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+        e.Transition.StateAfter = p->lesen;
+        b.push_back(e);
+        p->kopierSerie = ~0ULL;
+        p->serie = jetzt;   // im Lesezustand
+        zaehleBarriere();
+    }
+    kopierZiele.clear();
+    if (!b.empty()) { offeneListe->ResourceBarrier(static_cast<UINT>(b.size()), b.data()); }
+}
+
+void kopierZieleLesbar() {
+    if (Kontext* c = kontextZeiger(); c != nullptr && aktiv()) { c->kopierZieleLesbar(); }
+}
+
 // Alles Geaenderte in die Liste. false: so kann nicht gezeichnet werden (kein Shader, Pipeline-Zustand abgelehnt).
 bool Kontext::vorZeichnen() {
     if (offeneListe == nullptr) { (void)rahmen::liste(); }   // ruft listeNeu: offeneListe gesetzt, alles neu
@@ -722,6 +756,7 @@ bool Kontext::vorZeichnen() {
         QueryPerformanceCounter(&t);
         listeSeit = t.QuadPart;
     }
+    if (!kopierZiele.empty()) { kopierZieleLesbar(); }
     if (schmutz == 0U && cbSchmutz == 0U && srvSchmutz == 0U && abtasterSchmutz == 0U) { return true; }
     if ((schmutz & kSWurzel) != 0U) { cl->SetGraphicsRootSignature(wurzelSignatur()); }
     if ((schmutz & kSZiele) != 0U) { zieleAnwenden(); }
@@ -1361,24 +1396,27 @@ void STDMETHODCALLTYPE Kontext::UpdateSubresource(ID3D11Resource* pDstResource, 
         if (!rahmen::hochladePlatz(ende - anfang, false, puffer, versatz, zielZeiger)) { return; }
         std::memcpy(zielZeiger, pSrcData, ende - anfang);
         if (protokoll::g_an) { protokoll::eintrag(cl, "Hochladen in einen Puffer: " + std::to_string(ende - anfang) + " Bytes von " + std::to_string(p->art.ByteWidth)); }
-        // In dieser Ausfuehrung schon gebraucht: aus dem Lesezustand nach COPY_DEST. Sonst steht der Puffer in COMMON, und das
-        // Kopieren stellt ihn von selbst auf COPY_DEST. Danach immer ausdruecklich zurueck in den Lesezustand.
-        D3D12_RESOURCE_BARRIER b{};
-        b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        b.Transition.pResource = p->res;
-        b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        if (p->serie == rahmen::ausfuehrung()) {
-            b.Transition.StateBefore = p->lesen;
-            b.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
-            cl->ResourceBarrier(1, &b);
-            zaehleBarriere();
+        // In dieser Ausfuehrung schon gelesen: aus dem Lesezustand nach COPY_DEST. Sonst steht der Puffer in COMMON, und das
+        // Kopieren stellt ihn von selbst auf COPY_DEST. Er bleibt dort fuer weitere Kopien (D3D12-4: je UpdateSubresource zwei
+        // Barrieren liessen die Grafikkarte bei jedem Stueck leerlaufen); zurueck geht er vor dem naechsten Zeichenbefehl,
+        // zusammen mit allen anderen so beschriebenen (kopierZieleLesbar).
+        const std::uint64_t jetzt = rahmen::ausfuehrung();
+        if (p->kopierSerie != jetzt) {
+            if (p->serie == jetzt) {
+                D3D12_RESOURCE_BARRIER b{};
+                b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+                b.Transition.pResource = p->res;
+                b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+                b.Transition.StateBefore = p->lesen;
+                b.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+                cl->ResourceBarrier(1, &b);
+                zaehleBarriere();
+            }
+            p->kopierSerie = jetzt;
+            kopierZiele.push_back(p);
         }
         cl->CopyBufferRegion(p->res, anfang, puffer, versatz, ende - anfang);
-        b.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-        b.Transition.StateAfter = p->lesen;
-        cl->ResourceBarrier(1, &b);
-        zaehleBarriere();
-        p->serie = rahmen::ausfuehrung();
+        p->serie = ~0ULL;   // nicht im Lesezustand, bis kopierZieleLesbar
         return;
     }
     Textur* t = alsTextur(pDstResource);
