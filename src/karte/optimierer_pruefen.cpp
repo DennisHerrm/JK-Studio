@@ -283,7 +283,10 @@ const char* const kOptimiererDetailVorlagen[] = {
     "%s places in corridors lower or narrower than %s x %s",
     "%s images with a side that is not a power of two (the game stops with ERR_FATAL)",
     "%s images or model shaders the game cannot find",
-    "%s images smaller than %s or larger than %s pixels"
+    "%s images smaller than %s or larger than %s pixels",
+    "%s models with a surface over %s vertices or %s indexes (the game stops with ERR_DROP)",
+    "%s models whose geometry lies away from their origin (exported in world coordinates?)",
+    "%s .md3 files over the format limits of qfiles.h (64 surfaces, 4096 vertices, 8192 triangles)"
 };
 const std::size_t kOptimiererDetailVorlagenAnzahl = sizeof(kOptimiererDetailVorlagen) / sizeof(kOptimiererDetailVorlagen[0]);
 

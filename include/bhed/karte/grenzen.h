@@ -6,7 +6,7 @@
 //
 // Portiert aus OpenJK (Werte und Pruefstellen; Quelltext unter SP\ojk\oj:
 // code/ = Jedi Academy SP, code/ mit JK2_MODE + codeJK2/ = Jedi Outcast SP,
-// codemp/ = Jedi Academy MP), aus Movie Duels (SP\mdgit\code, eigene Engine
+// codemp/ = Jedi Academy MP), aus Movie Duels (Update 9, code/ - seit CW-PRUEF statt der alten Kopie mdgit; eigene Engine
 // auf OpenJK-Grundlage) und aus q3map2 (NetRadiant-Custom 20260114,
 // third_party/q3map2: was der Compiler selbst begrenzt).
 //

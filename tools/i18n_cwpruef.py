@@ -239,6 +239,78 @@ ZEILEN = [
      "las que superan lo que permite la tarjeta gráfica.",
      "Obrázky menší než 64 nebo větší než 2048 pixelů (orientační hodnota seznamu, nastavitelné). Hra je načte, ale obrázky větší, než "
      "grafická karta dovolí, zmenší na polovinu."),
+    ("KeOptPrModellFlaeche", "Model surface over SHADER_MAX_VERTEXES", "Modellfläche über SHADER_MAX_VERTEXES",
+     "模型表面超过 SHADER_MAX_VERTEXES", "SHADER_MAX_VERTEXES を超えるモデルの面", "Superficie de modelo por encima de SHADER_MAX_VERTEXES",
+     "Plocha modelu nad SHADER_MAX_VERTEXES"),
+    ("KeOptPrModellFlaecheE",
+     "A model the game loads at run time (misc_model_static, misc_model_breakable, ...) has a surface with more vertices or indexes than the "
+     "renderer allows (SHADER_MAX_VERTEXES, SHADER_MAX_INDEXES): R_LoadMD3 stops with ERR_DROP and the map does not load. q3map2 splits "
+     "misc_model when it bakes them, so those are not affected. Fix: split the surface in the modelling program or use misc_model.",
+     "Ein Modell, das das Spiel zur Laufzeit lädt (misc_model_static, misc_model_breakable, ...), hat eine Fläche mit mehr Ecken oder Indizes, "
+     "als der Renderer erlaubt (SHADER_MAX_VERTEXES, SHADER_MAX_INDEXES): R_LoadMD3 bricht mit ERR_DROP ab, die Karte lädt nicht. misc_model "
+     "teilt q3map2 beim Einbacken auf, die sind nicht betroffen. Abhilfe: die Fläche im Modellprogramm teilen oder misc_model nehmen.",
+     "游戏在运行时加载的某个模型(misc_model_static、misc_model_breakable 等)有一个表面的顶点或索引多于渲染器允许的数量(SHADER_MAX_VERTEXES、"
+     "SHADER_MAX_INDEXES):R_LoadMD3 以 ERR_DROP 终止,地图无法加载。q3map2 在烘焙 misc_model 时会将其拆分,因此 misc_model 不受影响。解决方法:"
+     "在建模程序中拆分该表面,或改用 misc_model。",
+     "ゲームが実行時に読み込むモデル(misc_model_static、misc_model_breakable など)に、レンダラーが許すより多い頂点またはインデックスを持つ面が"
+     "あります(SHADER_MAX_VERTEXES、SHADER_MAX_INDEXES)。R_LoadMD3 が ERR_DROP で止まり、マップが読み込めません。misc_model は q3map2 が焼き込み"
+     "時に分割するので影響しません。対処: モデリングソフトで面を分けるか、misc_model を使います。",
+     "Un modelo que el juego carga en tiempo de ejecución (misc_model_static, misc_model_breakable, ...) tiene una superficie con más "
+     "vértices o índices de los que permite el renderizador (SHADER_MAX_VERTEXES, SHADER_MAX_INDEXES): R_LoadMD3 se detiene con ERR_DROP y "
+     "el mapa no carga. q3map2 divide los misc_model al integrarlos, así que esos no se ven afectados. Solución: divide la superficie en el "
+     "programa de modelado o usa misc_model.",
+     "Model, který hra načítá za běhu (misc_model_static, misc_model_breakable, ...), má plochu s více vrcholy nebo indexy, než renderer "
+     "dovolí (SHADER_MAX_VERTEXES, SHADER_MAX_INDEXES): R_LoadMD3 skončí s ERR_DROP a mapa se nenačte. misc_model q3map2 při zapékání "
+     "rozdělí, ty se to netýká. Náprava: rozdělte plochu v modelovacím programu, nebo použijte misc_model."),
+    ("KeOptPrModellWelt", "Model geometry away from its origin", "Modellgeometrie abseits des Ursprungs", "模型几何体远离其原点",
+     "原点から離れたモデルのジオメトリ", "Geometría del modelo lejos de su origen", "Geometrie modelu mimo jeho počátek"),
+    ("KeOptPrModellWeltE",
+     "The geometry of these models lies further from their origin than the model is large - typical of a model exported in world "
+     "coordinates and placed at origin 0 0 0. q3map2 counts every point entity at its origin: if that lies in the void of a sealed map, the "
+     "map leaks (FloodEntities); in solid it reports \"Entity in solid\" (a baked misc_model is therefore only reported when its origin lies outside every brush of the map). The game culls misc_model_static by its origin (PVS of origin + "
+     "zoffset + 1, distance from the origin): the model disappears or pops in. Fix: move the model's origin into its geometry and place it "
+     "with origin.",
+     "Die Geometrie dieser Modelle liegt weiter von ihrem Ursprung entfernt, als das Modell groß ist - typisch für ein Modell, das in "
+     "Weltkoordinaten exportiert und mit origin 0 0 0 gesetzt wurde. q3map2 zählt jede Punkt-Entity an ihrem Ursprung: liegt er in einer "
+     "dichten Karte im Leeren, leckt die Karte (FloodEntities); im Festen meldet q3map2 \"Entity in solid\" (ein eingebackenes misc_model wird deshalb nur gemeldet, wenn sein Ursprung außerhalb aller Pinsel der Karte liegt). Das Spiel blendet "
+     "misc_model_static nach seinem Ursprung aus (PVS von origin + zoffset + 1, Abstand vom Ursprung): das Modell verschwindet oder ploppt "
+     "auf. Abhilfe: den Ursprung des Modells in seine Geometrie legen und es mit origin setzen.",
+     "这些模型的几何体离其原点的距离大于模型本身的尺寸——这是以世界坐标导出并放在 origin 0 0 0 的模型的典型情况。q3map2 按原点统计每个点实体:如果"
+     "原点位于密封地图的虚空中,地图会泄漏(FloodEntities);位于实体内部时会报告“Entity in solid”(因此只有当烘焙的 misc_model 的原点位于地图所有笔刷之外时才会报告)。游戏按原点剔除 misc_model_static(origin + "
+     "zoffset + 1 的 PVS 以及与原点的距离):模型会消失或突然出现。解决方法:把模型的原点移到其几何体内,再用 origin 放置。",
+     "これらのモデルのジオメトリは、モデルの大きさより遠く原点から離れています。ワールド座標で書き出して origin 0 0 0 に置いたモデルによく"
+     "あります。q3map2 はポイントエンティティをすべて原点で数えます。原点が密閉されたマップの虚空にあるとマップがリークし(FloodEntities)、"
+     "固体の中だと \"Entity in solid\" と表示します(そのため焼き込みの misc_model は、原点がマップのどのブラシよりも外にあるときだけ報告します)。ゲームは misc_model_static を原点で間引きます(origin + zoffset + 1 の PVS と原点からの距離)。"
+     "モデルが消えたり急に現れたりします。対処: モデルの原点をジオメトリの中に移し、origin で配置します。",
+     "La geometría de estos modelos está más lejos de su origen de lo que mide el modelo: típico de un modelo exportado en coordenadas de "
+     "mundo y colocado con origin 0 0 0. q3map2 cuenta cada entidad puntual en su origen: si está en el vacío de un mapa sellado, el mapa "
+     "tiene una fuga (FloodEntities); dentro de lo sólido informa \"Entity in solid\" (por eso un misc_model integrado solo se informa si su origen queda fuera de todos los brushes del mapa). El juego descarta misc_model_static según su origen "
+     "(PVS de origin + zoffset + 1, distancia al origen): el modelo desaparece o aparece de golpe. Solución: mueve el origen del modelo "
+     "dentro de su geometría y colócalo con origin.",
+     "Geometrie těchto modelů leží dál od jejich počátku, než je model velký - typické pro model exportovaný ve světových souřadnicích a "
+     "umístěný s origin 0 0 0. q3map2 počítá každou bodovou entitu v jejím počátku: leží-li v prázdnu utěsněné mapy, mapa uniká "
+     "(FloodEntities); v pevném hlásí \"Entity in solid\" (zapečený misc_model se proto hlásí jen tehdy, když jeho počátek leží mimo všechny brushe mapy). Hra vyřazuje misc_model_static podle počátku (PVS bodu origin + zoffset + 1, "
+     "vzdálenost od počátku): model mizí nebo náhle vyskočí. Náprava: přesuňte počátek modelu do jeho geometrie a umístěte ho pomocí origin."),
+    ("KeOptPrMd3Grenzen", "MD3 over the format limits", "MD3 über den Formatgrenzen", "MD3 超出格式限制", "形式上限を超える MD3",
+     "MD3 por encima de los límites del formato", "MD3 nad limity formátu"),
+    ("KeOptPrMd3GrenzenE",
+     "An .md3 has more than 64 surfaces (MD3_MAX_SURFACES 32 + 32), a surface with more than 4096 vertices (MD3_MAX_VERTS) or more than "
+     "8192 triangles (MD3_MAX_TRIANGLES). The limits are in qfiles.h, but neither OpenJK nor q3map2 enforces them - q3map2 only warns "
+     "(assimp). Other tools for the format may refuse such files.",
+     "Eine .md3 hat mehr als 64 Flächen (MD3_MAX_SURFACES 32 + 32), eine Fläche mit mehr als 4096 Ecken (MD3_MAX_VERTS) oder mehr als "
+     "8192 Dreiecken (MD3_MAX_TRIANGLES). Die Grenzen stehen in qfiles.h, aber weder OpenJK noch q3map2 setzen sie durch - q3map2 warnt "
+     "nur (assimp). Andere Werkzeuge für das Format lehnen solche Dateien womöglich ab.",
+     "某个 .md3 有超过 64 个表面(MD3_MAX_SURFACES 32 + 32),或某个表面超过 4096 个顶点(MD3_MAX_VERTS)或 8192 个三角形(MD3_MAX_TRIANGLES)。"
+     "这些限制写在 qfiles.h 中,但 OpenJK 和 q3map2 都不强制执行——q3map2 只会警告(assimp)。该格式的其他工具可能会拒绝这类文件。",
+     ".md3 に 64 を超える面(MD3_MAX_SURFACES 32 + 32)、または 4096 を超える頂点(MD3_MAX_VERTS)か 8192 を超える三角形(MD3_MAX_TRIANGLES)を持つ"
+     "面があります。上限は qfiles.h にありますが、OpenJK も q3map2 も強制せず、q3map2 は警告するだけです(assimp)。この形式を扱うほかのツールは"
+     "そうしたファイルを拒否するかもしれません。",
+     "Un .md3 tiene más de 64 superficies (MD3_MAX_SURFACES 32 + 32), una superficie con más de 4096 vértices (MD3_MAX_VERTS) o más de "
+     "8192 triángulos (MD3_MAX_TRIANGLES). Los límites están en qfiles.h, pero ni OpenJK ni q3map2 los imponen; q3map2 solo avisa "
+     "(assimp). Otras herramientas del formato pueden rechazar esos archivos.",
+     "Soubor .md3 má víc než 64 ploch (MD3_MAX_SURFACES 32 + 32), plochu s víc než 4096 vrcholy (MD3_MAX_VERTS) nebo víc než 8192 "
+     "trojúhelníky (MD3_MAX_TRIANGLES). Limity jsou v qfiles.h, ale OpenJK ani q3map2 je nevynucují - q3map2 jen varuje (assimp). Jiné "
+     "nástroje pro tento formát mohou takové soubory odmítnout."),
     # --- Angaben (KeOptD39..54, englisch = kOptimiererDetailVorlagen) ---
     ("KeOptD39", "%s visible walkable {face|faces} without collision below {it|them} (the player falls through)",
      "%s {sichtbare begehbare Fläche|sichtbare begehbare Flächen} ohne Kollision darunter (man fällt durch)",
@@ -293,6 +365,22 @@ ZEILEN = [
      "%s 个图像小于 %s 或大于 %s 像素", "画像 %s 個が %s ピクセル未満または %s ピクセルを超えています",
      "%s {imagen|imágenes} de menos de %s o más de %s píxeles",
      "%s {obrázek|obrázky|obrázků} menší než %s nebo větší než %s pixelů"),
+    ("KeOptD50", "%s {model|models} with a surface over %s vertices or %s indexes (the game stops with ERR_DROP)",
+     "%s {Modell|Modelle} mit einer Fläche über %s Ecken oder %s Indizes (das Spiel bricht mit ERR_DROP ab)",
+     "%s 个模型有表面超过 %s 个顶点或 %s 个索引(游戏以 ERR_DROP 终止)", "モデル %s 個に頂点 %s またはインデックス %s を超える面があります(ゲームは ERR_DROP で止まります)",
+     "%s {modelo|modelos} con una superficie de más de %s vértices o %s índices (el juego se detiene con ERR_DROP)",
+     "%s {model|modely|modelů} s plochou nad %s vrcholů nebo %s indexů (hra skončí s ERR_DROP)"),
+    ("KeOptD51", "%s {model whose geometry lies|models whose geometry lies} away from {its|their} origin (exported in world coordinates?)",
+     "%s {Modell, dessen Geometrie|Modelle, deren Geometrie} abseits des Ursprungs liegt (in Weltkoordinaten exportiert?)",
+     "%s 个模型的几何体远离其原点(以世界坐标导出?)", "ジオメトリが原点から離れたモデル %s 個(ワールド座標で書き出した?)",
+     "%s {modelo cuya geometría está|modelos cuya geometría está} lejos de su origen (¿exportado en coordenadas de mundo?)",
+     "%s {model, jehož geometrie leží|modely, jejichž geometrie leží|modelů, jejichž geometrie leží} mimo počátek (exportováno ve světových souřadnicích?)"),
+    ("KeOptD52", "%s .md3 {file|files} over the format limits of qfiles.h (64 surfaces, 4096 vertices, 8192 triangles)",
+     "%s {.md3-Datei|.md3-Dateien} über den Formatgrenzen von qfiles.h (64 Flächen, 4096 Ecken, 8192 Dreiecke)",
+     "%s 个 .md3 文件超出 qfiles.h 的格式限制(64 个表面、4096 个顶点、8192 个三角形)",
+     "qfiles.h の形式上限(面 64、頂点 4096、三角形 8192)を超える .md3 ファイル %s 個",
+     "%s {archivo .md3|archivos .md3} por encima de los límites de formato de qfiles.h (64 superficies, 4096 vértices, 8192 triángulos)",
+     "%s {soubor .md3|soubory .md3|souborů .md3} nad limity formátu z qfiles.h (64 ploch, 4096 vrcholů, 8192 trojúhelníků)"),
     # --- Einstellungen (Seite Optimizer) ---
     ("KePrOptToleranz", "Visible/collision gap", "Abstand Sicht/Kollision", "可见/碰撞间距", "見た目とコリジョンの差",
      "Separación visible/colisión", "Mezera vidět/kolize"),

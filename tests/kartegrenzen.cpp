@@ -13,7 +13,7 @@
 //
 // Aufruf: kartegrenzen <OpenJK-Wurzel|-> <MovieDuels-Wurzel|-> <q3map2-Wurzel>
 //   OpenJK-Wurzel: Ordner mit code/, codemp/, codeJK2/ (SP\ojk\oj)
-//   MovieDuels-Wurzel: Ordner mit code/ (SP\mdgit)
+//   MovieDuels-Wurzel: Ordner mit code/ (Movie Duels Update 9, Lesekopie Y:\werkzeuge\sp_654alt\md9)
 //   q3map2-Wurzel: third_party/q3map2
 // Fehlt eine Wurzel, werden ihre Stellen uebersprungen (und gezaehlt).
 #include "bhed/i18n.h"

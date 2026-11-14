@@ -354,6 +354,93 @@ void testeTexturen() {
     pruefe(anzahl(pruefen(a, o), "bildgroesse") == 0, "bildgroesse: Untergrenze 16 (einstellbar) - 32 x 32 schweigt");
 }
 
+std::shared_ptr<Modell> quaderModell(double x0, double y0, double z0, double x1, double y1, double z1, std::size_t flaechen = 1, std::size_t punkteZusatz = 0) {
+    auto m = std::make_shared<Modell>();
+    for (std::size_t i = 0; i < flaechen; ++i) {
+        ModellFlaeche f;
+        f.shader = "models/test/kiste";
+        const float p[8][3] = {{static_cast<float>(x0), static_cast<float>(y0), static_cast<float>(z0)}, {static_cast<float>(x1), static_cast<float>(y0), static_cast<float>(z0)},
+                               {static_cast<float>(x1), static_cast<float>(y1), static_cast<float>(z0)}, {static_cast<float>(x0), static_cast<float>(y1), static_cast<float>(z0)},
+                               {static_cast<float>(x0), static_cast<float>(y0), static_cast<float>(z1)}, {static_cast<float>(x1), static_cast<float>(y0), static_cast<float>(z1)},
+                               {static_cast<float>(x1), static_cast<float>(y1), static_cast<float>(z1)}, {static_cast<float>(x0), static_cast<float>(y1), static_cast<float>(z1)}};
+        for (const auto& q : p) { f.punkte.push_back(ModellPunkt{Vektor3f(q[0], q[1], q[2]), Vektor3f(0, 0, 1), Vektor2f(0, 0)}); }
+        for (std::size_t k = 0; k < punkteZusatz; ++k) { f.punkte.push_back(f.punkte.front()); }
+        f.indizes = {0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2, 2, 6, 7, 2, 7, 3, 3, 7, 4, 3, 4, 0};
+        m->flaechen.push_back(f);
+    }
+    return m;
+}
+AbbildModell modell(int e, const std::string& pfad, std::shared_ptr<Modell> m, bool eingebacken) {
+    AbbildModell a;
+    a.entitaet = e;
+    a.pfad = pfad;
+    a.modell = m;
+    a.shader.assign(m->flaechen.size(), "models/test/kiste");
+    a.matrix = Matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+    a.eingebacken = eingebacken;
+    return a;
+}
+
+void testeModelle() {
+    const auto karte = [](const std::string& klasse, const std::string& origin) {
+        KartenAbbild a = welt({kasten(-512, -512, -16, 2048, 512, 0, kFest)});
+        a.ents.push_back(ent(klasse, {{"origin", origin}, {"model", "models/test/kiste.md3"}}));
+        return a;
+    };
+    {
+        PruefOptionen o = optionen();
+        o.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(1000, 0, 0, 1032, 32, 32), false));
+        pruefe(anzahl(pruefen(karte("misc_model_static", "0 0 0"), o), "modellweltkoord") == 1,
+               "modellweltkoord: misc_model_static mit Geometrie bei 1000, origin 0 0 0 - das Spiel blendet es nach dem Ursprung aus (rot)");
+        PruefOptionen e = optionen();
+        e.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(1000, 0, 0, 1032, 32, 32), true));
+        pruefe(anzahl(pruefen(karte("misc_model", "0 0 0"), e), "modellweltkoord") == 0,
+               "modellweltkoord: eingebackenes misc_model, Ursprung in der Karte (q3map2 backt es an seinen Ecken ein, schweigt)");
+        pruefe(anzahl(pruefen(karte("misc_model", "0 0 4096"), e), "modellweltkoord") == 1,
+               "modellweltkoord: eingebackenes misc_model, Ursprung ausserhalb aller Pinsel - Leck (rot)");
+        PruefOptionen g = optionen();
+        g.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(-16, -16, 0, 16, 16, 32), true));
+        pruefe(anzahl(pruefen(karte("misc_model", "0 0 0"), g), "modellweltkoord") == 0, "modellweltkoord: Geometrie um den Ursprung (schweigt)");
+    }
+    {
+        PruefOptionen o = optionen();
+        o.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(-16, -16, 0, 16, 16, 32, 1, 992), false));   // 1000 Ecken
+        pruefe(anzahl(pruefen(karte("misc_model_static", "0 0 0"), o), "modellteilflaeche") == 1, "modellteilflaeche: misc_model_static mit 1000 Ecken (rot, ERR_DROP)");
+        PruefOptionen g = optionen();
+        g.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(-16, -16, 0, 16, 16, 32, 1, 991), false));   // 999 Ecken
+        pruefe(anzahl(pruefen(karte("misc_model_static", "0 0 0"), g), "modellteilflaeche") == 0, "modellteilflaeche: 999 Ecken (schweigt)");
+        PruefOptionen e = optionen();
+        e.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(-16, -16, 0, 16, 16, 32, 1, 992), true));
+        pruefe(anzahl(pruefen(karte("misc_model", "0 0 0"), e), "modellteilflaeche") == 0, "modellteilflaeche: eingebackenes misc_model (q3map2 teilt, schweigt)");
+        // SHADER_MAX_VERTEXES je Regelwerk: Movie Duels 4000 (md9 code/qcommon/qfiles.h:33), Jedi Academy SP/MP und Jedi Outcast 1000
+        const auto grenze = [](GrenzSpiel sp, const char* id) {
+            const Grenze* gr = grenzeSuchen(sp, id);
+            return gr != nullptr ? gr->erlaubt : -1;
+        };
+        pruefe(grenze(GrenzSpiel::MovieDuels, "renderer.flaechenpunkte") == 3999 && grenze(GrenzSpiel::MovieDuels, "renderer.flaechenindizes") == 23999,
+               "Grenzen: Movie Duels SHADER_MAX_VERTEXES 4000, SHADER_MAX_INDEXES 24000 (md9 qfiles.h:33-34)");
+        pruefe(grenze(GrenzSpiel::JkaSp, "renderer.flaechenpunkte") == 999 && grenze(GrenzSpiel::JkaMp, "renderer.flaechenpunkte") == 999 &&
+                   grenze(GrenzSpiel::Jk2, "renderer.flaechenpunkte") == 999,
+               "Grenzen: Jedi Academy SP/MP und Jedi Outcast SHADER_MAX_VERTEXES 1000");
+        PruefOptionen md = optionen();
+        md.spiel = GrenzSpiel::MovieDuels;
+        md.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(-16, -16, 0, 16, 16, 32, 1, 1492), false));   // 1500 Ecken
+        PruefOptionen ja = md;
+        ja.spiel = GrenzSpiel::JkaSp;
+        pruefe(anzahl(pruefen(karte("misc_model_static", "0 0 0"), md), "modellteilflaeche") == 0 &&
+                   anzahl(pruefen(karte("misc_model_static", "0 0 0"), ja), "modellteilflaeche") == 1,
+               "modellteilflaeche: 1500 Ecken - Movie Duels laedt sie (4000), Jedi Academy bricht ab (1000)");
+    }
+    {
+        PruefOptionen o = optionen();
+        o.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(-16, -16, 0, 16, 16, 32, 65), true));
+        pruefe(anzahl(pruefen(karte("misc_model", "0 0 0"), o), "md3grenzen") == 1, "md3grenzen: 65 Flaechen (rot, Hinweis)");
+        PruefOptionen g = optionen();
+        g.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(-16, -16, 0, 16, 16, 32, 64), true));
+        pruefe(anzahl(pruefen(karte("misc_model", "0 0 0"), g), "md3grenzen") == 0, "md3grenzen: 64 Flaechen (schweigt)");
+    }
+}
+
 std::string lies(const std::string& pfad) {
     std::ifstream f(pfad, std::ios::binary);
     std::ostringstream s;
@@ -372,6 +459,7 @@ int main(int argc, char** argv) {
     testeStufen();
     testeMasse();
     testeTexturen();
+    testeModelle();
     // eine echte Karte (nur lesen): die neuen Befunde und ihre Zeiten
     if (argc > 1) {
         using Uhr = std::chrono::steady_clock;

@@ -618,6 +618,8 @@ public:
         messen("cw_masse");
         texturen();
         messen("cw_texturen");
+        modelle();
+        messen("cw_modelle");
     }
 
 private:
@@ -1578,6 +1580,117 @@ private:
             m_out.push_back(groesse);
         }
         if (m_o.inventar != nullptr) { *m_o.inventar = std::move(inv); }
+    }
+
+    // --- 6. Modelle --------------------------------------------------------------------------------------------
+    void modelle() {
+        Befund welt = neu("modellweltkoord", Schwere::Warnung,
+                          "q3map2 portals.cpp:536-596 FloodEntities (every point entity counts at its origin + 1: in the void a leak, in solid "
+                          "\"Entity in solid\"), model.cpp:1581 InsertModel (the geometry at origin + vertex); Movie Duels code/cgame/cg_main.cpp:"
+                          "3263-3290 CG_DrawMiscEnts (misc_model_static: PVS of origin + zoffset + 1 and the distance from the origin)");
+        Befund flaeche = neu("modellteilflaeche", Schwere::Fehler,
+                             "OpenJK code/rd-vanilla/tr_model.cpp:899-906 R_LoadMD3 (ERR_DROP above SHADER_MAX_VERTEXES / SHADER_MAX_INDEXES), "
+                             "tr_surface.cpp:53-69 RB_CheckOverflow, code/qcommon/qfiles.h:33-34; q3map2 splits baked misc_model (model.cpp:331 "
+                             "AI_CONFIG_PP_SLM_VERTEX_LIMIT)");
+        Befund md3 = neu("md3grenzen", Schwere::Hinweis,
+                         "OpenJK code/qcommon/qfiles.h:101-105 MD3_MAX_TRIANGLES 8192, MD3_MAX_VERTS 4096, MD3_MAX_SURFACES 32 + 32 (format limits: "
+                         "R_LoadMD3 does not check them); assimp MD3Loader.cpp:405-419 (q3map2 warns \"Quake III ... limit exceeded\")");
+        const Grenze* gv = grenzeSuchen(m_o.spiel, "renderer.flaechenpunkte");
+        const Grenze* gi = grenzeSuchen(m_o.spiel, "renderer.flaechenindizes");
+        const long long maxPunkte = gv != nullptr ? gv->erlaubt : 999;
+        const long long maxIndizes = gi != nullptr ? gi->erlaubt : 5999;
+        std::set<std::string> md3Gemeldet;
+        double weltMn[3] = {1e30, 1e30, 1e30};   // der Kasten aller Pinsel der Welt (worldspawn, func_group)
+        double weltMx[3] = {-1e30, -1e30, -1e30};
+        for (const AbbildEntitaet& en : m_a.ents) {
+            if (en.klasse != "worldspawn" && en.klasse != "func_group") { continue; }
+            for (const AbbildPrimitiv& pr : en.prims) {
+                for (int a = 0; a < 3; ++a) {
+                    weltMn[a] = std::min(weltMn[a], static_cast<double>(pr.mins[static_cast<std::size_t>(a)]));
+                    weltMx[a] = std::max(weltMx[a], static_cast<double>(pr.maxs[static_cast<std::size_t>(a)]));
+                }
+            }
+        }
+        for (std::size_t i = 0; i < m_o.modelle.size(); ++i) {
+            const AbbildModell& m = m_o.modelle[i];
+            if (!m.modell || m.modell->null || m.entitaet < 0 || m.entitaet >= static_cast<int>(m_a.ents.size())) { continue; }
+            const AbbildEntitaet& en = m_a.ents[static_cast<std::size_t>(m.entitaet)];
+            const auto& k = m_modellKasten[i];
+            if (k[0] <= k[3]) {
+                float o[3] = {0, 0, 0};
+                (void)std::sscanf(en.wert("origin").c_str(), "%f %f %f", &o[0], &o[1], &o[2]);
+                double d2 = 0;
+                double groesste = 0;
+                for (int a = 0; a < 3; ++a) {
+                    const double v = o[a];
+                    const double unter = k[static_cast<std::size_t>(a)] - v;
+                    const double ueber = v - k[static_cast<std::size_t>(a + 3)];
+                    if (unter > 0) { d2 += unter * unter; }
+                    if (ueber > 0) { d2 += ueber * ueber; }
+                    groesste = std::max(groesste, k[static_cast<std::size_t>(a + 3)] - k[static_cast<std::size_t>(a)]);
+                }
+                const double d = std::sqrt(d2);
+                // ein eingebackenes misc_model stoert nur, wenn sein Ursprung ausserhalb aller Pinsel der Welt liegt (dort ist das
+                // Leere: FloodEntities findet ein Leck); das Spiel blendet Laufzeit-Modelle immer nach dem Ursprung aus
+                const bool imLeeren = o[0] < weltMn[0] || o[1] < weltMn[1] || o[2] < weltMn[2] || o[0] > weltMx[0] || o[1] > weltMx[1] || o[2] > weltMx[2];
+                if (d > std::max(m_o.masse.toleranz, groesste) && (!m.eingebacken || imLeeren)) {
+                    ObjektRef r{m.entitaet, -1, -1,
+                                stelle(m.entitaet, -1) + " " + m.pfad + ": origin " + ort(V(o[0], o[1], o[2])) + ", geometry " + zahl(d) + " units away" +
+                                    (m.eingebacken ? std::string(", origin outside the map (leak)") : std::string())};
+                    punktSetzen(r, V((k[0] + k[3]) * 0.5, (k[1] + k[4]) * 0.5, (k[2] + k[5]) * 0.5));
+                    add(welt, r);
+                }
+            }
+            const std::string p = klein(m.pfad);
+            const bool istMd3 = p.size() > 4 && p.compare(p.size() - 4, 4, ".md3") == 0;
+            if (!istMd3) { continue; }
+            if (!m.eingebacken) {   // das Spiel laedt sie zur Laufzeit (R_LoadMD3)
+                for (std::size_t s = 0; s < m.modell->flaechen.size(); ++s) {
+                    const ModellFlaeche& f = m.modell->flaechen[s];
+                    const long long punkte = static_cast<long long>(f.punkte.size());
+                    const long long indizes = static_cast<long long>(f.indizes.size());
+                    if (punkte <= maxPunkte && indizes <= maxIndizes) { continue; }
+                    add(flaeche, ObjektRef{m.entitaet, -1, -1,
+                                           stelle(m.entitaet, -1) + " " + m.pfad + ", surface " + std::to_string(s) + ": " + std::to_string(punkte) + " vertices, " +
+                                               std::to_string(indizes) + " indexes"});
+                    break;
+                }
+            }
+            if (md3Gemeldet.count(p) != 0) { continue; }
+            const std::size_t flaechen = m.modell->flaechen.size();
+            std::size_t meistePunkte = 0;
+            std::size_t meisteDreiecke = 0;
+            for (const ModellFlaeche& f : m.modell->flaechen) {
+                meistePunkte = std::max(meistePunkte, f.punkte.size());
+                meisteDreiecke = std::max(meisteDreiecke, f.indizes.size() / 3);
+            }
+            if (flaechen > 64 || meistePunkte > 4096 || meisteDreiecke > 8192) {
+                md3Gemeldet.insert(p);
+                add(md3, ObjektRef{m.entitaet, -1, -1,
+                                   stelle(m.entitaet, -1) + " " + m.pfad + ": " + std::to_string(flaechen) + " surfaces, up to " + std::to_string(meistePunkte) +
+                                       " vertices and " + std::to_string(meisteDreiecke) + " triangles"});
+            }
+        }
+        if (flaeche.anzahl > 0) {
+            detailSetzen(flaeche, "%s models with a surface over %s vertices or %s indexes (the game stops with ERR_DROP)",
+                         {std::to_string(flaeche.anzahl), std::to_string(maxPunkte), std::to_string(maxIndizes)});
+            m_out.push_back(flaeche);
+        }
+        if (welt.anzahl > 0) {
+            detailSetzen(welt, "%s models whose geometry lies away from their origin (exported in world coordinates?)", {std::to_string(welt.anzahl)});
+            m_out.push_back(welt);
+        }
+        if (md3.anzahl > 0) {
+            detailSetzen(md3, "%s .md3 files over the format limits of qfiles.h (64 surfaces, 4096 vertices, 8192 triangles)", {std::to_string(md3.anzahl)});
+            m_out.push_back(md3);
+        }
+    }
+
+    bool clipModellDa(std::size_t i) const {
+        for (const Dr& d : m_w.dr) {
+            if (d.modell == static_cast<int>(i) && d.kollision) { return true; }
+        }
+        return false;
     }
 
 };
