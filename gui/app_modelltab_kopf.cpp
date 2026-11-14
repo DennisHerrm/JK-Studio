@@ -349,6 +349,15 @@ void menueAllgemein(int n) {
         if (s.text == Str::MrGrauBoden) { bodenHoehe(); }
     }
     hintergrundZeile();
+    // TEST1411 D: der Schalter der Geister in Sichtweite (3ds Max Views > Show Ghosting), nur im Bereich Animation, wo sie gezeichnet werden
+    if (t.bereich == ModellBereich::Animation) {
+        if (ImGui::MenuItem(tr(Str::MbRgGhosts), nullptr, t.geister.an)) {
+            t.geister.an = !t.geister.an;
+            g_app->modelDirty = true;
+            geaendert();
+        }
+        ImGui::SetItemTooltip("%s", tr(Str::MbRgGhostsHint));
+    }
     ImGui::Separator();
     if (ui::menue(tr(Str::MkKnochenPruefen))) {
         ++t.kopfMenueZaehler;

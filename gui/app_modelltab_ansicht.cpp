@@ -2400,6 +2400,11 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
         g_app->modelDirty = true;
     }
     // --- Zeichnen -----------------------------------------------------------
+    // TEST1411 D (shank 14.11.: "beim Zoomen sehe ich das Modell doppelt"): Rad, Orbit und Verschieben (modellNavMaus) aendern die
+    // Kamera NACH baueSicht oben. Gezeichnet wurde mit der alten Matrix, gemerkt aber der Stand der neuen Kamera - im naechsten Bild
+    // war der Stand gleich, das Bild blieb eine Raste zurueck, Drahtgitter, Auswahl, Knochen und Griffe standen daneben. Darum hier die
+    // Matrix der Kamera, wie sie nach der Eingabe steht; Bild und Ueberlagerung dieses Bilds rechnen mit ihr.
+    baueSicht(a, w, h, a.viewProj);
     // REST Punkt 1: mit dem Stand der bemalten Textur - ein Tupfer (3D hier oben, 2D im Bild links) zeigt sich im selben
     // Bild; modelDirty allein kam zu spaet (die Ansichten fragen es vor dem Malen, am Ende des Bilds geht es aus)
     char stand[300];
@@ -2413,8 +2418,16 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
                   static_cast<double>(g_app->modelCam.fovY),
                   static_cast<double>(a.mitte[0]), static_cast<double>(a.mitte[1]), static_cast<double>(a.mitte[2]),
                   static_cast<double>(a.halbHoehe), static_cast<double>(g_app->modelOrbit.distance));
+    // TEST1411 D: dazu die Matrix, mit der gezeichnet wird, bitgenau - jede Aenderung der Sicht zeichnet neu, auch eine, die die
+    // gerundeten Kamerawerte oben nicht zeigen
+    char matrix[16 * 9 + 1];
+    for (int k = 0; k < 16; ++k) {
+        std::uint32_t bits = 0;
+        std::memcpy(&bits, &a.viewProj[k], sizeof bits);
+        std::snprintf(matrix + k * 9, 10, "%08x|", static_cast<unsigned>(bits));
+    }
     // MBRASTER, AP5, AP13K; dazu der Geraetestand: nach einem Geraeteverlust ist das Ziel neu und leer (Codepruefung seit rc611, R1)
-    const std::string standGanz = std::string(stand) + rasterStand(a) + modellPrStand(n) + modellKdStand(a, w, h) + "|g" + std::to_string(render::texturStand());
+    const std::string standGanz = std::string(stand) + matrix + rasterStand(a) + modellPrStand(n) + modellKdStand(a, w, h) + "|g" + std::to_string(render::texturStand());
     if (neu || g_sichtStand[static_cast<std::size_t>(n)] != standGanz) {
         gpu::modellZielWaehlen(n);
         if (gpu::bereiteModellZiel(w, h)) {

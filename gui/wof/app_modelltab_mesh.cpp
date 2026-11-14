@@ -1393,7 +1393,11 @@ void modellMeshUeberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
     for (const int f : z.auswahl.flaechen) {
         if (f >= 0 && uz(f) < fSel.size()) { fSel[uz(f)] = 1; }
     }
-    const ImU32 kante = IM_COL32(220, 225, 235, 150);
+    // TEST1411 D (shank 14.11.: "Warum ist das model direkt in Wireframe mode?"): auf der Objektebene schattiert ohne Gitter wie 3ds Max
+    // (Edit Poly zeigt Kanten erst auf den Unterobjekt-Ebenen 1-5, sonst nur mit Edged Faces F4 je Ansicht) und Blender (Object Mode).
+    // Auf den Unterobjekt-Ebenen wie Blenders Edit Mode duenn und dunkel (Theme 3D Viewport "Wire Edit" schwarz), wie 3ds Max hell.
+    const bool kantenZeigen = mt().auswahlArt != AuswahlArt::Objekt;
+    const ImU32 kante = modellBlender() ? IM_COL32(0, 0, 0, 170) : IM_COL32(220, 225, 235, 150);
     const ImU32 orange = IM_COL32(255, 160, 40, 255);
     // gewaehlte Vielecke halb durchsichtig (Max: rot getoent, hier in der Farbe der Auswahl)
     std::vector<ImVec2> p;
@@ -1410,7 +1414,7 @@ void modellMeshUeberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
         for (std::size_t i = 1; i + 1 < p.size(); ++i) { dl->AddTriangleFilled(p[0], p[i], p[i + 1], IM_COL32(255, 140, 30, 70)); }
     }
     for (const w::PKante& k : n.kanten) {
-        if (k.seiten.empty() || da[uz(k.a)] == 0 || da[uz(k.b)] == 0) { continue; }
+        if (!kantenZeigen || k.seiten.empty() || da[uz(k.a)] == 0 || da[uz(k.b)] == 0) { continue; }
         bool sel = !kSel.empty() && kSel.count({k.a, k.b}) != 0U;
         for (const auto& [f, i] : k.seiten) {
             (void)i;

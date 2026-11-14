@@ -1067,7 +1067,10 @@ std::vector<gpu::ModellGeist> modellGeister() {
     ModellTab& t = mt();
     std::vector<gpu::ModellGeist> aus;
     t.geisterGezeichnet = 0;
-    if (!t.geister.an || g_app->anim.empty() || g_app->modellWelt.empty()) { return aus; }
+    // TEST1411 D (Foto 27 von shank: orange und blaue Kopien neben der Figur im Bereich Painting): Ghosting gehoert dem Animieren wie
+    // 3ds Max (Views > Show Ghosting, im Animationsmodus) und Blender (Onion Skin des Grease-Pencil-/Pose-Modus) - in Modeling, UV,
+    // Weights und Painting standen die Kopien neben der Figur wie ein zweites, versetztes Modell
+    if (!t.geister.an || t.bereich != ModellBereich::Animation || g_app->anim.empty() || g_app->modellWelt.empty()) { return aus; }
     int erstes = 0;
     int anzahl = 0;
     bereich(erstes, anzahl);
