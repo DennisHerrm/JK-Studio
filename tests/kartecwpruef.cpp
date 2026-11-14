@@ -316,6 +316,44 @@ void testeMasse() {
     }
 }
 
+void testeTexturen() {
+    KartenAbbild a = welt({kasten(0, 0, -16, 64, 64, 0, kCaulk, "textures/test/npot"), kasten(64, 0, -16, 128, 64, 0, kCaulk, "textures/test/klein"),
+                           kasten(128, 0, -16, 192, 64, 0, kCaulk, "textures/test/fehlt"), kasten(192, 0, -16, 256, 64, 0, kCaulk, "textures/test/gut")});
+    PruefOptionen o = optionen();
+    for (const char* n : {"textures/test/npot", "textures/test/klein", "textures/test/fehlt", "textures/test/gut"}) {
+        ShaderArt s;
+        s.bilder = {n};
+        o.shader[n] = s;
+    }
+    o.bildMass = [](const std::string& bild, int& b, int& h) {
+        if (bild == "textures/test/npot") {
+            b = 100;
+            h = 64;
+            return true;
+        }
+        if (bild == "textures/test/klein") {
+            b = 32;
+            h = 32;
+            return true;
+        }
+        if (bild == "textures/test/gut") {
+            b = 256;
+            h = 512;
+            return true;
+        }
+        return false;
+    };
+    CwInventar inv;
+    o.inventar = &inv;
+    const auto b = pruefen(a, o);
+    pruefe(anzahl(b, "bildnpot") == 1, "bildnpot: 100 x 64 (rot, ERR_FATAL)");
+    pruefe(anzahl(b, "bildgroesse") == 1, "bildgroesse: 32 x 32 unter 64 (rot), 256 x 512 (schweigt)");
+    pruefe(anzahl(b, "bildfehlt") == 1, "bildfehlt: Bild nicht da (rot)");
+    pruefe(inv.shader.size() == 5 && inv.bilder.size() == 4, "Inventar: 5 Shader (mit caulk), 4 Bilder");
+    o.masse.bildMin = 16;
+    pruefe(anzahl(pruefen(a, o), "bildgroesse") == 0, "bildgroesse: Untergrenze 16 (einstellbar) - 32 x 32 schweigt");
+}
+
 std::string lies(const std::string& pfad) {
     std::ifstream f(pfad, std::ios::binary);
     std::ostringstream s;
@@ -333,6 +371,7 @@ int main(int argc, char** argv) {
     testeDeckung();
     testeStufen();
     testeMasse();
+    testeTexturen();
     // eine echte Karte (nur lesen): die neuen Befunde und ihre Zeiten
     if (argc > 1) {
         using Uhr = std::chrono::steady_clock;

@@ -280,7 +280,10 @@ const char* const kOptimiererDetailVorlagen[] = {
     "%s steps higher than STEPSIZE %s on walkable ground (highest %s)",
     "%s doors smaller than %s x %s (height x width)",
     "%s places in passages lower or narrower than a door (%s x %s)",
-    "%s places in corridors lower or narrower than %s x %s"
+    "%s places in corridors lower or narrower than %s x %s",
+    "%s images with a side that is not a power of two (the game stops with ERR_FATAL)",
+    "%s images or model shaders the game cannot find",
+    "%s images smaller than %s or larger than %s pixels"
 };
 const std::size_t kOptimiererDetailVorlagenAnzahl = sizeof(kOptimiererDetailVorlagen) / sizeof(kOptimiererDetailVorlagen[0]);
 

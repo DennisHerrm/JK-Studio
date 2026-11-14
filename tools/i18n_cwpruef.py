@@ -187,6 +187,58 @@ ZEILEN = [
      "de pasillo (128 x 96, alto x ancho, ajustable).",
      "Chodby (úzké alespoň o šířku chodby oběma směry), které jsou nižší nebo užší než minimální velikost chodby (128 x 96, výška x "
      "šířka, nastavitelné)."),
+    ("KeOptPrBildNpot", "Image side not a power of two", "Bildseite keine Zweierpotenz", "图像边长不是 2 的幂", "画像の辺が 2 のべき乗でない",
+     "Lado de imagen que no es potencia de dos", "Strana obrázku není mocnina dvou"),
+    ("KeOptPrBildNpotE",
+     "An image the game loads for a shader of the map has a side that is not a power of two. The game does not scale it: R_CreateImage stops "
+     "with ERR_FATAL \"not power of 2\" (OpenJK and Movie Duels) - the game quits when the map loads. Fix: scale the image to 64, 128, 256, "
+     "512, 1024 or 2048.",
+     "Ein Bild, das das Spiel für einen Shader der Karte lädt, hat eine Seite, die keine Zweierpotenz ist. Das Spiel skaliert es nicht: "
+     "R_CreateImage bricht mit ERR_FATAL \"not power of 2\" ab (OpenJK und Movie Duels) - das Spiel beendet sich beim Laden der Karte. "
+     "Abhilfe: das Bild auf 64, 128, 256, 512, 1024 oder 2048 skalieren.",
+     "游戏为地图中某个着色器加载的图像有一条边长不是 2 的幂。游戏不会缩放它:R_CreateImage 以 ERR_FATAL“not power of 2”终止(OpenJK 与 Movie "
+     "Duels)——加载地图时游戏会退出。解决方法:把图像缩放到 64、128、256、512、1024 或 2048。",
+     "ゲームがマップのシェーダー用に読み込む画像に、2 のべき乗でない辺があります。ゲームは拡大縮小しません。R_CreateImage が ERR_FATAL "
+     "\"not power of 2\" で止まり(OpenJK と Movie Duels)、マップの読み込み時にゲームが終了します。対処: 画像を 64、128、256、512、1024、"
+     "2048 のいずれかにします。",
+     "Una imagen que el juego carga para un shader del mapa tiene un lado que no es potencia de dos. El juego no la escala: R_CreateImage "
+     "se detiene con ERR_FATAL \"not power of 2\" (OpenJK y Movie Duels); el juego se cierra al cargar el mapa. Solución: escala la imagen "
+     "a 64, 128, 256, 512, 1024 o 2048.",
+     "Obrázek, který hra načítá pro shader mapy, má stranu, která není mocninou dvou. Hra ho neškáluje: R_CreateImage skončí s ERR_FATAL "
+     "\"not power of 2\" (OpenJK i Movie Duels) - hra se při načítání mapy ukončí. Náprava: upravte obrázek na 64, 128, 256, 512, 1024 "
+     "nebo 2048."),
+    ("KeOptPrBildFehlt", "Missing image or model shader", "Fehlendes Bild oder Modell-Shader", "缺少图像或模型着色器",
+     "見つからない画像またはモデルのシェーダー", "Imagen o shader de modelo que falta", "Chybějící obrázek nebo shader modelu"),
+    ("KeOptPrBildFehltE",
+     "An image named in a shader of the map (map, clampMap, animMap, skyParms) or the shader of a model surface does not exist: the game "
+     "shows its default image or default shader there. Shaders of brushes and patches without any script or image are reported by the "
+     "check for missing textures.",
+     "Ein Bild, das ein Shader der Karte nennt (map, clampMap, animMap, skyParms), oder der Shader einer Modellfläche fehlt: das Spiel "
+     "zeigt dort sein Standardbild bzw. seinen Standard-Shader. Shader von Pinseln und Patches ganz ohne Skript und Bild meldet die "
+     "Prüfung auf fehlende Texturen.",
+     "地图中某个着色器引用的图像(map、clampMap、animMap、skyParms)或某个模型表面的着色器不存在:游戏会在那里显示默认图像或默认着色器。完全没有"
+     "脚本和图像的笔刷与面片着色器由“缺少纹理”检查报告。",
+     "マップのシェーダーが指定している画像(map、clampMap、animMap、skyParms)またはモデルの面のシェーダーがありません。ゲームはそこに既定の"
+     "画像または既定のシェーダーを表示します。スクリプトも画像もないブラシやパッチのシェーダーは、テクスチャ不足のチェックが報告します。",
+     "Falta una imagen nombrada en un shader del mapa (map, clampMap, animMap, skyParms) o el shader de una superficie de modelo: el juego "
+     "muestra ahí su imagen o shader por defecto. Los shaders de brushes y patches sin script ni imagen los informa la comprobación de "
+     "texturas que faltan.",
+     "Chybí obrázek uvedený ve shaderu mapy (map, clampMap, animMap, skyParms) nebo shader plochy modelu: hra tam ukáže svůj výchozí "
+     "obrázek nebo výchozí shader. Shadery brushů a patchů úplně bez skriptu a obrázku hlásí kontrola chybějících textur."),
+    ("KeOptPrBildGroesse", "Image size outside 64 to 2048", "Bildgröße außerhalb 64 bis 2048", "图像尺寸超出 64 到 2048",
+     "64 から 2048 の範囲外の画像サイズ", "Tamaño de imagen fuera de 64 a 2048", "Velikost obrázku mimo 64 až 2048"),
+    ("KeOptPrBildGroesseE",
+     "Images smaller than 64 or larger than 2048 pixels (the list's guideline, adjustable). The game loads them, but halves images larger "
+     "than the graphics card allows.",
+     "Bilder kleiner als 64 oder größer als 2048 Pixel (Richtwert der Liste, einstellbar). Das Spiel lädt sie, halbiert aber Bilder, die "
+     "größer sind, als die Grafikkarte erlaubt.",
+     "小于 64 或大于 2048 像素的图像(清单的参考值,可调)。游戏会加载它们,但会把超过显卡允许尺寸的图像减半。",
+     "64 ピクセル未満または 2048 ピクセルを超える画像(リストの目安、変更可)。ゲームは読み込みますが、グラフィックカードが許すより大きい画像は"
+     "半分にします。",
+     "Imágenes de menos de 64 o más de 2048 píxeles (valor orientativo de la lista, ajustable). El juego las carga, pero reduce a la mitad "
+     "las que superan lo que permite la tarjeta gráfica.",
+     "Obrázky menší než 64 nebo větší než 2048 pixelů (orientační hodnota seznamu, nastavitelné). Hra je načte, ale obrázky větší, než "
+     "grafická karta dovolí, zmenší na polovinu."),
     # --- Angaben (KeOptD39..54, englisch = kOptimiererDetailVorlagen) ---
     ("KeOptD39", "%s visible walkable {face|faces} without collision below {it|them} (the player falls through)",
      "%s {sichtbare begehbare Fläche|sichtbare begehbare Flächen} ohne Kollision darunter (man fällt durch)",
@@ -227,6 +279,20 @@ ZEILEN = [
      "走廊中有 %s 处低于或窄于 %s x %s", "廊下の場所 %s 個が %s x %s より低いか狭くなっています",
      "%s {punto|puntos} en pasillos más bajos o estrechos que %s x %s",
      "%s {místo|místa|míst} v chodbách nižších nebo užších než %s x %s"),
+    ("KeOptD47", "%s {image|images} with a side that is not a power of two (the game stops with ERR_FATAL)",
+     "%s {Bild|Bilder} mit einer Seite, die keine Zweierpotenz ist (das Spiel bricht mit ERR_FATAL ab)",
+     "%s 个图像有一条边长不是 2 的幂(游戏以 ERR_FATAL 终止)", "2 のべき乗でない辺を持つ画像 %s 個(ゲームは ERR_FATAL で止まります)",
+     "%s {imagen|imágenes} con un lado que no es potencia de dos (el juego se detiene con ERR_FATAL)",
+     "%s {obrázek|obrázky|obrázků} se stranou, která není mocninou dvou (hra skončí s ERR_FATAL)"),
+    ("KeOptD48", "%s {image or model shader|images or model shaders} the game cannot find",
+     "%s {Bild oder Modell-Shader|Bilder oder Modell-Shader}, die das Spiel nicht findet",
+     "%s 个游戏找不到的图像或模型着色器", "ゲームが見つけられない画像またはモデルのシェーダー %s 個",
+     "%s {imagen o shader de modelo|imágenes o shaders de modelo} que el juego no encuentra",
+     "%s {obrázek nebo shader modelu|obrázky nebo shadery modelů|obrázků nebo shaderů modelů}, které hra nenajde"),
+    ("KeOptD49", "%s {image|images} smaller than %s or larger than %s pixels", "%s {Bild|Bilder} kleiner als %s oder größer als %s Pixel",
+     "%s 个图像小于 %s 或大于 %s 像素", "画像 %s 個が %s ピクセル未満または %s ピクセルを超えています",
+     "%s {imagen|imágenes} de menos de %s o más de %s píxeles",
+     "%s {obrázek|obrázky|obrázků} menší než %s nebo větší než %s pixelů"),
     # --- Einstellungen (Seite Optimizer) ---
     ("KePrOptToleranz", "Visible/collision gap", "Abstand Sicht/Kollision", "可见/碰撞间距", "見た目とコリジョンの差",
      "Separación visible/colisión", "Mezera vidět/kolize"),

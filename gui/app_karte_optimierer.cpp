@@ -155,6 +155,9 @@ constexpr PruefText kPruefTexte[] = {
     {"tuerklein", Str::KeOptPrTuer, Str::KeOptPrTuerE},
     {"durchgangeng", Str::KeOptPrDurchgang, Str::KeOptPrDurchgangE},
     {"gangeng", Str::KeOptPrGang, Str::KeOptPrGangE},
+    {"bildnpot", Str::KeOptPrBildNpot, Str::KeOptPrBildNpotE},
+    {"bildfehlt", Str::KeOptPrBildFehlt, Str::KeOptPrBildFehltE},
+    {"bildgroesse", Str::KeOptPrBildGroesse, Str::KeOptPrBildGroesseE},
 };
 const PruefText* pruefText(const std::string& id) {
     for (const PruefText& p : kPruefTexte) {
@@ -733,7 +736,8 @@ void optimiererBeenden() { fadenAbwarten(); }
 // Reihenfolge die Uebersetzung (Test: karte_optimierer).
 std::string befundDetail(const Befund& b) {
     static const Str kIds[] = {Str::KeOptD01, Str::KeOptD02, Str::KeOptD03, Str::KeOptD04, Str::KeOptD05, Str::KeOptD06, Str::KeOptD07, Str::KeOptD08, Str::KeOptD09, Str::KeOptD10, Str::KeOptD11, Str::KeOptD12, Str::KeOptD13, Str::KeOptD14, Str::KeOptD15, Str::KeOptD16, Str::KeOptD17, Str::KeOptD18, Str::KeOptD19, Str::KeOptD20, Str::KeOptD21, Str::KeOptD22, Str::KeOptD23, Str::KeOptD24, Str::KeOptD25, Str::KeOptD26, Str::KeOptD27, Str::KeOptD28, Str::KeOptD29, Str::KeOptD30, Str::KeOptD31, Str::KeOptD32, Str::KeOptD33, Str::KeOptD34, Str::KeOptD35, Str::KeOptD36, Str::KeOptD37, Str::KeOptD38,
-                               Str::KeOptD39, Str::KeOptD40, Str::KeOptD41, Str::KeOptD42, Str::KeOptD43, Str::KeOptD44, Str::KeOptD45, Str::KeOptD46};
+                               Str::KeOptD39, Str::KeOptD40, Str::KeOptD41, Str::KeOptD42, Str::KeOptD43, Str::KeOptD44, Str::KeOptD45, Str::KeOptD46,
+                               Str::KeOptD47, Str::KeOptD48, Str::KeOptD49};
     for (std::size_t i = 0; i < karte::kOptimiererDetailVorlagenAnzahl && i < sizeof(kIds) / sizeof(kIds[0]); ++i) {
         if (b.detailVorlage == karte::kOptimiererDetailVorlagen[i]) {
             // uebersetzung1: die Werte sind Zahlen (std::to_string) - nach ihnen richtet sich die Form.

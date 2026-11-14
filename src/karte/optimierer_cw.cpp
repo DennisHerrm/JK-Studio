@@ -616,6 +616,8 @@ public:
         messen("cw_stufen");
         durchgaenge();
         messen("cw_masse");
+        texturen();
+        messen("cw_texturen");
     }
 
 private:
@@ -1471,6 +1473,111 @@ private:
             detailSetzen(gang, "%s places in corridors lower or narrower than %s x %s", {std::to_string(gang.anzahl), zahl(m.gangHoehe), zahl(m.gangBreite)});
             m_out.push_back(gang);
         }
+    }
+
+    // --- 5. Texturen ---------------------------------------------------------------------------------------------
+    void texturen() {
+        // alle benutzten Shader: Flaechen, Patches, Modelle (nach Skin und _remap)
+        std::map<std::string, ObjektRef> benutzt;   // klein -> erste Stelle
+        for (std::size_t e = 0; e < m_a.ents.size(); ++e) {
+            for (std::size_t k = 0; k < m_a.ents[e].prims.size(); ++k) {
+                const AbbildPrimitiv& pr = m_a.ents[e].prims[k];
+                const auto dazu = [&](const std::string& s) {
+                    if (s.empty()) { return; }
+                    benutzt.emplace(klein(s), ObjektRef{static_cast<int>(e), static_cast<int>(k), -1, stelle(static_cast<int>(e), static_cast<int>(k)) + " " + s});
+                };
+                if (pr.patch) { dazu(pr.shader); }
+                for (const AbbildFlaeche& f : pr.flaechen) { dazu(f.shader); }
+            }
+        }
+        std::set<std::string> modellShader;
+        for (const AbbildModell& m : m_o.modelle) {
+            if (!m.modell || m.modell->null) { continue; }
+            for (std::size_t s = 0; s < m.modell->flaechen.size(); ++s) {
+                const std::string sh = s < m.shader.size() ? m.shader[s] : m.modell->flaechen[s].shader;
+                if (sh.empty()) { continue; }
+                modellShader.insert(klein(sh));
+                benutzt.emplace(klein(sh), ObjektRef{m.entitaet, -1, -1, stelle(m.entitaet, -1) + " " + m.pfad + ": " + sh});
+            }
+        }
+        CwInventar inv;
+        Befund npot = neu("bildnpot", Schwere::Fehler,
+                          "OpenJK code/rd-vanilla/tr_image.cpp:1002-1004 R_CreateImage (ERR_FATAL \"dimensions not power of 2\"), Movie Duels "
+                          "code/rd-vanilla/tr_image.cpp:1049; rd-common/tr_image_load.cpp:94-145 R_LoadImage (no resampling)");
+        Befund groesse = neu("bildgroesse", Schwere::Hinweis,
+                             "Clone Wars list: image sides 64 to 2048 pixels (adjustable); OpenJK code/rd-vanilla/tr_image.cpp:597 (larger than the "
+                             "driver allows: halved until it fits)");
+        Befund fehlt = neu("bildfehlt", Schwere::Warnung,
+                           "OpenJK code/rd-vanilla/tr_shader.cpp ParseStage / ParseSkyParms (R_FindImageFile fails: \"could not find\", the default "
+                           "image), R_FindShader (no script and no image: the default shader); q3map2 shaders.cpp (\"Couldn't find image\")");
+        std::map<std::string, std::string> bildFuer;   // Bild -> erster Shader
+        for (const auto& [name, ref] : benutzt) {
+            inv.shader.push_back(name);
+            const ShaderArt& sa = m_art(name);
+            const bool common = name.rfind("textures/common/", 0) == 0 || name.rfind("textures/system/", 0) == 0;
+            // Shader eines Modells ohne Skript sieht der Hauptfaden nicht nach (das Bild zu entpacken kostete dort Zeit): hier ist
+            // der Name das Bild (R_FindShader -> R_FindImageFile), sein Kopf entscheidet, ob es da ist
+            if (m_o.shaderBekanntGeprueft && m_o.shader.count(name) == 0 && modellShader.count(name) != 0) {
+                int b = 0;
+                int h = 0;
+                if (m_o.bildMass && !m_o.bildMass(name, b, h)) {
+                    inv.shaderFehlen.push_back(name);
+                    ObjektRef r = ref;
+                    r.text += " (shader)";
+                    add(fehlt, r);
+                } else {
+                    bildFuer.emplace(name, name);
+                }
+                continue;
+            }
+            if (m_o.shaderBekanntGeprueft && !sa.bekannt && !common) {
+                inv.shaderFehlen.push_back(name);
+                if (modellShader.count(name) != 0) {   // die Shader der Flaechen meldet schon die Pruefung "textur"
+                    ObjektRef r = ref;
+                    r.text += " (shader)";
+                    add(fehlt, r);
+                }
+                continue;
+            }
+            if (!sa.sichtbar || sa.werkzeug) { continue; }
+            for (const std::string& bild : sa.bilder) { bildFuer.emplace(bild, name); }
+        }
+        if (m_o.bildMass) {
+            for (const auto& [bild, shader] : bildFuer) {
+                CwInventar::Bild x;
+                x.name = bild;
+                x.gefunden = m_o.bildMass(bild, x.breite, x.hoehe);
+                inv.bilder.push_back(x);
+                const ObjektRef& basis = benutzt.at(shader);
+                ObjektRef r = basis;
+                if (!x.gefunden) {
+                    r.text = bild + " (" + shader + ")";
+                    add(fehlt, r);
+                    continue;
+                }
+                const auto zweierPotenz = [](int v) { return v > 0 && (v & (v - 1)) == 0; };
+                r.text = bild + " " + std::to_string(x.breite) + " x " + std::to_string(x.hoehe) + " (" + shader + ")";
+                if (!zweierPotenz(x.breite) || !zweierPotenz(x.hoehe)) {
+                    add(npot, r);
+                } else if (std::min(x.breite, x.hoehe) < m_o.masse.bildMin || std::max(x.breite, x.hoehe) > m_o.masse.bildMax) {
+                    add(groesse, r);
+                }
+            }
+        }
+        if (npot.anzahl > 0) {
+            detailSetzen(npot, "%s images with a side that is not a power of two (the game stops with ERR_FATAL)", {std::to_string(npot.anzahl)});
+            m_out.push_back(npot);
+        }
+        if (fehlt.anzahl > 0) {
+            detailSetzen(fehlt, "%s images or model shaders the game cannot find", {std::to_string(fehlt.anzahl)});
+            m_out.push_back(fehlt);
+        }
+        if (groesse.anzahl > 0) {
+            detailSetzen(groesse, "%s images smaller than %s or larger than %s pixels",
+                         {std::to_string(groesse.anzahl), std::to_string(m_o.masse.bildMin), std::to_string(m_o.masse.bildMax)});
+            m_out.push_back(groesse);
+        }
+        if (m_o.inventar != nullptr) { *m_o.inventar = std::move(inv); }
     }
 
 };
