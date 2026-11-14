@@ -143,6 +143,8 @@ std::deque<Auftrag> g_auftraege;
 bool g_abschickArbeitet = false;
 bool g_abschickEnde = false;
 bool g_abschickEigen = false;   // der Faden laeuft; sonst fuehrt der Hauptfaden jeden Auftrag sofort selbst aus
+std::uint64_t g_zeigenGegeben = 0;    // D3D12-4: Present-Auftraege, die der Hauptfaden gegeben hat
+std::uint64_t g_zeigenErledigt = 0;   // ... und davon ausgefuehrt (unter g_abschickSperre; g_abschickLeer meldet jedes)
 std::vector<ID3D12GraphicsCommandList*> g_listenFrei;   // ausgefuehrte (geschlossene) Listen, wieder zu vergeben
 std::atomic<long> g_zeigenErgebnis{0};   // HRESULT des letzten fehlgeschlagenen Present (S_OK: keins)
 // Spaeter freigeben: was seit der letzten abgeschickten Liste freigegeben wurde (offen), und was an einem Zaunwert haengt.
@@ -270,14 +272,17 @@ void abschickSchleife() {
         sperre.lock();
         for (UINT i = 0; i < a.n; ++i) { g_listenFrei.push_back(static_cast<ID3D12GraphicsCommandList*>(a.listen[i])); }
         g_abschickArbeitet = false;
-        if (g_auftraege.empty()) { g_abschickLeer.notify_all(); }
+        if (a.zeigen) { ++g_zeigenErledigt; }
+        if (g_auftraege.empty() || a.zeigen) { g_abschickLeer.notify_all(); }
     }
 }
 
 void auftragGeben(const Auftrag& a) {
+    if (a.zeigen) { ++g_zeigenGegeben; }
     if (!g_abschickEigen) {
         auftragAusfuehren(a);
         for (UINT i = 0; i < a.n; ++i) { g_listenFrei.push_back(static_cast<ID3D12GraphicsCommandList*>(a.listen[i])); }
+        if (a.zeigen) { ++g_zeigenErledigt; }
         return;
     }
     {
@@ -1378,6 +1383,8 @@ void shutdown() {
     g_listenFrei.clear();
     g_auftraege.clear();
     g_zeigenErgebnis.store(0);
+    g_zeigenGegeben = 0;
+    g_zeigenErledigt = 0;
     g_hauptOffen = false;
     g_vorOffen = false;
     for (Platz& p : g_plaetze) {
@@ -1452,6 +1459,27 @@ ID3D11Device* geraet11() { return abgeber::geraet(); }
 ID3D11DeviceContext* kontext11() { return abgeber::kontext(); }
 HANDLE bildFrei() { return g_bildFrei; }
 
+namespace {
+// D3D12-4: nur auf das zuletzt gegebene Present warten (nicht auf die Teilabgaben dieses Bildes).
+void zeigenAbwarten() {
+    if (!g_abschickEigen) { return; }
+    std::unique_lock<std::mutex> sperre(g_abschickSperre);
+    if (g_zeigenErledigt >= g_zeigenGegeben) { return; }
+    LARGE_INTEGER t0{};
+    QueryPerformanceCounter(&t0);
+    while (!g_abschickLeer.wait_for(sperre, std::chrono::seconds(2), [] { return g_zeigenErledigt >= g_zeigenGegeben; })) {
+        sperre.unlock();
+        gesendeteNachrichten();
+        sperre.lock();
+    }
+    LARGE_INTEGER t1{};
+    LARGE_INTEGER f{};
+    QueryPerformanceCounter(&t1);
+    QueryPerformanceFrequency(&f);
+    g_statistik.abwartenMs += static_cast<double>(t1.QuadPart - t0.QuadPart) * 1000.0 / static_cast<double>(f.QuadPart);
+}
+}  // namespace
+
 bool karteLuid(LUID& luid) {
     if (g_dev == nullptr) { return false; }
     luid = g_luid;
@@ -1489,9 +1517,10 @@ void vorbereiten(const std::vector<const void*>& bemalt) {
 bool frisch(ImTextureID id) { return g_frisch.count(static_cast<UINT64>(id)) != 0U; }
 
 void hauptfensterZeichnen(const float farbe[4], void (*vorAbschicken)(), void (*vorOberflaeche)()) {
-    // Das vorige Present muss ausgefuehrt sein (der Hintergrundpuffer wechselt mit ihm), und imgui_impl_dx12 schickt neue
-    // Schrifttexturen selbst ueber die Warteschlange. In aller Regel ist der Abschickfaden laengst fertig.
-    abschickenAbwarten();
+    // Das vorige Present muss ausgefuehrt sein (der Hintergrundpuffer wechselt mit ihm). D3D12-4: nur darauf warten - die
+    // Teilabgaben dieses Bildes laufen weiter (vorher wartete der Hauptfaden hier auf alle Auftraege). imgui_impl_dx12 schickt
+    // neue Schrifttexturen selbst ueber die Warteschlange (frei verwendbar) und wartet auf seinen eigenen Zaun.
+    zeigenAbwarten();
     const UINT i = g_swap->GetCurrentBackBufferIndex();
     if (vorOberflaeche != nullptr) { vorOberflaeche(); }   // D3D12-4: Marke vor der Oberflaeche (Bildmessung)
     ID3D12GraphicsCommandList* l = rahmen::liste();
