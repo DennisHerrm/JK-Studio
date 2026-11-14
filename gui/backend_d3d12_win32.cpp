@@ -20,6 +20,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
@@ -36,6 +37,7 @@
 
 #include "abgeber12.h"
 #include "bhed/diag.h"
+#include "imgui_internal.h"   // D3D12-4: ImGuiWindow (hauptfensterRand)
 #include "imgui_impl_dx12.h"
 
 namespace bhed::render::d3d12 {
@@ -812,6 +814,47 @@ void mischRueckruf(const ImDrawList* liste, const ImDrawCmd* befehl) {
     l->SetGraphicsRoot32BitConstants(0, 16, mvp, 0);
 }
 
+// --- Loeschen des Hauptfensters (D3D12-4) ---------------------------------------------
+
+// Den Hintergrundpuffer der Swapchain loescht der Treiber unter Direct3D 12 nicht schnell: ein voller Schreibdurchgang ueber das
+// Programmfenster (gemessen 0,05 ms bei 2538 x 1472 im Mission-Tab, gleich mit Schwarz und nach DiscardResource; Direct3D 11
+// loescht denselben Puffer in rund 0,005 ms). Gleich danach zeichnet ImGui als erstes den Hintergrund des Hauptfensters "###main"
+// - ein deckendes Rechteck (Alpha 255) mit gerundeten Ecken ueber das ganze Programmfenster. Wo es ganz deckt, ergibt das Mischen
+// (SRC_ALPHA, INV_SRC_ALPHA; Alpha ONE, INV_SRC_ALPHA) genau seine Farbe, und was vorher im Puffer stand, zaehlt mit 0. Sichtbar
+// bleibt das Loeschen nur in den gerundeten Ecken und im Saum der Kantenglaettung am Rand (die inneren Ecken des Saums liegen
+// 0,5 Bildpunkte innen). Deshalb wird nur ein Rand von Rundung + 2 Bildpunkten geloescht - dort genau wie vorher, innen bedeckt
+// der Hintergrund: dasselbe Bild (Fotos bitgleich).
+// Rueckgabe: Breite des Rands in Bildpunkten, 0 = ganz loeschen. Geprueft an diesem Bild: das Fenster ist aktiv, hat einen
+// Hintergrund, steht genau auf dem Programmfenster, seine Zeichenliste ist dabei, ihr erster Zeichenbefehl ohne Rueckruf mit
+// einem Schnitt ueber das ganze Fenster, die erste Ecke hat die Hintergrundfarbe mit Alpha 255. Sonst (Start, durchsichtiger
+// Hintergrund, anderer Aufbau, mehr als 32 Bildpunkte Rundung): ganz loeschen wie vorher. BHED_D3D12_LOESCHEN=immer: immer ganz.
+int hauptfensterRand(const ImDrawData* dd) {
+    static const bool immer = [] {
+        const char* v = std::getenv("BHED_D3D12_LOESCHEN");
+        return v != nullptr && std::strcmp(v, "immer") == 0;
+    }();
+    if (immer || dd == nullptr || !dd->Valid || dd->CmdListsCount == 0 || dd->OwnerViewport != ImGui::GetMainViewport()) { return 0; }
+    const ImGuiWindow* w = ImGui::FindWindowByName("###main");
+    if (w == nullptr || !w->Active || w->Hidden || (w->Flags & ImGuiWindowFlags_NoBackground) != 0 || w->Viewport != dd->OwnerViewport ||
+        w->DrawList == nullptr || w->WindowRounding < 0.0F || w->WindowRounding > 32.0F) {
+        return 0;
+    }
+    if (w->Pos.x != dd->DisplayPos.x || w->Pos.y != dd->DisplayPos.y || w->Size.x != dd->DisplaySize.x || w->Size.y != dd->DisplaySize.y) { return 0; }
+    const ImDrawList* dl = w->DrawList;
+    bool dabei = false;
+    for (int k = 0; k < dd->CmdListsCount && !dabei; ++k) { dabei = dd->CmdLists[k] == dl; }
+    if (!dabei || dl->CmdBuffer.Size < 1 || dl->VtxBuffer.Size < 4) { return 0; }
+    const ImDrawCmd& c = dl->CmdBuffer[0];
+    if (c.UserCallback != nullptr || c.VtxOffset != 0U || c.IdxOffset != 0U) { return 0; }
+    if (c.ClipRect.x > dd->DisplayPos.x || c.ClipRect.y > dd->DisplayPos.y || c.ClipRect.z < dd->DisplayPos.x + dd->DisplaySize.x ||
+        c.ClipRect.w < dd->DisplayPos.y + dd->DisplaySize.y) {
+        return 0;
+    }
+    const ImU32 farbe = dl->VtxBuffer[0].col;
+    if ((farbe & IM_COL32_A_MASK) != IM_COL32_A_MASK || farbe != (ImGui::GetColorU32(ImGuiCol_WindowBg) | IM_COL32_A_MASK)) { return 0; }
+    return static_cast<int>(std::ceil(w->WindowRounding)) + 2;
+}
+
 // --- Lesen ------------------------------------------------------------------------
 
 // Eine Textur (Zustand `zustand`) ganz in den Speicher lesen: ans Ende der Befehlsliste, abschicken, auf die Grafikkarte warten.
@@ -1456,7 +1499,18 @@ void hauptfensterZeichnen(const float farbe[4], void (*vorAbschicken)(), void (*
     const D3D12_CPU_DESCRIPTOR_HANDLE ziel = rtv(i);
     l->OMSetRenderTargets(1, &ziel, FALSE, nullptr);
     abgeber::protokollNotiz(l, "Oberflaeche: Hauptfenster loeschen und zeichnen");
-    l->ClearRenderTargetView(ziel, farbe, 0, nullptr);
+    // D3D12-4: bedeckt der Hintergrund des Hauptfensters das Programmfenster deckend, sieht man vom Loeschen nur den Rand mit
+    // den gerundeten Ecken (hauptfensterRand) - dann wird nur er geloescht. BHED_D3D12_LOESCHEN=immer: ganz (zum Vergleichen).
+    const int rand = hauptfensterRand(ImGui::GetDrawData());
+    const D3D12_RESOURCE_DESC hd = g_hinten[i]->GetDesc();
+    const LONG bw = static_cast<LONG>(hd.Width);
+    const LONG bh = static_cast<LONG>(hd.Height);
+    if (rand > 0 && 2 * rand < bw && 2 * rand < bh) {
+        const D3D12_RECT streifen[4] = {{0, 0, bw, rand}, {0, bh - rand, bw, bh}, {0, rand, rand, bh - rand}, {bw - rand, rand, bw, bh - rand}};
+        l->ClearRenderTargetView(ziel, farbe, 4, streifen);
+    } else {
+        l->ClearRenderTargetView(ziel, farbe, 0, nullptr);
+    }
     abgeber::protokollNotiz(l, "Oberflaeche: ImGui");
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), l);
     abgeber::fremdGezeichnet();
