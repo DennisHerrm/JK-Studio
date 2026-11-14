@@ -51,6 +51,8 @@ struct Mission {
     // und ob das in "Load mission" GEWAEHLTE Archiv die .bsp oder die .ent
     // mitbringt - diese Missionen stehen in der Auswahl vorn.
     std::string archiv;
+    std::string archivPfad;   // TEST1411 A: der volle Pfad dieses Archivs (zuletzt geoeffnet, Save mission ohne gewaehltes Archiv)
+    std::string gruppe;       // TEST1411 A: die Gruppe in der Auswahl - das Archiv der .ent (die Missionsdaten), sonst das der .bsp
     bool imGewaehlten = false;
 
     // Eine Karte ohne Skripte ist keine Mission, sondern eine Duellkarte.
@@ -197,6 +199,12 @@ struct SpielordnerWahl {
     Art art = Art::Eingerichtet;
     std::vector<std::string> ordner;   // in Suchreihenfolge, der spaetere gewinnt
 };
+// TEST1411 A: dieselben Regeln fuer einen gewaehlten Ordner ("Ordner oeffnen..." in der Missionsauswahl): eingerichtet -> die
+// eingerichteten Ordner, schon in der Sitzung -> die der Sitzung, heisst "base" -> diese Installation, daneben ein base mit pk3 -> base,
+// dann der Ordner, sonst die eingerichteten Ordner und der Ordner dahinter. spielordnerFuerArchiv nimmt den Ordner der Datei.
+[[nodiscard]] SpielordnerWahl spielordnerFuerOrdner(const std::string& ordner, const std::vector<std::string>& eingerichtet,
+                                                    const std::vector<std::string>& sitzung,
+                                                    const std::function<bool(const std::string& ordner)>& hatPk3);
 [[nodiscard]] SpielordnerWahl spielordnerFuerArchiv(const std::string& archivPfad,
                                                     const std::vector<std::string>& eingerichtet,
                                                     const std::vector<std::string>& sitzung,

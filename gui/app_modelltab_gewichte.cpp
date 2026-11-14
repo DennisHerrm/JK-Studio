@@ -187,6 +187,18 @@ const std::vector<GwAktion>& aktionen() {
         {Str::MgGruenBlau, Str::MgGruenBlauHint, "", "", 2, [] { (void)modellGewichteSpiegelnSeite(-1); }, nullptr},
         {Str::MgTauschen, Str::MgTauschenHint, "", "", 2, [] { (void)modellGewichteSpiegelnSeite(0); }, nullptr},
         {Str::MgNurAuswahl, Str::MgNurAuswahlHint, "", "", 2, [] { gw().nurAuswahl = !gw().nurAuswahl; }, [] { return gw().nurAuswahl; }},
+        // TEST1411 P: wie das Weight Tool und der Mirror Mode des Skin-Modifiers von 3ds Max
+        {Str::T1pSpiegelPaste, Str::T1pSpiegelPasteHint, "", "", 2, [] { (void)modellGewichteSpiegelPaste(); }, nullptr},
+        {Str::T1pKopieren, Str::T1pKopierenHint, "", "", 0, [] { (void)modellGewichteKopieren(); }, nullptr},
+        {Str::T1pEinfuegen, Str::T1pEinfuegenHint, "", "", 0, [] { (void)modellGewichteEinfuegen(false); }, nullptr},
+        {Str::T1pEinfuegenOrt, Str::T1pEinfuegenOrtHint, "", "", 0, [] { (void)modellGewichteEinfuegen(true); }, nullptr},
+        {Str::T1pTabelle, Str::T1pTabelleHint, "", "", 0,
+         [] {
+             zuWeights();
+             gw().tabelleOffen = !gw().tabelleOffen;
+         },
+         [] { return gw().tabelleOffen; }},
+        {Str::T1pRueckseiten, Str::T1pRueckseitenHint, "", "", 0, [] { gw().rueckseitenAus = !gw().rueckseitenAus; }, [] { return gw().rueckseitenAus; }},
         {Str::MgGruppeSpiegeln, Str::MgGruppeSpiegelnHint, "", "", 2, [] { (void)modellGewichteSpiegelnBlender(false); }, nullptr},
         {Str::MgAlleGruppen, Str::MgAlleGruppenHint, "", "", 2, [] { (void)modellGewichteSpiegelnBlender(true); }, nullptr},
         {Str::MgSperre, Str::MgSperreHint, "", "", 3, [] { modellGewichteSperren(0, 1); }, [] { return modellGewichtGesperrt(mt().knochenWahl); }},
@@ -287,14 +299,106 @@ void hauptKnopf(Str name) {
     if (!hatKnochen()) { ui::absatz(tr(Str::MbGwKnochenWaehlen), ui::Ton::Warnung); }
 }
 
+// TEST1411 P (shank 14.11.: "die wie in 3ds max beim skin modifier einzeln wählen und mirroren? ... Statt paint weights"): wie das
+// Rollout Parameters des Skin-Modifiers "Select: Vertices, Select Element, Backface Cull Vertices" (Autodesk-Hilfe "Parameters Rollout
+// (Skin Modifier)"). Ecken: die linke Taste waehlt statt zu malen (Unterobjekt-Ebene Ecke bzw. Element); Blender: "Vertex Selection"
+// des Weight Paint (Maske nach gewaehlten Ecken, wie hier die Befehle nur auf die gewaehlten Ecken wirken).
+void auswahlZeile(bool blender) {
+    ModellTab& t = mt();
+    ModellGewichte& g = gw();
+    bool ecken = !g.malen && t.auswahlArt != AuswahlArt::Objekt;
+    bool element = t.auswahlArt == AuswahlArt::Element;
+    if (!blender) { ui::absatz(tr(Str::T1pAuswahl), ui::Ton::Leise); }
+    ui::rasterBeginn(blender ? 1 : 2);
+    if (ui::schalter(tr(Str::T1pEcken), &ecken, tr(Str::T1pEckenHint))) {
+        modellGewichteMalenSetzen(!ecken);
+        modellAuswahlArtSetzen(ecken ? (element ? AuswahlArt::Element : AuswahlArt::Ecke) : AuswahlArt::Objekt);
+    }
+    if (ui::schalter(tr(Str::T1pElement), &element, tr(Str::T1pElementHint))) {
+        modellGewichteMalenSetzen(false);
+        modellAuswahlArtSetzen(element ? AuswahlArt::Element : AuswahlArt::Ecke);
+    }
+    (void)ui::schalter(tr(Str::T1pRueckseiten), &g.rueckseitenAus, tr(Str::T1pRueckseitenHint));
+    ui::rasterEnde();
+}
+
+// TEST1411 P: die Liste des Weight Tools von 3ds Max (Autodesk-Hilfe "Weight Tool Dialog"): die Knochen der gewaehlten Ecken mit ihrem
+// Gewicht, bei mehreren Ecken das Mittel; ein Klick waehlt den Knochen (er wird der aktive), sein Feld nimmt den Wert (Enter setzt ihn an
+// allen gewaehlten Ecken, die Summe bleibt 1 wie in Max). Blender: das Panel "Vertex Weights" der Seitenleiste.
+void gewichtListe() {
+    ModellTab& t = mt();
+    ModellGewichte& g = gw();
+    bool da = false;
+    const modell::EckenMaske m = modellGewichteAuswahl(&da);
+    g.listeGezeigt.clear();
+    if (!da || t.auswahlArt == AuswahlArt::Objekt) {
+        ui::absatz(tr(Str::T1pListeLeer), ui::Ton::Leise);
+        return;
+    }
+    g.listeGezeigt = modell::mittelListe(t.dok.inhalt(), t.lodJetzt, m);
+    const float fs = ImGui::GetFontSize();
+    const float zeile = ImGui::GetFrameHeight() + 2.0F;
+    const float hoehe = zeile * static_cast<float>(std::min(static_cast<int>(g.listeGezeigt.size()), 8) + 1) + 4.0F;
+    if (ImGui::BeginTable("##t1pliste", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY, ImVec2{0.0F, hoehe})) {
+        ImGui::TableSetupScrollFreeze(0, 1);
+        ImGui::TableSetupColumn(tr(Str::T1pKnochen), ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn(tr(Str::T1pGewicht), ImGuiTableColumnFlags_WidthFixed, fs * 4.6F);
+        ImGui::TableHeadersRow();
+        for (const modell::KnochenGewicht& kg : g.listeGezeigt) {
+            ImGui::TableNextRow(ImGuiTableRowFlags_None, zeile);
+            ImGui::TableSetColumnIndex(0);
+            ImGui::PushID(kg.knochen);
+            const bool aktiv = kg.knochen == t.knochenWahl;
+            if (ImGui::Selectable(knochenName(kg.knochen), aktiv)) {
+                t.knochenWahl = kg.knochen;
+                t.pinselGewicht = kg.gewicht;
+                g_app->modelDirty = true;
+            }
+            ImGui::SetItemTooltip("%s", tr(Str::T1pListeHint));
+            ImGui::TableSetColumnIndex(1);
+            if (aktiv) {
+                float v = kg.gewicht;
+                ImGui::SetNextItemWidth(-1.0F);
+                if (ImGui::InputFloat("##t1pwert", &v, 0.0F, 0.0F, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue)) {
+                    t.pinselGewicht = std::clamp(v, 0.0F, 1.0F);
+                    if (knochenBereit()) { melde(text(Str::MgGeaendert, modellAufAuswahlSetzen())); }
+                }
+                ImGui::SetItemTooltip("%s", tr(Str::T1pListeHint));
+            } else {
+                ImGui::Text("%.3f", static_cast<double>(kg.gewicht));
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
+}
+
+void kopierKnoepfe() {
+    bool da = false;
+    (void)modellGewichteAuswahl(&da);
+    ui::rasterBeginn(3);
+    if (ui::werkzeugKnopf(tr(Str::T1pKopieren), {.icon = UiIcon::Duplizieren, .hinweis = tr(Str::T1pKopierenHint), .aktiv = da})) { (void)modellGewichteKopieren(); }
+    if (ui::werkzeugKnopf(tr(Str::T1pEinfuegen), {.icon = UiIcon::Folgen, .hinweis = tr(Str::T1pEinfuegenHint), .aktiv = da && !gw().kopie.empty()})) {
+        (void)modellGewichteEinfuegen(false);
+    }
+    if (ui::werkzeugKnopf(tr(Str::T1pEinfuegenOrt), {.icon = UiIcon::Zielen, .hinweis = tr(Str::T1pEinfuegenOrtHint), .aktiv = da && !gw().kopie.empty()})) {
+        (void)modellGewichteEinfuegen(true);
+    }
+    ui::rasterEnde();
+    if (ui::werkzeugKnopf(tr(Str::T1pTabelle), {.icon = UiIcon::Liste, .hinweis = tr(Str::T1pTabelleHint), .an = gw().tabelleOffen})) { gw().tabelleOffen = !gw().tabelleOffen; }
+}
+
 // wie 3ds Max: Gewichts-Werkzeug (Paint Weights, Weight Tool)
 void rolloutWerkzeugMax() {
     ModellTab& t = mt();
     ModellGewichte& g = gw();
     if (!ui::rolloutBeginn(tr(Str::MgRWerkzeug), {.kurzinfo = hatKnochen() ? knochenName(t.knochenWahl) : nullptr})) { return; }
+    auswahlZeile(false);   // TEST1411 P: Auswaehlen wie Skin (Ecken, Element, Rueckseiten) vor dem Malen - Malen ist ein Weg unter mehreren
     hauptKnopf(Str::MgMalenMax);
     festwerte();
     (void)ui::regler(tr(Str::MbGwGewicht), &t.pinselGewicht, 0.0F, 1.0F, "%.3f", tr(Str::MgFestHint));
+    gewichtListe();        // TEST1411 P: die Liste des Weight Tools
+    kopierKnoepfe();
     ui::rasterBeginn(2);
     const bool bereit = hatKnochen();
     if (ui::werkzeugKnopf(tr(Str::MbGwSetzen), {.icon = UiIcon::GwSetzen, .hinweis = tr(Str::MbGwAufAuswahlHint), .aktiv = bereit})) {
@@ -453,6 +557,27 @@ void spiegelTabelle() {
     ui::tipp(text(Str::MgSpiegelTipp, gr.knochenJeFlaeche).c_str());
 }
 
+// TEST1411 P: die Zuordnung der Knochenpaare sichtbar (Max Mirror Mode zeigt sie blau/gruen an den Knochen): je Knochen der linken Seite
+// sein Partner nach dem Namen (modell::spiegelKnochen), ohne Partner gekennzeichnet
+void knochenPaare() {
+    const std::vector<std::string> namen = knochenNamen();
+    if (namen.empty() || !ui::mehrBeginn(tr(Str::T1pPaare))) { return; }
+    if (ImGui::BeginTable("##t1ppaare", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY,
+                          ImVec2{0.0F, ImGui::GetFrameHeight() * 8.0F})) {
+        for (int k = 0; k < static_cast<int>(namen.size()); ++k) {
+            const int p = modell::spiegelKnochen(namen, k);
+            if (p < 0 || p == k || modell::knochenSeite(namen, k) <= 0) { continue; }
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::TextColored(ImVec4{0.35F, 0.6F, 1.0F, 1.0F}, "%s", namen[uz(k)].c_str());
+            ImGui::TableSetColumnIndex(1);
+            ImGui::TextColored(ImVec4{0.3F, 0.85F, 0.35F, 1.0F}, "%s", namen[uz(p)].c_str());
+        }
+        ImGui::EndTable();
+    }
+    ui::mehrEnde();
+}
+
 void rolloutSpiegelnMax() {
     ModellGewichte& g = gw();
     if (!ui::rolloutBeginn(tr(Str::MgRSpiegeln), {.kurzinfo = tr(Str::MgInfoLR)})) { return; }
@@ -464,8 +589,13 @@ void rolloutSpiegelnMax() {
     if (ui::werkzeugKnopf(tr(Str::MgTauschen), {.icon = UiIcon::Tauschen, .hinweis = tr(Str::MgTauschenHint)})) { (void)modellGewichteSpiegelnSeite(0); }
     if (ui::werkzeugKnopf(tr(Str::MgNurAuswahl), {.icon = UiIcon::Zielen, .hinweis = tr(Str::MgNurAuswahlHint), .an = g.nurAuswahl})) { g.nurAuswahl = !g.nurAuswahl; }
     ui::rasterEnde();
+    // TEST1411 P: wie Max Mirror Mode "Mirror Paste" - die gewaehlten Ecken auf ihre Gegenstuecke
+    bool da = false;
+    (void)modellGewichteAuswahl(&da);
+    if (ui::werkzeugKnopf(tr(Str::T1pSpiegelPaste), {.icon = UiIcon::Tauschen, .hinweis = tr(Str::T1pSpiegelPasteHint), .aktiv = da})) { (void)modellGewichteSpiegelPaste(); }
     (void)ui::regler(tr(Str::MgToleranz), &g.toleranz, 0.01F, 2.0F, "%.2f", tr(Str::MgToleranzHint));
     spiegelTabelle();
+    knochenPaare();
     ui::rolloutEnde();
 }
 
@@ -798,6 +928,171 @@ int modellAufAuswahlSetzen() {
     const int knochen = t.knochenWahl;
     const float wert = t.pinselGewicht;
     return befehl(Str::MbUndoSetzen, [&](modell::Inhalt& x) { return modell::gewichtSetzen(x, stufe, m, knochen, wert, r); });
+}
+
+// TEST1411 P: Copy des Weight Tools - die Listen der gewaehlten Punkte mit ihren Orten (Paste nimmt ihr Mittel, Paste-Pos den naechsten)
+int modellGewichteKopieren() {
+    ModellTab& t = mt();
+    ModellGewichte& g = gw();
+    bool da = false;
+    const modell::EckenMaske m = modellGewichteAuswahl(&da);
+    if (!da) {
+        melde(tr(Str::MgKeineAuswahl));
+        return 0;
+    }
+    modellGewichteSpiegelStand();   // das Schweissnetz der gezeichneten Stufe
+    const modell::Inhalt& in = t.dok.inhalt();
+    const std::vector<char> punkte = modell::punktWahl(g.netz, m);
+    g.kopie.clear();
+    for (int p = 0; p < g.netz.zahl(); ++p) {
+        if (punkte[uz(p)] == 0) { continue; }
+        const float* o = g.netz.ort(in, t.lodJetzt, p);
+        if (o == nullptr) { continue; }
+        g.kopie.push_back(modell::OrtListe{{o[0], o[1], o[2]}, modell::punktGewichte(in, t.lodJetzt, g.netz.ecken[uz(p)].front())});
+    }
+    melde(text(Str::T1pKopiert, static_cast<int>(g.kopie.size())));
+    return static_cast<int>(g.kopie.size());
+}
+
+int modellGewichteEinfuegen(bool nachOrt) {
+    ModellTab& t = mt();
+    ModellGewichte& g = gw();
+    bool da = false;
+    const modell::EckenMaske m = modellGewichteAuswahl(&da);
+    if (!da || g.kopie.empty()) {
+        melde(tr(Str::MgKeineAuswahl));
+        return 0;
+    }
+    const int stufe = t.lodJetzt;
+    int n = 0;
+    if (nachOrt) {
+        const std::vector<modell::OrtListe> kopie = g.kopie;
+        const float toleranz = g.toleranz;
+        n = befehl(Str::T1pEinfuegenOrt, [&](modell::Inhalt& x) { return modell::listenNachOrt(x, stufe, m, kopie, toleranz); });
+    } else {
+        // mehrere kopierte Punkte: ihr Mittel (wie die Liste des Weight Tools bei mehreren Ecken)
+        modell::GewichtListe l;
+        for (const modell::OrtListe& k : g.kopie) {
+            for (const modell::KnochenGewicht& kg : k.liste) {
+                const auto it = std::find_if(l.begin(), l.end(), [&](const modell::KnochenGewicht& x) { return x.knochen == kg.knochen; });
+                if (it != l.end()) {
+                    it->gewicht += kg.gewicht;
+                } else {
+                    l.push_back(kg);
+                }
+            }
+        }
+        for (modell::KnochenGewicht& kg : l) { kg.gewicht /= static_cast<float>(g.kopie.size()); }
+        n = befehl(Str::T1pEinfuegen, [&](modell::Inhalt& x) { return modell::listeSetzen(x, stufe, m, l); });
+    }
+    melde(text(Str::MgGeaendert, n));
+    return n;
+}
+
+// TEST1411 P: Mirror Paste wie Max Mirror Mode - die gewaehlten Ecken sind die Quelle, ihre Seite sagt der Ort (die Seite mit den meisten
+// gewaehlten Punkten); geschrieben werden nur die Paare mit einem gewaehlten Punkt
+int modellGewichteSpiegelPaste() {
+    ModellTab& t = mt();
+    ModellGewichte& g = gw();
+    bool da = false;
+    const modell::EckenMaske m = modellGewichteAuswahl(&da);
+    if (!da) {
+        melde(tr(Str::MgKeineAuswahl));
+        return 0;
+    }
+    modellGewichteSpiegelStand();
+    const std::vector<char> punkte = modell::punktWahl(g.netz, m);
+    int rechts = 0;
+    int links = 0;
+    for (int p = 0; p < g.netz.zahl(); ++p) {
+        const float* o = punkte[uz(p)] != 0 ? g.netz.ort(t.dok.inhalt(), t.lodJetzt, p) : nullptr;
+        if (o != nullptr) { (o[0] > 0.0F ? rechts : links) += o[0] != 0.0F ? 1 : 0; }
+    }
+    const bool vorher = g.nurAuswahl;
+    g.nurAuswahl = true;
+    const int n = modellSpiegeln(rechts >= links ? 1 : -1);
+    g.nurAuswahl = vorher;
+    return n;
+}
+
+// TEST1411 P: die Weight Table von 3ds Max Skin - Ecken (Punkte ueber alle Flaechen) x Knochen, jede Zelle eintippbar (Enter setzt das
+// Gewicht dieses Knochens an dieser Ecke, die Summe bleibt 1); Filter "Nur gewaehlte Ecken" (Max: Show Affected Vertices / Selected). Ein
+// eigenes Fenster, das sich andocken laesst.
+void drawModellGewichtTabelle() {
+    ModellTab& t = mt();
+    ModellGewichte& g = gw();
+    g.tabelleSichtbar = false;
+    if (!g.tabelleOffen || t.bereich != ModellBereich::Weights || g_app->model.empty()) { return; }
+    const float fs = ImGui::GetFontSize();
+    ImGui::SetNextWindowSize(ImVec2{fs * 36.0F, fs * 22.0F}, ImGuiCond_FirstUseEver);
+    if (ui::fensterBegin((std::string(tr(Str::T1pTabelle)) + "###mtgewtabelle").c_str(), &g.tabelleOffen, ImGuiWindowFlags_NoSavedSettings)) {
+        g.tabelleSichtbar = true;
+        (void)ImGui::Checkbox(tr(Str::T1pNurGewaehlte), &g.tabelleNurWahl);
+        modellGewichteSpiegelStand();
+        const modell::Inhalt& in = t.dok.inhalt();
+        const int stufe = t.lodJetzt;
+        bool da = false;
+        const modell::EckenMaske m = modellGewichteAuswahl(&da);
+        const std::vector<char> punkte = da ? modell::punktWahl(g.netz, m) : std::vector<char>(uz(g.netz.zahl()), 0);
+        std::vector<int> zeilen;
+        std::vector<modell::GewichtListe> listen;
+        std::vector<char> spalteDa(g_app->anim.bones.size(), 0);
+        for (int p = 0; p < g.netz.zahl(); ++p) {
+            if (g.tabelleNurWahl && punkte[uz(p)] == 0) { continue; }
+            zeilen.push_back(p);
+            listen.push_back(modell::punktGewichte(in, stufe, g.netz.ecken[uz(p)].front()));
+            for (const modell::KnochenGewicht& kg : listen.back()) {
+                if (kg.knochen >= 0 && uz(kg.knochen) < spalteDa.size()) { spalteDa[uz(kg.knochen)] = 1; }
+            }
+        }
+        std::vector<int> spalten;
+        for (std::size_t k = 0; k < spalteDa.size(); ++k) {
+            if (spalteDa[k] != 0) { spalten.push_back(static_cast<int>(k)); }
+        }
+        g.tabelleZeilen = static_cast<int>(zeilen.size());
+        g.tabelleSpalten = static_cast<int>(spalten.size());
+        if (zeilen.empty()) {
+            ui::absatz(tr(Str::T1pListeLeer), ui::Ton::Leise);
+        } else if (ImGui::BeginTable("##t1ptabelle", static_cast<int>(spalten.size()) + 1,
+                                     ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInner | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
+            ImGui::TableSetupScrollFreeze(1, 1);
+            ImGui::TableSetupColumn(tr(Str::T1pEcke), ImGuiTableColumnFlags_WidthFixed, fs * 7.0F);
+            for (const int k : spalten) { ImGui::TableSetupColumn(knochenName(k), ImGuiTableColumnFlags_WidthFixed, fs * 4.4F); }
+            ImGui::TableHeadersRow();
+            ImGuiListClipper clip;
+            clip.Begin(static_cast<int>(zeilen.size()));
+            while (clip.Step()) {
+                for (int r = clip.DisplayStart; r < clip.DisplayEnd; ++r) {
+                    const int p = zeilen[uz(r)];
+                    const modell::EckOrt o = g.netz.ecken[uz(p)].front();
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text("#%d %s", p, uz(o.teil) < in.teile.size() ? in.teile[uz(o.teil)].name.c_str() : "");
+                    for (std::size_t c = 0; c < spalten.size(); ++c) {
+                        ImGui::TableSetColumnIndex(static_cast<int>(c) + 1);
+                        float v = 0.0F;
+                        for (const modell::KnochenGewicht& kg : listen[uz(r)]) {
+                            if (kg.knochen == spalten[c]) { v = kg.gewicht; }
+                        }
+                        ImGui::PushID(r * 1024 + static_cast<int>(c));
+                        ImGui::SetNextItemWidth(-1.0F);
+                        if (ImGui::InputFloat("##z", &v, 0.0F, 0.0F, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue)) {
+                            std::vector<char> nur(uz(g.netz.zahl()), 0);
+                            nur[uz(p)] = 1;
+                            const modell::EckenMaske einzel = modell::eckenVonPunkten(in, stufe, g.netz, nur);
+                            const modell::MalRegeln regeln = modellGewichteRegeln();
+                            const int knochen = spalten[c];
+                            const float wert = std::clamp(v, 0.0F, 1.0F);
+                            melde(text(Str::MgGeaendert, befehl(Str::MbUndoSetzen, [&](modell::Inhalt& x) { return modell::gewichtSetzen(x, stufe, einzel, knochen, wert, regeln); })));
+                        }
+                        ImGui::PopID();
+                    }
+                }
+            }
+            ImGui::EndTable();
+        }
+    }
+    ImGui::End();
 }
 
 int modellGewichteSkalieren() {
@@ -1147,6 +1442,14 @@ void drawModellGewichte() {
     // Blender im Reiter Modifier (gui/app_modelltab_stapel.cpp)
     drawModellStapelGruppe();
     if (modellBlender()) {
+        // TEST1411 P: wie Blender das Panel "Vertex Weights" (Seitenleiste N im Weight Paint mit Vertex Selection) - die Gewichte der
+        // gewaehlten Ecken, eintippbar
+        if (ui::rolloutBeginn(tr(Str::T1pBlVertexGewichte), {.reiter = modellReiter(MbReiter::Aendern, MbReiterBl::Daten)})) {
+            auswahlZeile(true);
+            gewichtListe();
+            kopierKnoepfe();
+            ui::rolloutEnde();
+        }
         rolloutPinselBl();
         rolloutOptionenBl();
         rolloutBereinigenBl();

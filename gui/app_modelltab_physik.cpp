@@ -296,7 +296,7 @@ void drawModellPhysikBereich() {
         ui::rolloutZeigen(tr(Str::PhRollout));   // aufklappen und ins Bild rollen (Menue, Rechtsklick, Suche)
         t.physikOeffnen = false;
     }
-    if (!ui::rolloutBeginn(tr(Str::PhRollout), {.zu = true, .hinweis = tr(Str::PhRolloutHint)})) { return; }
+    if (!ui::rolloutBeginn(tr(Str::PhRollout), {.zu = true, .reiter = modellAnimReiter(false, ui::kReiterStandard), .hinweis = tr(Str::PhRolloutHint)})) { return; }
     t.physikRolloutBild = ImGui::GetFrameCount();
     const modell::PhysikEinstellung* ep = modellPhysikEinstellung();
     const modell::PhysikEinstellung e = ep != nullptr ? *ep : modell::PhysikEinstellung{};

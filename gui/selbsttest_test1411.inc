@@ -18,6 +18,11 @@
 //      Abrollen um die Zehe hebt die Ferse
 //   C  Load .gla... oeffnet die Liste der .gla aus den pk3 (wie Other GLA...), Klick laedt; Open file... fuer eine lose .gla
 //   fotos  Fotos fuer D, I, H (BHED_FOTOS)
+//   N  Motion-Feld mit Setup-/Animationsmodus wie CAT: Gruppen je Modus, Setup-Pose, kein Schluessel im Setup-Modus, Tasten, Blender
+//   O  Painting: ein Strich ueber Rumpf und Gesicht malt in beide Bilder, Strg+Z nimmt beide, Ziel folgt (Explorer, Alt+Klick, Vorschaubilder), Nur Ziel, Bauen
+//   P  Weights wie Skin: Ecke klicken, Liste des Weight Tools, Wert tippen, Mirror Paste, Copy/Paste, Weight Table, Backface Cull, Format des Spiels, Blender
+//   A  Load mission ohne pk3-Dialog: Liste des Spiels nach Archiv, Filter auf Archiv, Laden -> zuletzt geoeffnet, Ordner/Archiv oeffnen, nichts eingerichtet
+//   E  Sequenzen als eigener Reiter: Baum ohne Ast, Strg+F + Suche, Gruppe, Sortieren, Klick/Rechtsklick, Zeigen
 //   F  Zeitleiste: die Knoepfe rechts der Bildanzeige stehen still, wenn die Bildzahl waechst (0, 9, 10, 99, 100, letztes Bild der
 //      laengsten Sequenz - unter Movie Duels BOTH_MD_CIN_51 mit 660 Bildern)
 // Eingebunden in selbsttest.cpp (am Ende der Modell-Block-Gruppen).
@@ -1696,6 +1701,891 @@ void fSchritte(std::vector<Schritt>& s) {
     }));
 }
 
+// --- N: Motion-Feld mit Setup- und Animationsmodus wie CAT --------------------------------------------------------------------------
+// Rot (vor TEST1411 N): das Motion-Feld zeigte alle 17 Gruppen untereinander (Foto 26 von shank; ap10 A14 zaehlte sie als Soll).
+
+struct NStand {
+    bool vorgabeAnimation = false;
+    bool schalterDa = false;
+    std::string gruppenAnimation;
+    std::string gruppenSetup;
+    std::string gruppenAnzeige;
+    std::string gruppenHierarchie;
+    int zahlAnimation = 0;
+    int zahlSetup = 0;
+    bool setupPose = false;
+    bool keinGizmo = false;
+    int schluesselVorher = -1;
+    int schluesselSetup = -1;
+    int schluesselAnimation = -1;
+    bool meldungSetup = false;
+    bool statusSetup = false;
+    bool tasteSetup = false;
+    bool tasteAnimation = false;
+    bool posePose = false;
+    bool aktionDa = false;
+    bool blEdit = false;
+    bool blPose = false;
+};
+
+int nSchluessel() {
+    const modell::RigSchicht* sch = modellRigSchichtJetzt();
+    return sch != nullptr ? sch->schluesselZahl() : 0;
+}
+
+bool nIn(const std::string& liste, Str t) { return ("|" + liste + "|").find("|" + std::string(tr(t)) + "|") != std::string::npos; }
+
+void nSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<NStand>();
+    add(tu("T1411 N: wie 3ds Max, Bereich Animation, Reiter Motion, eine Ansicht", [st] {
+        modellBedienungSetzen(0);
+        mtab().bereich = ModellBereich::Animation;
+        mtab().vierAnsichten = false;
+        mtab().griffWahl = -1;
+        mtab().knochenWahl = -1;
+        g_app->animPlaying = false;
+        const int q = sequenz("SBD_WALK_NORMAL");
+        if (q >= 0) {
+            animWaehlen(q, false);
+            g_app->animFrame = g_app->animList[uz(q)].firstFrame + 3;
+        }
+        modellFeldReiter(MbReiter::Bewegung, MbReiterBl::Knochen);
+        st->vorgabeAnimation = !modellAnimSetupGewaehlt();
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.5));
+    add(tu("T1411 N: Gruppen im Animationsmodus", [st] {
+        st->gruppenAnimation = ap10::gruppen();
+        st->zahlAnimation = ui::rolloutProbeZahl();
+        st->schalterDa = finde(tr(Str::T1nSetup), "mtrollouts", 0, false) != nullptr && finde(tr(Str::T1nAnimation), "mtrollouts", 0, false) != nullptr;
+        st->posePose = !modell::bindepose(g_app->anim.bones, g_app->modellWelt);
+        melde("N Animationsmodus (" + std::to_string(st->zahlAnimation) + "): " + st->gruppenAnimation);
+    }));
+    add(foto("t1411_n_animationsmodus"));
+    add(klick(tr(Str::T1nSetup), "mtrollouts"));
+    add(pause(0.5));
+    add(tu("T1411 N: Gruppen im Setup-Modus", [st] {
+        st->gruppenSetup = ap10::gruppen();
+        st->zahlSetup = ui::rolloutProbeZahl();
+        st->setupPose = modellAnimSetupGewaehlt() && modell::bindepose(g_app->anim.bones, g_app->modellWelt);
+        st->statusSetup = zp().auswahlText.find(tr(Str::T1nSetup)) != std::string::npos;
+        melde("N Setup-Modus (" + std::to_string(st->zahlSetup) + "): " + st->gruppenSetup + " - Statuszeile: " + zp().auswahlText);
+    }));
+    add(tu("T1411 N: Maus in die Ansicht (kein Tooltip im Foto)", [] { setzeMaus(ansichtMitte()); }));
+    add(pause(0.4));
+    add(foto("t1411_n_setupmodus"));
+    add(tu("T1411 N: Knochen lhumerus waehlen", [] {
+        mtab().griffWahl = -1;
+        mtab().knochenWahl = boneIndex(g_app->anim, "lhumerus");
+        mtab().gizmo = 2;
+        mtab().meldung.clear();
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.3));
+    add(tu("T1411 N: Schluessel vorher, Gizmo", [st] {
+        st->schluesselVorher = nSchluessel();
+        float m[3];
+        st->keinGizmo = !modellAnimKnochenMitte(m) && !modellRigGriffMitte(m);
+    }));
+    add(taste(ImGuiKey_K, "K (Set Key) im Setup-Modus"));
+    add(pause(0.3));
+    add(tu("T1411 N: Schluessel nach K im Setup-Modus", [st] {
+        st->schluesselSetup = nSchluessel();
+        st->meldungSetup = mtab().meldung.find(tr(Str::T1nSetup)) != std::string::npos;
+        melde("N K im Setup-Modus: Schluessel " + std::to_string(st->schluesselVorher) + " -> " + std::to_string(st->schluesselSetup) + ", Meldung: " + mtab().meldung);
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_M, "Strg+Umschalt+M"));
+    add(pause(0.4));
+    add(tu("T1411 N: Animationsmodus nach Strg+Umschalt+M", [st] { st->tasteAnimation = !modellAnimSetupGewaehlt(); }));
+    add(taste(ImGuiKey_K, "K (Set Key) im Animationsmodus"));
+    add(pause(0.3));
+    add(tu("T1411 N: Schluessel nach K im Animationsmodus", [st] {
+        st->schluesselAnimation = nSchluessel();
+        melde("N K im Animationsmodus: Schluessel " + std::to_string(st->schluesselAnimation));
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_M, "Strg+Umschalt+M"));
+    add(pause(0.3));
+    add(tu("T1411 N: Setup nach Strg+Umschalt+M, Reiter Anzeige und Hierarchie", [st] {
+        st->tasteSetup = modellAnimSetupGewaehlt();
+        modellAnimSetupSetzen(false);
+        modellFeldReiter(MbReiter::Anzeige, MbReiterBl::Daten);
+    }));
+    add(pause(0.4));
+    add(tu("T1411 N: Gruppen im Reiter Anzeige", [st] {
+        st->gruppenAnzeige = ap10::gruppen();
+        modellFeldReiter(MbReiter::Hierarchie, MbReiterBl::Constraints);
+    }));
+    add(pause(0.4));
+    add(tu("T1411 N: Gruppen im Reiter Hierarchie (Animationsmodus)", [st] {
+        st->gruppenHierarchie = ap10::gruppen();
+        for (int i = 0; i < modellRigAktionZahl(); ++i) {
+            st->aktionDa = st->aktionDa || (std::string(modellRigAktionText(i)) == tr(Str::T1nUmschalten) && std::string(modellRigAktionTaste(i, false)) == "Ctrl+Shift+M" &&
+                                            std::string(modellRigAktionTaste(i, true)) == "Tab");
+        }
+        melde("N Anzeige: " + st->gruppenAnzeige + " - Hierarchie: " + st->gruppenHierarchie);
+        modellFeldReiter(MbReiter::Bewegung, MbReiterBl::Knochen);
+        modellBedienungSetzen(1);
+    }));
+    add(pause(0.5));
+    add(taste(ImGuiKey_Tab, "Tab (Blender: Edit Mode der Armatur)"));
+    add(pause(0.4));
+    add(tu("T1411 N: Blender Edit Mode", [st] { st->blEdit = modellAnimSetupGewaehlt() && std::string(modellBlModusName(ModellBereich::Animation)) == tr(Str::MbBlEditModus); }));
+    add(foto("t1411_n_blender_edit"));
+    add(taste(ImGuiKey_Tab, "Tab (Blender: Pose Mode)"));
+    add(pause(0.4));
+    add(tu("T1411 N: Blender Pose Mode, zurueck wie 3ds Max", [st] {
+        st->blPose = !modellAnimSetupGewaehlt() && std::string(modellBlModusName(ModellBereich::Animation)) == tr(Str::BzModusPose);
+        modellBedienungSetzen(0);
+        mtab().knochenWahl = -1;
+        mtab().gizmo = 0;
+    }));
+    add(pause(0.3));
+    add(pruefe("T1411 N: nach dem Laden einer Figur mit Animation steht das Motion-Feld im Animationsmodus, oben der Schalter Setup-/Animationsmodus",
+               [st] { return st->vorgabeAnimation && st->schalterDa; }));
+    add(pruefe("T1411 N: Animationsmodus - Sequenz, Vorlagen, Bearbeiten, Uebertragen, IK/FK, Pose, Pfade, Kurven, Posen-Bibliothek; nichts zum Aufbauen; hoechstens 10 von 17 Gruppen",
+               [st] {
+                   const auto& g = st->gruppenAnimation;
+                   return nIn(g, Str::AzRAnimation) && nIn(g, Str::PrRollout) && nIn(g, Str::AzRBearbeiten) && nIn(g, Str::AzRUebertragen) && nIn(g, Str::MbIkRollout) &&
+                          nIn(g, Str::MbRgGruppePose) && nIn(g, Str::MbRgPfade) && nIn(g, Str::MbKvRollout) && nIn(g, Str::MbKvGruppeBibliothek) && !nIn(g, Str::AzRRig) &&
+                          !nIn(g, Str::AzRBauen) && !nIn(g, Str::MbRGla) && !nIn(g, Str::MbRCfg) && !nIn(g, Str::AzRAnbauten) && !nIn(g, Str::MbRgGhosts) && !nIn(g, Str::KdGruppe) &&
+                          st->zahlAnimation <= 10;
+               }));
+    add(pruefe("T1411 N: Setup-Modus - Rig erstellen, Anbauten, Fuer das Spiel bauen, GLA, animation.cfg; keine Gruppe zum Animieren; hoechstens die Haelfte der Gruppen",
+               [st] {
+                   const auto& g = st->gruppenSetup;
+                   return nIn(g, Str::AzRRig) && nIn(g, Str::AzRAnbauten) && nIn(g, Str::AzRBauen) && nIn(g, Str::MbRGla) && nIn(g, Str::MbRCfg) && !nIn(g, Str::AzRAnimation) &&
+                          !nIn(g, Str::MbIkRollout) && !nIn(g, Str::MbRgGruppePose) && !nIn(g, Str::MbKvRollout) && st->zahlSetup <= 8;
+               }));
+    add(pruefe("T1411 N: Ghosts und Knochen- und Rig-Darstellung stehen wie in 3ds Max im Reiter Anzeige; Rig erstellen bleibt im Reiter Hierarchie erreichbar",
+               [st] { return nIn(st->gruppenAnzeige, Str::MbRgGhosts) && nIn(st->gruppenAnzeige, Str::KdGruppe) && nIn(st->gruppenHierarchie, Str::AzRRig); }));
+    add(pruefe("T1411 N: im Setup-Modus steht die Figur in der Setup-Pose (Grundstellung der GLA), im Animationsmodus in der Pose der Sequenz",
+               [st] {
+                   melde("N Pose: Setup " + std::to_string(st->setupPose ? 1 : 0) + ", Animation " + std::to_string(st->posePose ? 1 : 0));
+                   return st->setupPose && st->posePose;
+               }));
+    add(pruefe("T1411 N: im Setup-Modus kein Gizmo am Knochen, K setzt keinen Schluessel und sagt warum", [st] {
+        return st->keinGizmo && st->schluesselSetup == st->schluesselVorher && st->meldungSetup;
+    }));
+    add(pruefe("T1411 N: im Animationsmodus setzt K den Schluessel", [st] { return st->schluesselAnimation > st->schluesselVorher; }));
+    add(pruefe("T1411 N: die Statuszeile nennt den Setup-Modus", [st] { return st->statusSetup; }));
+    add(pruefe("T1411 N: Strg+Umschalt+M schaltet um (beide Richtungen), die Aktion steht im Menue und in der Suche mit Taste (Blender Tab)",
+               [st] { return st->tasteAnimation && st->tasteSetup && st->aktionDa; }));
+    add(pruefe("T1411 N: wie Blender schaltet Tab Edit Mode / Pose Mode der Armatur, der Kopf der Ansicht nennt den Modus", [st] { return st->blEdit && st->blPose; }));
+}
+
+// --- O: Painting - die Ziel-Textur folgt der Flaeche unter dem Pinsel -------------------------------------------------------------
+// Rot (vor TEST1411 O): ein Strich vom Rumpf zum Gesicht malte nur in das Bild, auf dem er begann (tupferAn lieferte -1 fuer jedes
+// Dreieck eines anderen Bilds); der Schalter "Nur Ziel-Textur bemalen" stellt genau diesen Weg her und dient hier als Gegenprobe.
+
+struct OStand {
+    std::string shaderA, shaderB;
+    std::vector<std::string> bemaltStrich, bemaltNachUndo, bemaltNurZiel;
+    int gruppeNachStrich = -1, gruppeExplorer = -1, gruppeAlt = -1, gruppeVorschau = -1;
+    int vorschauZahl = 0;
+    int gebaut = -1;
+    int dateien = -1;
+    int strichBilder = 0;
+};
+
+std::vector<std::string> oBemalt() {
+    std::vector<std::string> v;
+    for (const auto& [datei, bemalt] : modellMalenBildStaende()) {
+        if (bemalt) { v.push_back(datei); }
+    }
+    return v;
+}
+
+std::string oListe(const std::vector<std::string>& v) {
+    std::string s;
+    for (const std::string& x : v) { s += (s.empty() ? "" : ", ") + x; }
+    return s.empty() ? "-" : s;
+}
+
+// ein Strich in der aktiven Ansicht von der Mitte der Flaeche a zur Mitte der Flaeche b (20 Bilder, linke Taste)
+Schritt oStrich(const std::string& was, const char* a, const char* b) {
+    auto p = std::make_shared<std::pair<ImVec2, ImVec2>>();
+    return Schritt{"T1411 O: Strich " + was, [=](int k) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       if (k == 0) {
+                           *p = {flaechenPunkt(a), flaechenPunkt(b)};
+                           setzeMaus(p->first);
+                           return false;
+                       }
+                       if (k == 2) {
+                           io.AddMouseButtonEvent(0, true);
+                           return false;
+                       }
+                       if (k >= 3 && k <= 22) {
+                           const float f = static_cast<float>(k - 2) / 20.0F;
+                           setzeMaus(ImVec2{p->first.x + (p->second.x - p->first.x) * f, p->first.y + (p->second.y - p->first.y) * f});
+                           return false;
+                       }
+                       if (k == 23) {
+                           io.AddMouseButtonEvent(0, false);
+                           return false;
+                       }
+                       return k >= 27;
+                   }};
+}
+
+void oSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<OStand>();
+    add(tu("T1411 O: wie 3ds Max, Bereich Painting, eine Ansicht von vorn, Pinsel", [st] {
+        modellBedienungSetzen(0);
+        ModellTab& t = mtab();
+        t.bereich = ModellBereich::Painting;
+        t.auswahl.clear();
+        t.malen.nurZiel = false;
+        t.malen.werkzeug = 0;
+        t.malen.radiusPx = 18.0F;
+        t.malen.pinsel.farbe = {1.0F, 0.0F, 0.0F, 1.0F};
+        const int a = teil("torso");
+        const int b = teil("head_face");
+        st->shaderA = a >= 0 ? t.anzeige.surfaces[uz(a)].shader : std::string("?");
+        st->shaderB = b >= 0 ? t.anzeige.surfaces[uz(b)].shader : std::string("?");
+        melde("O Flaechen: torso " + st->shaderA + ", head_face " + st->shaderB);
+    }));
+    add(pause(0.4));
+    add(tu("T1411 O: eine Ansicht von vorn", [] {
+        mtab().vierAnsichten = false;
+        mtab().aktiv = 3;
+        mtab().ansichten[3].art = AnsichtArt::Vorne;
+        modellAnsichtEinpassenAktiv();
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.6));
+    add(oStrich("vom Rumpf zum Gesicht", "torso", "head_face"));
+    add(pause(0.3));
+    add(tu("T1411 O: bemalte Bilder nach dem Strich", [st] {
+        st->bemaltStrich = oBemalt();
+        st->gruppeNachStrich = mtab().malen.gruppe;
+        st->strichBilder = mtab().malen.strichBilder;
+        melde("O Strich: bemalt " + oListe(st->bemaltStrich) + ", Ziel danach Gruppe " + std::to_string(st->gruppeNachStrich) + ", Bilder im Strich " +
+              std::to_string(st->strichBilder));
+    }));
+    add(foto("t1411_o_strich_zwei_bilder"));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.3));
+    add(tu("T1411 O: nach Strg+Z", [st] {
+        st->bemaltNachUndo = oBemalt();
+        melde("O nach Strg+Z: bemalt " + oListe(st->bemaltNachUndo));
+        mtab().auswahl = {teil("torso")};   // wie ein Klick auf die Flaeche im Szenen-Explorer
+    }));
+    add(pause(0.3));
+    add(tu("T1411 O: Ziel nach der Auswahl im Explorer", [st] {
+        st->gruppeExplorer = mtab().malen.gruppe;
+        mtab().auswahl.clear();
+    }));
+    add(klickAn("T1411 O: Alt+Klick auf das Gesicht", [] {
+        ImGui::GetIO().AddKeyEvent(ImGuiMod_Alt, true);
+        ImGui::GetIO().AddKeyEvent(ImGuiKey_LeftAlt, true);
+        return flaechenPunkt("head_face");
+    }));
+    add(tu("T1411 O: Alt los, Ziel nach Alt+Klick", [st] {
+        ImGui::GetIO().AddKeyEvent(ImGuiKey_LeftAlt, false);
+        ImGui::GetIO().AddKeyEvent(ImGuiMod_Alt, false);
+        st->gruppeAlt = mtab().malen.gruppe;
+        st->vorschauZahl = static_cast<int>(mtab().malen.vorschauKaesten.size());
+    }));
+    add(tu("T1411 O: das Befehlsfeld nach oben (Rollout Ziel mit den Vorschaubildern)", [] {
+        if (ImGuiWindow* w = mbefoto::kindFenster("mtrollouts")) { ImGui::SetScrollY(w, 0.0F); }
+    }));
+    add(pause(0.3));
+    add(klickAn("T1411 O: Klick auf das Vorschaubild des Rumpfs", [st] {
+        const auto& k = mtab().malen.vorschauKaesten;
+        return st->gruppeExplorer >= 0 && uz(st->gruppeExplorer) < k.size() ? k[uz(st->gruppeExplorer)].GetCenter() : ImVec2{0.0F, 0.0F};
+    }));
+    add(pause(0.3));
+    add(tu("T1411 O: Ziel nach dem Vorschaubild; Nur Ziel-Textur bemalen an", [st] {
+        st->gruppeVorschau = mtab().malen.gruppe;
+        mtab().malen.nurZiel = true;
+        melde("O Ziel: nach dem Strich " + std::to_string(st->gruppeNachStrich) + ", Explorer " + std::to_string(st->gruppeExplorer) + ", Alt+Klick " +
+              std::to_string(st->gruppeAlt) + ", Vorschaubild " + std::to_string(st->gruppeVorschau) + ", " + std::to_string(st->vorschauZahl) + " Vorschaubilder");
+    }));
+    add(tu("T1411 O: Maus in die Ansicht, Befehlsfeld oben", [] {
+        setzeMaus(ansichtMitte());
+        if (ImGuiWindow* w = mbefoto::kindFenster("mtrollouts")) { ImGui::SetScrollY(w, 0.0F); }
+    }));
+    add(pause(0.3));
+    add(foto("t1411_o_ziel_vorschaubilder"));
+    add(oStrich("vom Rumpf zum Gesicht, nur Ziel", "torso", "head_face"));
+    add(pause(0.3));
+    add(tu("T1411 O: bemalt mit Nur Ziel", [st] {
+        st->bemaltNurZiel = oBemalt();
+        melde("O Nur Ziel: bemalt " + oListe(st->bemaltNurZiel));
+        mtab().malen.nurZiel = false;
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.3));
+    add(oStrich("vom Rumpf zum Gesicht (fuer das Bauen)", "torso", "head_face"));
+    add(pause(0.3));
+    add(tu("T1411 O: Fuer das Spiel bauen in den Laufordner", [st] {
+        const std::string ordner = std::filesystem::current_path().string() + "\\t1411_o_bauen";
+        std::error_code ec;
+        std::filesystem::remove_all(ordner, ec);
+        std::snprintf(mtab().malen.ordner, sizeof mtab().malen.ordner, "%s", ordner.c_str());
+        st->gebaut = modellMalenBauen();
+        int n = 0;
+        for (const auto& e : std::filesystem::recursive_directory_iterator(ordner, ec)) { n += e.is_regular_file() ? 1 : 0; }
+        st->dateien = n;
+        mtab().malen.ordner[0] = '\0';
+        melde("O gebaut: " + std::to_string(st->gebaut) + " Bilder, " + std::to_string(st->dateien) + " Dateien");
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
+    add(pause(0.3));
+    add(tu("T1411 O: zurueck", [] {
+        mtab().ansichten[3].art = AnsichtArt::Perspektive;
+        modellAnsichtEinpassenAktiv();
+        mtab().bereich = ModellBereich::Ansehen;
+    }));
+    add(pause(0.3));
+    const auto mitName = [](const std::vector<std::string>& v, const char* teilName) {
+        for (const std::string& x : v) {
+            if (klein(x).find(teilName) != std::string::npos) { return true; }
+        }
+        return false;
+    };
+    add(pruefe("T1411 O: ein Strich vom Rumpf zum Gesicht malt in jedes Bild unter dem Pinsel (Rumpf, Kopf, Gesicht; Rot vorher: nur das erste)", [st, mitName] {
+        return st->bemaltStrich.size() >= 2U && mitName(st->bemaltStrich, "torso") && mitName(st->bemaltStrich, "face") &&
+               st->strichBilder == static_cast<int>(st->bemaltStrich.size());
+    }));
+    add(pruefe("T1411 O: ein Strg+Z nimmt den ganzen Strich zurueck - beide Bilder wie geladen", [st] { return st->bemaltNachUndo.empty(); }));
+    add(pruefe("T1411 O: das Ziel folgt der zuletzt bemalten Flaeche, der Explorer-Klick und Alt+Klick waehlen die Textur der Flaeche", [st] {
+        return st->gruppeNachStrich >= 0 && st->gruppeAlt == st->gruppeNachStrich && st->gruppeExplorer >= 0 && st->gruppeExplorer != st->gruppeNachStrich;
+    }));
+    add(pruefe("T1411 O: im Rollout Ziel stehen die Bilder als Vorschaubilder, ein Klick waehlt", [st] { return st->vorschauZahl >= 2 && st->gruppeVorschau == st->gruppeExplorer; }));
+    add(pruefe("T1411 O: Nur Ziel-Textur bemalen haelt den Strich im Ziel (der Weg bis rc612)", [st, mitName] {
+        return st->bemaltNurZiel.size() == 1U && mitName(st->bemaltNurZiel, "torso");
+    }));
+    add(pruefe("T1411 O: Fuer das Spiel bauen schreibt genau die bemalten Bilder (die anderen bleiben das Original)", [st] {
+        return st->gebaut == static_cast<int>(st->bemaltStrich.size()) && st->dateien == st->gebaut;
+    }));
+}
+
+// --- P: Weights wie der Skin-Modifier von 3ds Max ---------------------------------------------------------------------------------
+// Rot (vor TEST1411 P): im Rollout Weight tool stand zuoberst "Paint weights"; wie man Ecken waehlt, stand nirgends (nur Unterobjekt-Ebene 1
+// bzw. Rechtsklick), es gab keine Liste der Knochen einer Ecke, keine Weight Table, kein Copy/Paste und kein "Mirror Paste" (Foto 28).
+
+struct PStand {
+    bool eckenAn = false;
+    int ecken = 0;
+    int punkt = -1;
+    int partner = -1;
+    modell::GewichtListe liste;
+    float summe = 0.0F;
+    int knochen = -1;
+    bool knochenGewaehlt = false;
+    float gesetzt = -1.0F;
+    float summeNach = 0.0F;
+    bool gespiegelt = false;
+    bool eingefuegt = false;
+    bool tabelle = false;
+    int rahmenAlle = 0;
+    int rahmenVorn = 0;
+    bool spielFormat = false;
+    bool blender = false;
+};
+
+modell::GewichtListe pListe(int punkt) {
+    const ModellGewichte& g = modellGewichte();
+    if (punkt < 0 || punkt >= g.netz.zahl()) { return {}; }
+    return modell::punktGewichte(mtab().dok.inhalt(), mtab().lodJetzt, g.netz.ecken[uz(punkt)].front());
+}
+
+float pIn(const modell::GewichtListe& l, int k) {
+    for (const modell::KnochenGewicht& g : l) {
+        if (g.knochen == k) { return g.gewicht; }
+    }
+    return 0.0F;
+}
+
+float pSumme(const modell::GewichtListe& l) {
+    float s = 0.0F;
+    for (const modell::KnochenGewicht& g : l) { s += g.gewicht; }
+    return s;
+}
+
+// ein Rahmen ueber die ganze aktive Ansicht (linke Taste)
+Schritt pRahmen(const std::string& was) {
+    auto p = std::make_shared<std::pair<ImVec2, ImVec2>>();
+    return Schritt{"T1411 P: Rahmen " + was, [=](int k) {
+                       ImGuiIO& io = ImGui::GetIO();
+                       if (k == 0) {
+                           const ModellAnsicht& a = mtab().ansichten[mtab().aktiv];
+                           *p = {ImVec2{a.lo[0] + 40.0F, a.lo[1] + 60.0F}, ImVec2{a.lo[0] + a.groesse[0] - 40.0F, a.lo[1] + a.groesse[1] - 40.0F}};
+                           setzeMaus(p->first);
+                           return false;
+                       }
+                       if (k == 2) {
+                           io.AddMouseButtonEvent(0, true);
+                           return false;
+                       }
+                       if (k >= 3 && k <= 12) {
+                           const float f = static_cast<float>(k - 2) / 10.0F;
+                           setzeMaus(ImVec2{p->first.x + (p->second.x - p->first.x) * f, p->first.y + (p->second.y - p->first.y) * f});
+                           return false;
+                       }
+                       if (k == 13) {
+                           io.AddMouseButtonEvent(0, false);
+                           return false;
+                       }
+                       return k >= 17;
+                   }};
+}
+
+void pSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<PStand>();
+    add(tu("T1411 P: wie 3ds Max, Bereich Weights, eine Ansicht von vorn", [] {
+        modellBedienungSetzen(0);
+        ModellTab& t = mtab();
+        t.bereich = ModellBereich::Weights;
+        t.eckenWahl.clear();
+        t.knochenWahl = -1;
+        modellGewichte().rueckseitenAus = false;
+        modellGewichte().tabelleOffen = false;
+    }));
+    add(pause(0.4));
+    add(tu("T1411 P: eine Ansicht von vorn", [] {
+        mtab().vierAnsichten = false;
+        mtab().aktiv = 3;
+        mtab().ansichten[3].art = AnsichtArt::Vorne;
+        modellAnsichtEinpassenAktiv();
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.6));
+    add(klick(tr(Str::T1pEcken), "mtrollouts"));
+    add(pause(0.3));
+    add(tu("T1411 P: Ecken an?", [st] { st->eckenAn = !modellGewichte().malen && mtab().auswahlArt == AuswahlArt::Ecke; }));
+    add(klickAn("T1411 P: Klick auf eine Ecke von l_arm", [] {
+        // die Ecke von l_arm, die der Mitte ihres groessten Dreiecks am Schirm am naechsten liegt
+        const int i = teil("l_arm");
+        const ImVec2 m = flaechenPunkt("l_arm");
+        const auto& h = modellHaut();
+        ImVec2 best = m;
+        float bd = 1e30F;
+        if (i >= 0 && uz(i) < h.size()) {
+            for (const auto& e : h[uz(i)]) {
+                ImVec2 sp;
+                if (!modellAufSchirm(mtab().ansichten[mtab().aktiv], e.data(), sp)) { continue; }
+                const float d = (sp.x - m.x) * (sp.x - m.x) + (sp.y - m.y) * (sp.y - m.y);
+                if (d < bd) {
+                    bd = d;
+                    best = sp;
+                }
+            }
+        }
+        return best;
+    }));
+    add(pause(0.4));
+    add(tu("T1411 P: gewaehlte Ecke und die Liste des Weight Tools", [st] {
+        ModellGewichte& g = modellGewichte();
+        modellGewichteSpiegelStand();
+        st->ecken = static_cast<int>(mtab().eckenWahl.size());
+        if (!mtab().eckenWahl.empty()) {
+            const modell::EckOrt o = mtab().eckenWahl.front();
+            if (uz(o.teil) < g.netz.punktVon.size() && uz(o.ecke) < g.netz.punktVon[uz(o.teil)].size()) { st->punkt = g.netz.punktVon[uz(o.teil)][uz(o.ecke)]; }
+        }
+        st->partner = st->punkt >= 0 && uz(st->punkt) < g.partner.size() ? g.partner[uz(st->punkt)] : -1;
+        st->liste = g.listeGezeigt;
+        st->summe = pSumme(st->liste);
+        st->knochen = st->liste.empty() ? -1 : st->liste.front().knochen;
+        std::string z;
+        for (const modell::KnochenGewicht& kg : st->liste) { z += g_app->anim.bones[uz(kg.knochen)].name + " " + std::to_string(kg.gewicht) + "; "; }
+        melde("P Ecken " + std::to_string(st->ecken) + ", Punkt " + std::to_string(st->punkt) + ", Partner " + std::to_string(st->partner) + ", Liste: " + z);
+    }));
+    add(foto("t1411_p_ecke_weight_tool"));
+    add(klickAn("T1411 P: Klick auf den ersten Knochen der Liste", [st] {
+        const Element* e = st->knochen >= 0 ? finde(g_app->anim.bones[uz(st->knochen)].name, "mtrollouts", 0, false) : nullptr;
+        return e != nullptr ? e->rect.GetCenter() : ImVec2{0.0F, 0.0F};
+    }));
+    add(pause(0.3));
+    add(tu("T1411 P: Knochen gewaehlt?", [st] { st->knochenGewaehlt = st->knochen >= 0 && mtab().knochenWahl == st->knochen; }));
+    add(klickAn("T1411 P: in das Feld des Gewichts", [] {
+        const Element* e = finde("##t1pwert", "mtrollouts", 0, false);
+        return e != nullptr ? e->rect.GetCenter() : ImVec2{0.0F, 0.0F};
+    }));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_A, "Strg+A"));
+    add(tippe("0.6"));
+    add(taste(ImGuiKey_Enter, "Enter"));
+    add(pause(0.3));
+    add(tu("T1411 P: Gewicht nach dem Tippen", [st] {
+        const modell::GewichtListe l = pListe(st->punkt);
+        st->gesetzt = pIn(l, st->knochen);
+        st->summeNach = pSumme(l);
+        melde("P getippt: " + std::to_string(st->gesetzt) + ", Summe " + std::to_string(st->summeNach));
+    }));
+    add(ap3::insFeld(tr(Str::T1pSpiegelPaste)));
+    add(klick(tr(Str::T1pSpiegelPaste), "mtrollouts"));
+    add(pause(0.3));
+    add(tu("T1411 P: Gegenseite nach Mirror Paste", [st] {
+        const modell::GewichtListe a = pListe(st->punkt);
+        const modell::GewichtListe b = pListe(st->partner);
+        std::vector<std::string> namen;
+        for (const GlaBone& k : g_app->anim.bones) { namen.push_back(k.name); }
+        bool ok = st->partner >= 0 && st->partner != st->punkt && !a.empty();
+        std::string z;
+        for (const modell::KnochenGewicht& kg : a) {
+            const int gegen = modell::spiegelKnochen(namen, kg.knochen);
+            const float w = pIn(b, gegen >= 0 ? gegen : kg.knochen);
+            z += namen[uz(kg.knochen)] + " " + std::to_string(kg.gewicht) + " -> " + std::to_string(w) + "; ";
+            ok = ok && std::fabs(w - kg.gewicht) < 0.002F;
+        }
+        st->gespiegelt = ok;
+        melde("P Mirror Paste: " + z);
+    }));
+    add(ap3::insFeld(tr(Str::T1pKopieren)));
+    add(klick(tr(Str::T1pKopieren), "mtrollouts"));
+    add(pause(0.2));
+    add(tu("T1411 P: die Gegenseite waehlen", [st] {
+        const ModellGewichte& g = modellGewichte();
+        if (st->partner >= 0 && st->partner < g.netz.zahl()) { mtab().eckenWahl = {g.netz.ecken[uz(st->partner)].front()}; }
+    }));
+    add(pause(0.3));
+    add(ap3::insFeld(tr(Str::T1pEinfuegen)));
+    add(klick(tr(Str::T1pEinfuegen), "mtrollouts"));
+    add(pause(0.3));
+    add(tu("T1411 P: nach Paste traegt die Gegenseite dieselbe Liste", [st] {
+        const modell::GewichtListe a = pListe(st->punkt);
+        const modell::GewichtListe b = pListe(st->partner);
+        bool ok = !a.empty() && a.size() == b.size();
+        for (const modell::KnochenGewicht& kg : a) { ok = ok && std::fabs(pIn(b, kg.knochen) - kg.gewicht) < 1e-6F; }
+        st->eingefuegt = ok;
+    }));
+    add(ap3::insFeld(tr(Str::T1pTabelle)));
+    add(klick(tr(Str::T1pTabelle), "mtrollouts"));
+    add(pause(0.5));
+    add(tu("T1411 P: Weight Table", [st] {
+        const ModellGewichte& g = modellGewichte();
+        st->tabelle = g.tabelleSichtbar && g.tabelleZeilen == 1 && g.tabelleSpalten == static_cast<int>(pListe(st->partner).size());
+        melde("P Weight Table: sichtbar " + std::to_string(g.tabelleSichtbar ? 1 : 0) + ", " + std::to_string(g.tabelleZeilen) + " Zeilen, " + std::to_string(g.tabelleSpalten) +
+              " Spalten");
+    }));
+    add(foto("t1411_p_weight_table"));
+    add(tu("T1411 P: Tabelle zu", [] { modellGewichte().tabelleOffen = false; }));
+    add(pRahmen("ueber die ganze Ansicht"));
+    add(pause(0.3));
+    add(tu("T1411 P: Ecken im Rahmen, dann Backface Cull Vertices an", [st] {
+        st->rahmenAlle = static_cast<int>(mtab().eckenWahl.size());
+        modellGewichte().rueckseitenAus = true;
+    }));
+    add(pRahmen("ueber die ganze Ansicht (Rueckseiten aus)"));
+    add(pause(0.3));
+    add(tu("T1411 P: Ecken im Rahmen ohne Rueckseiten; Gewichte uebernehmen (Format des Spiels)", [st] {
+        st->rahmenVorn = static_cast<int>(mtab().eckenWahl.size());
+        modellGewichte().rueckseitenAus = false;
+        melde("P Rahmen: alle " + std::to_string(st->rahmenAlle) + ", ohne Rueckseiten " + std::to_string(st->rahmenVorn));
+        (void)modellUebernehmen();
+    }));
+    add(pause(0.3));
+    add(tu("T1411 P: die Ecke im Format des Spiels", [st] {
+        const ModellGewichte& g = modellGewichte();
+        if (st->punkt < 0 || st->punkt >= g.netz.zahl()) { return; }
+        const modell::EckOrt o = g.netz.ecken[uz(st->punkt)].front();
+        const modell::Netz& n = mtab().dok.inhalt().teile[uz(o.teil)].stufen[uz(mtab().lodJetzt)];
+        const modell::GewichtListe l = modell::listeAus(n.ecken[uz(o.ecke)]);
+        st->spielFormat = !l.empty() && l.size() <= 4U && std::fabs(pSumme(l) - 1.0F) < 2.0F / 1023.0F && n.mal.empty();
+        melde("P Format des Spiels: " + std::to_string(l.size()) + " Gewichte, Summe " + std::to_string(pSumme(l)));
+        mtab().eckenWahl = {o};
+        modellBedienungSetzen(1);
+    }));
+    add(pause(0.6));
+    add(tu("T1411 P: wie Blender das Panel Vertex-Gewichte", [st] {
+        st->blender = ap10::gruppe(Str::T1pBlVertexGewichte) != nullptr && !modellGewichte().listeGezeigt.empty();
+    }));
+    add(foto("t1411_p_blender_vertex_gewichte"));
+    add(tu("T1411 P: zurueck", [] {
+        modellBedienungSetzen(0);
+        mtab().eckenWahl.clear();
+        modellGewichteMalenSetzen(true);
+        modellAuswahlArtSetzen(AuswahlArt::Objekt);
+        mtab().ansichten[3].art = AnsichtArt::Perspektive;
+        modellAnsichtEinpassenAktiv();
+        mtab().bereich = ModellBereich::Ansehen;
+    }));
+    add(pause(0.3));
+    add(pruefe("T1411 P: im Rollout steht die Auswahl wie Skin (Ecken) - ein Klick waehlt eine Ecke statt zu malen", [st] { return st->eckenAn && st->ecken >= 1 && st->punkt >= 0; }));
+    add(pruefe("T1411 P: die Liste des Weight Tools zeigt die Knochen der Ecke, Summe 1", [st] { return !st->liste.empty() && std::fabs(st->summe - 1.0F) < 0.002F; }));
+    add(pruefe("T1411 P: Klick auf den Knochen waehlt ihn, getippt 0,6 steht an der Ecke, die Summe bleibt 1", [st] {
+        return st->knochenGewaehlt && std::fabs(st->gesetzt - 0.6F) < 0.002F && std::fabs(st->summeNach - 1.0F) < 0.002F;
+    }));
+    add(pruefe("T1411 P: Mirror Paste - die Gegenseite traegt dieselben Gewichte auf den gespiegelten Knochen", [st] { return st->gespiegelt; }));
+    add(pruefe("T1411 P: Copy/Paste uebertraegt die Gewichte auf die gewaehlte Ecke", [st] { return st->eingefuegt; }));
+    add(pruefe("T1411 P: die Weight Table zeigt die gewaehlte Ecke mit ihren Knochen", [st] { return st->tabelle; }));
+    add(pruefe("T1411 P: Backface Cull Vertices - der Rahmen nimmt nur die Ecken der Vorderseite", [st] { return st->rahmenVorn > 0 && st->rahmenVorn < st->rahmenAlle; }));
+    add(pruefe("T1411 P: uebernommen traegt die Ecke das Format des Spiels (hoechstens 4 Gewichte, 10 Bit, Summe 1)", [st] { return st->spielFormat; }));
+    add(pruefe("T1411 P: wie Blender steht das Panel Vertex-Gewichte mit der Liste der gewaehlten Ecke", [st] { return st->blender; }));
+}
+
+// --- A: "Mission laden" ohne pk3-Dialog ------------------------------------------------------------------------------------------
+// Rot (vor TEST1411 A, am Code): loadMissionArchive oeffnete den Dateidialog "Game archives (*.pk3)" - im Selbsttest unterdrueckt (wie
+// Abbrechen), die Auswahl ging nicht auf; aus einer Liste ohne gewaehltes Archiv entstand kein Eintrag "zuletzt geoeffnet" (missionArchive
+// leer). Grün: die Auswahl geht ohne Dialog auf, nach Archiv gruppiert, und der Eintrag traegt den vollen Pfad des Archivs der .bsp.
+
+struct AStand {
+    bool offenOhneDialog = false;
+    std::vector<std::string> gruppen;
+    std::vector<std::string> gruppenFilter;
+    std::string filter;
+    std::string mission;
+    std::string archivPfad;
+    std::string zuletzt;
+    bool ordnerSitzung = false;
+    std::vector<std::string> gruppenOrdner;
+    bool nichtsEingerichtet = false;
+    bool archivVorn = false;
+    std::string jaBase;
+};
+
+bool aSucheFertig() { return !g_app->missionsSuche || g_app->missionsSuche->fertig(); }
+
+void aSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<AStand>();
+    add(tu("T1411 A: Map-Tab, Load mission (Menue)", [st] {
+        g_app->missionPickOpen = false;
+        g_app->settings.recentMissions.clear();
+        g_app->leftMode = 1;
+        loadMissionArchive();
+        st->offenOhneDialog = g_app->missionPickOpen && g_app->missionArchive.empty();
+    }));
+    add(warteBis("T1411 A: Missionen des Spiels gelesen", [] { return aSucheFertig(); }, 6000));
+    add(pause(0.6));
+    add(tu("T1411 A: Gruppen", [st] {
+        st->gruppen = g_app->missionsGruppen;
+        std::string z;
+        for (const std::string& g : st->gruppen) { z += g + ", "; }
+        melde("A Gruppen (" + std::to_string(st->gruppen.size()) + "): " + z + " - " + std::to_string(g_app->missions.size()) + " Karten");
+        // der Filter auf einen Teil des Archivnamens der zweiten Gruppe (ohne Endung)
+        if (st->gruppen.size() >= 2U) {
+            std::string f = st->gruppen[1];
+            const std::size_t p = f.find_last_of('.');
+            if (p != std::string::npos) { f.resize(p); }
+            st->filter = f.size() > 4U ? f.substr(f.size() - 4U) : f;
+        }
+    }));
+    add(foto("t1411_a_missionen_gruppen"));
+    add(tu("T1411 A: Filter auf den Archivnamen", [st] { std::snprintf(g_app->missionsFilter, sizeof g_app->missionsFilter, "%s", st->filter.c_str()); }));
+    add(pause(0.5));
+    add(tu("T1411 A: Gruppen mit Filter, Filter leer, erste Mission der ersten Gruppe", [st] {
+        st->gruppenFilter = g_app->missionsGruppen;
+        melde("A Filter \"" + st->filter + "\": " + std::to_string(st->gruppenFilter.size()) + " Gruppen" + (st->gruppenFilter.empty() ? std::string() : ", " + st->gruppenFilter.front()));
+        g_app->missionsFilter[0] = '\0';
+        for (const Mission& m : g_app->missions) {
+            if (!st->gruppen.empty() && m.playable() && m.gruppe == st->gruppen.front()) {
+                st->mission = m.name;
+                st->archivPfad = m.archivPfad;
+                break;
+            }
+        }
+        melde("A Mission " + st->mission + " aus " + st->archivPfad);
+    }));
+    add(pause(0.3));
+    add(tu("T1411 A: Mission in der Liste waehlen", [st] {
+        if (g_app->missionPickOpen && !st->mission.empty()) { schritteEinfuegen({waehleInListe(st->mission, false, 0, "##missionpick")}); }
+    }));
+    add(warteBis("T1411 A: Mission geladen", [] { return !g_app->map.empty() && g_app->camTrackValid; }, 3000));
+    add(tu("T1411 A: zuletzt geoeffnet", [st] {
+        st->zuletzt = g_app->settings.recentMissions.empty() ? std::string() : g_app->settings.recentMissions.front();
+        melde("A zuletzt geoeffnet: " + st->zuletzt);
+        // Ordner oeffnen: ein Ordner, der nicht eingerichtet ist (JKA base), mit der Antwort des ersetzten Ordnerdialogs
+        const char* ja = std::getenv("BHED_JA_PFAD");
+        st->jaBase = ja != nullptr && *ja != '\0' ? std::string(ja) : std::string("C:\\Program Files (x86)\\Steam\\steamapps\\common\\Jedi Academy\\GameData\\base");
+        std::error_code ec;
+        if (!std::filesystem::is_directory(std::filesystem::path(st->jaBase), ec)) { st->jaBase.clear(); }
+        if (!st->jaBase.empty()) {
+            platform::dialogAntwortImSelbsttest(st->jaBase);
+            missionSpielordnerOeffnen();
+        }
+    }));
+    add(warteBis("T1411 A: Missionen des Ordners gelesen", [] { return aSucheFertig(); }, 6000));
+    add(pause(0.5));
+    add(tu("T1411 A: nach Ordner oeffnen", [st] {
+        st->ordnerSitzung = st->jaBase.empty() || (!g_app->sitzungsSpielordner.empty() && g_app->missionPickOpen);
+        st->gruppenOrdner = g_app->missionsGruppen;
+        melde("A Ordner " + (st->jaBase.empty() ? std::string("(JKA nicht da - uebersprungen)") : st->jaBase) + ": Sitzung " +
+              std::to_string(g_app->sitzungsSpielordner.size()) + " Ordner, " + std::to_string(st->gruppenOrdner.size()) + " Gruppen");
+        // zurueck zu den eingerichteten Ordnern
+        setzeSitzungsSpielordner(g_app->settings.gamePaths);
+        g_app->missionPickOpen = false;
+        missionsSucheBeenden();
+    }));
+    add(pause(0.5));
+    {
+        auto weg = std::make_shared<std::vector<GamePath>>();
+        add(tu("T1411 A: Spielordner beiseite, Load mission", [weg] {
+            std::swap(g_app->gamePaths, *weg);
+            loadMissionArchive();
+        }));
+        add(pause(0.5));
+        add(tu("T1411 A: Hinweis und drei Knoepfe", [st, weg] {
+            st->nichtsEingerichtet = g_app->missionPickOpen && g_app->missions.empty() && finde(tr(Str::T1aEinrichten), "", 0, false) != nullptr &&
+                                     finde(tr(Str::T1aOrdnerOeffnen), "", 0, false) != nullptr && finde(tr(Str::T1aArchivOeffnen), "", 0, false) != nullptr;
+        }));
+        add(foto("t1411_a_nichts_eingerichtet"));
+        add(tu("T1411 A: Spielordner zurueck, Archiv oeffnen (ersetzter Dateidialog)", [st, weg] {
+            std::swap(g_app->gamePaths, *weg);
+            if (!st->archivPfad.empty()) { platform::dialogAntwortImSelbsttest(st->archivPfad); }
+        }));
+    }
+    add(klick(tr(Str::T1aArchivOeffnen)));
+    add(warteBis("T1411 A: Missionen gelesen", [] { return aSucheFertig(); }, 6000));
+    add(pause(0.5));
+    add(tu("T1411 A: das Archiv steht vorn", [st] {
+        st->archivVorn = g_app->missionPickOpen && !g_app->missions.empty() && g_app->missions.front().imGewaehlten && g_app->missionArchive == st->archivPfad;
+        g_app->missionPickOpen = false;
+        missionsSucheBeenden();
+        g_app->leftMode = 2;
+    }));
+    add(pause(0.5));
+    add(pruefe("T1411 A: Load mission oeffnet ohne Dateidialog die Missionen des eingerichteten Spiels (kein Archiv gewaehlt)", [st] { return st->offenOhneDialog; }));
+    add(pruefe("T1411 A: die Missionen stehen nach Archiv gruppiert (mindestens zwei Gruppen)", [st] { return st->gruppen.size() >= 2U; }));
+    add(pruefe("T1411 A: der Filter trifft den Archivnamen", [st] {
+        return !st->filter.empty() && !st->gruppenFilter.empty() && st->gruppenFilter.size() < st->gruppen.size() &&
+               std::find(st->gruppenFilter.begin(), st->gruppenFilter.end(), st->gruppen[1]) != st->gruppenFilter.end();
+    }));
+    add(pruefe("T1411 A: aus der Liste geladen steht die Mission in zuletzt geoeffnet - mit dem vollen Pfad des Archivs ihrer .bsp", [st] {
+        return !st->mission.empty() && st->zuletzt == "pk3|" + st->archivPfad + "|" + st->mission && st->archivPfad.find_first_of("/\\") != std::string::npos;
+    }));
+    add(pruefe("T1411 A: Ordner oeffnen (ersetzter Dialog) zeigt die Missionen des Ordners, nur diese Sitzung", [st] { return st->ordnerSitzung; }));
+    add(pruefe("T1411 A: ohne Spielordner geht die Auswahl trotzdem auf - Hinweis und Ordner oeffnen, Archiv oeffnen, Spielordner einrichten", [st] {
+        return st->nichtsEingerichtet;
+    }));
+    add(pruefe("T1411 A: Archiv oeffnen (ersetzter Dialog) - die Missionen des Archivs stehen vorn", [st] { return st->archivVorn; }));
+}
+
+// --- E: Sequenzen als eigener Reiter mit Suche und Spalten ----------------------------------------------------------------------
+// Rot (vor TEST1411 E): die Sequenzen (MD: 2635) waren ein Ast im Baum unter Flaechen/Tags/Knochen, ohne eigene Suche; "SBD_RUNBACK_NORMAL
+// 15 · l..." abgeschnitten (Foto von shank). ap2 X9 pruefte genau diesen Ast (Zeilen des Baums > Zahl der Sequenzen).
+
+struct EStand {
+    int baumZeilen = 0;
+    int baumSequenzen = 0;
+    bool reiter = false;
+    int treffer = 0;
+    bool alleTreffen = false;
+    bool nurBoth = false;
+    bool sortiert = false;
+    int geklickt = -1;
+    bool menue = false;
+    bool zeigen = false;
+};
+
+std::vector<const ExplorerLage*> eZeilen() {
+    std::vector<const ExplorerLage*> v;
+    for (const ExplorerLage& l : modellExplorer().lage) {
+        if (l.art == ExplorerArt::Sequenz) { v.push_back(&l); }
+    }
+    return v;
+}
+
+void eSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<EStand>();
+    add(tu("T1411 E: wie 3ds Max, View/Check, Explorer nach Hierarchie", [] {
+        modellBedienungSetzen(0);
+        mtab().bereich = ModellBereich::Ansehen;
+        modellExplorer().art = 0;
+        modellExplorer().seqGruppe = 0;
+        modellExplorer().seqSuche[0] = '\0';
+    }));
+    add(pause(0.5));
+    add(tu("T1411 E: der Baum ohne den Ast der Sequenzen", [st] {
+        st->baumZeilen = modellExplorer().zeilen;
+        st->baumSequenzen = static_cast<int>(eZeilen().size());
+        melde("E Baum: " + std::to_string(st->baumZeilen) + " Zeilen, " + std::to_string(st->baumSequenzen) + " Sequenzzeilen, " + std::to_string(g_app->animList.size()) +
+              " Sequenzen");
+    }));
+    add(klick(tr(Str::T1eSequenzen), "mtexplorer"));
+    add(pause(0.4));
+    add(tu("T1411 E: Reiter Sequenzen, Maus ueber den Explorer", [st] {
+        st->reiter = modellExplorer().art == 2;
+        if (ImGuiWindow* w = mbefoto::kindFenster("mtexplorer")) { setzeMaus(ImVec2{w->InnerRect.GetCenter().x, w->InnerRect.Max.y - 40.0F}); }
+    }));
+    add(pause(0.2));
+    add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_F, "Strg+F"));
+    add(pause(0.2));
+    add(tippe("walk"));
+    add(pause(0.5));
+    add(tu("T1411 E: Treffer der Suche", [st] {
+        st->treffer = modellExplorer().seqZeilen;
+        bool ok = st->treffer > 0;
+        for (const ExplorerLage* l : eZeilen()) { ok = ok && klein(l->name).find("walk") != std::string::npos; }
+        st->alleTreffen = ok && !eZeilen().empty();
+        melde("E Suche walk: " + std::to_string(st->treffer) + " Treffer, " + std::to_string(eZeilen().size()) + " gezeichnet");
+        modellExplorer().seqGruppe = 1;
+    }));
+    add(pause(0.4));
+    add(tu("T1411 E: Gruppe BOTH", [st] {
+        bool ok = !eZeilen().empty();
+        for (const ExplorerLage* l : eZeilen()) { ok = ok && l->name.rfind("BOTH_", 0) == 0; }
+        st->nurBoth = ok;
+    }));
+    add(foto("t1411_e_sequenzen_liste"));
+    add(klick(tr(Str::T1eBilder), "mtexplorer"));
+    add(pause(0.4));
+    add(tu("T1411 E: nach Bildern sortiert", [st] {
+        const auto v = eZeilen();
+        bool auf = true;
+        bool ab = true;
+        for (std::size_t k = 1; k < v.size(); ++k) {
+            const int a = g_app->animList[uz(v[k - 1]->index)].numFrames;
+            const int b = g_app->animList[uz(v[k]->index)].numFrames;
+            auf = auf && a <= b;
+            ab = ab && a >= b;
+        }
+        st->sortiert = v.size() >= 2U && (auf || ab);
+    }));
+    add(klickAn("T1411 E: Klick auf die zweite Zeile", [st] {
+        const auto v = eZeilen();
+        if (v.size() < 2U) { return ImVec2{0.0F, 0.0F}; }
+        st->geklickt = v[1]->index;
+        return ImVec2{v[1]->xName + 20.0F, (v[1]->y0 + v[1]->y1) * 0.5F};
+    }));
+    add(pause(0.3));
+    add(klickAn("T1411 E: Rechtsklick auf dieselbe Zeile", [st] {
+        for (const ExplorerLage* l : eZeilen()) {
+            if (l->index == st->geklickt) { return ImVec2{l->xName + 20.0F, (l->y0 + l->y1) * 0.5F}; }
+        }
+        return ImVec2{0.0F, 0.0F};
+    }, 1));
+    add(pause(0.3));
+    add(tu("T1411 E: Menue der Sequenz", [st] {
+        st->menue = finde(tr(Str::MbAlsPrimaer), "", 0, false) != nullptr;
+        ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, true);
+    }));
+    add(tu("T1411 E: Esc los, Suche leer, zur gewaehlten Sequenz", [st] {
+        ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, false);
+        modellExplorer().seqSuche[0] = '\0';
+        modellExplorer().seqGruppe = 0;
+        modellExplorer().art = 0;
+        modellExplorerZeigen(ExplorerArt::Sequenz, g_app->animIndex);
+    }));
+    add(pause(0.5));
+    add(tu("T1411 E: die Sequenz steht im Bild", [st] {
+        // die Zeile steht sichtbar im Explorer (nicht nur ausserhalb mitgezeichnet)
+        const ImGuiWindow* w = mbefoto::kindFenster("mtexplorer");
+        for (const ExplorerLage* l : eZeilen()) {
+            st->zeigen = st->zeigen || (l->index == g_app->animIndex && w != nullptr && l->y0 >= w->InnerRect.Min.y && l->y1 <= w->InnerRect.Max.y);
+        }
+        st->zeigen = st->zeigen && modellExplorer().art == 2;
+        modellExplorer().art = 0;
+    }));
+    add(pause(0.3));
+    add(pruefe("T1411 E: der Baum verliert den langen Ast - ein Eintrag Sequenzen, keine Sequenzzeile", [st] {
+        return st->baumSequenzen == 0 && st->baumZeilen < static_cast<int>(g_app->animList.size());
+    }));
+    add(pruefe("T1411 E: Reiter Sequenzen neben By hierarchy | By layers; Strg+F und Tippen filtern sofort (Teilwort, ohne Gross/Klein)", [st] {
+        return st->reiter && st->alleTreffen;
+    }));
+    add(pruefe("T1411 E: die Gruppe (BOTH) bleibt", [st] { return st->nurBoth; }));
+    add(pruefe("T1411 E: Klick auf den Kopf Bilder sortiert", [st] { return st->sortiert; }));
+    add(pruefe("T1411 E: Klick spielt die Sequenz, Rechtsklick zeigt das Menue wie bisher", [st] { return st->geklickt >= 0 && g_app->animIndex == st->geklickt && st->menue; }));
+    add(pruefe("T1411 E: Zeigen (Laden, NPC-Browser) springt in der Liste zur Sequenz", [st] { return st->zeigen; }));
+}
+
 std::vector<Schritt> schritte(const char* nur) {
     std::vector<Schritt> s;
     const std::string n = nur != nullptr ? nur : "";
@@ -1737,6 +2627,11 @@ std::vector<Schritt> schritte(const char* nur) {
     if (abschnitt("m")) { mSchritte(s); }
     if (abschnitt("k")) { kSchritte(s); }
     if (abschnitt("c")) { cSchritte(s); }
+    if (abschnitt("n")) { nSchritte(s); }
+    if (abschnitt("o")) { oSchritte(s); }
+    if (abschnitt("p")) { pSchritte(s); }
+    if (abschnitt("e")) { eSchritte(s); }
+    if (abschnitt("a")) { aSchritte(s); }
     if (abschnitt("fotos")) { fotoSchritte(s); }
     add(tu("T1411: zurueck", [=] {
         modellBedienungSetzen(*bedienung);

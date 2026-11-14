@@ -912,7 +912,8 @@ void statusZeile(ImVec2 lo, float breite, const Masse& m) {
     // TEST1411 G: die Warnung "Pose ohne Schluessel" (bis dahin in der Hinweiszeile) steht wie Blenders Meldungen in der Statuszeile
     const bool warnung = !z.offen.empty();
     if (warnung) { g_probe.hinweisText = format(Str::MzOffen, setKeyTaste()); }
-    const std::string tasten = warnung ? g_probe.hinweisText : std::string(tr(blender ? kBl[bereich] : kMax[bereich]));
+    std::string tasten = warnung ? g_probe.hinweisText : std::string(tr(blender ? kBl[bereich] : kMax[bereich]));
+    if (!warnung && modellAnimSetup()) { tasten = format(Str::T1nStatus, modellAnimModusName(true)) + " \xc2\xb7 " + tasten; }   // TEST1411 N
     const float luecke = fs * 1.1F;
     const float undoB = ImGui::CalcTextSize(undo.c_str()).x;
     const float frei = breite - (modusB + fs * 0.4F) - luecke - luecke - undoB;
@@ -1039,6 +1040,7 @@ std::string auswahlUndHinweis() {
         a = tr(Str::T1KeineAuswahl);
     }
     static const Str kHinweis[4] = {Str::T1HinweisWaehlen, Str::T1HinweisBewegen, Str::T1HinweisDrehen, Str::T1HinweisSkalieren};
+    if (modellAnimSetup()) { return a + "\t" + format(Str::T1nStatus, modellAnimModusName(true)); }   // TEST1411 N
     return a + "\t" + tr(kHinweis[std::clamp(t.gizmo, 0, 3)]);
 }
 
@@ -1582,6 +1584,7 @@ float modellZeitSpurHoeheJetzt() { return spurHoehe(masse(sequenz(), g_zeit.brei
 
 void modellZeitAutoKey(bool an) {
     ModellZeit& z = g_zeit;
+    if (an && modellAnimSchluesselGesperrt()) { return; }   // TEST1411 N: wie CAT keine Schluessel im Setup-Modus
     g_app->settings.modellZeitAutoKey = an;   // ENTSCHEID1: die Wahl bleibt (behaved.cfg modelTimelineAutoKey)
     if (z.autoKey == an) { return; }
     z.autoKey = an;

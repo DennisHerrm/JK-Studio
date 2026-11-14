@@ -326,8 +326,15 @@ std::string ordnerVonDatei(const std::string& pfad) {
 SpielordnerWahl spielordnerFuerArchiv(const std::string& archivPfad, const std::vector<std::string>& eingerichtet,
                                       const std::vector<std::string>& sitzung,
                                       const std::function<bool(const std::string& ordner)>& hatPk3) {
+    return spielordnerFuerOrdner(ordnerVonDatei(archivPfad), eingerichtet, sitzung, hatPk3);
+}
+
+SpielordnerWahl spielordnerFuerOrdner(const std::string& ordner, const std::vector<std::string>& eingerichtet,
+                                      const std::vector<std::string>& sitzung,
+                                      const std::function<bool(const std::string& ordner)>& hatPk3) {
     SpielordnerWahl w;
-    const std::string f = ordnerVonDatei(archivPfad);
+    std::string f = ordner;
+    while (f.size() > 3 && (f.back() == '/' || f.back() == '\\')) { f.pop_back(); }
     if (enthaelt(eingerichtet, f)) {
         w.art = SpielordnerWahl::Art::Eingerichtet;
         w.ordner = eingerichtet;

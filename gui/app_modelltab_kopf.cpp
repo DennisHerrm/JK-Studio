@@ -682,6 +682,22 @@ void drawModellKopfzeile(int n, ModellAnsicht& a) {
         // AP4 (Entwurf "Benutzer-Perspektive - Objektmodus"): der Name der Ansicht und der Modus des Bereichs als Ausklapper
         x = modellBlModusKopf(dl, n, x, y, hoehe, blenderName(a.art).c_str()) + 6.0F;
     }
+    // TEST1411 N: wie CAT den Knopf faerbt, nennt die Ansicht den Setup-Modus in der Warnfarbe (schwarze Schrift: auf jedem Grund lesbar,
+    // TEST1411 M); Blender nennt ihn im Modus-Feld (Edit Mode). Ein Klick schaltet wie CATs Knopf in den Animationsmodus.
+    if (!bl && modellAnimSetup()) {
+        const char* m = tr(Str::T1nSetup);
+        const ImVec2 g = ImGui::CalcTextSize(m);
+        const ImVec2 o{x + 6.0F, y};
+        const ImVec2 b{o.x + g.x + 8.0F, y + hoehe};
+        char id[24];
+        std::snprintf(id, sizeof id, "##mksetup%d", n);
+        ImGui::SetCursorScreenPos(o);
+        if (ImGui::InvisibleButton(id, ImVec2{b.x - o.x, hoehe})) { modellAnimSetupSetzen(false); }
+        ImGui::SetItemTooltip("%s\n\n%s", tr(Str::T1nSetupHint), tr(Str::T1nUmschaltenHint));
+        dl->AddRectFilled(o, b, ImGui::GetColorU32(ui::tonFarbe(ui::Ton::Warnung)), 3.0F);
+        dl->AddText(ImVec2{o.x + 4.0F, y + (hoehe - g.y) * 0.5F}, IM_COL32(0, 0, 0, 255), m);
+        x = b.x;
+    }
     a.kopfRechts = x;
     a.kopfUnten = y + hoehe;
     // --- rechts (Blender): Overlays und Viewport Shading ---------------------------------------------------------

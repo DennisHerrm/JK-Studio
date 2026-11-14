@@ -32,6 +32,9 @@ namespace bhed::modell {
 // Gemessen (docs/intern/NOTIZEN_mbvers_1011.md): Bild 0 der _humanoid.gla ist NICHT die Bindepose - kein Knochen steht in
 // der Grundstellung: die Figur steht 24 bis 27,1 tiefer, die Arme sind 48,3 Grad gedreht, die Beine 3,3 Grad.
 [[nodiscard]] bool bindepose(const std::vector<GlaBone>& bones, const std::vector<BoneMatrix>& welt);
+// Die Welt dieser Grundstellung: dieselbe Kette mit der Einheit als lokaler Matrix jedes Knochens (Wurzel BasePose, sonst
+// Welt(Eltern) * BasePoseInv(Eltern) * BasePose). TEST1411 N: die Setup-Pose im Bereich Animation (wie CATs statische Setup-Pose).
+[[nodiscard]] std::vector<BoneMatrix> grundstellung(const std::vector<GlaBone>& bones);
 
 // Der gezeigte Ort einer Ecke wie haut() der Ansicht: Summe w_i (M_i v) ueber die Knochen mit Gewicht > 0 und einer
 // Nummer im Skelett; ohne Knochen der Ort selbst.

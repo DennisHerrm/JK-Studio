@@ -1452,7 +1452,7 @@ const char* modellBlModusName(ModellBereich b) {
         case ModellBereich::Uv: return tr(Str::MbBlEditModus);
         case ModellBereich::Weights: return tr(Str::BzModusWeight);
         case ModellBereich::Painting: return tr(Str::BzModusTexture);
-        case ModellBereich::Animation: return tr(Str::BzModusPose);
+        case ModellBereich::Animation: return modellAnimModusName(modellAnimSetupGewaehlt());   // TEST1411 N: Edit Mode / Pose Mode
     }
     return "";
 }
@@ -1511,9 +1511,17 @@ float modellBlModusKopf(ImDrawList* dl, int n, float x, float y, float hoehe, co
                             {tr(Str::BzModusWeight), ModellBereich::Weights},
                             {tr(Str::BzModusTexture), ModellBereich::Painting},
                             {tr(Str::BzModusPose), ModellBereich::Animation}};
+        // TEST1411 N: im Bereich Animation ist Edit Mode wie in Blender der Bearbeitungsmodus der Armatur (Setup-Modus), Pose Mode animiert
+        const bool armatur = t.bereich == ModellBereich::Animation;
         for (const M& m : liste) {
-            if (ImGui::MenuItem(m.name, tr(kBereichName[static_cast<int>(m.b)]), std::string(m.name) == modus)) {
-                t.bereich = m.b;
+            const bool edit = armatur && std::string(m.name) == tr(Str::MbBlEditModus);
+            if (ImGui::MenuItem(m.name, tr(kBereichName[static_cast<int>(edit ? ModellBereich::Animation : m.b)]), std::string(m.name) == modus)) {
+                if (edit || m.b == ModellBereich::Animation) {
+                    t.bereich = ModellBereich::Animation;
+                    modellAnimSetupSetzen(edit);
+                } else {
+                    t.bereich = m.b;
+                }
                 g_app->modelDirty = true;
             }
         }

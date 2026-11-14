@@ -67,9 +67,8 @@ bool gleich(const BoneMatrix& a, const BoneMatrix& b) {
 
 }  // namespace
 
-bool bindepose(const std::vector<GlaBone>& bones, const std::vector<BoneMatrix>& welt) {
+std::vector<BoneMatrix> grundstellung(const std::vector<GlaBone>& bones) {
     const std::size_t n = bones.size();
-    if (welt.size() != n) { return false; }
     // die Welt der Grundstellung ueber dieselbe Kette wie GlaAnimation::worldMatricesLerp, lokale Matrix = Einheit
     // (X * Einheit ist X, Wert fuer Wert): Wurzel BasePose, sonst Welt(Eltern) * BasePoseInv(Eltern) * BasePose
     std::vector<BoneMatrix> ruhe(n);
@@ -93,8 +92,16 @@ bool bindepose(const std::vector<GlaBone>& bones, const std::vector<BoneMatrix>&
                 const auto up = static_cast<std::size_t>(p);
                 ruhe[b] = ruhe[up] * bones[up].basePoseInv * bones[b].basePose;
             }
-            if (!gleich(ruhe[b], welt[b])) { return false; }
         }
+    }
+    return ruhe;
+}
+
+bool bindepose(const std::vector<GlaBone>& bones, const std::vector<BoneMatrix>& welt) {
+    if (welt.size() != bones.size()) { return false; }
+    const std::vector<BoneMatrix> ruhe = grundstellung(bones);
+    for (std::size_t b = 0; b < ruhe.size(); ++b) {
+        if (!gleich(ruhe[b], welt[b])) { return false; }
     }
     return true;
 }

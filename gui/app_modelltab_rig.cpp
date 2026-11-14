@@ -181,6 +181,7 @@ std::vector<int> auswahlKnochen() {
 
 // Eine Aenderung der Schicht der gewaehlten Sequenz als ein Rueckgaengig-Schritt (nur Rig, das Netz bleibt).
 void schichtAendern(Str was, const std::function<void(modell::RigSchicht&)>& f) {
+    if (modellAnimSchluesselGesperrt()) { return; }   // TEST1411 N: wie CAT keine Schluessel im Setup-Modus
     ModellTab& t = mt();
     const AnimEntry* e = sequenz();
     const std::string name = e != nullptr ? e->name : std::string();
@@ -214,6 +215,11 @@ int artJetztRig() {
 
 const std::vector<RigAktion>& rigAktionen() {
     static const std::vector<RigAktion> kListe = {
+        // TEST1411 N: Setup-/Animationsmodus wie CAT (max_hotkeys_de.txt hat keine Taste dafuer: Strg+Umschalt+M, im Max-Modus frei)
+        // bzw. Blender Edit Mode / Pose Mode der Armatur (blender_keys.txt: object.mode_set mode=EDIT toggle | TAB)
+        {Str::T1nUmschalten, Str::T1nUmschaltenHint, "Ctrl+Shift+M", "Tab", ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_M, ImGuiKey_Tab,
+         "eigene Wahl (CAT ohne Taste) | Object Non-modal | object.mode_set | TAB PRESS mode=EDIT, toggle=True",
+         [] { modellAnimSetupSetzen(!modellAnimSetupGewaehlt()); }, [] { return modellAnimSetupGewaehlt(); }, 0},
         {Str::MbRgAnlegen, Str::MbRgAnlegenHint, "", "", 0, 0, "", [] { (void)modellAnimRigErstellen(false); }, {}, 0},
         // AP10 (Entwurf, Gruppe "Rig erstellen"): das Rig nur mit FK und die Animation der Sequenz auf das Rig
         {Str::AzRigFk, Str::AzRigFkHint, "", "", 0, 0, "", [] { (void)modellAnimRigErstellen(true); }, [] { return modellRigDa() && modellRigNurFk(); }, 0},
@@ -681,6 +687,7 @@ void rigZugAnwenden(int gizmoArt, const BoneMatrix& dreh, const float weg[3]) {
 
 bool modellRigGriffMitte(float m[3]) {
     const ModellTab& t = mt();
+    if (modellAnimSetup()) { return false; }   // TEST1411 N: die Setup-Pose ist statisch - kein Gizmo
     if (t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size()) { return false; }
     const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(t.griffWahl)];
     if (g.ik) { return modellIkGriffMitte(t.griffWahl, m); }   // Stufe 4: Pol (W), Fussrolle (E)
@@ -714,6 +721,7 @@ void zugBeginnen(int gizmoArt) {
 
 void modellRigZiehen(int gizmoArt, const float wert[3]) {
     ModellTab& t = mt();
+    if (modellAnimSetup()) { return; }   // TEST1411 N
     if (!modellAnimKnochenDirekt() && (t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size())) { return; }
     zugBeginnen(gizmoArt);
     BoneMatrix dreh = BoneMatrix::identity();
@@ -778,6 +786,7 @@ bool modellRigZugMoeglich(int art, std::string* grund) {
 bool modellRigModalStarten(int art) {
     ModellTab& t = mt();
     if (t.bereich != ModellBereich::Animation || t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size()) { return false; }
+    if (modellAnimSchluesselGesperrt()) { return true; }   // TEST1411 N: G/R im Setup-Modus - die Meldung statt eines Zugs
     std::string grund;
     if (!modellRigZugMoeglich(art, &grund)) {
         melden(grund);
@@ -1080,7 +1089,7 @@ bool modellAnimKnochenDirekt() {
 }
 
 bool modellAnimKnochenMitte(float m[3]) {
-    if (!modellAnimKnochenDirekt()) { return false; }
+    if (!modellAnimKnochenDirekt() || modellAnimSetup()) { return false; }   // TEST1411 N: im Setup-Modus kein Gizmo
     const BoneMatrix& x = g_app->modellWelt[static_cast<std::size_t>(mt().knochenWahl)];
     m[0] = x.m[0][3];
     m[1] = x.m[1][3];
@@ -1144,7 +1153,7 @@ std::vector<gpu::ModellGeist> modellGeister() {
     // TEST1411 D (Foto 27 von shank: orange und blaue Kopien neben der Figur im Bereich Painting): Ghosting gehoert dem Animieren wie
     // 3ds Max (Views > Show Ghosting, im Animationsmodus) und Blender (Onion Skin des Grease-Pencil-/Pose-Modus) - in Modeling, UV,
     // Weights und Painting standen die Kopien neben der Figur wie ein zweites, versetztes Modell
-    if (!t.geister.an || t.bereich != ModellBereich::Animation || g_app->anim.empty() || g_app->modellWelt.empty()) { return aus; }
+    if (!t.geister.an || t.bereich != ModellBereich::Animation || modellAnimSetup() || g_app->anim.empty() || g_app->modellWelt.empty()) { return aus; }
     int erstes = 0;
     int anzahl = 0;
     bereich(erstes, anzahl);
@@ -1482,7 +1491,7 @@ void modellAnimGruppeRig() {
     static const int kVorlagenZahl = static_cast<int>(modell::rtVorlagen().size());
     char info[64];
     std::snprintf(info, sizeof info, trN(Str::AzVorlagenInfo, kVorlagenZahl), kVorlagenZahl);
-    if (!ui::rolloutBeginn(tr(Str::AzRRig), {.kurzinfo = info, .reiter = modellReiter(MbReiter::Hierarchie, MbReiterBl::Knochen)})) { return; }
+    if (!ui::rolloutBeginn(tr(Str::AzRRig), {.kurzinfo = info, .reiter = modellAnimReiter(true, modellReiter(MbReiter::Hierarchie, MbReiterBl::Knochen))})) { return; }
     drawModellAnimVorlage();
     const bool gla = !g_app->anim.bones.empty();
     // steht das Control Rig schon, erkennt der Hauptknopf neu (wie "Re-Generate Rig")
@@ -1534,7 +1543,7 @@ void modellAnimGruppeRig() {
 // Pose, Ghosts und Bewegungspfade: mehr als der Entwurf zeigt (Zeile A14) - ab Werk zugeklappt, Platz nur, wenn gebraucht.
 void modellAnimGruppePose() {
     ModellTab& t = mt();
-    if (!ui::rolloutBeginn(tr(Str::MbRgGruppePose), {.zu = true})) { return; }
+    if (!ui::rolloutBeginn(tr(Str::MbRgGruppePose), {.zu = true, .reiter = modellAnimReiter(false, ui::kReiterStandard)})) { return; }
     const bool anim = !g_app->anim.bones.empty();
     ui::rasterBeginn(2);
     if (ui::werkzeugKnopf(tr(Str::MbRgKopieren), {.icon = UiIcon::Duplizieren, .taste = tasteVon(Str::MbRgKopieren), .hinweis = tr(Str::MbRgKopierenHint), .aktiv = anim})) {
@@ -1583,7 +1592,7 @@ void modellAnimGruppePose() {
 
 void modellAnimGruppeGeister() {
     ModellTab& t = mt();
-    if (!ui::rolloutBeginn(tr(Str::MbRgGhosts), {.zu = true, .reiter = modellReiter(MbReiter::Anzeige, MbReiterBl::Daten)})) { return; }
+    if (!ui::rolloutBeginn(tr(Str::MbRgGhosts), {.zu = true, .reiter = modellReiter(MbReiter::Anzeige, MbReiterBl::Daten, false)})) { return; }
     ModellGeisterEinst& ge = t.geister;
     ui::rasterBeginn(2);
     bool neu = ui::schalter(tr(Str::MbRgGhostsAn), &ge.an, tr(Str::MbRgGhostsHint));
@@ -1608,7 +1617,7 @@ void modellAnimGruppePfade() {
     ModellTab& t = mt();
     char info[16];
     std::snprintf(info, sizeof info, "%d", static_cast<int>(t.pfade.size()));
-    if (!ui::rolloutBeginn(tr(Str::MbRgPfade), {.kurzinfo = t.pfade.empty() ? nullptr : info, .zu = true, .reiter = modellReiter(MbReiter::Bewegung, MbReiterBl::Daten)})) {
+    if (!ui::rolloutBeginn(tr(Str::MbRgPfade), {.kurzinfo = t.pfade.empty() ? nullptr : info, .zu = true, .reiter = modellAnimReiter(false, modellReiter(MbReiter::Bewegung, MbReiterBl::Daten))})) {
         return;
     }
     const bool anim = !g_app->anim.bones.empty();

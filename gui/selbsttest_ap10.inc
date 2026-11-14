@@ -85,13 +85,37 @@ bool segmentNachbarn(const Element* a, const Element* b) {
 bool volleBreite(const ui::RolloutProbe* g, const Element* e) { return inGruppe(g, e) && e->rect.GetWidth() >= g->kasten.GetWidth() - em() * 1.4F; }
 
 // Eine Gruppe oben ins Feld rollen (Elemente ausserhalb des sichtbaren Teils meldet ImGui nicht).
+// TEST1411 N: steht die Gruppe nicht im Bild, waehlt der Schritt erst ihren Ort wie der Anwender - Ghosts und Knochen- und Rig-Darstellung
+// im Reiter Anzeige (Blender: Daten), sonst das Motion-Feld und, wenn sie dort fehlt, der andere Modus (Setup/Animation wie CAT) - und
+// rollt danach.
 Schritt zeige(Str t, float tiefer = 0.0F) {
-    return tu(std::string("AP10: Gruppe ins Bild - ") + tr(t), [=] {
-        const ui::RolloutProbe* g = gruppe(t);
-        ImGuiWindow* w = kindFenster("mtrollouts");
-        if (g != nullptr && w != nullptr) { ImGui::SetScrollY(w, std::clamp(w->Scroll.y + g->kasten.Min.y - w->InnerRect.Min.y - em() * 0.4F + tiefer * em(), 0.0F, w->ScrollMax.y)); }
-    });
+    auto umgeschaltet = std::make_shared<bool>(false);
+    return Schritt{std::string("AP10: Gruppe ins Bild - ") + tr(t), [=](int b) {
+                       const bool anzeige = t == Str::KdGruppe || t == Str::MbRgGhosts;
+                       const bool animation = g_app->mtab.bereich == ModellBereich::Animation;
+                       if (b == 0) { *umgeschaltet = false; }
+                       if (animation && gruppe(t) == nullptr && (b == 0 || (b == 3 && !anzeige && !*umgeschaltet))) {
+                           const int motion = modellBlender() ? static_cast<int>(MbReiterBl::Knochen) : static_cast<int>(MbReiter::Bewegung);
+                           if (anzeige) {
+                               modellFeldReiter(MbReiter::Anzeige, MbReiterBl::Daten);
+                           } else if (b == 0 && modellFeld().reiter != motion) {
+                               modellFeldReiter(MbReiter::Bewegung, MbReiterBl::Knochen);
+                           } else {
+                               modellAnimSetupSetzen(!modellAnimSetupGewaehlt());
+                               *umgeschaltet = true;
+                           }
+                           return false;
+                       }
+                       if (b > 0 && b < 6 && gruppe(t) == nullptr) { return false; }
+                       const ui::RolloutProbe* g = gruppe(t);
+                       ImGuiWindow* w = kindFenster("mtrollouts");
+                       if (g != nullptr && w != nullptr) { ImGui::SetScrollY(w, std::clamp(w->Scroll.y + g->kasten.Min.y - w->InnerRect.Min.y - em() * 0.4F + tiefer * em(), 0.0F, w->ScrollMax.y)); }
+                       return true;
+                   }};
 }
+
+// TEST1411 N: die Gruppen des Entwurfs, die im Animationsmodus im Motion-Feld stehen (Rig erstellen, Anbauten und Bauen: Setup-Modus)
+bool imAnimationsmodus(Str t) { return t != Str::AzRRig && t != Str::AzRAnbauten && t != Str::AzRBauen; }
 
 int ikGriffe() {
     int n = 0;
@@ -162,7 +186,9 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
                [=] {
                    const ui::FeldProbe& f = ui::feldProbe();
                    std::string soll;
-                   for (const Str t : kEntwurf) { soll += (soll.empty() ? "" : "|") + std::string(tr(t)); }
+                   for (const Str t : kEntwurf) {
+                       if (imAnimationsmodus(t)) { soll += (soll.empty() ? "" : "|") + std::string(tr(t)); }   // TEST1411 N
+                   }
                    melde(std::string(modus == 0 ? "A0a" : "A0b") + " Gruppen: " + gruppen() + " - Reiter " + std::to_string(f.reiterAktiv));
                    return ap3::feldFrisch() && f.reiterAktiv == (modus == 0 ? static_cast<int>(MbReiter::Bewegung) : static_cast<int>(MbReiterBl::Knochen)) &&
                           gruppen().compare(0, soll.size(), soll) == 0;
@@ -172,6 +198,7 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
                [=] {
                    bool ok = true;
                    for (const Str t : kEntwurf) {
+                       if (!imAnimationsmodus(t)) { continue; }   // TEST1411 N: Rig erstellen, Anbauten und Bauen im Setup-Modus (dort geprueft)
                        const ui::RolloutProbe* g = gruppe(t);
                        ok = ok && g != nullptr && g->offen && g->stil == (modus == 0 ? ui::RolloutStil::Max : ui::RolloutStil::Blender) &&
                             (modus == 0 ? g->rundung <= 2.0F : g->rundung >= std::floor(em() * 0.3F));
@@ -182,10 +209,12 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
     add(pruefe(zeile("A14", modus, "hinter den acht Gruppen des Entwurfs: Pose, Ghosts, Bewegungspfade, Knochen- und Rig-Darstellung, Kurven und Animationswerkzeuge, Posen-Bibliothek, GLA, animation.cfg, Ziel-GLA und Plaetze - alle Gruppen des Bausteins (ohne Rig keine Auto-Physik)"),
                [] {
                    std::string soll;
-                   for (const Str t : kEntwurf) { soll += std::string(tr(t)) + "|"; }
-                   // AP13K: die Gruppe Knochen- und Rig-Darstellung steht hinter den Bewegungspfaden
-                   soll += folge({Str::MbRgGruppePose, Str::MbRgGhosts, Str::MbRgPfade, Str::KdGruppe, Str::MbKvRollout, Str::MbKvGruppeBibliothek, Str::MbRGla, Str::MbRCfg,
-                                  Str::MbRKartenGla});
+                   for (const Str t : kEntwurf) {
+                       if (imAnimationsmodus(t)) { soll += std::string(tr(t)) + "|"; }
+                   }
+                   // TEST1411 N: im Animationsmodus; Ghosts und Knochen- und Rig-Darstellung stehen im Reiter Anzeige (Blender: Daten), GLA,
+                   // animation.cfg, Ziel-GLA und Plaetze im Setup-Modus und im Reiter Dienstprogramme
+                   soll += folge({Str::MbRgGruppePose, Str::MbRgPfade, Str::MbKvRollout, Str::MbKvGruppeBibliothek});
                    // kein Element des Felds ist mehr eine Gruppe ohne den Baustein (ImGui::CollapsingHeader): jede aufklappbare Kopfzeile gehoert zu einer Probe
                    int fremd = 0;
                    for (const Element& e : g_elemente) {
@@ -226,7 +255,7 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
         for (const modell::RtVorlageInfo& x : v) { spiel += !x.datei.empty() && x.name != "_humanoid (JK2)" ? 1 : 0; }
         char info[64];
         std::snprintf(info, sizeof info, trN(Str::AzVorlagenInfo, static_cast<int>(v.size())), static_cast<int>(v.size()));
-        bool ok = gruppeNr(Str::AzRRig) == 1 && g->kurzinfo == info && spiel >= 34;
+        bool ok = gruppeNr(Str::AzRRig) == 0 && g->kurzinfo == info && spiel >= 34;
         for (const Str z : {Str::AzSkelett, Str::AzMassstab, Str::AzErkannt}) { ok = ok && inGruppe(g, imRoll(tr(z))); }
         melde("A2 Rig erstellen: Kurzinfo " + g->kurzinfo + ", Vorlagen der Spieldateien " + std::to_string(spiel));
         return ok;
@@ -285,7 +314,7 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
             if (erste.empty()) { erste = e.kategorie; }
             inKat += e.kategorie == erste ? 1 : 0;
         }
-        const bool teil[] = {gruppeNr(Str::PrRollout) == 2,
+        const bool teil[] = {gruppeNr(Str::PrRollout) == 1,
                              g->kurzinfo == std::string(tr(Str::AiKatStehen)) + " \xc2\xb7 " + std::to_string(inKat),
                              segmentNachbarn(stehen, gehen) && inGruppe(g, stehen),
                              stehen != nullptr && liste->Pos.y >= stehen->rect.Max.y,
@@ -313,7 +342,7 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
         const Element* tipp = imRoll(tr(Str::AzBearbTipp));
         if (g == nullptr) { return false; }
         melde("A4 Bearbeiten: Knoepfe " + std::to_string(g->knoepfe) + ", Spalten " + std::to_string(g->rasterSpalten));
-        return gruppeNr(Str::AzRBearbeiten) == 3 && inGruppe(g, imRoll(tr(Str::AzQuelle))) && inGruppe(g, imRoll(tr(Str::AzBilder))) && nebeneinander(red, backen) && inGruppe(g, red) &&
+        return gruppeNr(Str::AzRBearbeiten) == 2 && inGruppe(g, imRoll(tr(Str::AzQuelle))) && inGruppe(g, imRoll(tr(Str::AzBilder))) && nebeneinander(red, backen) && inGruppe(g, red) &&
                g->rasterSpalten == 2 && g->symbole == g->knoepfe && inGruppe(g, tipp) && tipp->rect.Min.y >= red->rect.Max.y;
     }));
     // --- A5: Uebertragen (ohne Quelle) ---
@@ -322,7 +351,7 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
     add(pruefe(zeile("A5", modus, "Gruppe Uebertragen (Retargeting) an fuenfter Stelle; ohne Quelle: Quelle waehlen und Animation importieren im Raster, der Hinweis als Kasten"), [] {
         const ui::RolloutProbe* g = gruppe(Str::AzRUebertragen);
         if (g == nullptr || !g_app->mtab.rt.quelle.bones.empty()) { return false; }
-        return gruppeNr(Str::AzRUebertragen) == 4 && nebeneinander(imRoll(tr(Str::RtQuelleWaehlen)), imRoll(tr(Str::AiImport))) && inGruppe(g, imRoll(tr(Str::RtQuelleKeine))) &&
+        return gruppeNr(Str::AzRUebertragen) == 3 && nebeneinander(imRoll(tr(Str::RtQuelleWaehlen)), imRoll(tr(Str::AiImport))) && inGruppe(g, imRoll(tr(Str::RtQuelleKeine))) &&
                g->kurzinfo == tr(Str::AzRtInfoKeine);
     }));
     // --- A6 / A7: IK/FK (ohne Rig: Hinweis) ---
@@ -332,7 +361,7 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
         const ui::RolloutProbe* g = gruppe(Str::MbIkRollout);
         // AP14: ui::absatz steht jetzt im Element-Register - derselbe Hinweis steht als Absatz auch in der Gruppe Rig weiter oben,
         // imRoll faende diesen zuerst; gesucht ist der in der Gruppe IK/FK
-        return g != nullptr && gruppeNr(Str::MbIkRollout) == 5 && (modellRigDa() || imRollIn(g, tr(Str::MbRgNochKeins)) != nullptr);
+        return g != nullptr && gruppeNr(Str::MbIkRollout) == 4 && (modellRigDa() || imRollIn(g, tr(Str::MbRgNochKeins)) != nullptr);
     }));
     // --- A8: Anbauten und Vorschau ---
     add(zeige(Str::AzRAnbauten));
@@ -340,7 +369,7 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
     add(pruefe(zeile("A8", modus, "Gruppe Anbauten und Vorschau an siebter Stelle: Tabelle Anbauten (saber_1 an *r_hand), Primaer, Sekundaer; Kurzinfo = Zahl der Anbauten"), [] {
         const ui::RolloutProbe* g = gruppe(Str::AzRAnbauten);
         if (g == nullptr) { return false; }
-        return gruppeNr(Str::AzRAnbauten) == 6 && g->kurzinfo == std::to_string(g_app->mtab.anbauten.size()) && g_app->mtab.anbauten.size() == 1U && inGruppe(g, imRoll(tr(Str::MbRAnbauten))) &&
+        return gruppeNr(Str::AzRAnbauten) == 1 && g->kurzinfo == std::to_string(g_app->mtab.anbauten.size()) && g_app->mtab.anbauten.size() == 1U && inGruppe(g, imRoll(tr(Str::MbRAnbauten))) &&
                inGruppe(g, imRoll(tr(Str::MbPrimaer))) && inGruppe(g, imRoll(tr(Str::AzSekundaer)));
     }));
     // --- A9: Fuer das Spiel bauen ---
@@ -352,7 +381,7 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
         const Element* weg = imRoll(tr(Str::AzWurzelweg));
         const Element* tipp = imRoll(tr(Str::AzBauenTipp));
         if (g == nullptr) { return false; }
-        return gruppeNr(Str::AzRBauen) == 7 && g->hauptKnoepfe == 1 && volleBreite(g, haupt) && inGruppe(g, weg) && haupt->rect.Min.y >= weg->rect.Max.y && inGruppe(g, tipp) &&
+        return gruppeNr(Str::AzRBauen) == 2 && g->hauptKnoepfe == 1 && volleBreite(g, haupt) && inGruppe(g, weg) && haupt->rect.Min.y >= weg->rect.Max.y && inGruppe(g, tipp) &&
                tipp->rect.Min.y >= haupt->rect.Max.y;
     }));
     // --- A14: jede Gruppe nennt ihren Reiter ---
@@ -363,6 +392,7 @@ void formSchritte(std::vector<Schritt>& s, int modus) {
     const std::string sollB = modus == 0 ? folge({Str::AzRBauen, Str::MbKvGruppeBibliothek, Str::MbRGla, Str::MbRCfg, Str::MbRKartenGla})
                                          : folge({Str::MbRgGhosts, Str::MbRgPfade, Str::KdGruppe, Str::MbKvGruppeBibliothek, Str::MbRGla, Str::MbRCfg,
                                                   Str::MbRKartenGla});   // AP13K: Knochen- und Rig-Darstellung im Reiter Daten
+    add(zeige(Str::AzRAnimation));   // TEST1411 N: zurueck in den Animationsmodus
     add(klick(tr(reiterA), "mtbefehlsfeld"));
     add(pause(0.4));
     add(pruefe(zeile("A14", modus, modus == 0 ? "der Reiter Hierarchie zeigt Rig erstellen, IK/FK, Anbauten und Vorschau" : "der Reiter Constraints zeigt IK/FK, Anbauten und Vorschau"), [=] {
@@ -504,14 +534,24 @@ void bedienSchritte(std::vector<Schritt>& s) {
     // --- A2: Vorlage waehlen ---
     add(klick(tr(Str::AzVorEigen), "mtrollouts"));
     add(pause(0.6));
-    add(pruefe(zeile("A2", modus, "Klick auf Eigenes Skelett: keine Vorlage mehr, das Ziel des Uebertragens nimmt vorgeschlagene Ketten"), [] {
+    // TEST1411 N: die Wahl steht im Setup-Modus (Rig erstellen); das Ziel des Uebertragens rechnet die Gruppe Uebertragen des Animationsmodus
+    auto eigenAn = std::make_shared<bool>(false);
+    add(tu("AP10 A2: Eigenes Skelett gewaehlt?", [eigenAn] {
         const Element* eigen = imRoll(tr(Str::AzVorEigen));
-        melde("A2 Eigenes Skelett: Wahl " + std::to_string(modellAnimVorlageWahl()) + ", Ziel-Vorlage \"" + g_app->mtab.rt.cz.vorlage + "\", " + std::to_string(g_app->mtab.rt.cz.ketten.size()) + " Ketten");
-        return modellAnimVorlageWahl() == -1 && modellAnimVorlage() == -1 && eigen != nullptr && (eigen->flags & ImGuiItemStatusFlags_Checked) != 0 && g_app->mtab.rt.cz.vorlage.empty() &&
-               !g_app->mtab.rt.cz.ketten.empty();
+        *eigenAn = eigen != nullptr && (eigen->flags & ImGuiItemStatusFlags_Checked) != 0;
     }));
+    add(zeige(Str::AzRUebertragen));
+    add(pause(0.4));
+    add(pruefe(zeile("A2", modus, "Klick auf Eigenes Skelett: keine Vorlage mehr, das Ziel des Uebertragens nimmt vorgeschlagene Ketten"), [eigenAn] {
+        const bool eigenGewaehlt = *eigenAn;
+        melde("A2 Eigenes Skelett: Wahl " + std::to_string(modellAnimVorlageWahl()) + ", Ziel-Vorlage \"" + g_app->mtab.rt.cz.vorlage + "\", " + std::to_string(g_app->mtab.rt.cz.ketten.size()) + " Ketten");
+        return modellAnimVorlageWahl() == -1 && modellAnimVorlage() == -1 && eigenGewaehlt && g_app->mtab.rt.cz.vorlage.empty() && !g_app->mtab.rt.cz.ketten.empty();
+    }));
+    add(zeige(Str::AzRRig));
     add(klick(tr(Str::AzVorMensch), "mtrollouts"));
     add(pause(0.6));
+    add(zeige(Str::AzRUebertragen));
+    add(pause(0.4));
     add(pruefe(zeile("A2", modus, "Klick auf Mensch: wieder die erkannte Vorlage _humanoid (JKA), auch fuer das Ziel des Uebertragens"), [] {
         melde("A2 Mensch: Wahl " + std::to_string(modellAnimVorlageWahl()) + ", Ziel-Vorlage \"" + g_app->mtab.rt.cz.vorlage + "\"");
         return modellAnimVorlageWahl() == -2 && modellAnimVorlage() == modellAnimVorlageErkannt() && g_app->mtab.rt.cz.vorlage == "_humanoid (JKA)";
@@ -534,8 +574,11 @@ void bedienSchritte(std::vector<Schritt>& s) {
         *schritte = g_app->mtab.dok.rueckgaengigName();
         *schluesselVor = schluessel();
     }));
+    add(zeige(Str::AzRRig));   // TEST1411 N: Auf Rig legen steht im Setup-Modus
     add(klick(tr(Str::AzAufRig), "mtrollouts"));
     add(pause(0.8));
+    add(zeige(Str::AzRAnimation));   // TEST1411 N: die Pose der Sequenz zeigt der Animationsmodus (Setup zeigt die Setup-Pose)
+    add(pause(0.4));
     add(pruefe(zeile("A2", modus, "Klick auf Auf Rig legen: die Bilder der Sequenz sind Schluessel an den Griffen, die vier Glieder sind an jedem Bild IK (Anteil 1, von FK auf IK wie ENT2) und folgen ihren Zielen, die Pose bleibt"), [=] {
         const modell::RigSchicht* sch = modellRigSchichtJetzt();
         const AnimEntry* e = sequenzJetzt();
@@ -830,7 +873,7 @@ void bedienSchritte(std::vector<Schritt>& s) {
     add(klick(tr(Str::MbRgGruppePose), "mtrollouts"));
     add(pause(0.3));
     add(pruefe(zeile("A14", modus, "mit Rig steht die Auto-Physik als erste der weiteren Gruppen hinter Fuer das Spiel bauen"), [] {
-        return gruppeNr(Str::PhRollout) == 8 && gruppeNr(Str::MbRgGruppePose) == 9;
+        return gruppeNr(Str::PhRollout) == 5 && gruppeNr(Str::MbRgGruppePose) == 6;
     }));
 }
 

@@ -1199,10 +1199,11 @@ S = [
      "Eine Karte und ein Name - Spielerstart, Intro und Missionsordner entstehen von selbst.",
      "任选地图并命名 - 自动创建玩家出生点、开场和任务文件夹。",
      "マップと名前を選ぶだけ - プレイヤー開始位置、イントロ、ミッションフォルダーが作られます。"),
-    ("StartCardLoad", "Open a mission (.pk3)", "Mission öffnen (.pk3)", "打开任务 (.pk3)", "ミッションを開く (.pk3)"),
-    ("StartCardLoadSub", "Change a mission of the game or a mod - or one you packed yourself.",
-     "Eine Mission des Spiels oder eines Mods ändern - oder eine selbst gepackte.",
-     "修改游戏或模组中的任务 - 或你自己打包的任务。", "ゲームや MOD のミッション、または自分でまとめたものを編集します。"),
+    # TEST1411 A: ohne Dateidialog - die Missionen der Spielordner, ein Ordner oder eine .pk3 in der Auswahl
+    ("StartCardLoad", "Open a mission", "Mission öffnen", "打开任务", "ミッションを開く"),
+    ("StartCardLoadSub", "The missions of the game folders, grouped by archive - or a folder or .pk3 of a mod or your own.",
+     "Die Missionen der Spielordner, nach Archiv gruppiert - oder ein Ordner bzw. eine .pk3 eines Mods oder eine eigene.",
+     "游戏文件夹中的任务, 按存档分组 - 或模组或你自己的文件夹或 .pk3。", "ゲームフォルダーのミッションをアーカイブ別に - または MOD や自作のフォルダー、.pk3。"),
     ("StartCardMap", "Just open a map", "Nur eine Karte öffnen", "只打开地图", "マップだけ開く"),
     ("StartCardMapSub", "Look around and set up cameras - without a mission.",
      "Umsehen und Kameras einrichten - ohne Mission.", "四处查看并设置摄像机 - 不需要任务。", "見回してカメラを設定 - ミッションなしで。"),
@@ -1616,12 +1617,13 @@ S = [
      "このスクリプトでは未使用"),
     ("LoadMission", "Load mission...", "Mission laden...", "加载任务…",
      "ミッションを読み込む…"),
+    # TEST1411 A: ohne Dateidialog - die Missionen des eingerichteten Spiels, nach Archiv gruppiert
     ("LoadMissionHint",
-     "Pick a .pk3 and everything is set up: map, entities, script, figures",
-     "Eine .pk3 wählen - Karte, Entities, Skript und Figuren werden "
+     "The missions of the game folders, grouped by archive - pick one and everything is set up: map, entities, script, figures",
+     "Die Missionen der Spielordner, nach Archiv gruppiert - eine wählen, und Karte, Entities, Skript und Figuren werden "
      "eingerichtet",
-     "选择一个 .pk3，地图、实体、脚本和角色将一并设置",
-     ".pk3 を選ぶと、マップ・エンティティ・スクリプト・キャラクターが"
+     "游戏文件夹中的任务, 按存档分组 - 选择一个, 地图、实体、脚本和角色将一并设置",
+     "ゲームフォルダーのミッションをアーカイブ別に表示 - 選ぶと、マップ・エンティティ・スクリプト・キャラクターが"
      "まとめて設定されます"),
     # rc603: die Auswahl nennt die Missionen des ganzen Spiels, nicht nur
     # die des gewaehlten Archivs.

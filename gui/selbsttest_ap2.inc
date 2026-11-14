@@ -690,13 +690,16 @@ void maxSchritte(std::vector<Schritt>& s) {
     }));
     add(pause(0.5));
     add(foto("ap2_max_sequenzen"));
-    add(pruefe("AP2 X9: die Sequenzen sind ein Knoten desselben Baums, die Primaersequenz traegt die Marke P", [] {
+    // TEST1411 E (shank 14.11.: "die sequencen sollten separat sein"): die Sequenzen stehen im eigenen Reiter des Explorers, nicht mehr als
+    // Ast im Baum - Zeigen springt dorthin
+    add(pruefe("AP2 X9: die Sequenzen stehen im Reiter Sequenzen des Explorers, die Primaersequenz traegt die Marke P", [] {
         const ExplorerLage* l = zeileArt(ExplorerArt::Sequenz, g_app->animIndex);
-        if (l != nullptr) { melde("X9: Zeile '" + l->name + "', Marke " + std::to_string(l->marke) + ", " + std::to_string(ex().zeilen) + " Zeilen im Baum"); }
-        return l != nullptr && (l->marke & 1) != 0 && l->name == g_app->animList[static_cast<std::size_t>(g_app->animIndex)].name && kindFenster("animliste") == nullptr;
+        if (l != nullptr) { melde("X9: Zeile '" + l->name + "', Marke " + std::to_string(l->marke) + ", " + std::to_string(ex().zeilen) + " Zeilen in der Liste"); }
+        return l != nullptr && (l->marke & 1) != 0 && l->name == g_app->animList[static_cast<std::size_t>(g_app->animIndex)].name && kindFenster("animliste") == nullptr &&
+               ex().art == 2;
     }));
-    add(pruefe("AP2 X9: nur die sichtbaren Zeilen werden gebaut (Baum mit allen Sequenzen)", [] {
-        return ex().zeilen > static_cast<int>(g_app->animList.size()) && ex().lage.size() < 200U;
+    add(pruefe("AP2 X9: nur die sichtbaren Zeilen werden gezeichnet (Liste mit allen Sequenzen)", [] {
+        return ex().zeilen == static_cast<int>(g_app->animList.size()) && ex().lage.size() < 200U;
     }));
     auto bilder = std::make_shared<int>(0);
     add(tu("AP2 X9: die Sequenz reicht hinter das Ende der GLA, als Sekundaer gesetzt", [bilder] {
@@ -746,17 +749,24 @@ void maxSchritte(std::vector<Schritt>& s) {
     }));
     add(pause(0.4));
     add(klickAn("AP2 X17: Klick auf die erste TORSO_-Sequenz", [] {
+        // TEST1411 E: in der Liste die erste sichtbare Zeile (der Clipper zeichnet die Zielzeile auch ausserhalb mit)
+        const ImGuiWindow* w = mbefoto::kindFenster("mtexplorer");
         for (const ExplorerLage& l : ex().lage) {
-            if (l.art == ExplorerArt::Sequenz && l.name.rfind("TORSO_", 0) == 0) { return ImVec2{l.xName + em(), (l.y0 + l.y1) * 0.5F}; }
+            if (l.art == ExplorerArt::Sequenz && l.name.rfind("TORSO_", 0) == 0 && (w == nullptr || (l.y0 >= w->InnerRect.Min.y + em() * 1.5F && l.y1 <= w->InnerRect.Max.y))) {
+                return ImVec2{l.xName + em(), (l.y0 + l.y1) * 0.5F};
+            }
         }
         return ImVec2{-1.0F, -1.0F};
     }));
     add(pause(0.3));
     add(pruefe("AP2 X17: TORSO_ als Sekundaersequenz, die Primaersequenz bleibt", [vorher] {
         const int s = g_app->mtab.sekundaer;
+        melde("X17: Sekundaer " + std::to_string(s) + (s >= 0 ? " " + g_app->animList[static_cast<std::size_t>(s)].name : std::string()) + ", Primaer " +
+              std::to_string(g_app->animIndex) + " (vorher " + std::to_string(*vorher) + "), Reiter " + std::to_string(ex().art));
         return s >= 0 && g_app->animList[static_cast<std::size_t>(s)].name.rfind("TORSO_", 0) == 0 && g_app->animIndex == *vorher;
     }));
     add(tu("AP2 X17: zurueck", [] {
+        ex().art = 0;   // TEST1411 E: zurueck in den Baum (Zeigen einer Sequenz wechselt in den Reiter Sequenzen)
         ex().torsoSekundaer = false;
         g_app->mtab.sekundaer = -1;
         g_app->animPlaying = false;

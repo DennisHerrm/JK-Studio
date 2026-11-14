@@ -1312,7 +1312,7 @@ void modellKdRollout() {
         ui::rolloutZeigen(tr(Str::KdGruppe));
         k.oeffnen = false;
     }
-    if (!ui::rolloutBeginn(tr(Str::KdGruppe), {.kurzinfo = tr(kStilText[stil]), .zu = true, .reiter = modellReiter(MbReiter::Anzeige, MbReiterBl::Daten),
+    if (!ui::rolloutBeginn(tr(Str::KdGruppe), {.kurzinfo = tr(kStilText[stil]), .zu = true, .reiter = modellReiter(MbReiter::Anzeige, MbReiterBl::Daten, false),
                                                .hinweis = tr(Str::KdRigStilHint)})) {
         return;
     }

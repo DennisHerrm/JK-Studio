@@ -458,13 +458,8 @@ struct Bauer {
             zeile(ExplorerArt::Hinweis, -4, tiefe, -1, false, false);
             return;
         }
-        const bool offen = istOffen(ExplorerArt::KopfSequenzen, 0, true);
-        zeile(ExplorerArt::KopfSequenzen, 0, tiefe, -1, true, offen);
-        if (!offen) { return; }
-        zeile(ExplorerArt::SeqFilter, 0, tiefe + 1, -1, false, false);
-        const std::vector<int>& l = sequenzZeilen(such);
-        for (const int i : l) { zeile(ExplorerArt::Sequenz, i, tiefe + 1, -1, false, false); }
-        if (l.empty()) { zeile(ExplorerArt::Hinweis, -2, tiefe + 1, -1, false, false); }
+        // TEST1411 E: der lange Ast (MD: 2635 Sequenzen) steht im eigenen Reiter - im Baum ein Eintrag, der dorthin springt
+        zeile(ExplorerArt::KopfSequenzen, 0, tiefe, -1, false, false);
     }
 
     void nachHierarchie() const {
@@ -1486,6 +1481,7 @@ void zeichneZeile(const Zeile& r, const Masse& m) {
                     animWaehlen(r.index, true);
                 }
                 break;
+            case ExplorerArt::KopfSequenzen: g_z.art = 2; break;   // TEST1411 E: zur Liste der Sequenzen
             default:
                 if (r.kinder) { setzeOffen(r.art, r.index, !r.offen); }   // Kopfzeilen: der Klick auf den Namen klappt
                 break;
@@ -1639,6 +1635,139 @@ void sequenzKnoepfe() {
     if (iconKnopf(tr(Str::ModelAnimToScript), UiIcon::Skript, tr(Str::MbInsSkriptHint), false, hat)) { modellInsSkriptOeffnen(sel); }
 }
 
+// TEST1411 E (shank 14.11.: "die sequencen sollten separat sein und auch ein Filter brauche ich das ich suchen kann"): die Sequenzen als
+// eigener Reiter neben By hierarchy | By layers. Oben das Suchfeld (Teilwort, ohne Gross/Klein, sofort beim Tippen; Strg+F setzt den Fokus,
+// wenn die Maus ueber dem Explorer steht - wie Blenders Outliner) und die Gruppe (All/BOTH/TORSO/LEGS/FACE), darunter eine Tabelle Name |
+// Bilder | Schleife: Breite ziehbar, sortierbar, nichts abgeschnitten (der volle Name im Tooltip). Klick und Doppelklick spielen ab,
+// Rechtsklick wie bisher (Als Sekundaer abspielen, Ins Skript ...); Primaer- und Sekundaersequenz tragen ihre Marke (Schloss, P/S).
+void sequenzListe() {
+    ModellTab& t = mt();
+    const float fs = ImGui::GetFontSize();
+    if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) && ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_F)) { g_z.seqFokus = true; }
+    static const char* const kNamen[] = {"*", "BOTH", "TORSO", "LEGS", "FACE"};
+    const auto gruppenName = [](int k) { return k == 0 ? tr(Str::ModelAnimAll) : kNamen[k]; };
+    const float gruppeB = fs * 6.0F;
+    ImGui::SetNextItemWidth(std::max(ImGui::GetContentRegionAvail().x - gruppeB - ImGui::GetStyle().ItemSpacing.x, fs * 4.0F));
+    if (g_z.seqFokus) {
+        ImGui::SetKeyboardFocusHere();
+        g_z.seqFokus = false;
+    }
+    ImGui::InputTextWithHint("##t1eseqsuche", tr(Str::ModelAnimSearch), g_z.seqSuche, sizeof g_z.seqSuche);
+    tipp(tr(Str::T1eSucheHint));
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(gruppeB);
+    if (ImGui::BeginCombo("##seqgruppe", gruppenName(std::clamp(g_z.seqGruppe, 0, 4)))) {
+        for (int k = 0; k < 5; ++k) {
+            if (ImGui::Selectable(gruppenName(k), g_z.seqGruppe == k)) { g_z.seqGruppe = k; }
+        }
+        ImGui::EndCombo();
+    }
+    if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), "##seqgruppe"); }
+    tipp(tr(Str::MbXSeqGruppeHint));
+    std::vector<int> zeilen = sequenzZeilen(klein(g_z.seqSuche));
+    g_z.seqZeilen = static_cast<int>(zeilen.size());
+    g_z.zeilen = g_z.seqZeilen;
+    if (g_app->animList.empty() || zeilen.empty()) {
+        cjkTextDisabled("%s", tr(g_app->animList.empty() ? Str::ModelAnimNone : Str::MbXKeinTreffer));
+        return;
+    }
+    const ImGuiTableFlags fl = ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable | ImGuiTableFlags_Sortable | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV |
+                               ImGuiTableFlags_NoSavedSettings;
+    if (!ImGui::BeginTable("##t1eseq", 3, fl, ImVec2{0.0F, -1.0F})) { return; }
+    ImGui::TableSetupScrollFreeze(0, 1);
+    ImGui::TableSetupColumn(tr(Str::MbXSpalteName), ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_NoHide);
+    ImGui::TableSetupColumn(tr(Str::T1eBilder), ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_PreferSortDescending, ImGui::CalcTextSize(tr(Str::T1eBilder)).x + fs * 1.6F);
+    ImGui::TableSetupColumn(tr(Str::T1eSchleife), ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize(tr(Str::T1eSchleife)).x + fs * 1.6F);
+    ImGui::TableHeadersRow();
+    // sortieren nach der gewaehlten Spalte (ohne Wahl: die Reihenfolge der animation.cfg)
+    if (const ImGuiTableSortSpecs* sp = ImGui::TableGetSortSpecs(); sp != nullptr && sp->SpecsCount > 0) {
+        const int spalte = sp->Specs[0].ColumnIndex;
+        const bool auf = sp->Specs[0].SortDirection != ImGuiSortDirection_Descending;
+        std::stable_sort(zeilen.begin(), zeilen.end(), [&](int a, int b) {
+            const AnimEntry& x = g_app->animList[static_cast<std::size_t>(a)];
+            const AnimEntry& y = g_app->animList[static_cast<std::size_t>(b)];
+            int c = 0;
+            if (spalte == 1) {
+                c = x.numFrames < y.numFrames ? -1 : (x.numFrames > y.numFrames ? 1 : 0);
+            } else if (spalte == 2) {
+                c = (x.loopFrame >= 0) == (y.loopFrame >= 0) ? 0 : (x.loopFrame >= 0 ? -1 : 1);
+            } else {
+                c = x.name.compare(y.name);
+            }
+            return auf ? c < 0 : c > 0;
+        });
+    }
+    // die Zeile, zu der gerollt wird: der Clipper zeichnet sie mit, beim Zeichnen rollt SetScrollHereY sie in die Mitte (die Hoehe der Zeilen
+    // misst der Clipper selbst - mit Zellenrand ist sie hoeher als eine Feldhoehe)
+    int ziel = -1;
+    if (g_z.seqZiel >= 0) {
+        for (std::size_t r = 0; r < zeilen.size(); ++r) {
+            if (zeilen[r] == g_z.seqZiel) { ziel = static_cast<int>(r); }
+        }
+        g_z.seqZiel = -1;
+    }
+    ImGuiListClipper clip;
+    clip.Begin(static_cast<int>(zeilen.size()));
+    if (ziel >= 0) { clip.IncludeItemByIndex(ziel); }
+    while (clip.Step()) {
+        for (int r = clip.DisplayStart; r < clip.DisplayEnd; ++r) {
+            const int i = zeilen[static_cast<std::size_t>(r)];
+            const AnimEntry& e = g_app->animList[static_cast<std::size_t>(i)];
+            const bool primaer = i == g_app->animIndex;
+            const bool sekundaer = i == t.sekundaer;
+            ImGui::TableNextRow(ImGuiTableRowFlags_None, ImGui::GetFrameHeight());
+            ImGui::TableSetColumnIndex(0);
+            if (r == ziel) { ImGui::SetScrollHereY(0.4F); }
+            ImGui::PushID(i);
+            const ImVec2 p0 = ImGui::GetCursorScreenPos();
+            const float marke = std::floor(fs * 1.25F);
+            ImGui::SetCursorScreenPos(ImVec2{p0.x + marke, p0.y});
+            const bool geklickt = ImGui::Selectable(e.name.c_str(), primaer || sekundaer, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick,
+                                                    ImVec2{0.0F, ImGui::GetFrameHeight()});
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip)) { ImGui::SetTooltip("%s", infoSequenz(i).c_str()); }
+            if (geklickt) {
+                if (g_z.torsoSekundaer && e.name.rfind("TORSO_", 0) == 0) {
+                    sequenzSekundaer(i);   // wie ModView: TORSO_... auf den Oberkoerper, die Primaersequenz bleibt
+                    g_app->animPlaying = true;
+                } else {
+                    animWaehlen(i, true);
+                }
+            }
+            if (ImGui::BeginPopupContextItem("##t1eseqmenue")) {
+                sequenzMenue(i);
+                ImGui::EndPopup();
+            }
+            // die Marke wie im Baum: Schloss fuer Primaer/Sekundaer, P/S daneben, Warnzeichen hinter dem Ende der GLA
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            const float iy = std::floor(p0.y + (ImGui::GetFrameHeight() - fs) * 0.5F);
+            uiIcon(dl, primaer || sekundaer ? UiIcon::Schloss : UiIcon::MbSeqSpiel, ImVec2{p0.x, iy}, std::floor(fs * 0.95F),
+                   farbeVon(primaer || sekundaer ? UiIcon::Schloss : UiIcon::MbSeqSpiel, 0.85F));
+            ExplorerLage l;
+            l.art = ExplorerArt::Sequenz;
+            l.index = i;
+            l.name = e.name;
+            l.xName = p0.x + marke;
+            l.xNameEnde = l.xName + ImGui::CalcTextSize(e.name.c_str()).x;
+            l.xZelleEnde = p0.x + ImGui::GetContentRegionAvail().x;
+            l.y0 = p0.y;
+            l.y1 = p0.y + ImGui::GetFrameHeight();
+            l.marke = (primaer ? 1 : 0) | (sekundaer ? 2 : 0) | (sequenzZuLang(e) ? 4 : 0);
+            g_z.lage.push_back(l);
+            if (primaer || sekundaer) {
+                const char* ps = primaer && sekundaer ? "P S" : (primaer ? "P" : "S");
+                dl->AddText(ImVec2{l.xNameEnde + fs * 0.4F, std::floor(p0.y + (ImGui::GetFrameHeight() - fs) * 0.5F)}, ImGui::GetColorU32(ImGuiCol_TextDisabled), ps);
+            }
+            if (sequenzZuLang(e)) { uiIcon(dl, UiIcon::Warnung, ImVec2{p0.x + marke * 0.5F, iy}, std::floor(fs * 0.6F), IM_COL32(240, 190, 60, 255)); }
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%d", e.numFrames);
+            ImGui::TableSetColumnIndex(2);
+            if (e.loopFrame >= 0) { ImGui::TextUnformatted(tr(Str::MbXSeqSchleife)); }
+            ImGui::PopID();
+        }
+    }
+    ImGui::EndTable();
+}
+
 // Kopf des Explorers: Umschalter, Suche, Filter (wie 3ds Max eine Symbolreihe, wie Blender ein Ausklapper neben der Suche).
 void zeichneKopf(bool blender) {
     ModellTab& t = mt();
@@ -1649,6 +1778,9 @@ void zeichneKopf(bool blender) {
     ImGui::SameLine(0.0F, 2.0F);
     if (reiterKnopf(tr(blender ? Str::MbXSammlungen : Str::MbNachEbenen), g_z.art == 1)) { g_z.art = 1; }
     tipp(tr(Str::MbXEbenenHint));
+    ImGui::SameLine(0.0F, 2.0F);   // TEST1411 E: die Sequenzen als eigene Liste
+    if (reiterKnopf(tr(Str::T1eSequenzen), g_z.art == 2)) { g_z.art = 2; }
+    tipp(tr(Str::T1eSequenzenHint));
     if (blender && !g_app->animList.empty()) {   // wie Blender: rechts in der Kopfzeile des Outliners
         const float b = ImGui::GetFrameHeight() * 2.0F + ImGui::GetStyle().ItemSpacing.x;
         ImGui::SameLine();
@@ -1840,7 +1972,12 @@ void modellExplorerZeigen(ExplorerArt art, int index) {
             }
             break;
         case ExplorerArt::Griff: setzeOffen(ExplorerArt::KopfRig, 0, true); break;
-        case ExplorerArt::Sequenz: setzeOffen(ExplorerArt::KopfSequenzen, 0, true); break;
+        case ExplorerArt::Sequenz:
+        case ExplorerArt::KopfSequenzen:
+            // TEST1411 E: die Sequenzen stehen im eigenen Reiter - dorthin, und zur Zeile rollen
+            g_z.art = 2;
+            g_z.seqZiel = art == ExplorerArt::Sequenz ? index : -1;
+            return;
         default: break;
     }
     g_zeigen = true;
@@ -1990,11 +2127,16 @@ void drawModellExplorer(float hoehe) {
     t.symbolZaehler = 0;
     t.augenZaehler = 0;
     const bool blender = modellBlender();
-    if (g_app->animScrollen) {   // die gewaehlte Sequenz ins Bild (Laden, NPC-Browser, Selbsttest)
-        modellExplorerZeigen(ExplorerArt::Sequenz, g_app->animIndex);
+    if (g_app->animScrollen) {   // die gewaehlte Sequenz ins Bild (Laden, NPC-Browser, Selbsttest) - TEST1411 E: in der Liste, ohne den Reiter zu wechseln
+        g_z.seqZiel = g_app->animIndex;
         g_app->animScrollen = false;
     }
     zeichneKopf(blender);
+    if (g_z.art == 2) {   // TEST1411 E
+        sequenzListe();
+        ImGui::EndChild();
+        return;
+    }
     const std::string such = klein(t.suche);
     baueZeilen(such);
     g_z.zeilen = static_cast<int>(g_zeilen.size());

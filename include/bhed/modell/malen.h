@@ -146,6 +146,9 @@ struct UndoSchritt {
     bool nurEigenschaften = false;
     // P4: fortlaufende Nummer ueber alle Leinwaende (das Rueckgaengig des Bereichs nimmt den juengsten Schritt aller Bilder)
     long long nummer = 0;
+    // TEST1411 O: die Kennung des Strichs, zu dem der Schritt gehoert (0 keiner) - ein Strich ueber mehrere Bilder legt auf jedem
+    // Bild einen Schritt mit derselben Kennung ab, Rueckgaengig und Wiederholen nehmen sie zusammen
+    long long strich = 0;
     std::vector<Ebene> stapelVorher;
     std::vector<Ebene> stapelNachher;
     int aktivVorher = 0;

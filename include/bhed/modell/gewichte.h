@@ -209,6 +209,19 @@ int verlauf(Netz& n, const std::vector<std::array<float, 2>>& schirm, const std:
 // vertices"; "Scale Weight": "Multiplies each selected vertex's weight value by the field value" (Vorgabe 0.95, hoechstens
 // 1). Rueckgabe: geaenderte Ecken.
 int gewichtSetzen(Inhalt& in, int stufe, const EckenMaske& wahl, int knochen, float wert, const MalRegeln& regeln = {});
+// TEST1411 P: wie das Weight Tool des Skin-Modifiers von 3ds Max (Autodesk-Hilfe "Weight Tool Dialog"): die Knochen der gewaehlten
+// Punkte mit ihrem Gewicht - bei mehreren Punkten das Mittel ueber alle gewaehlten (ein Punkt ohne den Knochen zaehlt mit 0),
+// absteigend nach Gewicht. punktGewichte: die Liste des Punkts einer Ecke (wie gezeigt: Malliste vor den Gewichten der Datei).
+[[nodiscard]] GewichtListe mittelListe(const Inhalt& in, int stufe, const EckenMaske& wahl);
+[[nodiscard]] GewichtListe punktGewichte(const Inhalt& in, int stufe, const EckOrt& ecke);
+// Paste: jeder gewaehlte Punkt bekommt die Liste `l` (alle Ecken des Punkts). Paste-Pos: je gewaehlter Punkt die Liste des naechsten
+// kopierten Orts, wenn er hoechstens `toleranz` entfernt ist (Max: Paste-Pos mit Tolerance). Rueckgabe: beschriebene Ecken.
+int listeSetzen(Inhalt& in, int stufe, const EckenMaske& wahl, const GewichtListe& l);
+struct OrtListe {
+    std::array<float, 3> ort{};
+    GewichtListe liste;
+};
+int listenNachOrt(Inhalt& in, int stufe, const EckenMaske& wahl, const std::vector<OrtListe>& kopie, float toleranz);
 int gewichtSkalieren(Inhalt& in, int stufe, const EckenMaske& wahl, int knochen, float faktor, const MalRegeln& regeln = {});
 
 // --- Bereinigen wie Blender (Menue Weights) ------------------------------------------------------------------------------

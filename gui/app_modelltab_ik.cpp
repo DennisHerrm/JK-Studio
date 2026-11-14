@@ -650,7 +650,7 @@ void drawModellIkBereich() {
             t.ikWahl = -1;
         }
     }
-    if (!ui::rolloutBeginn(tr(Str::MbIkRollout), {.reiter = modellReiter(MbReiter::Hierarchie, MbReiterBl::Constraints), .hinweis = tr(Str::MbIkRolloutHint)})) { return; }
+    if (!ui::rolloutBeginn(tr(Str::MbIkRollout), {.reiter = modellAnimReiter(false, modellReiter(MbReiter::Hierarchie, MbReiterBl::Constraints)), .hinweis = tr(Str::MbIkRolloutHint)})) { return; }
     if (!modellRigDa()) {
         ui::tipp(tr(Str::MbRgNochKeins));
         ui::rolloutEnde();

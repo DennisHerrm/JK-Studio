@@ -93,6 +93,7 @@ constexpr modell::Interp kNeuInterp = modell::Interp::Bezier;
 
 // Eine Aenderung der Schicht als ein Rueckgaengig-Schritt (nur Rig, das Netz bleibt).
 void aendern(const std::string& was, const std::function<void(modell::RigSchicht&)>& f) {
+    if (modellAnimSchluesselGesperrt()) { return; }   // TEST1411 N
     ModellTab& t = mt();
     const std::string name = sequenzName();
     t.dok.aendern(was, [&](modell::Inhalt& in) {
@@ -304,6 +305,7 @@ void wahlAusSchicht() {
 }
 
 bool schluesselSetzen() {
+    if (modellAnimSchluesselGesperrt()) { return false; }   // TEST1411 N: wie CAT keine Schluessel im Setup-Modus
     if (modellZeitOffenUebernehmen()) { return true; }   // AP1: Auto Key aus - die eben gestellte Pose behaelt ihre Schluessel
     std::vector<int> k = auswahlKnochen();
     if (k.empty() || g_app->anim.bones.empty()) {
@@ -2030,7 +2032,7 @@ bool modellAnimAufRigLegen() {
 void modellAnimGruppeBearbeiten() {
     ModellTab& t = mt();
     const AnimEntry* e = sequenz();
-    if (!ui::rolloutBeginn(tr(Str::AzRBearbeiten))) { return; }
+    if (!ui::rolloutBeginn(tr(Str::AzRBearbeiten), {.reiter = modellAnimReiter(false, ui::kReiterStandard)})) { return; }
     const modell::RigSchicht* s = modellRigSchichtJetzt();
     const std::string gla = fileName(g_app->anim.skeletonName) + ".gla";
     char bilder[64] = "-";
@@ -2072,7 +2074,7 @@ void modellAnimGruppeBearbeiten() {
 // "Spuren" und die Umschaltung daneben; dazu Menue Animation und die Suche) - hier steht kein zweiter Knopf dafuer.
 void modellAnimGruppeKurven() {
     ModellTab& t = mt();
-    if (!ui::rolloutBeginn(tr(Str::MbKvRollout), {.zu = true, .reiter = modellReiter(MbReiter::Bewegung, MbReiterBl::Werkzeug)})) { return; }
+    if (!ui::rolloutBeginn(tr(Str::MbKvRollout), {.zu = true, .reiter = modellAnimReiter(false, modellReiter(MbReiter::Bewegung, MbReiterBl::Werkzeug))})) { return; }
     if (ui::werkzeugKnopf(tr(Str::MbKvAnimSpiegeln), {.icon = UiIcon::Tauschen, .hinweis = tr(Str::MbKvAnimSpiegelnHint), .aktiv = sequenz() != nullptr})) {
         (void)animationSpiegeln();
     }
@@ -2085,7 +2087,7 @@ void modellAnimGruppePosenBibliothek() {
     const auto& posen = t.dok.inhalt().rig.posen;
     char info[16];
     std::snprintf(info, sizeof info, "%d", static_cast<int>(posen.size()));
-    if (!ui::rolloutBeginn(tr(Str::MbKvGruppeBibliothek), {.kurzinfo = posen.empty() ? nullptr : info, .zu = true, .reiter = modellReiter(MbReiter::Dienste, MbReiterBl::Daten)})) {
+    if (!ui::rolloutBeginn(tr(Str::MbKvGruppeBibliothek), {.kurzinfo = posen.empty() ? nullptr : info, .zu = true, .reiter = modellAnimReiter(false, modellReiter(MbReiter::Dienste, MbReiterBl::Daten))})) {
         return;
     }
     ImGui::SetNextItemWidth(-1.0F);

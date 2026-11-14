@@ -277,6 +277,22 @@ int main() {
         const auto w6 = bhed::spielordnerFuerArchiv("C:\\Spiele\\JKA MD\\base\\assets1.pk3", eingerichtet, w2.ordner, hatPk3);
         expect("rc603: wieder ein Archiv der eingerichteten Ordner - zurueck zu ihnen",
                w6.art == Art::Eingerichtet && w6.ordner == eingerichtet);
+        // TEST1411 A: "Ordner oeffnen..." in der Missionsauswahl - dieselben Regeln fuer einen Ordner
+        const auto o1 = bhed::spielordnerFuerOrdner("c:/spiele/jka md/md/", eingerichtet, {}, hatPk3);
+        expect("TEST1411 A: eingerichteter Ordner (andere Schreibweise, Schraegstrich am Ende) - die eingerichteten Ordner",
+               o1.art == Art::Eingerichtet && o1.ordner == eingerichtet);
+        const auto o2 = bhed::spielordnerFuerOrdner("C:\\Spiele\\JKA\\GameData\\base", eingerichtet, {}, hatPk3);
+        expect("TEST1411 A: ein base-Ordner - diese Installation allein", o2.art == Art::Installation && o2.ordner.size() == 1 && o2.ordner[0] == "C:\\Spiele\\JKA\\GameData\\base");
+        const auto o3 = bhed::spielordnerFuerOrdner("C:\\Spiele\\JKA\\GameData\\meinemod", eingerichtet, {}, hatPk3);
+        expect("TEST1411 A: Mod-Ordner neben einem base mit pk3 - base, dann die Mod",
+               o3.art == Art::Installation && o3.ordner.size() == 2 && o3.ordner[0] == "C:\\Spiele\\JKA\\GameData\\base" && o3.ordner[1] == "C:\\Spiele\\JKA\\GameData\\meinemod");
+        const auto o4 = bhed::spielordnerFuerOrdner("C:\\Downloads\\entpackt", eingerichtet, {}, hatPk3);
+        expect("TEST1411 A: entpackte Mod ohne base daneben - die eingerichteten Ordner und der Ordner dahinter",
+               o4.art == Art::Lose && o4.ordner.size() == 3 && o4.ordner[2] == "C:\\Downloads\\entpackt");
+        const auto o5 = bhed::spielordnerFuerOrdner("C:/Spiele/JK2/GameData/base", eingerichtet, o2.ordner, hatPk3);
+        expect("TEST1411 A: ein Ordner der Sitzung bleibt bei ihren Ordnern", o5.art == Art::Installation && o5.ordner.size() == 1);
+        const auto o6 = bhed::spielordnerFuerOrdner("C:\\Spiele\\JKA\\GameData\\base\\", eingerichtet, o2.ordner, hatPk3);
+        expect("TEST1411 A: derselbe Ordner wie die Sitzung (mit Schraegstrich) - die Sitzung", o6.art == Art::Sitzung && o6.ordner == o2.ordner);
         expect("rc603: gleicherOrdner ohne Gross/Klein, / gleich \\, ohne Schraegstrich am Ende",
                bhed::gleicherOrdner("C:\\A\\b\\", "c:/a/B") && !bhed::gleicherOrdner("C:/a/b", "C:/a/bc"));
         expect("rc603: ordnerVonDatei", bhed::ordnerVonDatei("C:\\x\\base\\assets1.pk3") == "C:\\x\\base" &&

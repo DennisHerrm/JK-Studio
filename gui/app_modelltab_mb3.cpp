@@ -743,7 +743,7 @@ void modellAnimGruppeAnimation() {
     plaetzeAnpassen();
     const AnimEntry* e = g_app->animIndex >= 0 && static_cast<std::size_t>(g_app->animIndex) < g_app->animList.size() ? &g_app->animList[static_cast<std::size_t>(g_app->animIndex)]
                                                                                                                       : nullptr;
-    if (!ui::rolloutBeginn(tr(Str::AzRAnimation), {.kurzinfo = e != nullptr ? e->name.c_str() : nullptr})) { return; }
+    if (!ui::rolloutBeginn(tr(Str::AzRAnimation), {.kurzinfo = e != nullptr ? e->name.c_str() : nullptr, .reiter = modellAnimReiter(false, ui::kReiterStandard)})) { return; }
     int belegt = 0;
     for (const modell::Platz& p : t.plaetze) { belegt += p.belegt ? 1 : 0; }
     char plaetze[48];
@@ -759,7 +759,7 @@ void modellAnimGruppeAnimation() {
 // Entwurf A9: "Fuer das Spiel bauen" - der Wurzelweg der Sequenz, der Hauptknopf (baut die Ziel-GLA mit ihrer animation.cfg) und
 // der Hinweis auf SET_ORIGIN (Stufenplan: das Spiel verschiebt den Ursprung nicht mit der Wurzel).
 void modellAnimGruppeBauen() {
-    if (!ui::rolloutBeginn(tr(Str::AzRBauen), {.reiter = modellReiter(MbReiter::Dienste, MbReiterBl::Objekt)})) { return; }
+    if (!ui::rolloutBeginn(tr(Str::AzRBauen), {.reiter = modellAnimReiter(true, modellReiter(MbReiter::Dienste, MbReiterBl::Objekt))})) { return; }
     float weg = 0.0F;
     const bool da = modellAnimWurzelweg(weg);
     ui::wertTabelle({{tr(Str::AzWurzelweg), da ? format(Str::AzEinheiten, static_cast<double>(weg)) : std::string("-"), da ? ui::Ton::Normal : ui::Ton::Leise, tr(Str::AzWurzelwegHint)},
@@ -773,7 +773,7 @@ namespace {
 
 void gruppeGla() {
     const GlaAnimation& a = g_app->anim;
-    if (!ui::rolloutBeginn(tr(Str::MbRGla), {.reiter = modellReiter(MbReiter::Dienste, MbReiterBl::Daten)})) { return; }
+    if (!ui::rolloutBeginn(tr(Str::MbRGla), {.reiter = modellAnimReiter(true, modellReiter(MbReiter::Dienste, MbReiterBl::Daten))})) { return; }
     ui::absatz(format(Str::MbGlaInfo, a.skeletonName.empty() ? "-" : a.skeletonName.c_str(), a.numFrames, static_cast<int>(a.bones.size()), static_cast<int>(a.bonePool.size() / 14U)).c_str());
     if (ui::werkzeugKnopf(tr(Str::MbGlaSpeichern), {.icon = UiIcon::SpeichernUnter, .hinweis = tr(Str::MbGlaSpeichernHint), .aktiv = !a.empty()})) { modellGlaSpeichernFrage(); }
     ui::rolloutEnde();
@@ -782,7 +782,7 @@ void gruppeGla() {
 void gruppeCfg() {
     ModellTab& t = mt();
     const GlaAnimation& a = g_app->anim;
-    if (!ui::rolloutBeginn(tr(Str::MbRCfg), {.reiter = modellReiter(MbReiter::Dienste, MbReiterBl::Daten)})) { return; }
+    if (!ui::rolloutBeginn(tr(Str::MbRCfg), {.reiter = modellAnimReiter(true, modellReiter(MbReiter::Dienste, MbReiterBl::Daten))})) { return; }
     const modell::Inhalt& in = t.dok.inhalt();
     if (in.cfgPfad.empty()) {
         ui::absatz(tr(Str::MbCfgKeine));
@@ -807,7 +807,7 @@ void gruppePlaetze() {
     for (const modell::Platz& p : t.plaetze) { belegt += p.belegt ? 1 : 0; }
     char info[48];
     std::snprintf(info, sizeof info, "%d / %d", belegt, static_cast<int>(t.plaetze.size()));
-    if (!ui::rolloutBeginn(tr(Str::MbRKartenGla), {.kurzinfo = t.plaetze.empty() ? nullptr : info, .reiter = modellReiter(MbReiter::Dienste, MbReiterBl::Daten)})) { return; }
+    if (!ui::rolloutBeginn(tr(Str::MbRKartenGla), {.kurzinfo = t.plaetze.empty() ? nullptr : info, .reiter = modellAnimReiter(true, modellReiter(MbReiter::Dienste, MbReiterBl::Daten))})) { return; }
     // Nachtrag shank 06.11.: das Ziel erst beim Bauen waehlen, jederzeit wechselbar - ein klares Feld mit Erklaerung.
     static const Str kZiele[3] = {Str::MbZielKarte, Str::MbZielHumanoid, Str::MbZielEigen};
     static const Str kZielHinweise[3] = {Str::MbZielKarteHint, Str::MbZielHumanoidHint, Str::MbZielEigenHint};

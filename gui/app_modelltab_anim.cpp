@@ -386,7 +386,7 @@ void modellAnimGruppeAnbauten() {
     char info[16];
     std::snprintf(info, sizeof info, "%d", static_cast<int>(t.anbauten.size()));
     if (!ui::rolloutBeginn(tr(Str::AzRAnbauten),
-                           {.kurzinfo = t.anbauten.empty() ? nullptr : info, .reiter = modellReiter(MbReiter::Hierarchie, MbReiterBl::Constraints)})) {
+                           {.kurzinfo = t.anbauten.empty() ? nullptr : info, .reiter = modellAnimReiter(true, modellReiter(MbReiter::Hierarchie, MbReiterBl::Constraints))})) {
         return;
     }
     std::string an;
@@ -450,10 +450,108 @@ bool modellAnimWerkzeugAusloesen(int i) {
     }
 }
 
+// --- TEST1411 N: Setup- und Animationsmodus wie CAT -------------------------------------------------------------------------
+//
+// CAT (3ds Max): der Schalter Setup/Animation Mode im Motion-Feld (Layer Manager). "In Setup Mode you create and modify your CAT rig",
+// "In Animation Mode you animate your character" (Autodesk-Hilfe 2015, GUID-275009EE); der Setup-Modus ist ab Werk statisch - die
+// Figur kehrt in ihre Setup-Pose zurueck, eine feste Matrix je Knochen (Hierarchy Panel for CATRigs, GUID-D6D4CD17). Hier ist die
+// Setup-Pose die Grundstellung der GLA (ihre BasePose, an die das Modell gebunden ist). Blender ebenso: Edit Mode der Armatur zeigt die
+// Ruhestellung, der Pose Mode animiert.
+
+namespace {
+
+// Fuer welches Modell die Vorgabe gilt: Pfad und ob ein Skelett da ist (ein neu geladenes Modell oder eine GLA ab/an waehlt neu)
+std::string modusSchluessel() { return g_app->modelPath + (g_app->anim.bones.empty() ? "|0" : "|1"); }
+
+// Die Taste des Schalters im laufenden Bedienmodus (aus der Tabelle der Rig-Aktionen, dort mit ihrer Quelle)
+const char* schalterTaste() {
+    const std::string name = tr(Str::T1nUmschalten);
+    for (int i = 0; i < modellRigAktionZahl(); ++i) {
+        if (name == modellRigAktionText(i)) { return modellRigAktionTaste(i, modellBlender()); }
+    }
+    return "";
+}
+
+}  // namespace
+
+bool modellAnimSetupGewaehlt() {
+    ModellTab& t = mt();
+    const std::string k = modusSchluessel();
+    if (t.animModusFuer != k) {
+        // nach dem Laden: Animation, wenn die Figur schon eine Animation (Sequenzen der GLA) oder ein Rig hat, sonst Setup
+        t.animModusFuer = k;
+        t.animSetup = g_app->anim.bones.empty() || (g_app->animList.empty() && !modellRigDa());
+    }
+    return t.animSetup;
+}
+
+bool modellAnimSetup() { return mt().bereich == ModellBereich::Animation && modellAnimSetupGewaehlt(); }
+
+void modellAnimSetupSetzen(bool setup) {
+    ModellTab& t = mt();
+    (void)modellAnimSetupGewaehlt();   // die Vorgabe zuerst, damit sie den Wunsch nicht ueberschreibt
+    if (t.animSetup == setup) { return; }
+    t.animSetup = setup;
+    if (setup) {
+        g_app->animPlaying = false;   // die Setup-Pose ist statisch (CAT)
+        modellRigZiehenEnde();
+    }
+    g_app->modelDirty = true;
+    melden(modellAnimModusName(setup));
+}
+
+const char* modellAnimModusName(bool setup) {
+    if (modellBlender()) { return tr(setup ? Str::MbBlEditModus : Str::BzModusPose); }
+    return tr(setup ? Str::T1nSetup : Str::T1nAnimation);
+}
+
+unsigned modellAnimReiter(bool setupGruppe, unsigned reiter) {
+    const bool setup = modellAnimSetupGewaehlt();
+    if (setupGruppe == setup) { return reiter; }
+    // die Gruppen zum Animieren setzen Schluessel - wie CAT nur im Animationsmodus
+    if (!setupGruppe) { return 0U; }
+    // die Gruppen zum Aufbauen bleiben an ihrem Ort wie in 3ds Max (Hierarchie, Dienstprogramme) - nur das Motion-Feld zeigt sie nicht
+    const unsigned motion = ui::reiterBit(modellBlender() ? static_cast<int>(MbReiterBl::Knochen) : static_cast<int>(MbReiter::Bewegung));
+    return reiter & ~ui::kReiterStandard & ~motion;
+}
+
+bool modellAnimSchluesselGesperrt() {
+    if (!modellAnimSetup()) { return false; }
+    char b[600];
+    std::snprintf(b, sizeof b, tr(Str::T1nGesperrt), modellAnimModusName(true), modellAnimModusName(false), schalterTaste());
+    melden(b);
+    return true;
+}
+
+namespace {
+
+// Oben im Motion-Feld: der Schalter wie CATs Knopf Setup/Animation Mode, der gewaehlte Modus in seiner Farbe (Setup orange wie die
+// Warnfarbe des Themas, Animation in der Betonungsfarbe)
+void modusSchalter() {
+    const bool setup = modellAnimSetupGewaehlt();
+    const std::string taste = schalterTaste();
+    const std::string hSetup = std::string(tr(Str::T1nSetupHint)) + (taste.empty() ? std::string() : "\n" + taste);
+    const std::string hAnim = std::string(tr(Str::T1nAnimationHint)) + (taste.empty() ? std::string() : "\n" + taste);
+    const char* texte[2] = {modellAnimModusName(true), modellAnimModusName(false)};
+    const char* hinweise[2] = {hSetup.c_str(), hAnim.c_str()};
+    int wahl = setup ? 0 : 1;
+    if (setup) {
+        const ImVec4 w = ui::tonFarbe(ui::Ton::Warnung);
+        ImGui::PushStyleColor(ImGuiCol_CheckMark, w);   // ui::segment betont den gewaehlten Eintrag in der Farbe von CheckMark (betonung)
+    }
+    const bool geaendert = ui::segment("##t1nmodus", texte, 2, &wahl, 2, -1, hinweise);
+    if (setup) { ImGui::PopStyleColor(); }
+    if (geaendert) { modellAnimSetupSetzen(wahl == 0); }
+    ImGui::Spacing();
+}
+
+}  // namespace
+
 // --- Die Reihenfolge der Gruppen -------------------------------------------------------------------------------------------
 
 void drawModellAnimFeld() {
-    // wie im Entwurf (feldInhalt, Bereich Animation)
+    if (ui::feldReiterStandard()) { modusSchalter(); }   // TEST1411 N
+    // wie im Entwurf (feldInhalt, Bereich Animation); TEST1411 N: je Gruppe der Modus (modellAnimReiter)
     modellAnimGruppeAnimation();
     modellAnimGruppeRig();
     drawModellPresetBereich();

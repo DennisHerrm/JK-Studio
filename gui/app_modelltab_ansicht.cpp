@@ -190,6 +190,13 @@ void posieren() {
         }
         if (o.bone >= 0) { ueber.push_back(o); }
     }
+    // TEST1411 N: im Setup-Modus steht die Figur in ihrer Setup-Pose - der Grundstellung der GLA (CAT: "Setup mode is completely static",
+    // die Figur kehrt in ihre Setup-Pose zurueck; Blender: Edit Mode der Armatur zeigt die Ruhestellung) - ohne Sequenz und ohne Schluessel
+    if (modellAnimSetup()) {
+        g_app->modellWelt = modell::grundstellung(a.bones);
+        gpu::baueKnochenmatrizen(g_app->modellWelt, a.bones, g_knochen);
+        return;   // g_bindepose bleibt true: das Gezeigte ist die Bindepose
+    }
     // Stufe 3: die Schluessel des Control Rigs (FK wie G2API_SetBoneAngles POSTMULT, siehe bhed/modell/rig.h)
     std::vector<std::pair<int, BoneMatrix>> rigM;
     modellRigNachMal(fA, fB, anteil, rigM, ueber);   // Stufe 4: mit IK (auf derselben Welt wie unten)
@@ -754,7 +761,11 @@ void ueberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
         }
         ImVec2 sp;
         if (!aufSchirm(a, h[static_cast<std::size_t>(o.teil)][static_cast<std::size_t>(o.ecke)].data(), sp)) { continue; }
-        dl->AddRectFilled(ImVec2{sp.x - 2.5F, sp.y - 2.5F}, ImVec2{sp.x + 2.5F, sp.y + 2.5F}, IM_COL32(255, 160, 40, 255));
+        // TEST1411 P (shank: "einzeln wählen"): deutlich markiert - die Groesse folgt der Schrift (bis dahin 5 Bildpunkte, bei 3840 Punkten
+        // Breite kaum zu sehen), ein dunkler Rand haelt sie auf hellen Flaechen sichtbar
+        const float r = std::max(2.5F, std::floor(ImGui::GetFontSize() * 0.2F));
+        dl->AddRectFilled(ImVec2{sp.x - r - 1.0F, sp.y - r - 1.0F}, ImVec2{sp.x + r + 1.0F, sp.y + r + 1.0F}, IM_COL32(0, 0, 0, 200));
+        dl->AddRectFilled(ImVec2{sp.x - r, sp.y - r}, ImVec2{sp.x + r, sp.y + r}, IM_COL32(255, 160, 40, 255));
         ++t.ueber[12];
     }
     float mn[3];
@@ -1565,9 +1576,26 @@ std::vector<modell::EckOrt> eckenImRahmen(const ModellAnsicht& a, ImVec2 p, ImVe
     const ImVec2 mn{std::min(p.x, q.x), std::min(p.y, q.y)};
     const ImVec2 mx{std::max(p.x, q.x), std::max(p.y, q.y)};
     std::vector<modell::EckOrt> out;
+    // TEST1411 P: wie 3ds Max Skin "Backface Cull Vertices" - nur Ecken eines Dreiecks, das zur Ansicht zeigt (am Schirm im Uhrzeigersinn:
+    // die Vorderseite wie im Spiel, FrontCounterClockwise FALSE)
+    const bool rueckAus = t.bereich == ModellBereich::Weights && modellGewichte().rueckseitenAus;
     for (std::size_t i = 0; i < h.size() && i < t.anzeige.surfaces.size(); ++i) {
         if (!gezeichnet(i) || !modellFlaecheWaehlbar(static_cast<int>(i), false)) { continue; }   // KLEIN: Eingefrorenes nimmt der Rahmen nicht
+        std::vector<char> vorn;
+        if (rueckAus) {
+            vorn.assign(h[i].size(), 0);
+            const auto& ix = t.anzeige.surfaces[i].indexes;
+            for (std::size_t k = 0; k + 2 < ix.size(); k += 3) {
+                ImVec2 p0;
+                ImVec2 p1;
+                ImVec2 p2;
+                if (ix[k] >= h[i].size() || ix[k + 1] >= h[i].size() || ix[k + 2] >= h[i].size()) { continue; }
+                if (!aufSchirm(a, h[i][ix[k]].data(), p0) || !aufSchirm(a, h[i][ix[k + 1]].data(), p1) || !aufSchirm(a, h[i][ix[k + 2]].data(), p2)) { continue; }
+                if ((p1.x - p0.x) * (p2.y - p0.y) - (p2.x - p0.x) * (p1.y - p0.y) > 0.0F) { vorn[ix[k]] = vorn[ix[k + 1]] = vorn[ix[k + 2]] = 1; }
+            }
+        }
         for (std::size_t e = 0; e < h[i].size(); ++e) {
+            if (rueckAus && vorn[e] == 0) { continue; }
             ImVec2 sp;
             if (aufSchirm(a, h[i][e].data(), sp) && sp.x >= mn.x && sp.x <= mx.x && sp.y >= mn.y && sp.y <= mx.y) {
                 out.push_back(modell::EckOrt{static_cast<int>(i), static_cast<int>(e)});
@@ -2324,7 +2352,10 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     const bool gewMalen = gewichtsAnsicht() && modellGewichte().malen && t.modal.art == 0 && t.gwModal == 0 && t.gwModalEnde != ImGui::GetFrameCount();   // AP8: Hauptknopf
     // Modell-Block 1c: im Bereich Painting malt die linke Taste auf das Bild (ein Strich = ein Rueckgaengig-Schritt in Kacheln)
     const bool texMalen = modellMalenAktiv() && t.modal.art == 0 && !modellMalenModal();
-    if (texMalen && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt) {
+    if (texMalen && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && io.KeyAlt && !io.KeyCtrl && !io.KeyShift) {
+        (void)modellMalenZielAufnehmen(a, io.MousePos);   // TEST1411 O: Alt+Klick waehlt die Textur der Flaeche als Ziel
+        t.aktiv = n;
+    } else if (texMalen && ueber && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !io.KeyAlt) {
         if (!modellMalenAufnehmen(a, io.MousePos)) { (void)modellMalenAnsicht(a, io.MousePos, true); }
         t.aktiv = n;
     } else if (texMalen && t.aktiv == n && ImGui::IsMouseDown(ImGuiMouseButton_Left) && (io.MouseDelta.x != 0.0F || io.MouseDelta.y != 0.0F)) {
@@ -2553,7 +2584,10 @@ void drawModellArbeitsflaeche() {
     // ENTSCHEID3A (B11): ein Auge im Modifier-Stapel (nur Anzeige, kein Schritt des Dokuments) posiert und zeichnet neu - das Feld
     // steht hinter der Ansicht, modelDirty ginge vorher am Ende des Bilds aus
     static int ent3aStand = -1;
-    const bool neu = g_app->modelDirty || t.dok.stand() != g_posiertBeiStand || modellEnt3a().ansichtStand != ent3aStand;
+    static bool setupVorher = false;   // TEST1411 N: der Wechsel Setup/Animation posiert neu (die Setup-Pose ist die Grundstellung)
+    const bool setup = modellAnimSetup();
+    const bool neu = g_app->modelDirty || t.dok.stand() != g_posiertBeiStand || modellEnt3a().ansichtStand != ent3aStand || setup != setupVorher;
+    setupVorher = setup;
     if (neu) {
         posieren();
         g_posiertBeiStand = t.dok.stand();
@@ -2643,6 +2677,7 @@ void drawModellArbeitsflaeche() {
     drawModellMeshPopups();   // Modell-Block 1d
     drawModellNavPopups();    // MBNAV: Menue der Ansichten (V), Kuchenmenue View (`)
     drawModellAutoSkinFenster();   // AP12
+    drawModellGewichtTabelle();    // TEST1411 P: Weight Table (3ds Max Skin)
     drawModellGlaListe();          // TEST1411 C
     if (t.kontextOeffnen) {
         ImGui::OpenPopup("##mtkontext");

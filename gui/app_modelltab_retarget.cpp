@@ -824,7 +824,7 @@ void drawModellRetargetBereich() {
         r.oeffnen = false;
     }
     const std::string kurz = r.quelle.bones.empty() ? std::string(tr(Str::AzRtInfoKeine)) : fileName(r.quelleFuer);
-    if (!ui::rolloutBeginn(tr(Str::AzRUebertragen), {.kurzinfo = kurz.c_str(), .hinweis = tr(Str::RtRolloutHint)})) { return; }
+    if (!ui::rolloutBeginn(tr(Str::AzRUebertragen), {.kurzinfo = kurz.c_str(), .reiter = modellAnimReiter(false, ui::kReiterStandard), .hinweis = tr(Str::RtRolloutHint)})) { return; }
     r.rolloutBild = ImGui::GetFrameCount();
     zielCharakter();
     const modell::RetargetDaten d = *modellRtDaten();
@@ -1240,7 +1240,7 @@ void drawModellPresetBereich() {
     for (const PresetEintrag& e : b) { zeilen += e.kategorie == wk ? 1 : 0; }
     char info[96] = {};
     std::snprintf(info, sizeof info, "%s \xc2\xb7 %d", presetKategorieName(wk), zeilen);
-    if (!ui::rolloutBeginn(tr(Str::PrRollout), {.kurzinfo = info, .hinweis = tr(Str::PrRolloutHint)})) { return; }
+    if (!ui::rolloutBeginn(tr(Str::PrRollout), {.kurzinfo = info, .reiter = modellAnimReiter(false, ui::kReiterStandard), .hinweis = tr(Str::PrRolloutHint)})) { return; }
     r.presetRolloutBild = ImGui::GetFrameCount();
     r.bibliothekY = ImGui::GetCursorPosY();
     const float fs = ImGui::GetFontSize();

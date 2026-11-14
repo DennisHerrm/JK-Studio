@@ -4823,20 +4823,53 @@ void drawMapScriptList() {
     }
 }
 
-// Eine .pk3 waehlen und die Missionen darin anzeigen.
-//
-// Das ist der Einstieg, den man sich wuenscht: eine Datei waehlen, und alles
-// weitere ergibt sich. Die Kette steht in den Daten, man muss sie nur
-// ablaufen - Karte, Entities daneben, Skripte aus den Entities, Figuren aus
-// den Skripten, Modelle aus den NPC-Typen.
+// TEST1411 A (shank 14.11.: "wenn der path sowieso hinterlegt ist kannst du auf open mission und er wählt keine pk3 aus sondern die Liste
+// der missionen"): "Load mission..." oeffnet keinen Dateidialog mehr, sondern sofort die Missionen des eingerichteten Spiels (bzw. der
+// Spielordner dieser Sitzung), nach Archiv gruppiert. Die Kette dahinter wie bisher: Karte, Entities daneben, Skripte aus den Entities,
+// Figuren aus den Skripten, Modelle aus den NPC-Typen. Ohne Spielordner geht die Auswahl trotzdem auf, mit Hinweis und drei Knoepfen.
 void loadMissionArchive() {
-    const std::string p = platform::openFileDialog(
-        tr(Str::LoadMission), "Game archives (*.pk3)|*.pk3|All files (*.*)|*.*",
-        g_app->settings.lastDir);
-    if (p.empty()) {
+    bool archive = false;
+    for (const GamePath& gp : g_app->gamePaths) { archive = archive || !gp.archives.empty(); }
+    if (!archive) {
+        missionsSucheBeenden();
+        g_app->missions.clear();
+        g_app->missionArchive.clear();
+        g_app->missionsFilter[0] = '\0';
+        g_app->missionPickOpen = true;
         return;
     }
-    missionenAusArchiv(p);
+    missionenAusArchiv(std::string());
+}
+
+// "Archiv oeffnen..." in der Auswahl: der bisherige Weg ueber den Dateidialog fuer eine einzelne heruntergeladene pk3 (ihre Missionen vorn)
+void missionArchivOeffnen() {
+    const std::string p = platform::openFileDialog(tr(Str::T1aArchivOeffnen), "Game archives (*.pk3)|*.pk3|All files (*.*)|*.*", g_app->settings.lastDir);
+    if (!p.empty()) { missionenAusArchiv(p); }
+}
+
+namespace {
+bool ordnerHatPk3(const std::string& o) {
+    std::error_code ec;
+    for (const auto& e : std::filesystem::directory_iterator(::bhed::utf8Pfad(o), ec)) {
+        std::string ext = e.path().extension().string();
+        for (char& c : ext) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+        if (ext == ".pk3") { return true; }
+    }
+    return false;
+}
+}  // namespace
+
+// "Ordner oeffnen...": ein Spiel- oder Mod-Ordner (GameData\base, eine Mod daneben, eine entpackte Mod) - dessen Missionen, die Ordner
+// gelten nur fuer diese Sitzung (dieselben Regeln wie fuer ein Archiv: spielordnerFuerOrdner)
+void missionSpielordnerOeffnen() {
+    const std::string ordner = platform::pickFolder(tr(Str::T1aOrdnerWahl), g_app->settings.lastDir);
+    if (ordner.empty()) { return; }
+    const bool jk2 = jediOutcastOrdner(ordner);
+    const SpielordnerWahl wahl = spielordnerFuerOrdner(ordner, jk2 ? g_app->settings.gamePathsJk2 : g_app->settings.gamePaths, g_app->sitzungsSpielordner, ordnerHatPk3);
+    setzeSitzungsSpielordner(wahl.ordner);
+    g_app->settings.lastDir = ordner;
+    diag::info("Missionen aus dem Ordner " + ordner + " (" + std::to_string(wahl.ordner.size()) + " Spielordner)");
+    loadMissionArchive();
 }
 
 namespace {
@@ -4891,6 +4924,7 @@ void missionsSucheBeenden() {
     }
     g_app->missionsSuchKarten.clear();
     g_app->missionsSuchArchive.clear();
+    g_app->missionsSuchGruppen.clear();
     g_app->missionsSuchSchluessel.clear();
 }
 
@@ -4910,7 +4944,9 @@ void missionsSucheUebernehmen() {
             ++nichtLesbar;
         }
         Mission m = missionAus(g_app->missionsSuchKarten[i], su.verweise()[i], gibt);
-        m.archiv = g_app->missionsSuchArchive[i];
+        m.archivPfad = g_app->missionsSuchArchive[i];
+        m.archiv = nurDateiname(m.archivPfad);
+        m.gruppe = i < g_app->missionsSuchGruppen.size() ? g_app->missionsSuchGruppen[i] : m.archiv;
         g_app->missions.push_back(std::move(m));
     }
     sortiereMissionen(g_app->missions);
@@ -4923,55 +4959,48 @@ void missionsSucheUebernehmen() {
     g_app->missionsSuche.reset();
     g_app->missionsSuchKarten.clear();
     g_app->missionsSuchArchive.clear();
+    g_app->missionsSuchGruppen.clear();
     g_app->missionsSuchSchluessel.clear();
 }
 
 void missionenAusArchiv(const std::string& p, const std::string& wunsch) {
-    diag::Step step("Mission suchen: " + p);
-    g_app->settings.lastDir = directoryOf(p);
+    diag::Step step("Mission suchen: " + (p.empty() ? std::string("(Spielordner)") : p));
     g_app->missionArchive = p;
     missionsSucheBeenden();
+    // TEST1411 A: ohne Archiv die Missionen der geltenden Spielordner (keins steht vorn, keine Ordner aendern sich)
+    if (!p.empty()) {
+        g_app->settings.lastDir = directoryOf(p);
 
-    // Erst pruefen, ob es ueberhaupt ein Archiv ist - vor jeder Aenderung an
-    // den Spielordnern.
-    {
-        Pk3 archive;
-        std::string err;
-        if (!readPk3Directory(p, archive, &err)) {
-            step.fail(err);
-            platform::showError(p + "\n" + err, tr(Str::AppTitle));
-            return;
-        }
-    }
-
-    // --- rc603: das Spiel des Archivs --------------------------------------
-    //
-    // Vorher: addGamePathDirectory(directoryOf(p)) - der Ordner kam DAUERHAFT
-    // in die Einstellungen, auch der eines anderen Spiels (JK2), und gewann
-    // als spaeterer Ordner sogar gegen die eingerichteten. Jetzt bestimmt
-    // spielordnerFuerArchiv die Ordner des Spiels; gehoeren sie nicht zu den
-    // eingerichteten, gelten sie nur fuer diese Sitzung.
-    // rc604: die eingerichteten Ordner DES Spiels, zu dem das Archiv gehoert -
-    // eine JK2-pk3 nie auf den Ordnern von Jedi Academy (und umgekehrt).
-    const bool archivJk2 = jediOutcastOrdner(ordnerVonDatei(p));
-    const std::vector<std::string>& eingerichtet =
-        archivJk2 ? g_app->settings.gamePathsJk2 : g_app->settings.gamePaths;
-    const SpielordnerWahl wahl =
-        spielordnerFuerArchiv(p, eingerichtet, g_app->sitzungsSpielordner, [](const std::string& o) {
-            std::error_code ec;
-            for (const auto& e : std::filesystem::directory_iterator(::bhed::utf8Pfad(o), ec)) {
-                std::string ext = e.path().extension().string();
-                for (char& c : ext) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
-                if (ext == ".pk3") {
-                    return true;
-                }
+        // Erst pruefen, ob es ueberhaupt ein Archiv ist - vor jeder Aenderung an
+        // den Spielordnern.
+        {
+            Pk3 archive;
+            std::string err;
+            if (!readPk3Directory(p, archive, &err)) {
+                step.fail(err);
+                platform::showError(p + "\n" + err, tr(Str::AppTitle));
+                return;
             }
-            return false;
-        });
-    // rc604: auch bei "eingerichtet" die Ordner der Wahl - sie gehoeren
-    // vielleicht zum anderen Spiel; gleichen sie den geltenden, endet die
-    // Sitzung (setzeSitzungsSpielordner).
-    setzeSitzungsSpielordner(wahl.ordner);
+        }
+
+        // --- rc603: das Spiel des Archivs --------------------------------------
+        //
+        // Vorher: addGamePathDirectory(directoryOf(p)) - der Ordner kam DAUERHAFT
+        // in die Einstellungen, auch der eines anderen Spiels (JK2), und gewann
+        // als spaeterer Ordner sogar gegen die eingerichteten. Jetzt bestimmt
+        // spielordnerFuerArchiv die Ordner des Spiels; gehoeren sie nicht zu den
+        // eingerichteten, gelten sie nur fuer diese Sitzung.
+        // rc604: die eingerichteten Ordner DES Spiels, zu dem das Archiv gehoert -
+        // eine JK2-pk3 nie auf den Ordnern von Jedi Academy (und umgekehrt).
+        const bool archivJk2 = jediOutcastOrdner(ordnerVonDatei(p));
+        const std::vector<std::string>& eingerichtet =
+            archivJk2 ? g_app->settings.gamePathsJk2 : g_app->settings.gamePaths;
+        const SpielordnerWahl wahl = spielordnerFuerArchiv(p, eingerichtet, g_app->sitzungsSpielordner, ordnerHatPk3);
+        // rc604: auch bei "eingerichtet" die Ordner der Wahl - sie gehoeren
+        // vielleicht zum anderen Spiel; gleichen sie den geltenden, endet die
+        // Sitzung (setzeSitzungsSpielordner).
+        setzeSitzungsSpielordner(wahl.ordner);
+    }
 
     // --- Alle Archive des Spiels, in der Suchreihenfolge der Engine ---------
     //
@@ -5041,6 +5070,8 @@ void missionenAusArchiv(const std::string& p, const std::string& wunsch) {
             }
             Mission m = missionAus(k, verweise, gibt);
             m.archiv = nurDateiname(a.bspArchiv);
+            m.archivPfad = a.bspArchiv;   // TEST1411 A
+            m.gruppe = nurDateiname(a.entArchiv.empty() ? a.bspArchiv : a.entArchiv);
             // Aus "zuletzt geoeffnet": die gemerkte Mission, ohne Auswahl
             // (rc599) - auch wenn sie nicht im gewaehlten Archiv liegt.
             if (gesucht) {
@@ -5053,7 +5084,8 @@ void missionenAusArchiv(const std::string& p, const std::string& wunsch) {
             continue;
         }
         g_app->missionsSuchKarten.push_back(k);
-        g_app->missionsSuchArchive.push_back(nurDateiname(a.bspArchiv));
+        g_app->missionsSuchArchive.push_back(a.bspArchiv);   // TEST1411 A: der volle Pfad (der Name kommt beim Uebernehmen)
+        g_app->missionsSuchGruppen.push_back(nurDateiname(a.entArchiv.empty() ? a.bspArchiv : a.entArchiv));
         g_app->missionsSuchSchluessel.push_back(schluessel);
         hinten.push_back(std::move(a));
     }
@@ -5322,7 +5354,9 @@ void loadMission(const Mission& m) {
 
     // Und jetzt alles auf einmal, statt beim ersten Bewegen.
     prepareScene();
-    // Fuer "zuletzt geoeffnete Missionen" (rc599): Archiv und Name.
+    // Fuer "zuletzt geoeffnete Missionen" (rc599): Archiv und Name. TEST1411 A: aus der Liste des Spiels (kein Archiv gewaehlt) das Archiv,
+    // aus dem die Engine die .bsp laedt - mit vollem Pfad; Save mission nimmt es ebenso
+    if (g_app->missionArchive.empty()) { g_app->missionArchive = m.archivPfad; }
     if (!g_app->missionArchive.empty()) {
         g_app->settings.noteRecentMission("pk3|" + g_app->missionArchive + "|" + m.name);
     }
@@ -5440,7 +5474,7 @@ bool passtZumFilter(const Mission& m, const std::string& filter) {
     if (filter.empty()) {
         return true;
     }
-    std::string n = m.name;
+    std::string n = m.name + "\n" + m.archiv + "\n" + m.gruppe;   // TEST1411 A: der Filter trifft auch den Archivnamen
     for (char& c : n) {
         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     }
@@ -5529,7 +5563,7 @@ void drawMissionPicker() {
             }
         }
         if ((weitere > 0 || sucht) && !laden) {
-            ImGui::SeparatorText(tr(Str::MissionOtherArchives));
+            if (eigene > 0) { ImGui::SeparatorText(tr(Str::MissionOtherArchives)); }
             if (sucht) {
                 const MissionsSuche& su = *g_app->missionsSuche;
                 char z[200];
@@ -5539,12 +5573,50 @@ void drawMissionPicker() {
                 ImGui::ProgressBar(su.gesamt() > 0 ? static_cast<float>(su.erledigt()) / static_cast<float>(su.gesamt()) : 1.0F,
                                    ImVec2{ImGui::GetFontSize() * 20.0F, 0.0F}, "");
             }
-            for (std::size_t i = 0; i < g_app->missions.size() && !laden; ++i) {
-                const Mission& m = g_app->missions[i];
-                if (!m.imGewaehlten && passtZumFilter(m, filter) && missionsZeile(i)) {
-                    laden = m;
+            // TEST1411 A: je Archiv der spielbaren Missionen eine aufklappbare Gruppe (ab Werk offen, wie Movie Duels MD_Missions_Ep1 ... Ep8),
+            // am Ende die Karten ohne Skripte (Duellkarten) in einer eigenen Gruppe, ab Werk zu
+            std::vector<std::string> archive;
+            std::size_t duelle = 0;
+            for (const Mission& m : g_app->missions) {
+                if (m.imGewaehlten || !passtZumFilter(m, filter)) { continue; }
+                if (!m.playable()) {
+                    ++duelle;
+                } else if (std::find(archive.begin(), archive.end(), m.gruppe) == archive.end()) {
+                    archive.push_back(m.gruppe);
                 }
             }
+            std::sort(archive.begin(), archive.end(), [](const std::string& x, const std::string& y) {
+                return std::lexicographical_compare(x.begin(), x.end(), y.begin(), y.end(), [](char c1, char c2) {
+                    return std::tolower(static_cast<unsigned char>(c1)) < std::tolower(static_cast<unsigned char>(c2));
+                });
+            });
+            g_app->missionsGruppen = archive;
+            for (const std::string& arch : archive) {
+                if (laden) { break; }
+                std::size_t n = 0;
+                for (const Mission& m : g_app->missions) { n += !m.imGewaehlten && m.playable() && m.gruppe == arch && passtZumFilter(m, filter) ? 1U : 0U; }
+                const std::string kopf = arch + "  (" + std::to_string(n) + ")###mgruppe_" + arch;
+                if (!ImGui::CollapsingHeader(kopf.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) { continue; }
+                for (std::size_t i = 0; i < g_app->missions.size() && !laden; ++i) {
+                    const Mission& m = g_app->missions[i];
+                    if (!m.imGewaehlten && m.playable() && m.gruppe == arch && passtZumFilter(m, filter) && missionsZeile(i)) { laden = m; }
+                }
+            }
+            if (duelle > 0 && !laden) {
+                const std::string kopf = std::string(tr(Str::T1aOhneSkripte)) + "  (" + std::to_string(duelle) + ")###mgruppe_duelle";
+                if (ImGui::CollapsingHeader(kopf.c_str())) {
+                    for (std::size_t i = 0; i < g_app->missions.size() && !laden; ++i) {
+                        const Mission& m = g_app->missions[i];
+                        if (!m.imGewaehlten && !m.playable() && passtZumFilter(m, filter) && missionsZeile(i)) { laden = m; }
+                    }
+                }
+            }
+        }
+        // TEST1411 A: nichts eingerichtet - kurzer Hinweis (die drei Knoepfe stehen unten)
+        if (g_app->missions.empty() && !sucht) {
+            ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+            ImGui::TextDisabled("%s", tr(Str::T1aNichtsEingerichtet));
+            ImGui::PopTextWrapPos();
         }
     }
     ImGui::EndChild();
@@ -5560,16 +5632,35 @@ void drawMissionPicker() {
         loadMission(*laden);
         return;
     }
-    if (!anyPlayable && !sucht) {
+    if (!anyPlayable && !sucht && !g_app->missions.empty()) {
         ImGui::TextDisabled("%s", tr(Str::MissionNone));
     }
     ImGui::Separator();
+    // TEST1411 A: zwei Wege zu einer anderen Quelle neben Abbrechen; ohne Spielordner dazu "Spielordner einrichten..." (Bearbeiten > Spielordner)
+    int weg = 0;
+    if (ImGui::Button(tr(Str::T1aOrdnerOeffnen))) { weg = 1; }
+    ImGui::SetItemTooltip("%s", tr(Str::T1aOrdnerOeffnenHint));
+    ImGui::SameLine();
+    if (ImGui::Button(tr(Str::T1aArchivOeffnen))) { weg = 2; }
+    ImGui::SetItemTooltip("%s", tr(Str::T1aArchivOeffnenHint));
+    if (g_app->missions.empty() && !sucht) {
+        ImGui::SameLine();
+        if (ImGui::Button(tr(Str::T1aEinrichten))) { weg = 3; }
+    }
+    ImGui::SameLine();
     if (ImGui::Button(tr(Str::EditorCancel))) {
         g_app->missionPickOpen = false;
         missionsSucheBeenden();
         ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
+    if (weg == 1) { missionSpielordnerOeffnen(); }
+    if (weg == 2) { missionArchivOeffnen(); }
+    if (weg == 3) {
+        g_app->missionPickOpen = false;
+        missionsSucheBeenden();
+        g_app->pathsOpen = true;
+    }
 }
 
 // Der Ebenen-Verwalter fuer Entities.

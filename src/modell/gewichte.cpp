@@ -844,6 +844,68 @@ int gewichtSetzen(Inhalt& in, int stufe, const EckenMaske& wahl, int knochen, fl
     return aufGewaehlte(in, stufe, wahl, knochen, regeln, [wert](float) { return wert; });
 }
 
+GewichtListe mittelListe(const Inhalt& in, int stufe, const EckenMaske& wahl) {
+    const Schweissnetz s = schweissen(in, stufe);
+    const std::vector<char> ziel = zielPunkte(s, &wahl);
+    GewichtListe summe;
+    int n = 0;
+    for (int p = 0; p < s.zahl(); ++p) {
+        if (ziel[uz(p)] == 0) { continue; }
+        ++n;
+        for (const KnochenGewicht& g : punktListe(in, stufe, s, p)) {
+            const auto it = std::find_if(summe.begin(), summe.end(), [&](const KnochenGewicht& x) { return x.knochen == g.knochen; });
+            if (it != summe.end()) {
+                it->gewicht += g.gewicht;
+            } else {
+                summe.push_back(g);
+            }
+        }
+    }
+    for (KnochenGewicht& g : summe) { g.gewicht /= static_cast<float>(std::max(n, 1)); }
+    std::stable_sort(summe.begin(), summe.end(), [](const KnochenGewicht& a, const KnochenGewicht& b) { return a.gewicht > b.gewicht; });
+    return summe;
+}
+
+GewichtListe punktGewichte(const Inhalt& in, int stufe, const EckOrt& ecke) {
+    const Netz* n = netzDer(in, stufe, ecke.teil);
+    if (n == nullptr || ecke.ecke < 0 || uz(ecke.ecke) >= n->ecken.size()) { return {}; }
+    return leseListe(*n, uz(ecke.ecke));
+}
+
+int listeSetzen(Inhalt& in, int stufe, const EckenMaske& wahl, const GewichtListe& l) {
+    if (l.empty()) { return 0; }
+    const Schweissnetz s = schweissen(in, stufe);
+    const std::vector<char> ziel = zielPunkte(s, &wahl);
+    int z = 0;
+    for (int p = 0; p < s.zahl(); ++p) {
+        if (ziel[uz(p)] != 0) { z += punktSchreiben(in, stufe, s, p, l); }
+    }
+    return z;
+}
+
+int listenNachOrt(Inhalt& in, int stufe, const EckenMaske& wahl, const std::vector<OrtListe>& kopie, float toleranz) {
+    if (kopie.empty()) { return 0; }
+    const Schweissnetz s = schweissen(in, stufe);
+    const std::vector<char> ziel = zielPunkte(s, &wahl);
+    int z = 0;
+    for (int p = 0; p < s.zahl(); ++p) {
+        if (ziel[uz(p)] == 0) { continue; }
+        const float* o = s.ort(in, stufe, p);
+        if (o == nullptr) { continue; }
+        const OrtListe* best = nullptr;
+        float bestD = toleranz * toleranz;
+        for (const OrtListe& k : kopie) {
+            const float d = (k.ort[0] - o[0]) * (k.ort[0] - o[0]) + (k.ort[1] - o[1]) * (k.ort[1] - o[1]) + (k.ort[2] - o[2]) * (k.ort[2] - o[2]);
+            if (d <= bestD) {
+                bestD = d;
+                best = &k;
+            }
+        }
+        if (best != nullptr && !best->liste.empty()) { z += punktSchreiben(in, stufe, s, p, best->liste); }
+    }
+    return z;
+}
+
 int gewichtSkalieren(Inhalt& in, int stufe, const EckenMaske& wahl, int knochen, float faktor, const MalRegeln& regeln) {
     return aufGewaehlte(in, stufe, wahl, knochen, regeln, [faktor](float w) { return w * faktor; });
 }

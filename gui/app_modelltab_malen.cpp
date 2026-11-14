@@ -758,6 +758,8 @@ mm::Pinsel pinselJetzt(float radius) {
 void strichBeginnen(MalBild& m) {
     ModellMalen& z = mz();
     mm::schrittBeginnen(m.v, m.l, tr(Str::PtUndoStrich));
+    m.v.offen.strich = ++z.strichNummer;   // TEST1411 O
+    z.strichBilder = 1;
     z.strich = mm::Strich{};
     z.strichLaeuft = true;
     z.strich2d = false;   // MBMAL: der Strich gehoert der Ansicht, in der er beginnt (das 2D-Bild setzt es danach)
@@ -837,6 +839,35 @@ int tupferAn(MalBild& m, const ModellAnsicht& a, const Treffer& trf, bool erster
 
 SchirmNetz g_schirmNetz;   // je Mausereignis neu gefuellt (der Speicher bleibt)
 
+// TEST1411 O: das Bild unter dem Pinsel - die Leinwand der Gruppe der Flaeche (Stufe 0: das Bild der Flaeche), je Strich gemerkt (ein
+// Tupfer ueber dem Haar ohne Bild fragt nicht jedes Mal neu); nullptr ohne Bild
+std::map<int, MalBild*> g_bildJeTeil;
+long long g_bildJeTeilStrich = -1;
+
+MalBild* bildUnter(int teil, int& gruppe) {
+    ModellMalen& z = mz();
+    if (g_bildJeTeilStrich != z.strichNummer) {
+        g_bildJeTeil.clear();
+        g_bildJeTeilStrich = z.strichNummer;
+    }
+    const std::vector<Gruppe> g = gruppen();
+    gruppe = gruppeVonTeil(g, teil);
+    const auto it = g_bildJeTeil.find(teil);
+    if (it != g_bildJeTeil.end()) { return it->second; }
+    MalBild* b = gruppe >= 0 ? bildFuer(gruppe, 0, true) : nullptr;
+    g_bildJeTeil[teil] = b;
+    return b;
+}
+
+// Ein weiteres Bild im laufenden Strich: sein Schritt traegt die Kennung des Strichs (Rueckgaengig nimmt alle zusammen)
+void strichAuchAuf(MalBild& b) {
+    ModellMalen& z = mz();
+    if (b.v.laeuft) { return; }
+    mm::schrittBeginnen(b.v, b.l, tr(Str::PtUndoStrich));
+    b.v.offen.strich = z.strichNummer;
+    ++z.strichBilder;
+}
+
 }  // namespace
 
 // --- Malen in der 3D-Ansicht ------------------------------------------------------------------------------------------
@@ -872,7 +903,7 @@ bool modellMalenAnsicht(const ModellAnsicht& a, ImVec2 maus, bool neu) {
         // verband Strich::weiter die Treffer in der Ruhelage: sprang der Pinsel zwischen Koerperteilen (r_hand -> l_hand, in
         // der Pose nah, in der Ruhelage 42 Einheiten), lag dort eine Tupferlinie - Streifen, wo der Pinsel nie war.
         int n = 0;
-        bool gemalt = false;
+        std::vector<MalBild*> bemalt;   // TEST1411 O: jedes Bild, in das dieses Mausereignis gemalt hat
         for (const std::array<float, 3>& st : z.strich.weiter(stelle, schritt)) {
             // ausserhalb der Ansicht zeigt sie keine Flaeche: dort malt der Tupfer nichts (der Strich laeuft weiter)
             const bool drin = st[0] >= a.lo[0] && st[1] >= a.lo[1] && st[0] <= a.lo[0] + a.groesse[0] && st[1] <= a.lo[1] + a.groesse[1];
@@ -880,19 +911,35 @@ bool modellMalenAnsicht(const ModellAnsicht& a, ImVec2 maus, bool neu) {
             mm::Stoppuhr uhr(ms.trefferMs);
             const bool hit = drin && treffer(g_schirmNetz, ImVec2{st[0], st[1]}, trf);
             uhr.halt();
-            const int k = hit ? tupferAn(*m, a, trf, false, zj) : -1;
+            int k = hit ? tupferAn(*m, a, trf, false, zj) : -1;
+            // TEST1411 O: trifft der Tupfer eine Flaeche mit einem anderen Bild, malt er dort weiter - wie Viewport Canvas mit
+            // Multi/Sub-Object (je Teilmaterial sein Bild) und Substance Painter (ueber alle Texture Sets). Das Ziel folgt der
+            // bemalten Flaeche (die 2D-Leinwand zeigt dasselbe Bild). "Nur Ziel-Textur bemalen" haelt den Strich wie bis rc612 im Ziel.
+            if (k < 0 && hit && !z.nurZiel) {
+                int gw = -1;
+                MalBild* anderes = bildUnter(trf.teil, gw);
+                if (anderes != nullptr && anderes != m) {
+                    strichAuchAuf(*anderes);
+                    m = anderes;
+                    zj = ZugewandtJe{};   // die Dreiecke gehoeren zum anderen Bild
+                    z.uvDavor = false;    // Verwischen beginnt auf dem neuen Bild neu
+                    z.gruppe = gw;
+                    z.stufe = 0;
+                    k = tupferAn(*m, a, trf, false, zj);
+                }
+            }
             if (k < 0) {
                 z.uvDavor = false;
                 if (ms.an) { ++ms.tupferDaneben; }
                 continue;
             }
             n += k;
-            gemalt = true;
+            if (std::find(bemalt.begin(), bemalt.end(), m) == bemalt.end()) { bemalt.push_back(m); }
         }
-        if (!gemalt) { return false; }
+        if (bemalt.empty()) { return false; }
         if (ms.an) { ++ms.ereignisse; }
         z.texelGemalt += n;
-        anzeigeNachfuehren(*m);
+        for (MalBild* b : bemalt) { anzeigeNachfuehren(*b); }
         return true;
     }
     Treffer trf;
@@ -993,6 +1040,12 @@ bool modellMalenUngespeichert() {
     return std::any_of(g_bilder.begin(), g_bilder.end(), [](const std::unique_ptr<MalBild>& b) { return b->l.stand != b->l.gespeichert; });
 }
 
+std::vector<std::pair<std::string, bool>> modellMalenBildStaende() {
+    std::vector<std::pair<std::string, bool>> aus;
+    for (const auto& b : g_bilder) { aus.emplace_back(b->l.datei, b->l.bild != b->l.grund); }
+    return aus;
+}
+
 MalVerlaufStand modellMalenVerlaufStand() {
     MalVerlaufStand st;
     for (const auto& b : g_bilder) {
@@ -1085,8 +1138,14 @@ bool modellMalenRueckgaengig() {
         mm::schrittEnde(b->v, b->l);
         if (!b->v.zurueck.empty() && (m == nullptr || b->v.zurueck.back().nummer > m->v.zurueck.back().nummer)) { m = b.get(); }
     }
-    if (m == nullptr || !mm::rueckgaengig(m->v, m->l)) { return false; }
+    if (m == nullptr) { return false; }
+    // TEST1411 O: ein Strich ueber mehrere Bilder geht als Ganzes zurueck (jedes Bild, dessen juengster Schritt zu ihm gehoert)
+    const long long strich = m->v.zurueck.back().strich;
+    if (!mm::rueckgaengig(m->v, m->l)) { return false; }
     anzeigeNachfuehren(*m);
+    for (auto& b : g_bilder) {
+        if (strich != 0 && b.get() != m && !b->v.zurueck.empty() && b->v.zurueck.back().strich == strich && mm::rueckgaengig(b->v, b->l)) { anzeigeNachfuehren(*b); }
+    }
     melden(tr(Str::PtRueckgaengig));
     return true;
 }
@@ -1108,8 +1167,13 @@ bool modellMalenWiederholen() {
         vor.erase(std::remove_if(vor.begin(), vor.end(), [juengster](const mm::UndoSchritt& x) { return x.nummer < juengster; }), vor.end());
         if (!vor.empty() && (m == nullptr || vor.back().nummer < m->v.vor.back().nummer)) { m = b.get(); }
     }
-    if (m == nullptr || !mm::wiederholen(m->v, m->l)) { return false; }
+    if (m == nullptr) { return false; }
+    const long long strich = m->v.vor.back().strich;   // TEST1411 O: der ganze Strich
+    if (!mm::wiederholen(m->v, m->l)) { return false; }
     anzeigeNachfuehren(*m);
+    for (auto& b : g_bilder) {
+        if (strich != 0 && b.get() != m && !b->v.vor.empty() && b->v.vor.back().strich == strich && mm::wiederholen(b->v, b->l)) { anzeigeNachfuehren(*b); }
+    }
     return true;
 }
 
@@ -1351,6 +1415,9 @@ const std::vector<MalAktion>& aktionen() {
         {Str::PtEditorZeigen, Str::PtEditorZeigenHint, "", "", 0, 0, [] { mz().editorOffen = !mz().editorOffen; }, [] { return mz().editorOffen; }, 4},
         {Str::PtUvZeigen, Str::PtUvZeigenHint, "", "", 0, 0, [] { mz().uvZeigen = !mz().uvZeigen; }, [] { return mz().uvZeigen; }, 4},
         {Str::PtUmbacken, Str::PtUmbackenHint, "", "", 0, 0, [] { umbackenBefehl(); }, {}, 4},
+        // TEST1411 O: die Textur der Flaeche als Ziel (Pipette; Alt+Klick in die Ansicht) und der alte Weg nur ins Ziel
+        {Str::T1oTexturAufnehmen, Str::T1oTexturAufnehmenHint, "", "", 0, 0, [] { mz().texturAufnehmen = !mz().texturAufnehmen; }, [] { return mz().texturAufnehmen; }, 4},
+        {Str::T1oNurZiel, Str::T1oNurZielHint, "", "", 0, 0, [] { mz().nurZiel = !mz().nurZiel; }, [] { return mz().nurZiel; }, 4},
         {Str::PtBauen, Str::PtBauenHint, "", "", 0, 0, [] { (void)modellMalenBauen(); }, {}, 4},
     };
     return kListe;
@@ -1490,8 +1557,28 @@ bool modellMalenTasten() {
 bool modellMalenModal() { return mz().modalArt != 0 || mz().modalEndeBild == ImGui::GetFrameCount(); }
 
 // Die Farbe unter der Maus aufnehmen (nach S): ein Klick in die Ansicht
+bool modellMalenZielAufnehmen(const ModellAnsicht& a, ImVec2 maus) {
+    ModellMalen& z = mz();
+    z.texturAufnehmen = false;
+    Treffer trf;
+    const int gw = treffer(a, maus, trf) ? gruppeVonTeil(gruppen(), trf.teil) : -1;
+    if (gw < 0) {
+        melden(tr(Str::PtKeinBild));
+        return false;
+    }
+    z.gruppe = gw;
+    z.stufe = 0;
+    const MalBild* m = jetzt(true);
+    melden(format(Str::T1oZiel, m != nullptr ? fileName(m->l.datei).c_str() : gruppen()[uz(gw)].shader.c_str()));
+    return true;
+}
+
 bool modellMalenAufnehmen(const ModellAnsicht& a, ImVec2 maus) {
     ModellMalen& z = mz();
+    if (z.texturAufnehmen) {   // TEST1411 O: die Pipette ist scharf - der Klick waehlt die Textur, er malt nicht
+        (void)modellMalenZielAufnehmen(a, maus);
+        return true;
+    }
     if (!z.aufnehmen) { return false; }
     z.aufnehmen = false;
     Treffer trf;
@@ -1583,6 +1670,145 @@ std::string pfadGekuerzt(const std::string& pfad, float breite) {
 float ausklapperText() { return ui::feldBreite() - ImGui::GetFrameHeight() - ImGui::GetStyle().FramePadding.x * 2.0F; }
 
 // Ziel: worauf gemalt wird - der Shader (die Flaechen, die sein Bild zeigen), die Stufe des Shaders, das Bild.
+// TEST1411 O: die Bilder des Modells als kleine Vorschaubilder mit Namen (wie Blenders Texture Slots und die Teilmaterialien von
+// Max Multi/Sub-Object) - aus der Leinwand, sobald sie bemalt wird, sonst aus dem Bild der Vorschau. Neu verkleinert, wenn sich die
+// Quelle aendert (beim Malen hoechstens alle 15 Bilder); die Anzeige ist nur ein Vorschaubild, die Leinwand bleibt unberuehrt.
+struct VorschauBild {
+    void* id = nullptr;
+    unsigned texStand = 0;
+    const void* quelle = nullptr;
+    unsigned stand = 0;
+    int bild = -1000;
+    int b = 0;
+    int h = 0;
+};
+std::map<std::string, VorschauBild> g_vorschau;
+
+// das Bild der Vorschau zu einer Gruppe: die Stufe der ersten Flaeche, deren Bild das der Gruppe ist
+const TextureSet::Tex* vorschauTex(const Gruppe& g) {
+    const std::vector<BildStufe>& st = bildStufen(g.shader);
+    const ShaderInfo* info = shaderInfoVon(g.shader);
+    if (st.empty() || info == nullptr) { return nullptr; }
+    const auto& stufen = g_app->modelTextures.stufen;
+    for (const int t : g.teile) {
+        if (t < 0 || uz(t) >= stufen.size()) { continue; }
+        for (const ModelTextures::FigurStufe& fs : stufen[uz(t)]) {
+            if (fs.art.weiss || fs.pixel.size() != 1U || fs.pixel[0] == nullptr || fs.art.stufe >= info->stages.size()) { continue; }
+            if (bildSchluessel(info->stages[fs.art.stufe].image) == st.front().schluessel) { return fs.pixel[0].get(); }
+        }
+    }
+    return nullptr;
+}
+
+void* vorschauBild(int gi, const Gruppe& g, int kante) {
+    const std::vector<BildStufe>& st = bildStufen(g.shader);
+    if (st.empty()) { return nullptr; }
+    VorschauBild& v = g_vorschau[st.front().schluessel];
+    const MalBild* m = bildFuer(gi, 0, false);
+    const TextureSet::Tex* tex = m == nullptr ? vorschauTex(g) : nullptr;
+    const std::uint8_t* px = m != nullptr ? m->l.bild.data() : (tex != nullptr ? tex->rgba.data() : nullptr);
+    const int qb = m != nullptr ? m->l.b : (tex != nullptr ? tex->width : 0);
+    const int qh = m != nullptr ? m->l.h : (tex != nullptr ? tex->height : 0);
+    if (px == nullptr || qb <= 0 || qh <= 0) { return v.id; }
+    const void* quelle = m != nullptr ? static_cast<const void*>(m) : static_cast<const void*>(tex);
+    const unsigned stand = m != nullptr ? static_cast<unsigned>(m->l.stand) : 0U;
+    const bool neu = v.id == nullptr || v.texStand != render::texturStand();
+    const bool anders = v.quelle != quelle || v.stand != stand;
+    if (!neu && (!anders || ImGui::GetFrameCount() - v.bild < 15)) { return v.id; }
+    // verkleinern: je Zielpunkt der Mittelwert ueber hoechstens 4 x 4 Punkte seines Blocks
+    const float f = static_cast<float>(kante) / static_cast<float>(std::max(qb, qh));
+    const int zb = std::max(1, static_cast<int>(std::lround(static_cast<float>(qb) * f)));
+    const int zh = std::max(1, static_cast<int>(std::lround(static_cast<float>(qh) * f)));
+    std::vector<std::uint8_t> out(static_cast<std::size_t>(zb) * static_cast<std::size_t>(zh) * 4U);
+    for (int y = 0; y < zh; ++y) {
+        const int y0 = y * qh / zh;
+        const int y1 = std::max(y0 + 1, (y + 1) * qh / zh);
+        for (int x = 0; x < zb; ++x) {
+            const int x0 = x * qb / zb;
+            const int x1 = std::max(x0 + 1, (x + 1) * qb / zb);
+            unsigned summe[4] = {0, 0, 0, 0};
+            unsigned n = 0;
+            for (int sy = y0; sy < y1; sy += std::max(1, (y1 - y0) / 4)) {
+                for (int sx = x0; sx < x1; sx += std::max(1, (x1 - x0) / 4)) {
+                    const std::uint8_t* q = px + (static_cast<std::size_t>(sy) * static_cast<std::size_t>(qb) + static_cast<std::size_t>(sx)) * 4U;
+                    for (int k = 0; k < 4; ++k) { summe[k] += q[k]; }
+                    ++n;
+                }
+            }
+            std::uint8_t* o = out.data() + (static_cast<std::size_t>(y) * static_cast<std::size_t>(zb) + static_cast<std::size_t>(x)) * 4U;
+            for (int k = 0; k < 3; ++k) { o[k] = static_cast<std::uint8_t>(summe[k] / std::max(n, 1U)); }
+            o[3] = 255;   // deckend: die Vorschau zeigt die Farben, nicht den Alpha-Kanal
+        }
+    }
+    if (neu || v.b != zb || v.h != zh) {
+        v.id = render::createTexture(out.data(), zb, zh);
+        v.texStand = render::texturStand();
+    } else {
+        render::updateTexture(v.id, out.data(), zb, zh);
+    }
+    v.quelle = quelle;
+    v.stand = stand;
+    v.bild = ImGui::GetFrameCount();
+    v.b = zb;
+    v.h = zh;
+    return v.id;
+}
+
+void vorschauRaster(const std::vector<Gruppe>& gr) {
+    ModellMalen& z = mz();
+    z.vorschauKaesten.assign(gr.size(), ImRect{});
+    if (gr.empty()) { return; }
+    const float fs = ImGui::GetFontSize();
+    const float breite = std::max(ImGui::GetContentRegionAvail().x, fs * 4.0F);
+    const float luecke = std::floor(fs * 0.35F);
+    const int spalten = std::clamp(static_cast<int>((breite + luecke) / (fs * 4.6F + luecke)), 1, 8);
+    const float zelle = std::floor((breite - luecke * static_cast<float>(spalten - 1)) / static_cast<float>(spalten));
+    const float bildH = std::floor(zelle * 0.78F);
+    const float zeileH = bildH + fs + 4.0F;
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 start = ImGui::GetCursorScreenPos();
+    const int kante = std::clamp(static_cast<int>(bildH * 2.0F), 32, 256);   // doppelte Aufloesung fuer hohe DPI
+    for (std::size_t i = 0; i < gr.size(); ++i) {
+        const int sp = static_cast<int>(i) % spalten;
+        const int ze = static_cast<int>(i) / spalten;
+        const ImVec2 o{start.x + static_cast<float>(sp) * (zelle + luecke), start.y + static_cast<float>(ze) * (zeileH + luecke)};
+        ImGui::SetCursorScreenPos(o);
+        ImGui::PushID(static_cast<int>(i));
+        const bool geklickt = ImGui::InvisibleButton("##ptvorschau", ImVec2{zelle, zeileH});
+        const bool ueber = ImGui::IsItemHovered();
+        ImGui::PopID();
+        const bool gewaehlt = static_cast<int>(i) == z.gruppe;
+        z.vorschauKaesten[i] = ImRect{o, ImVec2{o.x + zelle, o.y + zeileH}};
+        const std::vector<BildStufe>& st = bildStufen(gr[i].shader);
+        const std::string name = st.empty() ? fileName(gr[i].shader) : fileName(st.front().datei.empty() ? st.front().name : st.front().datei);
+        if (ueber) { ImGui::SetTooltip(tr(Str::T1oVorschauHint), gr[i].shader.c_str()); }
+        if (geklickt) {
+            z.gruppe = static_cast<int>(i);
+            z.stufe = 0;
+            melden(format(Str::T1oZiel, name.c_str()));
+        }
+        dl->AddRectFilled(o, ImVec2{o.x + zelle, o.y + bildH}, ImGui::GetColorU32(ImGuiCol_FrameBg), 2.0F);
+        if (void* id = vorschauBild(static_cast<int>(i), gr[i], kante)) {
+            const VorschauBild& v = g_vorschau[st.front().schluessel];
+            const float s = std::min((zelle - 4.0F) / static_cast<float>(std::max(v.b, 1)), (bildH - 4.0F) / static_cast<float>(std::max(v.h, 1)));
+            const float bw = std::floor(static_cast<float>(v.b) * s);
+            const float bh = std::floor(static_cast<float>(v.h) * s);
+            const ImVec2 b0{std::floor(o.x + (zelle - bw) * 0.5F), std::floor(o.y + (bildH - bh) * 0.5F)};
+            dl->AddImage(reinterpret_cast<ImTextureID>(id), b0, ImVec2{b0.x + bw, b0.y + bh});
+        }
+        const ImU32 rahmen = gewaehlt ? ImGui::GetColorU32(ui::betonungsFarbe()) : ImGui::GetColorU32(ueber ? ImGuiCol_ButtonHovered : ImGuiCol_Border);
+        dl->AddRect(o, ImVec2{o.x + zelle, o.y + bildH}, rahmen, 2.0F, 0, gewaehlt ? 2.0F : 1.0F);
+        // der Name unter dem Bild, gekuerzt auf die Zelle (ganz im Tooltip)
+        std::string zeigen = name;
+        while (zeigen.size() > 3U && ImGui::CalcTextSize(zeigen.c_str()).x > zelle) { zeigen = zeigen.substr(0, zeigen.size() - 4U) + "..."; }
+        dl->AddText(ImVec2{std::floor(o.x + (zelle - ImGui::CalcTextSize(zeigen.c_str()).x) * 0.5F), o.y + bildH + 2.0F},
+                    ImGui::GetColorU32(gewaehlt ? ImGuiCol_Text : ImGuiCol_TextDisabled), zeigen.c_str());
+    }
+    const int reihen = (static_cast<int>(gr.size()) + spalten - 1) / spalten;
+    ImGui::SetCursorScreenPos(start);
+    ImGui::Dummy(ImVec2{breite, static_cast<float>(reihen) * (zeileH + luecke) - luecke});
+}
+
 void rolloutZiel(const std::vector<Gruppe>& gr, MalBild* m) {
     ModellMalen& z = mz();
     const std::string datei = m != nullptr ? fileName(m->l.datei) : std::string();
@@ -1590,6 +1816,7 @@ void rolloutZiel(const std::vector<Gruppe>& gr, MalBild* m) {
     if (!ui::rolloutBeginn(tr(Str::PtGrZiel), {.kurzinfo = datei.empty() ? nullptr : datei.c_str(), .reiter = modellReiter(MbReiter::Aendern, MbReiterBl::Material), .hinweis = tr(Str::PtZielHint)})) {
         return;
     }
+    vorschauRaster(gr);   // TEST1411 O: schneller Wechsel ohne Ausklappliste
     if (!gr.empty()) {
         const int gw = std::clamp(z.gruppe, 0, static_cast<int>(gr.size()) - 1);
         const std::string& shader = gr[uz(gw)].shader;
@@ -1633,7 +1860,9 @@ void rolloutZiel(const std::vector<Gruppe>& gr, MalBild* m) {
     } else {
         ui::absatz(tr(Str::PtKeinBild), ui::Ton::Warnung);
     }
+    (void)ui::schalter(tr(Str::T1oNurZiel), &z.nurZiel, tr(Str::T1oNurZielHint));   // TEST1411 O
     ui::rasterBeginn(2);
+    aktionsKnopf(Str::T1oTexturAufnehmen, UiIcon::MalPipette);   // TEST1411 O: Pipette (Alt+Klick)
     aktionsKnopf(Str::PtEditorZeigen, UiIcon::Bildschirm);
     aktionsKnopf(Str::PtUmbacken, UiIcon::Neuladen);
     ui::rasterEnde();
@@ -1898,10 +2127,20 @@ void rolloutAusgabe() {
 }  // namespace
 
 void drawModellMalenBereich() {
-    const ModellMalen& z = mz();
+    ModellMalen& z = mz();
     const mm::Stoppuhr bereichUhr(mm::messung().bereichMs);
     bilderPruefen();
     const std::vector<Gruppe> gr = gruppen();
+    // TEST1411 O: ein Klick auf eine Flaeche im Szenen-Explorer (oder eine neue Auswahl in der Ansicht) waehlt ihre Textur als Ziel
+    const int teilWahl = mt().auswahl.empty() ? -1 : mt().auswahl.front();
+    if (teilWahl != z.auswahlTeil) {
+        z.auswahlTeil = teilWahl;
+        const int gw = teilWahl >= 0 ? gruppeVonTeil(gr, teilWahl) : -1;
+        if (gw >= 0 && gw != z.gruppe) {
+            z.gruppe = gw;
+            z.stufe = 0;
+        }
+    }
     MalBild* m = jetzt(true);
     rolloutZiel(gr, m);
     rolloutWerkzeuge();

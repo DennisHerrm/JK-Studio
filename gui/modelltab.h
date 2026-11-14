@@ -297,7 +297,10 @@ bool modellMalenTasten();
 [[nodiscard]] bool modellMalenModal();       // F / Umschalt+F laufen (die Ansicht malt nicht)
 bool modellMalenAktionenSuche(const std::string& such);
 bool modellMalenAnsicht(const ModellAnsicht& a, ImVec2 maus, bool neu);   // ein Tupfer (neu: Strich beginnt)
-bool modellMalenAufnehmen(const ModellAnsicht& a, ImVec2 maus);          // nach S: Farbe unter der Maus
+bool modellMalenAufnehmen(const ModellAnsicht& a, ImVec2 maus);
+// TEST1411 O: Alt+Klick bzw. die Pipette - die Textur der Flaeche unter der Maus wird das Ziel (wie Sample in 3ds Max und Blender); true,
+// wenn eine Flaeche mit Bild getroffen wurde
+bool modellMalenZielAufnehmen(const ModellAnsicht& a, ImVec2 maus);          // nach S: Farbe unter der Maus
 void modellMalenEnde();
 void modellMalenUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
 bool modellMalenRueckgaengig();
@@ -309,6 +312,8 @@ struct MalVerlaufStand {
     int kacheln = 0;
 };
 [[nodiscard]] MalVerlaufStand modellMalenVerlaufStand();
+// TEST1411 O (Selbsttest): je geladene Leinwand ihre Datei und ob sie bemalt ist (zusammengesetztes Bild ungleich dem Original)
+[[nodiscard]] std::vector<std::pair<std::string, bool>> modellMalenBildStaende();
 // MBMAL Punkt 5 (Selbsttest ptsprung): die seit `vorher` (Ergebnis der Leinwand) geaenderten Texel der gewaehlten Leinwand
 // am Schirm der Ansicht - je Texel die Stelle in der Pose (jedes Dreieck, das ihn in UV bedeckt; das naechste zum Pfad zaehlt)
 // und ihr Abstand zur Linie `pfad` (Mauspositionen am Schirm)
@@ -432,6 +437,15 @@ struct ModellMalen {
     float modalWert = 0.0F;
     int modalEndeBild = -1;
     bool aufnehmen = false;           // S: der naechste Klick nimmt die Farbe auf
+    // TEST1411 O: wie 3ds Max Viewport Canvas mit Multi/Sub-Object und Substance Painter malt ein Strich in das Bild jeder Flaeche unter
+    // dem Pinsel; nurZiel (ab Werk aus) malt wie bis rc612 nur in das gewaehlte Ziel. texturAufnehmen: die Pipette ist scharf (der naechste
+    // Klick waehlt die Textur der Flaeche, wie Alt+Klick). auswahlTeil: die Flaeche der Auswahl, deren Textur zuletzt Ziel wurde.
+    bool nurZiel = false;
+    bool texturAufnehmen = false;
+    int auswahlTeil = -1;
+    long long strichNummer = 0;       // Kennung des laufenden Strichs (seine Schritte auf allen Bildern gehen zusammen zurueck)
+    int strichBilder = 0;             // Selbsttest: Bilder, in die der letzte Strich gemalt hat
+    std::vector<ImRect> vorschauKaesten;   // Selbsttest: die Vorschaubilder im Rollout Ziel (je Gruppe; leer: nicht gezeichnet)
     char ordner[260] = {};            // Ausgabe ("Fuer das Spiel bauen"), leer: Vorgabe
     float deckVorher = 1.0F;
     // Meldung und Selbsttest
@@ -599,6 +613,10 @@ struct ModellTab {
     int uebersichtRolle = -1;     // gewaehlter Fleck der Uebersicht (Rolle * 3 + Seite)
     modell::RigPose kopie;
     bool kopieDa = false;
+    // TEST1411 N: Setup- oder Animationsmodus wie CAT (Blender: Bearbeitungs-/Posenmodus der Armatur) und fuer welches Modell die
+    // Vorgabe gilt (nach dem Laden Animation, wenn die Figur schon eine Animation oder ein Rig hat, sonst Setup)
+    bool animSetup = false;
+    std::string animModusFuer;
     ModellGeisterEinst geister;
     bool silhouette = false;
     std::vector<ModellPfad> pfade;
@@ -1184,7 +1202,12 @@ struct ExplorerLage {
 };
 
 struct ModellExplorerZustand {
-    int art = 0;                    // 0 nach Hierarchie, 1 nach Ebenen
+    int art = 0;                    // 0 nach Hierarchie, 1 nach Ebenen, 2 Sequenzen (TEST1411 E)
+    // TEST1411 E: der Reiter Sequenzen - Suche (Teilwort, ohne Gross/Klein), Strg+F setzt den Fokus, die Zeile, zu der gerollt wird
+    char seqSuche[64] = {};
+    bool seqFokus = false;
+    int seqZiel = -1;
+    int seqZeilen = 0;              // Selbsttest: Zeilen der Liste nach Gruppe und Suche
     bool filterAus[static_cast<int>(ExplorerFilter::Zahl)]{};
     bool knochenFlach = false;
     int sortierung = 0;             // 0 Reihenfolge der Hierarchie, 1 Name aufsteigend, 2 Name absteigend, 3 Eingefrorene zuerst
@@ -1445,6 +1468,16 @@ struct ModellGewichte {
     float glaettenFaktor = 0.5F;     // Blender Smooth "Factor" 0,5 und "Iterations" 1
     int glaettenRunden = 1;
     float skalieren = 0.95F;         // 3ds Max Weight Tool "Scale Weight" (Vorgabe 0,95)
+    // TEST1411 P: wie Skin in 3ds Max - "Backface Cull Vertices" (ein Rahmen nimmt nur Ecken, die zur Ansicht zeigen; Max: ab Werk aus),
+    // die Ablage von Copy (Orte und Listen der kopierten Punkte), das Fenster Weight Table und was im letzten Bild gezeigt wurde
+    bool rueckseitenAus = false;
+    std::vector<modell::OrtListe> kopie;
+    bool tabelleOffen = false;
+    bool tabelleNurWahl = true;
+    bool tabelleSichtbar = false;
+    int tabelleZeilen = 0;
+    int tabelleSpalten = 0;
+    modell::GewichtListe listeGezeigt;   // die Liste des Weight Tools (Knochen und Gewicht der gewaehlten Ecken)
     // Spiegeln
     bool spiegelModus = false;       // 3ds Max "Mirror Mode": die Ecken links blau, rechts gruen, ohne Gegenstueck gelb
     bool nurAuswahl = false;         // nur Paare mit einer gewaehlten Ecke ("Mirror Paste" der Auswahl)
@@ -1490,6 +1523,11 @@ void modellGewichteMalenSetzen(bool an);
 void modellGewichteWerkzeug(int werkzeug);                    // 0 Pinsel, 1 Verwischen, 2 Verlauf
 // Die gewaehlten Ecken der gezeichneten Stufe: die Unterobjekt-Auswahl, im Objektmodus die Ecken der gewaehlten Flaechen.
 [[nodiscard]] modell::EckenMaske modellGewichteAuswahl(bool* da = nullptr);
+// TEST1411 P: Copy/Paste/Paste-Pos des Weight Tools, Mirror Paste der Auswahl, das Fenster Weight Table (3ds Max Skin)
+int modellGewichteKopieren();
+int modellGewichteEinfuegen(bool nachOrt);
+int modellGewichteSpiegelPaste();
+void drawModellGewichtTabelle();
 int modellGewichteWahl(int art);                              // 0 Wachsen, 1 Schrumpfen, 2 Ring, 3 Schleife - Rueckgabe: gewaehlte Ecken
 int modellGewichteSkalieren();                                // 3ds Max "Scale Weight" auf die Auswahl
 int modellGewichteMischen();                                  // 3ds Max "Blend" auf die Auswahl
@@ -1557,6 +1595,19 @@ bool modellAnimSpiegeln();
 // Der Wurzelweg der gewaehlten Sequenz: waagrechter Weg des Beckens vom ersten zum letzten Bild (mit der Schicht), wie Stufe 7
 // im Mission-Tab (FaWurzelWeg). false: keine Sequenz oder kein Becken erkannt.
 [[nodiscard]] bool modellAnimWurzelweg(float& weg);
+// TEST1411 N (shank 14.11.: "es muesste ein Creation und animation mode rechts in der Leiste geben. Weil da viel zu viel drin ist"):
+// wie CAT der Schalter Setup-/Animationsmodus oben im Motion-Feld (Blender: Bearbeitungs-/Posenmodus der Armatur). Im Setup-Modus
+// stehen die Gruppen zum Aufbauen (Rig erstellen, Anbauten, Fuer das Spiel bauen, GLA, animation.cfg, Ziel-GLA), die Figur steht in
+// ihrer Setup-Pose (Grundstellung der GLA, wie CATs statische Setup-Pose) und es entstehen keine Schluessel; im Animationsmodus die
+// Gruppen zum Animieren. modellAnimSetup gilt nur im Bereich Animation. modellAnimReiter: die Reiter einer Gruppe im laufenden
+// Modus (Animationsgruppen nur im Animationsmodus, Setup-Gruppen im Animationsmodus nur in ihrem eigenen Reiter wie Hierarchie
+// oder Dienstprogramme). modellAnimSchluesselGesperrt: im Setup-Modus true mit der Meldung, sonst false.
+[[nodiscard]] bool modellAnimSetup();
+[[nodiscard]] bool modellAnimSetupGewaehlt();
+void modellAnimSetupSetzen(bool setup);
+[[nodiscard]] unsigned modellAnimReiter(bool setupGruppe, unsigned reiter);
+bool modellAnimSchluesselGesperrt();
+[[nodiscard]] const char* modellAnimModusName(bool setup);
 // Die Gruppen (jede ein ui::rolloutBeginn): Entwurf A1, A2, A4, A8, A9 und die weiteren des Programms.
 void modellAnimGruppeAnimation();        // app_modelltab_mb3.cpp: Name, Ziel-GLA, Plaetze
 void modellAnimGruppeRig();              // app_modelltab_rig.cpp: Rig erstellen (Vorlagen)

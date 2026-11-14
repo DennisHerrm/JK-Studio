@@ -286,6 +286,9 @@ std::vector<Schritt> uiSchritte() {
         g_app->mtab.bereich = ModellBereich::Animation;
         animWaehlen(mb1::animNach("BOTH_WALK1"), true);
     }));
+    add(pause(0.2));
+    // TEST1411 N: GLA, animation.cfg, Ziel-GLA und Plaetze stehen im Animationsmodus wie in 3ds Max im Reiter Dienstprogramme
+    add(tu("MB3 Animation: Reiter Dienstprogramme", [] { modellFeldReiter(MbReiter::Dienste, MbReiterBl::Daten); }));
     add(pause(0.6));
     add(pruefe("MB3 Animation: die animation.cfg der GLA im Dokument, keine Befunde fuer Movie Duels SP", [] {
         diag::detail("Knopftest: MB3 cfg " + g_app->mtab.dok.inhalt().cfgPfad + ", Befunde " + std::to_string(g_app->mtab.cfgBefunde));
@@ -505,6 +508,8 @@ std::vector<Schritt> handbuchSchritte() {
         (void)modellPlatzSetzen(2, mb1::animNach("BOTH_WALK1"));
         g_app->modelDirty = true;
     }));
+    add(pause(0.2));
+    add(tu("MB3 Handbuch: Reiter Dienstprogramme (TEST1411 N: Ziel-GLA und Plaetze)", [] { modellFeldReiter(MbReiter::Dienste, MbReiterBl::Daten); }));
     add(pause(0.5));
     add(tu("MB3 Handbuch: das Befehlsfeld zu den Plaetzen rollen", [] {
         // die Ueberschrift Ziel-GLA und Plaetze oben ins Befehlsfeld

@@ -1568,6 +1568,8 @@ struct App {
     // Spiels liest keine Karte noch einmal.
     std::map<std::string, std::vector<MapData::ScriptRef>> missionsVerweise;
     char missionsFilter[64] = {};
+    std::vector<std::string> missionsGruppen;   // TEST1411 A: die Archivgruppen der Auswahl im letzten Bild (Selbsttest)
+    std::vector<std::string> missionsSuchGruppen;   // TEST1411 A: je Karte der Hintergrundsuche ihre Gruppe (Archiv der .ent, sonst der .bsp)
     bool npcMapRead = false;
 
     // Die Shaderskripte EINMAL fuer die ganze Sitzung.
@@ -4107,11 +4109,14 @@ const std::vector<std::string>& aktiveSpielordner();
 // und neu einlesen, wenn sich dadurch etwas aendert.
 void setzeSitzungsSpielordner(std::vector<std::string> ordner);
 void loadMissionArchive();
+// TEST1411 A: die Auswahl mit einem einzelnen Archiv (Dateidialog) bzw. einem Spiel- oder Mod-Ordner (Ordnerdialog), nur diese Sitzung
+void missionArchivOeffnen();
+void missionSpielordnerOeffnen();
 // Die Missionen des Spiels zu einem Archiv suchen und die Auswahl zeigen -
 // das, was "Load mission..." nach dem Dateidialog tut (rc603: das ganze Spiel,
 // die Missionen des Archivs vorn).
 // wunsch: der Name einer Mission - dann gleich diese (zuletzt geoeffnet).
-void missionenAusArchiv(const std::string& archiv, const std::string& wunsch = std::string());
+void missionenAusArchiv(const std::string& archiv, const std::string& wunsch = std::string());   // TEST1411 A: archiv leer = das ganze Spiel
 // rc603: die Hintergrundsuche abbrechen (Auswahl zu, Mission geladen).
 void missionsSucheBeenden();
 // rc603: ist die Hintergrundsuche fertig, ihre Missionen in die Liste nehmen.
