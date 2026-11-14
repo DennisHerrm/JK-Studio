@@ -2020,18 +2020,11 @@ void drawModellExplorer(float hoehe) {
     m.einzug = std::floor(m.einzug);
     g_z.einzug = m.einzug;
 
-    // Fusszeilen (Entwurf): der Satz zu Auge und Schneeflocke (nach Ebenen) und der Bedienhinweis - nur, wenn Platz ist
-    const float breite = ImGui::GetContentRegionAvail().x;
+    // TEST1411 G (shank 14.11.: "auch das bei layers und by hierarchy unten ist"): wie der Scene Explorer von 3ds Max und der Outliner von
+    // Blender ohne Fusszeilen - der Bedienhinweis und der Satz zu Auge und Schneeflocke stehen im Tooltip des Spaltenkopfs bzw. des Baums
+    // und im Handbuch; der Baum bekommt die Hoehe
     const char* fussEbenen = tr(blender ? Str::MbXEbenenFussBlender : Str::MbXEbenenFuss);
-    const float abstand = ImGui::GetStyle().ItemSpacing.y;
-    // (Platz nur, wenn dem Baum genug Zeilen bleiben: der Bedienhinweis ab 12, der Satz zu den Ebenen ab 16 Zeilen; beides steht
-    // auch in den Tooltips der Schalter)
-    const float frei = ImGui::GetContentRegionAvail().y;
-    const float hHinweis = cjkTextSize(tr(Str::MbXFuss), nullptr, false, breite).y + abstand;
-    const float hEbenen = cjkTextSize(fussEbenen, nullptr, false, breite).y + abstand;
-    const bool mitFuss = frei - hHinweis >= m.zeileH * 12.0F;
-    const bool mitEbenen = g_z.art == 1 && mitFuss && frei - hHinweis - hEbenen >= m.zeileH * 16.0F;
-    const float fussH = (mitFuss ? hHinweis : 0.0F) + (mitEbenen ? hEbenen : 0.0F);
+    const float fussH = 0.0F;
 
     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2{std::floor(m.fs * 0.2F), 0.0F});
     // Kopf und Linien der Tabelle in den Farben des Farbschemas (ImGuis Vorgabe ist dunkel - im hellen Schema ein schwarzer Balken)
@@ -2056,7 +2049,7 @@ void drawModellExplorer(float hoehe) {
             ImGui::TableSetColumnIndex(0);
             ImGui::TableHeader(tr(Str::MbXSpalteName));
             if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), "##mtkopfname"); }
-            tipp(tr(Str::MbXSpalteNameHint));
+            tipp((std::string(tr(Str::MbXSpalteNameHint)) + "\n" + tr(Str::MbXFuss) + "\n" + fussEbenen).c_str());
             ImGui::TableSetColumnIndex(1);
             const ImVec2 k0 = ImGui::GetCursorScreenPos();
             ImGui::TableHeader("##frostkopf");
@@ -2101,18 +2094,7 @@ void drawModellExplorer(float hoehe) {
     }
     ImGui::PopStyleColor(3);
     ImGui::PopStyleVar();
-    if (mitFuss) {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-        ImGui::PushTextWrapPos(0.0F);
-        if (mitEbenen) {
-            cjkTextWrapped("%s", fussEbenen);
-            g_z.fussEbenen = true;
-        }
-        cjkTextWrapped("%s", tr(Str::MbXFuss));
-        g_z.fussHinweis = true;
-        ImGui::PopTextWrapPos();
-        ImGui::PopStyleColor();
-    }
+    if (blender && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip("%s\n%s", tr(Str::MbXFuss), fussEbenen); }   // TEST1411 G
     anbauFenster();
     infoFenster();
     ImGui::EndChild();

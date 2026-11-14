@@ -582,7 +582,7 @@ void statistikZeichnen(const ModellAnsicht& a, ImDrawList* dl) {
     }
     char z[200];
     std::snprintf(z, sizeof z, trN(Str::MbStatistik, fl, dr, ec), fl, dr, ec);
-    dl->AddText(ImVec2{a.lo[0] + 6.0F, a.lo[1] + a.groesse[1] - ImGui::GetFontSize() * 1.4F}, IM_COL32(230, 230, 230, 230), z);
+    dl->AddText(ImVec2{a.lo[0] + 6.0F, a.lo[1] + a.groesse[1] - ImGui::GetFontSize() * 1.4F}, modellUeberGrund(1.0F, false), z);   // TEST1411 M
     ++t.ueber[14];
 }
 
@@ -2486,6 +2486,7 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
 }  // namespace
 
 bool modellAufSchirm(const ModellAnsicht& a, const float p[3], ImVec2& out) { return aufSchirm(a, p, out); }
+bool modellAuswahlMitteJetzt(float m[3]) { return auswahlMitte(m); }   // TEST1411 G
 bool modellGrenzen(bool nurAuswahl, float mn[3], float mx[3]) { return grenzen(nurAuswahl, mn, mx); }   // MBNAV
 // Modell-Block 1d: fuer das Modellieren (gui/wof/app_modelltab_mesh.cpp)
 bool modellDreieckUnter(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck) { return dreieckUnter(a, maus, teil, dreieck); }
@@ -2642,6 +2643,7 @@ void drawModellArbeitsflaeche() {
     drawModellMeshPopups();   // Modell-Block 1d
     drawModellNavPopups();    // MBNAV: Menue der Ansichten (V), Kuchenmenue View (`)
     drawModellAutoSkinFenster();   // AP12
+    drawModellGlaListe();          // TEST1411 C
     if (t.kontextOeffnen) {
         ImGui::OpenPopup("##mtkontext");
         t.kontextOeffnen = false;
@@ -2696,6 +2698,30 @@ ModellSchattierung& modellSch() {
 
 // MBRASTER: der Hintergrund der Ansicht - einfarbig (mb1a2), die Silhouette (E8E8E8, zeichenArt) oder der Verlauf 34..56
 // (modellHintergrundPixelShaderHlsl) als sein Mittel 45.
+// TEST1411 M (shank 14.11.: "bei silhouette siehst du links oben die schrift nicht mehr"): wie 3ds Max auf hellem Grund dunkle Schrift.
+// Nach der relativen Leuchtdichte L des Grunds (WCAG 2, sRGB) Weiss oder Schwarz, je nachdem, was den groesseren Kontrast gibt; die
+// schlechteste Stelle liegt bei L = 0,179 mit 4,58:1 - auf jedem Grund also mindestens die 4,5:1 der WCAG (mit Grau 220/22 statt Weiss/
+// Schwarz waeren es dort nur 3,6:1). Unter der Maus wie die Labels von 3ds Max gelblich, solange das Gelb (L 0,75) noch 4,5:1 hat
+// (Grund L <= 0,128), sonst Weiss bzw. Schwarz - die Hervorhebung zeigt dann der helle Grund des Felds.
+ImU32 modellUeberGrund(float alpha, bool hervor) {
+    float g[3];
+    modellHintergrundFarbe(g);
+    const auto lin = [](float c) { return c <= 0.03928F ? c / 12.92F : std::pow((c + 0.055F) / 1.055F, 2.4F); };
+    const float l = 0.2126F * lin(g[0]) + 0.7152F * lin(g[1]) + 0.0722F * lin(g[2]);
+    const bool dunkleSchrift = (l + 0.05F) / 0.05F > 1.05F / (l + 0.05F);
+    const float gelb = 0.2126F * lin(1.0F) + 0.7152F * lin(222.0F / 255.0F) + 0.0722F * lin(120.0F / 255.0F);
+    ImU32 c = 0;
+    if (dunkleSchrift) {
+        c = IM_COL32(0, 0, 0, 255);
+    } else if (hervor && (gelb + 0.05F) / (l + 0.05F) >= 4.5F) {
+        c = IM_COL32(255, 222, 120, 255);
+    } else {
+        c = IM_COL32(255, 255, 255, 255);
+    }
+    const auto a = static_cast<ImU32>(std::clamp(255.0F * alpha, 0.0F, 255.0F));
+    return (c & ~IM_COL32_A_MASK) | (a << IM_COL32_A_SHIFT);
+}
+
 void modellHintergrundFarbe(float rgb[3]) {
     const int h = mt().silhouette ? 0xE8E8E8 : g_app->settings.modellHintergrund;
     if (h < 0) {

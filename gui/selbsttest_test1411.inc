@@ -8,6 +8,15 @@
 //   I  Bereich Animation ohne Control Rig: ein Klick auf die Figur waehlt einen Knochen, keine Meldung "eingefroren"
 //   H  Knochen als saubere Kette je Glied: je Knochen eine Form, kein Kasten schneidet einen anderen ausser an den Gelenken, die
 //      Kaesten reichen bis zum Gelenk der Kette, Drehhilfen als Punkt, Klick trifft, GLA unberuehrt (_humanoid von Movie Duels, rancor)
+//   G  Zeitleiste und Statuszeile wie 3ds Max in allen Bereichen (kein Text unter der Leiste, Zeitschieber oben, Knoepfe in der einen
+//      Statuszeile), keine Fusszeile im Explorer; Scrubben, Klick in die Spurleiste, Bildfeld, , und ., Schluessel waehlen/ziehen/
+//      kopieren/Menue, Mini Curve Editor; wie Blender ohne Text unter der Leiste
+//   J  Rechtsklick in die Ansicht: wie 3ds Max das Quad-Menue (Rotate setzt das Werkzeug), wie Blender Transform im Kontextmenue
+//   L  ViewCube: ein Klick an der Stelle eines Kompassbuchstabens hinter dem Wuerfel trifft die Flaeche, Uebergang ohne Nachschwingen
+//   M  Kontrast der Beschriftung ueber der Ansicht (WCAG >= 4,5:1) auf dunklem, mittlerem, weissem Grund und in der Silhouette
+//   K  Fussplattform wie CAT (Stil Standard): Klick auf die Platte waehlt den IK-Fuss, heben hebt den Fuss und beugt das Knie, Key;
+//      Abrollen um die Zehe hebt die Ferse
+//   C  Load .gla... oeffnet die Liste der .gla aus den pk3 (wie Other GLA...), Klick laedt; Open file... fuer eine lose .gla
 //   fotos  Fotos fuer D, I, H (BHED_FOTOS)
 //   F  Zeitleiste: die Knoepfe rechts der Bildanzeige stehen still, wenn die Bildzahl waechst (0, 9, 10, 99, 100, letztes Bild der
 //      laengsten Sequenz - unter Movie Duels BOTH_MD_CIN_51 mit 660 Bildern)
@@ -879,6 +888,751 @@ void fotoSchritte(std::vector<Schritt>& s) {
     }));
 }
 
+// --- G: Zeitleiste und Statuszeile wie 3ds Max ----------------------------------------------------------------------------
+
+const ModellZeitProbe& zp() { return modellZeit().probe; }
+
+struct GLage {
+    std::string bereich;
+    std::string hinweis;       // der Text unter der Leiste (leer: keiner)
+    int spurZeilen = 0;        // Zeilen unter der Spurleiste (Primaer/Sekundaer)
+    bool schieberOben = false; // der Zeitschieber steht ueber der Spurleiste
+    bool knoepfeUnten = false; // Auto Key steht in der Statuszeile unter der Spurleiste
+    float statusHoehe = 0.0F;
+    bool fussExplorer = false; // Fusszeile unter dem Baum
+};
+
+struct GStand {
+    std::vector<GLage> lagen;
+    int nachZiehen = -1;       // Bild nach dem Ziehen des Schiebers ans Ende
+    int letztes = -1;
+    int nachKlickSkala = -1;   // Bild nach dem Klick auf Bild 10 der Spurleiste
+    int nachTippen = -1;       // Bild nach "7" + Enter im Bildfeld
+    int nachPunkt = -1;        // Bild nach "." (vor) von 7
+    int nachKomma = -1;        // ... dann "," (zurueck)
+    int knochen = -1;
+    bool keyDa = false;        // Schluessel auf Bild 3
+    bool keyGewaehlt = false;  // Klick auf den Schluessel in der Spurleiste waehlt ihn
+    bool keyVerschoben = false;// Ziehen 3 -> 6: Schluessel auf 6, nicht mehr auf 3
+    bool keyKopiert = false;   // Umschalt-Ziehen 6 -> 9: Schluessel auf 6 und 9
+    bool keyMenue = false;     // Rechtsklick auf den Schluessel: ein Menue
+    bool miniKurveAuf = false; // Mini Curve Editor oeffnet den Spurbereich ueber der Spurleiste
+};
+
+float skalaX(int rel) {
+    const ModellZeitProbe& p = zp();
+    const int q = g_app->animIndex;
+    if (q < 0 || uz(q) >= g_app->animList.size()) { return p.bildX0; }
+    const int n = std::max(g_app->animList[uz(q)].numFrames, 2);
+    return std::floor(p.bildX0 + (p.bildX1 - p.bildX0) * static_cast<float>(rel) / static_cast<float>(n - 1));
+}
+
+int gRel() {
+    const int q = g_app->animIndex;
+    return q >= 0 && uz(q) < g_app->animList.size() ? g_app->animFrame - g_app->animList[uz(q)].firstFrame : -1;
+}
+
+bool gKey(int knochen, int rel) {
+    const int q = g_app->animIndex;
+    if (q < 0 || uz(q) >= g_app->animList.size()) { return false; }
+    const auto& sch = mtab().dok.inhalt().rig.schichten;
+    const auto it = sch.find(g_app->animList[uz(q)].name);
+    return it != sch.end() && it->second.hatSchluessel(knochen, g_app->animList[uz(q)].firstFrame + rel);
+}
+
+// Ziehen mit der linken Taste von a nach b (Umschalt optional), in Schritten je Bild
+Schritt gZiehen(const std::string& was, std::function<ImVec2()> von, std::function<ImVec2()> nach, bool umschalt) {
+    auto a = std::make_shared<ImVec2>();
+    auto b = std::make_shared<ImVec2>();
+    return {"T1411 G: ziehen " + was, [=](int i) {
+                ImGuiIO& io = ImGui::GetIO();
+                if (i == 0) {
+                    *a = von();
+                    *b = nach();
+                    setzeMaus(*a);
+                    if (umschalt) { io.AddKeyEvent(ImGuiMod_Shift, true); }
+                    return false;
+                }
+                if (i == 1) {
+                    io.AddMouseButtonEvent(0, true);
+                    return false;
+                }
+                if (i < 12) {
+                    const float t = static_cast<float>(i - 1) / 10.0F;
+                    setzeMaus(ImVec2{a->x + (b->x - a->x) * t, a->y + (b->y - a->y) * t});
+                    return false;
+                }
+                if (i == 12) {
+                    io.AddMouseButtonEvent(0, false);
+                    return false;
+                }
+                if (i == 13 && umschalt) { io.AddKeyEvent(ImGuiMod_Shift, false); }
+                return i >= 16;
+            }};
+}
+
+void gSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<GStand>();
+    // 1. Aufbau in allen sechs Bereichen wie 3ds Max
+    for (int b = 0; b < kModellBereiche; ++b) {
+        add(tu(std::string("T1411 G: wie 3ds Max, Bereich ") + bereichName(static_cast<ModellBereich>(b)), [b] {
+            modellBedienungSetzen(0);
+            mtab().bereich = static_cast<ModellBereich>(b);
+            const int q = sequenz("SBD_WALK_NORMAL");
+            if (q >= 0 && g_app->animIndex != q) { animWaehlen(q, false); }
+        }));
+        add(pause(0.4));
+        add(tu("T1411 G: Lage der Teile", [st, b] {
+            GLage l;
+            l.bereich = bereichName(static_cast<ModellBereich>(b));
+            const ModellZeitProbe& p = zp();
+            l.hinweis = p.hinweisText;
+            l.spurZeilen = p.spurZeilen;
+            l.statusHoehe = p.status[3];   // Probe: x, y, Breite, Hoehe
+            const Element* sch = finde("##mzschieber", "", 0, false);
+            l.schieberOben = sch != nullptr && sch->rect.Max.y <= p.skala[1] + 1.0F;
+            const Element* ak = finde(tr(Str::MzAutoKey), "", 0, false);
+            l.knoepfeUnten = ak != nullptr && ak->rect.Min.y >= p.status[1] - 1.0F && ak->rect.Max.y <= p.status[1] + p.status[3] + 1.0F;
+            l.fussExplorer = modellExplorer().fussHinweis || modellExplorer().fussEbenen;
+            st->lagen.push_back(l);
+            char z[300];
+            std::snprintf(z, sizeof z, "G %s: Hinweis '%s', %d Zeilen unter der Spurleiste, Schieber oben %d, Knoepfe in der Statuszeile %d, Statuszeile %.0f px, Fusszeile Explorer %d",
+                          l.bereich.c_str(), l.hinweis.c_str(), l.spurZeilen, l.schieberOben ? 1 : 0, l.knoepfeUnten ? 1 : 0, static_cast<double>(l.statusHoehe), l.fussExplorer ? 1 : 0);
+            melde(z);
+        }));
+        add(foto(std::string("t1411_g_max_") + bereichName(static_cast<ModellBereich>(b))));
+    }
+    add(pruefe("T1411 G: wie 3ds Max in allen Bereichen kein Text unter der Leiste und keine Zeilen unter der Spurleiste", [st] {
+        bool ok = st->lagen.size() == static_cast<std::size_t>(kModellBereiche);
+        for (const GLage& l : st->lagen) { ok = ok && l.hinweis.empty() && l.spurZeilen == 0; }
+        return ok;
+    }));
+    add(pruefe("T1411 G: der Zeitschieber steht ueber der Spurleiste, Auto Key in der einzeiligen Statuszeile darunter (alle Bereiche)", [st] {
+        bool ok = st->lagen.size() == static_cast<std::size_t>(kModellBereiche);
+        for (const GLage& l : st->lagen) { ok = ok && l.schieberOben && l.knoepfeUnten && l.statusHoehe <= ImGui::GetFrameHeight() + 8.0F; }
+        return ok;
+    }));
+    add(pruefe("T1411 G: keine Fusszeile unter dem Baum des Szenen-Explorers", [st] {
+        bool ok = !st->lagen.empty();
+        for (const GLage& l : st->lagen) { ok = ok && !l.fussExplorer; }
+        return ok;
+    }));
+    // 2. Verhalten (Bereich Animation, SBD_WALK_NORMAL)
+    add(tu("T1411 G: Bereich Animation, Bild 0", [] {
+        mtab().bereich = ModellBereich::Animation;
+        const int q = sequenz("SBD_WALK_NORMAL");
+        if (q >= 0) {
+            animWaehlen(q, false);
+            g_app->animFrame = g_app->animList[uz(q)].firstFrame;
+        }
+        g_app->animPlaying = false;
+    }));
+    add(pause(0.3));
+    add(gZiehen("den Zeitschieber vom Anfang ans Ende", [] {
+        const Element* e = finde("##mzschieber", "", 0, false);
+        return e != nullptr ? ImVec2{e->rect.Min.x + ImGui::GetFontSize() * 2.0F, e->rect.GetCenter().y} : ansichtMitte();
+    }, [] {
+        const Element* e = finde("##mzschieber", "", 0, false);
+        return e != nullptr ? ImVec2{e->rect.Max.x + ImGui::GetFontSize(), e->rect.GetCenter().y} : ansichtMitte();
+    }, false));
+    add(tu("T1411 G: Bild nach dem Ziehen", [st] {
+        st->nachZiehen = gRel();
+        const int q = g_app->animIndex;
+        st->letztes = q >= 0 && uz(q) < g_app->animList.size() ? g_app->animList[uz(q)].numFrames - 1 : -2;
+    }));
+    add(klickAn("T1411 G: Spurleiste bei Bild 10", [] { return ImVec2{skalaX(10), std::floor(zp().skala[1] + zp().skala[3] * 0.5F)}; }));
+    add(pause(0.2));
+    add(tu("T1411 G: Bild nach dem Klick", [st] { st->nachKlickSkala = gRel(); }));
+    add(klickAn("T1411 G: ins Bildfeld", [] {
+        const Element* e = finde("##mzbildfeld", "", 0, false);
+        return e != nullptr ? e->rect.GetCenter() : ansichtMitte();
+    }));
+    add({"T1411 G: 7 und Enter tippen", [](int i) {
+             ImGuiIO& io = ImGui::GetIO();
+             if (i == 0) {
+                 io.AddKeyEvent(ImGuiMod_Ctrl, true);
+                 io.AddKeyEvent(ImGuiKey_A, true);
+                 return false;
+             }
+             if (i == 1) {
+                 io.AddKeyEvent(ImGuiKey_A, false);
+                 io.AddKeyEvent(ImGuiMod_Ctrl, false);
+                 return false;
+             }
+             if (i == 2) {
+                 io.AddInputCharacter('7');
+                 return false;
+             }
+             if (i == 3) {
+                 io.AddKeyEvent(ImGuiKey_Enter, true);
+                 return false;
+             }
+             if (i == 4) {
+                 io.AddKeyEvent(ImGuiKey_Enter, false);
+                 return false;
+             }
+             return i >= 7;
+         }});
+    add(tu("T1411 G: Bild nach dem Tippen", [st] { st->nachTippen = gRel(); }));
+    add(klickAn("T1411 G: in die Ansicht (Fokus fuer die Tasten)", [] { return ImVec2{mtab().ansichten[mtab().aktiv].lo[0] + 30.0F, mtab().ansichten[mtab().aktiv].lo[1] + 60.0F}; }));
+    add(taste(ImGuiKey_Period, ". (Bild vor)"));
+    add(tu("T1411 G: Bild nach .", [st] { st->nachPunkt = gRel(); }));
+    add(taste(ImGuiKey_Comma, ", (Bild zurueck)"));
+    add(tu("T1411 G: Bild nach ,", [st] { st->nachKomma = gRel(); }));
+    // Schluessel in der Spurleiste: Knochen lradius auf Bild 3 drehen, K
+    add(tu("T1411 G: lradius waehlen, Bild 3, 20 Grad drehen", [st] {
+        ModellTab& t = mtab();
+        t.rig = modell::Rig{};
+        t.rigFuer.clear();
+        t.griffWahl = -1;
+        st->knochen = boneIndex(g_app->anim, "lradius");
+        t.knochenWahl = st->knochen;
+        const int q = g_app->animIndex;
+        if (q >= 0 && uz(q) < g_app->animList.size()) {
+            g_app->animFrame = g_app->animList[uz(q)].firstFrame + 3;
+            g_app->animTime = 0.0F;
+        }
+        const float wert[3] = {0.0F, 0.0F, 20.0F};
+        modellRigZiehen(2, wert);
+        modellRigZiehenEnde();
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.2));
+    add(taste(ImGuiKey_K, "K (Set Key)"));
+    add(pause(0.2));
+    add(tu("T1411 G: Schluessel auf Bild 3?", [st] {
+        st->keyDa = gKey(st->knochen, 3);
+        mtab().kvWahl.clear();
+    }));
+    add(klickAn("T1411 G: auf den Schluessel in der Spurleiste (Bild 3)", [] { return ImVec2{skalaX(3), modellZeitSchluesselY(zp().skala[1])}; }));
+    add(pause(0.2));
+    add(tu("T1411 G: Schluessel gewaehlt?", [st] {
+        for (const auto& w : mtab().kvWahl) { st->keyGewaehlt = st->keyGewaehlt || w.bild == g_app->animList[uz(g_app->animIndex)].firstFrame + 3; }
+    }));
+    add(gZiehen("den Schluessel von Bild 3 auf Bild 6", [] { return ImVec2{skalaX(3), modellZeitSchluesselY(zp().skala[1])}; },
+                [] { return ImVec2{skalaX(6), modellZeitSchluesselY(zp().skala[1])}; }, false));
+    add(tu("T1411 G: verschoben?", [st] { st->keyVerschoben = gKey(st->knochen, 6) && !gKey(st->knochen, 3); }));
+    add(gZiehen("mit Umschalt den Schluessel von Bild 6 auf Bild 9 (kopieren)", [] { return ImVec2{skalaX(6), modellZeitSchluesselY(zp().skala[1])}; },
+                [] { return ImVec2{skalaX(9), modellZeitSchluesselY(zp().skala[1])}; }, true));
+    add(tu("T1411 G: kopiert?", [st] { st->keyKopiert = gKey(st->knochen, 6) && gKey(st->knochen, 9); }));
+    add(klickAn("T1411 G: Rechtsklick auf den Schluessel (Bild 9)", [] { return ImVec2{skalaX(9), modellZeitSchluesselY(zp().skala[1])}; }, 1));
+    add(pause(0.2));
+    add(tu("T1411 G: Menue offen?", [st] {
+        st->keyMenue = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+        ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, true);
+    }));
+    add(tu("T1411 G: Esc los", [] { ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, false); }));
+    add(pause(0.2));
+    add(klickAn("T1411 G: Mini Curve Editor", [] {
+        const Element* e = finde(tr(Str::T1MiniKurve), "", 0, false);
+        return e != nullptr ? e->rect.GetCenter() : ansichtMitte();
+    }));
+    add(pause(0.3));
+    add(tu("T1411 G: Spurbereich offen?", [st] { st->miniKurveAuf = zp().spuren[3] > ImGui::GetFrameHeight(); }));
+    add(foto("t1411_g_max_animation_minikurve"));
+    add(klickAn("T1411 G: Mini Curve Editor wieder zu", [] {
+        const Element* e = finde(tr(Str::T1MiniKurve), "", 0, false);
+        return e != nullptr ? e->rect.GetCenter() : ansichtMitte();
+    }));
+    add(tu("T1411 G: Ergebnis", [st] {
+        char z[300];
+        std::snprintf(z, sizeof z, "G Verhalten: gezogen %d (letztes %d), Klick Spurleiste %d, getippt %d, . %d , %d; Key 3 %d, gewaehlt %d, verschoben %d, kopiert %d, Menue %d, Mini Curve Editor %d",
+                      st->nachZiehen, st->letztes, st->nachKlickSkala, st->nachTippen, st->nachPunkt, st->nachKomma, st->keyDa ? 1 : 0, st->keyGewaehlt ? 1 : 0,
+                      st->keyVerschoben ? 1 : 0, st->keyKopiert ? 1 : 0, st->keyMenue ? 1 : 0, st->miniKurveAuf ? 1 : 0);
+        melde(z);
+    }));
+    add(pruefe("T1411 G: den Zeitschieber ziehen scrubbt bis zum letzten Bild", [st] { return st->letztes > 0 && st->nachZiehen == st->letztes; }));
+    add(pruefe("T1411 G: ein Klick in die Spurleiste setzt das Bild", [st] { return st->nachKlickSkala == 10; }));
+    add(pruefe("T1411 G: das Bildfeld eintippen springt (7)", [st] { return st->nachTippen == 7; }));
+    add(pruefe("T1411 G: . und , gehen ein Bild weiter und zurueck", [st] { return st->nachPunkt == st->nachTippen + 1 && st->nachKomma == st->nachTippen; }));
+    add(pruefe("T1411 G: Schluessel in der Spurleiste: anklicken waehlt, ziehen verschiebt, Umschalt-Ziehen kopiert, Rechtsklick zeigt das Menue",
+               [st] { return st->keyDa && st->keyGewaehlt && st->keyVerschoben && st->keyKopiert && st->keyMenue; }));
+    add(pruefe("T1411 G/I: der Mini Curve Editor oeffnet Dope Sheet/Kurveneditor ueber der Spurleiste", [st] { return st->miniKurveAuf; }));
+    // 3. wie Blender: auch dort kein Text unter der Leiste
+    add(tu("T1411 G: wie Blender, Bereich Animation", [] { modellBedienungSetzen(1); }));
+    add(pause(0.4));
+    add(pruefe("T1411 G: wie Blender kein erklaerender Text unter der Leiste", [] { return zp().hinweisText.empty(); }));
+    add(foto("t1411_g_blender_animation"));
+    add(tu("T1411 G: zurueck", [] {
+        modellBedienungSetzen(0);
+        mtab().knochenWahl = -1;
+        mtab().bereich = ModellBereich::Ansehen;
+    }));
+}
+
+// --- J: Rechtsklick wie das Quad-Menue von 3ds Max ----------------------------------------------------------------------
+
+struct JStand {
+    ImVec2 klick{};
+    bool rotateDa = false;       // "Rotate" im Menue
+    bool rechtsUnten = false;    // ... rechts unter dem Klick (Viertel transform)
+    bool displayRechtsOben = false;   // "Hide Selection" rechts ueber dem Klick (Viertel display)
+    int gizmo = -1;              // Werkzeug nach dem Klick auf Rotate
+    bool blTransform = false;    // wie Blender: "Transform" im Kontextmenue
+};
+
+void jSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<JStand>();
+    add(tu("T1411 J: wie 3ds Max, Bereich Animation, Werkzeug Auswaehlen", [] {
+        modellBedienungSetzen(0);
+        mtab().bereich = ModellBereich::Animation;
+        mtab().gizmo = 0;
+    }));
+    add(pause(0.3));
+    add(tu("T1411 J: eine Ansicht (nach dem Wechsel des Bereichs, der seine Wahl von Alt+W mitbringt)", [] {
+        mtab().vierAnsichten = false;
+        mtab().aktiv = 3;
+    }));
+    add(pause(0.3));
+    add(tu("T1411 J: Klickstelle", [st] {
+        const ModellAnsicht& a = mtab().ansichten[3];
+        st->klick = ImVec2{std::floor(a.lo[0] + a.groesse[0] * 0.5F), std::floor(a.lo[1] + a.groesse[1] * 0.5F)};
+    }));
+    add(pause(0.3));
+    add(klickAn("T1411 J: Rechtsklick in die Ansicht", [st] { return st->klick; }, 1));
+    add(pause(0.3));
+    add(tu("T1411 J: was das Menue zeigt", [st] {
+        const Element* rot = finde(tr(Str::T1QuadRotate), "", 0, false);
+        const Element* hide = finde(tr(Str::T1QuadHideSel), "", 0, false);
+        st->rotateDa = rot != nullptr;
+        st->rechtsUnten = rot != nullptr && rot->rect.Min.x >= st->klick.x && rot->rect.Min.y >= st->klick.y;
+        st->displayRechtsOben = hide != nullptr && hide->rect.Min.x >= st->klick.x && hide->rect.Max.y <= st->klick.y;
+        melde("J Quad-Menue: Rotate " + std::to_string(st->rotateDa ? 1 : 0) + ", rechts unten " + std::to_string(st->rechtsUnten ? 1 : 0) + ", Hide Selection rechts oben " +
+              std::to_string(st->displayRechtsOben ? 1 : 0));
+    }));
+    add(foto("t1411_j_quadmenue"));
+    add(klickAn("T1411 J: Rotate", [st] {
+        const Element* rot = finde(tr(Str::T1QuadRotate), "", 0, false);
+        return rot != nullptr ? rot->rect.GetCenter() : ImVec2{st->klick.x - 400.0F, st->klick.y};
+    }));
+    add(pause(0.3));
+    add(tu("T1411 J: Werkzeug", [st] {
+        st->gizmo = mtab().gizmo;
+        melde("J Werkzeug nach Rotate: " + std::to_string(st->gizmo));
+        if (ImGui::IsPopupOpen("##mtkontext")) { ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, true); }
+    }));
+    add(tu("T1411 J: Esc los", [] { ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, false); }));
+    add(tu("T1411 J: wie Blender", [] { modellBedienungSetzen(1); }));
+    add(pause(0.3));
+    add(klickAn("T1411 J: Rechtsklick in die Ansicht (Blender)", [st] { return st->klick; }, 1));
+    add(pause(0.3));
+    add(tu("T1411 J: Transform im Kontextmenue?", [st] {
+        st->blTransform = finde(tr(Str::T1BlTransform), "", 0, false) != nullptr;
+        ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, true);
+    }));
+    add(tu("T1411 J: Esc los", [] { ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, false); }));
+    add(pause(0.2));
+    add(pruefe("T1411 J: wie 3ds Max zeigt der Rechtsklick das Quad-Menue mit Rotate rechts unter der Maus (transform) und Hide Selection rechts darueber (display)",
+               [st] { return st->rotateDa && st->rechtsUnten && st->displayRechtsOben; }));
+    add(pruefe("T1411 J: Rechtsklick -> Rotate setzt das Werkzeug Drehen (wie E)", [st] { return st->gizmo == 2; }));
+    add(pruefe("T1411 J: wie Blender steht Transform (G/R/S) im Kontextmenue", [st] { return st->blTransform; }));
+    add(tu("T1411 J: zurueck", [] {
+        modellBedienungSetzen(0);
+        mtab().gizmo = 0;
+        mtab().bereich = ModellBereich::Ansehen;
+    }));
+}
+
+// --- L: ViewCube wie 3ds Max --------------------------------------------------------------------------------------------
+
+struct LStand {
+    int buchstabe = -1;          // ein Buchstabe, der auf dem Wuerfel liegt
+    float neigungVor = 0.0F;
+    float neigungNach = 0.0F;
+    float gierVor = 0.0F;
+    float gierNach = 0.0F;
+    std::vector<float> verlauf;  // Neigung je Bild im Uebergang
+    bool ueberschiesst = true;
+};
+
+// Liegt der Schirmpunkt im Umriss des Wuerfels (konvexe Huelle der acht Ecken)?
+bool imWuerfel(int ansicht, ImVec2 p) {
+    std::vector<ImVec2> e;
+    for (int c = 0; c < 8; ++c) {
+        ImVec2 q;
+        if (modellWuerfelOrt(ansicht, (c & 1) != 0 ? 1 : -1, (c & 2) != 0 ? 1 : -1, (c & 4) != 0 ? 1 : -1, q)) { e.push_back(q); }
+    }
+    if (e.size() < 3U) { return false; }
+    // Huelle nach Andrew (monoton)
+    std::sort(e.begin(), e.end(), [](const ImVec2& a, const ImVec2& b) { return a.x < b.x || (a.x == b.x && a.y < b.y); });
+    const auto kr = [](ImVec2 o, ImVec2 a, ImVec2 b) { return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x); };
+    std::vector<ImVec2> h(2 * e.size());
+    std::size_t k = 0;
+    for (std::size_t i = 0; i < e.size(); ++i) {
+        while (k >= 2 && kr(h[k - 2], h[k - 1], e[i]) <= 0.0F) { --k; }
+        h[k++] = e[i];
+    }
+    for (std::size_t i = e.size() - 1, t = k + 1; i > 0; --i) {
+        while (k >= t && kr(h[k - 2], h[k - 1], e[i - 1]) <= 0.0F) { --k; }
+        h[k++] = e[i - 1];
+    }
+    h.resize(k - 1);
+    for (std::size_t i = 0; i < h.size(); ++i) {
+        if (kr(h[i], h[(i + 1) % h.size()], p) < -0.5F) { return false; }
+    }
+    return true;
+}
+
+void lSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<LStand>();
+    add(tu("T1411 L: wie 3ds Max, Bereich View/Check, Perspektive, Kompass an", [] {
+        modellBedienungSetzen(0);
+        mtab().bereich = ModellBereich::Ansehen;
+        mtab().vierAnsichten = false;
+        mtab().aktiv = 3;
+        mtab().ansichten[3].art = AnsichtArt::Perspektive;
+        g_app->settings.modellNavigation = true;
+        g_app->settings.modellKompass = true;
+        modellAnsichtEinpassenAktiv();
+    }));
+    add(pause(0.3));
+    // von oben schraeg (wie das Foto: Seite Right) die Gier drehen, bis ein Buchstabe auf dem Wuerfel liegt
+    add({"T1411 L: eine Stellung suchen, in der ein Buchstabe auf dem Wuerfel liegt", [st](int b) {
+             if (b % 3 != 0) { return false; }
+             const int i = b / 3;
+             if (i > 0) {
+                 for (int k = 0; k < 4; ++k) {
+                     ImVec2 p;
+                     if (modellKompassOrt(3, k, p) && imWuerfel(3, p)) {
+                         st->buchstabe = k;
+                         return true;
+                     }
+                 }
+             }
+             if (i >= 48) { return true; }
+             const float w[3] = {35.0F, static_cast<float>(i) * 7.5F, 0.0F};
+             modellBlickSetzen(3, AnsichtArt::Perspektive, w, false);
+             g_app->modelDirty = true;
+             return false;
+         }});
+    add(pause(0.2));
+    add(foto("t1411_l_viewcube_buchstabe"));
+    add(tu("T1411 L: Winkel vor dem Klick", [st] {
+        float w[3];
+        modellAnsichtWinkel(mtab().ansichten[3], w);
+        st->neigungVor = w[0];
+        st->gierVor = w[1];
+        melde("L Buchstabe " + std::to_string(st->buchstabe) + " auf dem Wuerfel, Neigung " + std::to_string(w[0]) + ", Gier " + std::to_string(w[1]));
+    }));
+    add({"T1411 L: Klick an der Stelle des Buchstabens, Neigung je Bild", [st](int b) {
+             ImGuiIO& io = ImGui::GetIO();
+             if (st->buchstabe < 0) { return true; }
+             ImVec2 p;
+             if (b == 0) {
+                 if (modellKompassOrt(3, st->buchstabe, p)) { setzeMaus(p); }
+                 return false;
+             }
+             if (b == 1) {
+                 io.AddMouseButtonEvent(0, true);
+                 return false;
+             }
+             if (b == 2) {
+                 io.AddMouseButtonEvent(0, false);
+                 return false;
+             }
+             float w[3];
+             modellAnsichtWinkel(mtab().ansichten[3], w);
+             st->verlauf.push_back(w[0]);
+             return b >= 60;
+         }});
+    add(tu("T1411 L: Winkel nach dem Klick", [st] {
+        float w[3];
+        modellAnsichtWinkel(mtab().ansichten[3], w);
+        st->neigungNach = w[0];
+        st->gierNach = w[1];
+        // kein Ueberschiessen: die Neigung laeuft vom Anfang zum Ziel, ohne ueber das Ziel hinaus und zurueck zu gehen
+        bool ok = !st->verlauf.empty();
+        for (std::size_t i = 1; i < st->verlauf.size(); ++i) {
+            const float d0 = std::fabs(st->verlauf[i - 1] - st->neigungNach);
+            const float d1 = std::fabs(st->verlauf[i] - st->neigungNach);
+            ok = ok && d1 <= d0 + 0.01F;
+        }
+        st->ueberschiesst = !ok;
+        melde("L nach dem Klick: Neigung " + std::to_string(w[0]) + ", Gier " + std::to_string(w[1]) + ", Ueberschiessen " + std::to_string(st->ueberschiesst ? 1 : 0));
+    }));
+    // der Buchstabe haette die Neigung behalten und die Gier auf seine Himmelsrichtung gedreht (buchstabeKlick); eine Flaeche, Kante oder
+    // Ecke des Wuerfels aendert die Neigung (0, 45, 90 bzw. 35,26 Grad an einer Ecke)
+    add(pruefe("T1411 L: ein Klick an der Stelle eines Buchstabens hinter dem Wuerfel trifft den Wuerfel (Flaeche, Kante oder Ecke), nicht den Buchstaben", [st] {
+        return st->buchstabe >= 0 && std::fabs(st->neigungNach - st->neigungVor) > 1.0F;
+    }));
+    add(pruefe("T1411 L: der Uebergang laeuft weich zum Ziel, ohne nachzuschwingen", [st] { return st->buchstabe >= 0 && !st->ueberschiesst; }));
+}
+
+// --- M: Beschriftung auf jedem Grund lesbar -------------------------------------------------------------------------------
+
+// WCAG 2: relative Leuchtdichte und Kontrastverhaeltnis
+float mLeucht(float r, float g, float b) {
+    const auto lin = [](float c) { return c <= 0.03928F ? c / 12.92F : std::pow((c + 0.055F) / 1.055F, 2.4F); };
+    return 0.2126F * lin(r) + 0.7152F * lin(g) + 0.0722F * lin(b);
+}
+
+float mKontrast(ImU32 vorne, const float grund[3]) {
+    const float a = static_cast<float>((vorne >> IM_COL32_A_SHIFT) & 0xFFU) / 255.0F;
+    float v[3];
+    for (int k = 0; k < 3; ++k) {
+        const float c = static_cast<float>((vorne >> (k * 8)) & 0xFFU) / 255.0F;   // R G B in Bit 0, 8, 16
+        v[k] = c * a + grund[k] * (1.0F - a);
+    }
+    const float l1 = mLeucht(v[0], v[1], v[2]);
+    const float l2 = mLeucht(grund[0], grund[1], grund[2]);
+    return (std::max(l1, l2) + 0.05F) / (std::min(l1, l2) + 0.05F);
+}
+
+void mSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto kleinst = std::make_shared<float>(100.0F);
+    auto alle = std::make_shared<std::string>();
+    // dunkler Grund (Verlauf ab Werk), mittel, Weiss, Silhouette (0xE8E8E8)
+    const int gruende[4] = {-1, 0x808080, 0xFFFFFF, -2};
+    for (const int g : gruende) {
+        add(tu("T1411 M: Grund " + std::to_string(g), [g] {
+            mtab().silhouette = g == -2;
+            g_app->settings.modellHintergrund = g == -2 ? -1 : g;
+            mtab().bereich = ModellBereich::Animation;
+            g_app->modelDirty = true;
+        }));
+        add(pause(0.3));
+        if (g == -2) { add(foto("t1411_m_silhouette")); }
+        if (g == 0xFFFFFF) { add(foto("t1411_m_weiss")); }
+        add(tu("T1411 M: Kontrast der Beschriftung", [kleinst, alle, g] {
+            float grund[3];
+            modellHintergrundFarbe(grund);
+            const float k1 = mKontrast(modellUeberGrund(1.0F, false), grund);
+            const float k2 = mKontrast(modellUeberGrund(1.0F, true), grund);
+            *kleinst = std::min({*kleinst, k1, k2});
+            char z[160];
+            std::snprintf(z, sizeof z, " Grund %d: Beschriftung %.2f:1, unter der Maus %.2f:1;", g, static_cast<double>(k1), static_cast<double>(k2));
+            *alle += z;
+        }));
+    }
+    add(tu("T1411 M: Ergebnis", [kleinst, alle] { melde("M Kontrast:" + *alle + " kleinster " + std::to_string(*kleinst)); }));
+    add(pruefe("T1411 M: die Beschriftung ueber der Ansicht hat auf dunklem, mittlerem, weissem Grund und in der Silhouette mindestens 4,5:1 Kontrast (WCAG)",
+               [kleinst] { return *kleinst >= 4.5F; }));
+    add(tu("T1411 M: zurueck", [] {
+        mtab().silhouette = false;
+        g_app->settings.modellHintergrund = -1;
+        mtab().bereich = ModellBereich::Ansehen;
+        g_app->modelDirty = true;
+    }));
+}
+
+// --- K: Fussplattform wie CAT -------------------------------------------------------------------------------------------
+
+struct KStand {
+    int fuss = -1;
+    int ferse = -1;
+    int zehe = -1;
+    int gewaehlt = -2;
+    float fussZ0 = 0.0F;
+    float fussZ1 = 0.0F;
+    float knie0 = 0.0F;        // Winkel am Knie (Grad) vor und nach dem Zug
+    float knie1 = 0.0F;
+    bool schluessel = false;
+    float ferseZ0 = 0.0F;
+    float ferseZ1 = 0.0F;
+};
+
+int kGriff(modell::GriffArt art) {
+    const auto& gr = mtab().rig.griffe;
+    for (std::size_t i = 0; i < gr.size(); ++i) {
+        if (gr[i].art == art && gr[i].seite == modell::Seite::Links) { return static_cast<int>(i); }
+    }
+    return -1;
+}
+
+float kZ(int knochen) { return knochen >= 0 && uz(knochen) < g_app->modellWelt.size() ? g_app->modellWelt[uz(knochen)].m[2][3] : 0.0F; }
+
+float kKnie() {
+    const int o = boneIndex(g_app->anim, "lfemurYZ");
+    const int k = boneIndex(g_app->anim, "ltibia");
+    const int f = boneIndex(g_app->anim, "ltalus");
+    const auto& w = g_app->modellWelt;
+    if (o < 0 || k < 0 || f < 0 || uz(std::max({o, k, f})) >= w.size()) { return 0.0F; }
+    float a[3];
+    float b[3];
+    for (int i = 0; i < 3; ++i) {
+        a[i] = w[uz(o)].m[i][3] - w[uz(k)].m[i][3];
+        b[i] = w[uz(f)].m[i][3] - w[uz(k)].m[i][3];
+    }
+    const float la = std::sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
+    const float lb = std::sqrt(b[0] * b[0] + b[1] * b[1] + b[2] * b[2]);
+    return std::acos(std::clamp((a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / std::max(la * lb, 1e-6F), -1.0F, 1.0F)) * 180.0F / 3.14159265F;
+}
+
+// Ein Punkt auf der Platte zwischen Ferse und Zehe, abseits der Drehpunkte: 40 % von der Ferse, 85 % der halben Breite seitlich
+ImVec2 kPlattenPunkt(const KStand& k) {
+    float a[3];
+    float b[3];
+    ImVec2 out{0.0F, 0.0F};
+    if (!modellRigGriffWelt(k.ferse, g_app->modellWelt, a) || !modellRigGriffWelt(k.zehe, g_app->modellWelt, b)) { return out; }
+    const float d[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+    const float l = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    const float lq = std::sqrt(d[0] * d[0] + d[1] * d[1]);
+    const float seite = lq > 1e-4F ? 0.45F * l * 0.5F * 0.85F / lq : 0.0F;
+    const float p[3] = {a[0] + d[0] * 0.4F - d[1] * seite, a[1] + d[1] * 0.4F + d[0] * seite, a[2] + d[2] * 0.4F};
+    (void)modellAufSchirm(mtab().ansichten[mtab().aktiv], p, out);
+    return ImVec2{std::floor(out.x), std::floor(out.y)};
+}
+
+void kSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<KStand>();
+    add(tu("T1411 K: Animation, wie 3ds Max, Rig-Stil Standard, Control Rig, SBD_WALK_NORMAL Bild 0, Ansicht von vorn", [st] {
+        modellBedienungSetzen(0);
+        ModellTab& t = mtab();
+        t.bereich = ModellBereich::Animation;
+        t.vierAnsichten = false;
+        t.aktiv = 3;
+        modellRigStilSetzen(modell::RigStil::Standard);
+        const int q = sequenz("SBD_WALK_NORMAL");
+        if (q >= 0) {
+            animWaehlen(q, false);
+            g_app->animFrame = g_app->animList[uz(q)].firstFrame;
+            g_app->animTime = 0.0F;
+        }
+        (void)modellAnimRigErstellen(false);
+        t.rigZeigen = true;
+        t.griffWahl = -1;
+        t.knochenWahl = -1;
+        t.ansichten[3].art = AnsichtArt::Perspektive;
+        const float w[3] = {20.0F, 90.0F, 0.0F};
+        modellBlickSetzen(3, AnsichtArt::Perspektive, w, false);
+        modellAnsichtEinpassenAktiv();
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.5));
+    add(tu("T1411 K: Griffe des linken Fusses", [st] {
+        st->fuss = kGriff(modell::GriffArt::Fuss);
+        st->ferse = kGriff(modell::GriffArt::Ferse);
+        st->zehe = kGriff(modell::GriffArt::Zehe);
+        melde("K Griffe: Fuss " + std::to_string(st->fuss) + ", Ferse " + std::to_string(st->ferse) + ", Zehe " + std::to_string(st->zehe));
+    }));
+    add(foto("t1411_k_fussplattform"));
+    add(klickAn("T1411 K: auf die Platte (40 % von der Ferse, seitlich)", [st] { return kPlattenPunkt(*st); }));
+    add(pause(0.3));
+    add(tu("T1411 K: gewaehlt, Fuss 6 Einheiten heben", [st] {
+        st->gewaehlt = mtab().griffWahl;
+        const int fussKnochen = st->fuss >= 0 ? mtab().rig.griffe[uz(st->fuss)].knochen : -1;
+        st->fussZ0 = kZ(fussKnochen);
+        st->knie0 = kKnie();
+        if (st->gewaehlt == st->fuss && st->fuss >= 0) {
+            const float weg[3] = {0.0F, 0.0F, 6.0F};
+            mtab().gizmo = 1;
+            modellRigZiehen(1, weg);
+            modellRigZiehenEnde();
+        }
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.3));
+    add(taste(ImGuiKey_K, "K (Set Key)"));
+    add(pause(0.3));
+    add(tu("T1411 K: Fuss und Knie nach dem Zug, Schluessel", [st] {
+        const int fussKnochen = st->fuss >= 0 ? mtab().rig.griffe[uz(st->fuss)].knochen : -1;
+        st->fussZ1 = kZ(fussKnochen);
+        st->knie1 = kKnie();
+        const modell::RigSchicht* sch = modellRigSchichtJetzt();
+        st->schluessel = false;
+        for (std::size_t i = 0; sch != nullptr && i < sch->ik.size(); ++i) { st->schluessel = st->schluessel || !sch->ik[i].ziel.empty(); }
+        char z[200];
+        std::snprintf(z, sizeof z, "K Platte gewaehlt %d (Fuss %d), Fuss z %.2f -> %.2f, Knie %.1f -> %.1f Grad, IK-Schluessel %d", st->gewaehlt, st->fuss,
+                      static_cast<double>(st->fussZ0), static_cast<double>(st->fussZ1), static_cast<double>(st->knie0), static_cast<double>(st->knie1), st->schluessel ? 1 : 0);
+        melde(z);
+    }));
+    // Abrollen um die Zehe: die Ferse hebt sich
+    add(tu("T1411 K: Zehe waehlen, um X drehen", [st] {
+        float f[3] = {0.0F, 0.0F, 0.0F};
+        if (st->ferse >= 0) { (void)modellRigGriffWelt(st->ferse, g_app->modellWelt, f); }
+        st->ferseZ0 = f[2];
+        modellRigGriffWaehlen(st->zehe);
+        mtab().gizmo = 2;
+        const float dreh[3] = {25.0F, 0.0F, 0.0F};
+        modellRigZiehen(2, dreh);
+        modellRigZiehenEnde();
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.3));
+    add(tu("T1411 K: Ferse nach dem Abrollen", [st] {
+        float f[3] = {0.0F, 0.0F, 0.0F};
+        if (st->ferse >= 0) { (void)modellRigGriffWelt(st->ferse, g_app->modellWelt, f); }
+        st->ferseZ1 = f[2];
+        if (st->ferseZ1 < st->ferseZ0) {   // in die andere Richtung gedreht: zurueck und andersherum
+            const float dreh[3] = {-50.0F, 0.0F, 0.0F};
+            modellRigZiehen(2, dreh);
+            modellRigZiehenEnde();
+        }
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.3));
+    add(tu("T1411 K: Ferse gemessen", [st] {
+        float f[3] = {0.0F, 0.0F, 0.0F};
+        if (st->ferse >= 0) { (void)modellRigGriffWelt(st->ferse, g_app->modellWelt, f); }
+        st->ferseZ1 = std::max(st->ferseZ1, f[2]);
+        melde("K Abrollen: Ferse z " + std::to_string(st->ferseZ0) + " -> " + std::to_string(st->ferseZ1));
+    }));
+    add(pruefe("T1411 K: ein Klick auf die Fussplattform waehlt den IK-Fuss", [st] { return st->fuss >= 0 && st->gewaehlt == st->fuss; }));
+    add(pruefe("T1411 K: die Platte heben hebt den Fuss (6 Einheiten), das Knie beugt sich, ein IK-Schluessel ist gesetzt",
+               [st] { return std::fabs(st->fussZ1 - st->fussZ0 - 6.0F) < 0.6F && std::fabs(st->knie1 - st->knie0) > 2.0F && st->schluessel; }));
+    add(pruefe("T1411 K: Abrollen um die Zehe hebt die Ferse", [st] { return st->ferseZ1 - st->ferseZ0 > 1.0F; }));
+    add(tu("T1411 K: zurueck", [] {
+        mtab().gizmo = 0;
+        mtab().griffWahl = -1;
+        mtab().rig = modell::Rig{};
+        mtab().rigFuer.clear();
+        mtab().bereich = ModellBereich::Ansehen;
+    }));
+}
+
+// --- C: Load .gla aus den pk3 -------------------------------------------------------------------------------------------
+
+struct CStand {
+    bool listeOffen = false;
+    bool dateiKnopf = false;
+    std::string glaVor;
+    std::string glaNach;
+};
+
+void cSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<CStand>();
+    add(tu("T1411 C: View/Check", [st] {
+        modellBedienungSetzen(0);
+        mtab().bereich = ModellBereich::Ansehen;
+        st->glaVor = g_app->anim.skeletonName + " " + std::to_string(g_app->anim.numFrames);
+    }));
+    add(pause(0.3));
+    add(klickAn("T1411 C: Werkzeugknopf Load .gla...", [] {
+        const Element* e = finde(tr(Str::ModelLoadGla), "", 0, false);
+        return e != nullptr ? e->rect.GetCenter() : ansichtMitte();
+    }));
+    add(pause(0.4));
+    add(tu("T1411 C: die Liste offen?", [st] {
+        st->listeOffen = finde("##glasuche", "", 0, false) != nullptr;
+        st->dateiKnopf = finde(tr(Str::MeDateiOeffnen), "", 0, false) != nullptr;
+        melde("C Liste offen " + std::to_string(st->listeOffen ? 1 : 0) + ", Knopf Datei oeffnen " + std::to_string(st->dateiKnopf ? 1 : 0));
+    }));
+    add(foto("t1411_c_gla_liste"));
+    add(klickAn("T1411 C: _humanoid_luke in der Liste (eine andere GLA)", [] {
+        // irgendeine GLA ausser der geladenen: die erste Zeile mit "_humanoid_" (Karten-GLA) oder sonst "rancor"
+        for (const Element& e : g_elemente) {
+            if (e.label.find(".gla") != std::string::npos && e.label.find("_humanoid/_humanoid.gla") == std::string::npos && e.label.find("models/") == 0) {
+                return e.rect.GetCenter();
+            }
+        }
+        return ansichtMitte();
+    }));
+    add(pause(0.6));
+    add(tu("T1411 C: geladen?", [st] {
+        st->glaNach = g_app->anim.skeletonName + " " + std::to_string(g_app->anim.numFrames);
+        melde("C GLA vorher '" + st->glaVor + "', nachher '" + st->glaNach + "'");
+    }));
+    add(pruefe("T1411 C: Load .gla... oeffnet die Liste der .gla aus den pk3 (mit Open file... fuer eine lose)", [st] { return st->listeOffen && st->dateiKnopf; }));
+    add(pruefe("T1411 C: ein Klick in der Liste laedt die GLA", [st] { return !st->glaNach.empty() && st->glaNach != st->glaVor; }));
+    for (Schritt& x : mb1::laden("models/players/alora/model.glm")) { add(std::move(x)); }
+}
+
 // --- F: Knoepfe der Zeitleiste stehen still ------------------------------------------------------------------------------
 
 struct FLage {
@@ -977,6 +1731,12 @@ std::vector<Schritt> schritte(const char* nur) {
     if (abschnitt("i")) { iSchritte(s); }
     if (abschnitt("f")) { fSchritte(s); }
     if (abschnitt("h")) { hSchritte(s); }
+    if (abschnitt("g")) { gSchritte(s); }
+    if (abschnitt("j")) { jSchritte(s); }
+    if (abschnitt("l")) { lSchritte(s); }
+    if (abschnitt("m")) { mSchritte(s); }
+    if (abschnitt("k")) { kSchritte(s); }
+    if (abschnitt("c")) { cSchritte(s); }
     if (abschnitt("fotos")) { fotoSchritte(s); }
     add(tu("T1411: zurueck", [=] {
         modellBedienungSetzen(*bedienung);

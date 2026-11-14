@@ -231,6 +231,9 @@ struct Settings {
     // ENTSCHEID1 (shank 11.11.: "Aus man kann es an machen"): Auto Key / Auto-Keying ab Werk aus wie in 3ds Max und Blender;
     // die Wahl des Anwenders bleibt.
     bool modellZeitAutoKey = false;
+    // TEST1411 G (shank 14.11.: "den ganzen Text nicht unter der Timeline"): die Tastenzeile unter der Zeitleiste des Model-Tabs wie 3ds Max
+    // ab Werk aus - an nur auf Wunsch (Menue der Zeitleiste)
+    bool modellTastenzeile = false;
     // ENTSCHEID1: Werkzeugleiste wie Blender mit den Namen der Werkzeuge (Rechtsklick "Werkzeugnamen zeigen").
     bool modellBlWerkzeugnamen = false;
     // ENTSCHEID3A (B8): die Breite der Werkzeugleiste wie Blender in Punkten (Bildpunkte / Oberflaeche), gezogen an ihrer Kante;

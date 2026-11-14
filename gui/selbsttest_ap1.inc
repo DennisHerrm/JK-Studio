@@ -197,6 +197,10 @@ void pruefungen(std::vector<Schritt>& s, int modus) {
         schluessel();
         modellRigGriffWaehlen(rig3::griffNach(modell::GriffArt::Hand, modell::Seite::Rechts));
         g_app->animFrame = f0() + 12;
+        // TEST1411 G: wie 3ds Max steht die Tastenzeile (R8) nur auf Wunsch unter der Statuszeile, Dope Sheet/Kurveneditor oeffnet der Mini
+        // Curve Editor - fuer die Zeilen dieses Abgleichs beide an
+        g_app->settings.modellTastenzeile = !bl;
+        if (!bl) { modellZeitMiniKurve(true); }
         modellZeitAutoKey(true);
         modellZeit().keyModus = false;
         modellZeit().sequenzAuf = true;
@@ -231,6 +235,11 @@ void pruefungen(std::vector<Schritt>& s, int modus) {
             const bool spuren = P().transport.find("spuren") != std::string::npos;
             const bool tempo = P().transport.find("tempo") != std::string::npos;
             melde(std::string("Z2 ") + soll.name + ": Fassung " + std::to_string(P().fassung) + ", Knopfreihe " + P().transport + ", Hinweis \"" + P().hinweisText + "\"");
+            // TEST1411 G: wie 3ds Max statt der Knopfreihe der Zeitschieber, im Bereich Animation mit dem Knopf des Mini Curve Editors
+            if (!bl) {
+                return leisteDa() && P().fassung == soll.fassung && P().transport.find("schieber") != std::string::npos &&
+                       (P().transport.find("minikurve") != std::string::npos) == (soll.fassung == 2);
+            }
             return leisteDa() && P().fassung == soll.fassung && spuren == (soll.fassung != 0) && tempo == (soll.fassung == 1);
         }));
         add(pruefe(name("R8", std::string("Statuszeile im Bereich ") + soll.name + ": Bedienmodus, Tasten des Bereichs, Undo und Suche - unterste Zeile der Leiste"), [=] {
@@ -246,7 +255,8 @@ void pruefungen(std::vector<Schritt>& s, int modus) {
     add(pruefe(name("Z2", "die volle Fassung (Animation, Spuren offen) ist hoeher als die Sequenz, die kurze am niedrigsten"), [=] {
         const auto& h = *hoehen;
         melde("Z2 Hoehen: Ansehen " + zahl(h[0]) + ", Modellieren " + zahl(h[1]) + ", UV " + zahl(h[2]) + ", Weights " + zahl(h[3]) + ", Painting " + zahl(h[4]) + ", Animation " + zahl(h[5]));
-        return h[1] > 0.0F && h[1] == h[2] && h[2] == h[3] && h[3] == h[4] && h[0] > h[1] && h[5] > h[0];
+        // TEST1411 G: wie 3ds Max hat Ansehen/Pruefen keine Zeilen unter der Spurleiste - so hoch wie die kurze Fassung
+        return h[1] > 0.0F && h[1] == h[2] && h[2] == h[3] && h[3] == h[4] && (bl ? h[0] > h[1] : h[0] == h[1]) && h[5] > h[0];
     }));
     // --- Z15, Z14, Z12, Z13: Spuren in der Leiste, ein Lineal, Striche je Frame, Schluessel ---------------------------------
     add(pruefe(name("Z15", "im Bereich Animation stehen die Spuren ab Werk offen in der Leiste (kein eigener Kasten \"animeditor\" mehr)"), [=] {
@@ -279,10 +289,11 @@ void pruefungen(std::vector<Schritt>& s, int modus) {
         // Skala: +0/+10/+20 gruen, +5 rot, +15 zweifarbig; Spuren: Koerper (5), cranium (3), pelvis (2), Arm R (3), rhand (3) = 5 + 16
         return bl ? (P().rauten == 21 && P().striche == 0) : (P().striche == 21 && P().stricheRot == 3 && P().stricheZwei == 3 && P().stricheGruen == 15 && P().rauten == 0);
     }));
-    add(pruefe(name("Z17", "Hinweis unter der Leiste: Legende der Schluessel und die Zaehlung"), [=] {
+    // TEST1411 G (shank 14.11.: "den ganzen Text nicht unter der Timeline"): Legende und Zaehlung stehen in den Tooltips und im Handbuch
+    add(pruefe(name("Z17", "kein Text unter der Leiste (Legende und Zaehlung in den Tooltips)"), [=] {
         const std::string& h = P().hinweisText;
         melde("Z17: \"" + h + "\"");
-        return h.find(tr(bl ? Str::MzLegendeBlender : Str::MzLegendeMax)) != std::string::npos && h.find(tr(bl ? Str::MbZeitHinweisBlender : Str::MbZeitHinweis)) != std::string::npos;
+        return h.empty();
     }));
     // --- Z11: Skala mit Teilstrichen, Zahlen und dem Kaestchen des Abspielkopfs; Klick und Ziehen setzen das Bild ------------
     add(pruefe(name("Z11", "Skala: Teilstriche mit Zahlen, Abspielkopf mit der Bildnummer im Kaestchen"), [=] {
@@ -330,8 +341,8 @@ void pruefungen(std::vector<Schritt>& s, int modus) {
         melde("Z3 unten: kvOffen " + std::to_string(g_app->mtab.kvOffen) + ", Spurbereich " + zahl(P().spuren[3]) + ", Schluessel in der Skala " + std::to_string(bl ? P().rauten : P().striche));
         return !g_app->mtab.kvOffen && P().spuren[3] <= 0.0F && (bl ? P().rauten : P().striche) == 5;
     }));
-    // --- Z10: Knopf Spuren -------------------------------------------------------------------------------------------------------
-    add(klickBand(tr(Str::MzSpuren)));
+    // --- Z10: Knopf Spuren (TEST1411 G: wie 3ds Max der Knopf des Mini Curve Editors) -------------------------------------------
+    add(klickBand(tr(bl ? Str::MzSpuren : Str::T1MiniKurve)));
     add(pause(0.3));
     add(pruefe(name("Z10", "der Knopf \"Spuren\" klappt die Spuren wieder auf"), [=] {
         melde("Z10: kvOffen " + std::to_string(g_app->mtab.kvOffen) + ", Spurbereich " + zahl(P().spuren[3]));
@@ -354,6 +365,8 @@ void pruefungen(std::vector<Schritt>& s, int modus) {
             x = e != nullptr ? e->rect.Min.x : x;
         }
         melde(std::string(bl ? "Z18" : "Z4") + ": Knopfreihe " + P().transport + ", die fuenf Knoepfe der Reihe nach " + std::to_string(alle) + ", Zeilen " + std::to_string(P().transportZeilen));
+        // TEST1411 G: wie 3ds Max stehen die Knoepfe in der Statuszeile unter der Spurleiste, oben der Zeitschieber
+        if (!bl) { return alle && P().transport.find("schieber") != std::string::npos && findeEndung("##mzbildfeld", "") != nullptr; }
         return alle && (P().transport + "|").rfind(soll, 0) == 0 && P().transportZeilen == 1;
     }));
     add(klickBand(tr(Str::MzEnde)));
@@ -373,12 +386,15 @@ void pruefungen(std::vector<Schritt>& s, int modus) {
     add(pruefe(name("Z5", bl ? "Zaehlung ab 1 (1 / Anzahl)" : "Bildanzeige ab 0 (0 / Anzahl - 1)"), [=] {
         const std::string soll = bl ? "1 / " + std::to_string(seq().numFrames) : "0 / " + std::to_string(seq().numFrames - 1);
         melde("Z5: \"" + g_app->mtab.zaehlungText + "\", soll Anfang \"" + soll + "\"");
-        return g_app->animFrame == f0() && g_app->mtab.zaehlungText.rfind(soll, 0) == 0 && (bl ? findeEndung("##mzbild", "") != nullptr : P().transport.find("bildanzeige") != std::string::npos);
+        return g_app->animFrame == f0() && g_app->mtab.zaehlungText.rfind(soll, 0) == 0 && findeEndung(bl ? "##mzbild" : "##mzbildfeld", "") != nullptr;   // TEST1411 G: Bildfeld
     }));
-    add(pruefe(name("Z21", "der Name der Sequenz steht in der Knopfreihe"), [] {
-        melde("Z21: Knopfreihe " + P().transport);
-        return P().transport.find("|name") != std::string::npos;
-    }));
+    // TEST1411 G: wie 3ds Max steht der Name im Motion-Feld (Rollout Animation) und im Tooltip des Zeitschiebers, nicht in einer Knopfreihe
+    if (bl) {
+        add(pruefe(name("Z21", "der Name der Sequenz steht in der Knopfreihe"), [] {
+            melde("Z21: Knopfreihe " + P().transport);
+            return P().transport.find("|name") != std::string::npos;
+        }));
+    }
     // --- Z18 / Z19 / A13: Spruenge zum Schluessel ---------------------------------------------------------------------------------
     if (bl) {
         add(klickBand(tr(Str::MzKeyVor)));
@@ -590,43 +606,51 @@ void pruefungen(std::vector<Schritt>& s, int modus) {
         g_app->modelDirty = true;
     }));
     add(pause(0.4));
-    add(pruefe(name("Z9", "Ansehen/Pruefen: Tempo (- 1.00x +), Interpolation und Schleife erzwingen in der Knopfreihe"), [] {
-        const bool da = imBand(tr(Str::MzLangsamer)) != nullptr && imBand(tr(Str::MzSchneller)) != nullptr && imBand(tr(Str::MbInterpolation)) != nullptr && imBand(tr(Str::MzSchleife)) != nullptr;
-        melde("Z9: Knopfreihe " + P().transport + ", Knoepfe " + std::to_string(da));
-        return da && P().transport.find("langsamer|tempo|schneller|interpolation|schleife") != std::string::npos;
-    }));
-    add(klickBand(tr(Str::MzSchneller)));
-    add(pause(0.2));
-    add(pruefe(name("Z9", "\"+\" stellt das Tempo auf 1.5"), [] { return std::fabs(g_app->animSpeed - 1.5F) < 0.001F; }));
-    add(klickBand(tr(Str::MzLangsamer)));
-    add(klickBand(tr(Str::MzLangsamer)));
-    add(pause(0.2));
-    add(pruefe(name("Z9", "zweimal \"-\" stellt es auf 0.5"), [] { return std::fabs(g_app->animSpeed - 0.5F) < 0.001F; }));
-    add(klickBand(tr(Str::MzSchneller)));
-    add(klickBand(tr(Str::MzSchleife)));
-    add(pause(0.2));
-    add(pruefe(name("Z9", "\"Schleife erzwingen\" schaltet die Schleife"), [] { return g_app->loopMode == 1 && std::fabs(g_app->animSpeed - 1.0F) < 0.001F; }));
-    add(klickBand(tr(Str::MzSchleife)));
-    add(klickBand(tr(Str::MbInterpolation)));
-    add(pause(0.2));
-    add(pruefe(name("Z9", "\"Interpolation\" schaltet die Interpolation aus"), [] { return g_app->loopMode == 0 && !g_app->mtab.interpolieren; }));
-    add(klickBand(tr(Str::MbInterpolation)));
-    add(pause(0.2));
-    add(pruefe(name("Z16", "Ansehen/Pruefen: zwei Zeilen Primaer / Sekundaer unter der Skala, \"Sekundaer aus\" daneben"), [] {
-        const ImRect sp = r4(P().spuren);
-        const ImRect sk = r4(P().skala);
-        melde("Z16: Zeilen " + std::to_string(P().spurZeilen) + ", Bereich " + zahl(sp.Min.y) + "-" + zahl(sp.Max.y) + " unter der Skala bis " + zahl(sk.Max.y) + ", Knopf " +
-              std::to_string(imBand(tr(Str::MbSekundaerAus)) != nullptr));
-        return P().spurZeilen == 2 && sp.Min.y >= sk.Max.y && sp.GetHeight() > 0.0F && imBand(tr(Str::MbSekundaerAus)) != nullptr;
-    }));
-    add(klickBand(tr(Str::MbSekundaerAus)));
-    add(pause(0.2));
-    add(pruefe(name("Z16", "\"Sekundaer aus\" nimmt die Sekundaersequenz weg"), [] { return g_app->mtab.sekundaer < 0; }));
-    add(klickBand(tr(Str::MzSpuren)));
-    add(pause(0.3));
-    add(pruefe(name("Z10", "Ansehen/Pruefen: der Knopf \"Spuren\" klappt die Zeilen zu"), [] { return !modellZeit().sequenzAuf && P().spuren[3] <= 0.0F && P().spurZeilen == 0; }));
-    add(klickBand(tr(Str::MzSpuren)));
-    add(pause(0.2));
+    // TEST1411 G: wie 3ds Max stehen Tempo, Interpolation und Schleife in der Zeitkonfiguration und Primaer/Sekundaer links an der Spurleiste
+    if (!bl) {
+        add(pruefe(name("Z16", "Ansehen/Pruefen: Primaer und Sekundaer links an der Spurleiste (keine Zeilen darunter)"), [] {
+            melde("Z16: \"" + P().namenText + "\", Zeilen " + std::to_string(P().spurZeilen));
+            return P().spurZeilen == 0 && P().namenText.find("P  " + seq().name) != std::string::npos && P().namenText.find("S  ") != std::string::npos;
+        }));
+    } else {
+        add(pruefe(name("Z9", "Ansehen/Pruefen: Tempo (- 1.00x +), Interpolation und Schleife erzwingen in der Knopfreihe"), [] {
+            const bool da = imBand(tr(Str::MzLangsamer)) != nullptr && imBand(tr(Str::MzSchneller)) != nullptr && imBand(tr(Str::MbInterpolation)) != nullptr && imBand(tr(Str::MzSchleife)) != nullptr;
+            melde("Z9: Knopfreihe " + P().transport + ", Knoepfe " + std::to_string(da));
+            return da && P().transport.find("langsamer|tempo|schneller|interpolation|schleife") != std::string::npos;
+        }));
+        add(klickBand(tr(Str::MzSchneller)));
+        add(pause(0.2));
+        add(pruefe(name("Z9", "\"+\" stellt das Tempo auf 1.5"), [] { return std::fabs(g_app->animSpeed - 1.5F) < 0.001F; }));
+        add(klickBand(tr(Str::MzLangsamer)));
+        add(klickBand(tr(Str::MzLangsamer)));
+        add(pause(0.2));
+        add(pruefe(name("Z9", "zweimal \"-\" stellt es auf 0.5"), [] { return std::fabs(g_app->animSpeed - 0.5F) < 0.001F; }));
+        add(klickBand(tr(Str::MzSchneller)));
+        add(klickBand(tr(Str::MzSchleife)));
+        add(pause(0.2));
+        add(pruefe(name("Z9", "\"Schleife erzwingen\" schaltet die Schleife"), [] { return g_app->loopMode == 1 && std::fabs(g_app->animSpeed - 1.0F) < 0.001F; }));
+        add(klickBand(tr(Str::MzSchleife)));
+        add(klickBand(tr(Str::MbInterpolation)));
+        add(pause(0.2));
+        add(pruefe(name("Z9", "\"Interpolation\" schaltet die Interpolation aus"), [] { return g_app->loopMode == 0 && !g_app->mtab.interpolieren; }));
+        add(klickBand(tr(Str::MbInterpolation)));
+        add(pause(0.2));
+        add(pruefe(name("Z16", "Ansehen/Pruefen: zwei Zeilen Primaer / Sekundaer unter der Skala, \"Sekundaer aus\" daneben"), [] {
+            const ImRect sp = r4(P().spuren);
+            const ImRect sk = r4(P().skala);
+            melde("Z16: Zeilen " + std::to_string(P().spurZeilen) + ", Bereich " + zahl(sp.Min.y) + "-" + zahl(sp.Max.y) + " unter der Skala bis " + zahl(sk.Max.y) + ", Knopf " +
+                  std::to_string(imBand(tr(Str::MbSekundaerAus)) != nullptr));
+            return P().spurZeilen == 2 && sp.Min.y >= sk.Max.y && sp.GetHeight() > 0.0F && imBand(tr(Str::MbSekundaerAus)) != nullptr;
+        }));
+        add(klickBand(tr(Str::MbSekundaerAus)));
+        add(pause(0.2));
+        add(pruefe(name("Z16", "\"Sekundaer aus\" nimmt die Sekundaersequenz weg"), [] { return g_app->mtab.sekundaer < 0; }));
+        add(klickBand(tr(Str::MzSpuren)));
+        add(pause(0.3));
+        add(pruefe(name("Z10", "Ansehen/Pruefen: der Knopf \"Spuren\" klappt die Zeilen zu"), [] { return !modellZeit().sequenzAuf && P().spuren[3] <= 0.0F && P().spurZeilen == 0; }));
+        add(klickBand(tr(Str::MzSpuren)));
+        add(pause(0.2));
+    }
     add(pruefe(name("Z20", "Haut und Flaechenzaehler stehen nicht mehr in der Zeitleiste, sondern in der Gruppe \"Detailstufe und Skin\""), [] {
         const Element* rechts = mbefoto::inFenster(tr(Str::ModelSkin), "mtrollouts");
         melde("Z20: in der Leiste " + std::to_string(imBand(tr(Str::ModelSkin)) != nullptr) + ", im Befehlsfeld " + std::to_string(rechts != nullptr) + ", Haeute " + std::to_string(g_app->modelSkins.size()));
@@ -649,11 +673,14 @@ void pruefungen(std::vector<Schritt>& s, int modus) {
     }));
     add(mbefoto::popupsZu());
     add(pause(0.2));
-    add(klickBand(tr(Str::MzMenue)));
-    add(pause(0.4));
-    add(pruefe(name("Z9", "der Menue-Knopf am Ende der Knopfreihe oeffnet dasselbe Menue"), [=] { return imPopup(tr(bl ? Str::MzMenuePlayback : Str::MzSchleife)) != nullptr; }));
-    add(mbefoto::popupsZu());
-    add(pause(0.2));
+    // TEST1411 G: wie 3ds Max hat die Leiste keinen Menue-Knopf (Rechtsklick auf die Spurleiste, oben geprueft)
+    if (bl) {
+        add(klickBand(tr(Str::MzMenue)));
+        add(pause(0.4));
+        add(pruefe(name("Z9", "der Menue-Knopf am Ende der Knopfreihe oeffnet dasselbe Menue"), [=] { return imPopup(tr(Str::MzMenuePlayback)) != nullptr; }));
+        add(mbefoto::popupsZu());
+        add(pause(0.2));
+    }
     // die Suche oeffnen und auf die Gruppe der Zeitleiste eingrenzen (Zeilen ausserhalb des sichtbaren Teils der Liste
     // tragen im Elementverzeichnis keine Beschriftung)
     add(fokus());

@@ -762,7 +762,9 @@ void maxSchritte(std::vector<Schritt>& s) {
         g_app->animPlaying = false;
     }));
     // X22
-    add(pruefe("AP2 X22: Hinweiszeile unter dem Baum", [] { return ex().fussHinweis; }));
+    // TEST1411 G (shank 14.11.: "auch das bei layers und by hierarchy unten ist"): wie 3ds Max keine Fusszeile mehr - der Hinweis steht im
+    // Tooltip des Spaltenkopfs und im Handbuch
+    add(pruefe("AP2 X22: keine Hinweiszeile unter dem Baum (wie 3ds Max, Hinweis im Tooltip)", [] { return !ex().fussHinweis && !ex().fussEbenen; }));
     // X4: Filter (Symbolreihe)
     auto zeilenVor = std::make_shared<int>(0);
     add(tu("AP2 X4: zum Anfang", [zeilenVor] {
@@ -803,7 +805,7 @@ void maxSchritte(std::vector<Schritt>& s) {
         }
         melde("X11: " + namen);
         return n >= 7 && frost >= 5 && zeile(tr(Str::MbXEbeneKoerper), static_cast<int>(ExplorerArt::Ebene)) != nullptr &&
-               zeile(tr(Str::MbXEbeneAnbauten), static_cast<int>(ExplorerArt::Ebene)) != nullptr && ex().fussEbenen;
+               zeile(tr(Str::MbXEbeneAnbauten), static_cast<int>(ExplorerArt::Ebene)) != nullptr && !ex().fussEbenen;   // TEST1411 G: Satz im Tooltip
     }));
     add(klickAn("AP2 X11: Auge der Ebene Tags", ort(tr(Str::MbXArtTags), 1, static_cast<int>(ExplorerArt::Ebene))));
     add(pause(0.3));
@@ -946,7 +948,7 @@ void blenderSchritte(std::vector<Schritt>& s) {
             ++n;
             if (l.xAuge < l.xNameEnde) { return false; }
         }
-        return n >= 7 && ex().art == 1 && ex().fussEbenen;
+        return n >= 7 && ex().art == 1 && !ex().fussEbenen;   // TEST1411 G: der Satz zu Auge und Pfeil steht im Tooltip
     }));
     add(klickAn("AP2: Hierarchy", kopfOrt(Str::MbXHierarchie)));
     add(pause(0.3));

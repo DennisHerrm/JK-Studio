@@ -1174,6 +1174,49 @@ bool modellRigGriffAufSchirm(int griff, ImVec2& out) {
     return modellRigGriffWelt(griff, g_app->modellWelt, p) && modellAufSchirm(t.ansichten[t.aktiv], p, out);
 }
 
+// TEST1411 K (shank 14.11.: "ich habe keine Footplatform auf dem boden wo ich IK Animieren kann"): wie CAT eine Platte je Fuss, die der
+// Griff des IK-Fusses ist (CAT: Platform - verschieben und drehen fuehrt das Bein, das Knie folgt dem Kniezielpunkt). Die Platte liegt
+// zwischen den Drehpunkten Ferse und Zehe der Fussrolle (in der Grundstellung auf dem Boden, Ort aus dem Modell, rigAnlegen), so breit wie
+// 45 % ihrer Laenge (CAT: kCatPlatte in bhed/modell/rigformen.cpp, Breite zu Laenge der Platform der ausgelesenen CAT-Szene) und folgt dem
+// Fuss. Die Rig-Stile CAT und Control Rig zeichnen sie als Form (rigformen.cpp, fussPlatte).
+namespace {
+bool fussPlatteEcken(int griff, const std::vector<BoneMatrix>& welt, float ecken[4][3]) {
+    const ModellTab& t = mt();
+    if (griff < 0 || static_cast<std::size_t>(griff) >= t.rig.griffe.size()) { return false; }
+    const modell::Griff& g = t.rig.griffe[static_cast<std::size_t>(griff)];
+    if (g.art != modell::GriffArt::Fuss) { return false; }
+    int ferse = -1;
+    int zehe = -1;
+    for (std::size_t i = 0; i < t.rig.griffe.size(); ++i) {
+        const modell::Griff& f = t.rig.griffe[i];
+        if (f.seite != g.seite || f.nummer != g.nummer) { continue; }
+        if (f.art == modell::GriffArt::Ferse) { ferse = static_cast<int>(i); }
+        if (f.art == modell::GriffArt::Zehe) { zehe = static_cast<int>(i); }
+    }
+    float a[3];
+    float b[3];
+    if (ferse < 0 || zehe < 0 || !modellRigGriffWelt(ferse, welt, a) || !modellRigGriffWelt(zehe, welt, b)) { return false; }
+    const float d[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+    const float l = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    if (l < 1e-3F) { return false; }
+    // quer: waagrecht senkrecht zur Laenge (die Platte liegt flach wie der Boden)
+    float q[3] = {-d[1], d[0], 0.0F};
+    const float lq = std::sqrt(q[0] * q[0] + q[1] * q[1]);
+    if (lq < 1e-4F) { return false; }
+    const float b2 = 0.45F * l * 0.5F / lq;
+    for (int k = 0; k < 3; ++k) { q[k] *= b2; }
+    for (int k = 0; k < 3; ++k) {
+        ecken[0][k] = a[k] - q[k];
+        ecken[1][k] = b[k] - q[k];
+        ecken[2][k] = b[k] + q[k];
+        ecken[3][k] = a[k] + q[k];
+    }
+    return true;
+}
+}  // namespace
+
+bool modellRigFussPlatte(int griff, float ecken[4][3]) { return fussPlatteEcken(griff, g_app->modellWelt, ecken); }   // TEST1411 K (Selbsttest)
+
 int modellRigGriffUnter(const ModellAnsicht& a, ImVec2 maus) {
     const ModellTab& t = mt();
     if (!modellRigDa() || !t.rigZeigen) { return -1; }
@@ -1181,6 +1224,26 @@ int modellRigGriffUnter(const ModellAnsicht& a, ImVec2 maus) {
     const float reich = ImGui::GetFontSize() * 0.7F;
     int best = -1;
     float bd = reich;
+    // TEST1411 K: die Fussplattform trifft auf ihrer ganzen Flaeche (nach den Punkten der Griffe, die naeher liegen)
+    int platte = -1;
+    for (std::size_t i = 0; i < t.rig.griffe.size(); ++i) {
+        float e[4][3];
+        if ((i < t.griffVersteckt.size() && t.griffVersteckt[i] != 0) || !fussPlatteEcken(static_cast<int>(i), g_app->modellWelt, e)) { continue; }
+        ImVec2 s[4];
+        bool ok = true;
+        for (int k = 0; k < 4 && ok; ++k) { ok = modellAufSchirm(a, e[k], s[k]); }
+        if (!ok) { continue; }
+        bool innen = true;
+        float vz = 0.0F;
+        for (int k = 0; k < 4 && innen; ++k) {
+            const ImVec2 p0 = s[k];
+            const ImVec2 p1 = s[(k + 1) % 4];
+            const float kr = (p1.x - p0.x) * (maus.y - p0.y) - (p1.y - p0.y) * (maus.x - p0.x);
+            if (vz == 0.0F) { vz = kr; }
+            innen = kr * vz >= 0.0F;
+        }
+        if (innen) { platte = static_cast<int>(i); }
+    }
     for (std::size_t i = 0; i < t.rig.griffe.size(); ++i) {
         if (i < t.griffVersteckt.size() && t.griffVersteckt[i] != 0) { continue; }
         if (t.rig.griffe[i].art == modell::GriffArt::Wurzel) { continue; }   // ENT3B: im Stil Standard ohne Bodenkreis
@@ -1193,7 +1256,7 @@ int modellRigGriffUnter(const ModellAnsicht& a, ImVec2 maus) {
             best = static_cast<int>(i);
         }
     }
-    return best;
+    return best >= 0 ? best : platte;
 }
 
 namespace {
@@ -1311,6 +1374,19 @@ void modellRigUeberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
             case modell::GriffArt::Zehe:   // Dreieck auf der Spitze (Drehpunkt der Fussrolle)
                 dl->AddTriangle(ImVec2{s.x, s.y + r * 0.8F}, ImVec2{s.x - r * 0.8F, s.y - r * 0.6F}, ImVec2{s.x + r * 0.8F, s.y - r * 0.6F}, farbe, dicke);
                 break;
+            case modell::GriffArt::Fuss: {   // TEST1411 K: die Fussplattform (sonst der Kasten des IK-Ziels)
+                float e[4][3];
+                ImVec2 q[4];
+                bool ok = fussPlatteEcken(static_cast<int>(i), g_app->modellWelt, e);
+                for (int k = 0; k < 4 && ok; ++k) { ok = modellAufSchirm(a, e[k], q[k]); }
+                if (ok) {
+                    dl->AddConvexPolyFilled(q, 4, (farbe & ~IM_COL32_A_MASK) | (gewaehlt ? 90U << IM_COL32_A_SHIFT : 55U << IM_COL32_A_SHIFT));
+                    dl->AddPolyline(q, 4, farbe, ImDrawFlags_Closed, dicke);
+                } else {
+                    dl->AddRect(ImVec2{s.x - r, s.y - r}, ImVec2{s.x + r, s.y + r}, farbe, 0.0F, 0, dicke);
+                }
+                break;
+            }
             case modell::GriffArt::Saebelgriff:   // Kreis mit Kreuz (Griffpunkt des Saebels)
                 dl->AddCircle(s, r * 0.8F, farbe, 16, dicke);
                 dl->AddLine(ImVec2{s.x - r, s.y}, ImVec2{s.x + r, s.y}, farbe, dicke);

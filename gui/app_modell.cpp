@@ -65,7 +65,7 @@ void drawModelToolbar() {
     ImGui::BeginDisabled(g_app->model.empty());
     if (iconKnopf(tr(Str::OpenSkin), UiIcon::Namen, tr(Str::OpenSkinHint))) { openSkinFile(); }
     ImGui::SameLine();
-    if (iconKnopf(tr(Str::ModelLoadGla), UiIcon::Liste, tr(Str::ModelLoadGlaHint))) { openSkeletonFile(); }
+    if (iconKnopf(tr(Str::ModelLoadGla), UiIcon::Liste, tr(Str::ModelLoadGlaHint))) { modellGlaListeOeffnen(); }   // TEST1411 C: die Liste der pk3
     ImGui::SameLine(0.0F, sp * 1.5F);
     if (iconKnopf(tr(Str::ModelTurntable), UiIcon::Schleife, tr(Str::ModelTurntableHint), g_app->modellDrehteller, true,
                   true)) {

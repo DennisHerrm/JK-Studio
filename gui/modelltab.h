@@ -643,6 +643,7 @@ struct ModellTab {
     modell::RigSchicht kvZugStart;
     modell::Wahl kvZugWahl;
     bool kvZugAngelegt = false;
+    bool kvZugKopie = false;      // TEST1411 G: wie 3ds Max kopiert Umschalt-Ziehen die Schluessel (die alten bleiben stehen)
     std::uint64_t kvZugSchritt = 0;   // pfix H1
     int kvZugKnochen = -1;
     int kvZugIndex = -1;
@@ -831,6 +832,9 @@ void modellModalEnde(bool uebernehmen);
 bool modellModalTasten();
 void drawModellModusMenue();
 void drawModellKontextMenue();
+// TEST1411 C: die Liste der .gla aller pk3 des Spiels ("Load .gla...", "Other GLA...") oeffnen bzw. zeichnen (bei den Menues des Model-Tabs)
+void modellGlaListeOeffnen();
+void drawModellGlaListe();
 [[nodiscard]] int modellZusatzZahl();
 [[nodiscard]] const char* modellZusatzText(int i);
 [[nodiscard]] const char* modellZusatzHinweis(int i);
@@ -857,12 +861,15 @@ void modellRigNachMal(int bildA, int bildB, float anteil, std::vector<std::pair<
 [[nodiscard]] bool modellRigGriffWelt(int griff, const std::vector<BoneMatrix>& welt, float ort[3]);
 [[nodiscard]] std::vector<gpu::ModellGeist> modellGeister();
 [[nodiscard]] bool modellRigGriffMitte(float m[3]);
+[[nodiscard]] bool modellRigFussPlatte(int griff, float ecken[4][3]);   // TEST1411 K: die vier Ecken der Fussplattform des IK-Fusses
 void modellRigZiehen(int gizmoArt, const float wert[3]);   // Gizmo: 1 verschieben (Einheiten je Weltachse), 2 drehen (Grad je Weltachse)
 // TEST1411 I: im Bereich Animation ist ein Knochen wie in 3ds Max von Anfang an waehlbar und drehbar, auch ohne Rig. Ein Klick waehlt den
 // Knochen unter der Maus (seine Form, sonst durch die Haut hindurch den Knochen mit dem groessten Gewicht an der Stelle); true, wenn er
 // etwas getroffen hat. Ohne Griff dreht und verschiebt der Gizmo den gewaehlten Knochen selbst (FK), Set Key/Auto Key setzen seine
 // Schluessel. modellAnimKnochenMitte: der Drehpunkt (das Gelenk) dafuer.
 bool modellAnimKnochenKlick(const ModellAnsicht& a, ImVec2 maus);
+// TEST1411 G: die Mitte der Auswahl (Flaechen, Ecken, Griff, Knochen) fuer die Koordinaten der Statuszeile; false: nichts gewaehlt
+[[nodiscard]] bool modellAuswahlMitteJetzt(float m[3]);
 [[nodiscard]] bool modellAnimKnochenDirekt();
 [[nodiscard]] bool modellAnimKnochenMitte(float m[3]);
 [[nodiscard]] int modellRigGriffUnter(const ModellAnsicht& a, ImVec2 maus);
@@ -1066,6 +1073,8 @@ struct ModellGizmoKugel {
 };
 void modellGizmoKugelnZeichnen(ImDrawList* dl, const ModellGizmoKugel* kugeln, ImVec2 mitte, float kugelR, float groesse, int unter, int ausgerichtet);
 void modellHintergrundFarbe(float rgb[3]);
+// TEST1411 M: die Farbe der Beschriftung ueber der Ansicht ([+] [Perspective] [Standard], Hinweise, Home) zum Grund (hervor: unter der Maus)
+[[nodiscard]] ImU32 modellUeberGrund(float alpha, bool hervor);
 void drawModellKopfzeile(int n, ModellAnsicht& a);
 void modellAnzeigeKontext();                       // Rechtsklick-Menue: die Menues der Kopfzeile der aktiven Ansicht
 bool modellKopfAktionenSuche(const std::string& such);   // "Alle Aktionen suchen": jeder Anzeige-Schalter
@@ -1101,6 +1110,7 @@ void modellAllesEinpassenIn(int n);            // Blender Pos1 (view3d.view_all)
 [[nodiscard]] bool modellWuerfelOrt(int ansicht, int x, int y, int z, ImVec2& out);   // Flaeche/Kante/Ecke (-1/0/1 je Achse); 9,9,9 = Home
 [[nodiscard]] bool modellGizmoOrt(int ansicht, int teil, ImVec2& out);   // 0..5 +X -X +Y -Y +Z -Z, 6 Zoom, 7 Verschieben, 8 Persp/Ortho, 9 Kamera
 [[nodiscard]] bool modellKompassOrt(int ansicht, int teil, ImVec2& out);   // 0..3 N O S W, 4 ein Punkt des Rings vor dem Wuerfel
+[[nodiscard]] bool modellKompassVerdeckt(int ansicht, int teil);           // TEST1411 L: Buchstabe 0..3 liegt hinter dem Wuerfel
 [[nodiscard]] bool modellWuerfelPfeilOrt(int ansicht, int teil, ImVec2& out);   // 0..3 Pfeil oben/unten/links/rechts, 4/5 Rollpfeil rechts/links
 [[nodiscard]] float modellWuerfelAlpha(int ansicht);   // Deckkraft des ViewCube im letzten Bild (0: nicht gezeichnet)
 
@@ -1286,6 +1296,13 @@ struct ModellZeitProbe {
     std::string hinweisText;  // die Zeile unter der Leiste
     std::string statusText;   // die Statuszeile (Modus · Tasten · Undo/Suche)
     std::string transport;    // die Knoepfe und Felder der Knopfreihe der Reihe nach, mit | getrennt
+    // TEST1411 G: wie 3ds Max der Zeitschieber ueber der Spurleiste und die eine Statuszeile darunter
+    float schieber[4]{};      // der Zeitschieber (Bahn ohne < >)
+    float schieberGriff[4]{}; // sein Griff mit "Bild / Laenge"
+    std::string schieberText;
+    float hinweis[4]{};       // die Zeile unter der Leiste (Hoehe 0: keine)
+    float bildfeld[4]{};      // das Bildfeld der Statuszeile
+    std::string auswahlText;  // links in der Statuszeile: Auswahl und Hinweis
 };
 struct ModellZeit {
     // Auto Key (Max: N) / Auto-Keying (Blender): an = jeder Zug an einem Griff setzt einen Schluessel. ENTSCHEID1: ab Werk aus wie
@@ -1310,12 +1327,17 @@ struct ModellZeit {
     float griffMaus = 0.0F;
     float griffHoehe = 0.0F;
     bool skalaZieht = false;
+    bool schieberZieht = false;   // TEST1411 G: der Zeitschieber wird gezogen
+    float schieberVersatz = 0.0F; // ... Abstand der Maus vom linken Rand des Griffs
+    bool miniKurve = false;       // TEST1411 G/I: wie 3ds Max "Mini Curve Editor" - Dope Sheet/Kurveneditor ueber der Spurleiste (ab Werk zu)
+    int letzterModus = -1;        // Bedienmodus im letzten Bild (Spurbereich je Modus)
     bool einstellungenGelesen = false;
     float breite = 0.0F;       // Breite der Leiste im letzten Bild (Umbruch der Knopfreihe)
     int veralteteSequenz = 0;  // Selbsttest: Bilder, in denen die Leiste mit einer Sequenz aus einer schon ersetzten animList zeichnen wollte
     ModellZeitProbe probe;
 };
 [[nodiscard]] ModellZeit& modellZeit();
+void modellZeitMiniKurve(bool an);   // TEST1411 G: wie 3ds Max der Mini Curve Editor (Dope Sheet/Kurveneditor ueber der Spurleiste)
 [[nodiscard]] ZeitFassung modellZeitFassung();
 [[nodiscard]] float modellZeitleisteHoehe();     // Hoehe des Bands unter den Spalten (app_anordnung.inc)
 void drawModellZeitleiste();   // die Leiste (drawModelPanel, nach der Uhr); zeichnet mit einer Kopie der Primaersequenz (FIX612 R2)

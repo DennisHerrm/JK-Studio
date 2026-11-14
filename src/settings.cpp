@@ -151,6 +151,7 @@ std::string writeSettings(const Settings& s) {
     put(o, "modelControls", s.modellBedienung == 1 ? "blender" : "max");   // mb1a1
     put(o, "modelTimelineTracks", s.modellZeitSpuren);                      // AP1
     put(o, "modelTimelineAutoKey", s.modellZeitAutoKey);                    // ENTSCHEID1
+    put(o, "modelKeyRow", s.modellTastenzeile);                             // TEST1411 G
     put(o, "modelBlenderToolNames", s.modellBlWerkzeugnamen);               // ENTSCHEID1
     std::snprintf(buf, sizeof(buf), "%.1f", static_cast<double>(s.modellBlLeisteBreite));
     put(o, "modelBlenderToolbarWidth", std::string(buf));                   // ENTSCHEID3A (B8)
@@ -532,6 +533,7 @@ const SchluesselLeser kLeser[] = {
     {"modelControls", [](const Zeile& z) { z.out.modellBedienung = z.value == "blender" ? 1 : 0; }},   // mb1a1
     {"modelTimelineTracks", [](const Zeile& z) { z.out.modellZeitSpuren = toBool(z.value); }},   // AP1
     {"modelTimelineAutoKey", [](const Zeile& z) { z.out.modellZeitAutoKey = toBool(z.value); }},   // ENTSCHEID1
+    {"modelKeyRow", [](const Zeile& z) { z.out.modellTastenzeile = toBool(z.value); }},   // TEST1411 G
     {"modelBlenderToolNames", [](const Zeile& z) { z.out.modellBlWerkzeugnamen = toBool(z.value); }},   // ENTSCHEID1
     {"modelBlenderToolbarWidth", [](const Zeile& z) { z.out.modellBlLeisteBreite = std::clamp(static_cast<float>(std::atof(z.value.c_str())), 0.0F, 2000.0F); }},   // ENTSCHEID3A (B8)
     {"modelTimelineTracksMax", [](const Zeile& z) { z.out.modellZeitSpurHoeheMax = std::clamp(static_cast<float>(std::atof(z.value.c_str())), 2.5F, 26.0F); }},

@@ -483,7 +483,15 @@ std::vector<modell::Befund> modellBefunde() {
 // --- Befehlsfeld ------------------------------------------------------------------------------
 namespace {
 
+// TEST1411 C (shank 14.11.: "kann er auch GLAS laden von einer PK3?"): "Load .gla..." und "Other GLA..." oeffnen dieselbe Liste; sie steht
+// ausserhalb des Befehlsfelds (drawModellGlaListe), damit Werkzeugknopf und Menue sie aus jedem Bereich oeffnen
+bool g_glaOeffnen = false;
+
 void glaFenster() {
+    if (g_glaOeffnen) {
+        ImGui::OpenPopup("###mtgla");
+        g_glaOeffnen = false;
+    }
     const float fs = ImGui::GetFontSize();
     ImGui::SetNextWindowSize(ImVec2{fs * 24.0F, fs * 22.0F}, ImGuiCond_Appearing);
     if (!ui::modalBegin((std::string(tr(Str::MbAndereGla)) + "###mtgla").c_str(), nullptr)) { return; }
@@ -511,12 +519,24 @@ void glaFenster() {
     ImGui::EndChild();
     if (ImGui::Button(tr(Str::EditorCancel))) { ImGui::CloseCurrentPopup(); }
     ImGui::SameLine();
-    if (ImGui::Button(tr(Str::ModelLoadGla))) {
+    if (ImGui::Button(tr(Str::MeDateiOeffnen))) {   // eine lose .gla (Windows-Dialog), wie "Archiv oeffnen..." bei Load mission
         ImGui::CloseCurrentPopup();
         openSkeletonFile();
     }
+    ImGui::SetItemTooltip("%s", tr(Str::ModelLoadGlaHint));
     ImGui::EndPopup();
 }
+
+}  // namespace
+
+void modellGlaListeOeffnen() {
+    g_app->leftMode = 2;
+    g_glaOeffnen = true;
+}
+
+void drawModellGlaListe() { glaFenster(); }
+
+namespace {
 
 // AP3: die Gruppen von Ansehen/Pruefen in der Form des Entwurfs (Baustein gui/ui_rollout.h, shank 04.11. Bild 1): Kurzinfo in der
 // Ueberschrift, Werte als Tabelle, Knoepfe im Raster mit Symbol und Taste, Wahl als Segment, Tipp als Kasten. Der Inhalt ist der
@@ -553,7 +573,7 @@ void rolloutModell() {
         ui::absatz(gewaehlt);
     }
     ui::rasterBeginn(2);
-    if (ui::werkzeugKnopf(tr(Str::MbAndereGla), {.icon = UiIcon::Tauschen, .hinweis = tr(Str::MbAndereGlaHint)})) { ImGui::OpenPopup("###mtgla"); }
+    if (ui::werkzeugKnopf(tr(Str::MbAndereGla), {.icon = UiIcon::Tauschen, .hinweis = tr(Str::MbAndereGlaHint)})) { modellGlaListeOeffnen(); }
     // AP5 P1: Alt+R (ModView "Refresh textures") in beiden Bedienmodi wie im Entwurf
     if (ui::werkzeugKnopf(tr(Str::MbTexNeu), {.icon = UiIcon::Neuladen, .taste = "Alt+R", .tasteHalten = true})) { modellTexturenNeuLaden(); }
     // AP5 P1: Importieren = das heutige Oeffnen (.glm, .md3 von der Platte) und jedes Modell des Spiels aus den .pk3
@@ -579,7 +599,6 @@ void rolloutModell() {
         ImGui::SetItemTooltip("%s", tr(Str::OpenGlmPk3Hint));
         ImGui::EndPopup();
     }
-    glaFenster();
     ui::rolloutEnde();
 }
 
@@ -1147,13 +1166,140 @@ void modellZusatzAusloesen(int i) { zusatzAusloesen(zusatzAktionen()[static_cast
 
 // mb1a2: das Rechtsklick-Menue der Ansicht (3ds Max: Quad-Menue, Blender: Kontextmenue) - Auswahlart, Weights, Anzeige,
 // Ins Skript; jede Zeile mit Tooltip.
+// --- TEST1411 J: das Quad-Menue wie 3ds Max ----------------------------------------------------------------------------------
+//
+// shank 14.11.: "mit rechts klick würde ich gerne rotate oder movement auswählen können". 3ds Max oeffnet mit Rechtsklick in die Ansicht
+// das Quad-Menue: vier Viertel um die Maus - rechts unten "transform" (Move, Rotate, Scale, Select, Select Similar, Clone, Object
+// Properties, Curve Editor, Dope Sheet ...), rechts oben "display" (Isolate Selection, End Isolate, Unfreeze All, Freeze Selection,
+// Unhide by Name, Unhide All, Hide Unselected, Hide Selection), links "tools 1" und "tools 2" je nach Objekt (Autodesk-Hilfe "Quad
+// Menus"; Reihenfolge und Schreibweise wie dort). Was das Menue bis rc612 in einer Spalte hatte, steht in tools 1 (Unterobjekte, die
+// Werkzeuge des Bereichs) und tools 2 (Anzeige, Weights, Animation, Werkzeugleisten).
+struct Quad {
+    ImVec2 klick{};
+    float w[4]{};   // Breite und Hoehe der Viertel im letzten Bild: 0 links oben, 1 rechts oben, 2 links unten, 3 rechts unten
+    float h[4]{};
+    bool gemessen = false;
+};
+Quad g_quad;
+
+void quadZeile(const char* text, const char* taste, bool an, bool geht, const std::function<void()>& tun) {
+    if (ImGui::MenuItem(text, taste, an, geht)) { tun(); }
+}
+
+void quadTransform() {
+    ModellTab& t = mt();
+    quadZeile(tr(Str::T1QuadMove), "W", t.gizmo == 1, true, [] { maxWerkzeug(1); });
+    quadZeile(tr(Str::T1QuadRotate), "E", t.gizmo == 2, true, [] { maxWerkzeug(2); });
+    quadZeile(tr(Str::T1QuadScale), "R", t.gizmo == 3, true, [] { maxWerkzeug(3); });
+    quadZeile(tr(Str::T1QuadSelect), "Q", t.gizmo == 0, true, [] { maxWerkzeug(0); });
+    ImGui::Separator();
+    quadZeile(tr(Str::T1QuadCurveEditor), nullptr, modellZeit().miniKurve && t.kvArt == 1, true, [] {
+        ModellTab& m = mt();
+        m.bereich = ModellBereich::Animation;
+        m.kvArt = 1;
+        if (!modellZeit().miniKurve) { modellZeitMiniKurve(true); }
+    });
+    quadZeile(tr(Str::T1QuadDopeSheet), nullptr, modellZeit().miniKurve && t.kvArt == 0, true, [] {
+        ModellTab& m = mt();
+        m.bereich = ModellBereich::Animation;
+        m.kvArt = 0;
+        if (!modellZeit().miniKurve) { modellZeitMiniKurve(true); }
+    });
+}
+
+void quadDisplay() {
+    const ModellTab& t = mt();
+    const bool auswahl = !t.auswahl.empty();
+    quadZeile(tr(Str::T1QuadIsolate), "Alt+Q", false, auswahl, [] { modellAuswahlAusblenden(true); });
+    quadZeile(tr(Str::T1QuadEndIsolate), nullptr, false, true, [] { modellAllesEinblenden(); });
+    ImGui::Separator();
+    quadZeile(tr(Str::T1QuadUnfreezeAll), nullptr, false, true, [] { modellAllesAuftauen(); });
+    quadZeile(tr(Str::T1QuadFreezeSel), nullptr, false, auswahl, [] {
+        const std::vector<int> wahl = mt().auswahl;
+        for (const int i : wahl) { modellTeilEinfrieren(i, true, false); }
+    });
+    ImGui::Separator();
+    quadZeile(tr(Str::T1QuadUnhideAll), nullptr, false, true, [] { modellAllesEinblenden(); });
+    quadZeile(tr(Str::T1QuadHideUnsel), nullptr, false, auswahl, [] { modellAuswahlAusblenden(true); });
+    quadZeile(tr(Str::T1QuadHideSel), nullptr, false, auswahl, [] { modellAuswahlAusblenden(false); });
+}
+
+void quadTools1() {
+    ModellTab& t = mt();
+    static const Str kArten[6] = {Str::MbMaxObjekt, Str::MbMaxEcke, Str::MbMaxKante, Str::MbMaxPolygon, Str::MbMaxRand, Str::MbMaxElement};
+    for (int a = 0; a < 6; ++a) {
+        if (ImGui::MenuItem(tr(kArten[a]), nullptr, static_cast<int>(t.auswahlArt) == a)) { modellAuswahlArtSetzen(static_cast<AuswahlArt>(a)); }
+    }
+    modellRigKontextMenue();   // Stufe 3
+    modellUvKontextMenue();    // Modell-Block 1b
+    modellMeshKontextMenue();  // Modell-Block 1d
+    modellMalenKontextMenue(); // Modell-Block 1c
+    modellGewichteKontextMenue();   // AP8
+}
+
+void kontextZusatz();
+
+// Ein Viertel: Kindfenster in Groesse seines Inhalts; die oberen stehen auf der Mitte (wachsen nach oben), die linken rechtsbuendig
+void quadViertel(int nr, const char* titel, const std::function<void()>& inhalt, ImVec2 ort) {
+    const float fs = ImGui::GetFontSize();
+    ImGui::SetCursorScreenPos(ort);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{fs * 0.3F, fs * 0.2F});
+    char id[16];
+    std::snprintf(id, sizeof id, "##quad%d", nr);
+    ImGui::BeginChild(id, ImVec2{0.0F, 0.0F}, ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding,
+                      ImGuiWindowFlags_NoScrollbar);
+    ImGui::PopStyleVar();
+    if (nr >= 2) { cjkTextDisabled("%s", titel); }   // unten: der Name an der Mitte (oben), wie 3ds Max
+    inhalt();
+    if (nr < 2) { cjkTextDisabled("%s", titel); }   // oben: unter den Zeilen, an der Mitte
+    ImGui::EndChild();
+    g_quad.w[nr] = ImGui::GetItemRectSize().x;
+    g_quad.h[nr] = ImGui::GetItemRectSize().y;
+}
+
 void drawModellKontextMenue() {
     ModellTab& t = mt();
+    const bool blender = modellBlender();
+    if (!blender) {
+        // TEST1411 J: das Quad-Menue - die vier Viertel treffen sich an der Stelle des Rechtsklicks
+        if (ImGui::IsPopupOpen("##mtkontext") && g_quad.gemessen) {
+            const float jx = std::max(g_quad.w[0], g_quad.w[2]);
+            const float jy = std::max(g_quad.h[0], g_quad.h[1]);
+            const ImVec2 pad = ImGui::GetStyle().WindowPadding;
+            ImGui::SetNextWindowPos(ImVec2{g_quad.klick.x - jx - pad.x - 1.0F, g_quad.klick.y - jy - pad.y - 1.0F}, ImGuiCond_Always);
+        }
+        t.kontextSichtbar = ui::popup("##mtkontext", ImGuiWindowFlags_NoBackground);
+        if (!t.kontextSichtbar) {
+            g_quad.gemessen = false;
+            return;
+        }
+        if (ImGui::IsWindowAppearing()) {
+            g_quad.klick = ImGui::GetMousePosOnOpeningCurrentPopup();
+            g_quad.gemessen = false;
+        }
+        const ImVec2 o = ImGui::GetCursorScreenPos();
+        const float jx = std::max(g_quad.w[0], g_quad.w[2]);
+        const float jy = std::max(g_quad.h[0], g_quad.h[1]);
+        quadViertel(0, tr(Str::T1QuadTools1), quadTools1, ImVec2{o.x + jx - g_quad.w[0], o.y + jy - g_quad.h[0]});
+        quadViertel(1, tr(Str::T1QuadDisplay), quadDisplay, ImVec2{o.x + jx + 2.0F, o.y + jy - g_quad.h[1]});
+        quadViertel(2, tr(Str::T1QuadTools2), kontextZusatz, ImVec2{o.x + jx - g_quad.w[2], o.y + jy + 2.0F});
+        quadViertel(3, tr(Str::T1QuadTransform), quadTransform, ImVec2{o.x + jx + 2.0F, o.y + jy + 2.0F});
+        g_quad.gemessen = true;
+        ImGui::EndPopup();
+        return;
+    }
     t.kontextSichtbar = ui::popup("##mtkontext");
     if (!t.kontextSichtbar) { return; }
+    // TEST1411 J: wie Blender "Object > Transform" (G/R/S) - aus dem Rechtsklick erreichbar
+    if (ui::menue(tr(Str::T1BlTransform))) {
+        if (ImGui::MenuItem(tr(Str::MbBlGreifen))) { blenderModal(1); }
+        if (ImGui::MenuItem(tr(Str::MbBlDrehen))) { blenderModal(2); }
+        if (ImGui::MenuItem(tr(Str::MbBlSkalieren))) { blenderModal(3); }
+        ImGui::EndMenu();
+    }
+    ImGui::Separator();
     // ENTSCHEID3A (C4): Esc schliesst das Menue wie in 3ds Max und Blender, auch aus einem offenen Untermenue - seit KLEIN2 fuer jedes
     // Menue des Model-Tabs an einer Stelle am Anfang des Bildes (modellMenueEscBildAnfang, ui::menueEsc)
-    const bool blender = modellBlender();
     cjkTextDisabled("%s", tr(Str::MbKontextAuswahl));
     static const Str kArten[6] = {Str::MbMaxObjekt, Str::MbMaxEcke, Str::MbMaxKante, Str::MbMaxPolygon, Str::MbMaxRand, Str::MbMaxElement};
     static const Str kArtenBl[4] = {Str::MbBlObjektModus, Str::MbBlEcke, Str::MbBlKante, Str::MbBlFlaeche};
@@ -1199,6 +1345,37 @@ void drawModellKontextMenue() {
     modellGewichteKontextMenue();   // AP8: Gewichts-Werkzeuge, Bereinigen, Spiegeln, Sperren
     modellBlKontextMenue();   // AP4: Werkzeugleiste (T), Seitenleiste (N), Abstand messen
     ImGui::EndPopup();
+}
+
+// TEST1411 J: tools 2 des Quad-Menues - Weights, Anzeige, Skript, Animation (die Gruppen der Zusatzaktionen) und die Werkzeugleisten
+void kontextZusatz() {
+    int gruppe = -1;
+    bool unter = false;
+    bool zeigen = true;
+    const auto& liste = zusatzAktionen();
+    for (std::size_t i = 0; i < liste.size(); ++i) {
+        const ZusatzAktion& a = liste[i];
+        if (a.gruppe != gruppe) {
+            if (unter) { ImGui::EndMenu(); }
+            unter = false;
+            if (gruppe == 0) { modellAnzeigeKontext(); }
+            gruppe = a.gruppe;
+            if (gruppe == 0 || gruppe == 4) {
+                unter = ui::menue(tr(gruppe == 0 ? Str::MbBereichWeights : Str::MbBereichAnimation));
+                zeigen = unter;
+            } else {
+                ImGui::Separator();
+                zeigen = true;
+            }
+        }
+        if (!zeigen) { continue; }
+        ImGui::PushID(static_cast<int>(i));
+        if (ImGui::MenuItem(tr(a.text), a.taste[0] != '\0' ? a.taste : nullptr)) { zusatzAusloesen(a); }
+        ImGui::SetItemTooltip("%s", tr(a.hinweis));
+        ImGui::PopID();
+    }
+    if (unter) { ImGui::EndMenu(); }
+    modellBlKontextMenue();   // AP4: Abstand messen, Knochen waehlen
 }
 
 namespace {

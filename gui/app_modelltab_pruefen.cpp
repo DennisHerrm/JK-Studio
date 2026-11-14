@@ -718,7 +718,8 @@ void modellPrUeberlagerung(int n, const ModellAnsicht& a, ImDrawList* dl) {
         }
         const ImVec2 g = cjkTextSize(z, nullptr, false, a.groesse[0] - rand * 2.0F);
         const ImVec2 o{hi.x - rand - g.x, hi.y - rand - g.y};
-        dl->AddRectFilled(ImVec2{o.x - 3.0F, o.y - 1.0F}, ImVec2{o.x + g.x + 3.0F, o.y + g.y + 1.0F}, IM_COL32(0, 0, 0, 110), 3.0F);
+        // TEST1411 M: der dunkle Grund dichter - auf hellem Grund (Silhouette, Weiss) blieb die helle Schrift sonst unter 4,5:1
+        dl->AddRectFilled(ImVec2{o.x - 3.0F, o.y - 1.0F}, ImVec2{o.x + g.x + 3.0F, o.y + g.y + 1.0F}, IM_COL32(0, 0, 0, 190), 3.0F);
         cjkAddText(dl, nullptr, 0.0F, o, IM_COL32(205, 205, 205, 235), z, nullptr, a.groesse[0] - rand * 2.0F);
         p.lodHinweis = ImRect{o, ImVec2{o.x + g.x, o.y + g.y}};
         p.lodHinweisText = z;

@@ -1138,6 +1138,20 @@ void zeitZiehen(int d, float faktor, bool skalieren) {
     ModellTab& t = mt();
     modell::RigSchicht s = t.kvZugStart;
     modell::Wahl w = skalieren ? modell::schluesselSkalieren(s, t.kvZugWahl, faktor, static_cast<float>(bildJetzt())) : modell::schluesselVerschieben(s, t.kvZugWahl, d);
+    // TEST1411 G (3ds Max Track Bar: "Shift+drag to copy keys"): die Schluessel am alten Ort wieder dazu - ein Schluessel, der dort neu
+    // gelandet ist, gilt (er ist gewaehlt)
+    if (!skalieren && t.kvZugKopie && d != 0) {
+        for (const modell::SchluesselWahl& x : t.kvZugWahl) {
+            if (x.knochen < 0 || static_cast<std::size_t>(x.knochen) >= s.knochen.size() || static_cast<std::size_t>(x.knochen) >= t.kvZugStart.knochen.size()) { continue; }
+            const auto& alt = t.kvZugStart.knochen[static_cast<std::size_t>(x.knochen)];
+            const auto it = std::find_if(alt.begin(), alt.end(), [&x](const modell::RigSchluessel& k) { return k.bild == x.bild; });
+            if (it == alt.end()) { continue; }
+            auto& neu = s.knochen[static_cast<std::size_t>(x.knochen)];
+            const auto pos = std::lower_bound(neu.begin(), neu.end(), x.bild, [](const modell::RigSchluessel& k, int b) { return k.bild < b; });
+            if (pos != neu.end() && pos->bild == x.bild) { continue; }
+            neu.insert(pos, *it);
+        }
+    }
     const std::string name = sequenzName();
     if (!t.kvZugAngelegt) {
         t.kvZugSchritt = t.dok.aendern(tr(skalieren ? Str::MbKvSkalieren : Str::MbKvVerschieben), [&](modell::Inhalt& in) { in.rig.schichten[name] = s; }, false);
@@ -1155,6 +1169,7 @@ void zugBeginnen(float mausX) {
     t.kvZugStart = schicht();
     t.kvZugWahl = t.kvWahl;
     t.kvZugAngelegt = false;
+    t.kvZugKopie = !modellBlender() && ImGui::GetIO().KeyShift;   // TEST1411 G
     t.kvZugMaus[0] = mausX;
     t.kvZugMaus[1] = ImGui::GetIO().MousePos.y;
 }

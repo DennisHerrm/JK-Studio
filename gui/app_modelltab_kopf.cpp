@@ -568,8 +568,7 @@ void menueShadingBlender(int n) {
 
 // --- Die Kopfzeile ---------------------------------------------------------------------------------------------------
 
-constexpr ImU32 kText = IM_COL32(220, 220, 220, 230);
-constexpr ImU32 kTextHover = IM_COL32(255, 222, 120, 255);   // wie die Labels von 3ds Max unter der Maus: hell, gelblich
+// TEST1411 M: die Schrift nach dem Grund der Ansicht (modellUeberGrund) - hell auf dunkel, dunkel auf hell (Silhouette, Weiss)
 
 // Wohin das Menue eines Feldes aufklappt: unter das Feld, wie die Viewport Label Menus von 3ds Max und die Menues der
 // Kopfzeile von Blender. Ohne Angabe oeffnet ImGui ein Popup an der Maus - es lag dann ueber seinem eigenen Feld.
@@ -596,7 +595,7 @@ float feld(ImDrawList* dl, ImVec2 o, const char* id, const char* text, Str hinwe
     if (ueber || offen) {
         dl->AddRectFilled(o, ImVec2{o.x + groesse.x, o.y + groesse.y}, offen ? IM_COL32(255, 255, 255, 60) : IM_COL32(255, 255, 255, 34), 3.0F);
     }
-    dl->AddText(ImVec2{o.x + rand, o.y + (hoehe - g.y) * 0.5F}, ueber || offen ? kTextHover : kText, text);
+    dl->AddText(ImVec2{o.x + rand, o.y + (hoehe - g.y) * 0.5F}, modellUeberGrund(1.0F, ueber || offen), text);
     if (klick) {
         mt().aktiv = n;
         mt().klickDrinBild = ImGui::GetFrameCount();
@@ -623,7 +622,7 @@ float shadingKnopf(ImDrawList* dl, ImVec2 o, int n, int art, float hoehe) {
                       3.0F);
     const ImVec2 m{o.x + hoehe * 0.5F, o.y + hoehe * 0.5F};
     const float r = hoehe * 0.32F;
-    const ImU32 f = ueber ? kTextHover : kText;
+    const ImU32 f = modellUeberGrund(1.0F, ueber);
     if (art == 0) {
         dl->AddCircle(m, r, f, 20, 1.2F);
         dl->AddLine(ImVec2{m.x - r, m.y}, ImVec2{m.x + r, m.y}, f);
@@ -706,7 +705,7 @@ void drawModellKopfzeile(int n, ModellAnsicht& a) {
         std::string hin;   // AP4: wie Blender steht der Name der Ansicht schon vor dem Modus (modellBlModusKopf)
         if (!t.vierAnsichten) { hin = tr(bl ? Str::MbAnsichtMaxBlender : Str::MbAnsichtMax); }
         if (!hin.empty() && x + 6.0F + ImGui::CalcTextSize(hin.c_str()).x <= rechtsAb - 6.0F) {
-            dl->AddText(ImVec2{x + 6.0F, y + (hoehe - fs) * 0.5F}, IM_COL32(200, 200, 200, 170), hin.c_str());
+            dl->AddText(ImVec2{x + 6.0F, y + (hoehe - fs) * 0.5F}, modellUeberGrund(0.85F, false), hin.c_str());   // TEST1411 M
         }
     }
     // --- die Menues ------------------------------------------------------------------------------------------------

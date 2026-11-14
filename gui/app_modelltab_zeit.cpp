@@ -355,6 +355,12 @@ std::string hinweisDerFassung(const AnimEntry* e) {
 void konfigOeffnen() { g_zeit.konfigOffen = true; }
 
 void spurenUmschalten() {
+    if (!modellBlender()) {   // TEST1411 G: wie 3ds Max der Mini Curve Editor ueber der Spurleiste
+        g_zeit.miniKurve = !g_zeit.miniKurve;
+        mt().kvOffen = g_zeit.miniKurve;
+        mt().kvEinpassen = mt().kvEinpassen || g_zeit.miniKurve;
+        return;
+    }
     ModellTab& t = mt();
     if (modellZeitFassung() == ZeitFassung::Sequenz) {
         g_zeit.sequenzAuf = !g_zeit.sequenzAuf;
@@ -364,7 +370,10 @@ void spurenUmschalten() {
     }
 }
 
-bool spurenOffen() { return modellZeitFassung() == ZeitFassung::Sequenz ? g_zeit.sequenzAuf : mt().kvOffen; }
+bool spurenOffen() {
+    if (!modellBlender()) { return modellZeitFassung() != ZeitFassung::Sequenz && g_zeit.miniKurve; }   // TEST1411 G: Mini Curve Editor
+    return modellZeitFassung() == ZeitFassung::Sequenz ? g_zeit.sequenzAuf : mt().kvOffen;
+}
 
 void setKey() {
     const int i = modellKurvenAktionNach(static_cast<int>(Str::MbKvSetzen));
@@ -673,6 +682,7 @@ float spurEinstellungFuer(float pixel, float fest) {
 
 struct Masse {
     float griff = 0.0F;
+    float schieber = 0.0F;  // TEST1411 G: wie 3ds Max der Zeitschieber (statt der Knopfreihe)
     float transport = 0.0F;
     float skala = 0.0F;
     float spuren = 0.0F;    // unter der Skala (0: zu)
@@ -688,20 +698,32 @@ Masse masse(const AnimEntry* e, float breite) {
     Masse m;
     m.luft = std::floor(ImGui::GetStyle().ItemSpacing.y);
     m.griff = std::max(7.0F, std::floor(fs * 0.5F));
-    Reihe r;
-    r.breite = breite > 1.0F ? breite : 1e6F;
-    transport(e, r);
-    m.transport = r.hoehe();
+    // TEST1411 G (shank 14.11.: "mehr wie in 3ds max in 3ds max modus in allen Varianten"): wie 3ds Max oben der Zeitschieber, die Knoepfe
+    // stehen in der Statuszeile unter der Spurleiste; wie Blender bleibt die Knopfreihe (Kopf der Timeline)
+    const bool max = !modellBlender();
+    if (max) {
+        m.schieber = std::floor(ImGui::GetFrameHeight());
+    } else {
+        Reihe r;
+        r.breite = breite > 1.0F ? breite : 1e6F;
+        transport(e, r);
+        m.transport = r.hoehe();
+    }
     m.skala = modellZeitSkalaHoehe();
-    m.hinweis = std::floor(fs + 2.0F);
-    m.status = std::floor(fs + 6.0F);
-    m.fest = m.griff + m.transport + m.luft + m.skala + m.luft + m.luft + m.hinweis + m.luft + m.status;
+    // kein erklaerender Text unter der Leiste (Hinweise in den Tooltips, im Handbuch); wie 3ds Max die Tastenzeile nur auf Wunsch
+    m.hinweis = 0.0F;
+    m.status = max ? std::floor(ImGui::GetFrameHeight() + 6.0F) : std::floor(fs + 6.0F);
+    const float tasten = max && g_app->settings.modellTastenzeile ? std::floor(fs + 6.0F) + m.luft : 0.0F;
+    const float oben = m.griff + m.schieber + m.transport + m.luft + m.skala;
+    const float unten = m.luft + m.status + tasten;
+    m.fest = oben + m.luft + unten;
     switch (modellZeitFassung()) {
-        case ZeitFassung::Voll: m.spuren = mt().kvOffen ? spurHoehe(m.fest) : 0.0F; break;
-        case ZeitFassung::Sequenz: m.spuren = g_zeit.sequenzAuf ? 2.0F * ImGui::GetFrameHeight() + m.luft : 0.0F; break;
+        case ZeitFassung::Voll: m.spuren = (max ? g_zeit.miniKurve : mt().kvOffen) ? spurHoehe(m.fest) : 0.0F; break;
+        // wie 3ds Max stehen Primaer und Sekundaer links an der Spurleiste, nicht als Zeilen darunter
+        case ZeitFassung::Sequenz: m.spuren = !max && g_zeit.sequenzAuf ? 2.0F * ImGui::GetFrameHeight() + m.luft : 0.0F; break;
         case ZeitFassung::Kurz: break;
     }
-    m.gesamt = m.griff + m.transport + m.luft + m.skala + (m.spuren > 0.0F ? m.spuren + m.luft : 0.0F) + m.luft + m.hinweis + m.luft + m.status;
+    m.gesamt = oben + (m.spuren > 0.0F ? m.spuren + m.luft : 0.0F) + unten;
     return m;
 }
 
@@ -723,6 +745,8 @@ std::string kuerzen(const std::string& ganz, float frei) {
     }
     return teil.empty() ? std::string("...") : teil + trenner + "...";
 }
+
+std::string primaerSekundaer(const AnimEntry* e);   // TEST1411 G (unten)
 
 // --- Die Teile der Leiste ----------------------------------------------------------------------------------------------
 void griffZeichnen(ImVec2 lo, float breite, const Masse& m) {
@@ -751,6 +775,7 @@ void griffZeichnen(ImVec2 lo, float breite, const Masse& m) {
                 t.kvOffen = auf;
                 t.kvEinpassen = t.kvEinpassen || auf;
             }
+            if (!modellBlender()) { z.miniKurve = auf; }   // TEST1411 G: wie 3ds Max ist der Spurbereich der Mini Curve Editor
             if (auf) { spurEinstellung() = spurEinstellungFuer(h, m.fest); }
         } else if (fassung == ZeitFassung::Sequenz) {
             z.sequenzAuf = h >= fs * 1.5F;
@@ -786,6 +811,22 @@ void skalaAllein(const AnimEntry* e, ImVec2 lo, float breite, const Masse& m) {
     const float von = static_cast<float>(erstes) - 1.0F;
     const float bis = static_cast<float>(erstes + std::max(anzahl, 1));
     modellZeitSkala(dl, a, b, von, bis, erstes, anzahl, e != nullptr ? e->fps : 20);
+    // TEST1411 G: wie 3ds Max stehen die Bewegungsdaten nicht als Text unter der Leiste - Primaer und Sekundaer kurz links an der Spurleiste
+    if (!modellBlender() && modellZeitFassung() == ZeitFassung::Sequenz) {
+        const ModellTab& t = mt();
+        const bool hatSek = t.sekundaer >= 0 && static_cast<std::size_t>(t.sekundaer) < g_app->animList.size();
+        const float fs = ImGui::GetFontSize();
+        const std::string p = "P  " + (e != nullptr ? e->name : std::string("-"));
+        const std::string s2 = "S  " + (hatSek ? g_app->animList[static_cast<std::size_t>(t.sekundaer)].name : std::string("-"));
+        const float frei = nb - fs * 0.6F;
+        dl->AddText(ImVec2{lo.x + fs * 0.3F, lo.y + fs * 0.15F}, ImGui::GetColorU32(ImGuiCol_Text), kuerzen(p, frei).c_str());
+        dl->AddText(ImVec2{lo.x + fs * 0.3F, lo.y + fs * 1.3F}, ImGui::GetColorU32(ImGuiCol_TextDisabled), kuerzen(s2, frei).c_str());
+        ImGui::SetCursorScreenPos(lo);
+        ImGui::InvisibleButton("##mzps", ImVec2{nb, m.skala});
+        tooltip(primaerSekundaer(e).c_str());
+        g_probe.namenText = p + " | " + s2;
+        ImGui::SetCursorScreenPos(a);
+    }
     if (e == nullptr) { return; }
     if (ImGui::IsItemActivated() && ImGui::IsMouseDown(ImGuiMouseButton_Left)) { z.skalaZieht = true; }
     if (z.skalaZieht) {
@@ -846,38 +887,6 @@ void sequenzZeilen(const AnimEntry* e, ImVec2 lo, float breite, const Masse& m) 
     }
 }
 
-void hinweisZeile(ImVec2 lo, float breite) {
-    const ModellZeit& z = g_zeit;
-    std::string text;
-    bool warnung = false;
-    if (!z.offen.empty()) {
-        text = format(Str::MzOffen, setKeyTaste());
-        warnung = true;
-    } else {
-        const bool blender = modellBlender();
-        if (modellZeitFassung() == ZeitFassung::Voll) {
-            text = std::string(tr(blender ? Str::MzLegendeBlender : Str::MzLegendeMax)) + " \xc2\xb7 ";
-        }
-        text += tr(blender ? Str::MbZeitHinweisBlender : Str::MbZeitHinweis);
-        if (modellZeitFassung() == ZeitFassung::Voll) {
-            if (const modell::RigSchicht* s = modellRigSchichtJetzt(); s != nullptr && !s->leer()) {
-                text += std::string(" \xc2\xb7 ") + tr(s->bindeBasis ? Str::MbKvBasisBinde : Str::MbKvBasisQuelle);
-            }
-        }
-    }
-    g_probe.hinweisText = text;
-    const std::string zeigen = kuerzen(text, breite);
-    ImGui::SetCursorScreenPos(lo);
-    if (warnung) {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram));
-        cjkTextUnformatted(zeigen.c_str());
-        ImGui::PopStyleColor();
-    } else {
-        cjkTextDisabled("%s", zeigen.c_str());
-    }
-    if (zeigen != text) { tooltip(text.c_str()); }
-}
-
 // Die Statuszeile des Model-Tabs (Entwurf statusZeile): Bedienmodus (Klick wechselt) - Tasten des Bereichs - Undo / Suche.
 // Die Tasten sind die, die es im Programm gibt (Tabellen maxTasten/blenderTasten und die Aktionen der Bereiche).
 void statusZeile(ImVec2 lo, float breite, const Masse& m) {
@@ -900,7 +909,10 @@ void statusZeile(ImVec2 lo, float breite, const Masse& m) {
     dl->AddText(ImVec2{lo.x + fs * 0.2F, ty}, ImGui::GetColorU32(ueber ? ImGuiCol_Text : ImGuiCol_TextDisabled), modus);
     tooltip(tr(Str::MzModusHint));
     const std::string undo = tr(blender ? Str::MzStatusUndoBl : Str::MzStatusUndoMax);
-    const std::string tasten = tr(blender ? kBl[bereich] : kMax[bereich]);
+    // TEST1411 G: die Warnung "Pose ohne Schluessel" (bis dahin in der Hinweiszeile) steht wie Blenders Meldungen in der Statuszeile
+    const bool warnung = !z.offen.empty();
+    if (warnung) { g_probe.hinweisText = format(Str::MzOffen, setKeyTaste()); }
+    const std::string tasten = warnung ? g_probe.hinweisText : std::string(tr(blender ? kBl[bereich] : kMax[bereich]));
     const float luecke = fs * 1.1F;
     const float undoB = ImGui::CalcTextSize(undo.c_str()).x;
     const float frei = breite - (modusB + fs * 0.4F) - luecke - luecke - undoB;
@@ -921,6 +933,226 @@ void statusZeile(ImVec2 lo, float breite, const Masse& m) {
         if (ImGui::MenuItem(tr(Str::MbWieMax), nullptr, !blender)) { modellBedienungSetzen(0); }
         if (ImGui::MenuItem(tr(Str::MbWieBlender), nullptr, blender)) { modellBedienungSetzen(1); }
         ImGui::EndPopup();
+    }
+}
+
+// --- TEST1411 G: wie 3ds Max ----------------------------------------------------------------------------------------------
+//
+// shank 14.11. mit einem Foto von 3ds Max 2027: "ich hätte es gerne mehr wie in 3ds max ... Auch wie die Timeline agiert und du die
+// auswählst" - "also wo man den Regler verschiebt". Der Zeitschieber (Time Slider) ist eine eigene Leiste ueber der Spurleiste: ein breiter
+// Griff mit "Bild / letztes Bild", an den Enden < und > (ein Bild zurueck/vor). Den Griff ziehen = scrubben, ein Klick in die Bahn setzt
+// den Griff dorthin. Darunter die Spurleiste (Track Bar) mit Teilstrichen und Keys, ganz unten EINE Statuszeile: links die Auswahl und
+// der Hinweis zur Maus (Max: Status Bar / Prompt Line), in der Mitte X/Y/Z der Auswahl und die Rastergroesse, rechts die Abspielknoepfe,
+// das Bildfeld (eintippen springt), Auto Key/Set Key und die Zeitkonfiguration.
+
+std::string primaerSekundaer(const AnimEntry* e) {
+    const ModellTab& t = mt();
+    const bool hatSek = t.sekundaer >= 0 && static_cast<std::size_t>(t.sekundaer) < g_app->animList.size();
+    char sek[200];
+    std::snprintf(sek, sizeof sek, tr(Str::MbSekundaer), t.sekundaerKnochen.c_str());
+    return std::string(tr(Str::MzPrimaerLang)) + ": " + (e != nullptr ? e->name : std::string("-")) + "\n" + sek + ": " +
+           (hatSek ? g_app->animList[static_cast<std::size_t>(t.sekundaer)].name : std::string(tr(Str::MzSekundaerLeer)));
+}
+
+void zeitSchieber(const AnimEntry* e, ImVec2 lo, float breite, float h) {
+    ModellZeit& z = g_zeit;
+    const float fs = ImGui::GetFontSize();
+    const int n = e != nullptr ? std::max(e->numFrames, 1) : 1;
+    const int rel = e != nullptr ? std::clamp(g_app->animFrame - e->firstFrame, 0, n - 1) : 0;
+    char text[48];
+    char textMax[48];
+    std::snprintf(text, sizeof text, "%d / %d", rel, n - 1);
+    std::snprintf(textMax, sizeof textMax, "%d / %d", n - 1, n - 1);
+    const float pfeil = std::floor(h * 1.2F);
+    const float kurve = std::floor(h * 1.4F);
+    const std::string tip = std::string(tr(Str::T1SchieberHint)) + "\n" + format(Str::MbGlaBild, g_app->animFrame, rel) + "\n\n" + primaerSekundaer(e);
+    ImGui::BeginDisabled(e == nullptr);
+    // links wie 3ds Max der Knopf des Mini Curve Editors (Dope Sheet / Kurveneditor ueber der Spurleiste)
+    ImGui::SetCursorScreenPos(lo);
+    if (modellZeitFassung() == ZeitFassung::Voll) {
+        if (knopf(tr(Str::T1MiniKurve), Sym::Auf, nullptr, (std::string(tr(Str::T1MiniKurve)) + "\n" + tr(Str::T1MiniKurveHint)).c_str(), kurve, g_zeit.miniKurve)) {
+            spurenUmschalten();
+        }
+        probeTeil("minikurve");
+    } else {
+        ImGui::Dummy(ImVec2{kurve, h});
+    }
+    ImGui::SetCursorScreenPos(ImVec2{lo.x + kurve + 2.0F, lo.y});
+    if (knopf("<##mzschieber", Sym::Keins, "<", tr(Str::MzTipZurueckMax), pfeil) && e != nullptr) { bildSetzen(*e, rel - 1); }
+    const ImVec2 a{lo.x + kurve + 2.0F + pfeil, lo.y};
+    const float bahn = std::max(breite - kurve - 2.0F - 2.0F * pfeil, fs);
+    const float griffB = std::min(std::max(std::floor(zifferBreite(textMax) + fs * 2.0F), std::floor(fs * 6.0F)), bahn);
+    const float spiel = std::max(bahn - griffB, 1.0F);
+    const float gx = std::floor(a.x + (n > 1 ? spiel * static_cast<float>(rel) / static_cast<float>(n - 1) : 0.0F));
+    ImGui::SetCursorScreenPos(a);
+    ImGui::InvisibleButton("##mzschieber", ImVec2{bahn, h});
+    const bool ueber = ImGui::IsItemHovered();
+    const bool aktiv = ImGui::IsItemActive();
+    const float mx = ImGui::GetIO().MousePos.x;
+    if (ImGui::IsItemActivated()) {
+        z.schieberZieht = true;
+        // auf dem Griff: er bleibt unter der Maus; daneben springt er mit seiner Mitte zur Maus (Max)
+        z.schieberVersatz = mx >= gx && mx <= gx + griffB ? mx - gx : griffB * 0.5F;
+    }
+    if (z.schieberZieht && aktiv && e != nullptr && n > 1) {
+        const float t = std::clamp((mx - z.schieberVersatz - a.x) / spiel, 0.0F, 1.0F);
+        const int neu = static_cast<int>(std::lround(t * static_cast<float>(n - 1)));
+        if (neu != rel || g_app->animPlaying) { bildSetzen(*e, neu); }
+    }
+    if (!aktiv) { z.schieberZieht = false; }
+    tooltip(tip.c_str());
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const float r = ImGui::GetStyle().FrameRounding;
+    dl->AddRectFilled(a, ImVec2{a.x + bahn, a.y + h}, ImGui::GetColorU32(ImGuiCol_FrameBg), r);
+    const ImVec2 g0{gx, a.y};
+    const ImVec2 g1{gx + griffB, a.y + h};
+    dl->AddRectFilled(g0, g1, aktiv ? akzent() : ImGui::GetColorU32(ueber ? ImGuiCol_ButtonHovered : ImGuiCol_Button), r);
+    dl->AddRect(g0, g1, ImGui::GetColorU32(ImGuiCol_Border), r);
+    const float tb = zifferBreite(text);
+    zifferText(dl, ImVec2{std::floor(gx + (griffB - tb) * 0.5F), std::floor(a.y + (h - fs) * 0.5F)}, aktiv ? IM_COL32_WHITE : ImGui::GetColorU32(ImGuiCol_Text), text);
+    ImGui::SetCursorScreenPos(ImVec2{a.x + bahn, lo.y});
+    if (knopf(">##mzschieber", Sym::Keins, ">", tr(Str::MzTipVorMax), pfeil) && e != nullptr) { bildSetzen(*e, rel + 1); }
+    ImGui::EndDisabled();
+    merke(g_probe.schieber, a, ImVec2{a.x + bahn, a.y + h});
+    merke(g_probe.schieberGriff, g0, g1);
+    g_probe.schieberText = text;
+    probeTeil("schieber");
+    // die Zaehlung wie bisher fuer den Selbsttest ("Bild / letztes   Zeit s")
+    char zeitText[48];
+    std::snprintf(zeitText, sizeof zeitText, " / %d   %.2f s", n - 1, static_cast<double>(rel) / static_cast<double>(std::max(std::abs(e != nullptr ? e->fps : 20), 1)));
+    mt().zaehlungText = std::to_string(rel) + zeitText;
+}
+
+std::string auswahlUndHinweis() {
+    const ModellTab& t = mt();
+    std::string a;
+    if (t.bereich == ModellBereich::Animation && t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size() && t.knochenWahl >= 0 &&
+        static_cast<std::size_t>(t.knochenWahl) < g_app->anim.bones.size()) {
+        a = format(Str::T1AuswahlKnochen, g_app->anim.bones[static_cast<std::size_t>(t.knochenWahl)].name.c_str());
+    } else if (t.knochenWahl >= 0 && static_cast<std::size_t>(t.knochenWahl) < g_app->anim.bones.size()) {
+        a = format(Str::T1AuswahlKnochen, g_app->anim.bones[static_cast<std::size_t>(t.knochenWahl)].name.c_str());
+    } else if (t.auswahlArt != AuswahlArt::Objekt && !t.eckenWahl.empty()) {
+        a = format(Str::T1AuswahlEcken, static_cast<int>(t.eckenWahl.size()));
+    } else if (!t.auswahl.empty()) {
+        a = format(Str::T1AuswahlFlaechen, static_cast<int>(t.auswahl.size()));
+    } else {
+        a = tr(Str::T1KeineAuswahl);
+    }
+    static const Str kHinweis[4] = {Str::T1HinweisWaehlen, Str::T1HinweisBewegen, Str::T1HinweisDrehen, Str::T1HinweisSkalieren};
+    return a + "\t" + tr(kHinweis[std::clamp(t.gizmo, 0, 3)]);
+}
+
+void maxStatusZeile(const AnimEntry* e, ImVec2 lo, float breite, const Masse& m) {
+    ModellZeit& z = g_zeit;
+    const float fs = ImGui::GetFontSize();
+    const float fh = ImGui::GetFrameHeight();
+    const float eng = std::floor(fs * 0.3F);
+    const float weit = std::floor(fs * 0.62F);
+    const float kb = symKnopfBreite();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddLine(ImVec2{lo.x, lo.y}, ImVec2{lo.x + breite, lo.y}, ImGui::GetColorU32(ImGuiCol_Separator));
+    merke(g_probe.status, lo, ImVec2{lo.x + breite, lo.y + m.status});
+    const float y = std::floor(lo.y + (m.status - fh) * 0.5F + 1.0F);
+    const float ty = std::floor(lo.y + (m.status - fs) * 0.5F + 1.0F);
+    const int n = e != nullptr ? std::max(e->numFrames, 1) : 1;
+    const int rel = e != nullptr ? std::clamp(g_app->animFrame - e->firstFrame, 0, n - 1) : 0;
+    // rechts, von rechts nach links: Zeitkonfiguration, Set Key, Auto Key, Bildfeld, Abspielknoepfe
+    const std::string autoText = std::string(tr(Str::MzAutoKey)) + " (N)";
+    const std::string setText = std::string(tr(Str::MzSetKey)) + " (K)";
+    const float autoB = textKnopfBreite(autoText.c_str(), false);
+    const float setB = textKnopfBreite(setText.c_str(), false);
+    char letztes[24];
+    std::snprintf(letztes, sizeof letztes, "%d", std::max(n - 1, 99));
+    const float feldB = std::floor(zifferBreite(letztes) + ImGui::GetStyle().FramePadding.x * 2.0F + fs * 0.4F);
+    const float rechts = 5.0F * kb + 4.0F * eng + weit + feldB + weit + autoB + eng + setB + weit + kb;
+    float x = lo.x + breite - rechts;
+    const auto setze = [&](float b, float vor) {
+        x += vor;
+        ImGui::SetCursorScreenPos(ImVec2{x, y});
+        x += b;
+    };
+    ImGui::BeginDisabled(e == nullptr);
+    setze(kb, 0.0F);
+    if (knopf(tr(Str::TlRewind), Sym::Anfang, nullptr, tr(Str::MzTipAnfangMax), kb) && e != nullptr) { bildSetzen(*e, 0); }
+    setze(kb, eng);
+    {
+        const std::string tip = std::string(tr(Str::MzTipZurueckMax)) + (z.keyModus ? std::string("\n") + tr(Str::MzTipKeyModus) : std::string());
+        if (knopf(tr(Str::ModelPrevFrame), Sym::BildZurueck, nullptr, tip.c_str(), kb) && e != nullptr) {
+            if (z.keyModus) {
+                (void)modellZeitSchluesselSprung(-1);
+            } else {
+                bildSetzen(*e, rel - 1);
+            }
+        }
+    }
+    setze(kb, eng);
+    if (knopf(tr(g_app->animPlaying ? Str::ModelStop : Str::ModelPlay), g_app->animPlaying ? Sym::Pause : Sym::Abspielen, nullptr, tr(Str::MzTipSpielenMax), kb,
+              g_app->animPlaying)) {
+        spielenUmschalten(e);
+    }
+    setze(kb, eng);
+    {
+        const std::string tip = std::string(tr(Str::MzTipVorMax)) + (z.keyModus ? std::string("\n") + tr(Str::MzTipKeyModus) : std::string());
+        if (knopf(tr(Str::ModelNextFrame), Sym::BildVor, nullptr, tip.c_str(), kb) && e != nullptr) {
+            if (z.keyModus) {
+                (void)modellZeitSchluesselSprung(1);
+            } else {
+                bildSetzen(*e, rel + 1);
+            }
+        }
+    }
+    setze(kb, eng);
+    if (knopf(tr(Str::MzEnde), Sym::Ende, nullptr, tr(Str::MzTipEndeMax), kb) && e != nullptr) { bildSetzen(*e, e->numFrames - 1); }
+    // das Bildfeld: eintippen und Enter springt (Max: Current Frame / Go To Frame)
+    setze(feldB, weit);
+    ImGui::SetNextItemWidth(feldB);
+    int v = rel;
+    if ((ImGui::InputInt("##mzbildfeld", &v, 0, 0, ImGuiInputTextFlags_EnterReturnsTrue) || ImGui::IsItemDeactivatedAfterEdit()) && e != nullptr) { bildSetzen(*e, v); }
+    merke(g_probe.bildfeld, ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+    ImGui::SetItemTooltip("%s\n%s", tr(Str::T1BildfeldHint), format(Str::MbGlaBild, g_app->animFrame, rel).c_str());
+    setze(autoB, weit);
+    if (knopf(tr(Str::MzAutoKey), Sym::Keins, autoText.c_str(), tr(Str::MzAutoKeyHint), autoB, z.autoKey, kAufnahme)) { modellZeitAutoKey(!z.autoKey); }
+    setze(setB, eng);
+    if (knopf(tr(Str::MzSetKey), Sym::Keins, setText.c_str(), tr(Str::MzSetKeyHint), setB, !z.offen.empty())) { setKey(); }
+    ImGui::EndDisabled();
+    setze(kb, weit);
+    if (knopf(tr(Str::MzZeitKonfig), Sym::Uhr, nullptr, (std::string(tr(Str::MzZeitKonfig)) + "\n" + tr(Str::MzZeitKonfigHint)).c_str(), kb)) { konfigOeffnen(); }
+    // links: Auswahl und Hinweis zur Maus; in der Mitte X/Y/Z der Auswahl und die Rastergroesse - soweit der Platz reicht
+    const float linksEnde = lo.x + breite - rechts - weit;
+    const std::string ah = auswahlUndHinweis();
+    const std::string auswahl = ah.substr(0, ah.find('\t'));
+    const std::string hinweis = ah.substr(ah.find('\t') + 1);
+    g_probe.auswahlText = auswahl + " | " + hinweis;
+    float m3[3];
+    const bool mitte = modellAuswahlMitteJetzt(m3);
+    char koord[160];
+    char raster[48];
+    std::snprintf(raster, sizeof raster, tr(Str::T1Raster), static_cast<double>(g_app->settings.modellRasterAbstand));
+    if (mitte) {
+        std::snprintf(koord, sizeof koord, "X: %.2f   Y: %.2f   Z: %.2f", static_cast<double>(m3[0]), static_cast<double>(m3[1]), static_cast<double>(m3[2]));
+    } else {
+        std::snprintf(koord, sizeof koord, "X:    Y:    Z:");
+    }
+    const float koordB = zifferBreite("X: -0000.00   Y: -0000.00   Z: -0000.00");
+    const float rasterB = ImGui::CalcTextSize(raster).x;
+    const float mitteB = koordB + weit + rasterB;
+    const float frei = linksEnde - lo.x - fs * 0.3F;
+    const bool mitteDa = frei >= mitteB + fs * 12.0F;
+    const float textFrei = frei - (mitteDa ? mitteB + weit : 0.0F);
+    // die Pose ohne Schluessel (Auto Key aus): die Warnung statt des Hinweises zur Maus, in der Farbe der Warnung (bis TEST1411 die Hinweiszeile)
+    const bool warnung = !z.offen.empty();
+    const std::string zeile2 = warnung ? format(Str::MzOffen, setKeyTaste()) : hinweis;
+    if (warnung) { g_probe.hinweisText = zeile2; }
+    const std::string ganz = auswahl + "    " + zeile2;
+    const std::string zeigen = kuerzen(auswahl + " \xc2\xb7 " + zeile2, std::max(textFrei, 0.0F));
+    dl->AddText(ImVec2{lo.x + fs * 0.3F, ty}, warnung ? ImGui::GetColorU32(ImGuiCol_PlotHistogram) : ImGui::GetColorU32(ImGuiCol_Text), zeigen.c_str());
+    ImGui::SetCursorScreenPos(ImVec2{lo.x, lo.y + 1.0F});
+    ImGui::InvisibleButton("##mzauswahl", ImVec2{std::max(textFrei, 1.0F), m.status - 1.0F});
+    tooltip(ganz.c_str());
+    if (mitteDa) {
+        const float xm = linksEnde - mitteB;
+        zifferText(dl, ImVec2{xm, ty}, ImGui::GetColorU32(mitte ? ImGuiCol_Text : ImGuiCol_TextDisabled), koord);
+        dl->AddText(ImVec2{xm + koordB + weit, ty}, ImGui::GetColorU32(ImGuiCol_TextDisabled), raster);
     }
 }
 
@@ -969,6 +1201,14 @@ const std::vector<ZeitAktion>& zeitAktionen() {
          },
          nullptr, 2, -1},
         {Str::MzZeitKonfig, Str::MzZeitKonfigHint, "", "", [] { konfigOeffnen(); }, [] { return g_zeit.konfigOffen; }, 3, -1},
+        // TEST1411 G: die Tastenzeile unter der Leiste (ab Werk aus), der Mini Curve Editor
+        {Str::T1Tastenzeile, Str::T1TastenzeileHint, "", "", [] { g_app->settings.modellTastenzeile = !g_app->settings.modellTastenzeile; },
+         [] { return g_app->settings.modellTastenzeile; }, 2, 0},
+        {Str::T1MiniKurve, Str::T1MiniKurveHint, "", "", [] {
+             if (modellZeitFassung() == ZeitFassung::Kurz) { mt().bereich = ModellBereich::Animation; }
+             spurenUmschalten();
+         },
+         [] { return g_zeit.miniKurve; }, 2, 0},
     };
     return kListe;
 }
@@ -1166,6 +1406,10 @@ void konfigFenster(const AnimEntry* e) {
 // --- oeffentlich -------------------------------------------------------------------------------------------------------
 
 ModellZeit& modellZeit() { return g_zeit; }
+
+void modellZeitMiniKurve(bool an) {
+    if (g_zeit.miniKurve != an) { spurenUmschalten(); }
+}
 
 ZeitFassung modellZeitFassung() {
     switch (mt().bereich) {
@@ -1489,6 +1733,13 @@ void drawModellZeitleiste() {
     // mit einer Kopie der Sequenz, nie mit einem Zeiger in die Liste.
     const AnimEntry* e = sequenzDesBilds();
     offenPruefen();
+    // TEST1411 G: der Spurbereich je Bedienmodus - wie 3ds Max ueber den Mini Curve Editor (ab Werk zu), wie Blender die Einstellung
+    const bool max = !modellBlender();
+    if (z.letzterModus != (max ? 0 : 1)) {
+        t.kvOffen = max ? z.miniKurve : g_app->settings.modellZeitSpuren;
+        z.letzterModus = max ? 0 : 1;
+    }
+    if (max && modellZeitFassung() == ZeitFassung::Voll) { t.kvOffen = z.miniKurve; }
     g_probe = ModellZeitProbe{};
     g_probe.bild = ImGui::GetFrameCount();
     g_probe.fassung = static_cast<int>(modellZeitFassung());
@@ -1501,7 +1752,11 @@ void drawModellZeitleiste() {
     float y = lo.y;
     griffZeichnen(ImVec2{lo.x, y}, breite, m);
     y += m.griff;
-    {
+    if (max) {
+        zeitSchieber(e, ImVec2{lo.x, y}, breite, m.schieber);   // TEST1411 G
+        g_probe.transportZeilen = 0;
+        y += m.schieber + m.luft;
+    } else {
         Reihe r;
         r.x0 = lo.x;
         r.y0 = y;
@@ -1509,8 +1764,8 @@ void drawModellZeitleiste() {
         r.zeichnen = true;
         transport(e, r);
         g_probe.transportZeilen = r.zeile + 1;
+        y += m.transport + m.luft;
     }
-    y += m.transport + m.luft;
     if (modellZeitFassung() == ZeitFassung::Voll) {
         // Skala und Spuren zeichnet das Dopesheet (ein Lineal, Bild 0 ueberall an derselben Stelle); zu = nur die Skala
         ImGui::SetCursorScreenPos(ImVec2{lo.x, y});
@@ -1528,10 +1783,21 @@ void drawModellZeitleiste() {
         }
     }
     y += m.luft;
-    hinweisZeile(ImVec2{lo.x, y}, breite);
-    y += m.hinweis + m.luft;
-    statusZeile(ImVec2{lo.x, y}, breite, m);
-    y += m.status;
+    merke(g_probe.hinweis, ImVec2{lo.x, y}, ImVec2{lo.x + breite, y + m.hinweis});   // TEST1411 G: keine Zeile mehr (Hoehe 0)
+    if (max) {
+        maxStatusZeile(e, ImVec2{lo.x, y}, breite, m);
+        y += m.status;
+        if (g_app->settings.modellTastenzeile) {   // die Tastenzeile auf Wunsch (Menue der Zeitleiste), so hoch wie bis rc612
+            y += m.luft;
+            Masse zeile = m;
+            zeile.status = std::floor(ImGui::GetFontSize() + 6.0F);
+            statusZeile(ImVec2{lo.x, y}, breite, zeile);
+            y += zeile.status;
+        }
+    } else {
+        statusZeile(ImVec2{lo.x, y}, breite, m);
+        y += m.status;
+    }
     ImGui::SetCursorScreenPos(lo);
     ImGui::Dummy(ImVec2{breite, y - lo.y});
     // Rechtsklick auf die freie Flaeche der Leiste: ihr Menue
@@ -1540,7 +1806,7 @@ void drawModellZeitleiste() {
     keyingMenue();
     sequenzPruefen(e);
     konfigFenster(e);
-    if (t.kvOffen != g_app->settings.modellZeitSpuren && modellZeitFassung() == ZeitFassung::Voll) { g_app->settings.modellZeitSpuren = t.kvOffen; }
+    if (!max && t.kvOffen != g_app->settings.modellZeitSpuren && modellZeitFassung() == ZeitFassung::Voll) { g_app->settings.modellZeitSpuren = t.kvOffen; }
     z.probe = g_probe;
 }
 

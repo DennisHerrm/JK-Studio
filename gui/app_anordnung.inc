@@ -5067,7 +5067,7 @@ void drawMenu() {
         }
         if (ImGui::MenuItem(tr(Str::ModelLoadGla), nullptr, false,
                             !g_app->model.empty())) {
-            openSkeletonFile();
+            modellGlaListeOeffnen();   // TEST1411 C: die Liste der .gla aus den pk3, darin "Datei oeffnen..." fuer eine lose
         }
         ImGui::Separator();
         // Wie viele Spalten? Ein Untermenue mit 1 bis 4 - wie das

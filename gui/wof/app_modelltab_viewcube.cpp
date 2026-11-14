@@ -20,7 +20,9 @@
 // Gegenseite, Ziehen = Kreisen, darunter Zoom, Verschieben, Perspektive/Orthographisch) ist eigene Zeichnung, keine
 // Grafik von Autodesk oder Blender; die Achsenkugeln zeichnet seit MBRASTER modellGizmoKugelnZeichnen in
 // gui/app_modelltab_ansicht.cpp nach Blender gizmo_axis_draw (GPL-2.0-or-later, dort vermerkt).
-// MBRASTER: die Kompassbuchstaben liegen obenauf (mit dunklem Rand) statt hinter dem Wuerfel - Abweichung von der Vorlage.
+// TEST1411 L (shank 14.11.: "der viewcube zeigt das W durch und wenn ich da dann drauf klicke schwingt die Kamera ... So ist es nicht in
+// 3ds max"): die Kompassbuchstaben wieder in der Tiefe wie die Vorlage und 3ds Max - hinter dem Wuerfel verdeckt er sie beim Zeichnen
+// und beim Treffen (MBRASTER hatte sie obenauf gelegt).
 // Achsen: eine Figur schaut in ihrer .glm nach -Y (REST M9; der Selbsttest kopfrot misst es am Skelett) - Vorne ist die
 // Flaeche -Y, Links -X, Oben +Z wie die Ansichten (ansichtAchsen). Norden liegt wie in 3ds Max hinter der Flaeche Vorne
 // (Welt +Y): wer der Figur ins Gesicht schaut, schaut nach Norden; S steht unter Vorne.
@@ -96,6 +98,7 @@ struct Lage {
     float alpha = 0.0F;
     ImVec2 home{};
     bool kompass = false;
+    int buchstabeVerdeckt = 0;   // TEST1411 L: Bit k = Buchstabe k (N O S W) liegt hinter dem Wuerfel
     std::array<ImVec2, 4> buchstabe{};   // N O S W
     ImVec2 ringPunkt{};
     bool pfeile = false;
@@ -471,16 +474,21 @@ void viewCube(int n, ModellAnsicht& a, Lage& l) {
     // Buchstaben des Kompasses: Klick schaut von dort
     const char* const buchstaben[4] = {tr(Str::MkKompassN), tr(Str::MkKompassO), tr(Str::MkKompassS), tr(Str::MkKompassW)};
     int hoverBuchstabe = -1;
+    std::array<bool, 4> buchstabeNah{};   // TEST1411 L: der Buchstabe liegt vor dem Wuerfel (sonst verdeckt ihn der Wuerfel)
     for (int i = 0; kompass && i < 4; ++i) {
         const auto k = static_cast<std::size_t>(i);
         const V3 p = ringOrt(kPi * 0.5F * static_cast<float>(i), kRingR + 0.16F);
         l.buchstabe[k] = projiziere(l, p);
+        buchstabeNah[k] = dot(p, auge) > 0.0F;
         const ImVec2 ts = ImGui::CalcTextSize(buchstaben[i]);
-        // MBRASTER (Abnahme MBKOPF): die Buchstaben liegen oben (siehe unten) und sind darum auch vor dem Wuerfel zu treffen
-        if (ueber && !aufHome && std::fabs(maus.x - l.buchstabe[k].x) <= ts.x * 0.5F + 3.0F && std::fabs(maus.y - l.buchstabe[k].y) <= ts.y * 0.5F + 2.0F) {
+        // TEST1411 L: hinter dem Wuerfel nur dort zu treffen, wo der Wuerfel ihn nicht verdeckt - die sichtbare Flaeche geht vor
+        if (ueber && !aufHome && (buchstabeNah[k] || !ueberWuerfel) && std::fabs(maus.x - l.buchstabe[k].x) <= ts.x * 0.5F + 3.0F &&
+            std::fabs(maus.y - l.buchstabe[k].y) <= ts.y * 0.5F + 2.0F) {
             hoverBuchstabe = i;
         }
     }
+    l.buchstabeVerdeckt = 0;
+    for (std::size_t k = 0; k < 4; ++k) { l.buchstabeVerdeckt |= buchstabeNah[k] ? 0 : (1 << k); }
     // der Teil des Wuerfels unter der Maus, wenn nichts vor ihm liegt
     Zone hoverZone;
     if (l.zug == Lage::Zug::Keiner && !(ringHover && ringDistNah < griff) && hoverBuchstabe < 0) {
@@ -497,14 +505,14 @@ void viewCube(int n, ModellAnsicht& a, Lage& l) {
             dl->AddLine(ring[static_cast<std::size_t>(i)], ring[static_cast<std::size_t>((i + 1) % kRingN)], farbe, (ringHover ? 5.0F : 4.0F) * m);
         }
     };
-    // MBRASTER (Abnahme MBKOPF, Bild h_mbk_cube: "der ViewCube verdeckt das N"): die Buchstaben liegen nach dem Wuerfel obenauf,
-    // mit dunklem Rand, damit alle vier zu lesen sind - auch der hinter dem Wuerfel (die Vorlage zeichnet ihn davor, dort
-    // verschwindet er von vorne gesehen ebenso). Der Ring bleibt in zwei Durchgaengen.
-    const auto buchstabenZeichnen = [&] {
+    // TEST1411 L: die Buchstaben wie der Ring in zwei Durchgaengen - die hinter dem Wuerfel vor ihm (er verdeckt sie, wie 3ds Max und
+    // die Vorlage), die vor ihm danach; mit dunklem Rand, damit sie auf jedem Grund zu lesen sind
+    const auto buchstabenZeichnen = [&](bool nah) {
         if (!kompass) { return; }
         const ImU32 rand = mitAlpha(IM_COL32(24, 26, 32, 255), alpha);
         for (int i = 0; i < 4; ++i) {
             const auto k = static_cast<std::size_t>(i);
+            if (buchstabeNah[k] != nah) { continue; }
             const ImVec2 ts = ImGui::CalcTextSize(buchstaben[i]);
             const ImVec2 o{std::round(l.buchstabe[k].x - ts.x * 0.5F), std::round(l.buchstabe[k].y - ts.y * 0.5F)};
             for (int dy = -1; dy <= 1; ++dy) {
@@ -516,6 +524,7 @@ void viewCube(int n, ModellAnsicht& a, Lage& l) {
         }
     };
     kompassZeichnen(false);
+    buchstabenZeichnen(false);
     for (int s = 0; s < zahl; ++s) {
         const Flaeche& f = kFlaechen[sicht[static_cast<std::size_t>(s)].flaeche];
         std::array<Teil, 9> teile{};
@@ -529,7 +538,7 @@ void viewCube(int n, ModellAnsicht& a, Lage& l) {
         beschriftung(dl, l, f.n, f.hoch, tr(f.name), mitAlpha(IM_COL32(40, 44, 52, 255), alpha));
     }
     kompassZeichnen(true);
-    buchstabenZeichnen();
+    buchstabenZeichnen(true);
     for (int i = 0; vonVorn && i < 4; ++i) {
         const Pfeil& p = pfeile[static_cast<std::size_t>(i)];
         dl->AddTriangleFilled(p.a, p.b, p.c, mitAlpha(i == hoverPfeil ? kBlau : IM_COL32(205, 210, 218, 235), alpha));
@@ -549,7 +558,8 @@ void viewCube(int n, ModellAnsicht& a, Lage& l) {
                               ImVec2{spitze.x - 3.0F * m * std::cos(a1), spitze.y - 3.0F * m * std::sin(a1)}, farbe);
     }
     {   // das Haus: Dach, Wand, Tuer
-        const ImU32 farbe = mitAlpha(aufHome ? kBlau : IM_COL32(205, 210, 218, 255), alpha);
+        // TEST1411 M: das Haus in der Farbe der Beschriftung zum Grund, auch ohne Maus kaum blasser (auf hellem Grund war es kaum zu sehen)
+        const ImU32 farbe = aufHome ? mitAlpha(kBlau, alpha) : modellUeberGrund(std::max(alpha, 0.85F), false);
         const float x0 = h0.x + 2.0F * m;
         const float x1 = h1.x - 2.0F * m;
         const float y0 = h0.y + 2.0F * m;
@@ -891,6 +901,11 @@ bool modellKompassOrt(int ansicht, int teil, ImVec2& out) {
     if (!l.da || l.blender || !l.kompass) { return false; }
     out = teil < 4 ? l.buchstabe[static_cast<std::size_t>(teil)] : l.ringPunkt;
     return true;
+}
+
+bool modellKompassVerdeckt(int ansicht, int teil) {
+    if (ansicht < 0 || ansicht > 3 || teil < 0 || teil > 3) { return false; }
+    return (g_lage[static_cast<std::size_t>(ansicht)].buchstabeVerdeckt & (1 << teil)) != 0;
 }
 
 bool modellWuerfelPfeilOrt(int ansicht, int teil, ImVec2& out) {
