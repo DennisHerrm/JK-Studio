@@ -612,6 +612,8 @@ public:
         messen("cw_sicht");
         fastDeckungsgleich();
         messen("cw_deckung");
+        stufen();
+        messen("cw_stufen");
     }
 
 private:
@@ -1241,6 +1243,79 @@ private:
         if (paare > 0) {
             detailSetzen(b, "%s pairs of drawn faces of different parts face the same way less than %s units apart (z-fighting)",
                          {std::to_string(paare), zahl(grenze)});
+            m_out.push_back(b);
+        }
+    }
+
+    // --- 3. Stufen ueber STEPSIZE -------------------------------------------------------------------------------------
+    void stufen() {
+        Befund b = neu("stufehoch", Schwere::Warnung,
+                       "OpenJK code/game/bg_public.h:71 STEPSIZE 18 (bg_pmove.cpp PM_StepSlideMove steps up at most this high), :70 "
+                       "JUMP_VELOCITY 225 and g_gravity 800 (g_main.cpp:628): a riser higher than 225^2 / 1600 = 31.6 is no step but a wall; "
+                       "the upper surface belongs to a walkable area of at least 96 x 96 (adjustable) - crates and consoles are obstacles");
+        komponentenBauen();
+        double hoechste = 0;
+        for (const Vol& v : m_w.vol) {
+            if (!v.kollision) { continue; }
+            for (std::size_t s = 0; s < v.p->flaechen.size(); ++s) {
+                const AbbildFlaeche& f = v.p->flaechen[s];
+                const V n = f.ebene.normal();
+                if (n[2] < m_fig.gehen || f.punkte.size() < 3) { continue; }
+                V mitte(0, 0, 0);
+                for (const V& p : f.punkte) { mitte = mitte + p; }
+                mitte = mitte * (1.0 / static_cast<double>(f.punkte.size()));
+                double hier = 0;
+                V wo;
+                for (std::size_t i = 0; i < f.punkte.size(); ++i) {
+                    const V a = f.punkte[i];
+                    const V e = f.punkte[(i + 1) % f.punkte.size()] - a;
+                    const double lh = std::sqrt(e[0] * e[0] + e[1] * e[1]);
+                    if (lh < 1) { continue; }
+                    V senk(-e[1] / lh, e[0] / lh, 0);
+                    if (punkt(senk, (a + e * 0.5) - mitte) < 0) { senk = senk * -1.0; }
+                    const int zahlProben = std::max(1, static_cast<int>(lh / 16.0));
+                    // die Flaeche ist die obere Seite einer Stufe: neben ihrer Kante (2 Einheiten hinaus) liegt der Boden tiefer - so
+                    // findet sich auch eine Stufe, die mitten auf einer grossen Bodenflaeche steht
+                    for (int k = 0; k < zahlProben; ++k) {
+                        const V p = a + e * ((k + 0.5) / zahlProben);
+                        if (!imCluster(p + V(0, 0, 1))) { continue; }
+                        // Platz zum Stehen auf der Stufe
+                        const V oben = p - senk * m_fig.halb + V(0, 0, 0.1);
+                        if (m_w.strahl(oben, V(0, 0, 1), m_fig.hoehe(), Modus::Kollision, m_art).ja) { continue; }
+                        const V q = p + senk * 2.0;
+                        const V o(q[0], q[1], p[2] + 0.5);
+                        bool wand = false;   // neben der Kante geht es hoch (Wand, hoeherer Boden): keine Stufe hinab
+                        m_w.enthaltend(o, 0.01, [&](const Vol& w) {
+                            if (w.kollision) { wand = true; }
+                        });
+                        if (wand) { continue; }
+                        const Treffer t = m_w.strahl(o, V(0, 0, -1), m_fig.sprung + 1.0, Modus::Kollision, m_art);
+                        if (!t.ja || t.innen || t.n[2] < m_fig.gehen) { continue; }
+                        const double boden = o[2] - t.t;
+                        const double stufe = p[2] - boden;
+                        if (stufe <= m_fig.stufe + 0.1 || stufe > m_fig.sprung) { continue; }
+                        // Platz zum Stehen vor der Stufe
+                        if (m_w.strahl(V(q[0], q[1], boden + 0.1), V(0, 0, 1), m_fig.hoehe(), Modus::Kollision, m_art).ja) { continue; }
+                        if (!erreichbarNahe(V(q[0], q[1], boden), 32, 2, 2) && !erreichbarNahe(p, 32, 2, 2)) { continue; }
+                        // oben muss eine zu Fuss verbundene Flaeche von wenigstens dem Mindestmass liegen (keine Kiste, kein Pult)
+                        if (!grosseFlaeche(p - senk * 4.0, m_o.masse.stufenFlaeche)) { continue; }
+                        if (stufe > hier) {
+                            hier = stufe;
+                            wo = p;
+                        }
+                    }
+                }
+                if (hier > 0) {
+                    ObjektRef r = flaechenRef(v, static_cast<int>(s));
+                    r.text += ": step " + zahl(hier) + " at " + ort(wo);
+                    punktSetzen(r, wo);
+                    add(b, r);
+                    hoechste = std::max(hoechste, hier);
+                }
+            }
+        }
+        if (b.anzahl > 0) {
+            detailSetzen(b, "%s steps higher than STEPSIZE %s on walkable ground (highest %s)", {std::to_string(b.anzahl), zahl(m_fig.stufe), zahl(hoechste)});
             m_out.push_back(b);
         }
     }

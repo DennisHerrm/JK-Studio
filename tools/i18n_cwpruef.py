@@ -112,6 +112,34 @@ ZEILEN = [
      "nimi bliká (z-fighting), zdálky i tehdy, když jsou trochu od sebe. q3map2 odstraní jen přesně shodné plochy (CullSides) a plochy "
      "celé uvnitř jiného brushe (SideInBrush); strukturní brushe odříznou, co leží uvnitř nich. Plochy s polygonOffset (decaly) a páry se stejným shaderem (na obou stejný "
      "obrázek - blikání není vidět) se nepočítají. Kontrola překrývajících se brushů zachytí jen tělesa překrytá o víc než 1 jednotku."),
+    ("KeOptPrStufe", "Step higher than STEPSIZE", "Stufe höher als STEPSIZE", "台阶高于 STEPSIZE", "STEPSIZE より高い段差",
+     "Escalón más alto que STEPSIZE", "Schod vyšší než STEPSIZE"),
+    ("KeOptPrStufeE",
+     "A riser between two walkable surfaces is higher than STEPSIZE (18) - the player cannot walk up it but has to jump - and at most as "
+     "high as a jump without the Force (JUMP_VELOCITY 225 at g_gravity 800: 31.6 units); higher ones are walls. Both sides have room to "
+     "stand (the player's height), and the upper surface belongs to a walkable area of at least 96 x 96 units (adjustable) connected on "
+     "foot - the small tops of crates and consoles are obstacles, not steps. Fix: steps of up to 18 units, or a clip ramp over the stairs.",
+     "Eine Stufe zwischen zwei begehbaren Flächen ist höher als STEPSIZE (18) - man kann nicht hinaufgehen, sondern muss springen - und "
+     "höchstens so hoch wie ein Sprung ohne Macht (JUMP_VELOCITY 225 bei g_gravity 800: 31,6 Einheiten); höhere sind Wände. Auf beiden "
+     "Seiten ist Platz zum Stehen (die Größe der Spielfigur), und die obere Fläche gehört zu einer zu Fuß verbundenen begehbaren Fläche "
+     "von mindestens 96 x 96 Einheiten (einstellbar) - die kleinen Deckflächen von Kisten und Pulten sind Hindernisse, keine Stufen. "
+     "Abhilfe: Stufen bis 18 Einheiten oder eine Clip-Rampe über der Treppe.",
+     "两个可行走表面之间的台阶高于 STEPSIZE(18)——玩家无法走上去,只能跳上去——且不高于不使用原力的跳跃高度(JUMP_VELOCITY 225、g_gravity 800:"
+     "31.6 单位);更高的算作墙。两侧都有站立空间(玩家身高),并且上方表面属于一块可步行连通、至少 96 x 96 单位(可调)的可行走区域——"
+     "箱子和控制台的小顶面是障碍物,不是台阶。解决方法:台阶不超过 18 单位,或在楼梯上方放一个 clip 斜坡。",
+     "歩ける 2 つの面の間の段差が STEPSIZE(18)より高く(歩いて上れず、ジャンプが必要)、フォースなしのジャンプの高さ(JUMP_VELOCITY 225、"
+     "g_gravity 800 で 31.6 ユニット)以下です。それより高いものは壁です。両側に立つ場所(プレイヤーの身長)があり、上の面は歩いてつながる"
+     "96 x 96 ユニット以上(変更可)の歩ける面の一部です。箱や操作盤の小さな上面は障害物で、段差ではありません。対処: 段差を 18 ユニット"
+     "以下にするか、階段の上に clip スロープを置きます。",
+     "Un escalón entre dos superficies transitables es más alto que STEPSIZE (18): no se puede subir caminando, hay que saltar; y como mucho "
+     "tan alto como un salto sin la Fuerza (JUMP_VELOCITY 225 con g_gravity 800: 31,6 unidades); los más altos son paredes. A ambos lados "
+     "hay sitio para estar de pie (la altura del jugador), y la superficie superior pertenece a una zona transitable conectada a pie de al "
+     "menos 96 x 96 unidades (ajustable): las tapas pequeñas de cajas y consolas son obstáculos, no escalones. Solución: escalones de hasta "
+     "18 unidades o una rampa clip sobre la escalera.",
+     "Schod mezi dvěma pochozími plochami je vyšší než STEPSIZE (18) - nedá se po něm vyjít, je třeba skočit - a nanejvýš tak vysoký jako "
+     "skok bez Síly (JUMP_VELOCITY 225 při g_gravity 800: 31,6 jednotky); vyšší jsou stěny. Na obou stranách je místo ke stání (výška "
+     "postavy) a horní plocha patří k pochozí ploše spojené chůzí o velikosti aspoň 96 x 96 jednotek (nastavitelné) - malé vrchy beden a "
+     "pultů jsou překážky, ne schody. Náprava: schody nejvýš 18 jednotek, nebo clip rampa nad schodištěm."),
     # --- Angaben (KeOptD39..54, englisch = kOptimiererDetailVorlagen) ---
     ("KeOptD39", "%s visible walkable {face|faces} without collision below {it|them} (the player falls through)",
      "%s {sichtbare begehbare Fläche|sichtbare begehbare Flächen} ohne Kollision darunter (man fällt durch)",
@@ -133,6 +161,11 @@ ZEILEN = [
      "%s 对不同部件的已绘制面朝向相同、相距不到 %s 单位(深度冲突)", "異なる部品の描画面の組 %s 個が同じ向きで %s ユニット未満しか離れていません(Z ファイティング)",
      "%s {par|pares} de caras dibujadas de partes distintas miran al mismo lado a menos de %s unidades (z-fighting)",
      "%s {pár|páry|párů} kreslených ploch různých částí míří stejným směrem méně než %s jednotek od sebe (z-fighting)"),
+    ("KeOptD43", "%s {step|steps} higher than STEPSIZE %s on walkable ground (highest %s)",
+     "%s {Stufe|Stufen} höher als STEPSIZE %s auf begehbarem Boden (höchste %s)",
+     "可行走地面上有 %s 个高于 STEPSIZE %s 的台阶(最高 %s)", "歩ける床の段差 %s 個が STEPSIZE %s より高くなっています(最大 %s)",
+     "%s {escalón|escalones} más {alto|altos} que STEPSIZE %s en suelo transitable (el más alto %s)",
+     "%s {schod|schody|schodů} vyšší než STEPSIZE %s na pochozí ploše (nejvyšší %s)"),
     # --- Einstellungen (Seite Optimizer) ---
     ("KePrOptToleranz", "Visible/collision gap", "Abstand Sicht/Kollision", "可见/碰撞间距", "見た目とコリジョンの差",
      "Separación visible/colisión", "Mezera vidět/kolize"),

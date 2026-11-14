@@ -259,6 +259,32 @@ void testeDeckung() {
     }
 }
 
+void testeStufen() {
+    {
+        const auto b = pruefen(welt({kasten(0, 0, -16, 256, 256, 0, kFest), kasten(256, 0, -16, 512, 256, 24, kFest)}), optionen());
+        const Befund* x = befund(b, "stufehoch");
+        pruefe(x != nullptr && x->anzahl == 1 && x->detail.find("highest 24") != std::string::npos, "stufehoch: Stufe 24 (rot)");
+        const auto g = pruefen(welt({kasten(0, 0, -16, 256, 256, 0, kFest), kasten(256, 0, -16, 512, 256, 18, kFest)}), optionen());
+        pruefe(anzahl(g, "stufehoch") == 0, "stufehoch: Stufe 18 = STEPSIZE (schweigt)");
+        const auto w = pruefen(welt({kasten(0, 0, -16, 256, 256, 0, kFest), kasten(256, 0, -16, 512, 256, 48, kFest)}), optionen());
+        pruefe(anzahl(w, "stufehoch") == 0, "stufehoch: 48 hoch ist eine Wand, keine Stufe (schweigt)");
+    }
+    // Kisten und Pulte: die obere Flaeche ist klein und zu Fuss mit nichts verbunden - ein Hindernis, keine Stufe
+    {
+        const auto kiste = [](double breite, PruefOptionen o) {
+            return pruefen(welt({kasten(-512, -512, -16, 512, 512, 0, kFest), kasten(0, 0, 0, breite, breite, 24, kFest)}), o);
+        };
+        pruefe(anzahl(kiste(48, optionen()), "stufehoch") == 0, "stufehoch: Kiste 48 x 48 x 24 auf dem Boden ist ein Hindernis (schweigt)");
+        PruefOptionen alt = optionen();
+        alt.masse.stufenFlaeche = 0;   // wie vor der Regel: jede Stufe zaehlt
+        pruefe(anzahl(kiste(48, alt), "stufehoch") == 1, "stufehoch: dieselbe Kiste ohne Mindestflaeche (0) meldet - so war es vorher (rot)");
+        pruefe(anzahl(kiste(160, optionen()), "stufehoch") == 1, "stufehoch: Podest 160 x 160 x 24 ist eine Stufe auf eine Flaeche ueber 96 x 96 (rot)");
+        PruefOptionen gross = optionen();
+        gross.masse.stufenFlaeche = 192;
+        pruefe(anzahl(kiste(160, gross), "stufehoch") == 0, "stufehoch: Mindestflaeche 192 (einstellbar) - dasselbe Podest schweigt");
+    }
+}
+
 std::string lies(const std::string& pfad) {
     std::ifstream f(pfad, std::ios::binary);
     std::ostringstream s;
@@ -274,6 +300,7 @@ int main(int argc, char** argv) {
     testeBildKopf();
     testeSichtGegenKollision();
     testeDeckung();
+    testeStufen();
     // eine echte Karte (nur lesen): die neuen Befunde und ihre Zeiten
     if (argc > 1) {
         using Uhr = std::chrono::steady_clock;

@@ -1378,7 +1378,7 @@ void testeBekannteFehler(const std::string& q3dir) {
 
 int main(int argc, char** argv) {
     {   // Stufe 6 (Punkt 5): Vorlagen der Befund-Angaben und ihre Uebersetzung (KeOptD01..)
-        bool gleich = bhed::karte::kOptimiererDetailVorlagenAnzahl == 42;   // Stufe 8a: 33, 34 (enttext); Stufe 9d: 35 (deko mit .bsp); rc610 MODOBJ: 36 (modellformat); DEF1 P45: 37 (spielabbruch); REST8: 38 (shadervorrang); CW-PRUEF: 39-54
+        bool gleich = bhed::karte::kOptimiererDetailVorlagenAnzahl == 43;   // Stufe 8a: 33, 34 (enttext); Stufe 9d: 35 (deko mit .bsp); rc610 MODOBJ: 36 (modellformat); DEF1 P45: 37 (spielabbruch); REST8: 38 (shadervorrang); CW-PRUEF: 39-54
         for (std::size_t i = 0; i < bhed::karte::kOptimiererDetailVorlagenAnzahl; ++i) {
             char name[16];
             std::snprintf(name, sizeof(name), "KeOptD%02zu", i + 1);
