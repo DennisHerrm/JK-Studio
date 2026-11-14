@@ -32,6 +32,7 @@
 #include "karteneditor.h"
 
 #include "app_internal.h"
+#include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/optimierer.h"
 #include "bhed/karte/texturen.h"
@@ -42,6 +43,7 @@
 #include "imgui_internal.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -50,6 +52,7 @@
 #include <filesystem>
 #include <future>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -143,6 +146,10 @@ constexpr PruefText kPruefTexte[] = {
     {"baubefehl", Str::KeOptPrBaubefehl, Str::KeOptPrBaubefehlE},
     {"lightmapextern", Str::KeOptPrLightmapExtern, Str::KeOptPrLightmapExternE},   // Stufe 6 (NRC#48/#98)
     {"enttext", Str::KeOptPrEnttext, Str::KeOptPrEnttextE},                        // Stufe 8a (Editor-Daten behalten)
+    // CW-PRUEF (Clone-Wars-Kette, optimierer_cw.cpp)
+    {"laufohnekollision", Str::KeOptPrLaufOhneKoll, Str::KeOptPrLaufOhneKollE},
+    {"unsichtbarekollision", Str::KeOptPrUnsichtKoll, Str::KeOptPrUnsichtKollE},
+    {"kollisionsabstand", Str::KeOptPrKollAbstand, Str::KeOptPrKollAbstandE},
 };
 const PruefText* pruefText(const std::string& id) {
     for (const PruefText& p : kPruefTexte) {
@@ -216,6 +223,7 @@ struct Ergebnis {
     std::string karteName;
     double ms = 0;
     std::vector<std::pair<std::string, double>> zeiten;
+    karte::CwInventar inventar;   // CW-PRUEF: die benutzten Shader und Bilder
 };
 
 struct Zustand {
@@ -291,6 +299,15 @@ void shaderArten(const karte::KartenAbbild& a, karte::PruefOptionen& o) {
     }
     std::set<std::string> namen;
     for (const std::string_view r : roh) { namen.insert(klein(std::string(r))); }
+    // CW-PRUEF: auch die Shader der Modelle (nach Skin und _remap) - aber nur die mit Skript: ein Modellbild ohne Skript sieht der
+    // Faden des Optimierers nach (bildMass liest nur den Kopf), nicht der Hauptfaden (Texturinventar::bildMass entpackt das Bild)
+    for (const karte::AbbildModell& m : o.modelle) {
+        for (const std::string& roherName : m.shader) {
+            if (roherName.empty()) { continue; }
+            const std::string n = klein(roherName);
+            if (spiel->q3map2.eintraege.count(n) != 0 || spiel->spielShader.count(n) != 0) { namen.insert(n); }
+        }
+    }
     for (const std::string& n : namen) {
         karte::ShaderArt art = karte::shaderArtNachName(n);
         const karte::ShaderEintrag* s = spiel->inventar.shaderFinden(n);
@@ -306,10 +323,21 @@ void shaderArten(const karte::KartenAbbild& a, karte::PruefOptionen& o) {
             const karte::ShaderSkript sp = karte::shaderSkriptLesen(im->second, n);
             art.spielAbbruch = sp.spielAbbruch;   // DEF1 P45
             art.autospriteEins = sp.autospriteEins;   // REST3b
+            art.bilder = sp.bilder;               // CW-PRUEF: die Bilder, die das Spiel fuer diesen Shader laedt
+        } else {
+            art.bilder = {n};                     // CW-PRUEF: ohne Skript ist der Name das Bild (R_FindShader -> R_FindImageFile)
+        }
+        const karte::ShaderSkript sk = q3 != spiel->q3map2.eintraege.end() ? karte::shaderSkriptLesen(q3->second.text, n) : karte::ShaderSkript{};
+        if (sk.gefunden) {   // CW-PRUEF: die Inhalte, die der Bau in die BSP schreibt (Kollision im Spiel)
+            art.inhalt = sk.inhalt;
+            art.cSolid = sk.cSolid;
+            art.cFluessig = sk.cFluessig;
+            art.cNebel = sk.cNebel;
+            art.clipModell = sk.clipModell;
+            art.versatz = sk.versatz;
         }
         if (s != nullptr && !s->istStandard()) {
             using namespace karte;
-            const ShaderSkript sk = q3 != spiel->q3map2.eintraege.end() ? shaderSkriptLesen(q3->second.text, n) : ShaderSkript{};
             if (sk.gefunden) {
                 art.flaechenlicht = sk.flaechenlicht;
                 art.backsplashAnteil = sk.backsplashAnteil;
@@ -324,6 +352,9 @@ void shaderArten(const karte::KartenAbbild& a, karte::PruefOptionen& o) {
             if ((f & (QER_TRANS | QER_NONSOLID | QER_FOG | QER_LIQUID | QER_ALPHATEST | QER_AREAPORTAL | QER_CLIP | QER_BOTCLIP)) != 0) {
                 art.undurchsichtig = false;
             }
+            // CW-PRUEF: sieht man hindurch? Mit Skript entscheidet das Skript, nicht der Name (shaderArtNachName raet nach "window",
+            // "glass", ...); nonsolid allein nicht - ein nicht fester Boden sieht fest aus
+            art.sichtDeckend = !sk.durchsichtig && (f & (QER_TRANS | QER_FOG | QER_LIQUID | QER_ALPHATEST)) == 0;
             if ((f & QER_NODRAW) != 0) { art.sichtbar = false; }
             if ((f & (QER_CLIP | QER_BOTCLIP | QER_AREAPORTAL)) != 0) {
                 art.werkzeug = true;
@@ -336,6 +367,80 @@ void shaderArten(const karte::KartenAbbild& a, karte::PruefOptionen& o) {
         o.shader[n] = art;
     }
     o.shaderBekanntGeprueft = true;
+}
+
+// CW-PRUEF: die Modelle der Karte (misc_model, misc_model_static, misc_model_breakable, misc_model_ghoul) aus der
+// Modell-Ablage des Editors - dieselben Dreiecke, die die Ansichten zeigen (Hauptfaden; meist laengst geladen).
+void cwModelleSammeln(karte::PruefOptionen& o) {
+    const auto& ents = e().karte.entitaeten();
+    for (std::size_t i = 0; i < ents.size(); ++i) {
+        const karte::Entitaet& en = *ents[i];
+        if (!en.kinder().empty()) { continue; }
+        const std::string kl = klein(en.klassenname());
+        if (kl.rfind("misc_model", 0) != 0) { continue; }
+        const std::string pfad = kartenModellSchluessel(en);
+        if (pfad.empty() || pfad[0] == '*' || !karte::modellArtBekannt(pfad)) { continue; }
+        const karte::ModellAnsicht an = kartenModelle().ansicht(en);
+        karte::AbbildModell m;
+        m.entitaet = static_cast<int>(i);
+        m.pfad = pfad;
+        m.modell = an.modell;
+        m.shader = an.shader;
+        m.matrix = karte::miscModellMatrix(en);
+        m.welt = karte::modellWeltKasten(an, m.matrix);
+        m.eingebacken = karte::eingebackeneEntitaet(kl);
+        m.spawnflags = std::atoi(en.wert("spawnflags").c_str());
+        o.modelle.push_back(std::move(m));
+    }
+}
+
+// CW-PRUEF: Breite und Hoehe der Bilder (im Faden des Optimierers) - wie R_LoadImage (rd-common/tr_image_load.cpp:94-145):
+// die Endung des Namens, dann jpg, png, tga; nur der Kopf zaehlt (karte::bildKopfMass). Gemerkt je Spielkontext.
+struct BildVorrat {
+    std::mutex sperre;
+    const void* spiel = nullptr;
+    std::map<std::string, std::array<int, 3>> mass;   // gefunden, breite, hoehe
+};
+BildVorrat g_bildVorrat;
+
+void cwBildMass(karte::PruefOptionen& o) {
+    const std::shared_ptr<Spielkontext> spiel = e().karteSpiel;
+    if (!spiel) { return; }
+    {
+        std::lock_guard<std::mutex> l(g_bildVorrat.sperre);
+        if (g_bildVorrat.spiel != spiel.get()) {
+            g_bildVorrat.mass.clear();
+            g_bildVorrat.spiel = spiel.get();
+        }
+    }
+    o.bildMass = [spiel](const std::string& bild, int& breite, int& hoehe) {
+        {
+            std::lock_guard<std::mutex> l(g_bildVorrat.sperre);
+            const auto it = g_bildVorrat.mass.find(bild);
+            if (it != g_bildVorrat.mass.end()) {
+                breite = it->second[1];
+                hoehe = it->second[2];
+                return it->second[0] != 0;
+            }
+        }
+        std::vector<std::string> namen;
+        const std::size_t punkt = bild.find_last_of('.');
+        const bool mitEndung = punkt != std::string::npos && bild.find('/', punkt) == std::string::npos;
+        if (mitEndung) { namen.push_back(bild); }
+        const std::string stammName = mitEndung ? bild.substr(0, punkt) : bild;
+        for (const char* x : {".jpg", ".png", ".tga"}) { namen.push_back(stammName + x); }
+        bool gefunden = false;
+        for (const std::string& n : namen) {
+            std::string daten;
+            if (spiel->fs.dateiLesen(n, daten) && karte::bildKopfMass(daten, breite, hoehe)) {
+                gefunden = true;
+                break;
+            }
+        }
+        std::lock_guard<std::mutex> l(g_bildVorrat.sperre);
+        g_bildVorrat.mass[bild] = {gefunden ? 1 : 0, gefunden ? breite : 0, gefunden ? hoehe : 0};
+        return gefunden;
+    };
 }
 
 // Stufe 7: die NPC-Dateien liest ein Faden, sobald der Karten-Editor sichtbar ist
@@ -543,6 +648,9 @@ void optimiererStarten(bool nachBau) {
     po.knappAb = std::clamp(ed.optimierer.knappProzent, 1, 100) / 100.0;
     po.portalSchwelle = ed.optimierer.portalSchwelle;
     po.dreieckSchwelle = ed.optimierer.dreieckSchwelle;
+    po.masse = ed.optimierer.masse;   // CW-PRUEF
+    cwModelleSammeln(po);
+    cwBildMass(po);
     const auto tShader = std::chrono::steady_clock::now();
     shaderArten(*abbild, po);
     g_z.startShaderMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tShader).count();
@@ -586,10 +694,12 @@ void optimiererStarten(bool nachBau) {
         po.bsp = r->bsp.ok ? &r->bsp : nullptr;
         po.bspDaten = r->bsp.ok ? &bspDaten : nullptr;
         po.zeiten = &r->zeiten;
+        po.inventar = &r->inventar;   // CW-PRUEF: Shader und Bilder fuer den Bericht
         r->befunde = karte::pruefeKarte(*abbild, po);
         po.bsp = nullptr;
         po.bspDaten = nullptr;
         po.zeiten = nullptr;
+        po.inventar = nullptr;
         r->ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
         {
             std::lock_guard<std::mutex> l(g_z.sperre);
@@ -617,7 +727,8 @@ void optimiererBeenden() { fadenAbwarten(); }
 // die englische Vorlage (kOptimiererDetailVorlagen) und die Werte, KeOptD01.. in derselben
 // Reihenfolge die Uebersetzung (Test: karte_optimierer).
 std::string befundDetail(const Befund& b) {
-    static const Str kIds[] = {Str::KeOptD01, Str::KeOptD02, Str::KeOptD03, Str::KeOptD04, Str::KeOptD05, Str::KeOptD06, Str::KeOptD07, Str::KeOptD08, Str::KeOptD09, Str::KeOptD10, Str::KeOptD11, Str::KeOptD12, Str::KeOptD13, Str::KeOptD14, Str::KeOptD15, Str::KeOptD16, Str::KeOptD17, Str::KeOptD18, Str::KeOptD19, Str::KeOptD20, Str::KeOptD21, Str::KeOptD22, Str::KeOptD23, Str::KeOptD24, Str::KeOptD25, Str::KeOptD26, Str::KeOptD27, Str::KeOptD28, Str::KeOptD29, Str::KeOptD30, Str::KeOptD31, Str::KeOptD32, Str::KeOptD33, Str::KeOptD34, Str::KeOptD35, Str::KeOptD36, Str::KeOptD37, Str::KeOptD38};
+    static const Str kIds[] = {Str::KeOptD01, Str::KeOptD02, Str::KeOptD03, Str::KeOptD04, Str::KeOptD05, Str::KeOptD06, Str::KeOptD07, Str::KeOptD08, Str::KeOptD09, Str::KeOptD10, Str::KeOptD11, Str::KeOptD12, Str::KeOptD13, Str::KeOptD14, Str::KeOptD15, Str::KeOptD16, Str::KeOptD17, Str::KeOptD18, Str::KeOptD19, Str::KeOptD20, Str::KeOptD21, Str::KeOptD22, Str::KeOptD23, Str::KeOptD24, Str::KeOptD25, Str::KeOptD26, Str::KeOptD27, Str::KeOptD28, Str::KeOptD29, Str::KeOptD30, Str::KeOptD31, Str::KeOptD32, Str::KeOptD33, Str::KeOptD34, Str::KeOptD35, Str::KeOptD36, Str::KeOptD37, Str::KeOptD38,
+                               Str::KeOptD39, Str::KeOptD40, Str::KeOptD41};
     for (std::size_t i = 0; i < karte::kOptimiererDetailVorlagenAnzahl && i < sizeof(kIds) / sizeof(kIds[0]); ++i) {
         if (b.detailVorlage == karte::kOptimiererDetailVorlagen[i]) {
             // uebersetzung1: die Werte sind Zahlen (std::to_string) - nach ihnen richtet sich die Form.
@@ -676,6 +787,18 @@ std::string optimiererBericht() {
             o << "      " << r2.text << "\n";
         }
     }
+    // CW-PRUEF: die benutzten Shader und Bilder der Karte
+    const karte::CwInventar& inv = r.inventar;
+    if (!inv.shader.empty()) {
+        o << "\n== " << trK(Str::KeOptBerichtTexturen) << " ==\n";
+        for (const std::string& s : inv.shader) {
+            const bool fehlt = std::find(inv.shaderFehlen.begin(), inv.shaderFehlen.end(), s) != inv.shaderFehlen.end();
+            o << "  " << s << (fehlt ? "  (-)" : "") << "\n";
+        }
+        for (const karte::CwInventar::Bild& b : inv.bilder) {
+            o << "    " << b.name << "  " << (b.gefunden ? std::to_string(b.breite) + " x " + std::to_string(b.hoehe) : std::string("-")) << "\n";
+        }
+    }
     return o.str();
 }
 
@@ -685,6 +808,173 @@ bool optimiererBerichtSchreiben(const std::string& pfad) {
     const std::string t = optimiererBericht();
     f.write(t.data(), static_cast<std::streamsize>(t.size()));
     return static_cast<bool>(f);
+}
+
+// --- CW-PRUEF: der Bericht als JSON (mit Koordinaten) fuer andere Werkzeuge ------------------------------------------
+
+namespace {
+
+// Der Ort eines Objekts: der Punkt des Befunds, sonst die Mitte der Flaeche bzw. des Primitivs, sonst der Ursprung der Entitaet
+bool objektOrt(const Ergebnis& r, const karte::ObjektRef& o, std::array<float, 3>& p) {
+    if (o.hatPunkt) {
+        p = o.punkt;
+        return true;
+    }
+    if (!r.abbild || o.entitaet < 0 || o.entitaet >= static_cast<int>(r.abbild->ents.size())) { return false; }
+    const karte::AbbildEntitaet& en = r.abbild->ents[static_cast<std::size_t>(o.entitaet)];
+    if (o.primitiv >= 0 && o.primitiv < static_cast<int>(en.prims.size())) {
+        const karte::AbbildPrimitiv& pr = en.prims[static_cast<std::size_t>(o.primitiv)];
+        if (o.flaeche >= 0 && o.flaeche < static_cast<int>(pr.flaechen.size()) && !pr.flaechen[static_cast<std::size_t>(o.flaeche)].punkte.empty()) {
+            const auto& pts = pr.flaechen[static_cast<std::size_t>(o.flaeche)].punkte;
+            double s[3] = {0, 0, 0};
+            for (const auto& q : pts) {
+                for (std::size_t i = 0; i < 3; ++i) { s[i] += q[i]; }
+            }
+            for (std::size_t i = 0; i < 3; ++i) { p[i] = static_cast<float>(s[i] / static_cast<double>(pts.size())); }
+            return true;
+        }
+        for (std::size_t i = 0; i < 3; ++i) { p[i] = (pr.mins[i] + pr.maxs[i]) * 0.5F; }
+        return true;
+    }
+    float x = 0;
+    float y = 0;
+    float z = 0;
+    if (std::sscanf(en.wert("origin").c_str(), "%f %f %f", &x, &y, &z) == 3) {
+        p = {x, y, z};
+        return true;
+    }
+    if (!en.prims.empty()) {
+        karte::Vektor3f mn = en.prims.front().mins;
+        karte::Vektor3f mx = en.prims.front().maxs;
+        for (const karte::AbbildPrimitiv& pr : en.prims) {
+            for (std::size_t i = 0; i < 3; ++i) {
+                mn[i] = std::min(mn[i], pr.mins[i]);
+                mx[i] = std::max(mx[i], pr.maxs[i]);
+            }
+        }
+        for (std::size_t i = 0; i < 3; ++i) { p[i] = (mn[i] + mx[i]) * 0.5F; }
+        return true;
+    }
+    return false;
+}
+
+std::string jsonText(const std::string& t) {
+    std::string r = "\"";
+    for (const char c : t) {
+        const unsigned char u = static_cast<unsigned char>(c);
+        if (c == '"' || c == '\\') {
+            r += '\\';
+            r += c;
+        } else if (c == '\n') {
+            r += "\\n";
+        } else if (c == '\t') {
+            r += "\\t";
+        } else if (u < 0x20) {
+            char z[8];
+            std::snprintf(z, sizeof(z), "\\u%04x", static_cast<unsigned>(u));
+            r += z;
+        } else {
+            r += c;
+        }
+    }
+    return r + "\"";
+}
+std::string jsonZahl(double v) {
+    char z[48];
+    std::snprintf(z, sizeof(z), "%.3f", v);
+    std::string s = z;
+    while (!s.empty() && s.back() == '0') { s.pop_back(); }
+    if (!s.empty() && s.back() == '.') { s.pop_back(); }
+    return s == "-0" ? std::string("0") : s;
+}
+
+}  // namespace
+
+std::string optimiererBerichtJson() {
+    using i18n::Language;
+    std::ostringstream o;
+    if (!g_z.e) { return "{}\n"; }
+    const Ergebnis& r = *g_z.e;
+    const auto en = [](Str s) { return std::string(i18n::trIn(Language::English, s)); };
+    o << "{\n  \"format\": \"jkstudio-optimizer-report\",\n  \"version\": 1,\n";
+    o << "  \"map\": " << jsonText(r.karteName) << ",\n  \"rules\": " << jsonText(karte::grenzSpielName(r.spiel)) << ",\n";
+    o << "  \"bsp\": " << jsonText(r.bspPfad) << ",\n  \"milliseconds\": " << jsonZahl(r.ms) << ",\n";
+    o << "  \"coordinates\": \"map units, x y z, z up\",\n";
+    o << "  \"limits\": [";
+    bool erste = true;
+    for (const Bewertung& b : r.bewertungen) {
+        o << (erste ? "\n" : ",\n") << "    {\"id\": " << jsonText(b.zaehlung.id) << ", \"name\": " << jsonText(b.grenze->name)
+          << ", \"title\": " << jsonText(en(b.grenze->titel)) << ", \"value\": " << b.zaehlung.wert << ", \"allowed\": " << b.grenze->erlaubt
+          << ", \"share\": " << jsonZahl(b.anteil) << ", \"state\": \"" << karte::ampelName(b.ampel) << "\", \"from\": \""
+          << (b.zaehlung.quelle == karte::ZaehlQuelle::Bsp ? "bsp" : "map") << "\", \"estimate\": " << (b.zaehlung.schaetzung ? "true" : "false") << "}";
+        erste = false;
+    }
+    o << (erste ? "],\n" : "\n  ],\n");
+    o << "  \"findings\": [";
+    erste = true;
+    for (const Befund* b : sichtbareBefunde()) {
+        const PruefText* p = pruefText(b->pruefung);
+        o << (erste ? "\n" : ",\n") << "    {\"id\": " << jsonText(b->pruefung) << ", \"severity\": \"" << karte::schwereName(b->schwere) << "\", \"count\": " << b->anzahl
+          << ",\n     \"title\": " << jsonText(p != nullptr ? en(p->titel) : b->pruefung) << ",\n     \"detail\": " << jsonText(b->detail)
+          << ",\n     \"explanation\": " << jsonText(p != nullptr ? en(p->erklaerung) : std::string()) << ",\n     \"source\": " << jsonText(b->quelle)
+          << ",\n     \"fix\": " << jsonText(karte::behebungsVorschau(*b)) << ", \"safe\": " << (b->sicher ? "true" : "false")
+          << ", \"estimate\": " << (b->schaetzung ? "true" : "false") << ",\n     \"objects\": [";
+        bool ersterO = true;
+        for (const karte::ObjektRef& x : b->objekte) {
+            o << (ersterO ? "\n" : ",\n") << "       {\"text\": " << jsonText(x.text) << ", \"entity\": " << x.entitaet << ", \"primitive\": " << x.primitiv
+              << ", \"face\": " << x.flaeche << ", \"bspSurface\": " << x.bspFlaeche << ", \"position\": ";
+            std::array<float, 3> q{0, 0, 0};
+            if (objektOrt(r, x, q)) {
+                o << "[" << jsonZahl(q[0]) << ", " << jsonZahl(q[1]) << ", " << jsonZahl(q[2]) << "]";
+            } else {
+                o << "null";
+            }
+            o << "}";
+            ersterO = false;
+        }
+        o << (ersterO ? "]}" : "\n     ]}");
+        erste = false;
+    }
+    o << (erste ? "],\n" : "\n  ],\n");
+    const karte::CwInventar& inv = r.inventar;
+    o << "  \"textures\": {\n    \"shaders\": [";
+    for (std::size_t i = 0; i < inv.shader.size(); ++i) { o << (i == 0 ? "" : ", ") << jsonText(inv.shader[i]); }
+    o << "],\n    \"missingShaders\": [";
+    for (std::size_t i = 0; i < inv.shaderFehlen.size(); ++i) { o << (i == 0 ? "" : ", ") << jsonText(inv.shaderFehlen[i]); }
+    o << "],\n    \"images\": [";
+    for (std::size_t i = 0; i < inv.bilder.size(); ++i) {
+        const karte::CwInventar::Bild& b = inv.bilder[i];
+        o << (i == 0 ? "\n" : ",\n") << "      {\"name\": " << jsonText(b.name) << ", \"width\": " << b.breite << ", \"height\": " << b.hoehe
+          << ", \"found\": " << (b.gefunden ? "true" : "false") << "}";
+    }
+    o << (inv.bilder.empty() ? "]\n  }\n}\n" : "\n    ]\n  }\n}\n");
+    return o.str();
+}
+
+bool optimiererBerichtJsonSchreiben(const std::string& pfad) {
+    std::ofstream f(pfadVon(pfad), std::ios::binary | std::ios::trunc);
+    if (!f) { return false; }
+    const std::string t = optimiererBerichtJson();
+    f.write(t.data(), static_cast<std::streamsize>(t.size()));
+    return static_cast<bool>(f);
+}
+
+void optimiererJsonExportieren() {
+    abholen();
+    if (!g_z.e) { return; }
+    std::string vorschlag = "optimizer.json";
+    if (!stamm(g_z.e->karteName).empty()) { vorschlag = stamm(g_z.e->karteName) + "_optimizer.json"; }
+    const std::string pfad = kartenDateiDialog(false, trK(Str::KeOptJsonTitel), "*.json|*.json", kartenStartOrdner(), vorschlag);
+    if (pfad.empty()) { return; }
+    char z[1024];
+    if (optimiererBerichtJsonSchreiben(pfad)) {
+        std::snprintf(z, sizeof(z), trK(Str::KeOptExportiert), pfad.c_str());
+        ausgabe(z);
+    } else {
+        std::snprintf(z, sizeof(z), trK(Str::KeOptJsonFehler), pfad.c_str());
+        warnung(z);
+    }
+    g_z.meldung = z;
 }
 
 // --- Selbsttest ---------------------------------------------------------------------------
@@ -985,6 +1275,13 @@ void zeichneOptimierer() {
                                       ImGuiSelectableFlags_SpanAllColumns)) {
                     (void)optimiererZeileWaehlen(1, b->pruefung);
                 }
+                // CW-PRUEF: Rechtsklick - Objekte waehlen und zentrieren, Bericht als JSON
+                if (ImGui::BeginPopupContextItem(("##bfrk" + b->pruefung).c_str())) {
+                    const std::string id = b->pruefung;
+                    if (ImGui::MenuItem(trK(Str::KeOptRkZentrieren))) { (void)optimiererZeileWaehlen(1, id); }
+                    if (ImGui::MenuItem(trK(Str::KeOptJson))) { optimiererJsonExportieren(); }
+                    ImGui::EndPopup();
+                }
                 ImGui::TableNextColumn();
                 ImGui::Text("%lld", b->anzahl);
                 ImGui::TableNextColumn();
@@ -1041,6 +1338,10 @@ void zeichneOptimierer() {
         for (std::size_t i = 0; i < zeigen; ++i) {
             const std::string t = b->objekte[i].text + "##obj" + std::to_string(i);
             if (ImGui::Selectable(t.c_str(), false)) { auswaehlen({b->objekte[i]}); }
+            if (ImGui::BeginPopupContextItem(("##objrk" + std::to_string(i)).c_str())) {   // CW-PRUEF: Rechtsklick
+                if (ImGui::MenuItem(trK(Str::KeOptRkZentrieren))) { auswaehlen({b->objekte[i]}); }
+                ImGui::EndPopup();
+            }
         }
         if (b->objekte.size() > zeigen) { cjkTextDisabled("... (%zu)", b->objekte.size()); }
     }
@@ -1091,6 +1392,11 @@ void zeichneOptimierer() {
         }
     }
     merke("Export");
+    // CW-PRUEF: der Bericht als JSON mit Koordinaten (fuer andere Werkzeuge)
+    ImGui::SameLine();
+    if (ImGui::Button((std::string(trK(Str::KeOptJson)) + "##optjson").c_str(), ImVec2{0.0F, zeileH})) { optimiererJsonExportieren(); }
+    ImGui::SetItemTooltip("%s", trK(Str::KeOptJsonTip));
+    merke("Json");
     if (!g_z.e) { ImGui::EndDisabled(); }
     ImGui::SameLine();
     const float rechts = ImGui::GetContentRegionMax().x - px(80.0F);

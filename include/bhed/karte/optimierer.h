@@ -34,11 +34,13 @@
 
 #include "bhed/karte/grenzen.h"
 #include "bhed/karte/mathe.h"
+#include "bhed/karte/modell.h"
 
 #include <array>
 #include <cstddef>
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -100,6 +102,10 @@ struct ObjektRef {
     std::string text;      // was es ist ("worldspawn, Pinsel 12", "textures/x", "maps/a.rof")
     int flaeche = -1;      // Index der Flaeche im Pinsel
     std::string wert;      // Behebung je Objekt (EntitaetSchluessel: der neue Wert)
+    // CW-PRUEF: die Stelle des Problems in Weltkoordinaten (Messpunkt, Ursprung, Mitte) - fuer den JSON-Bericht.
+    // Ohne Angabe nimmt der Bericht den Ursprung der Entitaet bzw. die Mitte des Primitivs oder der Flaeche.
+    bool hatPunkt = false;
+    std::array<float, 3> punkt{0, 0, 0};
 };
 struct Beitrag {
     ObjektRef ref;
@@ -232,7 +238,20 @@ struct ShaderArt {
     bool ursprung = false;           // surfaceparm origin (games.cpp:803 C_ORIGIN): ein Ursprungs-Pinsel
     int lightmapBreite = 0;          // q3map_lightmapSize W H (0: nicht gesetzt) - Stufe 6, NRC#48/#98
     int lightmapHoehe = 0;
+    // CW-PRUEF: was q3map2 aus den surfaceparms fuer die Kollision macht (games.cpp:787-848 game_sof2, die Tafel auch fuer
+    // Jedi Academy und Jedi Outcast: contentFlags / contentFlagsClear / compileFlags) und map.cpp:455-503 SetBrushContents
+    // (welcher Shader die Inhalte des Pinsels in der BSP bestimmt, writebsp.cpp:376)
+    int inhalt = 0x1 | 0x8000;       // S_CONT_* nach allen surfaceparms (Vorgabe "default": SOLID | OPAQUE)
+    bool cSolid = true;              // C_SOLID
+    bool cFluessig = false;          // C_LIQUID (water, slime, lava)
+    bool cNebel = false;             // C_FOG
+    bool clipModell = false;         // q3map_clipModel (shaders.cpp:1695 si.clipModel)
+    bool versatz = false;            // polygonOffset (si.polygonOffset): CullSides laesst die Flaeche stehen, das Spiel verschiebt sie
+    bool sichtDeckend = true;        // man sieht nicht hindurch (kein blendFunc/alphaFunc, kein qer_trans, keine Fluessigkeit/Nebel) - auch nonsolid
+    std::vector<std::string> bilder; // CW-PRUEF Texturen: die Bilder, die das Spiel fuer den Shader laedt (klein, Endung wie im Skript)
 };
+// Hindert die Flaeche die Spielfigur? MASK_PLAYERSOLID (OpenJK code/game/bg_public.h:716: SOLID | PLAYERCLIP | BODY | TERRAIN)
+[[nodiscard]] inline bool spielerKollision(const ShaderArt& a) { return (a.inhalt & (0x1 | 0x10 | 0x1000)) != 0; }
 [[nodiscard]] ShaderArt shaderArtNachName(const std::string& shader);
 // Stufe 6: "%s" der Vorlage der Reihe nach durch die Werte ersetzen (sonst nichts, auch kein %%).
 [[nodiscard]] std::string detailText(const std::string& vorlage, const std::vector<std::string>& werte);
@@ -322,6 +341,17 @@ struct ShaderSkript {
     // <Weite> einer Stufe (tr_shader.cpp ParseStage: ohne Zahl 256; ohne alphaGen portal 0)
     bool portal = false;
     double portalWeite = 0;
+    // CW-PRUEF: Inhalte und Compile-Flags nach der Tafel von q3map2 (games.cpp:787-848 game_sof2: "default" SOLID | OPAQUE,
+    // C_SOLID; je surfaceparm contentFlags dazu, contentFlagsClear weg), q3map_clipModel, polygonOffset (shaders.cpp) und die
+    // Bilder, die das Spiel laedt: map / clampMap / animMap jeder Stufe (tr_shader.cpp ParseStage, ohne $lightmap,
+    // $whiteimage, *...) und skyParms <farbox>_rt/lf/bk/ft/up/dn (ParseSkyParms)
+    int inhalt = 0x1 | 0x8000;
+    bool cSolid = true;
+    bool cFluessig = false;
+    bool cNebel = false;
+    bool clipModell = false;
+    bool versatz = false;
+    std::vector<std::string> bilder;
 };
 [[nodiscard]] ShaderSkript shaderSkriptLesen(const std::string& text, const std::string& name);
 // Eine .shader-Datei einmal zerlegt (Stufe 6, schnellerer Start des
@@ -354,6 +384,45 @@ struct BauBefehlProblem {
 [[nodiscard]] std::vector<BauBefehlProblem> bauBefehlProbleme(GrenzSpiel spiel, bool mitLichtstilen,
                                                               const std::vector<std::pair<std::string, std::string>>& befehle);
 
+// --- CW-PRUEF (Clone-Wars-Kette, plaene/clonewars_kette.md) ----------------------------------------------------
+// Die einstellbaren Masse der neuen Pruefungen (Einstellungsseite Optimizer). Die Vorgaben stammen aus der
+// Anforderungsliste des Clone-Wars-Mods; die Masse der Spielfigur aus der Engine (optimierer_cw.cpp).
+struct CwMasse {
+    double toleranz = 1.0;           // Sicht gegen Kollision und Requisiten: hoechstens 1 Einheit Abstand ("OptimizerTolerance")
+    double deckung = 2.0;            // fast deckungsgleiche Flaechen: Abstand unter 2 Einheiten ("OptimizerCoplanar")
+    double tuerHoehe = 110.0;        // Tuer: Hoehe x Breite ("OptimizerDoorHeight", "OptimizerDoorWidth")
+    double tuerBreite = 64.0;
+    double gangHoehe = 128.0;        // Gang ("OptimizerCorridorHeight", "OptimizerCorridorWidth")
+    double gangBreite = 96.0;
+    double stufenFlaeche = 96.0;     // Stufe nur, wenn die obere begehbare Flaeche so gross ist (x und y) ("OptimizerStepArea")
+    int bildMin = 64;                // Bildseiten 64 ... 2048 ("OptimizerImageMin", "OptimizerImageMax")
+    int bildMax = 2048;
+};
+// Ein Modell der Karte (misc_model, misc_model_static, misc_model_breakable, ...): auf dem Hauptfaden aus der
+// Modell-Ablage des Editors (dieselben Dreiecke, die die Ansichten zeigen; .md3 Bild 0 wie das Spiel).
+struct AbbildModell {
+    int entitaet = -1;                      // Index in KartenAbbild::ents
+    std::string pfad;                       // der Modellschluessel (model bzw. miscmodelKey)
+    std::shared_ptr<const Modell> modell;   // nullptr oder null: nicht geladen
+    std::vector<std::string> shader;        // je Flaeche nach .skin und _remap ("" = die Skin bildet sie nicht ab)
+    Matrix4 matrix;                         // miscModellMatrix: Modell -> Welt
+    Kasten welt;                            // modellWeltKasten
+    bool eingebacken = false;               // q3map2 backt es in die BSP (misc_model: UnparseEntities, eingebackeneEntitaet)
+    int spawnflags = 0;
+};
+// Die Shader und Bilder der Karte (Texturen-Pruefung) - Teil des Berichts
+struct CwInventar {
+    struct Bild {
+        std::string name;
+        int breite = 0;
+        int hoehe = 0;
+        bool gefunden = false;
+    };
+    std::vector<std::string> shader;              // alle benutzten Shader (Flaechen, Patches, Modelle), sortiert
+    std::vector<std::string> shaderFehlen;        // davon ohne Skript und ohne Bild
+    std::vector<Bild> bilder;                     // alle Bilder, die das Spiel fuer diese Shader laedt, sortiert
+};
+
 struct PruefOptionen {
     GrenzSpiel spiel = GrenzSpiel::JkaSp;
     double knappAb = 0.9;
@@ -370,9 +439,35 @@ struct PruefOptionen {
     std::vector<std::pair<std::string, std::string>> bauBefehle;     // Build-Menue: (Eintrag, Befehlszeile)
     double riesigAb = 16384.0;                 // Pinsel ab dieser Kantenlaenge melden (GT#271)
     bool lichterBehalten = false;              // Stufe 8a: "Editor-Daten behalten" (-keeplights) - Pruefung "enttext"
+    // --- CW-PRUEF (Clone-Wars-Kette): Sicht gegen Kollision, Masse, Texturen, Modelle --------------------------
+    CwMasse masse;
+    std::vector<AbbildModell> modelle;          // je Entitaet mit Modell (Hauptfaden, aus der Modell-Ablage des Editors)
+    // Breite und Hoehe eines Bilds (Name ohne Endung; das Spiel versucht die Endung des Namens, dann jpg, png, tga -
+    // rd-common/tr_image_load.cpp:94-145 R_LoadImage); false: nicht gefunden. Leer: die Bildpruefungen entfallen.
+    std::function<bool(const std::string& bild, int& breite, int& hoehe)> bildMass;
+    CwInventar* inventar = nullptr;             // die benutzten Shader und Bilder (fuer den Bericht, optional)
 };
 [[nodiscard]] std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o);
 [[nodiscard]] const char* schwereName(Schwere s);   // "note" / "warning" / "error"
+
+// CW-PRUEF (optimierer_cw.cpp): die Pruefungen der Clone-Wars-Kette, aus pruefeKarte aufgerufen
+void pruefeClonewars(const KartenAbbild& a, const PruefOptionen& o, std::vector<Befund>& out,
+                     const std::function<const ShaderArt&(const std::string&)>& art);
+// Breite und Hoehe aus dem Kopf einer .tga, .jpg oder .png (ohne das Bild zu entpacken); false: kein Bild
+[[nodiscard]] bool bildKopfMass(const std::string& bytes, int& breite, int& hoehe);
+// Die Masse der Spielfigur je Regelwerk aus der Engine
+struct Spielfigur {
+    double halb = 16;      // x/y -halb ... +halb (OpenJK code/game/g_client.cpp:55-58; MP codemp/game/g_client.c:31: 15)
+    double unten = -24;    // DEFAULT_MINS_2 (code/game/bg_public.h:51)
+    double oben = 40;      // DEFAULT_MAXS_2 (bg_public.h:52)
+    double geduckt = 16;   // CROUCH_MAXS_2 (bg_public.h:53)
+    double stufe = 18;     // STEPSIZE (bg_public.h:71)
+    double sprung = 225.0 * 225.0 / (2.0 * 800.0);   // JUMP_VELOCITY 225 (bg_public.h:70), g_gravity 800 (g_main.cpp:628): v^2 / 2g
+    double gehen = 0.7;    // MIN_WALK_NORMAL (bg_public.h:69)
+    [[nodiscard]] double hoehe() const { return oben - unten; }
+    [[nodiscard]] double hoeheGeduckt() const { return geduckt - unten; }
+};
+[[nodiscard]] Spielfigur spielfigur(GrenzSpiel s);
 
 // --- Beheben (Punkt 4) -----------------------------------------------------------
 

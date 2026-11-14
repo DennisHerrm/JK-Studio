@@ -172,6 +172,7 @@ struct Entwurf {
     int optRegelwerk = -1;
     int optPortale = 8000;
     int optDreiecke = 20000;
+    karte::CwMasse optMasse;   // CW-PRUEF
 };
 Entwurf g_entwurf;
 
@@ -344,8 +345,12 @@ bool ganzSpinner(const char* id, int& wert, int von, int bis) {
 // Stufe 5 (Abweichung, NRC hat keinen Optimierer): die Seite "Optimizer" im
 // Stil der Seiten oben - ab wann "knapp", nach jedem Bau pruefen, das
 // Regelwerk und die Schwellen der Faustregel-Hinweise (VIS, Dreiecke).
+bool kommaSpinner(const char* id, float& wert, float von, float bis, int stellen);   // weiter unten
+
 void optimiererSeite() {
-    formAnfang({Str::KePrOptKnapp, Str::KePrOptRegelwerk, Str::KePrOptPortale, Str::KePrOptDreiecke});
+    formAnfang({Str::KePrOptKnapp, Str::KePrOptRegelwerk, Str::KePrOptPortale, Str::KePrOptDreiecke, Str::KePrOptToleranz, Str::KePrOptDeckung,
+                Str::KePrOptTuerHoehe, Str::KePrOptTuerBreite, Str::KePrOptGangHoehe, Str::KePrOptGangBreite, Str::KePrOptStufenFlaeche, Str::KePrOptBildMin,
+                Str::KePrOptBildMax});
     feldAnfang(Str::KePrOptKnapp);
     (void)ganzSpinner("##optknapp", g_entwurf.optKnapp, 50, 100);
     feldEnde();
@@ -368,6 +373,39 @@ void optimiererSeite() {
     feldEnde();
     feldAnfang(Str::KePrOptDreiecke);
     (void)ganzSpinner("##optdreiecke", g_entwurf.optDreiecke, 1000, 10000000);
+    feldEnde();
+    // CW-PRUEF: die Masse der Pruefungen aus der Clone-Wars-Liste (Sicht gegen Kollision, Tueren und Gaenge, Bilder)
+    karte::CwMasse& m = g_entwurf.optMasse;
+    const auto komma = [](Str text, const char* id, double& wert, float von, float bis) {
+        feldAnfang(text);
+        float f = static_cast<float>(wert);
+        ImGui::BeginGroup();
+        if (kommaSpinner(id, f, von, bis, 1)) { wert = f; }
+        ImGui::EndGroup();
+        ImGui::SetItemTooltip("%s", trK(text == Str::KePrOptToleranz ? Str::KePrOptToleranzTip
+                                        : text == Str::KePrOptDeckung      ? Str::KePrOptDeckungTip
+                                        : text == Str::KePrOptStufenFlaeche ? Str::KePrOptStufenFlaecheTip
+                                                                            : Str::KePrOptMasseTip));
+        feldEnde();
+    };
+    komma(Str::KePrOptToleranz, "##opttoleranz", m.toleranz, 0.1F, 64.0F);
+    komma(Str::KePrOptDeckung, "##optdeckung", m.deckung, 0.1F, 64.0F);
+    komma(Str::KePrOptTuerHoehe, "##opttuerhoehe", m.tuerHoehe, 16.0F, 4096.0F);
+    komma(Str::KePrOptTuerBreite, "##opttuerbreite", m.tuerBreite, 16.0F, 4096.0F);
+    komma(Str::KePrOptGangHoehe, "##optganghoehe", m.gangHoehe, 16.0F, 4096.0F);
+    komma(Str::KePrOptGangBreite, "##optgangbreite", m.gangBreite, 16.0F, 4096.0F);
+    komma(Str::KePrOptStufenFlaeche, "##optstufenflaeche", m.stufenFlaeche, 0.0F, 4096.0F);
+    feldAnfang(Str::KePrOptBildMin);
+    ImGui::BeginGroup();
+    (void)ganzSpinner("##optbildmin", m.bildMin, 1, 8192);
+    ImGui::EndGroup();
+    ImGui::SetItemTooltip("%s", trK(Str::KePrOptBildTip));
+    feldEnde();
+    feldAnfang(Str::KePrOptBildMax);
+    ImGui::BeginGroup();
+    (void)ganzSpinner("##optbildmax", m.bildMax, 1, 16384);
+    ImGui::EndGroup();
+    ImGui::SetItemTooltip("%s", trK(Str::KePrOptBildTip));
     feldEnde();
 }
 
@@ -1520,6 +1558,7 @@ void zeichneEinstellungen() {
         g_entwurf.optRegelwerk = ed.optimierer.regelwerk;
         g_entwurf.optPortale = ed.optimierer.portalSchwelle;
         g_entwurf.optDreiecke = ed.optimierer.dreieckSchwelle;
+        g_entwurf.optMasse = ed.optimierer.masse;   // CW-PRUEF
         g_entwurf.schnappschuesse = ed.autosave.schnappschuesse;
         g_entwurf.clipperCaulk = ed.bearbeitung.clipperCaulk;
         g_entwurf.clipperUmdrehen = ed.bearbeitung.clipperUmdrehenZuruecksetzen;
@@ -1793,6 +1832,7 @@ void zeichneEinstellungen() {
             ed.optimierer.regelwerk = g_entwurf.optRegelwerk;
             ed.optimierer.portalSchwelle = g_entwurf.optPortale;
             ed.optimierer.dreieckSchwelle = g_entwurf.optDreiecke;
+            ed.optimierer.masse = g_entwurf.optMasse;   // CW-PRUEF
             ed.autosave.schnappschuesse = g_entwurf.schnappschuesse;
             ed.nachKlonenSchubsen = g_entwurf.nachKlonen;
             ed.letzteKarteLaden = g_entwurf.letzteKarte;

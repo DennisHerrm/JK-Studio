@@ -1,0 +1,1093 @@
+// optimierer_cw.cpp - Karten-Editor, Optimierer: die Pruefungen der Clone-Wars-Kette (CW-PRUEF).
+//
+// Herkunft: die Anforderungsliste eines Clone-Wars-Mods fuer Jedi Academy / Movie Duels (plaene/clonewars_kette.md):
+// Sicht gegen Kollision, fast deckungsgleiche Flaechen, Stufen, Tuer- und Gangmasse, Texturen, Modelle, Requisiten.
+// Portiert aus OpenJK und q3map2 (NetRadiant-Custom 20260114): die Masse der Spielfigur, die Grenzen und die Regeln des Compilers
+// (Inhalte der Pinsel, Clip-Modelle, entfernte Flaechen) kommen aus deren Quelltext, die Stellen stehen bei jeder Pruefung:
+//   OpenJK code/game/bg_public.h:51-53 (DEFAULT_MINS_2, DEFAULT_MAXS_2, CROUCH_MAXS_2), :69 MIN_WALK_NORMAL, :70 JUMP_VELOCITY,
+//   :71 STEPSIZE, :716 MASK_PLAYERSOLID; code/game/g_client.cpp:55-58 (DEFAULT_MINS_0 ... DEFAULT_MAXS_1 = -16 / 16),
+//   codemp/game/g_client.c:31 (playerMins -15); code/game/g_main.cpp:628 (g_gravity 800);
+//   code/rd-vanilla/tr_image.cpp:1002-1004 (R_CreateImage: ERR_FATAL bei Bildseiten, die keine Zweierpotenz sind),
+//   rd-common/tr_image_load.cpp:94-145 (R_LoadImage), tr_model.cpp:899-906 (R_LoadMD3), tr_surface.cpp:53-69
+//   (RB_CheckOverflow), code/qcommon/qfiles.h:33-34, :101-105; Movie Duels code/cgame/cg_main.cpp:3263-3290
+//   (CG_DrawMiscEnts);
+//   q3map2 (NetRadiant-Custom 20260114): games.cpp:787-848 (surfaceparm-Inhalte game_sof2), map.cpp:455-503
+//   SetBrushContents, writebsp.cpp:376 (die Inhalte des Pinsels in der BSP), model.cpp:970-999 clipflags_doClip,
+//   surface.cpp:1150-1360 (SideInBrush, CullSides), portals.cpp:529-599 FloodEntities.
+// Die Masse der Liste (1 Einheit, 2 Einheiten, Tuer 110 x 64, Gang 128 x 96, Bilder 64 ... 2048) sind Vorgaben der
+// Einstellungen (CwMasse).
+//
+//   Copyright (C) 1999 - 2005, Id Software, Inc.
+//   Copyright (C) 2000 - 2013, Raven Software, Inc.
+//   Copyright (C) 2001 - 2013, Activision, Inc.
+//   Copyright (C) 2013 - 2015, OpenJK contributors
+//
+//   OpenJK is free software; you can redistribute it and/or modify it under
+//   the terms of the GNU General Public License version 2 as published by the
+//   Free Software Foundation. This program is distributed in the hope that it
+//   will be useful, but WITHOUT ANY WARRANTY; without even the implied
+//   warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+//   GNU General Public License for more details (LICENSE).
+#include "bhed/karte/optimierer.h"
+
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <limits>
+#include <map>
+#include <set>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+namespace bhed::karte {
+
+Spielfigur spielfigur(GrenzSpiel s) {
+    Spielfigur f;
+    if (s == GrenzSpiel::JkaMp) { f.halb = 15; }   // codemp/game/g_client.c:31 playerMins = {-15, -15, DEFAULT_MINS_2}
+    return f;
+}
+
+bool bildKopfMass(const std::string& b, int& breite, int& hoehe) {
+    const auto u8 = [&b](std::size_t i) { return static_cast<unsigned>(static_cast<unsigned char>(b[i])); };
+    if (b.size() >= 24 && u8(0) == 0x89 && b.compare(1, 3, "PNG") == 0) {   // PNG: IHDR, Breite und Hoehe big-endian
+        breite = static_cast<int>((u8(16) << 24) | (u8(17) << 16) | (u8(18) << 8) | u8(19));
+        hoehe = static_cast<int>((u8(20) << 24) | (u8(21) << 16) | (u8(22) << 8) | u8(23));
+        return breite > 0 && hoehe > 0;
+    }
+    if (b.size() >= 4 && u8(0) == 0xFF && u8(1) == 0xD8) {   // JPEG: das erste SOFn
+        std::size_t i = 2;
+        while (i + 9 < b.size()) {
+            if (u8(i) != 0xFF) {
+                ++i;
+                continue;
+            }
+            const unsigned m = u8(i + 1);
+            if (m == 0xFF) {
+                ++i;
+                continue;
+            }
+            if (m == 0xD8 || m == 0x01 || (m >= 0xD0 && m <= 0xD7)) {
+                i += 2;
+                continue;
+            }
+            if (m == 0xD9 || m == 0xDA) { return false; }
+            const std::size_t laenge = (u8(i + 2) << 8) | u8(i + 3);
+            if (m >= 0xC0 && m <= 0xCF && m != 0xC4 && m != 0xC8 && m != 0xCC) {
+                hoehe = static_cast<int>((u8(i + 5) << 8) | u8(i + 6));
+                breite = static_cast<int>((u8(i + 7) << 8) | u8(i + 8));
+                return breite > 0 && hoehe > 0;
+            }
+            i += 2 + laenge;
+        }
+        return false;
+    }
+    if (b.size() >= 18) {   // TGA (ohne Kennung): Bildart 1, 2, 3, 9, 10, 11; Breite und Hoehe little-endian
+        const unsigned art = u8(2);
+        if (art == 1 || art == 2 || art == 3 || art == 9 || art == 10 || art == 11) {
+            breite = static_cast<int>(u8(12) | (u8(13) << 8));
+            hoehe = static_cast<int>(u8(14) | (u8(15) << 8));
+            return breite > 0 && hoehe > 0;
+        }
+    }
+    return false;
+}
+
+namespace {
+
+using V = Vektor3d;
+
+std::string klein(std::string s) {
+    for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    return s;
+}
+std::string zahl(double v) {
+    char z[32];
+    std::snprintf(z, sizeof(z), "%.1f", v);
+    std::string s = z;
+    if (s.size() > 2 && s.compare(s.size() - 2, 2, ".0") == 0) { s.resize(s.size() - 2); }
+    return s;
+}
+std::string ort(const V& p) { return "(" + zahl(p[0]) + " " + zahl(p[1]) + " " + zahl(p[2]) + ")"; }
+V nachV(const Vektor3f& v) { return V(v[0], v[1], v[2]); }
+
+// --- Die Welt fuer Strahlen: Pinsel (konvex) und Dreiecke (Patches, Modelle) in einem Gitter ueber x/y ----------------
+
+struct Vol {
+    const AbbildPrimitiv* p = nullptr;
+    int ent = -1;
+    int prim = -1;
+    bool kollision = false;   // der Inhalts-Shader (SetBrushContents) hindert die Spielfigur
+    bool gezeichnet = false;  // mindestens eine Seite wird gezeichnet
+    bool verdeckend = false;  // gezeichnet und jede Seite undurchsichtig: verdeckt, was in ihm liegt
+    bool struktur = true;
+    bool durchscheinend = false;   // C_TRANSLUCENT an einer Seite (SideInBrush laesst darin liegende Seiten stehen)
+    bool nodrawSeite = false;      // eine Seite mit C_NODRAW (caulk): SideInBrush laesst darin liegende Seiten stehen
+    bool mover = false;            // Tuer, Aufzug, Zug, ... (bewegt sich im Spiel: fuer die Masse der Durchgaenge offen)
+    int inhalt = 0;                // die Inhalte des Inhalts-Shaders (S_CONT_*)
+    double mn[3] = {0, 0, 0};
+    double mx[3] = {0, 0, 0};
+};
+struct Dr {   // ein Dreieck
+    Vektor3f a, b, c;
+    int ent = -1;
+    int prim = -1;
+    int modell = -1;   // Index in PruefOptionen::modelle, -1: Patch
+    bool sichtbar = false;
+    bool kollision = false;
+    bool fest = false;   // undurchsichtig (kein Glas, kein Alpha-Test): eine Flaeche, auf der man stehen koennte
+};
+
+enum class Modus { Kollision, Sichtbar };
+
+struct Treffer {
+    bool ja = false;
+    bool innen = false;   // der Anfang liegt in einem Kollisionspinsel
+    double t = 0;
+    double austritt = 0;  // innen: wo der Strahl den Pinsel verlaesst
+    V n{0, 0, 0};
+    int vol = -1;
+    int dr = -1;
+};
+
+class Welt {
+public:
+    std::vector<Vol> vol;
+    std::vector<Dr> dr;
+    bool ohneMover = false;   // Strahlen gehen durch Mover (Durchgaenge: Tueren stehen offen)
+
+    void ordnen() {
+        m_volStempel.assign(vol.size(), 0);
+        m_drStempel.assign(dr.size(), 0);
+        for (std::size_t i = 0; i < vol.size(); ++i) { eintragen(static_cast<int>(i), vol[i].mn, vol[i].mx, true); }
+        for (std::size_t i = 0; i < dr.size(); ++i) {
+            const Dr& d = dr[i];
+            const double mn[3] = {std::min({d.a[0], d.b[0], d.c[0]}) * 1.0, std::min({d.a[1], d.b[1], d.c[1]}) * 1.0, 0};
+            const double mx[3] = {std::max({d.a[0], d.b[0], d.c[0]}) * 1.0, std::max({d.a[1], d.b[1], d.c[1]}) * 1.0, 0};
+            eintragen(static_cast<int>(i), mn, mx, false);
+        }
+    }
+
+    // Liegt p in Pinsel v (alle Seiten mit Abstand < -eps)?
+    static bool innen(const Vol& v, const V& p, double eps) {
+        if (p[0] < v.mn[0] - eps || p[0] > v.mx[0] + eps || p[1] < v.mn[1] - eps || p[1] > v.mx[1] + eps || p[2] < v.mn[2] - eps ||
+            p[2] > v.mx[2] + eps) {
+            return false;
+        }
+        for (const AbbildFlaeche& f : v.p->flaechen) {
+            if (abstandZuPunkt(f.ebene, p) > -eps) { return false; }
+        }
+        return true;
+    }
+
+    // Die Oberkante des konvexen Pinsels ueber p (p liegt darin): wo ein Strahl nach oben ihn verlaesst
+    static double obenAus(const Vol& v, const V& p, double* normaleZ = nullptr) {
+        double t = 1e30;
+        for (const AbbildFlaeche& f : v.p->flaechen) {
+            const double nz = f.ebene.normal()[2];
+            if (nz > 1e-9) {
+                const double tf = -abstandZuPunkt(f.ebene, p) / nz;
+                if (tf < t) {
+                    t = tf;
+                    if (normaleZ != nullptr) { *normaleZ = nz; }
+                }
+            }
+        }
+        return p[2] + t;
+    }
+
+    // jeder Pinsel, der p enthaelt (erst gesammelt: f darf weitere Abfragen stellen)
+    template<class F>
+    void enthaltend(const V& p, double eps, F f) const {
+        ++m_lauf;
+        std::vector<const Vol*> treffer;
+        const auto pruefe = [&](int i) {
+            if (m_volStempel[static_cast<std::size_t>(i)] == m_lauf) { return; }
+            m_volStempel[static_cast<std::size_t>(i)] = m_lauf;
+            const Vol& v = vol[static_cast<std::size_t>(i)];
+            if (innen(v, p, eps)) { treffer.push_back(&v); }
+        };
+        const auto it = m_volZellen.find(schluessel(zelle(p[0]), zelle(p[1])));
+        if (it != m_volZellen.end()) {
+            for (const int i : it->second) { pruefe(i); }
+        }
+        for (const int i : m_volGross) { pruefe(i); }
+        for (const Vol* v : treffer) { f(*v); }
+    }
+
+    // Strahl o + t d (d normiert), 0 <= t <= laenge: der naechste Treffer
+    [[nodiscard]] Treffer strahl(const V& o, const V& d, double laenge, Modus m, const std::function<const ShaderArt&(const std::string&)>& art) const {
+        Treffer best;
+        best.t = laenge;
+        ++m_lauf;
+        const auto pruefeVol = [&](int i) {
+            if (m_volStempel[static_cast<std::size_t>(i)] == m_lauf) { return; }
+            m_volStempel[static_cast<std::size_t>(i)] = m_lauf;
+            const Vol& v = vol[static_cast<std::size_t>(i)];
+            if (m == Modus::Kollision ? !v.kollision : !v.gezeichnet) { return; }
+            if (ohneMover && v.mover) { return; }
+            double tein = -1e30;
+            double taus = 1e30;
+            int seite = -1;
+            for (std::size_t s = 0; s < v.p->flaechen.size(); ++s) {
+                const AbbildFlaeche& f = v.p->flaechen[s];
+                const V n = f.ebene.normal();
+                const double dist = abstandZuPunkt(f.ebene, o);
+                const double den = punkt(n, d);
+                if (std::fabs(den) < 1e-12) {
+                    if (dist > 1e-6) { return; }
+                    continue;
+                }
+                const double t = -dist / den;
+                if (den < 0) {
+                    if (t > tein) {
+                        tein = t;
+                        seite = static_cast<int>(s);
+                    }
+                } else if (t < taus) {
+                    taus = t;
+                }
+                if (tein > taus) { return; }
+            }
+            if (taus < 0 || tein > taus) { return; }
+            if (tein < 0) {   // der Anfang liegt im Pinsel
+                if (m == Modus::Kollision && !best.innen) {
+                    best = Treffer{};
+                    best.ja = true;
+                    best.innen = true;
+                    best.t = 0;
+                    best.austritt = taus;
+                    best.vol = i;
+                }
+                return;
+            }
+            if (best.innen || tein > best.t) { return; }
+            if (m == Modus::Sichtbar) {
+                const ShaderArt& a = art(v.p->flaechen[static_cast<std::size_t>(seite)].shader);
+                if (!a.sichtbar || a.werkzeug || a.himmel) { return; }
+            }
+            best.ja = true;
+            best.t = tein;
+            best.n = v.p->flaechen[static_cast<std::size_t>(seite)].ebene.normal();
+            best.vol = i;
+            best.dr = -1;
+        };
+        const auto pruefeDr = [&](int i) {
+            if (m_drStempel[static_cast<std::size_t>(i)] == m_lauf) { return; }
+            m_drStempel[static_cast<std::size_t>(i)] = m_lauf;
+            const Dr& x = dr[static_cast<std::size_t>(i)];
+            if (m == Modus::Kollision ? !x.kollision : !x.sichtbar) { return; }
+            if (best.innen) { return; }
+            // Moeller-Trumbore, beidseitig
+            const V a = nachV(x.a);
+            const V e1 = nachV(x.b) - a;
+            const V e2 = nachV(x.c) - a;
+            const V pv = kreuz(d, e2);
+            const double det = punkt(e1, pv);
+            if (std::fabs(det) < 1e-12) { return; }
+            const double inv = 1.0 / det;
+            const V tv = o - a;
+            const double u = punkt(tv, pv) * inv;
+            if (u < -1e-9 || u > 1 + 1e-9) { return; }
+            const V qv = kreuz(tv, e1);
+            const double w = punkt(d, qv) * inv;
+            if (w < -1e-9 || u + w > 1 + 1e-9) { return; }
+            const double t = punkt(e2, qv) * inv;
+            if (t < 0 || t > best.t) { return; }
+            best.ja = true;
+            best.t = t;
+            V n = kreuz(e1, e2);
+            const double l = std::sqrt(laengeQuadrat(n));
+            if (l > 0) { n = n * (1.0 / l); }
+            if (punkt(n, d) > 0) { n = n * -1.0; }   // zum Anfang hin
+            best.n = n;
+            best.vol = -1;
+            best.dr = i;
+        };
+        const V e = o + d * laenge;
+        const long long x0 = zelle(std::min(o[0], e[0]));
+        const long long x1 = zelle(std::max(o[0], e[0]));
+        const long long y0 = zelle(std::min(o[1], e[1]));
+        const long long y1 = zelle(std::max(o[1], e[1]));
+        for (long long x = x0; x <= x1; ++x) {
+            for (long long y = y0; y <= y1; ++y) {
+                const long long k = schluessel(x, y);
+                const auto iv = m_volZellen.find(k);
+                if (iv != m_volZellen.end()) {
+                    for (const int i : iv->second) { pruefeVol(i); }
+                }
+                const auto id = m_drZellen.find(k);
+                if (id != m_drZellen.end()) {
+                    for (const int i : id->second) { pruefeDr(i); }
+                }
+            }
+        }
+        for (const int i : m_volGross) { pruefeVol(i); }
+        for (const int i : m_drGross) { pruefeDr(i); }
+        if (!best.ja) { best.t = 0; }
+        return best;
+    }
+
+    // jeder Pinsel und jedes Dreieck, deren Kasten den Kasten [mn, mx] (x/y) beruehrt
+    template<class FV, class FD>
+    void imKasten(const double* mn, const double* mx, FV fv, FD fd) const {
+        ++m_lauf;
+        const auto pv = [&](int i) {
+            if (m_volStempel[static_cast<std::size_t>(i)] == m_lauf) { return; }
+            m_volStempel[static_cast<std::size_t>(i)] = m_lauf;
+            fv(vol[static_cast<std::size_t>(i)]);
+        };
+        const auto pd = [&](int i) {
+            if (m_drStempel[static_cast<std::size_t>(i)] == m_lauf) { return; }
+            m_drStempel[static_cast<std::size_t>(i)] = m_lauf;
+            fd(dr[static_cast<std::size_t>(i)], i);
+        };
+        const long long x0 = zelle(mn[0]);
+        const long long x1 = zelle(mx[0]);
+        const long long y0 = zelle(mn[1]);
+        const long long y1 = zelle(mx[1]);
+        if ((x1 - x0 + 1) * (y1 - y0 + 1) > 4096) {   // sehr grosse Kaesten: alles
+            for (std::size_t i = 0; i < vol.size(); ++i) { pv(static_cast<int>(i)); }
+            for (std::size_t i = 0; i < dr.size(); ++i) { pd(static_cast<int>(i)); }
+            return;
+        }
+        for (long long x = x0; x <= x1; ++x) {
+            for (long long y = y0; y <= y1; ++y) {
+                const long long k = schluessel(x, y);
+                const auto iv = m_volZellen.find(k);
+                if (iv != m_volZellen.end()) {
+                    for (const int i : iv->second) { pv(i); }
+                }
+                const auto id = m_drZellen.find(k);
+                if (id != m_drZellen.end()) {
+                    for (const int i : id->second) { pd(i); }
+                }
+            }
+        }
+        for (const int i : m_volGross) { pv(i); }
+        for (const int i : m_drGross) { pd(i); }
+    }
+
+private:
+    static constexpr double kZelle = 128.0;
+    static long long zelle(double v) { return static_cast<long long>(std::floor(v / kZelle)); }
+    static long long schluessel(long long x, long long y) { return (x << 32) ^ (y & 0xFFFFFFFFLL); }
+    void eintragen(int i, const double* mn, const double* mx, bool istVol) {
+        const long long x0 = zelle(mn[0]);
+        const long long x1 = zelle(mx[0]);
+        const long long y0 = zelle(mn[1]);
+        const long long y1 = zelle(mx[1]);
+        if ((x1 - x0 + 1) * (y1 - y0 + 1) > 1024) {   // riesige Pinsel (Himmelskasten): in jeder Abfrage
+            (istVol ? m_volGross : m_drGross).push_back(i);
+            return;
+        }
+        auto& z = istVol ? m_volZellen : m_drZellen;
+        for (long long x = x0; x <= x1; ++x) {
+            for (long long y = y0; y <= y1; ++y) { z[schluessel(x, y)].push_back(i); }
+        }
+    }
+    std::unordered_map<long long, std::vector<int>> m_volZellen;
+    std::unordered_map<long long, std::vector<int>> m_drZellen;
+    std::vector<int> m_volGross;
+    std::vector<int> m_drGross;
+    mutable std::vector<unsigned> m_volStempel;
+    mutable std::vector<unsigned> m_drStempel;
+    mutable unsigned m_lauf = 0;
+};
+
+// --- Hilfen: Messpunkte auf einem ebenen Vieleck, Ueberdeckung zweier Vielecke ----------------------------------------
+
+struct Basis {
+    V u;
+    V v;
+};
+Basis basisFuer(const V& n) {
+    const double ax = std::fabs(n[0]);
+    const double ay = std::fabs(n[1]);
+    const double az = std::fabs(n[2]);
+    const V achse = (ax <= ay && ax <= az) ? V(1, 0, 0) : (ay <= az ? V(0, 1, 0) : V(0, 0, 1));
+    const V u = normiert(kreuz(n, achse));
+    return {u, kreuz(n, u)};
+}
+struct P2 {
+    double x;
+    double y;
+};
+std::vector<P2> flach(const std::vector<V>& pts, const V& ursprung, const Basis& b) {
+    std::vector<P2> r;
+    r.reserve(pts.size());
+    for (const V& p : pts) { r.push_back({punkt(p - ursprung, b.u), punkt(p - ursprung, b.v)}); }
+    return r;
+}
+double flaeche2(const std::vector<P2>& p) {
+    double s = 0;
+    for (std::size_t i = 0; i < p.size(); ++i) {
+        const P2& a = p[i];
+        const P2& c = p[(i + 1) % p.size()];
+        s += a.x * c.y - c.x * a.y;
+    }
+    return s * 0.5;
+}
+// Abstand von q zum Rand des konvexen Vielecks (positiv innen)
+double randAbstand(const std::vector<P2>& g, double orient, const P2& q) {
+    double best = 1e30;
+    for (std::size_t i = 0; i < g.size(); ++i) {
+        const P2& a = g[i];
+        const P2& c = g[(i + 1) % g.size()];
+        const double ex = c.x - a.x;
+        const double ey = c.y - a.y;
+        const double l = std::sqrt(ex * ex + ey * ey);
+        if (l < 1e-9) { continue; }
+        best = std::min(best, orient * (ex * (q.y - a.y) - ey * (q.x - a.x)) / l);
+    }
+    return best;
+}
+// Messpunkte im Raster (Abstand mindestens `abstand`, hoechstens `hoechstens` Punkte), 0,5 vom Rand; sonst die Mitte
+std::vector<V> proben(const std::vector<V>& pts, const V& n, double abstand, std::size_t hoechstens) {
+    std::vector<V> r;
+    if (pts.size() < 3) { return r; }
+    const Basis b = basisFuer(n);
+    const std::vector<P2> g = flach(pts, pts[0], b);
+    const double f = flaeche2(g);
+    const double orient = f >= 0 ? 1.0 : -1.0;
+    double mnx = 1e30;
+    double mny = 1e30;
+    double mxx = -1e30;
+    double mxy = -1e30;
+    for (const P2& q : g) {
+        mnx = std::min(mnx, q.x);
+        mny = std::min(mny, q.y);
+        mxx = std::max(mxx, q.x);
+        mxy = std::max(mxy, q.y);
+    }
+    const double s = std::max(abstand, std::sqrt(std::fabs(f) / static_cast<double>(std::max<std::size_t>(1, hoechstens))));
+    for (double x = mnx + s * 0.5; x < mxx; x += s) {
+        for (double y = mny + s * 0.5; y < mxy; y += s) {
+            if (randAbstand(g, orient, P2{x, y}) >= 0.5) { r.push_back(pts[0] + b.u * x + b.v * y); }
+        }
+    }
+    if (r.empty()) {
+        V m(0, 0, 0);
+        for (const V& p : pts) { m = m + p; }
+        r.push_back(m * (1.0 / static_cast<double>(pts.size())));
+    }
+    return r;
+}
+// q3map2 model.cpp:970-999 clipflags_doClip: erzeugt q3map2 aus den Dreiecken eines misc_model Clip-Pinsel?
+bool clipFein(const ShaderArt& si, int spawnFlags) {
+    constexpr int eClipModel = 1 << 1;
+    constexpr int eExtrudeFaceNormals = 1 << 3;
+    constexpr int eExtrudeTerrain = 1 << 4;
+    constexpr int eExtrudeVertexNormals = 1 << 7;
+    constexpr int ePyramidalClip = 1 << 8;
+    constexpr int eExtrudeDownwards = 1 << 9;
+    constexpr int eExtrudeUpwards = 1 << 10;
+    constexpr int eMaxExtrude = 1 << 11;
+    constexpr int eAxialBackplane = 1 << 12;
+    constexpr int eClipFlags = eClipModel | eExtrudeFaceNormals | eExtrudeTerrain | eExtrudeVertexNormals | ePyramidalClip | eExtrudeDownwards |
+                               eExtrudeUpwards | eMaxExtrude | eAxialBackplane;
+    const int spf = spawnFlags & (eClipFlags & ~eClipModel);
+    const bool fein = (si.clipModell && spf == 0) || (spawnFlags & eClipFlags) == eClipModel || spf == ePyramidalClip ||
+                      spf == (ePyramidalClip | eAxialBackplane) || spf == eExtrudeFaceNormals || spf == (eExtrudeFaceNormals | ePyramidalClip) ||
+                      spf == eExtrudeTerrain || spf == eExtrudeDownwards || spf == eExtrudeUpwards || spf == (eExtrudeDownwards | eExtrudeUpwards) ||
+                      spf == eAxialBackplane || spf == (eAxialBackplane | eExtrudeTerrain) || spf == (eAxialBackplane | eExtrudeDownwards) ||
+                      spf == (eAxialBackplane | eExtrudeUpwards) || spf == (eAxialBackplane | eExtrudeDownwards | eExtrudeUpwards) ||
+                      spf == (eMaxExtrude | eExtrudeTerrain) || spf == (eMaxExtrude | eExtrudeDownwards) || spf == (eMaxExtrude | eExtrudeUpwards) ||
+                      spf == (eMaxExtrude | eExtrudeDownwards | eExtrudeUpwards) || spf == eExtrudeVertexNormals ||
+                      spf == (eExtrudeVertexNormals | ePyramidalClip);
+    return (si.cSolid || si.clipModell) && fein;
+}
+
+// q3map2 map.cpp:455-503 SetBrushContents: der Shader, dessen Inhalte der Pinsel in der BSP traegt (writebsp.cpp:376)
+const ShaderArt& inhaltsShader(const AbbildPrimitiv& p, const std::function<const ShaderArt&(const std::string&)>& art) {
+    const ShaderArt* cs = &art(p.flaechen.front().shader);
+    for (std::size_t i = 1; i < p.flaechen.size(); ++i) {
+        const ShaderArt& s = art(p.flaechen[i].shader);
+        if (cs->cFluessig) { continue; }
+        if (s.cFluessig) {
+            cs = &s;
+            continue;
+        }
+        if (cs->cNebel) { continue; }
+        if (s.cNebel) {
+            cs = &s;
+            continue;
+        }
+        if ((cs->inhalt & 0x10) != 0) { continue; }   // playerclip (GetRequiredSurfaceParm<"playerclip">().contentFlags)
+        if ((s.inhalt & 0x10) != 0) {
+            cs = &s;
+            continue;
+        }
+        if (!cs->cSolid) { continue; }
+        if (!s.cSolid) { cs = &s; }
+    }
+    return *cs;
+}
+
+// Patch: das Bezier-Netz (3 x 3 je Teilstueck) als Dreiecke, 4 Schritte je Teilstueck
+void patchDreiecke(const AbbildPrimitiv& p, const std::function<void(const V&, const V&, const V&)>& f) {
+    const int w = p.breite;
+    const int h = p.hoehe;
+    if (w < 3 || h < 3 || (w % 2) == 0 || (h % 2) == 0 || static_cast<int>(p.kontrollpunkte.size()) < w * h) { return; }
+    constexpr int kSchritte = 4;
+    const auto kp = [&](int x, int y) {
+        const auto& q = p.kontrollpunkte[static_cast<std::size_t>(y * w + x)];
+        return V(q[0], q[1], q[2]);
+    };
+    for (int py = 0; py + 2 < h; py += 2) {
+        for (int px = 0; px + 2 < w; px += 2) {
+            V g[kSchritte + 1][kSchritte + 1];
+            for (int j = 0; j <= kSchritte; ++j) {
+                const double v = static_cast<double>(j) / kSchritte;
+                const double bv[3] = {(1 - v) * (1 - v), 2 * v * (1 - v), v * v};
+                for (int i = 0; i <= kSchritte; ++i) {
+                    const double u = static_cast<double>(i) / kSchritte;
+                    const double bu[3] = {(1 - u) * (1 - u), 2 * u * (1 - u), u * u};
+                    V s(0, 0, 0);
+                    for (int b = 0; b < 3; ++b) {
+                        for (int a = 0; a < 3; ++a) { s = s + kp(px + a, py + b) * (bu[a] * bv[b]); }
+                    }
+                    g[j][i] = s;
+                }
+            }
+            for (int j = 0; j < kSchritte; ++j) {
+                for (int i = 0; i < kSchritte; ++i) {
+                    f(g[j][i], g[j][i + 1], g[j + 1][i + 1]);
+                    f(g[j][i], g[j + 1][i + 1], g[j + 1][i]);
+                }
+            }
+        }
+    }
+}
+
+// --- Die Pruefungen ------------------------------------------------------------------------------------------------
+
+class Cw {
+public:
+    Cw(const KartenAbbild& a, const PruefOptionen& o, std::vector<Befund>& out, const std::function<const ShaderArt&(const std::string&)>& art)
+        : m_a(a), m_o(o), m_out(out), m_art(art), m_fig(spielfigur(o.spiel)), m_hatBsp(o.bspDaten != nullptr && o.linDaten.empty()) {}
+
+    void alle() {
+        auto uhr = std::chrono::steady_clock::now();
+        const auto messen = [&](const char* was) {
+            const auto jetzt = std::chrono::steady_clock::now();
+            if (m_o.zeiten != nullptr) { m_o.zeiten->emplace_back(was, std::chrono::duration<double, std::milli>(jetzt - uhr).count()); }
+            uhr = jetzt;
+        };
+        weltBauen();
+        knotenBauen();
+        messen("cw_welt");
+        sichtGegenKollision();
+        messen("cw_sicht");
+    }
+
+private:
+    const KartenAbbild& m_a;
+    const PruefOptionen& m_o;
+    std::vector<Befund>& m_out;
+    const std::function<const ShaderArt&(const std::string&)>& m_art;
+    Spielfigur m_fig;
+    bool m_hatBsp;
+    Welt m_w;
+    std::vector<std::array<double, 6>> m_modellKasten;   // je Modell der genaue Kasten der Dreiecke (mn, mx); mn > mx: keiner
+
+    static Befund neu(const char* id, Schwere s, const char* quelle) {
+        Befund b;
+        b.pruefung = id;
+        b.schwere = s;
+        b.quelle = quelle;
+        return b;
+    }
+    static void add(Befund& b, ObjektRef r) {
+        ++b.anzahl;
+        if (b.objekte.size() < 2000000) { b.objekte.push_back(std::move(r)); }
+    }
+    static void punktSetzen(ObjektRef& r, const V& p) {
+        r.hatPunkt = true;
+        r.punkt = {static_cast<float>(p[0]), static_cast<float>(p[1]), static_cast<float>(p[2])};
+    }
+    std::string stelle(int ent, int prim) const {
+        const std::string k = ent >= 0 && ent < static_cast<int>(m_a.ents.size()) ? m_a.ents[static_cast<std::size_t>(ent)].klasse : std::string("?");
+        return k + " #" + std::to_string(ent) + (prim >= 0 ? ", primitive " + std::to_string(prim) : std::string());
+    }
+    ObjektRef flaechenRef(const Vol& v, int seite) const {
+        ObjektRef r{v.ent, v.prim, -1, stelle(v.ent, v.prim) + ", face " + std::to_string(seite) + " " + v.p->flaechen[static_cast<std::size_t>(seite)].shader,
+                    seite};
+        return r;
+    }
+    ObjektRef dreieckRef(const Dr& d) const {
+        if (d.modell >= 0) {
+            const AbbildModell& m = m_o.modelle[static_cast<std::size_t>(d.modell)];
+            return ObjektRef{m.entitaet, -1, -1, stelle(m.entitaet, -1) + " " + m.pfad};
+        }
+        return ObjektRef{d.ent, d.prim, -1, stelle(d.ent, d.prim) + " (patch)"};
+    }
+    // In einem Cluster der .bsp (nicht im Festen, nicht ausserhalb)? Ohne .bsp: ja.
+    bool imCluster(const V& p) const {
+        if (!m_hatBsp) { return true; }
+        return bspCluster(*m_o.bspDaten, Vektor3f(static_cast<float>(p[0]), static_cast<float>(p[1]), static_cast<float>(p[2]))) >= 0;
+    }
+
+    // --- Wohin die Spielfigur kommt: Standplaetze auf begehbarer Kollision, verbunden durch Gehen (Stufen bis STEPSIZE), Springen
+    // ohne Macht (bis zur Sprunghoehe) und Fallen; geflutet von den Startpunkten, Spawnern, Teleport-Zielen und Gegenstaenden. Ohne
+    // einen davon (Testkarten) gilt jede Stelle als erreichbar, die in einem Cluster der .bsp liegt.
+    struct Knoten {
+        V p;
+        bool erreicht = false;
+    };
+    std::vector<Knoten> m_kn;
+    std::unordered_map<long long, std::vector<int>> m_knGitter;   // Zellen 32 x 32
+    bool m_mitErreichbar = false;
+    static constexpr double kKnotenZelle = 32.0;
+    static long long knZelle(double v) { return static_cast<long long>(std::floor(v / kKnotenZelle)); }
+    static long long knSchluessel(long long x, long long y) { return (x << 32) ^ (y & 0xFFFFFFFFLL); }
+
+    void knotenBauen() {
+        const auto dazu = [&](const V& p) {
+            // Platz fuer die Spielfigur (geduckt): bis zur Kollision darueber mindestens 40
+            if (m_w.strahl(p + V(0, 0, 0.1), V(0, 0, 1), m_fig.hoeheGeduckt(), Modus::Kollision, m_art).ja) { return; }
+            m_knGitter[knSchluessel(knZelle(p[0]), knZelle(p[1]))].push_back(static_cast<int>(m_kn.size()));
+            m_kn.push_back(Knoten{p, false});
+        };
+        m_w.ohneMover = true;   // Tueren stehen offen
+        for (const Vol& v : m_w.vol) {
+            if (!v.kollision || v.mover) { continue; }
+            for (const AbbildFlaeche& f : v.p->flaechen) {
+                const V n = f.ebene.normal();
+                if (n[2] < m_fig.gehen || f.punkte.size() < 3) { continue; }
+                for (const V& p : proben(f.punkte, n, kKnotenZelle, 4096)) {
+                    bool belegt = false;   // eine andere Kollision liegt auf der Flaeche
+                    m_w.enthaltend(p + V(0, 0, 0.25), 0.01, [&](const Vol& w) {
+                        if (&w != &v && w.kollision && !w.mover) { belegt = true; }
+                    });
+                    if (!belegt) { dazu(p); }
+                }
+            }
+        }
+        for (const Dr& d : m_w.dr) {
+            if (!d.kollision) { continue; }
+            const V a = nachV(d.a);
+            const V b = nachV(d.b);
+            const V c = nachV(d.c);
+            V n = kreuz(b - a, c - a);
+            const double l = std::sqrt(laengeQuadrat(n));
+            if (l < 1e-9) { continue; }
+            n = n * (1.0 / l);
+            if (n[2] < 0) { n = n * -1.0; }
+            if (n[2] < m_fig.gehen) { continue; }
+            for (const V& p : proben({a, b, c}, n, kKnotenZelle, 64)) { dazu(p); }
+        }
+        // Saat: Spieler- und Spawn-Punkte, NPC-Spawner, Teleport-Ziele, Gegenstaende
+        std::vector<int> offen;
+        for (const AbbildEntitaet& en : m_a.ents) {
+            const std::string k = klein(en.klasse);
+            const bool saat = k.rfind("info_player", 0) == 0 || k.rfind("npc_", 0) == 0 || k == "misc_teleporter_dest" || k == "target_position" ||
+                              k.rfind("item_", 0) == 0 || k.rfind("weapon_", 0) == 0 || k.rfind("ammo_", 0) == 0;
+            if (!saat) { continue; }
+            float o[3] = {0, 0, 0};
+            if (std::sscanf(en.wert("origin").c_str(), "%f %f %f", &o[0], &o[1], &o[2]) != 3) { continue; }
+            // der Boden unter dem Punkt (hoechstens 256 tiefer)
+            const Treffer t = m_w.strahl(V(o[0], o[1], o[2] + 1), V(0, 0, -1), 257, Modus::Kollision, m_art);
+            const V boden = t.ja && !t.innen ? V(o[0], o[1], o[2] + 1 - t.t) : V(o[0], o[1], o[2]);
+            int best = -1;
+            double bestAbstand = 64.0 * 64.0;
+            knotenBei(boden, 48, [&](int i) {
+                const V d = m_kn[static_cast<std::size_t>(i)].p - boden;
+                const double a2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+                if (std::fabs(d[2]) <= m_fig.stufe + 1 && a2 < bestAbstand) {
+                    bestAbstand = a2;
+                    best = i;
+                }
+            });
+            if (best >= 0 && !m_kn[static_cast<std::size_t>(best)].erreicht) {
+                m_kn[static_cast<std::size_t>(best)].erreicht = true;
+                offen.push_back(best);
+            }
+        }
+        m_mitErreichbar = !offen.empty();
+        // fluten: Nachbarn bis 48 waagerecht (zwei Zellen), hinauf bis zur Sprunghoehe, hinab beliebig; der Weg auf Brusthoehe frei
+        while (!offen.empty()) {
+            const int i = offen.back();
+            offen.pop_back();
+            const V pi = m_kn[static_cast<std::size_t>(i)].p;
+            knotenBei(pi, 48, [&](int j) {
+                Knoten& kj = m_kn[static_cast<std::size_t>(j)];
+                if (kj.erreicht) { return; }
+                const V d = kj.p - pi;
+                const double h = std::sqrt(d[0] * d[0] + d[1] * d[1]);
+                if (h > 48 || d[2] > m_fig.sprung) { return; }
+                const double z = std::max(pi[2], kj.p[2]) + (m_fig.oben + m_fig.unten) * 0.5 - m_fig.unten;   // Mitte der Spielfigur
+                if (h > 0.5) {
+                    const V von(pi[0], pi[1], z);
+                    const V dir(d[0] / h, d[1] / h, 0);
+                    if (m_w.strahl(von, dir, h, Modus::Kollision, m_art).ja) { return; }
+                }
+                kj.erreicht = true;
+                offen.push_back(j);
+            });
+        }
+        m_w.ohneMover = false;
+    }
+    template<class F>
+    void knotenBei(const V& p, double radius, F f) const {
+        const long long x0 = knZelle(p[0] - radius);
+        const long long x1 = knZelle(p[0] + radius);
+        const long long y0 = knZelle(p[1] - radius);
+        const long long y1 = knZelle(p[1] + radius);
+        for (long long x = x0; x <= x1; ++x) {
+            for (long long y = y0; y <= y1; ++y) {
+                const auto it = m_knGitter.find(knSchluessel(x, y));
+                if (it == m_knGitter.end()) { continue; }
+                for (const int i : it->second) { f(i); }
+            }
+        }
+    }
+    // Die zu Fuss verbundenen Flaechen (Standplaetze, Nachbarn bis 48 waagerecht und hoechstens STEPSIZE hoeher oder tiefer, der Weg
+    // frei; nur erreichte Plaetze, ohne Saat alle) und ihr Kasten waagerecht - fuer "Stufe": eine Kiste oder ein Pult hat eine
+    // kleine Deckflaeche, die zu Fuss mit nichts verbunden ist.
+    std::vector<int> m_knKomp;
+    std::vector<std::array<double, 4>> m_kompKasten;   // min x, min y, max x, max y
+    bool knRelevant(std::size_t i) const { return !m_mitErreichbar || m_kn[i].erreicht; }
+    void komponentenBauen() {
+        if (!m_knKomp.empty() || m_kn.empty()) { return; }
+        m_knKomp.assign(m_kn.size(), -1);
+        m_w.ohneMover = true;
+        for (std::size_t s0 = 0; s0 < m_kn.size(); ++s0) {
+            if (m_knKomp[s0] >= 0 || !knRelevant(s0)) { continue; }
+            const int c = static_cast<int>(m_kompKasten.size());
+            std::array<double, 4> kasten{1e30, 1e30, -1e30, -1e30};
+            std::vector<int> offen{static_cast<int>(s0)};
+            m_knKomp[s0] = c;
+            while (!offen.empty()) {
+                const int j = offen.back();
+                offen.pop_back();
+                const V pj = m_kn[static_cast<std::size_t>(j)].p;
+                kasten[0] = std::min(kasten[0], pj[0]);
+                kasten[1] = std::min(kasten[1], pj[1]);
+                kasten[2] = std::max(kasten[2], pj[0]);
+                kasten[3] = std::max(kasten[3], pj[1]);
+                knotenBei(pj, 48, [&](int k) {
+                    if (m_knKomp[static_cast<std::size_t>(k)] >= 0 || !knRelevant(static_cast<std::size_t>(k))) { return; }
+                    const V d = m_kn[static_cast<std::size_t>(k)].p - pj;
+                    const double h = std::sqrt(d[0] * d[0] + d[1] * d[1]);
+                    if (h > 48 || std::fabs(d[2]) > m_fig.stufe) { return; }
+                    if (h > 0.5) {
+                        const double z = std::max(pj[2], pj[2] + d[2]) + (m_fig.oben + m_fig.unten) * 0.5 - m_fig.unten;
+                        if (m_w.strahl(V(pj[0], pj[1], z), V(d[0] / h, d[1] / h, 0), h, Modus::Kollision, m_art).ja) { return; }
+                    }
+                    m_knKomp[static_cast<std::size_t>(k)] = c;
+                    offen.push_back(k);
+                });
+            }
+            m_kompKasten.push_back(kasten);
+        }
+        m_w.ohneMover = false;
+    }
+    // Gehoert p zu einer zu Fuss verbundenen Flaeche, die mindestens `mass` x `mass` gross ist (Kasten der Standplaetze plus eine
+    // Zelle)?
+    bool grosseFlaeche(const V& p, double mass) const {
+        int best = -1;
+        double bestAbstand = 40.0 * 40.0;
+        knotenBei(p, 40, [&](int i) {
+            if (m_knKomp[static_cast<std::size_t>(i)] < 0) { return; }
+            const V d = m_kn[static_cast<std::size_t>(i)].p - p;
+            const double a2 = d[0] * d[0] + d[1] * d[1];
+            if (std::fabs(d[2]) <= 2 && a2 <= bestAbstand) {
+                bestAbstand = a2;
+                best = i;
+            }
+        });
+        if (best < 0) { return false; }
+        const auto& k = m_kompKasten[static_cast<std::size_t>(m_knKomp[static_cast<std::size_t>(best)])];
+        return k[2] - k[0] + kKnotenZelle >= mass && k[3] - k[1] + kKnotenZelle >= mass;
+    }
+
+    // Ein erreichter Standplatz waagerecht hoechstens `radius` entfernt, dessen Hoehe zwischen p.z - unter und p.z + ueber liegt?
+    // Ohne Saat: in einem Cluster der .bsp (bzw. ohne .bsp ja).
+    bool erreichbarNahe(const V& p, double radius, double unter, double ueber) const {
+        if (!m_mitErreichbar) { return imCluster(p + V(0, 0, 1)); }
+        bool ja = false;
+        knotenBei(p, radius, [&](int i) {
+            if (ja) { return; }
+            const Knoten& k = m_kn[static_cast<std::size_t>(i)];
+            if (!k.erreicht) { return; }
+            const double dx = k.p[0] - p[0];
+            const double dy = k.p[1] - p[1];
+            if (dx * dx + dy * dy <= radius * radius && k.p[2] >= p[2] - unter && k.p[2] <= p[2] + ueber) { ja = true; }
+        });
+        return ja && imCluster(p + V(0, 0, 1));
+    }
+    bool gezeichnet(const std::string& shader) const {
+        const ShaderArt& a = m_art(shader);
+        return a.sichtbar && !a.werkzeug && !a.himmel;
+    }
+    // Liegt q in einem gezeichneten Pinsel (dann sieht man ihn statt der Flaeche: verdeckt), in einem festen, undurchsichtigen
+    // (caulk, nodraw: die Flaeche liegt im Festen) oder in einem unsichtbaren Kollisionspinsel (playerclip, terrain)? Gibt die
+    // hoechste Oberkante eines unsichtbaren Kollisionspinsels ueber q zurueck (-1e30: keiner).
+    // rampe: die Oberseite dieses Kollisionspinsels ist schraeg (eine Clip-Rampe ueber einer Treppe, wie die Liste sie verlangt)
+    double bedeckt(const V& q, bool& verdeckt, bool* rampe = nullptr) const {
+        verdeckt = false;
+        double oben = -1e30;
+        m_w.enthaltend(q, 0.01, [&](const Vol& v) {
+            if (v.gezeichnet || (v.inhalt & 0x8001) == 0x8001) {   // gezeichnet bzw. SOLID | OPAQUE
+                verdeckt = true;
+            } else if (v.kollision) {
+                double nz = 1;
+                const double z = Welt::obenAus(v, q, &nz);
+                if (z > oben) {
+                    oben = z;
+                    if (rampe != nullptr) { *rampe = nz < 0.99; }
+                }
+            }
+        });
+        return oben;
+    }
+
+    // --- Welt ---------------------------------------------------------------------------------------------
+    void weltBauen() {
+        const auto& ents = m_a.ents;
+        for (std::size_t e = 0; e < ents.size(); ++e) {
+            for (std::size_t k = 0; k < ents[e].prims.size(); ++k) {
+                const AbbildPrimitiv& pr = ents[e].prims[k];
+                if (pr.patch) {
+                    const ShaderArt& sa = m_art(pr.shader);
+                    Dr vorlage;
+                    vorlage.ent = static_cast<int>(e);
+                    vorlage.prim = static_cast<int>(k);
+                    vorlage.sichtbar = sa.sichtbar && !sa.werkzeug && !sa.himmel;
+                    vorlage.kollision = spielerKollision(sa);
+                    vorlage.fest = sa.sichtDeckend && !sa.cFluessig && !sa.cNebel;
+                    if (!vorlage.sichtbar && !vorlage.kollision) { continue; }
+                    patchDreiecke(pr, [&](const V& a, const V& b, const V& c) {
+                        Dr d = vorlage;
+                        d.a = Vektor3f(static_cast<float>(a[0]), static_cast<float>(a[1]), static_cast<float>(a[2]));
+                        d.b = Vektor3f(static_cast<float>(b[0]), static_cast<float>(b[1]), static_cast<float>(b[2]));
+                        d.c = Vektor3f(static_cast<float>(c[0]), static_cast<float>(c[1]), static_cast<float>(c[2]));
+                        m_w.dr.push_back(d);
+                    });
+                    continue;
+                }
+                if (pr.entartet || pr.flaechen.size() < 4) { continue; }
+                Vol v;
+                v.p = &pr;
+                v.ent = static_cast<int>(e);
+                v.prim = static_cast<int>(k);
+                v.inhalt = inhaltsShader(pr, m_art).inhalt;
+                v.kollision = (v.inhalt & (0x1 | 0x10 | 0x1000)) != 0;   // MASK_PLAYERSOLID
+                v.struktur = !pr.detail;
+                {
+                    const std::string kl = klein(ents[e].klasse);
+                    v.mover = kl.rfind("func_door", 0) == 0 || kl == "func_plat" || kl == "func_train" || kl == "func_rotating" || kl == "func_bobbing" ||
+                              kl == "func_pendulum";
+                }
+                bool alleDeckend = true;
+                for (const AbbildFlaeche& f : pr.flaechen) {
+                    const ShaderArt& sa = m_art(f.shader);
+                    if (sa.sichtbar && !sa.werkzeug && !sa.himmel && f.punkte.size() >= 3) { v.gezeichnet = true; }
+                    if (!sa.undurchsichtig) { alleDeckend = false; }
+                    if (!sa.undurchsichtig) { v.durchscheinend = true; }
+                    if (!sa.sichtbar && !sa.werkzeug) { v.nodrawSeite = true; }
+                }
+                v.verdeckend = v.gezeichnet && alleDeckend;
+                for (int i = 0; i < 3; ++i) {
+                    v.mn[i] = pr.mins[static_cast<std::size_t>(i)];
+                    v.mx[i] = pr.maxs[static_cast<std::size_t>(i)];
+                }
+                if (v.kollision || v.gezeichnet) { m_w.vol.push_back(v); }
+            }
+        }
+        m_modellKasten.assign(m_o.modelle.size(), {1e30, 1e30, 1e30, -1e30, -1e30, -1e30});
+        for (std::size_t i = 0; i < m_o.modelle.size(); ++i) {
+            const AbbildModell& m = m_o.modelle[i];
+            if (!m.modell || m.modell->null) { continue; }
+            auto& kasten = m_modellKasten[i];
+            for (std::size_t s = 0; s < m.modell->flaechen.size(); ++s) {
+                const ModellFlaeche& f = m.modell->flaechen[s];
+                const std::string sh = s < m.shader.size() ? m.shader[s] : f.shader;
+                if (sh.empty()) { continue; }   // die Skin bildet die Flaeche nicht ab
+                const ShaderArt& sa = m_art(sh);
+                Dr vorlage;
+                vorlage.ent = m.entitaet;
+                vorlage.modell = static_cast<int>(i);
+                vorlage.sichtbar = sa.sichtbar && !sa.werkzeug && !sa.himmel;
+                vorlage.kollision = m.eingebacken && clipFein(sa, m.spawnflags) && spielerKollision(sa);
+                vorlage.fest = sa.sichtDeckend && !sa.cFluessig && !sa.cNebel;
+                std::vector<Vektor3f> w;
+                w.reserve(f.punkte.size());
+                for (const ModellPunkt& p : f.punkte) {
+                    const Vektor3f q = transformierterPunkt(m.matrix, p.ort);
+                    w.push_back(q);
+                    if (vorlage.sichtbar) {
+                        for (int a = 0; a < 3; ++a) {
+                            kasten[static_cast<std::size_t>(a)] = std::min(kasten[static_cast<std::size_t>(a)], static_cast<double>(q[static_cast<std::size_t>(a)]));
+                            kasten[static_cast<std::size_t>(a + 3)] = std::max(kasten[static_cast<std::size_t>(a + 3)], static_cast<double>(q[static_cast<std::size_t>(a)]));
+                        }
+                    }
+                }
+                if (!vorlage.sichtbar && !vorlage.kollision) { continue; }
+                for (std::size_t t = 0; t + 2 < f.indizes.size(); t += 3) {
+                    const std::uint32_t i0 = f.indizes[t];
+                    const std::uint32_t i1 = f.indizes[t + 1];
+                    const std::uint32_t i2 = f.indizes[t + 2];
+                    if (i0 >= w.size() || i1 >= w.size() || i2 >= w.size()) { continue; }
+                    Dr d = vorlage;
+                    d.a = w[i0];
+                    d.b = w[i1];
+                    d.c = w[i2];
+                    m_w.dr.push_back(d);
+                }
+            }
+        }
+        m_w.ordnen();
+    }
+
+    // --- 1. Sicht gegen Kollision ---------------------------------------------------------------------------------
+    void sichtGegenKollision() {
+        static const char* const kQuelle =
+            "q3map2 games.cpp:787-848 (surfaceparm contents), map.cpp:455-503 SetBrushContents and writebsp.cpp:376 (the content shader of a "
+            "brush), model.cpp:970-999 clipflags_doClip (misc_model clip); OpenJK code/game/bg_public.h:716 MASK_PLAYERSOLID, :69 MIN_WALK_NORMAL, "
+            ":51-52 DEFAULT_MINS_2 / DEFAULT_MAXS_2; Clone Wars list: visible floor and collision at most 1 unit apart (adjustable)";
+        Befund fall = neu("laufohnekollision", Schwere::Warnung, kQuelle);
+        Befund abst = neu("kollisionsabstand", Schwere::Warnung, kQuelle);
+        Befund unsicht = neu("unsichtbarekollision", Schwere::Warnung, kQuelle);
+        const double tol = m_o.masse.toleranz;
+        const double hoehe = m_fig.hoehe();
+        double groesster = 0;
+        // eine sichtbare, begehbare Flaeche (Wicklung pts, Normale n)
+        const auto pruefe = [&](const std::vector<V>& pts, const V& n, ObjektRef ref) {
+            if (n[2] < m_fig.gehen) { return; }
+            bool faellt = false;
+            V fallPunkt;
+            double luecke = 0;
+            V schlimmst;
+            for (const V& p : proben(pts, n, 16, 64)) {
+                // die Spielfigur kommt hin: ein erreichter Standplatz daneben, von dem sie hinauf springen oder hinab fallen kann
+                if (!erreichbarNahe(p, 48, m_fig.sprung + 1, m_fig.hoehe() * 4)) { continue; }
+                bool verdeckt = false;
+                bool rampe = false;
+                const double oben = bedeckt(p + n * 0.25, verdeckt, &rampe);
+                if (verdeckt) { continue; }
+                if (oben > -1e29) {   // ein unsichtbarer Kollisionspinsel auf der Flaeche: man steht hoeher
+                    const double d = oben - p[2];
+                    if (rampe && d <= m_fig.stufe) { continue; }   // Clip-Rampe ueber einer Treppe: hoechstens eine Stufe ueber den Tritten
+                    if (d > tol && d <= hoehe && d > luecke) {
+                        luecke = d;
+                        schlimmst = p;
+                    }
+                    continue;
+                }
+                const Treffer t = m_w.strahl(p + V(0, 0, tol), V(0, 0, -1), tol + hoehe, Modus::Kollision, m_art);
+                if (!t.ja) {
+                    if (!faellt) {
+                        faellt = true;
+                        fallPunkt = p;
+                    }
+                    continue;
+                }
+                if (t.innen) { continue; }
+                const double d = t.t - tol;   // so weit liegt die Kollision unter der sichtbaren Flaeche
+                if (d > tol && d > luecke) {
+                    luecke = d;
+                    schlimmst = p;
+                }
+            }
+            if (faellt) {
+                ref.text += " at " + ort(fallPunkt);
+                punktSetzen(ref, fallPunkt);
+                add(fall, ref);
+            } else if (luecke > tol) {
+                ref.text += ": " + zahl(luecke) + " units at " + ort(schlimmst);
+                punktSetzen(ref, schlimmst);
+                add(abst, ref);
+                groesster = std::max(groesster, luecke);
+            }
+        };
+        for (const Vol& v : m_w.vol) {
+            for (std::size_t s = 0; s < v.p->flaechen.size(); ++s) {
+                const AbbildFlaeche& f = v.p->flaechen[s];
+                const ShaderArt& sa = m_art(f.shader);
+                if (!gezeichnet(f.shader) || !sa.sichtDeckend || sa.cFluessig || sa.cNebel || f.punkte.size() < 3) { continue; }
+                pruefe(f.punkte, f.ebene.normal(), flaechenRef(v, static_cast<int>(s)));
+            }
+        }
+        // Patches und Modelle: je Teil einmal (die erste Stelle)
+        std::set<std::pair<int, int>> gemeldet;
+        for (const Dr& d : m_w.dr) {
+            if (!d.sichtbar || !d.fest) { continue; }
+            const std::pair<int, int> teil = d.modell >= 0 ? std::make_pair(-1, d.modell) : std::make_pair(d.ent, d.prim);
+            if (gemeldet.count(teil) != 0) { continue; }
+            const V a = nachV(d.a);
+            const V b = nachV(d.b);
+            const V c = nachV(d.c);
+            V n = kreuz(b - a, c - a);
+            const double l = std::sqrt(laengeQuadrat(n));
+            if (l < 1e-9) { continue; }
+            n = n * (1.0 / l);
+            // Modelle und Patches sind beidseitig sichtbar: die Seite nach oben
+            if (n[2] < 0) { n = n * -1.0; }
+            const long long fa = fall.anzahl;
+            const long long ab = abst.anzahl;
+            pruefe({a, b, c}, n, dreieckRef(d));
+            if (fall.anzahl != fa || abst.anzahl != ab) { gemeldet.insert(teil); }
+        }
+        // Unsichtbare Kollision - nur wo die Spielfigur hinkommt (die Standplaetze; ohne Saat erst mit der .bsp des letzten Baus)
+        if (m_hatBsp || m_mitErreichbar) {
+            for (const Vol& v : m_w.vol) {
+                if (!v.kollision) { continue; }
+                for (std::size_t s = 0; s < v.p->flaechen.size(); ++s) {
+                    const AbbildFlaeche& f = v.p->flaechen[s];
+                    if (f.punkte.size() < 3 || gezeichnet(f.shader)) { continue; }
+                    const V n = f.ebene.normal();
+                    if (n[2] <= -m_fig.gehen) { continue; }   // Decken
+                    const bool boden = n[2] >= m_fig.gehen;
+                    for (const V& p : proben(f.punkte, n, 32, 16)) {
+                        // Boden: ein erreichter Standplatz darauf; Wand: einer davor, die Stelle hoechstens Koerper + Sprung darueber
+                        if (boden ? !erreichbarNahe(p, 24, 1, 1) : !erreichbarNahe(p + n * m_fig.halb, m_fig.halb + 16, m_fig.hoehe() + m_fig.sprung, 0)) {
+                            continue;
+                        }
+                        bool belegt = false;
+                        m_w.enthaltend(p + n * 0.25, 0.01, [&](const Vol& w) {
+                            if (&w != &v && (w.kollision || w.verdeckend)) { belegt = true; }
+                        });
+                        if (belegt) { continue; }
+                        const Treffer t = boden ? m_w.strahl(p + V(0, 0, tol), V(0, 0, -1), tol + m_fig.stufe, Modus::Sichtbar, m_art)
+                                                : m_w.strahl(p + n * tol, n * -1.0, tol + m_fig.halb, Modus::Sichtbar, m_art);
+                        if (t.ja) { continue; }
+                        ObjektRef r = flaechenRef(v, static_cast<int>(s));
+                        r.text += (boden ? " (floor) at " : " (wall) at ") + ort(p);
+                        punktSetzen(r, p);
+                        add(unsicht, r);
+                        break;
+                    }
+                }
+            }
+        }
+        if (fall.anzahl > 0) {
+            detailSetzen(fall, "%s visible walkable faces without collision below them (the player falls through)", {std::to_string(fall.anzahl)});
+            m_out.push_back(fall);
+        }
+        if (unsicht.anzahl > 0) {
+            detailSetzen(unsicht, "%s collision faces the player cannot see (invisible floor or wall)", {std::to_string(unsicht.anzahl)});
+            m_out.push_back(unsicht);
+        }
+        if (abst.anzahl > 0) {
+            detailSetzen(abst, "%s visible walkable faces more than %s units away from the collision (largest gap %s)",
+                         {std::to_string(abst.anzahl), zahl(tol), zahl(groesster)});
+            m_out.push_back(abst);
+        }
+    }
+
+};
+
+}  // namespace
+
+void pruefeClonewars(const KartenAbbild& a, const PruefOptionen& o, std::vector<Befund>& out, const std::function<const ShaderArt&(const std::string&)>& art) {
+    Cw(a, o, out, art).alle();
+}
+
+}  // namespace bhed::karte

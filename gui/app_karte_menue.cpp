@@ -1505,6 +1505,16 @@ void einstellungenLaden() {
     ed.optimierer.regelwerk = std::clamp(static_cast<int>(zahl("OptimizerRules", -1)), -1, 3);
     ed.optimierer.portalSchwelle = std::clamp(static_cast<int>(zahl("OptimizerPortals", 8000)), 100, 1000000);
     ed.optimierer.dreieckSchwelle = std::clamp(static_cast<int>(zahl("OptimizerTriangles", 20000)), 1000, 10000000);
+    // CW-PRUEF: die Masse der Clone-Wars-Pruefungen (Vorgaben aus der Anforderungsliste)
+    ed.optimierer.masse.toleranz = std::clamp(static_cast<double>(zahl("OptimizerTolerance", 1.0F)), 0.1, 64.0);
+    ed.optimierer.masse.deckung = std::clamp(static_cast<double>(zahl("OptimizerCoplanar", 2.0F)), 0.1, 64.0);
+    ed.optimierer.masse.tuerHoehe = std::clamp(static_cast<double>(zahl("OptimizerDoorHeight", 110.0F)), 16.0, 4096.0);
+    ed.optimierer.masse.tuerBreite = std::clamp(static_cast<double>(zahl("OptimizerDoorWidth", 64.0F)), 16.0, 4096.0);
+    ed.optimierer.masse.gangHoehe = std::clamp(static_cast<double>(zahl("OptimizerCorridorHeight", 128.0F)), 16.0, 4096.0);
+    ed.optimierer.masse.gangBreite = std::clamp(static_cast<double>(zahl("OptimizerCorridorWidth", 96.0F)), 16.0, 4096.0);
+    ed.optimierer.masse.stufenFlaeche = std::clamp(static_cast<double>(zahl("OptimizerStepArea", 96.0F)), 0.0, 4096.0);
+    ed.optimierer.masse.bildMin = std::clamp(static_cast<int>(zahl("OptimizerImageMin", 64)), 1, 8192);
+    ed.optimierer.masse.bildMax = std::clamp(static_cast<int>(zahl("OptimizerImageMax", 2048)), 1, 16384);
     {
         const auto it = k.find("RegionBoxShader");
         ed.regionKastenShader = it != k.end() ? it->second : std::string();
@@ -1830,6 +1840,22 @@ void einstellungenSpeichern() {
     k["OptimizerRules"] = std::to_string(ed.optimierer.regelwerk);
     k["OptimizerPortals"] = std::to_string(ed.optimierer.portalSchwelle);
     k["OptimizerTriangles"] = std::to_string(ed.optimierer.dreieckSchwelle);
+    {   // CW-PRUEF
+        const auto z = [](double v) {
+            char t[32];
+            std::snprintf(t, sizeof(t), "%g", v);
+            return std::string(t);
+        };
+        k["OptimizerTolerance"] = z(ed.optimierer.masse.toleranz);
+        k["OptimizerCoplanar"] = z(ed.optimierer.masse.deckung);
+        k["OptimizerDoorHeight"] = z(ed.optimierer.masse.tuerHoehe);
+        k["OptimizerDoorWidth"] = z(ed.optimierer.masse.tuerBreite);
+        k["OptimizerCorridorHeight"] = z(ed.optimierer.masse.gangHoehe);
+        k["OptimizerCorridorWidth"] = z(ed.optimierer.masse.gangBreite);
+        k["OptimizerStepArea"] = z(ed.optimierer.masse.stufenFlaeche);
+        k["OptimizerImageMin"] = std::to_string(ed.optimierer.masse.bildMin);
+        k["OptimizerImageMax"] = std::to_string(ed.optimierer.masse.bildMax);
+    }
     k["RegionBoxShader"] = ed.regionKastenShader;
     k["GridDefault"] = std::to_string(ed.rasterStandard);
     k["GridMaxCoordPower"] = std::to_string(ed.rasterMaxPotenz);

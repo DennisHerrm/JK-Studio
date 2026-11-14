@@ -1511,6 +1511,8 @@ target_sources(bhed_core PRIVATE
   src/karte/optimierer.cpp
   # Stufe 5 Punkt 3: Pruefungen auf Bauprobleme
   src/karte/optimierer_pruefen.cpp
+  # CW-PRUEF: Pruefungen der Clone-Wars-Kette (Sicht gegen Kollision, Masse, Texturen, Modelle, Requisiten)
+  src/karte/optimierer_cw.cpp
   # Stufe 5 Punkt 4: Beheben auf Knopfdruck (mit Rueckgaengig)
   src/karte/optimierer_beheben.cpp
   # Stufe 7 Punkt 5: Echtzeit-Licht (die Lichter der Karte wie q3map2 -light)
@@ -2018,7 +2020,7 @@ if(BEHAVED_TESTS)
   add_test(NAME karte_meshtex COMMAND kartemeshtex)
   # Stufe 5 Punkt 1: die Grenzen-Tabelle gegen die Quelltexte der Engines
   # (Wert und Zeile jedes #define/constexpr, JK2_MODE-Zweige, Pruefstellen).
-  # Ohne -DBEHAVED_OPENJK_QUELLEN=<oj> / -DBEHAVED_MD_QUELLEN=<mdgit> werden
+  # Ohne -DBEHAVED_OPENJK_QUELLEN=<oj> / -DBEHAVED_MD_QUELLEN=<md9> werden
   # deren Stellen uebersprungen; q3map2 liegt unter third_party.
   set(BEHAVED_OPENJK_QUELLEN "" CACHE PATH "OpenJK-Quelltext (Ordner mit code/, codemp/, codeJK2/), nur lesen")
   set(BEHAVED_MD_QUELLEN "" CACHE PATH "Movie-Duels-Quelltext (Ordner mit code/), nur lesen")
@@ -2033,6 +2035,10 @@ if(BEHAVED_TESTS)
   add_test(NAME karte_optimierer COMMAND karteoptimierer "${BEHAVED_KARTE_JA}" "${BEHAVED_KARTE_JK2}" "${BEHAVED_KARTE_MD}"
            ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2)
   set_tests_properties(karte_optimierer PROPERTIES TIMEOUT 1800)
+  # CW-PRUEF: die Pruefungen der Clone-Wars-Kette (Sicht gegen Kollision, Masse, Texturen, Modelle, Requisiten)
+  add_executable(kartecwpruef tests/kartecwpruef.cpp)
+  target_link_libraries(kartecwpruef PRIVATE bhed_core)
+  add_test(NAME karte_cwpruef COMMAND kartecwpruef)
   add_executable(kartebefehle tests/kartebefehle.cpp)
   target_link_libraries(kartebefehle PRIVATE bhed_core)
   add_test(NAME karte_befehle COMMAND kartebefehle ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)

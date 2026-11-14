@@ -2392,6 +2392,8 @@ from i18n_ap11 import zeilen_vier as _ap11  # noqa: E402  (AP11: Modelle in Reit
 S += _ap11()
 from i18n_test1411 import zeilen_vier as _test1411  # noqa: E402  (TEST1411: Testrueckmeldungen von shank zu rc612)
 S += _test1411()
+from i18n_cwpruef import zeilen_vier as _cwpruef  # noqa: E402  (CW-PRUEF: Pruefungen der Clone-Wars-Kette im Optimierer, JSON-Bericht)
+S += _cwpruef()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

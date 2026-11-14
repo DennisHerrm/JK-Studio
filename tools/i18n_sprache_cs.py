@@ -3163,3 +3163,5 @@ TEXTE.update(_test1411("cs"))
 TEXTE.update({_e[0]: _e[1] for _e in _nrc()})
 from i18n_ent3b import texte as _ent3b  # noqa: E402
 TEXTE.update(_ent3b("cs"))
+from i18n_cwpruef import texte as _cwpruef  # noqa: E402
+TEXTE.update(_cwpruef("cs"))

@@ -58,6 +58,7 @@
 #include "bhed/karte/texturliste.h"
 #include "bhed/karte/kartendatei.h"
 #include "bhed/karte/modell.h"
+#include "bhed/karte/optimierer.h"
 #include "bhed/karte/region.h"
 #include "bhed/karte/spielbeschreibung.h"
 #include "bhed/karte/kamera.h"
@@ -1136,6 +1137,7 @@ struct Editor {
         int regelwerk = -1;                // -1 automatisch (Spiel der Karte), sonst karte::GrenzSpiel ("OptimizerRules")
         int portalSchwelle = 8000;         // VIS-Hinweis ab so vielen Portalen ("OptimizerPortals")
         int dreieckSchwelle = 20000;       // Dreieck-Hinweis ab ("OptimizerTriangles")
+        karte::CwMasse masse;              // CW-PRUEF: Toleranz, Abstand, Tuer-/Gangmasse, Bildgrenzen ("OptimizerTolerance" ...)
     } optimierer;
     // Stufe 7: Echtzeit-Licht (eigene Funktion, nicht in NRC; Build-Menue)
     struct EchtLichtZustand {
@@ -1808,6 +1810,11 @@ void optimiererBeenden();                // beim Beenden: den Faden abwarten
 void npcModelleVorab();                  // Stufe 7: NPC-Dateien fuer den Optimierer im Faden lesen (einmal)
 [[nodiscard]] std::string optimiererBericht();                  // der Textbericht (Programmsprache)
 bool optimiererBerichtSchreiben(const std::string& pfad);
+// CW-PRUEF: derselbe Bericht als JSON mit Koordinaten (Englisch, fuer andere Werkzeuge): Grenzen, Befunde mit Objekten und
+// "position" [x, y, z], die Shader und Bilder der Karte
+[[nodiscard]] std::string optimiererBerichtJson();
+bool optimiererBerichtJsonSchreiben(const std::string& pfad);
+void optimiererJsonExportieren();        // der Knopf "JSON..." (Dateiauswahl, Meldung)
 // Fuer den Selbsttest
 struct OptimiererBlick {
     bool hatErgebnis = false;

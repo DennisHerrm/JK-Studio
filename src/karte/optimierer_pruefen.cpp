@@ -271,7 +271,11 @@ const char* const kOptimiererDetailVorlagen[] = {
     "%s small, thin or angled structural brushes without a face at the void in the last build (suggestion: detail), %s more seal the map",
     "%s entities the game loads at run time with a model format it cannot load (misc_model_static: only .md3, otherwise .md3 or .glm)",
     "%s shaders stop the game with ERR_DROP when it loads or draws them (%s)",
-    "%s shaders are defined more than once, and the build takes another definition than the game (%s)"
+    "%s shaders are defined more than once, and the build takes another definition than the game (%s)",
+    // CW-PRUEF (optimierer_cw.cpp)
+    "%s visible walkable faces without collision below them (the player falls through)",
+    "%s collision faces the player cannot see (invisible floor or wall)",
+    "%s visible walkable faces more than %s units away from the collision (largest gap %s)"
 };
 const std::size_t kOptimiererDetailVorlagenAnzahl = sizeof(kOptimiererDetailVorlagen) / sizeof(kOptimiererDetailVorlagen[0]);
 
@@ -289,11 +293,17 @@ ShaderArt shaderArtNachName(const std::string& shader) {
         a.werkzeug = true;
         a.sichtbar = false;
         a.undurchsichtig = false;   // clip, trigger, hint, skip, areaportal, origin, nodrawnonsolid, ...
+        // CW-PRUEF: ohne Skript nach dem Namen wie die Shader von Jedi Academy (shaders/common.shader, system.shader):
+        // clip / playerclip / full_clip "surfaceparm playerclip", sonst nicht fest fuer die Spielfigur
+        a.cSolid = false;
+        a.inhalt = (n == "clip" || n == "playerclip" || n == "full_clip" || n == "physics_clip") ? 0x10 : 0;
+        if (n == "trigger") { a.inhalt = 0x400; }
         return a;
     }
     for (const char* t : {"glass", "water", "fog", "trans", "window", "alpha", "grate", "fence", "liquid", "lava", "slime", "force_field", "forcefield"}) {
         if (s.find(t) != std::string::npos) {
             a.undurchsichtig = false;
+            a.sichtDeckend = false;   // CW-PRUEF
             break;
         }
     }
@@ -1380,6 +1390,8 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
         }
     }
     messen("bekannt");
+    // --- CW-PRUEF: Sicht gegen Kollision, fast deckungsgleiche Flaechen, Stufen, Masse, Texturen, Modelle, Requisiten ----
+    pruefeClonewars(a, o, out, [&](const std::string& s) -> const ShaderArt& { return artVon(o, s, vorrat); });
     return out;
 }
 
@@ -1479,6 +1491,53 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, const std::vector<in
         if (parm == "nodraw") { r.nichtZeichnen = true; }
         if (parm == "nolightmap" || parm == "pointlight") { r.eckLicht = true; }
         if (parm == "fog") { r.nebel = true; }
+        // CW-PRUEF: die Inhalte wie ApplySurfaceParm (shaders.cpp:230-245: erst contentFlagsClear weg, dann contentFlags dazu)
+        // mit der Tafel von games.cpp:800-848 (game_sof2, auch Jedi Academy und Jedi Outcast)
+        struct Parm {
+            const char* name;
+            int dazu;
+            int weg;
+            bool cSolidWeg;
+            bool fluessig;
+        };
+        constexpr int kSolid = 0x1;
+        constexpr int kOpak = 0x8000;
+        static const Parm kTafel[] = {
+            {"origin", 0, kSolid, true, false},
+            {"areaportal", 0, kSolid | kOpak, true, false},   // S_CONT_TRANSLUCENT (Bit 31) zaehlt hier nicht
+            {"detail", 0x08000000, 0, false, false},
+            {"nonsolid", 0, kSolid, true, false},
+            {"nonopaque", 0, kOpak, false, false},
+            {"trigger", 0x400, kSolid | kOpak, true, false},
+            {"water", 0x4, kSolid, true, true},
+            {"slime", 0x20000, kSolid, true, true},
+            {"lava", 0x2, kSolid, true, true},
+            {"shotclip", 0x80, kSolid | kOpak, true, false},
+            {"playerclip", 0x10, kSolid | kOpak, true, false},
+            {"monsterclip", 0x20, kSolid | kOpak, true, false},
+            {"nodrop", 0x800, kSolid | kOpak, true, false},
+            {"terrain", 0x1000, kSolid | kOpak, true, false},
+            {"ladder", 0x2000, kSolid | kOpak, true, false},
+            {"abseil", 0x4000, kSolid | kOpak, true, false},
+            {"outside", 0x10000, kSolid | kOpak, true, false},
+            {"botclip", 0x40, kSolid | kOpak, true, false},
+            {"fog", 0x8, kSolid | kOpak, true, false},
+        };
+        for (const Parm& p : kTafel) {
+            if (parm != p.name) { continue; }
+            r.inhalt = (r.inhalt & ~p.weg) | p.dazu;
+            if (p.cSolidWeg) { r.cSolid = false; }
+            if (p.fluessig) { r.cFluessig = true; }
+            if (parm == "fog") { r.cNebel = true; }
+        }
+    };
+    // CW-PRUEF: ein Bild, das das Spiel laedt (R_FindImageFile; nicht $lightmap/$whiteimage/*white), mit der Endung aus dem
+    // Skript - R_LoadImage versucht sie zuerst (rd-common/tr_image_load.cpp:110-119)
+    const auto bildDazu = [&r](std::string b) {
+        if (b.empty() || b[0] == '$' || b[0] == '*') { return; }
+        std::replace(b.begin(), b.end(), '\\', '/');
+        b = klein(b);
+        if (std::find(r.bilder.begin(), r.bilder.end(), b) == r.bilder.end()) { r.bilder.push_back(b); }
     };
     for (std::size_t j = i + 1; j < w.size(); ++j) {
         if (w[j] == "{") {
@@ -1532,6 +1591,16 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, const std::vector<in
             const bool zahl = j + 2 < w.size() && !w[j + 2].empty() &&
                               (std::isdigit(static_cast<unsigned char>(w[j + 2][0])) != 0 || w[j + 2][0] == '.' || w[j + 2][0] == '-');
             r.portalWeite = zahl ? std::atof(w[j + 2].c_str()) : 256.0;
+        }
+        if (t == 2) {
+            // CW-PRUEF: die Bilder jeder Stufe (tr_shader.cpp ParseStage: map / clampMap <bild>, animMap <freq> <bild> ...)
+            const std::string k = klein(w[j]);
+            if ((k == "map" || k == "clampmap") && j + 1 < w.size()) {
+                bildDazu(w[j + 1]);
+            } else if (k == "animmap") {
+                const std::vector<std::string> v = werte(j);
+                for (std::size_t q = 1; q < v.size(); ++q) { bildDazu(v[q]); }
+            }
         }
         if (t == 2 && stufe == 1) {
             // die erste Stufe (tr_shader.cpp ParseStage): mischt sie oder schneidet sie aus?
@@ -1656,6 +1725,15 @@ ShaderSkript skriptBlock(const std::vector<std::string>& w, const std::vector<in
             r.lichtUnterteilung = std::atof(w[j + 1].c_str());
         } else if (k == "skyparms" && j + 1 < w.size()) {   // shaders.cpp: si.skyParmsImageBase ("-" = keine)
             r.himmelsBild = w[j + 1] == "-" ? std::string() : w[j + 1];
+            // CW-PRUEF: ParseSkyParms (tr_shader.cpp:1955-2000): <farbox>_rt/lf/bk/ft/up/dn und <innerbox>_... ("-" = keine)
+            for (const std::size_t q : {j + 1, j + 3}) {
+                if (q >= w.size() || w[q] == "-" || w[q] == "{" || w[q] == "}" || (q < zeilen.size() && zeilen[q] != zeilen[j])) { continue; }
+                for (const char* s : {"rt", "lf", "bk", "ft", "up", "dn"}) { bildDazu(w[q] + "_" + s); }
+            }
+        } else if (k == "polygonoffset") {   // CW-PRUEF: shaders.cpp si.polygonOffset (CullSides, SideInBrush lassen die Flaeche stehen)
+            r.versatz = true;
+        } else if (k == "q3map_clipmodel") {   // CW-PRUEF: shaders.cpp:1695 si.clipModel
+            r.clipModell = true;
         } else if (k == "q3map_lightimage" && j + 1 < w.size()) {   // shaders.cpp:1020
             r.lichtBild = w[j + 1];
         } else if (k == "cull" && j + 1 < w.size()) {   // shaders.cpp: "cull none/twosided/disable" -> si.twoSided
