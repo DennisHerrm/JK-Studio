@@ -1066,12 +1066,14 @@ void drawTimeline() {
             mmss(jetzt, sizeof(jetzt), g_app->playMs, "");
             mmss(gesamt, sizeof(gesamt), t.durationMs, " / ");
         }
-        const ImVec2 t1 = ImGui::CalcTextSize(jetzt);
-        const ImVec2 t2 = ImGui::CalcTextSize(gesamt);
+        // TEST1411 F: so breit wie bei der Gesamtzeit (die laengste Zahl), Ziffern in festen Zellen (ziffern.h), die laufende Zeit
+        // rechtsbuendig - beim Abspielen rutschen Schleife, Tempo und die Knoepfe daneben nicht mehr
+        const float b1 = std::max(zifferBreite(gesamt + 3), zifferBreite(jetzt));   // gesamt: " / " und die Gesamtzeit
+        const float b2 = zifferBreite(gesamt);
         const float hh = ImGui::GetFrameHeight();
         const float pad = fsT * 0.4F;
         if (ImGui::InvisibleButton(tr(g_app->timelineFrames ? Str::TlUnitFrames : Str::TlUnitSeconds),
-                                   ImVec2{t1.x + t2.x + pad * 2.0F, hh})) {
+                                   ImVec2{std::floor(b1 + b2 + pad * 2.0F), hh})) {
             g_app->timelineFrames = !g_app->timelineFrames;
         }
         const ImVec2 a = ImGui::GetItemRectMin();
@@ -1080,9 +1082,9 @@ void drawTimeline() {
         dlT->AddRectFilled(a, b,
                            ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_ButtonHovered : ImGuiCol_FrameBg),
                            ImGui::GetStyle().FrameRounding + 2.0F);
-        const float ty = a.y + (hh - t1.y) * 0.5F;
-        dlT->AddText(ImVec2{a.x + pad, ty}, ImGui::GetColorU32(ImGuiCol_Text), jetzt);
-        dlT->AddText(ImVec2{a.x + pad + t1.x, ty}, ImGui::GetColorU32(ImGuiCol_TextDisabled), gesamt);
+        const float ty = a.y + (hh - ImGui::GetFontSize()) * 0.5F;
+        zifferText(dlT, ImVec2{a.x + pad + b1 - zifferBreite(jetzt), ty}, ImGui::GetColorU32(ImGuiCol_Text), jetzt);
+        zifferText(dlT, ImVec2{a.x + pad + b1, ty}, ImGui::GetColorU32(ImGuiCol_TextDisabled), gesamt);
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) { ImGui::SetTooltip("%s", tr(Str::TlUnitHint)); }
     }
     trenner();

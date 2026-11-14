@@ -22,6 +22,7 @@
 #include "app_internal.h"
 #include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "textumbruch.h"
+#include "ziffern.h"   // TEST1411 F: Ziffern fester Breite
 
 #include <algorithm>
 #include <cctype>
@@ -440,18 +441,35 @@ void transport(const AnimEntry* e, Reihe& r) {
                   static_cast<double>(rel) / static_cast<double>(std::max(std::abs(fps), 1)));
     t.zaehlungText = std::string(jetzt) + gesamt;   // Selbsttest
     if (!blender) {
-        const ImVec2 t1 = ImGui::CalcTextSize(jetzt);
-        const ImVec2 t2 = ImGui::CalcTextSize(gesamt);
-        if (r.teil(std::floor(t1.x + t2.x + fs * 0.8F), weit)) {
+        // TEST1411 F (shank 14.11.: "Verschieben sich immer die buttons rechts von dem Aktiven FRame count. das sollte still sitzen"):
+        // die Anzeige so breit wie bei ihrem groessten Wert (letztes Bild, dessen Zeit), Ziffern in festen Zellen (ziffern.h); das
+        // aktuelle Bild und die Zeit rechtsbuendig in ihrem Feld - beim Abspielen bewegt sich nur die Zahl, kein Knopf daneben
+        const int letztes = e != nullptr ? std::max(e->numFrames - 1 + ab, 0) : 0;
+        char jetztMax[32];
+        char kopf[32];
+        char zeit[32];
+        char zeitMax[32];
+        std::snprintf(jetztMax, sizeof jetztMax, "%d", letztes);
+        std::snprintf(kopf, sizeof kopf, " / %d   ", letztes);
+        std::snprintf(zeit, sizeof zeit, "%.2f s", static_cast<double>(rel) / static_cast<double>(std::max(std::abs(fps), 1)));
+        std::snprintf(zeitMax, sizeof zeitMax, "%.2f s", static_cast<double>(std::max(letztes - ab, 0)) / static_cast<double>(std::max(std::abs(fps), 1)));
+        const float b1 = zifferBreite(jetztMax);
+        const float bk = zifferBreite(kopf);
+        const float bz = zifferBreite(zeitMax);
+        const float breite = std::floor(b1 + bk + bz + fs * 0.8F);
+        if (r.teil(breite, weit)) {
             probeTeil("bildanzeige");
             const float hh = ImGui::GetFrameHeight();
-            ImGui::Dummy(ImVec2{std::floor(t1.x + t2.x + fs * 0.8F), hh});
+            ImGui::Dummy(ImVec2{breite, hh});
             const ImVec2 a = ImGui::GetItemRectMin();
             const ImVec2 b = ImGui::GetItemRectMax();
             ImDrawList* dl = ImGui::GetWindowDrawList();
             dl->AddRectFilled(a, b, ImGui::GetColorU32(ImGuiCol_FrameBg), ImGui::GetStyle().FrameRounding);
-            dl->AddText(ImVec2{a.x + fs * 0.4F, a.y + (hh - t1.y) * 0.5F}, ImGui::GetColorU32(ImGuiCol_Text), jetzt);
-            dl->AddText(ImVec2{a.x + fs * 0.4F + t1.x, a.y + (hh - t1.y) * 0.5F}, ImGui::GetColorU32(ImGuiCol_TextDisabled), gesamt);
+            const float y = a.y + (hh - ImGui::GetFontSize()) * 0.5F;
+            const float x0 = a.x + fs * 0.4F;
+            zifferText(dl, ImVec2{x0 + b1 - zifferBreite(jetzt), y}, ImGui::GetColorU32(ImGuiCol_Text), jetzt);
+            zifferText(dl, ImVec2{x0 + b1, y}, ImGui::GetColorU32(ImGuiCol_TextDisabled), kopf);
+            zifferText(dl, ImVec2{x0 + b1 + bk + bz - zifferBreite(zeit), y}, ImGui::GetColorU32(ImGuiCol_TextDisabled), zeit);
             if (e != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) { ImGui::SetTooltip(tr(Str::MbGlaBild), g_app->animFrame, rel); }
         }
         // 3. Auto Key (N), Set Key (K), Zeitkonfiguration

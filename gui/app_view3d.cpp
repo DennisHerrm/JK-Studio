@@ -11,6 +11,7 @@
 #include "app_internal.h"
 #include "ui_menue.h"   // KLEIN2: ui::menue - Menues bleiben im Fenster
 #include "textumbruch.h"
+#include "ziffern.h"   // TEST1411 F: Ziffern fester Breite in der Zeitanzeige
 #include "tour.h"   // H2: die Kamerazeile der Zeitleiste als Ziel der Touren
 
 #include "gpumap.h"
