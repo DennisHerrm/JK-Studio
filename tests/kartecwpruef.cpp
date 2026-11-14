@@ -76,6 +76,7 @@ const std::string kTrigger = "textures/common/trigger";
 PruefOptionen optionen() {
     PruefOptionen o;
     o.spiel = GrenzSpiel::JkaSp;
+    o.clonewars = true;   // CW-IMPORT: die Pruefungen laufen nur mit dem Schalter
     ShaderArt luft;
     luft.cSolid = false;
     luft.inhalt = 0x8000;   // nonsolid: SOLID weg
@@ -464,8 +465,51 @@ std::string lies(const std::string& pfad) {
 
 }  // namespace
 
+
+// CW-IMPORT (shank 14.11. "drin, aber nicht Standard"): ohne den Schalter keine der 16 Pruefungen, die alten Befunde gleich, die Liste
+// der Shader und Bilder fuer den Textbericht trotzdem
+void testeSchalter() {
+    static const std::set<std::string> kNeu = {"laufohnekollision", "unsichtbarekollision", "kollisionsabstand", "fastdeckungsgleich", "stufehoch",
+                                               "tuerklein", "durchgangeng", "gangeng", "bildnpot", "bildfehlt", "bildgroesse", "modellteilflaeche",
+                                               "modellweltkoord", "md3grenzen", "requisitschwebt", "requisitsteckt"};
+    // Boden, eine Stufe 24 (stufehoch) und ein nicht fester Deckel 4 ueber dem Boden (kollisionsabstand)
+    const KartenAbbild a = welt({kasten(-256, -256, -16, 256, 256, 0, kFest), kasten(0, -64, 0, 128, 64, 24, kFest), kasten(-200, -60, 0, -100, 60, 4, kNichtFest)});
+    PruefOptionen an = optionen();
+    PruefOptionen aus = optionen();
+    aus.clonewars = false;
+    CwInventar invAus;
+    aus.inventar = &invAus;
+    const std::vector<Befund> bAn = pruefen(a, an);
+    const std::vector<Befund> bAus = pruefen(a, aus);
+    long long cwAn = 0;
+    long long cwAus = 0;
+    std::vector<std::string> altAn;
+    std::vector<std::string> altAus;
+    for (const Befund& x : bAn) {
+        if (kNeu.count(x.pruefung) != 0U) {
+            ++cwAn;
+        } else {
+            altAn.push_back(x.pruefung + " " + std::to_string(x.anzahl) + " " + x.detail);
+        }
+    }
+    for (const Befund& x : bAus) {
+        if (kNeu.count(x.pruefung) != 0U) {
+            ++cwAus;
+        } else {
+            altAus.push_back(x.pruefung + " " + std::to_string(x.anzahl) + " " + x.detail);
+        }
+    }
+    pruefe(cwAn >= 2, "Schalter an: die Clone-Wars-Pruefungen melden (stufehoch, kollisionsabstand)");
+    pruefe(cwAus == 0, "Schalter aus (Vorgabe): keine Clone-Wars-Pruefung meldet etwas");
+    pruefe(altAn == altAus, "Schalter aus: die uebrigen Befunde sind dieselben wie mit dem Schalter");
+    pruefe(PruefOptionen{}.clonewars == false, "Vorgabe: Schalter aus");
+    pruefe(std::find(invAus.shader.begin(), invAus.shader.end(), "textures/test/fest") != invAus.shader.end(),
+           "Schalter aus: die Liste der Shader fuer den Textbericht entsteht trotzdem");
+}
+
 int main(int argc, char** argv) {
     testeShaderInhalte();
+    testeSchalter();
     testeSpielfigur();
     testeBildKopf();
     testeSichtGegenKollision();
@@ -486,6 +530,7 @@ int main(int argc, char** argv) {
         std::string bsp = argc > 2 ? lies(argv[2]) : std::string();
         PruefOptionen o;
         o.spiel = GrenzSpiel::JkaSp;
+        o.clonewars = true;
         o.bspDaten = bsp.empty() ? nullptr : &bsp;
         std::vector<std::pair<std::string, double>> zeiten;
         o.zeiten = &zeiten;

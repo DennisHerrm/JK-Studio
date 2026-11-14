@@ -6911,6 +6911,11 @@ enum class Str {
     KeOptJsonFehler,
     KeOptRkZentrieren,
     KeOptBerichtTexturen,
+    KeCwProfil,
+    KeCwProfilStandard,
+    KeCwProfilClonewars,
+    KeCwMenue,
+    KeCwProfilTip,
     Count,
 };
 

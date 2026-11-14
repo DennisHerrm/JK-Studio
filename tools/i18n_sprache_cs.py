@@ -3165,3 +3165,5 @@ from i18n_ent3b import texte as _ent3b  # noqa: E402
 TEXTE.update(_ent3b("cs"))
 from i18n_cwpruef import texte as _cwpruef  # noqa: E402
 TEXTE.update(_cwpruef("cs"))
+from i18n_cwimport import texte as _cwimport  # noqa: E402
+TEXTE.update(_cwimport("cs"))

@@ -1404,7 +1404,12 @@ std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o) {
     }
     messen("bekannt");
     // --- CW-PRUEF: Sicht gegen Kollision, fast deckungsgleiche Flaechen, Stufen, Masse, Texturen, Modelle, Requisiten ----
-    pruefeClonewars(a, o, out, [&](const std::string& s) -> const ShaderArt& { return artVon(o, s, vorrat); });
+    // CW-IMPORT: nur mit dem Schalter (ab Werk aus); ohne ihn nur die Liste der Shader und Bilder fuer den Textbericht
+    if (o.clonewars) {
+        pruefeClonewars(a, o, out, [&](const std::string& s) -> const ShaderArt& { return artVon(o, s, vorrat); });
+    } else {
+        clonewarsInventar(a, o, [&](const std::string& s) -> const ShaderArt& { return artVon(o, s, vorrat); });
+    }
     return out;
 }
 

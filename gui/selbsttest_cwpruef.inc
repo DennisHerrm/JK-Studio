@@ -210,6 +210,38 @@ std::vector<Schritt> schritte() {
         }
         return ke::optimiererBlick().hatErgebnis;
     }));
+    // CW-IMPORT (shank 14.11.: drin, aber nicht Standard): ohne das Pruefprofil meldet der Fehlerraum keine der 16 Pruefungen, und der
+    // Knopf JSON fehlt; das Profil kommt per Klick auf Build > Clone-Wars-Kette
+    auto profilVorher = std::make_shared<bool>(false);
+    add(tu("CW-IMPORT: Pruefprofil Standard (Vorgabe), Raum mit Fehlern, Optimierer", [st, laeufe, profilVorher] {
+        *profilVorher = ke::editor().optimierer.clonewars;
+        ke::editor().optimierer.clonewars = false;
+        stufe2::testDateiSchreiben(fehlerKarte(), fehlerText(*st));
+        (void)ke::karteOeffnen(fehlerKarte());
+        ke::editor().karte.auswahl.leeren();
+        *laeufe = ke::optimiererBlick().laeufe;
+        ke::optimiererStarten();
+    }));
+    add(stufe5::warteOptimierer("CW-IMPORT: Optimierer fertig (Profil Standard)", laeufe));
+    add(pruefe("CW-IMPORT: Profil Standard - keine der 16 Clone-Wars-Pruefungen meldet etwas, alte Befunde da, kein Knopf JSON", [] {
+        diag::detail("Knopftest: CW-IMPORT Profil Standard - Befunde " + stufe5::befundListe());
+        for (const char* id : kNeu) {
+            if (stufe5::hatBefund(id)) { return false; }
+        }
+        return ke::optimiererBlick().hatErgebnis && finde(std::string(ke::trK(Str::KeOptJson)) + "##optjson", "", 0, true) == nullptr;
+    }));
+    add(klick(ke::trK(Str::KeLBuild), "###main"));
+    add(pause(0.25));
+    add(pruefe("CW-IMPORT: Build-Menue - \"Clone-Wars-Kette (erweiterte Pruefungen)\" nach \"Optimizer...\", ohne Haken", [] {
+        return finde(std::string(ke::trK(Str::KeCwMenue)) + "##bauclonewars", "", 0, true) != nullptr && !ke::editor().optimierer.clonewars;
+    }));
+    add(tu("CW-IMPORT: Klick auf Build > Clone-Wars-Kette", [laeufe] { *laeufe = ke::optimiererBlick().laeufe; }));
+    add(klick(std::string(ke::trK(Str::KeCwMenue)) + "##bauclonewars", "", 0, true));
+    add(stufe5::warteOptimierer("CW-IMPORT: der offene Optimierer prueft neu (Profil Clone-Wars-Kette)", laeufe));
+    add(pruefe("CW-IMPORT: Profil an (Einstellung OptimizerCloneWars 1), Knopf JSON da", [] {
+        const auto it = g_app->settings.karte.find("OptimizerCloneWars");
+        return ke::editor().optimierer.clonewars && it != g_app->settings.karte.end() && it->second == "1" && finde(std::string(ke::trK(Str::KeOptJson)) + "##optjson", "", 0, true) != nullptr;
+    }));
     // 2. der Raum mit den Fehlern
     add(tu("CW-PRUEF: Raum mit Fehlern schreiben und oeffnen, Optimierer", [st, laeufe] {
         stufe2::testDateiSchreiben(fehlerKarte(), fehlerText(*st));
@@ -354,6 +386,7 @@ std::vector<Schritt> schritte() {
             ke::neueKarte();
         }));
     }
+    add(tu("CW-IMPORT: Pruefprofil wie vorher", [profilVorher] { ke::clonewarsProfilSetzen(*profilVorher); }));
     return s;
 }
 

@@ -7562,6 +7562,8 @@ from inhalt_rest9 import ES as _REST9  # noqa: E402
 TEXTE.update(_REST9)
 from inhalt_cwpruef import ES as _CWPRUEF  # noqa: E402
 TEXTE.update(_CWPRUEF)
+from inhalt_cwimport import ES as _CWIMPORT  # noqa: E402
+TEXTE.update(_CWIMPORT)
 from inhalt_mr4 import ES as _MR4  # noqa: E402
 TEXTE.update(_MR4)
 from inhalt_merge2 import ES as _MERGE2  # noqa: E402

@@ -1888,6 +1888,7 @@ std::vector<Schritt> karte5HandbuchSchritte() {
     add(tu("Menue zu; Regelwerk Jedi Academy MP (duel1 ist eine MP-Karte), Optimizer oeffnen", [laeufe] {
         karteDialogeZu();
         ke::editor().optimierer.regelwerk = 1;   // karte::GrenzSpiel::JkaMp
+        ke::editor().optimierer.clonewars = true;   // CW-IMPORT: die Bilder zeigen das Pruefprofil Clone-Wars-Kette (JSON, Masse)
         *laeufe = ke::optimiererBlick().laeufe;
         ke::optimiererOeffnen();
     }));

@@ -446,13 +446,21 @@ struct PruefOptionen {
     // rd-common/tr_image_load.cpp:94-145 R_LoadImage); false: nicht gefunden. Leer: die Bildpruefungen entfallen.
     std::function<bool(const std::string& bild, int& breite, int& hoehe)> bildMass;
     CwInventar* inventar = nullptr;             // die benutzten Shader und Bilder (fuer den Bericht, optional)
+    // CW-IMPORT (shank 14.11.: "das ist wichtig das es zwar drin ist aber nicht standard"): die 16 Pruefungen der Clone-Wars-Kette
+    // laufen nur mit diesem Schalter (Einstellung "OptimizerCloneWars", ab Werk aus). Aus: pruefeKarte meldet genau, was karte1
+    // 348f0e345 meldet (Gegenprobe tests/kartecwvergleich.cpp); nur die Liste der Shader und Bilder (inventar) entsteht weiter.
+    bool clonewars = false;
 };
+// Fuer Werkzeuge, die gegen aeltere Kerne uebersetzt werden (tests/kartecwvergleich.cpp): es gibt PruefOptionen::clonewars.
+#define BHED_KARTE_CLONEWARS_SCHALTER 1
 [[nodiscard]] std::vector<Befund> pruefeKarte(const KartenAbbild& a, const PruefOptionen& o);
 [[nodiscard]] const char* schwereName(Schwere s);   // "note" / "warning" / "error"
 
 // CW-PRUEF (optimierer_cw.cpp): die Pruefungen der Clone-Wars-Kette, aus pruefeKarte aufgerufen
 void pruefeClonewars(const KartenAbbild& a, const PruefOptionen& o, std::vector<Befund>& out,
                      const std::function<const ShaderArt&(const std::string&)>& art);
+// CW-IMPORT: ohne den Schalter nur die Liste der Shader und Bilder fuer den Textbericht (o.inventar) - kein Befund
+void clonewarsInventar(const KartenAbbild& a, const PruefOptionen& o, const std::function<const ShaderArt&(const std::string&)>& art);
 // Breite und Hoehe aus dem Kopf einer .tga, .jpg oder .png (ohne das Bild zu entpacken); false: kein Bild
 [[nodiscard]] bool bildKopfMass(const std::string& bytes, int& breite, int& hoehe);
 // Die Masse der Spielfigur je Regelwerk aus der Engine

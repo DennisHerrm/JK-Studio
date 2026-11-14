@@ -358,6 +358,15 @@ void bauMenueEintraegeZeichnen() {
     o.id = opt.c_str();
     o.tooltip = trK(Str::KeOptMenueTip);
     if (qtPunkt(o)) { optimiererOeffnen(); }
+    // CW-IMPORT (shank 14.11.: drin, aber nicht Standard): das Pruefprofil Clone-Wars-Kette - die 16 Pruefungen von CW-PRUEF, der
+    // JSON-Bericht und "Modell + Clip" in die Ebene Collision; ab Werk aus (dieselbe Einstellung wie auf der Seite Optimizer)
+    const std::string cw = std::string(trK(Str::KeCwMenue)) + "##bauclonewars";
+    QtPunkt cwp;
+    cwp.id = cw.c_str();
+    cwp.art = QtArt::Pruefbar;
+    cwp.haken = ed.optimierer.clonewars;
+    cwp.tooltip = trK(Str::KeCwProfilTip);
+    if (qtPunkt(cwp)) { clonewarsProfilSetzen(!ed.optimierer.clonewars); }
     // Stufe 7 (Abweichung, eigene Funktionen - nicht in NRC): Echtzeit-Licht in der
     // Kamera (Vorschau) und Schnell-Backen im Hintergrund
     const std::string licht = std::string(trK(Str::KeLichtMenue)) + "##bauechtlicht";

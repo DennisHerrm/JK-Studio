@@ -1515,6 +1515,7 @@ void einstellungenLaden() {
     ed.optimierer.masse.stufenFlaeche = std::clamp(static_cast<double>(zahl("OptimizerStepArea", 96.0F)), 0.0, 4096.0);
     ed.optimierer.masse.bildMin = std::clamp(static_cast<int>(zahl("OptimizerImageMin", 64)), 1, 8192);
     ed.optimierer.masse.bildMax = std::clamp(static_cast<int>(zahl("OptimizerImageMax", 2048)), 1, 16384);
+    ed.optimierer.clonewars = zahl("OptimizerCloneWars", 0) != 0.0F;   // CW-IMPORT: Pruefprofil Clone-Wars-Kette, ab Werk aus
     {
         const auto it = k.find("RegionBoxShader");
         ed.regionKastenShader = it != k.end() ? it->second : std::string();
@@ -1855,6 +1856,7 @@ void einstellungenSpeichern() {
         k["OptimizerStepArea"] = z(ed.optimierer.masse.stufenFlaeche);
         k["OptimizerImageMin"] = std::to_string(ed.optimierer.masse.bildMin);
         k["OptimizerImageMax"] = std::to_string(ed.optimierer.masse.bildMax);
+        k["OptimizerCloneWars"] = ed.optimierer.clonewars ? "1" : "0";   // CW-IMPORT
     }
     k["RegionBoxShader"] = ed.regionKastenShader;
     k["GridDefault"] = std::to_string(ed.rasterStandard);

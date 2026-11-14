@@ -662,6 +662,7 @@ void optimiererStarten(bool nachBau) {
     po.portalSchwelle = ed.optimierer.portalSchwelle;
     po.dreieckSchwelle = ed.optimierer.dreieckSchwelle;
     po.masse = ed.optimierer.masse;   // CW-PRUEF
+    po.clonewars = ed.optimierer.clonewars;   // CW-IMPORT: die Clone-Wars-Pruefungen nur mit dem Pruefprofil (ab Werk aus)
     cwModelleSammeln(po);
     cwBildMass(po);
     const auto tShader = std::chrono::steady_clock::now();
@@ -721,6 +722,14 @@ void optimiererStarten(bool nachBau) {
         g_z.fertig = true;
     });
     g_z.startGesamtMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tStart).count();
+}
+
+void clonewarsProfilSetzen(bool an) {
+    Editor& ed = e();
+    if (ed.optimierer.clonewars == an) { return; }
+    ed.optimierer.clonewars = an;
+    einstellungenSpeichern();
+    if (optimiererOffen()) { optimiererStarten(); }
 }
 
 void optimiererOeffnen() {
@@ -1293,7 +1302,7 @@ void zeichneOptimierer() {
                 if (ImGui::BeginPopupContextItem(("##bfrk" + b->pruefung).c_str())) {
                     const std::string id = b->pruefung;
                     if (ImGui::MenuItem(trK(Str::KeOptRkZentrieren))) { (void)optimiererZeileWaehlen(1, id); }
-                    if (ImGui::MenuItem(trK(Str::KeOptJson))) { optimiererJsonExportieren(); }
+                    if (e().optimierer.clonewars && ImGui::MenuItem(trK(Str::KeOptJson))) { optimiererJsonExportieren(); }   // CW-IMPORT: nur mit dem Profil
                     ImGui::EndPopup();
                 }
                 ImGui::TableNextColumn();
@@ -1406,11 +1415,13 @@ void zeichneOptimierer() {
         }
     }
     merke("Export");
-    // CW-PRUEF: der Bericht als JSON mit Koordinaten (fuer andere Werkzeuge)
-    ImGui::SameLine();
-    if (ImGui::Button((std::string(trK(Str::KeOptJson)) + "##optjson").c_str(), ImVec2{0.0F, zeileH})) { optimiererJsonExportieren(); }
-    ImGui::SetItemTooltip("%s", trK(Str::KeOptJsonTip));
-    merke("Json");
+    // CW-PRUEF: der Bericht als JSON mit Koordinaten (fuer andere Werkzeuge) - CW-IMPORT: nur mit dem Pruefprofil Clone-Wars-Kette
+    if (e().optimierer.clonewars) {
+        ImGui::SameLine();
+        if (ImGui::Button((std::string(trK(Str::KeOptJson)) + "##optjson").c_str(), ImVec2{0.0F, zeileH})) { optimiererJsonExportieren(); }
+        ImGui::SetItemTooltip("%s", trK(Str::KeOptJsonTip));
+        merke("Json");
+    }
     if (!g_z.e) { ImGui::EndDisabled(); }
     ImGui::SameLine();
     const float rechts = ImGui::GetContentRegionMax().x - px(80.0F);

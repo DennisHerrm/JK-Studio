@@ -172,7 +172,7 @@
 {"karte", "gezeichnet:karte.einstseite.20", "KeLEdit>KeLPreferences>KePgSettings>KePgTexBro", "", "modus:3 < knopf:ViewMapEditor@modebar && zahl:karte.einstellungen < menue:KeLEdit>KeLPreferences", "KePgTexBroT,KePrTbScrollbar,KePrTbNone,KePrTbHideCommon"},
 {"karte", "gezeichnet:karte.einstseite.21", "KeLEdit>KeLPreferences>KePgSettings>KePgModBro", "", "modus:3 < knopf:ViewMapEditor@modebar && zahl:karte.einstellungen < menue:KeLEdit>KeLPreferences", "KePgModBroT"},
 {"karte", "gezeichnet:karte.einstseite.22", "KeLEdit>KeLPreferences>KePgSettings>KePgAutosave", "", "modus:3 < knopf:ViewMapEditor@modebar && zahl:karte.einstellungen < menue:KeLEdit>KeLPreferences", "KePgAutosaveT,KePrAutosaveEnable,KePrAutosaveSnapshots"},
-{"karte", "gezeichnet:karte.einstseite.23", "KeLEdit>KeLPreferences>KePgSettings>KePgOptimizer", "", "modus:3 < knopf:ViewMapEditor@modebar && zahl:karte.einstellungen < menue:KeLEdit>KeLPreferences", "KePgOptimizerT,KePrOptNachBau,KeOptAuto,KePrOptBildTip"},
+{"karte", "gezeichnet:karte.einstseite.23", "KeLEdit>KeLPreferences>KePgSettings>KePgOptimizer", "", "modus:3 < knopf:ViewMapEditor@modebar && zahl:karte.einstellungen < menue:KeLEdit>KeLPreferences", "KePgOptimizerT,KePrOptNachBau,KeOptAuto,KeCwProfilStandard,KeCwProfilClonewars,KeCwProfilTip,KePrOptBildTip"},
 {"menue", "knopf:MeAusSpiel", "ViewMenuEditor>MeAusSpiel", "MeAusSpielHint", "modus:4 < knopf:ViewMenuEditor@modebar", ""},
 {"menue", "knopf:MeMenuesatzOeffnen", "ViewMenuEditor>MeMenuesatzOeffnen", "MeTipMenuesatz", "modus:4 < knopf:ViewMenuEditor@modebar", ""},
 {"menue", "knopf:MeDateiOeffnen", "ViewMenuEditor>MeDateiOeffnen", "MeDateiOeffnenHint", "modus:4 < knopf:ViewMenuEditor@modebar", ""},

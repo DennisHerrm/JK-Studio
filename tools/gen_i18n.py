@@ -2394,6 +2394,8 @@ from i18n_test1411 import zeilen_vier as _test1411  # noqa: E402  (TEST1411: Tes
 S += _test1411()
 from i18n_cwpruef import zeilen_vier as _cwpruef  # noqa: E402  (CW-PRUEF: Pruefungen der Clone-Wars-Kette im Optimierer, JSON-Bericht)
 S += _cwpruef()
+from i18n_cwimport import zeilen_vier as _cwimport  # noqa: E402  (CW-IMPORT: Pruefprofil, Testfigur, Import mit Massstab, Clip-Werkzeuge)
+S += _cwimport()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

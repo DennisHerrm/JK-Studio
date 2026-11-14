@@ -598,6 +598,9 @@ public:
     Cw(const KartenAbbild& a, const PruefOptionen& o, std::vector<Befund>& out, const std::function<const ShaderArt&(const std::string&)>& art)
         : m_a(a), m_o(o), m_out(out), m_art(art), m_fig(spielfigur(o.spiel)), m_hatBsp(o.bspDaten != nullptr && o.linDaten.empty()) {}
 
+    // CW-IMPORT: nur die Liste der Shader und Bilder (Schalter aus)
+    void nurInventar() { texturen(); }
+
     void alle() {
         auto uhr = std::chrono::steady_clock::now();
         const auto messen = [&](const char* was) {
@@ -1786,6 +1789,12 @@ private:
 
 void pruefeClonewars(const KartenAbbild& a, const PruefOptionen& o, std::vector<Befund>& out, const std::function<const ShaderArt&(const std::string&)>& art) {
     Cw(a, o, out, art).alle();
+}
+
+void clonewarsInventar(const KartenAbbild& a, const PruefOptionen& o, const std::function<const ShaderArt&(const std::string&)>& art) {
+    if (o.inventar == nullptr) { return; }
+    std::vector<Befund> weg;   // die Befunde der Texturpruefung zaehlen ohne den Schalter nicht
+    Cw(a, o, weg, art).nurInventar();
 }
 
 }  // namespace bhed::karte

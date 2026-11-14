@@ -1138,6 +1138,9 @@ struct Editor {
         int portalSchwelle = 8000;         // VIS-Hinweis ab so vielen Portalen ("OptimizerPortals")
         int dreieckSchwelle = 20000;       // Dreieck-Hinweis ab ("OptimizerTriangles")
         karte::CwMasse masse;              // CW-PRUEF: Toleranz, Abstand, Tuer-/Gangmasse, Bildgrenzen ("OptimizerTolerance" ...)
+        // CW-IMPORT: Pruefprofil "Clone-Wars-Kette" ("OptimizerCloneWars", ab Werk aus - shank 14.11.: drin, aber nicht Standard):
+        // die 16 Pruefungen von CW-PRUEF, der JSON-Bericht und "Modell + Clip" in die Ebene Collision
+        bool clonewars = false;
     } optimierer;
     // Stufe 7: Echtzeit-Licht (eigene Funktion, nicht in NRC; Build-Menue)
     struct EchtLichtZustand {
@@ -1801,6 +1804,8 @@ void bauAusfuehren(const std::vector<std::string>& befehle);   // BuildMonitor_R
 void bauEigeneBefehle(const std::string& eintrag, const std::vector<std::string>& befehle, std::function<void(int)> danach);
 // --- Stufe 5: der Optimierer (app_karte_optimierer.cpp) ---
 void optimiererOeffnen();                // Build > Optimizer... (Fenster auf, Pruefung starten)
+// CW-IMPORT: Pruefprofil Clone-Wars-Kette an/aus (Build-Menue, Einstellung "OptimizerCloneWars"); ein offener Optimierer prueft neu
+void clonewarsProfilSetzen(bool an);
 void optimiererStarten(bool nachBau = false);   // die Pruefung im Hintergrund starten
 void zeichneOptimierer();                // das Fenster (jedes Bild) und das Abholen des Ergebnisses
 [[nodiscard]] bool optimiererLaeuft();
