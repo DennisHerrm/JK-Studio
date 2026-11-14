@@ -1145,10 +1145,25 @@ Statistik statistik() {
 // ===================================================================================
 
 namespace {
-std::thread g_vorFaden;
 ID3D12Device* g_vorGeraet = nullptr;   // haelt das vorgewaermte Geraet, bis init() seines hat
 bool g_vorDebug = false;               // der Faden hat die Debugschicht eingeschaltet
 double g_vorMs = 0.0;
+// Der Faden des Vorwaermens. Endet das Programm, bevor init() oder shutdown() ihn abgeholt hat (ohne auspackbare Daten gibt
+// main 2 zurueck), darf beim Prozessende kein laufender std::thread zerstoert werden: das ruft std::terminate, und der Start
+// endete mit 0xC0000409 statt 2 (REL612, Selbsttest "Eigenstaendig: ohne auspackbare Daten endet der Start mit 2"). Die Huelle
+// wartet deshalb beim Prozessende auf ihn und gibt sein Geraet zurueck.
+struct VorFaden {
+    std::thread faden;
+    VorFaden() = default;
+    VorFaden(const VorFaden&) = delete;
+    VorFaden& operator=(const VorFaden&) = delete;
+    ~VorFaden() {
+        if (faden.joinable()) { faden.join(); }
+        frei(g_vorGeraet);
+    }
+};
+VorFaden g_vor;
+std::thread& g_vorFaden = g_vor.faden;
 }  // namespace
 
 void vorwaermen(IDXGIAdapter1* (*karteHolen)(), bool debug) {
@@ -1693,6 +1708,7 @@ bool befund(std::string& text) {
 }
 
 std::vector<std::string> speicherZeilen() { return abgeber::speicherZeilen(); }
+std::uint64_t vorratBytes() { return abgeber::vorratBytes(); }
 
 void info(std::string& hersteller, std::string& version, std::string& kartenName, std::vector<std::string>& merkmale) {
     if (g_dev == nullptr) { return; }

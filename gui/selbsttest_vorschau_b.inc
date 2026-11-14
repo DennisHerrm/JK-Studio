@@ -6777,6 +6777,13 @@ Schritt antworteNein() {
                     schritteEinfuegen({klick(tr(Str::AnswerYes), "###frage"), antworteNein()});
                     return true;
                 }
+                // Die Frage des Map Editors beim Beenden (ConfirmModified "Exit Radiant": die Karte ist geaendert) mit "Discard" - wie
+                // "No" bei den Fragen des Programms. Bis REL612 blieb das Beenden dort stehen (hilfe2: "Programm laeuft nach No weiter").
+                if (const karteneditor::Editor& ke = karteneditor::editor(); ke.frageOffen) {
+                    schritteEinfuegen({klick(tr(ke.frageArt == 2 ? Str::KeLumpsErsetzen : Str::KeDiscard), ke.frageTitel + "###kartefrage"),
+                                       antworteNein()});
+                    return true;
+                }
                 return b >= 60;
             }};
 }

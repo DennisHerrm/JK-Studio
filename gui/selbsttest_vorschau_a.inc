@@ -4079,6 +4079,7 @@ std::vector<Schritt> alleKartenSchritte() {
                  const std::string erste = liste.front();
                  auto vorher = std::make_shared<gpu::SpeicherStand>();
                  auto vorherText = std::make_shared<std::string>();
+                 auto vorherVorrat = std::make_shared<std::uint64_t>(0);
                  // Gemessen wird direkt NACH der Pruefung der ersten Karte.
                  for (std::size_t i = 0; i < neu.size(); ++i) {
                      if (neu[i].text == "Pruefe Karte " + erste + ": geladen, gezeichnet, ohne Beschwerde") {
@@ -4086,6 +4087,8 @@ std::vector<Schritt> alleKartenSchritte() {
                                     tu("Speicher: erste Karte gemessen", [=] {
                                         *vorher = gpu::speicherStand();
                                         *vorherText = speicherZeile(*vorher);
+                                        *vorherVorrat = render::grafikVorratBytes();
+                                        for (const std::string& z : render::grafikSpeicherZeilen()) { diag::detail("Speicher vorher | " + z); }
                                     }));
                          break;
                      }
@@ -4103,10 +4106,18 @@ std::vector<Schritt> alleKartenSchritte() {
                      const gpu::SpeicherStand n = gpu::speicherStand();
                      diag::detail("Speicher vorher: " + *vorherText);
                      diag::detail("Speicher nachher: " + speicherZeile(n));
-                     const double grafik = static_cast<double>(n.grafikBytes - vorher->grafikBytes) / 1048576.0;
+                     for (const std::string& zeile : render::grafikSpeicherZeilen()) { diag::detail("Speicher nachher | " + zeile); }
+                     // REL612: unter Direct3D 12 haelt der Abgeber freigegebene Puffer bis 64 MB in einem Vorrat, der nach 600 Bildern
+                     // zurueckgeht (abgeber::vorratBytes) - direkt nach dem Laden liegen dort die Puffer der vorigen Karte. Der Vorrat
+                     // zaehlt nicht als liegengeblieben (begrenzt, er geht von selbst zurueck); alles andere bleibt sofort gemessen,
+                     // ohne zu warten - nach 4 s lagert Direct3D 12 ungenutzte Texturen aus und verdeckte so ein Leck.
+                     const double vorratVorher = static_cast<double>(*vorherVorrat) / 1048576.0;
+                     const double vorratNachher = static_cast<double>(render::grafikVorratBytes()) / 1048576.0;
+                     const double grafik = static_cast<double>(n.grafikBytes - vorher->grafikBytes) / 1048576.0 - (vorratNachher - vorratVorher);
                      const double prozess = static_cast<double>(n.prozessBytes - vorher->prozessBytes) / 1048576.0;
-                     char z[200];
-                     std::snprintf(z, sizeof(z), "Speicher: Zuwachs Grafik %.1f MB, Prozess %.1f MB", grafik, prozess);
+                     char z[240];
+                     std::snprintf(z, sizeof(z), "Speicher: Zuwachs Grafik %.1f MB (ohne den Vorrat der Puffer: vorher %.1f, nachher %.1f MB), Prozess %.1f MB",
+                                   grafik, vorratVorher, vorratNachher, prozess);
                      diag::detail(z);
                      const bool zaehlerOk = n.bilder <= vorher->bilder + 8 && n.lightmaps <= vorher->lightmaps &&
                                             n.moverNetze <= vorher->moverNetze;

@@ -2250,6 +2250,8 @@ std::vector<std::string> speicherBericht(std::uint64_t& summe) {
     return aus;
 }
 
+std::uint64_t vorratBytes() { return g_vorratJetzt; }
+
 std::vector<std::string> speicherZeilen() {
     std::uint64_t summe = 0;
     return g_aktiv ? speicherBericht(summe) : std::vector<std::string>();

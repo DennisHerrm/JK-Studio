@@ -1908,6 +1908,13 @@ std::vector<std::string> grafikSpeicherZeilen() {
     return {};
 }
 
+std::uint64_t grafikVorratBytes() {
+#ifdef BHED_WITH_D3D11
+    if (g_ready && g_backend == Backend::Direct3D12) { return d3d12::vorratBytes(); }
+#endif
+    return 0;
+}
+
 Backend current() { return g_backend; }
 bool ready() { return g_ready; }
 

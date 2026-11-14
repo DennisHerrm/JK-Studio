@@ -46,11 +46,37 @@ bool ergebnis(bool offen) {
     return offen;
 }
 
+// Ein offenes Popup, das nach dem Aufgehen gewachsen ist (eine Liste fuellt sich nach, laengere Eintraege), legt ImGui nicht neu:
+// FindBestWindowPosForPopup laeuft nur im Bild des Aufgehens. Im festen Viewport ragte es dann ueber den Rand des Fensters und waere
+// dort abgeschnitten (REL612: "Choose animation..." im Menue-Editor - die Animationen kommen erst nach dem Aufgehen, die Liste wird
+// breiter). Dann die Lage aus dem letzten Bild so weit ins Fenster ruecken, dass es ganz hineinpasst; Rand wie
+// GetPopupAllowedExtentRect. Ein Popup, das ImGui gerade misst oder das in einem eigenen Viewport steht, bleibt, wie es ist.
+void nachruecken(const char* name) {
+    ImGuiContext& g = *GImGui;
+    const ImGuiWindow* w = g.CurrentWindow;
+    const ImGuiWindow* m = ImGui::FindWindowByName(name);
+    if (w == nullptr || m == nullptr || !m->WasActive || m->Appearing || m->HiddenFramesCannotSkipItems > 0 || m->Viewport == nullptr ||
+        m->Viewport != w->Viewport || (g.NextWindowData.HasFlags & ImGuiNextWindowDataFlags_HasPos) != 0) {
+        return;
+    }
+    const ImGuiViewportP* vp = m->Viewport;
+    const ImVec2 rand = g.Style.DisplaySafeAreaPadding;
+    const float randX = vp->Size.x > rand.x * 2.0F ? rand.x : 0.0F;
+    const float randY = vp->Size.y > rand.y * 2.0F ? rand.y : 0.0F;
+    const float rechts = vp->Pos.x + vp->Size.x - randX;
+    const float unten = vp->Pos.y + vp->Size.y - randY;
+    ImVec2 lage = m->Pos;
+    if (lage.x + m->Size.x > rechts) { lage.x = ImMax(vp->Pos.x + randX, rechts - m->Size.x); }
+    if (lage.y + m->Size.y > unten) { lage.y = ImMax(vp->Pos.y + randY, unten - m->Size.y); }
+    if (lage.x != m->Pos.x || lage.y != m->Pos.y) { ImGui::SetNextWindowPos(lage); }
+}
+
 // Name des Fensters eines Popups (BeginPopupEx: "##Popup_%08x" mit seiner Kennung)
 void popupFenster(ImGuiID id) {
     char name[24];
     std::snprintf(name, sizeof name, "##Popup_%08x", id);
     imFenster(name, true);
+    nachruecken(name);
 }
 
 }  // namespace

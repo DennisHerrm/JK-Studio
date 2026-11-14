@@ -88,6 +88,8 @@ void vorwaermen(IDXGIAdapter1* (*karteHolen)(), bool debug);
 [[nodiscard]] bool befund(std::string& text);
 // Selbsttest leistung: was der Abgeber an Grafikspeicher und Arbeitsspeicher belegt, als Zeilen.
 [[nodiscard]] std::vector<std::string> speicherZeilen();
+// Selbsttest allekarten: Bytes im Vorrat freigegebener Puffer des Abgebers (abgeber::vorratBytes).
+[[nodiscard]] std::uint64_t vorratBytes();
 void info(std::string& hersteller, std::string& version, std::string& kartenName, std::vector<std::string>& merkmale);
 
 }  // namespace bhed::render::d3d12

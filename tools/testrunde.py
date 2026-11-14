@@ -126,9 +126,30 @@ KE_TEILE = {   # die langen zuerst (Zeiten mit Pausen nach Bildern am 11.11.: 54
     "ke_befehle": "befehle,stufe6",
     "ke_licht": "stufe7,stufe8b,gross",
     "ke_bau": "stufe3,stufe4,stufe5",
-    "ke_karte": "stufe8c,stufe8g,stufe9,stufe9c,stufe9d,licht1,modobj,aseb,kreste,r2a,r3,rd,rest8,reste1,fotos",
+    "ke_karte": "stufe8c,stufe8g,stufe9,stufe9c,stufe9d,licht1,modobj,aseb,kreste,r2a,r3,rd,rest8,reste1,dxr,fotos",
     "ke_grund": "rahmen,tasten,numpad,mass,xy,kamera,auswahl,textur,entitaeten,konsole,stufe2",
 }
+
+
+def _ke_gruppen_im_lauf() -> list[str]:
+    """Die Gruppen des vollen karteneditor-Laufs in seiner Reihenfolge (Aufrufe gruppe("...") in gui/selbsttest_handbuch.inc)."""
+    with open(os.path.join(REPO, "gui", "selbsttest_handbuch.inc"), encoding="utf-8", errors="replace") as f:
+        return re.findall(r'^\s*gruppe\("([a-z0-9_]+)"', f.read(), re.M)
+
+
+# Jede Gruppe des vollen Laufs muss in genau einem Teil stehen - sonst laesst die volle Runde sie still weg (so fehlte die Gruppe
+# dxr, die nach TESTTEMPO dazukam, bis REL612 in jedem ke_*-Teil).
+def _ke_abdeckung() -> list[str]:
+    teile = [g for gruppen in KE_TEILE.values() for g in gruppen.split(",")]
+    lauf_ = _ke_gruppen_im_lauf()
+    fehler = ["Gruppe %s des vollen karteneditor-Laufs steht in keinem ke_*-Teil (KE_TEILE)" % g for g in lauf_ if g not in teile]
+    fehler += ["Gruppe %s steht in %d ke_*-Teilen" % (g, teile.count(g)) for g in sorted(set(teile)) if teile.count(g) > 1]
+    fehler += ["KE_TEILE nennt %s, der volle Lauf kennt die Gruppe nicht" % g for g in sorted(set(teile)) if g not in lauf_]
+    return fehler
+
+
+if _ke_abdeckung():
+    sys.exit("testrunde: " + "; ".join(_ke_abdeckung()))
 for name_, gruppen_ in KE_TEILE.items():
     lauf(name_, "karteneditor", 5400, GROSS + ["BHED_KARTE_GRUPPEN=" + gruppen_], bereich="karteneditor", teil_von="karteneditor", pausen="bild",
          **({"braucht": GROSS_DATEIEN} if {"stufe7", "gross"} & set(gruppen_.split(",")) else {}))
@@ -275,6 +296,23 @@ lauf("mb_ap11", "modellblock", 2400, MB + ["BHED_MODELL_NUR=ap11", "BHED_FOTOS=<
 # KLEIN2: Esc schliesst jedes Rechtsklick-Menue des Model-Tabs (Explorer, Zeitleiste, Dopesheet, Befehlsfeld, Werkzeugleiste, Ansicht,
 # Menueleiste) und tut sonst nichts; Untermenues, die unten nicht passen, gehen nach oben auf und bleiben im Fenster
 lauf("mb_klein2", "modellblock", 1500, MB + ["BHED_MODELL_NUR=klein2"], bereich="modell")
+# REL612: die Gruppen und Modi der Zweige nach TESTTEMPO, die bis zur Release-Runde rc612 in keinem Lauf der Runde standen.
+# ENTSCHEID3A (eingefrorene Zeile, Werkzeugnamen, Seitenleiste lokal, Strg+Umschalt+Z, Auge fuer Edit Poly/Skin, Begleitdatei;
+# nicht im Pool: die Bildlaeufe ent3afoto, ent3ahb), ENTSCHEID3B (IK/FK-Spur, Ducken, Tempo-Faktor, Wurzel-Griff), FIX612 (Zeitleiste,
+# Presets, Plaetze, Overlays, Ansichten, Texte, Alt+R), FIX612B (Gewichte speichern, Stufenwechsel, Strg+Z im Strich; der Absturzfall
+# fix612babsturz einzeln), FIX612C (nur FK, Knochen waehlen, Gizmo/Q, Explorer)
+for g in "ent3a ent3b fix612 fix612b fix612babsturz fix612c".split():
+    lauf("mb_" + g, "modellblock", 1800, MB + ["BHED_MODELL_NUR=" + g, "BHED_FOTOS=<FOTOS>"], bereich="modell")
+# FIX612 R3: Bauen fortsetzen startet nichts aus dem Zwischenstand, Verwerfen/Fortsetzen nach dem Verschieben des Kartenordners
+lauf("ke_fix612", "karteneditor", 1500, ["BHED_KARTE_NUR=fix612"], bereich="karteneditor")
+# D3D12 Stufe 1-3: Wahl der Grafikschnittstelle, Rueckfall und Geraeteverlust (Modus grafik) - unter der Vorgabe, unter Direct3D 11
+# und mit jeder gespielten Fehlerstelle des Starts (Rueckfall auf Direct3D 11), dazu der abgestuerzte Start (Startmarke) und der
+# Neuaufbau ohne Direct3D-12-Geraet
+lauf("grafik", "grafik", 900, bereich="programm")
+lauf("grafik_d3d11", "grafik", 900, ["BHED_D3D12=0"], bereich="programm")
+for f_ in ("dll", "geraet", "swap", "abgeber", "imgui", "neuaufbau"):
+    lauf("grafik_f_" + f_, "grafik", 900, ["BHED_D3D12=1", "BHED_D3D12_FEHLER=" + f_], bereich="programm")
+lauf("grafik_f_absturz", "grafik", 900, ["BHED_D3D12_FEHLER=absturz"], bereich="programm")
 
 # Nicht im Pool: eigene Vorbereitung, Messungen (allein und mit BHED_D3D_DEBUG=0), Bildlaeufe fuer das Handbuch
 lauf("update", "update", 1500, allein="braucht den lokalen Update-Server (tools/karte/updater_uebergang.py, ctest updater_uebergang)", bereich="update")

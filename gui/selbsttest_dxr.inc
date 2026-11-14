@@ -6,7 +6,8 @@
 //           Breite), nur schaerfer; ein bewegter Pinsel baut nur seinen Eimer neu (schnell, nach der Ruhezeit nachgezogen);
 //           alphashadow filtert; die Sonne endet am Himmel; der Menuepunkt schaltet.
 //   d3d12   Direct3D 11 laeuft (BHED_D3D12=0): der Menuepunkt ist ausgegraut mit dem Grund, die Einstellung aendert kein
-//           Bild (Bildpunkt fuer Bildpunkt wie die Vorgabe).
+//           Bild (Bildpunkt fuer Bildpunkt wie die Vorgabe). Ohne BHED_DXR_ERWARTET erwartet ein Lauf mit BHED_D3D12=0 das
+//           (REL612: die Zeichengruppen unter Direct3D 11 waren sonst rot - der Lauf sagte selbst, dass Direct3D 11 laeuft).
 //   geraet  das Geraet kann kein DXR (gespielt mit BHED_DXR_FEHLER=geraet): ebenso.
 //   shader, fehler  ohne DXIL-Shader bzw. der Bau scheitert (BHED_DXR_FEHLER=shader / bau): ebenso.
 // Stimmt die Erwartung nicht mit dem Geraet ueberein, ist der Lauf rot - so faellt auf, wenn die Schattenart auf dem
@@ -19,7 +20,11 @@ namespace ke = karteneditor;
 // 0 keiner, 1 d3d12, 2 geraet, 3 shader, 4 fehler - wie kartegpu::dxr::Grund
 int erwartet() {
     const char* e = std::getenv("BHED_DXR_ERWARTET");
-    if (e == nullptr || std::strcmp(e, "keiner") == 0) { return 0; }
+    if (e == nullptr) {   // BHED_D3D12 wie main_win32.cpp: gesetzt und nicht '1' = Direct3D 11
+        const char* d3d12 = std::getenv("BHED_D3D12");
+        return d3d12 != nullptr && d3d12[0] != '1' ? 1 : 0;
+    }
+    if (std::strcmp(e, "keiner") == 0) { return 0; }
     if (std::strcmp(e, "d3d12") == 0) { return 1; }
     if (std::strcmp(e, "geraet") == 0) { return 2; }
     if (std::strcmp(e, "shader") == 0) { return 3; }
@@ -633,7 +638,9 @@ std::vector<Schritt> schritte() {
                      std::to_string(st.nachgezogen));
         return st.gebaut - lauf->vorPinsel.gebaut == 3 && schnell >= sicher && schnell <= moeglich;
     }));
-    add(pause(1.0));
+    // Die Ruhezeit misst das Programm an der Wanduhr (kBewegtSekunden, steady_clock): deshalb nach der Uhr warten, auch mit
+    // BHED_TEST_PAUSEN=bild (REL612: die Pause nach Bildern war nach einem Viertel der Sekunde um, noch nichts nachgezogen)
+    add(messfenster(1.0));
     // nachgezogen wird der letzte Bau, wenn er schnell war (der dritte Zug)
     add(pruefe("DXR: nach der Ruhezeit ist ein schnell gebauter Eimer einmal auf schnelle Strahlen nachgezogen", [lauf] {
         const ke::StrahlenStand st = ke::strahlenStand();

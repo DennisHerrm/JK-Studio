@@ -3817,16 +3817,22 @@ ImVec2 ansichtMitte() {
 Schritt klickAn(const std::string& was, std::function<ImVec2()> ort, int taste = 0, bool doppelt = false) {
     auto z = std::make_shared<ImVec2>();
     auto frist = std::make_shared<std::array<float, 2>>();
+    auto simVorher = std::make_shared<bool>(false);
     return {"Klick " + was, [=](int b) {
                 ImGuiIO& io = ImGui::GetIO();
                 // Doppelklick: die Ereignisse liegen in Bild 2..5; in langsamen
                 // Laeufen (ASan) dauert das laenger als die 0,30 s von ImGui, darum
                 // gilt fuer diesen Schritt eine weite Frist, danach wieder die alte.
                 // ImGui verlangt MouseSingleClickDelay > MouseDoubleClickTime.
+                // REL612: dazu Simulationszeit (testtempo::g_simZeit) - Ansichten, die den Doppelklick an der eigenen Zeit
+                // messen (Texturen: DoubleClickTimer 250 ms wie NRC), sahen unter Last zwei Einzelklicks (rot mit
+                // BHED_TEST_BREMSE=400: "Doppelklick: Verzeichnis des Shaders").
                 if (b == 0) {
                     *z = ort();
                     setzeMaus(*z);
                     if (doppelt) {
+                        *simVorher = testtempo::g_simZeit;
+                        testtempo::g_simZeit = true;
                         *frist = {io.MouseDoubleClickTime, io.MouseSingleClickDelay};
                         io.MouseSingleClickDelay = 31.0f;
                         io.MouseDoubleClickTime = 30.0f;
@@ -3845,6 +3851,7 @@ Schritt klickAn(const std::string& was, std::function<ImVec2()> ort, int taste =
                 if (doppelt) {
                     io.MouseDoubleClickTime = (*frist)[0];
                     io.MouseSingleClickDelay = (*frist)[1];
+                    testtempo::g_simZeit = *simVorher;
                 }
                 return true;
             }};
@@ -7270,8 +7277,8 @@ void selbsttest() {
                 }
             }
         } else {
-            // Nach "No" haette das Programm schon zu sein. REST5 P2: eine offene Frage des Map Editors (karteneditor::beendenFrage
-            // wartet auf sie, antworteNein kennt nur die Fragen des Programms) mit Titel nennen.
+            // Nach "No" haette das Programm schon zu sein. REST5 P2: eine noch offene Frage des Map Editors (karteneditor::beendenFrage
+            // wartet auf sie; antworteNein beantwortet sie seit REL612 mit "Discard") mit Titel nennen.
             const karteneditor::Editor& ke = karteneditor::editor();
             meldeFehler(std::string("Beenden: Programm laeuft nach \"No\" weiter") +
                         (ke.frageOffen ? " (offene Frage im Map Editor: \"" + ke.frageTitel + "\")" : ""));

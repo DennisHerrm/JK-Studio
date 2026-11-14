@@ -142,6 +142,8 @@ struct Zaehler {
 [[nodiscard]] Zaehler zaehler();
 // Was der Abgeber belegt, als Zeilen fuer das Protokoll (Grafikspeicher und Arbeitsspeicher nach Art, die groessten Texturen).
 [[nodiscard]] std::vector<std::string> speicherZeilen();
+// Bytes im Vorrat freigegebener Puffer im Grafikspeicher (hoechstens 64 MB; was 600 Bilder lang niemand nimmt, geht zurueck).
+[[nodiscard]] std::uint64_t vorratBytes();
 
 }  // namespace abgeber
 

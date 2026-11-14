@@ -1025,13 +1025,19 @@ std::vector<Schritt> karteneditorKameraSchritte() {
     auto pixelText = [](const unsigned char* p) {
         return std::to_string(p[0]) + "," + std::to_string(p[1]) + "," + std::to_string(p[2]);
     };
-    // Kurzer Klick mit der rechten Maustaste in die Kamera (unter 300 ms)
+    // Kurzer Klick mit der rechten Maustaste in die Kamera (unter 300 ms). REL612: in Simulationszeit (testtempo::g_simZeit) - das
+    // Programm misst den Klick an seiner Zeit (freelookEndetBeimLoslassen: unter 300 ms ein Umschalter); unter Last lagen Druck und
+    // Loslassen ein langes Bild auseinander, der Klick war kein kurzer mehr (rot mit BHED_TEST_BREMSE=400: "Freelook aus").
     auto rechtsKlick = [kamPunkt](const std::string& was) {
         return Schritt{was, [kamPunkt](int b) {
                            ImGuiIO& io = ImGui::GetIO();
-                           if (b == 0) { setzeMaus(kamPunkt(0.5F, 0.5F)); }
+                           if (b == 0) {
+                               setzeMaus(kamPunkt(0.5F, 0.5F));
+                               testtempo::g_simZeit = true;
+                           }
                            if (b == 1) { io.AddMouseButtonEvent(ImGuiMouseButton_Right, true); }
                            if (b == 2) { io.AddMouseButtonEvent(ImGuiMouseButton_Right, false); }
+                           if (b >= 4) { testtempo::g_simZeit = false; }
                            return b >= 4;
                        }};
     };
@@ -1259,16 +1265,27 @@ std::vector<Schritt> karteneditorKameraSchritte() {
     // Freelook mit gehaltenem W: kontinuierlich, beschleunigt (500 u/s nach 200 ms)
     add(rechtsKlick("M2 kurz: Freelook an"));
     add(tu("Kamera merken", [merk] { *merk = ke::editor().kamera; }));
+    // REL612: in Simulationszeit - die Kamera rechnet mit der Programmzeit je Bild (Camera_keyMove); unter Last ueberzog das letzte
+    // Bild das Halten um bis zu ein langes Bild (rot mit BHED_TEST_BREMSE=400: 313 vorwaerts statt hoechstens 260)
     add({"W 0,4 s halten", [](int b) {
              static double start = 0;
+             static int los = -1;   // Bild des Loslassens: die Simulationszeit gilt noch, bis es verarbeitet ist
              ImGuiIO& io = ImGui::GetIO();
              if (b == 0) {
+                 testtempo::g_simZeit = true;
                  io.AddKeyEvent(ImGuiKey_W, true);
                  start = ImGui::GetTime();
+                 los = -1;
                  return false;
              }
-             if (ImGui::GetTime() - start < 0.4) { return false; }
-             io.AddKeyEvent(ImGuiKey_W, false);
+             if (los < 0) {
+                 if (ImGui::GetTime() - start < 0.4) { return false; }
+                 io.AddKeyEvent(ImGuiKey_W, false);
+                 los = b;
+                 return false;
+             }
+             if (b < los + 2) { return false; }
+             testtempo::g_simZeit = false;
              return true;
          }});
     add(pause(0.2));
@@ -3854,12 +3871,17 @@ Schritt klickXyMit(const std::string& was, ImGuiKeyChord mods, ImVec2 an) {
                    }};
 }
 
-// Zwei Klicks kurz nacheinander (Clipper_tryDoubleclick: unter 200 ms)
+// Zwei Klicks kurz nacheinander (Clipper_tryDoubleclick: unter 200 ms). REL612: in Simulationszeit (testtempo::g_simZeit) - der
+// Clipper misst die 200 ms an der Programmzeit; unter Last lagen die Klicks weiter auseinander (rot mit BHED_TEST_BREMSE=400:
+// "Doppelklick: Split").
 Schritt doppelklickXy(const std::string& was, ImVec2 an) {
+    auto simVorher = std::make_shared<bool>(false);
     return Schritt{was, [=](int b) {
                        ImGuiIO& io = ImGui::GetIO();
                        if (b == 0) {
                            setzeMaus(weltXy(an.x, an.y));
+                           *simVorher = testtempo::g_simZeit;
+                           testtempo::g_simZeit = true;
                            return false;
                        }
                        if (b == 1 || b == 3) {
@@ -3870,7 +3892,9 @@ Schritt doppelklickXy(const std::string& was, ImVec2 an) {
                            io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
                            return false;
                        }
-                       return b >= 7;
+                       if (b < 7) { return false; }
+                       testtempo::g_simZeit = *simVorher;
+                       return true;
                    }};
 }
 

@@ -138,6 +138,9 @@ bool ready();
 void grafikVorwaermen();
 // Direct3D 12, Selbsttest leistung: der Speicherbericht des Abgebers als Zeilen (sonst leer).
 [[nodiscard]] std::vector<std::string> grafikSpeicherZeilen();
+// Direct3D 12, Selbsttest allekarten: Bytes im Vorrat freigegebener Puffer des Abgebers - ein begrenzter Zwischenspeicher, der nach
+// 600 Bildern zurueckgeht (sonst 0).
+[[nodiscard]] std::uint64_t grafikVorratBytes();
 
 // --- Welche Grafikkarte (rc596) -------------------------------------------
 //

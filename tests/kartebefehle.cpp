@@ -19,6 +19,7 @@
 #include "bhed/karte/befehle.h"
 #include "bhed/karte/zuletzt.h"
 
+#include <cstddef>
 #include <cstdio>
 #include <fstream>
 #include <map>
