@@ -641,15 +641,25 @@ bool modellRigGriffWelt(int griff, const std::vector<BoneMatrix>& welt, float or
 
 namespace {
 
+// TEST1411 I: der gewaehlte Knochen als Rig mit einem FK-Griff (ohne Control Rig oder fuer einen Knochen ohne Griff) - so dreht er wie
+// ein Griff um sein Gelenk (modell::rigGriffDrehen), die Schluessel landen in der Schicht der Sequenz wie die des Rigs
+const modell::Rig& knochenRig() {
+    static modell::Rig r;
+    r.griffe.assign(1, modell::Griff{});
+    r.griffe[0].knochen = mt().knochenWahl;
+    return r;
+}
+
 // Ein Zug am gewaehlten Griff (Gizmo oder G/R wie Blender) auf die Schicht beim Anfassen: Stufe 4 zuerst die IK (Hand,
 // Fuss, Saebelgriff, Pol, Fussrolle; ein Glied unter IK wechselt wie 3ds Max auf FK), sonst FK wie Stufe 3.
 void rigZugAnwenden(int gizmoArt, const BoneMatrix& dreh, const float weg[3]) {
     ModellTab& t = mt();
     modell::RigSchicht neu = t.rigSchichtStart;
     neu.neuInterp = modell::Interp::Bezier;   // Stufe 3b: neue Schluessel wie Max und Blender (Bezier, Auto Clamped)
-    const bool wurzel = t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size() &&
+    const bool direkt = modellAnimKnochenDirekt();   // TEST1411 I
+    const bool wurzel = !direkt && t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size() &&
                         t.rig.griffe[static_cast<std::size_t>(t.griffWahl)].art == modell::GriffArt::Wurzel;
-    const int ik = wurzel ? 0 : modellIkZiehen(gizmoArt, dreh, weg, neu);
+    const int ik = wurzel || direkt ? 0 : modellIkZiehen(gizmoArt, dreh, weg, neu);
     if (wurzel) {
         // ENT3B (B17): der Griff der Wurzel - wie CATs Plattform: ein Schluessel der Plattform am Bild, die ganze Figur geht mit (auch die
         // IK-Ziele im Raum Welt); gedreht wird um die Mitte des Bodenkreises beim Anfassen
@@ -658,7 +668,7 @@ void rigZugAnwenden(int gizmoArt, const BoneMatrix& dreh, const float weg[3]) {
         start.transform(t.rig.griffe[static_cast<std::size_t>(t.griffWahl)].ort, um);
         modell::plattformZiehen(neu, t.rigZiehBild, start, dreh, um, weg);
     } else if (ik != 1) {
-        modell::rigGriffDrehen(g_app->anim, t.rig, t.griffWahl, t.rigZiehBild, t.rigWeltStart, dreh, weg, neu);
+        modell::rigGriffDrehen(g_app->anim, direkt ? knochenRig() : t.rig, direkt ? 0 : t.griffWahl, t.rigZiehBild, t.rigWeltStart, dreh, weg, neu);
         modellKurvenAnimOffset(t.rigSchichtStart, neu, auswahlKnochen(), t.rigZiehBild);   // Stufe 3b
     }
     const AnimEntry* e = sequenz();
@@ -704,7 +714,7 @@ void zugBeginnen(int gizmoArt) {
 
 void modellRigZiehen(int gizmoArt, const float wert[3]) {
     ModellTab& t = mt();
-    if (t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size()) { return; }
+    if (!modellAnimKnochenDirekt() && (t.griffWahl < 0 || static_cast<std::size_t>(t.griffWahl) >= t.rig.griffe.size())) { return; }
     zugBeginnen(gizmoArt);
     BoneMatrix dreh = BoneMatrix::identity();
     float weg[3] = {0.0F, 0.0F, 0.0F};
@@ -1058,6 +1068,70 @@ bool modellRigBacken() {
     const std::string platz = modellGlaAufPlatz(std::move(g), name, e->loopFrame, e->fps);
     if (platz.empty()) { return false; }
     melden(format(Str::MbRgGebacken, e->name.c_str(), br.bilder, br.neu, br.unveraendert, platz.c_str()));
+    return true;
+}
+
+// --- TEST1411 I: Knochen waehlen und drehen ohne Rig ----------------------------------------------------------------------------
+
+bool modellAnimKnochenDirekt() {
+    const ModellTab& t = mt();
+    return t.bereich == ModellBereich::Animation && t.griffWahl < 0 && t.knochenWahl >= 0 &&
+           static_cast<std::size_t>(t.knochenWahl) < std::min(g_app->anim.bones.size(), g_app->modellWelt.size());
+}
+
+bool modellAnimKnochenMitte(float m[3]) {
+    if (!modellAnimKnochenDirekt()) { return false; }
+    const BoneMatrix& x = g_app->modellWelt[static_cast<std::size_t>(mt().knochenWahl)];
+    m[0] = x.m[0][3];
+    m[1] = x.m[1][3];
+    m[2] = x.m[2][3];
+    return true;
+}
+
+bool modellAnimKnochenKlick(const ModellAnsicht& a, ImVec2 maus) {
+    ModellTab& t = mt();
+    if (t.bereich != ModellBereich::Animation || g_app->anim.bones.empty()) { return false; }
+    // 1. die gezeichnete Form eines Knochens (Kasten, Oktaeder ...)
+    int b = modellKdKnochenUnter(a, maus);
+    // 2. durch die Figur hindurch: der Knochen, der die Stelle unter der Maus am staerksten bewegt (Gewichte der drei Ecken des
+    //    vordersten Dreiecks, nach der Lage im Dreieck) - auch auf eingefrorenen Flaechen, die nur der Flaechenwahl verschlossen sind
+    int teil = -1;
+    int dreieck = -1;
+    if (b < 0 && modellDreieckUnter(a, maus, teil, dreieck)) {
+        const GlmModel& m = t.anzeige;
+        if (teil >= 0 && static_cast<std::size_t>(teil) < m.surfaces.size()) {
+            const GlmSurface& s = m.surfaces[static_cast<std::size_t>(teil)];
+            std::vector<float> summe(g_app->anim.bones.size(), 0.0F);
+            for (std::size_t e = 0; e < 3; ++e) {
+                const std::size_t k = static_cast<std::size_t>(dreieck) * 3U + e;
+                if (k >= s.indexes.size() || s.indexes[k] >= s.verts.size()) { continue; }
+                const GlmVertex& v = s.verts[s.indexes[k]];
+                for (int j = 0; j < 4; ++j) {
+                    if (v.weights[j] > 0.0F && v.bones[j] < summe.size()) { summe[v.bones[j]] += v.weights[j]; }
+                }
+            }
+            float best = 0.0F;
+            for (std::size_t k = 0; k < summe.size(); ++k) {
+                if (summe[k] > best && !modellKnochenVersteckt(static_cast<int>(k)) && !modellKnochenEingefroren(static_cast<int>(k))) {
+                    best = summe[k];
+                    b = static_cast<int>(k);
+                }
+            }
+        }
+    }
+    if (b < 0) { return false; }
+    t.auswahl.clear();
+    t.knochenWahl = b;
+    // mit Rig: der Griff des Knochens; ohne (oder ohne Griff) dreht der Knochen selbst
+    const int griff = modellRigDa() ? t.rig.griffVon(b) : -1;
+    if (griff >= 0) {
+        modellRigGriffWaehlen(griff);
+    } else {
+        t.griffWahl = -1;
+        melden(format(Str::T1KnochenGewaehlt, g_app->anim.bones[static_cast<std::size_t>(b)].name.c_str()));
+    }
+    modellExplorerZeigen(ExplorerArt::Knochen, b);
+    g_app->modelDirty = true;
     return true;
 }
 

@@ -800,6 +800,7 @@ void ueberlagerung(const ModellAnsicht& a, ImDrawList* dl) {
 
 bool auswahlMitte(float m[3]) {
     if (mt().bereich == ModellBereich::Animation && mt().griffWahl >= 0) { return modellRigGriffMitte(m); }   // Stufe 3
+    if (modellAnimKnochenDirekt()) { return modellAnimKnochenMitte(m); }   // TEST1411 I: der gewaehlte Knochen ohne Griff
     float mn[3];
     float mx[3];
     const bool leer = mt().auswahlArt == AuswahlArt::Objekt ? mt().auswahl.empty() : mt().eckenWahl.empty();
@@ -1297,7 +1298,7 @@ void gizmoZiehen(const ModellAnsicht& a, const float m[3]) {
         const float f = std::max(1.0F + dx * 0.01F, 0.01F);
         for (int k = 0; k < 3; ++k) { wert[k] = (achse < 0 || achse == k) ? f : 1.0F; }
     }
-    if (t.bereich == ModellBereich::Animation && t.griffWahl >= 0) {   // Stufe 3: der Griff (FK), nicht das Netz
+    if (t.bereich == ModellBereich::Animation && (t.griffWahl >= 0 || modellAnimKnochenDirekt())) {   // Stufe 3: der Griff (FK), nicht das Netz; TEST1411 I: der Knochen
         if (t.gizmo == 1 || t.gizmo == 2) { modellRigZiehen(t.gizmo, wert); }
         return;
     }
@@ -2380,6 +2381,12 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
         const int griff = modellRigGriffUnter(a, io.MousePos);
         if (griff >= 0) { t.rahmen = false; }
         modellRigGriffWaehlen(griff);   // daneben: keiner (die Netz-Auswahl geht weiter)
+    }
+    // TEST1411 I (shank 14.11.: "ich kann keine bones auswählen ... geht das erst wenn ich ein controll rig erzeuge"): wie 3ds Max sind die
+    // Knochen von Anfang an waehlbar - ein Klick waehlt den Knochen (seine Form, sonst durch die Figur hindurch), mit und ohne Rig
+    if (t.aktiv == n && t.rahmen && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && t.bereich == ModellBereich::Animation &&
+        std::hypot(io.MousePos.x - t.rahmenStart[0], io.MousePos.y - t.rahmenStart[1]) < 4.0F && modellAnimKnochenKlick(a, io.MousePos)) {
+        t.rahmen = false;
     }
     if (t.aktiv == n && t.rahmen && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
         t.rahmen = false;

@@ -6755,6 +6755,9 @@ enum class Str {
     MxGrenzenOk,
     MxGrenzen,
     MxUndoEinfuegen,
+    T1KnochenGewaehlt,
+    T1Hilfsknochen,
+    T1HilfsknochenHint,
     Count,
 };
 

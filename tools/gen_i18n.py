@@ -2388,6 +2388,8 @@ from i18n_ent3a import zeilen_vier as _ent3a  # noqa: E402  (ENTSCHEID3A: Explor
 S += _ent3a()
 from i18n_ap11 import zeilen_vier as _ap11  # noqa: E402  (AP11: Modelle in Reitern, Kopieren/Einfuegen von Flaechen zwischen Modellen)
 S += _ap11()
+from i18n_test1411 import zeilen_vier as _test1411  # noqa: E402  (TEST1411: Testrueckmeldungen von shank zu rc612)
+S += _test1411()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #

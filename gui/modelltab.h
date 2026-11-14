@@ -858,6 +858,13 @@ void modellRigNachMal(int bildA, int bildB, float anteil, std::vector<std::pair<
 [[nodiscard]] std::vector<gpu::ModellGeist> modellGeister();
 [[nodiscard]] bool modellRigGriffMitte(float m[3]);
 void modellRigZiehen(int gizmoArt, const float wert[3]);   // Gizmo: 1 verschieben (Einheiten je Weltachse), 2 drehen (Grad je Weltachse)
+// TEST1411 I: im Bereich Animation ist ein Knochen wie in 3ds Max von Anfang an waehlbar und drehbar, auch ohne Rig. Ein Klick waehlt den
+// Knochen unter der Maus (seine Form, sonst durch die Haut hindurch den Knochen mit dem groessten Gewicht an der Stelle); true, wenn er
+// etwas getroffen hat. Ohne Griff dreht und verschiebt der Gizmo den gewaehlten Knochen selbst (FK), Set Key/Auto Key setzen seine
+// Schluessel. modellAnimKnochenMitte: der Drehpunkt (das Gelenk) dafuer.
+bool modellAnimKnochenKlick(const ModellAnsicht& a, ImVec2 maus);
+[[nodiscard]] bool modellAnimKnochenDirekt();
+[[nodiscard]] bool modellAnimKnochenMitte(float m[3]);
 [[nodiscard]] int modellRigGriffUnter(const ModellAnsicht& a, ImVec2 maus);
 void modellRigUeberlagerung(const ModellAnsicht& a, ImDrawList* dl);
 [[nodiscard]] bool modellAufSchirm(const ModellAnsicht& a, const float p[3], ImVec2& out);
@@ -1428,9 +1435,9 @@ struct ModellGewichte {
     bool sperrMenueOeffnen = false;
     bool sperrMenueSichtbar = false;
     // W10: im Bereich Weights sind die Knochen ab Werk zu sehen - der Schalter "Bones" merkt sich seinen Stand je Bereich
-    bool warDrin = false;
-    bool knochenInnen = true;
-    bool knochenAussen = false;
+    int bereichVorher = -1;              // TEST1411 I: der Bereich im letzten Bild
+    bool knochenInnen[2] = {true, true};   // Stand von "Bones" in Weights und Animation (ab Werk an)
+    bool knochenAussen = false;            // in den anderen Bereichen
     // der Spiegelstand der gezeichneten Stufe (Schweissnetz, Partner je Punkt, Befund), gemerkt bis sich etwas aendert
     modell::Schweissnetz netz;
     std::vector<int> partner;

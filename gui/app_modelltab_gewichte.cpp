@@ -720,18 +720,25 @@ void modellGewichteSperren(int aktion, int maske) {
 
 void modellGewichteBereichSchritt() {
     ModellGewichte& g = gw();
-    const bool drin = mt().bereich == ModellBereich::Weights;
-    if (drin == g.warDrin) { return; }
-    // der Schalter "Bones" merkt sich seinen Stand je Bereich: im Bereich Weights ab Werk an (Entwurf: Knochen sichtbar)
-    if (drin) {
-        g.knochenAussen = g_app->modellKnochen;
-        g_app->modellKnochen = g.knochenInnen;
+    // der Schalter "Bones" merkt sich seinen Stand je Bereich: in den Bereichen Weights (Entwurf: Knochen sichtbar) und Animation
+    // (TEST1411 I: wie 3ds Max sind die Knochen beim Animieren von Anfang an sichtbar und waehlbar) ab Werk an, in den anderen gilt der
+    // Stand von aussen
+    const int jetzt = static_cast<int>(mt().bereich);
+    if (jetzt == g.bereichVorher) { return; }
+    const auto eigen = [](int b) { return b == static_cast<int>(ModellBereich::Weights) || b == static_cast<int>(ModellBereich::Animation); };
+    if (g.bereichVorher >= 0) {
+        if (eigen(g.bereichVorher)) {
+            g.knochenInnen[g.bereichVorher == static_cast<int>(ModellBereich::Weights) ? 0 : 1] = g_app->modellKnochen;
+        } else {
+            g.knochenAussen = g_app->modellKnochen;
+        }
     } else {
-        g.knochenInnen = g_app->modellKnochen;
-        g_app->modellKnochen = g.knochenAussen;
+        g.knochenAussen = g_app->modellKnochen;
     }
-    g.warDrin = drin;
-    g_app->modelDirty = true;
+    const bool neu = eigen(jetzt) ? g.knochenInnen[jetzt == static_cast<int>(ModellBereich::Weights) ? 0 : 1] : g.knochenAussen;
+    if (neu != g_app->modellKnochen) { g_app->modelDirty = true; }
+    g_app->modellKnochen = neu;
+    g.bereichVorher = jetzt;
 }
 
 void modellGewichteMalenSetzen(bool an) {
