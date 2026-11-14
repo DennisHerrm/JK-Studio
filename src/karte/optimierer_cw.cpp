@@ -478,6 +478,32 @@ std::vector<V> proben(const std::vector<V>& pts, const V& n, double abstand, std
     }
     return r;
 }
+// Sutherland-Hodgman: Schnitt zweier konvexer Vielecke (beide gegen den Uhrzeigersinn)
+std::vector<P2> schnitt(std::vector<P2> a, const std::vector<P2>& b) {
+    for (std::size_t i = 0; i < b.size() && !a.empty(); ++i) {
+        const P2 p = b[i];
+        const P2 q = b[(i + 1) % b.size()];
+        const auto seite = [&](const P2& x) { return (q.x - p.x) * (x.y - p.y) - (q.y - p.y) * (x.x - p.x); };
+        std::vector<P2> r;
+        for (std::size_t j = 0; j < a.size(); ++j) {
+            const P2 c = a[j];
+            const P2 d = a[(j + 1) % a.size()];
+            const double sc = seite(c);
+            const double sd = seite(d);
+            if (sc >= 0) { r.push_back(c); }
+            if ((sc >= 0) != (sd >= 0)) {
+                const double t = sc / (sc - sd);
+                r.push_back(P2{c.x + (d.x - c.x) * t, c.y + (d.y - c.y) * t});
+            }
+        }
+        a = std::move(r);
+    }
+    return a;
+}
+void gegenUhr(std::vector<P2>& p) {
+    if (flaeche2(p) < 0) { std::reverse(p.begin(), p.end()); }
+}
+
 // q3map2 model.cpp:970-999 clipflags_doClip: erzeugt q3map2 aus den Dreiecken eines misc_model Clip-Pinsel?
 bool clipFein(const ShaderArt& si, int spawnFlags) {
     constexpr int eClipModel = 1 << 1;
@@ -584,6 +610,8 @@ public:
         messen("cw_welt");
         sichtGegenKollision();
         messen("cw_sicht");
+        fastDeckungsgleich();
+        messen("cw_deckung");
     }
 
 private:
@@ -1079,6 +1107,141 @@ private:
             detailSetzen(abst, "%s visible walkable faces more than %s units away from the collision (largest gap %s)",
                          {std::to_string(abst.anzahl), zahl(tol), zahl(groesster)});
             m_out.push_back(abst);
+        }
+    }
+
+    // --- 2. Fast deckungsgleiche Flaechen (Z-Fighting) ---------------------------------------------------------------
+    void fastDeckungsgleich() {
+        Befund b = neu("fastdeckungsgleich", Schwere::Warnung,
+                       "q3map2 surface.cpp:1197-1360 CullSides (removes only identical windings), :1150-1188 SideInBrush (sides inside "
+                       "another brush), ClipSidesIntoTree (structural brushes clip their sides); Clone Wars list: no faces closer than 2 units "
+                       "(adjustable)");
+        const double grenze = m_o.masse.deckung;
+        struct F {
+            int vol;
+            int seite;
+            V n;
+            double d;
+            double mn[3];
+            double mx[3];
+        };
+        std::vector<F> fl;
+        for (std::size_t i = 0; i < m_w.vol.size(); ++i) {
+            const Vol& v = m_w.vol[i];
+            for (std::size_t s = 0; s < v.p->flaechen.size(); ++s) {
+                const AbbildFlaeche& f = v.p->flaechen[s];
+                if (f.punkte.size() < 3 || !gezeichnet(f.shader) || m_art(f.shader).versatz) { continue; }
+                F x{static_cast<int>(i), static_cast<int>(s), f.ebene.normal(), f.ebene.dist(), {1e30, 1e30, 1e30}, {-1e30, -1e30, -1e30}};
+                for (const V& p : f.punkte) {
+                    for (int a = 0; a < 3; ++a) {
+                        x.mn[a] = std::min(x.mn[a], p[static_cast<std::size_t>(a)]);
+                        x.mx[a] = std::max(x.mx[a], p[static_cast<std::size_t>(a)]);
+                    }
+                }
+                fl.push_back(x);
+            }
+        }
+        // je Richtung (auf 1/1000) und Abstandsstreifen der Breite `grenze`
+        std::map<std::array<long long, 4>, std::vector<int>> eimer;
+        const auto schl = [&](const F& f, long long dv) {
+            return std::array<long long, 4>{std::llround(f.n[0] * 1000), std::llround(f.n[1] * 1000), std::llround(f.n[2] * 1000),
+                                            static_cast<long long>(std::floor(f.d / std::max(grenze, 0.01))) + dv};
+        };
+        for (std::size_t i = 0; i < fl.size(); ++i) { eimer[schl(fl[i], 0)].push_back(static_cast<int>(i)); }
+        // SideInBrush: liegt die Wicklung auf oder hinter jeder Ebene des Pinsels (der nicht durchscheint und keine caulk-Seite hat)?
+        const auto drin = [&](const F& f, const Vol& in) {
+            if (in.durchscheinend || in.nodrawSeite) { return false; }
+            const AbbildFlaeche& af = m_w.vol[static_cast<std::size_t>(f.vol)].p->flaechen[static_cast<std::size_t>(f.seite)];
+            for (const AbbildFlaeche& e : in.p->flaechen) {
+                for (const V& p : af.punkte) {
+                    if (abstandZuPunkt(e.ebene, p) > 0.1) { return false; }
+                }
+            }
+            return true;
+        };
+        long long paare = 0;
+        double naechster = 1e30;
+        for (std::size_t i = 0; i < fl.size(); ++i) {
+            const F& f = fl[i];
+            for (long long dv = 0; dv <= 1; ++dv) {
+                const auto it = eimer.find(schl(f, dv));
+                if (it == eimer.end()) { continue; }
+                for (const int j : it->second) {
+                    if (dv == 0 && j <= static_cast<int>(i)) { continue; }
+                    const F& g = fl[static_cast<std::size_t>(j)];
+                    if (g.vol == f.vol) { continue; }
+                    if (punkt(f.n, g.n) < 0.9999) { continue; }
+                    // derselbe Shader zeigt auf beiden dasselbe Bild - das Flackern sieht man nicht
+                    if (klein(m_w.vol[static_cast<std::size_t>(f.vol)].p->flaechen[static_cast<std::size_t>(f.seite)].shader) ==
+                        klein(m_w.vol[static_cast<std::size_t>(g.vol)].p->flaechen[static_cast<std::size_t>(g.seite)].shader)) {
+                        continue;
+                    }
+                    const double abstand = std::fabs(f.d - g.d);
+                    if (abstand >= grenze) { continue; }
+                    bool trennt = false;
+                    for (int a = 0; a < 3; ++a) {
+                        if (f.mn[a] > g.mx[a] + grenze || g.mn[a] > f.mx[a] + grenze) { trennt = true; }
+                    }
+                    if (trennt) { continue; }
+                    const Vol& va = m_w.vol[static_cast<std::size_t>(f.vol)];
+                    const Vol& vb = m_w.vol[static_cast<std::size_t>(g.vol)];
+                    const AbbildFlaeche& fa = va.p->flaechen[static_cast<std::size_t>(f.seite)];
+                    const AbbildFlaeche& fb = vb.p->flaechen[static_cast<std::size_t>(g.seite)];
+                    // CullSides: gleiche Ebene und gleiche Wicklung (CULL_EPSILON 0.1) - q3map2 entfernt eine der beiden
+                    if (abstand < 0.1 && fa.punkte.size() == fb.punkte.size()) {
+                        bool alle = true;
+                        for (const V& p : fa.punkte) {
+                            bool da = false;
+                            for (const V& q : fb.punkte) {
+                                if (std::fabs(p[0] - q[0]) <= 0.1 && std::fabs(p[1] - q[1]) <= 0.1 && std::fabs(p[2] - q[2]) <= 0.1) { da = true; }
+                            }
+                            if (!da) { alle = false; }
+                        }
+                        if (alle) { continue; }
+                    }
+                    if (drin(f, vb) || drin(g, va)) { continue; }
+                    // die Ueberdeckung in der Ebene
+                    const Basis bs = basisFuer(f.n);
+                    std::vector<P2> pa = flach(fa.punkte, fa.punkte[0], bs);
+                    std::vector<P2> pb = flach(fb.punkte, fa.punkte[0], bs);
+                    gegenUhr(pa);
+                    gegenUhr(pb);
+                    const std::vector<P2> s = schnitt(pa, pb);
+                    if (s.size() < 3 || std::fabs(flaeche2(s)) < 1.0) { continue; }
+                    // Mitte der Ueberdeckung; liegt sie in einem Strukturpinsel des anderen Teils, schneidet die BSP sie weg
+                    double sx = 0;
+                    double sy = 0;
+                    for (const P2& q : s) {
+                        sx += q.x;
+                        sy += q.y;
+                    }
+                    sx /= static_cast<double>(s.size());
+                    sy /= static_cast<double>(s.size());
+                    const V mitte = fa.punkte[0] + bs.u * sx + bs.v * sy;
+                    const V mitteB = mitte + f.n * (g.d - f.d);
+                    if ((vb.struktur && vb.verdeckend && Welt::innen(vb, mitte, 0.01)) || (va.struktur && va.verdeckend && Welt::innen(va, mitteB, 0.01))) {
+                        continue;
+                    }
+                    ++paare;
+                    naechster = std::min(naechster, abstand);
+                    ObjektRef ra = flaechenRef(va, f.seite);
+                    ObjektRef rb = flaechenRef(vb, g.seite);
+                    ra.text += ": " + zahl(abstand) + " units from " + stelle(vb.ent, vb.prim) + ", at " + ort(mitte);
+                    rb.text += ": " + zahl(abstand) + " units from " + stelle(va.ent, va.prim) + ", at " + ort(mitteB);
+                    punktSetzen(ra, mitte);
+                    punktSetzen(rb, mitteB);
+                    if (b.objekte.size() + 2 <= 2000000) {
+                        b.objekte.push_back(ra);
+                        b.objekte.push_back(rb);
+                    }
+                }
+            }
+        }
+        b.anzahl = paare;
+        if (paare > 0) {
+            detailSetzen(b, "%s pairs of drawn faces of different parts face the same way less than %s units apart (z-fighting)",
+                         {std::to_string(paare), zahl(grenze)});
+            m_out.push_back(b);
         }
     }
 

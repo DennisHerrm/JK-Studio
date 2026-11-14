@@ -275,7 +275,8 @@ const char* const kOptimiererDetailVorlagen[] = {
     // CW-PRUEF (optimierer_cw.cpp)
     "%s visible walkable faces without collision below them (the player falls through)",
     "%s collision faces the player cannot see (invisible floor or wall)",
-    "%s visible walkable faces more than %s units away from the collision (largest gap %s)"
+    "%s visible walkable faces more than %s units away from the collision (largest gap %s)",
+    "%s pairs of drawn faces of different parts face the same way less than %s units apart (z-fighting)"
 };
 const std::size_t kOptimiererDetailVorlagenAnzahl = sizeof(kOptimiererDetailVorlagen) / sizeof(kOptimiererDetailVorlagen[0]);
 

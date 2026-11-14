@@ -82,6 +82,36 @@ ZEILEN = [
      "con la colisión debajo, los pies se hunden en el suelo visible; con un brush de colisión invisible encima, el jugador flota sobre él.",
      "Viditelná podlaha a kolize pod ní nebo nad ní jsou od sebe dál než tolerance (podle seznamu 1 jednotka, nastavitelné): je-li kolize "
      "pod ní, nohy se boří do viditelné podlahy; leží-li na ní neviditelný kolizní brush, hráč nad ní levituje."),
+    ("KeOptPrDeckung", "Nearly coincident faces (z-fighting)", "Fast deckungsgleiche Flächen (Z-Fighting)", "几乎重合的面(深度冲突)",
+     "ほぼ重なった面(Z ファイティング)", "Caras casi coincidentes (z-fighting)", "Téměř shodné plochy (z-fighting)"),
+    ("KeOptPrDeckungE",
+     "Drawn faces of two different brushes face the same way, overlap and lie less than 2 units apart (adjustable): the game flickers "
+     "between them (z-fighting), at a distance even when they are a little apart. q3map2 removes only exactly identical faces (CullSides) "
+     "and faces completely inside another brush (SideInBrush); structural brushes cut away what lies inside them. Faces with polygonOffset "
+     "(decals) and pairs with the same shader (the same picture on both - the flicker cannot be seen) are left out. The check for overlapping brushes covers only volumes overlapping by more than 1 unit.",
+     "Gezeichnete Flächen zweier verschiedener Pinsel zeigen in dieselbe Richtung, überdecken sich und liegen weniger als 2 Einheiten "
+     "auseinander (einstellbar): das Spiel flackert zwischen ihnen (Z-Fighting), aus der Entfernung auch dann, wenn sie etwas auseinander "
+     "liegen. q3map2 entfernt nur genau gleiche Flächen (CullSides) und Flächen ganz in einem anderen Pinsel (SideInBrush); Strukturpinsel "
+     "schneiden weg, was in ihnen liegt. Flächen mit polygonOffset (Decals) und Paare mit demselben Shader (auf beiden dasselbe Bild - das Flackern sieht man nicht) "
+     "bleiben außen vor. Die Prüfung auf überlappende Pinsel erfasst "
+     "nur Körper, die sich um mehr als 1 Einheit überlappen.",
+     "两个不同笔刷的已绘制面朝向相同、相互重叠且相距不到 2 单位(可调):游戏会在它们之间闪烁(深度冲突),在远处即使稍有间隔也会出现。q3map2 只会移除"
+     "完全相同的面(CullSides)和完全位于另一个笔刷内部的面(SideInBrush);结构笔刷会切掉位于其内部的部分。带 polygonOffset 的面(贴花)以及使用相同着色器的面对(两者显示相同的图像——看不出闪烁)不在检查范围内。"
+     "笔刷重叠检查只涵盖重叠超过 1 单位的体积。",
+     "異なる 2 つのブラシの描画される面が同じ向きで重なり、2 ユニット未満(変更可)しか離れていません。ゲームではその間がちらつきます(Z ファイ"
+     "ティング)。遠くからだと少し離れていても起こります。q3map2 が消すのは完全に同じ面(CullSides)と別のブラシの中にすっぽり入った面"
+     "(SideInBrush)だけで、構造ブラシは内部にあるものを切り取ります。polygonOffset の面(デカール)と、同じシェーダーの組(両方に同じ画像が出るのでちらつきは見えません)は対象外です。重なったブラシのチェックが扱う"
+     "のは 1 ユニットを超えて重なる立体だけです。",
+     "Caras dibujadas de dos brushes distintos miran hacia el mismo lado, se solapan y están a menos de 2 unidades (ajustable): el juego "
+     "parpadea entre ellas (z-fighting), a distancia incluso cuando están algo separadas. q3map2 solo elimina caras exactamente iguales "
+     "(CullSides) y caras completamente dentro de otro brush (SideInBrush); los brushes estructurales recortan lo que queda dentro de "
+     "ellos. Las caras con polygonOffset (decals) y los pares con el mismo shader (la misma imagen en "
+     "ambas: el parpadeo no se ve) quedan fuera. La comprobación de brushes solapados solo cubre volúmenes que se solapan "
+     "más de 1 unidad.",
+     "Kreslené plochy dvou různých brushů míří stejným směrem, překrývají se a jsou od sebe méně než 2 jednotky (nastavitelné): hra mezi "
+     "nimi bliká (z-fighting), zdálky i tehdy, když jsou trochu od sebe. q3map2 odstraní jen přesně shodné plochy (CullSides) a plochy "
+     "celé uvnitř jiného brushe (SideInBrush); strukturní brushe odříznou, co leží uvnitř nich. Plochy s polygonOffset (decaly) a páry se stejným shaderem (na obou stejný "
+     "obrázek - blikání není vidět) se nepočítají. Kontrola překrývajících se brushů zachytí jen tělesa překrytá o víc než 1 jednotku."),
     # --- Angaben (KeOptD39..54, englisch = kOptimiererDetailVorlagen) ---
     ("KeOptD39", "%s visible walkable {face|faces} without collision below {it|them} (the player falls through)",
      "%s {sichtbare begehbare Fläche|sichtbare begehbare Flächen} ohne Kollision darunter (man fällt durch)",
@@ -98,6 +128,11 @@ ZEILEN = [
      "%s 个可见的可行走面与碰撞相距超过 %s 单位(最大间距 %s)", "歩ける見える面 %s 個がコリジョンから %s ユニットを超えて離れています(最大の間隔 %s)",
      "%s {cara visible transitable|caras visibles transitables} a más de %s unidades de la colisión (mayor separación %s)",
      "%s {viditelná pochozí plocha|viditelné pochozí plochy|viditelných pochozích ploch} víc než %s jednotek od kolize (největší mezera %s)"),
+    ("KeOptD42", "%s {pair|pairs} of drawn faces of different parts face the same way less than %s units apart (z-fighting)",
+     "%s {Paar|Paare} gezeichneter Flächen verschiedener Teile zeigen in dieselbe Richtung, weniger als %s Einheiten auseinander (Z-Fighting)",
+     "%s 对不同部件的已绘制面朝向相同、相距不到 %s 单位(深度冲突)", "異なる部品の描画面の組 %s 個が同じ向きで %s ユニット未満しか離れていません(Z ファイティング)",
+     "%s {par|pares} de caras dibujadas de partes distintas miran al mismo lado a menos de %s unidades (z-fighting)",
+     "%s {pár|páry|párů} kreslených ploch různých částí míří stejným směrem méně než %s jednotek od sebe (z-fighting)"),
     # --- Einstellungen (Seite Optimizer) ---
     ("KePrOptToleranz", "Visible/collision gap", "Abstand Sicht/Kollision", "可见/碰撞间距", "見た目とコリジョンの差",
      "Separación visible/colisión", "Mezera vidět/kolize"),

@@ -230,6 +230,35 @@ void testeSichtGegenKollision() {
     }
 }
 
+void testeDeckung() {
+    // dicke Platte (Struktur) auf einem Boden, deren Oberseite 1 ueber dem Boden liegt: die BSP schneidet den Boden darunter weg
+    {
+        const auto g = pruefen(welt({kasten(0, 0, -16, 64, 64, 0, kFest), kasten(32, -8, -15, 96, 72, 1, kPlatte)}), optionen());
+        pruefe(anzahl(g, "fastdeckungsgleich") == 0, "fastdeckungsgleich: Strukturpinsel schneidet die Flaeche darunter weg (schweigt)");
+    }
+    // duenne Platte 0,5 ... 1 ueber dem Boden: beide sichtbar, 1 Einheit auseinander
+    {
+        const auto b = pruefen(welt({kasten(0, 0, -16, 64, 64, 0, kFest), kasten(32, 0, 0.5, 96, 64, 1, kPlatte)}), optionen());
+        const Befund* x = befund(b, "fastdeckungsgleich");
+        pruefe(x != nullptr && x->anzahl == 1 && x->objekte.size() == 2, "fastdeckungsgleich: Platte 1 Einheit ueber dem Boden (rot, ein Paar)");
+        const auto g = pruefen(welt({kasten(0, 0, -16, 64, 64, 0, kFest), kasten(32, 0, 2.5, 96, 64, 3, kPlatte)}), optionen());
+        pruefe(anzahl(g, "fastdeckungsgleich") == 0, "fastdeckungsgleich: 3 Einheiten auseinander (schweigt, Grenze 2)");
+    }
+    // gleiche Ebene, halb ueberlappend (zwei Pinsel nebeneinander, Oberseiten gleich hoch): Z-Fighting
+    {
+        AbbildPrimitiv d = kasten(32, -8, -15, 96, 72, 0, kPlatte);   // nur die Oberseiten liegen in einer Ebene
+        d.detail = true;
+        const auto b = pruefen(welt({kasten(0, 0, -16, 64, 64, 0, kFest), d}), optionen());
+        pruefe(anzahl(b, "fastdeckungsgleich") == 1, "fastdeckungsgleich: Detailpinsel ueberlappt mit gleicher Oberseite (rot)");
+        const auto g = pruefen(welt({kasten(0, 0, -16, 64, 64, 0, kFest), kasten(0, 0, -16, 64, 64, 0, kPlatte)}), optionen());
+        pruefe(anzahl(g, "fastdeckungsgleich") == 0, "fastdeckungsgleich: genau gleiche Pinsel - CullSides entfernt eine Seite (schweigt)");
+        AbbildPrimitiv gleich = kasten(32, -8, -15, 96, 72, 0, kFest);
+        gleich.detail = true;
+        const auto s = pruefen(welt({kasten(0, 0, -16, 64, 64, 0, kFest), gleich}), optionen());
+        pruefe(anzahl(s, "fastdeckungsgleich") == 0, "fastdeckungsgleich: derselbe Shader auf beiden - man sieht kein Flackern (schweigt)");
+    }
+}
+
 std::string lies(const std::string& pfad) {
     std::ifstream f(pfad, std::ios::binary);
     std::ostringstream s;
@@ -244,6 +273,7 @@ int main(int argc, char** argv) {
     testeSpielfigur();
     testeBildKopf();
     testeSichtGegenKollision();
+    testeDeckung();
     // eine echte Karte (nur lesen): die neuen Befunde und ihre Zeiten
     if (argc > 1) {
         using Uhr = std::chrono::steady_clock;
