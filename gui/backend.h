@@ -54,6 +54,18 @@ struct BildZeiten {
 };
 void bildMessung(bool an);
 [[nodiscard]] BildZeiten bildZeiten();
+// D3D12-4: Rechenzeit der Grafikkarte fuer diesen Prozess, wie Windows sie zaehlt (Planer der Grafikkarte, D3DKMTQueryStatistics
+// je Knoten der Karte, auf der gezeichnet wird) - unabhaengig von der Grafikschnittstelle und ihren Zeitmarken. Einheit 100 ns,
+// aufsummiert seit dem Start des Prozesses. gueltig false: keine Grafikschnittstelle, keine Auskunft.
+struct GpuSystemZeit {
+    bool gueltig = false;
+    unsigned long long dreiD = 0;   // Knoten der Art 3D
+    unsigned long long kopie = 0;   // Knoten der Art Copy
+    unsigned long long alle = 0;    // alle Knoten
+};
+[[nodiscard]] GpuSystemZeit gpuSystemZeit();
+// Direct3D 12: Abgaben (ExecuteCommandLists des Abgebers) seit dem Start; sonst 0.
+[[nodiscard]] unsigned long long abgabenBisher();
 void resize(int width, int height);
 
 // --- Zugang zum Direct3D-Geraet ----------------------------------------

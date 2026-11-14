@@ -47,8 +47,11 @@
 #include "imgui_impl_dx11.h"
 #include <d3d11.h>
 #include <dxgi1_6.h>
+#include <winternl.h>   // NTSTATUS fuer d3dkmthk.h
+#include <d3dkmthk.h>   // D3D12-4: D3DKMTQueryStatistics (Rechenzeit der Grafikkarte je Prozess)
 #include "bemalt.h"   // rc609 T1: Leerlauf je Fenster
 #include "backend_d3d12.h"   // D3D12 Stufe 1
+#include "bildmessung.h"     // D3D12-4
 #endif
 #include <cstring>
 
@@ -90,8 +93,11 @@ struct BildMarken {
     ID3D11Query* takt = nullptr;
     ID3D11Query* anfang = nullptr;
     ID3D11Query* ende = nullptr;
+    ID3D11Query* mitte = nullptr;   // D3D12-4: vor der Oberflaeche des Hauptfensters
     bool offen = false;
+    bool mitteGesetzt = false;
 };
+OberflaecheZeit g_oberflaeche;
 BildMarken g_bildMarken[4];
 unsigned g_bildMarkeJetzt = 0;
 bool g_bildMarkeLaeuft = false;
@@ -101,6 +107,8 @@ void bildMarkenFrei() {
         if (m.takt != nullptr) { m.takt->Release(); m.takt = nullptr; }
         if (m.anfang != nullptr) { m.anfang->Release(); m.anfang = nullptr; }
         if (m.ende != nullptr) { m.ende->Release(); m.ende = nullptr; }
+        if (m.mitte != nullptr) { m.mitte->Release(); m.mitte = nullptr; }
+        m.mitteGesetzt = false;
         m.offen = false;
     }
     g_bildMarkeLaeuft = false;
@@ -1038,9 +1046,10 @@ void shutdown() {
 
 #ifdef BHED_WITH_D3D11
 // Direct3D 12: die Zeitmarken um das Bild sind dieselben Abfragen, am Kontext des Abgebers. Sie stehen wie unter Direct3D 11
-// im Befehlsstrom des Bildes. Unterschied in der Lesart: Direct3D 12 schickt die Befehle eines Bildes am Stueck ab, die
-// Strecke zwischen den Marken ist dann reine Rechenzeit der Grafikkarte; der D3D11-Treiber schickt in Teilen ab, dort
-// zaehlt Warten auf den Prozessor zwischen den Teilen mit.
+// im Befehlsstrom des Bildes. D3D12-4: Direct3D 12 schickt ein Bild in Teilen ab (Teilabgabe); zwischen den Teilen wartet die
+// Grafikkarte auf den Prozessor. Der Abgeber zieht diesen Leerlauf von seinen Zeitmarken ab (rahmen::leerlaufBis) - die
+// Strecke zwischen den Marken ist, was die Grafikkarte gerechnet hat, wie die Zeitmarken des D3D11-Treibers (gegengeprueft mit
+// der Rechenzeit nach Windows, gpuSystemZeit). BHED_D3D12_MARKEN=roh: mit dem Leerlauf.
 ID3D11Device* markenGeraet() { return g_backend == Backend::Direct3D12 ? d3d12::geraet11() : g_device; }
 ID3D11DeviceContext* markenKontext() { return g_backend == Backend::Direct3D12 ? d3d12::kontext11() : g_context; }
 
@@ -1060,9 +1069,22 @@ void bildMarkenAnfang() {
             continue;
         }
         m.offen = false;
+        UINT64 mi = 0;
+        if (m.mitteGesetzt && dj.Disjoint == FALSE && dj.Frequency > 0 && kontext->GetData(m.mitte, &mi, sizeof(mi), D3D11_ASYNC_GETDATA_DONOTFLUSH) == S_OK && e >= mi) {
+            g_oberflaeche.gpuMs = static_cast<double>(e - mi) * 1000.0 / static_cast<double>(dj.Frequency);
+            ++g_oberflaeche.bilder;
+        }
         if (dj.Disjoint == FALSE && dj.Frequency > 0 && e >= a) {
             g_bildZeiten.gpuMs = static_cast<double>(e - a) * 1000.0 / static_cast<double>(dj.Frequency);
             ++g_bildZeiten.gpuBilder;
+            static bool frequenzGemeldet = false;   // D3D12-4: die Uhr der Zeitmarken je Grafikweg (Kalibrierung)
+            if (!frequenzGemeldet) {
+                frequenzGemeldet = true;
+                char z[120];
+                std::snprintf(z, sizeof(z), "Bildmessung: Zeitmarken mit %llu Hz (%s)", static_cast<unsigned long long>(dj.Frequency),
+                              g_backend == Backend::Direct3D12 ? "Direct3D 12" : "Direct3D 11");
+                diag::detail(z);
+            }
         }
     }
     BildMarken& m = g_bildMarken[g_bildMarkeJetzt];
@@ -1072,13 +1094,25 @@ void bildMarkenAnfang() {
         qd.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
         if (FAILED(geraet->CreateQuery(&qd, &m.takt))) { return; }
         qd.Query = D3D11_QUERY_TIMESTAMP;
-        if (FAILED(geraet->CreateQuery(&qd, &m.anfang)) || FAILED(geraet->CreateQuery(&qd, &m.ende))) { return; }
+        if (FAILED(geraet->CreateQuery(&qd, &m.anfang)) || FAILED(geraet->CreateQuery(&qd, &m.ende)) || FAILED(geraet->CreateQuery(&qd, &m.mitte))) { return; }
     }
     kontext->Begin(m.takt);
     kontext->End(m.anfang);
+    m.mitteGesetzt = false;
     g_bildMarkeLaeuft = true;
 }
 
+// D3D12-4: Marke vor der Oberflaeche des Hauptfensters (vor dem Loeschen), unter beiden Wegen an derselben Stelle.
+void bildMarkenMitte() {
+    ID3D11DeviceContext* const kontext = markenKontext();
+    if (!g_bildMarkeLaeuft || kontext == nullptr) { return; }
+    BildMarken& m = g_bildMarken[g_bildMarkeJetzt];
+    if (m.mitte == nullptr) { return; }
+    kontext->End(m.mitte);
+    m.mitteGesetzt = true;
+}
+
+void bildMarkenMitte();
 void bildMarkenEnde() {
     ID3D11DeviceContext* const kontext = markenKontext();
     if (!g_bildMarkeLaeuft || kontext == nullptr) { return; }
@@ -1096,7 +1130,111 @@ void bildMessung(bool an) {
     g_bildZeiten = BildZeiten{};
 }
 
+#ifdef BHED_WITH_D3D11
+namespace {
+// D3D12-4: die Grafikkarte, auf der gezeichnet wird.
+bool zeichenKarte(LUID& luid) {
+    if (g_backend == Backend::Direct3D12) { return d3d12::karteLuid(luid); }
+    if (g_backend != Backend::Direct3D11 || g_device == nullptr) { return false; }
+    IDXGIDevice* dx = nullptr;
+    bool ok = false;
+    if (SUCCEEDED(g_device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&dx))) && dx != nullptr) {
+        IDXGIAdapter* ad = nullptr;
+        DXGI_ADAPTER_DESC d{};
+        if (SUCCEEDED(dx->GetAdapter(&ad)) && ad != nullptr && SUCCEEDED(ad->GetDesc(&d))) {
+            luid = d.AdapterLuid;
+            ok = true;
+        }
+        if (ad != nullptr) { ad->Release(); }
+        dx->Release();
+    }
+    return ok;
+}
+}  // namespace
+#endif
+
+GpuSystemZeit gpuSystemZeit() {
+    GpuSystemZeit z;
+#ifdef BHED_WITH_D3D11
+    LUID luid{};
+    if (!zeichenKarte(luid)) { return z; }
+    // gdi32 laedt Windows ohnehin; die Einstiege gibt es seit Windows 8 (verzoegert gefragt statt gebunden)
+    HMODULE gdi = GetModuleHandleW(L"gdi32.dll");
+    if (gdi == nullptr) { return z; }
+    static const auto statistik = reinterpret_cast<PFND3DKMT_QUERYSTATISTICS>(reinterpret_cast<void*>(GetProcAddress(gdi, "D3DKMTQueryStatistics")));
+    static const auto oeffnen = reinterpret_cast<PFND3DKMT_OPENADAPTERFROMLUID>(reinterpret_cast<void*>(GetProcAddress(gdi, "D3DKMTOpenAdapterFromLuid")));
+    static const auto frage = reinterpret_cast<PFND3DKMT_QUERYADAPTERINFO>(reinterpret_cast<void*>(GetProcAddress(gdi, "D3DKMTQueryAdapterInfo")));
+    static const auto schliessen = reinterpret_cast<PFND3DKMT_CLOSEADAPTER>(reinterpret_cast<void*>(GetProcAddress(gdi, "D3DKMTCloseAdapter")));
+    if (statistik == nullptr) { return z; }
+    // Art je Knoten (3D, Copy, ...), einmal je Karte
+    static LUID artVon{};
+    static std::vector<int> arten;
+    if (arten.empty() || artVon.LowPart != luid.LowPart || artVon.HighPart != luid.HighPart) {
+        arten.clear();
+        artVon = luid;
+        D3DKMT_QUERYSTATISTICS q{};
+        q.Type = D3DKMT_QUERYSTATISTICS_ADAPTER;
+        q.AdapterLuid = luid;
+        if (statistik(&q) != 0) { return z; }
+        const ULONG knoten = q.QueryResult.AdapterInformation.NodeCount;
+        D3DKMT_OPENADAPTERFROMLUID oa{};
+        oa.AdapterLuid = luid;
+        const bool offen = oeffnen != nullptr && frage != nullptr && oeffnen(&oa) == 0;
+        for (ULONG i = 0; i < knoten; ++i) {
+            int art = -1;
+            if (offen) {
+                D3DKMT_NODEMETADATA md{};
+                md.NodeOrdinalAndAdapterIndex = i;
+                D3DKMT_QUERYADAPTERINFO qa{};
+                qa.hAdapter = oa.hAdapter;
+                qa.Type = KMTQAITYPE_NODEMETADATA;
+                qa.pPrivateDriverData = &md;
+                qa.PrivateDriverDataSize = sizeof(md);
+                if (frage(&qa) == 0) { art = static_cast<int>(md.NodeData.EngineType); }
+            }
+            arten.push_back(art);
+        }
+        if (offen && schliessen != nullptr) {
+            D3DKMT_CLOSEADAPTER ca{};
+            ca.hAdapter = oa.hAdapter;
+            (void)schliessen(&ca);
+        }
+        if (arten.empty()) { return z; }
+    }
+    for (std::size_t i = 0; i < arten.size(); ++i) {
+        D3DKMT_QUERYSTATISTICS q{};
+        q.Type = D3DKMT_QUERYSTATISTICS_PROCESS_NODE;
+        q.AdapterLuid = luid;
+        q.hProcess = GetCurrentProcess();
+        q.QueryProcessNode.NodeId = static_cast<ULONG>(i);
+        if (statistik(&q) != 0) { continue; }
+        const auto t = static_cast<unsigned long long>(q.QueryResult.ProcessNodeInformation.RunningTime.QuadPart);
+        z.alle += t;
+        if (arten[i] == DXGK_ENGINE_TYPE_3D) { z.dreiD += t; }
+        if (arten[i] == DXGK_ENGINE_TYPE_COPY) { z.kopie += t; }
+    }
+    z.gueltig = true;
+#endif
+    return z;
+}
+
+unsigned long long abgabenBisher() {
+#ifdef BHED_WITH_D3D11
+    if (g_backend == Backend::Direct3D12) { return d3d12::abgabenBisher(); }
+#endif
+    return 0;
+}
+
 BildZeiten bildZeiten() { return g_bildZeiten; }
+
+OberflaecheZeit oberflaecheZeit() { return g_oberflaeche; }
+
+double hauptfadenWartenMs() {
+#ifdef BHED_WITH_D3D11
+    if (g_backend == Backend::Direct3D12) { return d3d12::hauptfadenWartenMs(); }
+#endif
+    return 0.0;
+}
 
 void newFrame() {
     if (!g_ready) {
@@ -1635,6 +1773,7 @@ void present(float r, float g, float bl) {
 #ifdef BHED_WITH_D3D11
     if (g_backend == Backend::Direct3D11) {
         const float clear[4] = {r, g, bl, 1.0F};
+        if (g_bildMessung) { bildMarkenMitte(); }
         g_context->OMSetRenderTargets(1, &g_rtv, nullptr);
         g_context->ClearRenderTargetView(g_rtv, clear);
         // rc609 T1: aendert ImGui Texturen (Schrift), sehen alle Fenster neu aus
@@ -1687,7 +1826,7 @@ void present(float r, float g, float bl) {
         // Die Endmarke der Bildmessung in die Befehlsliste des Bildes, hinter das Hauptfenster (wie unter Direct3D 11 hinter
         // ImGui_ImplDX11_RenderDrawData). Bis 11.11. stand sie in einer eigenen Liste: ein zweites ExecuteCommandLists je Bild,
         // nur beim Messen und nur unter Direct3D 12.
-        d3d12::hauptfensterZeichnen(clear, g_bildMessung ? &bildMarkenEnde : nullptr);
+        d3d12::hauptfensterZeichnen(clear, g_bildMessung ? &bildMarkenEnde : nullptr, g_bildMessung ? &bildMarkenMitte : nullptr);
         if (!g_fotoPfad.empty()) { fotoSchreiben(); }
         // Eigene Fenster zeichnet imgui_impl_dx12 selbst ueber die Warteschlange: erst hinter der Befehlsliste des Bildes.
         if (ImGui::GetPlatformIO().Viewports.Size > 1) { d3d12::abschickenAbwarten(); }

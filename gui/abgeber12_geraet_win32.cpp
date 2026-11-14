@@ -41,6 +41,7 @@ std::atomic<std::uint64_t> g_lebend{0};
 std::atomic<std::uint64_t> g_lebendJetzt{0};
 long long g_teilAbgabe = 0;
 int g_teilAbgabenMax = 4;
+bool g_markenArbeitsuhr = true;
 std::uint32_t g_naechsteKennung = 0;
 std::uint32_t g_generation = 0;
 double g_msJeTakt = 0.0;
@@ -1718,6 +1719,8 @@ bool anlegen() {
         QueryPerformanceFrequency(&f);
         g_teilAbgabe = mikro * f.QuadPart / 1000000LL;
         if (const char* v = std::getenv("BHED_D3D12_TEILABGABEN"); v != nullptr && v[0] != '\0') { g_teilAbgabenMax = std::atoi(v); }
+        const char* m = std::getenv("BHED_D3D12_MARKEN");
+        g_markenArbeitsuhr = m == nullptr || std::strcmp(m, "roh") != 0;
     }
     {
         LARGE_INTEGER f{};

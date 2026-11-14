@@ -38,6 +38,10 @@ void imguiAbbauen();
 ID3D11Device* geraet11();
 ID3D11DeviceContext* kontext11();
 HANDLE bildFrei();   // wartbare Swapchain (wie Direct3D 11, rc596)
+// D3D12-4 (Messung): die Grafikkarte des Geraets und die Zahl der Abgaben (ExecuteCommandLists) seit dem Start.
+bool karteLuid(LUID& luid);
+std::uint64_t abgabenBisher();
+double hauptfadenWartenMs();   // D3D12-4: Hauptfaden wartete auf Zaunwerte und den Abschickfaden, seit dem Start
 
 void newFrame();
 // Vor dem Zeichnen aller Fenster: die Sichten der 3D-Ansichten in den Zeichenlisten aller Fenster durch ihre Deskriptoren
@@ -48,7 +52,7 @@ void vorbereiten(const std::vector<const void*>& bemalt);
 [[nodiscard]] bool frisch(ImTextureID id);
 // Das Hauptfenster zeichnen (loeschen, Zeichenliste) und abschicken. vorAbschicken: wird gerufen, wenn das Hauptfenster
 // gezeichnet und die Liste noch offen ist (die Endmarke der Bildmessung gehoert in die Befehlsliste des Bildes).
-void hauptfensterZeichnen(const float farbe[4], void (*vorAbschicken)() = nullptr);
+void hauptfensterZeichnen(const float farbe[4], void (*vorAbschicken)() = nullptr, void (*vorOberflaeche)() = nullptr);
 // Warten, bis der Abschickfaden alles Abgegebene ausgefuehrt hat (ExecuteCommandLists, Present): danach gehoeren Warteschlange
 // und Swapchain dem Rufer - noetig, bevor imgui_impl_dx12 eigene Fenster ueber dieselbe Warteschlange zeichnet.
 void abschickenAbwarten();

@@ -46,6 +46,10 @@ extern long long g_teilAbgabe;
 // der Hauptfaden nicht rechnet: dann ging jeder Zielwechsel einzeln ab (bis 364 Abgaben je Bild, Bilder 10- bis 15-mal laenger
 // als unter Direct3D 11, 12.11. abends). Ohne Last sind es im Mittel rund eine je Bild.
 extern int g_teilAbgabenMax;
+// D3D12-4: Zeitmarken (GetData) ohne den Leerlauf der Grafikkarte zwischen den Abgaben (rahmen::leerlaufBis) - so misst die
+// Strecke zwischen zwei Marken, was die Grafikkarte dazwischen gerechnet hat, auch ueber eine Teilabgabe hinweg.
+// BHED_D3D12_MARKEN=roh: die Zeitmarken wie geschrieben (Leerlauf zwischen den Teilen zaehlt mit).
+extern bool g_markenArbeitsuhr;
 extern std::uint32_t g_naechsteKennung;
 // Zaehlt anlegen(): jedes Objekt traegt die Generation des Abgebers, unter dem es entstand. Nach einem Geraeteverlust geben die
 // Zeichenschichten manche Objekte erst frei, wenn der neue Abgeber schon steht (karte_gpu: Stempel render::texturStand) - ein
@@ -541,7 +545,7 @@ struct Kontext final : ID3D11DeviceContext1 {
     ID3D12GraphicsCommandList* offeneListe = nullptr;   // nullptr: beim naechsten Befehl vom Rahmen holen
     std::uint32_t teilBild = ~0U;                      // Teilabgaben: das Bild (g_gebrauchBild) ...
     int teilImBild = 0;                                // ... und wie viele darin schon abgingen
-    long long listeSeit = 0;                           // QueryPerformanceCounter beim Oeffnen der Liste (Teilabgabe)
+    long long listeSeit = 0;                           // QueryPerformanceCounter beim Oeffnen der Liste (Teilabgabe); 0: noch keine Arbeit
     ID3D12PipelineState* psoJetzt = nullptr;   // in der Liste gesetzt
     PsoSchluessel schluesselJetzt;
 

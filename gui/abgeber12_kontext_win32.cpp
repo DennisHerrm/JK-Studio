@@ -717,6 +717,11 @@ bool Kontext::vorZeichnen() {
     if (offeneListe == nullptr) { (void)rahmen::liste(); }   // ruft listeNeu: offeneListe gesetzt, alles neu
     ID3D12GraphicsCommandList* cl = offeneListe;
     if (cl == nullptr) { return false; }
+    if (listeSeit == 0) {   // die Liste trug bisher nur Zeitmarken (D3D12-4)
+        LARGE_INTEGER t{};
+        QueryPerformanceCounter(&t);
+        listeSeit = t.QuadPart;
+    }
     if (schmutz == 0U && cbSchmutz == 0U && srvSchmutz == 0U && abtasterSchmutz == 0U) { return true; }
     if ((schmutz & kSWurzel) != 0U) { cl->SetGraphicsRootSignature(wurzelSignatur()); }
     if ((schmutz & kSZiele) != 0U) { zieleAnwenden(); }
@@ -1112,7 +1117,14 @@ void STDMETHODCALLTYPE Kontext::End(ID3D11Asynchronous* pAsync) {
     auto* q = static_cast<Abfrage*>(static_cast<ID3D11Query*>(pAsync));
     if (q->art.Query == D3D11_QUERY_TIMESTAMP) {
         q->platz = markeNehmen();
-        if (q->platz >= 0) { liste()->EndQuery(markenStapel(), D3D12_QUERY_TYPE_TIMESTAMP, static_cast<UINT>(q->platz)); }
+        if (q->platz >= 0) {
+            // D3D12-4: oeffnet erst die Marke die Liste (Bildmessung am Anfang des Bildes), startet sie die Uhr der Teilabgabe nicht -
+            // sonst ginge eine Liste mit nichts als der Marke beim ersten Zielwechsel ab, nur weil gemessen wird.
+            const bool warZu = offeneListe == nullptr;
+            ID3D12GraphicsCommandList* const cl = liste();
+            if (warZu) { listeSeit = 0; }
+            cl->EndQuery(markenStapel(), D3D12_QUERY_TYPE_TIMESTAMP, static_cast<UINT>(q->platz));
+        }
     }
     q->serie = rahmen::ausfuehrung();
     q->beendet = true;
@@ -1133,6 +1145,7 @@ HRESULT STDMETHODCALLTYPE Kontext::GetData(ID3D11Asynchronous* pAsync, void* pDa
     case D3D11_QUERY_TIMESTAMP: {
         std::uint64_t wert = 0;
         if (DataSize < sizeof(wert) || !markeLesen(q->platz, wert)) { return E_FAIL; }
+        if (g_markenArbeitsuhr) { wert -= std::min(wert, rahmen::leerlaufBis(q->serie)); }
         std::memcpy(pData, &wert, sizeof(wert));
         return S_OK;
     }
@@ -1166,7 +1179,9 @@ void STDMETHODCALLTYPE Kontext::OMSetRenderTargets(UINT NumViews, ID3D11RenderTa
         }
         LARGE_INTEGER t{};
         QueryPerformanceCounter(&t);
-        if (teilImBild < g_teilAbgabenMax && t.QuadPart - listeSeit >= g_teilAbgabe) {
+        if (listeSeit == 0) {
+            listeSeit = t.QuadPart;   // die Liste trug bisher nur Zeitmarken: die Uhr beginnt jetzt
+        } else if (teilImBild < g_teilAbgabenMax && t.QuadPart - listeSeit >= g_teilAbgabe) {
             (void)rahmen::abschicken();
             ++zaehlerIntern().teilAbgaben;
             ++teilImBild;

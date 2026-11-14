@@ -17,6 +17,7 @@
 #include "backend_d3d12.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -166,6 +167,82 @@ unsigned g_debugFehler = 0;   // Fehler der Debugschicht seit dem Start (Selbstt
 std::string g_kartenName;
 LUID g_luid{};
 rahmen::Statistik g_statistik;
+// D3D12-4: Grenzmarken je Abgabe. Je Abgabe drei Zeitmarken: Anfang der Vor-Liste, Anfang der Liste des Bildes, Ende der letzten
+// Liste; aufgeloest in der letzten Liste der Abgabe. Die Strecke vom Ende einer Abgabe bis zum Anfang der naechsten wartet die
+// Grafikkarte auf den Prozessor (Teilabgabe, Ende des Bildes) - rahmen::leerlaufBis summiert sie.
+constexpr UINT kGrenzRing = 1024;   // so viele Abgaben zurueck bleiben lesbar
+ID3D12QueryHeap* g_grenzStapel = nullptr;
+ID3D12Resource* g_grenzPuffer = nullptr;
+const std::uint64_t* g_grenzWerte = nullptr;
+struct Grenze {
+    bool vor = false;       // Anfang der Vor-Liste gestempelt
+    bool haupt = false;     // Anfang der Liste des Bildes gestempelt
+    bool gueltig = false;   // abgeschickt, alle drei aufgeloest
+};
+std::array<Grenze, kGrenzRing> g_grenzen{};
+std::array<std::uint64_t, kGrenzRing> g_leerSumme{};   // Leerlauf bis einschliesslich dieser Abgabe
+std::uint64_t g_leerBis = 0;    // Abgaben 0 .. g_leerBis-1 sind gerechnet
+std::uint64_t g_leerJetzt = 0;  // Summe bis dorthin
+std::uint64_t g_leerEnde = 0;   // Endmarke der letzten gerechneten Abgabe (0: keine)
+
+// --- Grenzmarken je Abgabe (D3D12-4) --------------------------------------------------
+
+void grenzenAnlegen() {
+    D3D12_QUERY_HEAP_DESC qd{};
+    qd.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+    qd.Count = kGrenzRing * 3U;
+    D3D12_HEAP_PROPERTIES hp{};
+    hp.Type = D3D12_HEAP_TYPE_READBACK;
+    D3D12_RESOURCE_DESC bd{};
+    bd.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    bd.Width = static_cast<UINT64>(kGrenzRing) * 3U * sizeof(std::uint64_t);
+    bd.Height = 1;
+    bd.DepthOrArraySize = 1;
+    bd.MipLevels = 1;
+    bd.SampleDesc.Count = 1;
+    bd.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    void* z = nullptr;
+    if (SUCCEEDED(g_dev->CreateQueryHeap(&qd, IID_PPV_ARGS(&g_grenzStapel))) &&
+        SUCCEEDED(g_dev->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &bd, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&g_grenzPuffer))) &&
+        SUCCEEDED(g_grenzPuffer->Map(0, nullptr, &z))) {
+        g_grenzWerte = static_cast<const std::uint64_t*>(z);
+    } else {
+        frei(g_grenzStapel);
+        frei(g_grenzPuffer);
+    }
+    g_grenzen.fill(Grenze{});
+    g_leerSumme.fill(0);
+    g_leerBis = 0;
+    g_leerJetzt = 0;
+    g_leerEnde = 0;
+}
+
+void grenzenFrei() {
+    g_grenzWerte = nullptr;
+    frei(g_grenzPuffer);
+    frei(g_grenzStapel);
+}
+
+// Eine eben geoeffnete Liste der offenen Abgabe stempeln (welche: 0 Vor-Liste, 1 Liste des Bildes).
+void grenzeAnfang(ID3D12GraphicsCommandList* l, UINT welche) {
+    if (g_grenzStapel == nullptr || l == nullptr) { return; }
+    const UINT a = static_cast<UINT>(g_ausfuehrung % kGrenzRing);
+    l->EndQuery(g_grenzStapel, D3D12_QUERY_TYPE_TIMESTAMP, a * 3U + welche);
+    (welche == 0U ? g_grenzen[a].vor : g_grenzen[a].haupt) = true;
+}
+
+// Die letzte Liste der offenen Abgabe: Endmarke und alle drei aufloesen. Ein fehlender Anfang wird hier nur beendet, damit der
+// Bereich aufgeloest werden darf; er zaehlt nicht (Grenze.vor/haupt).
+void grenzeEnde(ID3D12GraphicsCommandList* l) {
+    if (g_grenzStapel == nullptr || l == nullptr) { return; }
+    const UINT a = static_cast<UINT>(g_ausfuehrung % kGrenzRing);
+    Grenze& g = g_grenzen[a];
+    if (!g.vor) { l->EndQuery(g_grenzStapel, D3D12_QUERY_TYPE_TIMESTAMP, a * 3U); }
+    if (!g.haupt) { l->EndQuery(g_grenzStapel, D3D12_QUERY_TYPE_TIMESTAMP, a * 3U + 1U); }
+    l->EndQuery(g_grenzStapel, D3D12_QUERY_TYPE_TIMESTAMP, a * 3U + 2U);
+    l->ResolveQueryData(g_grenzStapel, D3D12_QUERY_TYPE_TIMESTAMP, a * 3U, 3, g_grenzPuffer, static_cast<UINT64>(a) * 3U * sizeof(std::uint64_t));
+    g.gueltig = true;
+}
 
 // --- Abschickfaden ---------------------------------------------------------------
 
@@ -858,7 +935,10 @@ ID3D12GraphicsCommandList* liste() {
     if (!g_hauptOffen) {
         g_liste = listeNehmen(g_plaetze[g_platz].haupt);
         g_hauptOffen = g_liste != nullptr;
-        if (g_hauptOffen) { abgeber::listeNeu(g_liste); }
+        if (g_hauptOffen) {
+            grenzeAnfang(g_liste, 1);
+            abgeber::listeNeu(g_liste);
+        }
     }
     return g_liste;
 }
@@ -867,6 +947,7 @@ ID3D12GraphicsCommandList* vorListe() {
     if (!g_vorOffen) {
         g_vorListe = listeNehmen(g_plaetze[g_platz].vor);
         g_vorOffen = g_vorListe != nullptr;
+        if (g_vorOffen) { grenzeAnfang(g_vorListe, 0); }
     }
     return g_vorListe;
 }
@@ -937,6 +1018,7 @@ void spaeterFrei(IUnknown* objekt) {
 
 std::uint64_t abschicken() {
     Auftrag a;
+    if (g_vorOffen && !g_hauptOffen) { grenzeEnde(g_vorListe); }
     if (g_vorOffen) {
         g_vorListe->Close();
         a.listen[a.n++] = g_vorListe;
@@ -945,6 +1027,7 @@ std::uint64_t abschicken() {
     }
     if (g_hauptOffen) {
         abgeber::vorAbschicken(g_liste);
+        grenzeEnde(g_liste);
         g_liste->Close();
         a.listen[a.n++] = g_liste;
         g_liste = nullptr;
@@ -955,6 +1038,7 @@ std::uint64_t abschicken() {
     auftragGeben(a);
     g_letzterZaun = g_zaunWert;
     ++g_ausfuehrung;
+    g_grenzen[g_ausfuehrung % kGrenzRing] = Grenze{};   // die naechste Abgabe beginnt ungestempelt
     ++g_statistik.abgeschickt;
     if (!g_objekteOffen.empty() || !g_srvOffen.empty()) {
         Spaeter s;
@@ -968,6 +1052,30 @@ std::uint64_t abschicken() {
 }
 
 std::uint64_t letzterZaun() { return g_letzterZaun; }
+
+std::uint64_t leerlaufBis(std::uint64_t serie) {
+    if (g_grenzWerte == nullptr || serie >= g_ausfuehrung) { return 0; }
+    if (serie < g_leerBis) { return g_leerBis - serie <= kGrenzRing ? g_leerSumme[serie % kGrenzRing] : 0; }
+    std::uint64_t j = g_leerBis;
+    if (serie + 1U - j > kGrenzRing) {   // aelter als der Ring: von dort neu anfangen (die Summe zaehlt nur Unterschiede)
+        j = serie + 1U - kGrenzRing;
+        g_leerEnde = 0;
+    }
+    for (; j <= serie; ++j) {
+        const UINT a = static_cast<UINT>(j % kGrenzRing);
+        const Grenze& g = g_grenzen[a];
+        if (g.gueltig) {
+            const std::uint64_t anfang = g_grenzWerte[a * 3U + (g.vor ? 0U : 1U)];
+            const std::uint64_t ende = g_grenzWerte[a * 3U + 2U];
+            if (g_leerEnde != 0U && anfang > g_leerEnde) { g_leerJetzt += anfang - g_leerEnde; }
+            if (ende >= anfang) { g_leerEnde = ende; }
+        }
+        g_leerSumme[a] = g_leerJetzt;
+    }
+    g_leerBis = serie + 1U;
+    return g_leerSumme[serie % kGrenzRing];
+}
+
 void warten(std::uint64_t zaun) { wartenAuf(zaun); }
 bool fertig(std::uint64_t zaun) { return g_zaun == nullptr || g_zaun->GetCompletedValue() >= zaun || geraetWeg(); }
 std::uint64_t ausfuehrung() { return g_ausfuehrung; }
@@ -1074,6 +1182,7 @@ bool init(HWND hwnd, IDXGIAdapter1* karte, bool debug) {
     if (FAILED(g_dev->CreateCommandQueue(&qd, IID_PPV_ARGS(&g_queue)))) { return false; }
     if (FAILED(g_dev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&g_zaun)))) { return false; }
     g_zaunEreignis = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    grenzenAnlegen();
 
     // Swapchain wie Direct3D 11 (backend_win32.cpp, initD3D11): Flip, drei Puffer, wartbar, hoechstens zwei Bilder Vorlauf.
     IDXGIFactory4* fabrik = nullptr;
@@ -1263,6 +1372,7 @@ void shutdown() {
     g_zaunWert = 0;
     g_letzterZaun = 0;
     g_ausfuehrung = 0;
+    grenzenFrei();
     frei(g_queue);
     frei(g_info);
     g_infoGesehen.clear();
@@ -1275,6 +1385,19 @@ void shutdown() {
 void abschickenAbwarten() {
     if (!g_abschickEigen) { return; }
     std::unique_lock<std::mutex> sperre(g_abschickSperre);
+    if (g_auftraege.empty() && !g_abschickArbeitet) { return; }
+    LARGE_INTEGER t0{};
+    QueryPerformanceCounter(&t0);
+    struct Messen {   // D3D12-4: wie lange der Hauptfaden hier wartet (Statistik.abwartenMs)
+        LARGE_INTEGER t0;
+        ~Messen() {
+            LARGE_INTEGER t1{};
+            LARGE_INTEGER f{};
+            QueryPerformanceCounter(&t1);
+            QueryPerformanceFrequency(&f);
+            g_statistik.abwartenMs += static_cast<double>(t1.QuadPart - t0.QuadPart) * 1000.0 / static_cast<double>(f.QuadPart);
+        }
+    } messen{t0};
     while (!g_abschickLeer.wait_for(sperre, std::chrono::seconds(2), [] { return g_auftraege.empty() && !g_abschickArbeitet; })) {
         sperre.unlock();
         gesendeteNachrichten();
@@ -1285,6 +1408,15 @@ void abschickenAbwarten() {
 ID3D11Device* geraet11() { return abgeber::geraet(); }
 ID3D11DeviceContext* kontext11() { return abgeber::kontext(); }
 HANDLE bildFrei() { return g_bildFrei; }
+
+bool karteLuid(LUID& luid) {
+    if (g_dev == nullptr) { return false; }
+    luid = g_luid;
+    return true;
+}
+
+std::uint64_t abgabenBisher() { return g_statistik.abgeschickt; }
+double hauptfadenWartenMs() { return g_statistik.warteMs + g_statistik.abwartenMs; }
 
 void newFrame() {
     // Was die Grafikkarte seit dem letzten Bild abgearbeitet hat, geht jetzt zurueck (freigegebene Texturen und Puffer, Bloecke):
@@ -1313,17 +1445,19 @@ void vorbereiten(const std::vector<const void*>& bemalt) {
 
 bool frisch(ImTextureID id) { return g_frisch.count(static_cast<UINT64>(id)) != 0U; }
 
-void hauptfensterZeichnen(const float farbe[4], void (*vorAbschicken)()) {
+void hauptfensterZeichnen(const float farbe[4], void (*vorAbschicken)(), void (*vorOberflaeche)()) {
     // Das vorige Present muss ausgefuehrt sein (der Hintergrundpuffer wechselt mit ihm), und imgui_impl_dx12 schickt neue
     // Schrifttexturen selbst ueber die Warteschlange. In aller Regel ist der Abschickfaden laengst fertig.
     abschickenAbwarten();
     const UINT i = g_swap->GetCurrentBackBufferIndex();
+    if (vorOberflaeche != nullptr) { vorOberflaeche(); }   // D3D12-4: Marke vor der Oberflaeche (Bildmessung)
     ID3D12GraphicsCommandList* l = rahmen::liste();
     barriere(l, g_hinten[i], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
     const D3D12_CPU_DESCRIPTOR_HANDLE ziel = rtv(i);
     l->OMSetRenderTargets(1, &ziel, FALSE, nullptr);
     abgeber::protokollNotiz(l, "Oberflaeche: Hauptfenster loeschen und zeichnen");
     l->ClearRenderTargetView(ziel, farbe, 0, nullptr);
+    abgeber::protokollNotiz(l, "Oberflaeche: ImGui");
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), l);
     abgeber::fremdGezeichnet();
     abgeber::protokollNotiz(l, "Oberflaeche fertig");

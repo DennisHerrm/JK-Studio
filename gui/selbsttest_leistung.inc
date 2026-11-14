@@ -57,6 +57,13 @@ inline Schritt bildzeit(const std::string& was, std::function<void()> lage, std:
         int cpuBilder = 0;
         int gpuBilder = 0;
         std::chrono::steady_clock::time_point vorher{};
+        render::GpuSystemZeit sys0{};   // D3D12-4: Rechenzeit der Grafikkarte nach Windows am Anfang der Messung
+        std::vector<double> oberflaeche;   // D3D12-4: Grafikkarte fuer die Oberflaeche des Hauptfensters
+        int oberflaecheBilder = 0;
+        unsigned long long abgaben0 = 0;
+        std::chrono::steady_clock::time_point t0{};
+        std::chrono::system_clock::time_point uhr0{};   // D3D12-4: Ortszeit des Messfensters (Abgleich mit dem Takt der Grafikkarte)
+        double warten0 = 0.0;                           // D3D12-4: Warten des Hauptfadens (Direct3D 12)
     };
     auto st = std::make_shared<Stand>();
     constexpr int kAnlauf = 12;
@@ -70,8 +77,19 @@ inline Schritt bildzeit(const std::string& was, std::function<void()> lage, std:
                     render::bildMessung(true);
                     gpu::messwerteVergessen();   // MESS2: GPU-Teile nur aus dieser Messung
                 } else if (b > kAnlauf) {
+                    if (b == kAnlauf + 1) {
+                        st->sys0 = render::gpuSystemZeit();
+                        st->abgaben0 = render::abgabenBisher();
+                        st->t0 = jetzt;
+                        st->uhr0 = std::chrono::system_clock::now();
+                        st->warten0 = render::hauptfadenWartenMs();
+                    }
                     const render::BildZeiten z = render::bildZeiten();
                     if (z.cpuBilder != st->cpuBilder) { st->cpu.push_back(z.cpuMs); }
+                    if (const render::OberflaecheZeit o = render::oberflaecheZeit(); o.bilder != st->oberflaecheBilder) {
+                        st->oberflaeche.push_back(o.gpuMs);
+                        st->oberflaecheBilder = o.bilder;
+                    }
                     if (z.gpuBilder != st->gpuBilder) {
                         st->gpu.push_back(z.gpuMs);
                         for (std::size_t i = 0; i < st->teile.size(); ++i) {
@@ -84,9 +102,35 @@ inline Schritt bildzeit(const std::string& was, std::function<void()> lage, std:
                 const render::BildZeiten z = render::bildZeiten();
                 st->cpuBilder = z.cpuBilder;
                 st->gpuBilder = z.gpuBilder;
+                st->oberflaecheBilder = render::oberflaecheZeit().bilder;
                 st->vorher = jetzt;
                 if (bewegen) { bewegen(b); }
                 if (b < kAnlauf + bilder) { return false; }
+                // D3D12-4: dieselbe Strecke nach Windows (Rechenzeit der Grafikkarte fuer diesen Prozess) - die Gegenprobe zu den
+                // Zeitmarken; dazu die Abgaben je Bild (Direct3D 12)
+                if (const render::GpuSystemZeit sys1 = render::gpuSystemZeit(); sys1.gueltig && st->sys0.gueltig && bilder > 1) {
+                    const double n = static_cast<double>(bilder - 1);
+                    const double wand = std::chrono::duration<double, std::milli>(jetzt - st->t0).count();
+                    // Ortszeit von Anfang und Ende des Messfensters (fuer den Abgleich mit einem Taktprotokoll, nvidia-smi)
+                    const auto uhr = [](std::chrono::system_clock::time_point t) {
+                        const std::time_t s = std::chrono::system_clock::to_time_t(t);
+                        std::tm lt{};
+                        (void)localtime_s(&lt, &s);
+                        const long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(t.time_since_epoch()).count() % 1000LL;
+                        char u[24];
+                        std::snprintf(u, sizeof(u), "%02d:%02d:%02d.%03lld", lt.tm_hour, lt.tm_min, lt.tm_sec, ms);
+                        return std::string(u);
+                    };
+                    const std::string fenster = uhr(st->uhr0) + "-" + uhr(std::chrono::system_clock::now());
+                    char zs[300];
+                    std::snprintf(zs, sizeof(zs), "Leistung: GPU-System %s | 3D %.3f ms, Kopie %.3f ms, alle %.3f ms je Bild, 3D belegt %.1f %%, Abgaben je Bild %.2f | Uhr %s | Hauptfaden wartet %.3f ms je Bild",
+                                  was.c_str(), static_cast<double>(sys1.dreiD - st->sys0.dreiD) / 10000.0 / n,
+                                  static_cast<double>(sys1.kopie - st->sys0.kopie) / 10000.0 / n, static_cast<double>(sys1.alle - st->sys0.alle) / 10000.0 / n,
+                                  wand > 0.0 ? 100.0 * static_cast<double>(sys1.dreiD - st->sys0.dreiD) / 10000.0 / wand : 0.0,
+                                  static_cast<double>(render::abgabenBisher() - st->abgaben0) / n, fenster.c_str(),
+                                  (render::hauptfadenWartenMs() - st->warten0) / n);
+                    diag::detail(zs);
+                }
                 render::bildMessung(false);
                 g_m1Messen = false;
                 diag::detail("Leistung: Bildzeit " + was + " | CPU " + zahlen(st->cpu, "Mittel %.2f p50 %.2f p99 %.2f ms") + " | GPU " +
@@ -104,6 +148,7 @@ inline Schritt bildzeit(const std::string& was, std::function<void()> lage, std:
                     teile += zt;
                 }
                 if (!teile.empty()) { diag::detail("Leistung: GPU-Teile " + was + teile); }
+                if (!st->oberflaeche.empty()) { diag::detail("Leistung: GPU-Oberflaeche " + was + " | " + zahlen(st->oberflaeche, "Mittel %.3f p50 %.3f p99 %.3f ms")); }
                 return true;
             }};
 }

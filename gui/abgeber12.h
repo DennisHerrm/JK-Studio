@@ -53,11 +53,17 @@ void warten(std::uint64_t zaun);
 [[nodiscard]] bool fertig(std::uint64_t zaun);
 // Zaehlt jedes ExecuteCommandLists: Puffer im Grafikspeicher fallen danach auf den Zustand COMMON zurueck.
 [[nodiscard]] std::uint64_t ausfuehrung();
+// D3D12-4: Leerlauf der Grafikkarte zwischen den Abgaben (Takte der Zeitmarken), aufsummiert bis einschliesslich der Abgabe
+// `serie` (ausfuehrung() beim Aufzeichnen). Nur fuer Abgaben, deren Zaunwert erreicht ist. Eine Zeitmarke in Abgabe b minus
+// leerlaufBis(b) ist eine Uhr, die nur laeuft, solange die Grafikkarte Listen dieses Programms abarbeitet: Die Teilabgabe laesst
+// sie zwischen den Teilen auf den Prozessor warten, der D3D11-Treiber zeigt das in seinen Zeitmarken nicht.
+[[nodiscard]] std::uint64_t leerlaufBis(std::uint64_t serie);
 // Zaehler des Rahmens fuer Messung und Bildprotokoll (seit dem Start).
 struct Statistik {
     std::uint64_t abgeschickt = 0;      // ExecuteCommandLists
     std::uint64_t gewartet = 0;         // Warten auf einen Zaunwert, das die Grafikkarte noch nicht erreicht hatte
     double warteMs = 0.0;
+    double abwartenMs = 0.0;            // D3D12-4: Hauptfaden wartet auf den Abschickfaden (abschickenAbwarten)
     std::uint64_t hochladeBytes = 0;    // ueber hochladePlatz vergeben
     std::uint64_t hochladePuffer = 0;   // dafuer angelegte Hochladepuffer
     std::uint64_t hochladeJetzt = 0;    // Bytes der Hochladepuffer, die die Bildplaetze gerade halten

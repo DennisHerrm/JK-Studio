@@ -52,6 +52,7 @@
 #include "bhed/menue/werkzeuge.h"
 #include "bhed/ki.h"
 #include "backend.h"
+#include "bildmessung.h"   // D3D12-4
 #include "karte_gpu.h"
 #include "karte_bau_plattform.h"   // Stufe 3 Punkt 4: Port 39000 belegen
 #include "karte_echtlicht.h"         // Stufe 7: Echtzeit-Licht
@@ -110,6 +111,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <filesystem>
 #include <functional>
 #include <iterator>
