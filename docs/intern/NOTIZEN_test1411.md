@@ -101,13 +101,44 @@ genau ihre 5 Karten neu gelesen, alte Zeit aus der Datei; waehrend des Lesens bi
 ein Bildlauf - Richtwerte). missionsliste: zwei Wartezeilen ("t1_sour/md_am_sith in der Auswahl") warten jetzt auch auf das Ende der Suche -
 Testfehler durch das gewollte neue Verhalten (rot 10/3, gruen 13/0). app_view3d.cpp braucht /bigobj (C1128, wie selbsttest.cpp).
 
+## TEST1411e (Reste, 15.11.2026)
+
+Laeufe `Y:\p_ap6\build\laeufe\t1411e_*` und `t1411c_e_*`, Skripte `Y:\werkzeuge\test1411\e\` (`hb.sh` uebernimmt nur Bilder des Model-Tabs).
+
+| Punkt | Befund | Art | Rot -> Gruen |
+|---|---|---|---|
+| stufe9 (5 FEHLER der CW-Laeufe, 7 im Lauf cw_s9_karte1) | "Im Spiel testen" x2, "Modell ziehen ... .pk3", "Pack map as .pk3 ... Import-Ordner", NPC-Wege (x2), Verteilen | Testaufruf: stufe9 arbeitet auf der gebauten Karte des Tutorials (stufe8c/8g); allein gewaehlt lief es auf der offenen Karte des gemeinsamen Anfangs (MAP LEAKED, kein Boden). Schon auf rc612 so (Paket rel612: stufe9 allein 48/7, mit stufe8c,stufe8g 86/0) - weder TEST1411 noch CW | BHED_KARTE_GRUPPEN nimmt fuer stufe9 stufe8g, fuer stufe8g stufe8c dazu; stufe9 allein 86/0 |
+| Missionsliste (Rueckfrage Hauptchat) | waehrend die Suche im Hintergrund Karten SORTIERT einfuegte, rutschten die Zeilen - ein Klick traf die falsche Mission (Gruppe jk2: md_afif_sith statt md_am_sith) | Programmfehler (TEST1411d) | Selbsttest `BHED_T1411=s`: rot 387 von 394 Bildern eine andere Zeile unter der Maus (37 -> 281 Karten) -> gruen 0 von 390 (40 -> 282), am Ende dieselbe Zeile, beim Verlassen geordnet (23 Gruppen) |
+| JK2-Wartezeilen (Punkt 5) | rot t1411e_jk2_rot 17/5 (Klicks in die wachsende Liste); die 25-Zaehlung war gruen (alle Karten in assets0) | Test an das Verhalten von Load mission: warten auf "fertig gelesen und geordnet", die Maus vorher weg von der Liste | JK2-Daten vorhanden (Steam Jedi Outcast, nur gelesen) |
+| Zeitleiste der Vorschau (Punkt 3) | eigener Selbsttest (Modus zeitleiste, vor zeitleisteSchritte; auch in Modus 1) | Test neu | mit zurueckgenommener F-Behebung rot: Knoepfe 198 -> 208 -> 217 -> 227 px bei Bild 0/10/100/1000 (49/1) -> gruen 50/0 |
+| Mauspunkt (Punkt 2) | ohne Auswahl X/Y/Z des Punkts unter der Maus auf der Rasterebene der Ansicht darunter, ausserhalb der Ansichten bleibt der letzte Punkt | neu | Selbsttest `BHED_T1411=x`: 7 Faelle (eine Ansicht oben/vorne/links/Perspektive, vier Ansichten), Abweichung hoechstens 0,00497 (Rundung 0,005); ImGui rundet die Maus auf ganze Bildpunkte. Beim Ansehen der Bilder gefunden: mit einem gewaehlten Knochen ohne Mitte (Bereich Ansehen, h_ap1_pruefen "Bone rhand Selected") stand der Mauspunkt da - rot t1411e_x_rot 5/1, jetzt nur bei "None Selected": gruen 6/0 |
+| Knochenpaare von Hand (Punkt 4) | Klappliste je Zeile, neues Paar aus zwei beliebigen Knochen, "Paare nach den Namen"; gilt fuer Spiegeln, Mirror Paste, Blender-Spiegeln und Spiegeln beim Malen | neu (modell::KnochenSpiegel) | ctest modell_gewichte2 (10 neue Pruefungen), Selbsttest `BHED_T1411=w` |
+| ap8 | Klicks auf Knoepfe unter dem sichtbaren Teil des Befehlsfelds kamen nicht an (90/40) | Testfehler seit TEST1411 P (das Feld wurde hoeher; ap8 lief seitdem nicht) | vor jedem Klick ins Feld ap3::insFeld |
+| ap13s | 4 FEHLER "kein Ordner zum Speichern" | Umgebung: ohne BHED_FOTOS | mit BHED_FOTOS |
+| Dialogbilder (Punkt 6) | h_start 1171, h_spielordner 1798, h_mission_neu 1054, h_mission_speichern 1240, k_pk3/s_pk3_art 1240 breit | hb::breit1920: das Fenster in voller Groesse, links und rechts das Programm (wie h_mission_wahl) | 6 Sprachen neu |
+
+Entscheidungen: Die Paare von Hand gelten fuer alle Wege des Spiegelns (auch im Modus Blender, der sie nicht anzeigt) - sie sind eine Eigenschaft
+des Skeletts. Max paart Knochen im Mirror Mode ueber die Lage; eine Liste von Hand gibt es dort nicht (shank P: "sichtbar und aenderbar").
+Waehrend gelesen wird, stehen neu gelesene Karten am Ende ("Just read", mit ihrer Gruppe); die Zeile der Suche bleibt bis zum Ordnen stehen.
+Die Statuszeile behaelt den letzten Mauspunkt, wenn die Maus die Ansichten verlaesst (wie Max die Felder der Koordinatenanzeige).
+
+Handbuchbilder: alle 33 Model-Tab-Gruppen in 6 Sprachen neu aufgenommen (198 Laeufe, 0 FEHLER; `e/hb.sh` uebernimmt nur Bilder des Model-Tabs,
+hilfe1 schreibt keine Bilder anderer Seiten). Byte-gleich blieben alle bis auf die, deren Statuszeile jetzt den Mauspunkt zeigt: h_ai_bibliothek,
+h_mbn_orbit, h_ph_sprung, h_pr_gang, h_rt_ketten, h_rt_uebertragen, h_uv_schnell (je 6 Sprachen, angesehen). Nicht uebernommen (Unterschied nicht
+aus TEST1411e): h_mb7_* (mit BHED_MB7_BSP die Testkarte mb7raum statt md_am_sith - fast schwarz), h_mb3_animation (Bild der Animation), h_ap12_*
+(Zeit des Auto-Skin), h_mb3_speichern/h_md_karte (Pfad des Laufordners), m_npc (397 statt 367 Figuren - Datenstand), h_modell/m_*/k_modell_leiste
+(2-93 Bildpunkte Rauschen). Dazu die sechs Dialogbilder 1920 breit (angesehen: en h_mission_neu, ja k_pk3).
+
 ## Offen
 
 - Handbuch: Texte zu A-P in 6 Sprachen, `gen_handbuch.py --pruefen` gruen. Alle Bilder des Model-Tabs der Gruppen von TEST1411 in 6 Sprachen neu,
   mit TEST1411d auch h_mb5_*, h_ph_*, h_rt_*/h_pr_gang, h_ap6/ap11/ap12/ap13s/ent3a und h_mission_wahl.
 - Handbuch-Gruppe mb3: zwei Pruefungen an I/N angepasst (Silhouette ohne Knochen, 3/8 Tasten).
-- F: eigener Selbsttest der Vorschau-Zeitleiste; G: Mauspunkt auf dem Raster als X/Y/Z.
-- P: Knochenpaare von Hand aendern (Max hat das auch nicht als Liste).
+- Handbuchbilder unter 1920 Breite: ausser den sechs Dialogbildern von TEST1411e noch rund 440 je Sprache (b_*, c_*, e_*, k_*, s_*, t*, vg_*, vt_* ...;
+  darunter t4_1/t4_4, dieselben Fenster wie h_mission_neu/_speichern).
+- Weights: die Zeile "Bone pairs (by names)" zaehlt seit TEST1411e auch Paare von Hand - die Beschriftung nennt nur die Namen.
+- h_mb7_*: ob die Handbuchbilder auf md_am_sith (Stand im Handbuch) oder der Testkarte mb7raum (BHED_MB7_BSP wie tools/testrunde.py) entstehen
+  sollen, ist offen; mit mb7raum ist die Szene fast schwarz. m_npc zeigt noch 367 Figuren (heute 397).
 
 ## Changelog
 
@@ -132,7 +163,9 @@ Testfehler durch das gewollte neue Verhalten (rot 10/3, gruen 13/0). app_view3d.
 - Quad menu: submenus open outwards (left quadrants to the left, right ones to the right) and the menu stays inside the window.
 - Sequences tab: a row can be dragged onto a slot of the map GLA again; Painting: Show image and Bake to new UVs stand side by side again, the picker below.
 - Model tab, 3ds Max mode: Dope sheet and Curve editor from the Animation menu and the action search open the mini curve editor again; choosing an entry of the quad menu closes it, as in 3ds Max.
-- Load mission: the mission list is kept on disk - from the second time on it is there at once, also after a restart; a changed archive is read again. While reading, finished maps already stand in their groups.
+- Load mission: the mission list is kept on disk - from the second time on it is there at once, also after a restart; a changed archive is read again. While reading, finished maps come at the end of the list and nothing moves under the mouse; when reading is done they go into their groups.
+- Model tab, 3ds Max mode: with nothing selected the status line shows X/Y/Z of the mouse point on the grid of the view under the mouse.
+- Weights: the bone pairs of the mirror can be changed by hand (a list per row, any two bones in the last row, Pairs from names).
 
 ## Deutsch
 
@@ -155,7 +188,9 @@ Testfehler durch das gewollte neue Verhalten (rot 10/3, gruen 13/0). app_view3d.
 - Quad-Menü: Untermenüs gehen nach außen auf (linke Viertel nach links, rechte nach rechts), und das Menü bleibt im Fenster.
 - Reiter Sequenzen: eine Zeile lässt sich wieder auf einen Platz der Karten-GLA ziehen; Painting: Bild zeigen und Auf neue UVs backen stehen wieder nebeneinander, die Pipette darunter.
 - Model-Tab, Modus 3ds Max: Dope Sheet und Kurveneditor aus dem Menü Animation und der Aktionssuche öffnen den Mini Curve Editor wieder; ein gewählter Eintrag des Quad-Menüs schließt es wie in 3ds Max.
-- Mission laden: die Missionsliste bleibt auf der Platte gespeichert - ab dem zweiten Mal steht sie sofort da, auch nach einem Neustart; ein verändertes Archiv wird neu gelesen. Während des Lesens stehen fertige Karten schon in ihren Gruppen.
+- Mission laden: die Missionsliste bleibt auf der Platte gespeichert - ab dem zweiten Mal steht sie sofort da, auch nach einem Neustart; ein verändertes Archiv wird neu gelesen. Während des Lesens kommen fertige Karten ans Ende der Liste, unter der Maus verschiebt sich nichts; ist alles gelesen, kommen sie in ihre Gruppen.
+- Model-Tab, Modus 3ds Max: ohne Auswahl zeigt die Statuszeile X/Y/Z des Mauspunkts auf dem Raster der Ansicht unter der Maus.
+- Weights: die Knochenpaare des Spiegelns lassen sich von Hand ändern (Liste je Zeile, zwei beliebige Knochen in der letzten Zeile, Paare nach den Namen).
 
 ## 中文
 
@@ -178,7 +213,9 @@ Testfehler durch das gewollte neue Verhalten (rot 10/3, gruen 13/0). app_view3d.
 - 四元菜单: 子菜单向外展开 (左侧象限向左, 右侧向右), 菜单保持在窗口内。
 - 序列选项卡: 行又可以拖到地图 GLA 的槽位上; 绘制: 显示图像和烘焙到新 UV 又并排显示, 吸管在下方。
 - 模型标签, 3ds Max 模式: 从动画菜单和操作搜索打开摄影表和曲线编辑器时又会打开迷你曲线编辑器; 选择四元菜单中的条目后菜单关闭, 与 3ds Max 相同。
-- 加载任务: 任务列表保存在磁盘上 - 从第二次起立即显示, 重启后也是如此; 已更改的存档会重新读取。读取过程中, 已读完的地图已显示在各自的组中。
+- 加载任务: 任务列表保存在磁盘上 - 从第二次起立即显示, 重启后也是如此; 已更改的存档会重新读取。读取过程中, 已读完的地图排在列表末尾, 鼠标下方的内容不会移动; 全部读完后再归入各自的组。
+- 模型标签页, 3ds Max 模式: 未选择任何对象时, 状态栏显示鼠标在其下方视图网格上的点的 X/Y/Z。
+- 权重: 镜像的骨骼对可以手动更改 (每行一个列表, 最后一行可配对任意两根骨骼, 按名称配对)。
 
 ## 日本語
 
@@ -201,7 +238,9 @@ Testfehler durch das gewollte neue Verhalten (rot 10/3, gruen 13/0). app_view3d.
 - クアッド メニュー: サブメニューは外側に開き (左の区画は左へ、右は右へ)、メニューはウィンドウ内に収まります。
 - シーケンス タブ: 行を再びマップ GLA のスロットへドラッグできます。ペイント: 画像を表示と新しい UV にベイクが再び並び、スポイトはその下。
 - モデルタブ、3ds Max モード: アニメーションメニューとアクション検索のドープシートとカーブエディタで、再びミニカーブエディタが開きます。クアッドメニューの項目を選ぶと、3ds Max と同じくメニューが閉じます。
-- ミッションの読み込み: ミッション一覧をディスクに保存します。2 回目からは再起動後でもすぐに表示され、変更されたアーカイブは読み直します。読み込み中も、読み終えたマップはすでにグループに表示されます。
+- ミッションの読み込み: ミッション一覧をディスクに保存します。2 回目からは再起動後でもすぐに表示され、変更されたアーカイブは読み直します。読み込み中、読み終えたマップは一覧の末尾に並び、マウスの下は動きません。すべて読み終えるとグループに整理されます。
+- モデル タブ、3ds Max モード: 何も選択していないとき、ステータス行にマウスの下のビューのグリッド上の点の X/Y/Z を表示します。
+- ウェイト: ミラーのボーンのペアを手動で変更できます (行ごとのリスト、最後の行で任意の 2 本のボーン、名前でペア)。
 
 ## Español
 
@@ -224,7 +263,9 @@ Testfehler durch das gewollte neue Verhalten (rot 10/3, gruen 13/0). app_view3d.
 - Menú cuádruple: los submenús se abren hacia fuera (los cuadrantes izquierdos a la izquierda, los derechos a la derecha) y el menú queda dentro de la ventana.
 - Pestaña Secuencias: una fila se puede volver a arrastrar a una ranura de la GLA del mapa; Pintura: Mostrar imagen y Hornear en UV nuevas vuelven a estar juntos, el cuentagotas debajo.
 - Pestaña Modelo, modo 3ds Max: Hoja de claves y Editor de curvas desde el menú Animación y la búsqueda de acciones vuelven a abrir el mini editor de curvas; elegir una entrada del menú cuádruple lo cierra, como en 3ds Max.
-- Cargar misión: la lista de misiones se guarda en disco; desde la segunda vez aparece al momento, también tras reiniciar; un archivo modificado se vuelve a leer. Mientras se lee, los mapas terminados ya aparecen en sus grupos.
+- Cargar misión: la lista de misiones se guarda en disco; desde la segunda vez aparece al momento, también tras reiniciar; un archivo modificado se vuelve a leer. Mientras se lee, los mapas terminados van al final de la lista y nada se mueve bajo el ratón; al terminar la lectura pasan a sus grupos.
+- Pestaña de modelo, modo 3ds Max: sin selección, la línea de estado muestra X/Y/Z del punto bajo el ratón en la cuadrícula de esa vista.
+- Pesos: las parejas de huesos de la simetría se pueden cambiar a mano (una lista por fila, dos huesos cualesquiera en la última fila, Parejas por nombre).
 
 ## Čeština
 
@@ -247,4 +288,6 @@ Testfehler durch das gewollte neue Verhalten (rot 10/3, gruen 13/0). app_view3d.
 - Čtyřdílné menu: podmenu se otevírají směrem ven (levé kvadranty doleva, pravé doprava) a menu zůstává v okně.
 - Karta Sekvence: řádek lze opět přetáhnout na slot GLA mapy; Malování: Zobrazit obrázek a Zapéct do nových UV stojí opět vedle sebe, kapátko pod nimi.
 - Karta Model, režim 3ds Max: Dope Sheet a Editor křivek z nabídky Animace a z hledání akcí znovu otevřou mini editor křivek; zvolená položka čtyřdílné nabídky ji zavře jako v 3ds Max.
-- Načíst misi: seznam misí se ukládá na disk - od druhého otevření je hned k dispozici, i po restartu; změněný archiv se načte znovu. Během čtení se hotové mapy už zobrazují ve svých skupinách.
+- Načíst misi: seznam misí se ukládá na disk - od druhého otevření je hned k dispozici, i po restartu; změněný archiv se načte znovu. Během čtení přibývají hotové mapy na konci seznamu a pod myší se nic nehýbe; po dočtení se zařadí do svých skupin.
+- Záložka modelu, režim 3ds Max: bez výběru ukazuje stavový řádek X/Y/Z bodu pod myší na mřížce daného pohledu.
+- Váhy: páry kostí zrcadlení lze měnit ručně (seznam v každém řádku, libovolné dvě kosti v posledním řádku, Páry podle názvů).

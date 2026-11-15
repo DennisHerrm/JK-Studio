@@ -227,33 +227,33 @@ X = {
         "drag vertices, Ctrl adds, Alt removes. Its list shows each bone with the weight of the selected vertices (the average for several); click a bone and "
         "type a value or use .1/.25/.5/.75/.9/1 - the sum stays 1. Copy, Paste and Paste-Pos copy weights between vertices, the Weight Table (dockable) lists "
         "vertices × bones, and Mirror Paste copies the selected vertices to the other side with left and right bones swapped; the pairs stand under "
-        "**{{T1pPaare}}**. Like Blender the panel **{{T1pBlVertexGewichte}}** shows the same list. Paint weights remains one tool among them; saving keeps the "
+        "**{{T1pPaare}}** - pick another partner in a row's list or pair any two bones in the last row (e.g. Bip01 L Hand), **{{T1ePaareNamen}}** goes back to the names. Like Blender the panel **{{T1pBlVertexGewichte}}** shows the same list. Paint weights remains one tool among them; saving keeps the "
         "format of the game (4 weights, 10 bits).",
         "**Ecken wie der Skin-Modifier von 3ds Max:** die Gruppe **{{MgRWerkzeug}}** hat *Auswahl: Ecken, Element wählen, Rückseiten-Ecken ausblenden*; Ecken "
         "anklicken oder aufziehen, Strg fügt hinzu, Alt nimmt weg. Ihre Liste zeigt jeden Knochen mit dem Gewicht der gewählten Ecken (bei mehreren den "
         "Mittelwert); einen Knochen anklicken und einen Wert tippen oder .1/.25/.5/.75/.9/1 nehmen - die Summe bleibt 1. Kopieren, Einfügen und Einfügen nach "
         "Ort übertragen Gewichte zwischen Ecken, die Gewichtstabelle (andockbar) listet Ecken × Knochen, und Spiegeln einfügen überträgt die gewählten Ecken auf "
-        "die andere Seite mit getauschten Knochen links/rechts; die Paare stehen unter **{{T1pPaare}}**. Wie Blender zeigt das Panel **{{T1pBlVertexGewichte}}** "
+        "die andere Seite mit getauschten Knochen links/rechts; die Paare stehen unter **{{T1pPaare}}** - in der Liste einer Zeile einen anderen Partner wählen oder in der letzten Zeile zwei beliebige Knochen paaren (z. B. Bip01 L Hand), **{{T1ePaareNamen}}** kehrt zu den Namen zurück. Wie Blender zeigt das Panel **{{T1pBlVertexGewichte}}** "
         "dieselbe Liste. Gewichte malen bleibt ein Werkzeug unter mehreren; gespeichert wird im Format des Spiels (4 Gewichte, 10 Bit).",
         "**像 3ds Max 蒙皮修改器一样的顶点:** **{{MgRWerkzeug}}** 组有 *选择: 顶点、选择元素、背面消隐顶点*; 单击或框选顶点, Ctrl 添加, Alt 移除。其列表显示每根骨骼及"
         "所选顶点的权重 (多个顶点时为平均值); 单击骨骼后输入数值或使用 .1/.25/.5/.75/.9/1 - 总和保持为 1。复制、粘贴和按位置粘贴可在顶点之间复制权重, 权重表 (可停靠) "
-        "列出顶点 × 骨骼, 镜像粘贴将所选顶点复制到另一侧并交换左右骨骼; 骨骼对位于 **{{T1pPaare}}** 下。像 Blender 时, **{{T1pBlVertexGewichte}}** 面板显示相同的列表。"
+        "列出顶点 × 骨骼, 镜像粘贴将所选顶点复制到另一侧并交换左右骨骼; 骨骼对位于 **{{T1pPaare}}** 下 - 在某一行的列表中选择其他伙伴, 或在最后一行将任意两根骨骼配对 (例如 Bip01 L Hand), **{{T1ePaareNamen}}** 恢复按名称配对。像 Blender 时, **{{T1pBlVertexGewichte}}** 面板显示相同的列表。"
         "绘制权重仍是工具之一; 保存时保持游戏格式 (4 个权重, 10 位)。",
         "**3ds Max のスキン モディファイヤと同じ頂点:** **{{MgRWerkzeug}}** グループに *選択: 頂点、要素を選択、背面頂点をカリング* があり、頂点をクリックまたはドラッグで"
         "選択、Ctrl で追加、Alt で除外します。リストには各ボーンと選択頂点のウェイト (複数なら平均) が並び、ボーンをクリックして値を入力するか .1/.25/.5/.75/.9/1 を使います - "
         "合計は 1 のままです。コピー・貼り付け・位置で貼り付けで頂点間のウェイトを写し、ウェイト テーブル (ドッキング可能) は頂点 × ボーンを一覧し、ミラー貼り付けは選択頂点を"
-        "左右のボーンを入れ替えて反対側へ写します。ペアは **{{T1pPaare}}** にあります。Blender 風では **{{T1pBlVertexGewichte}}** パネルに同じリストがあります。"
+        "左右のボーンを入れ替えて反対側へ写します。ペアは **{{T1pPaare}}** にあります - 行のリストで別の相手を選ぶか、最後の行で任意の 2 本のボーンをペアにでき (例: Bip01 L Hand)、**{{T1ePaareNamen}}** で名前に戻ります。Blender 風では **{{T1pBlVertexGewichte}}** パネルに同じリストがあります。"
         "ウェイト ペイントはツールの 1 つで、保存はゲームの形式 (4 ウェイト、10 ビット) のままです。",
         "**Vértices como el modificador Piel de 3ds Max:** el grupo **{{MgRWerkzeug}}** tiene *Seleccionar: Vértices, Seleccionar elemento, Descartar vértices "
         "traseros*; haga clic o arrastre sobre vértices, Ctrl añade, Alt quita. Su lista muestra cada hueso con el peso de los vértices seleccionados (la media si "
         "son varios); haga clic en un hueso y escriba un valor o use .1/.25/.5/.75/.9/1: la suma sigue siendo 1. Copiar, Pegar y Pegar por posición copian pesos "
         "entre vértices, la tabla de pesos (acoplable) lista vértices × huesos y Pegar simetría copia los vértices seleccionados al otro lado con los huesos "
-        "izquierdo y derecho intercambiados; los pares están en **{{T1pPaare}}**. Como en Blender, el panel **{{T1pBlVertexGewichte}}** muestra la misma lista. "
+        "izquierdo y derecho intercambiados; los pares están en **{{T1pPaare}}**: elija otra pareja en la lista de una fila o empareje dos huesos cualesquiera en la última fila (p. ej. Bip01 L Hand), **{{T1ePaareNamen}}** vuelve a los nombres. Como en Blender, el panel **{{T1pBlVertexGewichte}}** muestra la misma lista. "
         "Pintar pesos sigue siendo una herramienta más; al guardar se mantiene el formato del juego (4 pesos, 10 bits).",
         "**Vrcholy jako modifikátor Skin v 3ds Max:** skupina **{{MgRWerkzeug}}** má *Výběr: vrcholy, vybrat prvek, vynechat zadní vrcholy*; vrcholy se vybírají "
         "klikem nebo tažením, Ctrl přidá, Alt odebere. Její seznam ukazuje každou kost s váhou vybraných vrcholů (u více vrcholů průměr); klikněte na kost a napište "
         "hodnotu nebo použijte .1/.25/.5/.75/.9/1 - součet zůstane 1. Kopírovat, Vložit a Vložit podle místa přenášejí váhy mezi vrcholy, tabulka vah (ukotvitelná) "
-        "uvádí vrcholy × kosti a Zrcadlově vložit přenese vybrané vrcholy na druhou stranu s prohozenými kostmi vlevo/vpravo; páry stojí pod **{{T1pPaare}}**. Jako "
+        "uvádí vrcholy × kosti a Zrcadlově vložit přenese vybrané vrcholy na druhou stranu s prohozenými kostmi vlevo/vpravo; páry stojí pod **{{T1pPaare}}** - v seznamu řádku vyberte jiného partnera nebo v posledním řádku spárujte libovolné dvě kosti (např. Bip01 L Hand), **{{T1ePaareNamen}}** se vrátí k názvům. Jako "
         "v Blenderu ukazuje panel **{{T1pBlVertexGewichte}}** stejný seznam. Malování vah zůstává jedním z nástrojů; ukládá se ve formátu hry (4 váhy, 10 bitů)."),
     # --- C ---
     "gla": (
