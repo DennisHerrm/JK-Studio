@@ -964,6 +964,24 @@ ImRect karte() {
     return ImRect{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1], g_app->kartenAnsicht[2], g_app->kartenAnsicht[3]};
 }
 
+// TEST1411d/e: ein Ausschnitt mindestens 1920 breit (Regel Handbuchbilder) - das Fenster in seiner Groesse, nichts skaliert, links und
+// rechts das Programm; am Rand des Hauptfensters verschoben statt abgeschnitten
+ImRect breit1920(ImRect r) {
+    const float fehlt = std::max(0.0F, 1920.0F - r.GetWidth());
+    r.Min.x -= std::floor(fehlt * 0.5F);
+    r.Max.x += std::ceil(fehlt * 0.5F);
+    const float d = ImGui::GetIO().DisplaySize.x;
+    if (r.Min.x < 0.0F) {
+        r.Max.x -= r.Min.x;
+        r.Min.x = 0.0F;
+    }
+    if (r.Max.x > d) {
+        r.Min.x = std::max(0.0F, r.Min.x - (r.Max.x - d));
+        r.Max.x = d;
+    }
+    return r;
+}
+
 ImRect um(ImVec2 c, float halbB, float halbH) { return ImRect{c.x - halbB, c.y - halbH, c.x + halbB, c.y + halbH}; }
 
 ImRect vereint(ImRect a, ImRect b) {
@@ -3705,10 +3723,10 @@ std::vector<Schritt> handbuchSchritteInhalt() {
              if (b == 2 && ordner != nullptr) { render::fotoAnfordern(std::string(ordner) + "\\ikonen.bmp"); }
              return b >= 6;
          }});
-    add(hb::fotoTeil("h_start", [] { return hb::fensterRect("##startflaeche"); }));
+    add(hb::fotoTeil("h_start", [] { return hb::breit1920(hb::fensterRect("##startflaeche")); }));
     add(tu("Handbuch: Spielordner", [] { g_app->pathsOpen = true; }));
     add(pause(0.5));
-    add(hb::fotoTeil("h_spielordner", [] { return hb::fensterRect(tr(Str::PathsTitle)); }));
+    add(hb::fotoTeil("h_spielordner", [] { return hb::breit1920(hb::fensterRect(tr(Str::PathsTitle))); }));
     // Die Auswahl, wie "Load mission" sie oeffnet (TEST1411 A): die Missionen des Spiels nach dem Archiv ihrer Karte gruppiert, ohne
     // gewaehltes Archiv - nur das Bild der Auswahl (bis TEST1411d der alte Weg ueber assets0.pk3 mit dem Abschnitt "In assets0.pk3").
     add(tu("Handbuch: Spielordner zu, Load mission", [] {
@@ -3757,13 +3775,7 @@ std::vector<Schritt> handbuchSchritteInhalt() {
          }});
     add(pause(0.4));
     // TEST1411d: mindestens 1920 breit (Regel Handbuchbilder, bis dahin 1084) - die Auswahl in ihrer Groesse, links und rechts das Programm
-    add(hb::fotoTeil("h_mission_wahl", [] {
-        ImRect r = hb::fensterRect("##missionpick");
-        const float fehlt = std::max(0.0F, 1920.0F - r.GetWidth());
-        r.Min.x -= std::floor(fehlt * 0.5F);
-        r.Max.x += std::ceil(fehlt * 0.5F);
-        return r;
-    }));
+    add(hb::fotoTeil("h_mission_wahl", [] { return hb::breit1920(hb::fensterRect("##missionpick")); }));
     add(tu("Handbuch: Auswahl zu", [] {
         g_app->missionPickOpen = false;
         g_app->missionsFilter[0] = 0;
@@ -3773,7 +3785,7 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     // --- 1. Die Mission anlegen ------------------------------------------------
     add(tu("Handbuch: Neue Mission (Fenster)", [] { g_app->neueMissionOffen = true; }));
     add(pause(0.6));
-    add(hb::fotoTeil("h_mission_neu", [] { return hb::fensterRect("##neuemission"); }));
+    add(hb::fotoTeil("h_mission_neu", [] { return hb::breit1920(hb::fensterRect("##neuemission")); }));
     add(hb::fotoTeil("t4_1", [] { return hb::fensterRect("##neuemission"); }));
     add(tu("Handbuch: Fenster zu, Mission taspir_tut anlegen", [=] {
         g_app->neueMissionOffen = false;
@@ -5362,7 +5374,7 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         g_app->pk3Open = true;
     }));
     add(pause(0.8));
-    add(hb::fotoTeil("k_pk3", [] { return hb::fensterRect(tr(Str::Pk3Title)); }));
+    add(hb::fotoTeil("k_pk3", [] { return hb::breit1920(hb::fensterRect(tr(Str::Pk3Title))); }));
     add(klickAn("Doppelklick auf taspir1/intro.ibi", [] {
         for (const Element& e : g_elemente) {
             if (e.label == "scripts/taspir1/intro.ibi") { return e.rect.GetCenter(); }
@@ -5882,7 +5894,7 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         }));
         add(pause(0.8));
         const auto pk3R = [] { return hb::fensterRect(tr(Str::Pk3Title)); };
-        bildTeil("s_pk3_art", pk3R, [=] {
+        bildTeil("s_pk3_art", [=] { return hb::breit1920(pk3R()); }, [=] {
             return M{gruppe({tr(Str::Pk3Scripts), tr(Str::Pk3Maps), tr(Str::Pk3Models)})};
         });
         bildTeil("s_pk3_filter", pk3R, [=] { return M{knopf(tr(Str::Pk3Filter))}; });
@@ -7126,7 +7138,7 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         g_app->missionSpeichernOffen = true;
     }));
     add(pause(0.8));
-    add(hb::fotoTeil("h_mission_speichern", [] { return hb::fensterRect("##missionspeichern"); }));
+    add(hb::fotoTeil("h_mission_speichern", [] { return hb::breit1920(hb::fensterRect("##missionspeichern")); }));
     add(hb::fotoTeil("t4_4", [] { return hb::fensterRect("##missionspeichern"); }));
     add(tu("Handbuch: speichern", [] {
         g_app->missionSpeichernOffen = false;
