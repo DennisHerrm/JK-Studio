@@ -399,7 +399,13 @@ std::vector<Schritt> karteneditorSchritte() {
     // stufe8g braucht stufe8c davor (die gebaute Karte), stufe9 beide. Was hinter einer Gruppe ohne eigenes gruppe() steht,
     // gehoert zu ihr.
     const char* const gruppenText = std::getenv("BHED_KARTE_GRUPPEN");
-    const std::string gruppenWahl = gruppenText != nullptr ? "," + std::string(gruppenText) + "," : std::string();
+    std::string gruppenWahl = gruppenText != nullptr ? "," + std::string(gruppenText) + "," : std::string();
+    // TEST1411e: fehlen die Vorgaengerinnen in der Wahl, kommen sie dazu (wie bei BHED_KARTE_NUR=stufe9). stufe9 allein (Lauf
+    // cw_s9_karte1, ebenso mit dem Bau von rc612) pruefte "Im Spiel testen", die .pk3 und die NPC-Wege auf der offenen Karte des
+    // gemeinsamen Anfangs statt auf der gebauten Karte des Tutorials (MAP LEAKED, kein Boden unter den Wegpunkten): 7 FEHLER.
+    const auto gewaehlt = [&gruppenWahl](const char* g) { return gruppenWahl.find("," + std::string(g) + ",") != std::string::npos; };
+    if (!gruppenWahl.empty() && gewaehlt("stufe9") && !gewaehlt("stufe8g")) { gruppenWahl += "stufe8g,"; }
+    if (!gruppenWahl.empty() && gewaehlt("stufe8g") && !gewaehlt("stufe8c")) { gruppenWahl += "stufe8c,"; }
     auto gruppenBekannt = std::make_shared<std::string>(",");
     bool gruppeAn = true;
     bool vorigeAn = true;
