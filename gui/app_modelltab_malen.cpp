@@ -2165,7 +2165,7 @@ void drawModellMalenBereich() {
 
 float modellMalEditorBreite(float frei) {
     ModellMalen& z = mz();
-    if (!modellMalenAktiv() || !z.editorOffen) { return 0.0F; }
+    if (mt().bereich != ModellBereich::Painting || !z.editorOffen) { return 0.0F; }   // TEST1411 B: auch ohne Modell (leerer Rahmen)
     const float fs = ImGui::GetFontSize();
     if (z.breite <= 0.0F) { z.breite = frei * 0.42F; }
     z.breite = std::clamp(z.breite, fs * 12.0F, std::max(frei - fs * 12.0F, fs * 12.0F));
@@ -2212,6 +2212,10 @@ void drawModellMalEditor(ImVec2 groesse) {
     ModellMalen& z = mz();
     const mm::Stoppuhr editorUhr(mm::messung().editorMs);
     z.hover = false;
+    if (g_app->model.empty()) {   // TEST1411 B: ohne Modell der Rahmen an seinem Platz
+        modellEditorLeer("mtmaleditor", tr(blenderModus() ? Str::PtEditorBlender : Str::PtEditorMax), groesse);
+        return;
+    }
     MalBild* m = jetzt(true);
     const float fs = ImGui::GetFontSize();
     ImGui::BeginChild("mtmaleditor", groesse, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);

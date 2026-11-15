@@ -822,7 +822,8 @@ void gizmo(int n, ModellAnsicht& a, Lage& l, ImVec2 o, float groesse) {
 
 bool modellNavigationSichtbar(int n) {
     const ModellTab& t = mt();
-    if (!g_app->settings.modellNavigation || g_app->model.empty() || n < 0 || n > 3) { return false; }
+    // TEST1411 B: wie 3ds Max auch in der leeren Szene (ohne Modell)
+    if (!g_app->settings.modellNavigation || n < 0 || n > 3) { return false; }
     return g_app->settings.modellNavigationAlle || !t.vierAnsichten || n == t.aktiv;
 }
 

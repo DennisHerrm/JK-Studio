@@ -211,6 +211,10 @@ ZEILEN = [
     ("T1eSucheHint", "Part of the name, upper/lower case does not matter, filters while typing. Ctrl+F (mouse over the explorer) puts the cursor here.", "Ein Teil des Namens, Groß/Klein egal, filtert beim Tippen. Strg+F (Maus über dem Explorer) setzt den Cursor hierher.", "名称的一部分, 不区分大小写, 输入时即筛选。Ctrl+F (鼠标在资源管理器上) 将光标移到这里。", "名前の一部、大文字小文字は区別せず、入力中に絞り込みます。Ctrl+F (マウスをエクスプローラーの上に) でここにカーソル。", "Parte del nombre, sin distinguir mayúsculas, filtra al escribir. Ctrl+F (ratón sobre el explorador) pone el cursor aquí.", "Část názvu, na velikosti písmen nezáleží, filtruje při psaní. Ctrl+F (myš nad průzkumníkem) sem umístí kurzor."),
     ("T1eBilder", "Frames", "Bilder", "帧数", "フレーム", "Fotogramas", "Snímky"),
     ("T1eSchleife", "Loop", "Schleife", "循环", "ループ", "Bucle", "Smyčka"),
+    # --- B: der Model-Tab ohne Modell wie mit Modell ---
+    ("T1bLeerTitel", "No model loaded", "Kein Modell geladen", "未加载模型", "モデルが読み込まれていません", "No hay ningún modelo cargado", "Není načten žádný model"),
+    ("T1bNpcBrowser", "NPC browser...", "NPC-Browser...", "NPC 浏览器...", "NPC ブラウザー...", "Navegador de NPC...", "Prohlížeč NPC..."),
+    ("T1bFeldHinweis", "No model loaded - the groups of this area open once a model is loaded.", "Kein Modell geladen - die Gruppen dieses Bereichs öffnen sich, sobald ein Modell geladen ist.", "未加载模型 - 加载模型后即可展开此区域的组。", "モデルが読み込まれていません - モデルを読み込むと、この領域のグループを開けます。", "No hay ningún modelo cargado: los grupos de esta área se abren al cargar un modelo.", "Není načten žádný model - skupiny této oblasti se otevřou po načtení modelu."),
 ]
 
 

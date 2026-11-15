@@ -764,7 +764,129 @@ void rolloutPruefen() {
     ui::rolloutEnde();
 }
 
+// TEST1411 B (shank 14.11.: "wenn er leer ist sieht er nicht so aus wie wenn ein model drin ist. es sollte leer auch schon so aussehen"):
+// ohne Modell stehen im Befehlsfeld dieselben Gruppen in denselben Reitern wie mit Modell - zugeklappt und gesperrt, darueber ein kurzer
+// Hinweis (wie 3ds Max in einer leeren Szene: Reiter und Rollouts stehen, was ein Objekt braucht, ist grau). Je Bereich die Gruppen in der
+// Reihenfolge, in der drawModellBefehlsfeld sie mit Modell zeichnet, mit derselben Angabe der Reiter; gui/selbsttest_test1411.inc (B)
+// vergleicht Titel und belegte Reiter je Bereich und Bedienmodus mit und ohne Modell. Modellieren zeichnet seine Gruppen selbst (Neues
+// Requisit, auch ohne Modell).
+struct LeereGruppe {
+    Str titel;
+    Str titelBl;            // wie Blender (sonst wie titel)
+    unsigned (*reiter)();   // wie die Gruppe mit Modell (modellReiter, modellAnimReiter)
+    int schritt = 0;        // nummerierter Schritt (UV)
+    int modus = 0;          // 0 beide Bedienmodi, 1 nur wie 3ds Max, 2 nur wie Blender
+};
+
+unsigned reiterStandard() { return ui::kReiterStandard; }
+
+const std::vector<LeereGruppe>& leereGruppenListe(ModellBereich b) {
+    using R = MbReiter;
+    using B = MbReiterBl;
+    static const std::vector<LeereGruppe> kAnsehen = {
+        {Str::MbRModell, Str::MbRModell, [] { return modellReiter(R::Anzeige, B::Daten); }},
+        {Str::PqRAuswahl, Str::PqRAuswahl, [] { return modellReiter(R::Anzeige, B::Objekt); }},
+        {Str::MbRLod, Str::MbRLod, [] { return modellReiter(R::Anzeige, B::Daten); }},
+        {Str::PqRBoden, Str::PqRBoden, [] { return modellReiter(R::Anzeige, B::Objekt); }},
+        {Str::MbRAnbauten, Str::MbRAnbauten, [] { return modellReiter(R::Hierarchie, B::Constraints); }},
+        {Str::MbRPruefen, Str::MbRPruefen, [] { return modellReiter(R::Dienste, B::Objekt); }},
+        {Str::PqRSzene, Str::PqRSzene, [] { return modellReiter(R::Dienste, B::Objekt); }},
+    };
+    static const std::vector<LeereGruppe> kUv = {
+        {Str::A7RAuswahl, Str::A7RAuswahl, reiterStandard},
+        {Str::A7RNaehte, Str::A7RNaehte, reiterStandard, 1},
+        {Str::UvGrAbwickeln, Str::UvGrAbwickeln, reiterStandard, 2},
+        {Str::A7RAufraeumen, Str::A7RAufraeumen, reiterStandard, 3},
+        {Str::UvGrPruefen, Str::UvGrPruefen, reiterStandard},
+    };
+    static const std::vector<LeereGruppe> kWeights = {
+        // der Modifier-Stapel wie 3ds Max im Reiter Aendern; wie Blender im Reiter Modifier, nicht im vorgegebenen Reiter Daten
+        {Str::MgRStapel, Str::StpGruppeBl, [] { return modellReiter(R::Aendern, B::Modifier, !modellBlender()); }},
+        {Str::T1pBlVertexGewichte, Str::T1pBlVertexGewichte, [] { return modellReiter(R::Aendern, B::Daten); }, 0, 2},
+        {Str::MgRPinsel, Str::MgRPinsel, [] { return modellReiter(R::Aendern, B::Werkzeug); }, 0, 2},
+        {Str::MgROptionen, Str::MgROptionen, [] { return modellReiter(R::Aendern, B::Werkzeug); }, 0, 2},
+        {Str::MgRBereinigen, Str::MgRBereinigen, reiterStandard, 0, 2},
+        {Str::MgRSpiegeln, Str::MgRSpiegeln, reiterStandard, 0, 2},
+        {Str::MgRWerkzeug, Str::MgRWerkzeug, reiterStandard, 0, 1},
+        {Str::MgRSpiegeln, Str::MgRSpiegeln, reiterStandard, 0, 1},
+        {Str::AsGruppe, Str::AsGruppe, reiterStandard},
+        {Str::MgRKnochen, Str::MgRKnochen, [] { return modellReiter(R::Hierarchie, B::Knochen); }},
+        {Str::MgRGrenzen, Str::MgRGrenzen, [] { return modellReiter(R::Dienste, B::Objekt); }},
+        {Str::MgRErweitert, Str::MgRErweitert, reiterStandard, 0, 1},
+    };
+    static const std::vector<LeereGruppe> kPainting = {
+        {Str::PtGrZiel, Str::PtGrZiel, [] { return modellReiter(R::Aendern, B::Material); }},
+        {Str::PtGrWerkzeuge, Str::PtGrWerkzeuge, reiterStandard},
+        {Str::PtGrPinsel, Str::PtGrPinsel, reiterStandard},
+        {Str::PtGrEbenen, Str::PtGrEbenen, reiterStandard},
+        {Str::PtGrAusgabe, Str::PtGrAusgabe, [] { return modellReiter(R::Dienste, B::Werkzeug); }},
+    };
+    // Animation: die Gruppen des Motion-Felds je Modus (TEST1411 N: modellAnimReiter), dann Knochen-Darstellung, Kurven, Bibliothek, GLA;
+    // Auto-Physik nicht - sie steht erst mit einem Rig da (drawModellPhysikBereich), und die leere Szene hat keins
+    static const std::vector<LeereGruppe> kAnimation = {
+        {Str::AzRAnimation, Str::AzRAnimation, [] { return modellAnimReiter(false, ui::kReiterStandard); }},
+        {Str::AzRRig, Str::AzRRig, [] { return modellAnimReiter(true, modellReiter(R::Hierarchie, B::Knochen)); }},
+        {Str::PrRollout, Str::PrRollout, [] { return modellAnimReiter(false, ui::kReiterStandard); }},
+        {Str::AzRBearbeiten, Str::AzRBearbeiten, [] { return modellAnimReiter(false, ui::kReiterStandard); }},
+        {Str::AzRUebertragen, Str::AzRUebertragen, [] { return modellAnimReiter(false, ui::kReiterStandard); }},
+        {Str::MbIkRollout, Str::MbIkRollout, [] { return modellAnimReiter(false, modellReiter(R::Hierarchie, B::Constraints)); }},
+        {Str::AzRAnbauten, Str::AzRAnbauten, [] { return modellAnimReiter(true, modellReiter(R::Hierarchie, B::Constraints)); }},
+        {Str::AzRBauen, Str::AzRBauen, [] { return modellAnimReiter(true, modellReiter(R::Dienste, B::Objekt)); }},
+        {Str::MbRgGruppePose, Str::MbRgGruppePose, [] { return modellAnimReiter(false, ui::kReiterStandard); }},
+        {Str::MbRgGhosts, Str::MbRgGhosts, [] { return modellReiter(R::Anzeige, B::Daten, false); }},
+        {Str::MbRgPfade, Str::MbRgPfade, [] { return modellAnimReiter(false, modellReiter(R::Bewegung, B::Daten)); }},
+        {Str::KdGruppe, Str::KdGruppe, [] { return modellReiter(R::Anzeige, B::Daten, false); }},
+        {Str::MbKvRollout, Str::MbKvRollout, [] { return modellAnimReiter(false, modellReiter(R::Bewegung, B::Werkzeug)); }},
+        {Str::MbKvGruppeBibliothek, Str::MbKvGruppeBibliothek, [] { return modellAnimReiter(false, modellReiter(R::Dienste, B::Daten)); }},
+        {Str::MbRGla, Str::MbRGla, [] { return modellAnimReiter(true, modellReiter(R::Dienste, B::Daten)); }},
+        {Str::MbRCfg, Str::MbRCfg, [] { return modellAnimReiter(true, modellReiter(R::Dienste, B::Daten)); }},
+        {Str::MbRKartenGla, Str::MbRKartenGla, [] { return modellAnimReiter(true, modellReiter(R::Dienste, B::Daten)); }},
+    };
+    static const std::vector<LeereGruppe> kKeine;
+    switch (b) {
+        case ModellBereich::Ansehen: return kAnsehen;
+        case ModellBereich::Uv: return kUv;
+        case ModellBereich::Weights: return kWeights;
+        case ModellBereich::Painting: return kPainting;
+        case ModellBereich::Animation: return kAnimation;
+        case ModellBereich::Modellieren: break;
+    }
+    return kKeine;
+}
+
+void leereGruppen() {
+    const ModellTab& t = mt();
+    const bool bl = modellBlender();
+    if (ui::feldReiterStandard()) {
+        if (t.bereich == ModellBereich::Ansehen) { anzeigeUmzugHinweis(); }
+        if (t.bereich == ModellBereich::Animation) { modellAnimModusSchalterLeer(); }
+        ui::tipp(tr(Str::T1bFeldHinweis));
+    }
+    ImGui::BeginDisabled();
+    int nr = 0;
+    for (const LeereGruppe& g : leereGruppenListe(t.bereich)) {
+        if ((g.modus == 1 && bl) || (g.modus == 2 && !bl)) { continue; }
+        // eigene Kennung (###): die Gruppe mit Modell behaelt ihren Zustand (auf/zu)
+        const std::string titel = std::string(tr(bl ? g.titelBl : g.titel)) + "###t1bleer" + std::to_string(nr++);
+        if (ui::rolloutBeginn(titel.c_str(), {.schritt = g.schritt, .zu = true, .reiter = g.reiter()})) { ui::rolloutEnde(); }
+    }
+    ImGui::EndDisabled();
+}
+
 }  // namespace
+
+// TEST1411 B: ein Editor ohne Modell - der Rahmen an seinem Platz, oben sein Titel, mittig "Kein Modell geladen"
+void modellEditorLeer(const char* id, const char* titel, ImVec2 groesse) {
+    ImGui::BeginChild(id, groesse, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::TextUnformatted(titel);
+    const char* hinweis = tr(Str::T1bLeerTitel);
+    const ImVec2 g = ImGui::CalcTextSize(hinweis);
+    const ImVec2 o = ImGui::GetWindowPos();
+    const ImVec2 f = ImGui::GetWindowSize();
+    ImGui::SetCursorScreenPos(ImVec2{std::floor(o.x + (f.x - g.x) * 0.5F), std::floor(o.y + (f.y - g.y) * 0.5F)});
+    cjkTextDisabled("%s", hinweis);
+    ImGui::EndChild();
+}
 
 void drawModellBefehlsfeld() {
     ModellTab& t = mt();
@@ -772,6 +894,7 @@ void drawModellBefehlsfeld() {
     // Bereich "mtrollouts" (gui/app_modelltab_feld.cpp). Der Schalter des Bedienmodus steht in der Statuszeile (Klick auf
     // "wie 3ds Max" / "wie Blender"), im Menue der Kopfzeile der Ansicht und in den Einstellungen.
     modellFeldBeginn();
+    if (g_app->model.empty() && t.bereich != ModellBereich::Modellieren) { leereGruppen(); }   // TEST1411 B
     if (t.bereich == ModellBereich::Weights && !g_app->model.empty()) { drawModellGewichte(); }   // AP8: gui/app_modelltab_gewichte.cpp
     if (t.bereich == ModellBereich::Uv && !g_app->model.empty()) { drawModellUvBereich(); }   // Modell-Block 1b
     if (t.bereich == ModellBereich::Modellieren) { drawModellMeshBereich(); }   // Modell-Block 1d (auch ohne Modell: Neues Requisit)

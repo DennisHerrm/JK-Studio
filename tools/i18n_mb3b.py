@@ -60,12 +60,6 @@ ZEILEN = [
      "このシーケンスにはまだキーがありません。ビューでコントロールを回すか、キーを設定してください。",
      "Esta secuencia aún no tiene claves: gira un control en la vista o usa Fijar clave.",
      "Tato sekvence zatím nemá klíče - otočte ovladač v pohledu nebo použijte Nastavit klíč."),
-    ("MbKvBasisBinde", "Keys describe the whole motion (reduced, over the bind pose).", "Die Schlüssel beschreiben die ganze Bewegung (reduziert, über der Bindepose).",
-     "关键帧描述整个运动 (已精简, 基于绑定姿势)。", "キーが動き全体を表します (削減済み、バインドポーズ基準)。", "Las claves describen todo el movimiento (reducido, sobre la pose de unión).",
-     "Klíče popisují celý pohyb (redukováno, nad vaznou pózou)."),
-    ("MbKvBasisQuelle", "Keys lie over the GLA frames of the sequence (layer).", "Die Schlüssel liegen über den GLA-Frames der Sequenz (Schicht).",
-     "关键帧叠加在序列的 GLA 帧之上 (层)。", "キーはシーケンスの GLA フレームの上に重なります (レイヤー)。", "Las claves están sobre los fotogramas GLA de la secuencia (capa).",
-     "Klíče leží nad snímky GLA sekvence (vrstva)."),
     # --- Editor-Aktionen ---
     ("MbKvDsOeffnen", "Dope sheet", "Dopesheet", "摄影表", "ドープシート", "Hoja de claves", "Dopesheet"),
     ("MbKvKeOeffnen", "Curve editor", "Kurveneditor", "曲线编辑器", "カーブエディター", "Editor de curvas", "Editor křivek"),

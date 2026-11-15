@@ -2113,12 +2113,20 @@ void drawModellExplorer(float hoehe) {
     g_z.fussEbenen = false;
     g_z.fussHinweis = false;
     g_z.zeilen = 0;
+    g_z.leerHinweis = false;
     if (g_app->model.empty()) {
+        // TEST1411 B (shank 14.11.: "es sollte leer auch schon so aussehen"): dieselbe Anordnung wie mit Modell - die Reiter, die Suche und
+        // die Filter stehen gesperrt da (3ds Max: der Scene Explorer einer leeren Szene), der Hinweis und "Show me how" im leeren Baum
+        ImGui::BeginDisabled();
+        zeichneKopf(modellBlender());
+        ImGui::EndDisabled();
+        ImGui::Spacing();
         ImGui::PushTextWrapPos(0.0F);
         cjkTextDisabled("%s", tr(Str::ModelNoneH2));
         ImGui::PopTextWrapPos();
         // H2: ohne Modell zeigt ein Knopf den Weg (Tour "Ein Figurenmodell ansehen" ab Schritt 2).
         if (ImGui::SmallButton(tr(Str::EmptyShowHow))) { (void)tourStarten("k-modell", 1); }
+        g_z.leerHinweis = true;
         ImGui::EndChild();
         return;
     }

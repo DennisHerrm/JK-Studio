@@ -1470,18 +1470,35 @@ int modellUvGruppenZahl() { return static_cast<int>(gruppen().size()); }
 
 float modellUvEditorBreite(float frei) {
     ModellUv& u = uvz();
-    if (mt().bereich != ModellBereich::Uv || !u.offen || g_app->model.empty()) { return 0.0F; }
+    if (mt().bereich != ModellBereich::Uv || !u.offen) { return 0.0F; }   // TEST1411 B: auch ohne Modell (leerer Rahmen)
     const float fs = ImGui::GetFontSize();
     if (u.breite <= 0.0F) { u.breite = frei * 0.5F; }
     u.breite = std::clamp(u.breite, fs * 12.0F, std::max(frei - fs * 12.0F, fs * 12.0F));
     return u.breite;
 }
 
+namespace {
+
+// die Kante rechts neben dem Editor zieht seine Breite
+void uvKante(float hoehe) {
+    ImGui::SameLine(0.0F, 0.0F);
+    ImGui::InvisibleButton("##uvkante", ImVec2{5.0F, hoehe});
+    if (ImGui::IsItemHovered() || ImGui::IsItemActive()) { ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW); }
+    if (ImGui::IsItemActive()) { uvz().breite += ImGui::GetIO().MouseDelta.x; }
+}
+
+}  // namespace
+
 void drawModellUvEditor(ImVec2 groesse) {
     const auto anfang = std::chrono::steady_clock::now();
     ModellTab& t = mt();
     ModellUv& u = uvz();
     u.hover = false;
+    if (g_app->model.empty()) {   // TEST1411 B: ohne Modell der Rahmen an seinem Platz, mit der Kante wie mit Modell
+        modellEditorLeer("mtuveditor", tr(blenderModus() ? Str::UvEditorBlender : Str::UvEditorMax), groesse);
+        uvKante(groesse.y);
+        return;
+    }
     modellUvNetzAktualisieren();
     const bool blender = blenderModus();
     const float fs = ImGui::GetFontSize();
@@ -1690,11 +1707,7 @@ void drawModellUvEditor(ImVec2 groesse) {
     if (n.kanten() == 0) { dl->AddText(ImVec2{lo.x + fs, lo.y + fs}, IM_COL32(230, 230, 230, 255), tr(Str::UvKeineFlaeche)); }
     dl->PopClipRect();
     ImGui::EndChild();
-    // die Kante rechts zieht die Breite
-    ImGui::SameLine(0.0F, 0.0F);
-    ImGui::InvisibleButton("##uvkante", ImVec2{5.0F, groesse.y});
-    if (ImGui::IsItemHovered() || ImGui::IsItemActive()) { ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW); }
-    if (ImGui::IsItemActive()) { u.breite += io.MouseDelta.x; }
+    uvKante(groesse.y);
     u.bildMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - anfang).count();
 }
 

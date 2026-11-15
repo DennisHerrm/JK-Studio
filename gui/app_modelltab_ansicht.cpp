@@ -2215,10 +2215,15 @@ void einpassen(ModellAnsicht& a) {
     // in der Pose, der Blickwinkel bleibt.
     const bool auswahl = !mt().auswahl.empty() && grenzen(true, mn, mx);
     if (!auswahl && !grenzen(false, mn, mx)) {
-        // ohne gezeichnete Flaeche: die Grenzen der Datei
+        // ohne gezeichnete Flaeche: die Grenzen der Datei. TEST1411 B: ohne Modell der Platz einer stehenden Figur des Spiels (OpenJK
+        // code/game/g_client.cpp playerMins/playerMaxs: DEFAULT_MINS_0/1 -16, DEFAULT_MAXS_0/1 16; code/game/bg_public.h DEFAULT_MINS_2
+        // -24, DEFAULT_MAXS_2 40) - die leere Szene steht so da wie mit einer Figur, nichts springt beim Laden
+        static constexpr float kFigurMin[3] = {-16.0F, -16.0F, -24.0F};
+        static constexpr float kFigurMax[3] = {16.0F, 16.0F, 40.0F};
+        const bool ohneModell = g_app->model.empty();
         for (int k = 0; k < 3; ++k) {
-            mn[k] = g_app->model.mins[k];
-            mx[k] = g_app->model.maxs[k];
+            mn[k] = ohneModell ? kFigurMin[k] : g_app->model.mins[k];
+            mx[k] = ohneModell ? kFigurMax[k] : g_app->model.maxs[k];
         }
     }
     float groesse = 0.0F;
@@ -2255,6 +2260,7 @@ void einpassen(ModellAnsicht& a) {
 }
 
 std::string g_eingepasst;                // Modell, fuer das die Ansichten eingepasst sind
+constexpr const char* kLeereSzene = "\x01";   // TEST1411 B: g_eingepasst ohne Modell (kein Pfad beginnt mit einem Steuerzeichen)
 std::array<std::string, 4> g_sichtStand;   // je Ansicht: was zuletzt gezeichnet wurde
 
 std::vector<gpu::ModellZusatz> zusaetze(const ModellSchattierung& sch) {
@@ -2312,39 +2318,46 @@ const ModelTextures* texturen(const ModellSchattierung& sch) {
     return (g_app->showModelTextures && !sch.weiss && g_app->modelTextures.found != 0) ? &g_app->modelTextures : nullptr;
 }
 
-void eineAnsicht(int n, ImVec2 groesse, bool neu) {
+// TEST1411 B (shank 14.11.: "es sollte leer auch schon so aussehen"): ohne Modell steht mittig ueber dem Raster der aktiven Ansicht der
+// Ladehinweis mit den zwei Wegen zu einer Figur - dem NPC-Browser und dem Oeffnen einer .glm (dieselben wie in der Werkzeugleiste)
+void leerHinweis(ImVec2 lo, float w, float h) {
+    const float fs = ImGui::GetFontSize();
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const char* titel = tr(Str::T1bLeerTitel);
+    const char* text = tr(Str::ModelNone);
+    const char* npc = tr(Str::T1bNpcBrowser);
+    const char* glm = tr(Str::OpenGlm);
+    const float pol = std::floor(fs * 0.8F);
+    const float knoepfe = ImGui::CalcTextSize(npc).x + ImGui::CalcTextSize(glm).x + st.FramePadding.x * 4.0F + st.ItemSpacing.x;
+    const float titelB = ImGui::CalcTextSize(titel).x;
+    const float innen = std::floor(std::min(std::max({titelB, std::min(ImGui::CalcTextSize(text).x, fs * 24.0F), knoepfe}), std::max(w - 2.0F * pol - fs * 2.0F, fs * 6.0F)));
+    const float textH = cjkTextSize(text, nullptr, false, innen).y;
+    const float hoehe = fs + st.ItemSpacing.y + textH + st.ItemSpacing.y * 2.0F + ImGui::GetFrameHeight();
+    const ImVec2 p0{std::floor(lo.x + (w - innen) * 0.5F) - pol, std::floor(lo.y + (h - hoehe) * 0.5F) - pol};
+    const ImVec2 p1{p0.x + innen + 2.0F * pol, p0.y + hoehe + 2.0F * pol};
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(p0, p1, ImGui::GetColorU32(ImGuiCol_PopupBg, 0.9F), st.PopupRounding);
+    dl->AddRect(p0, p1, ImGui::GetColorU32(ImGuiCol_Border), st.PopupRounding);
+    const float x0 = p0.x + pol;
+    ImGui::SetCursorScreenPos(ImVec2{x0 + std::floor((innen - titelB) * 0.5F), p0.y + pol});
+    cjkTextUnformatted(titel);
+    ImGui::SetCursorScreenPos(ImVec2{x0, ImGui::GetCursorScreenPos().y});
+    ImGui::PushTextWrapPos(x0 + innen - ImGui::GetWindowPos().x);
+    cjkTextDisabled("%s", text);
+    ImGui::PopTextWrapPos();
+    ImGui::SetCursorScreenPos(ImVec2{x0 + std::floor((innen - knoepfe) * 0.5F), ImGui::GetCursorScreenPos().y + st.ItemSpacing.y});
+    if (ImGui::Button(npc)) { g_app->npcBrowserOffen = true; }
+    ImGui::SetItemTooltip("%s", tr(Str::NpcBrowserHint));
+    ImGui::SameLine();
+    if (ImGui::Button(glm)) { openModelFile(); }
+    ImGui::SetItemTooltip("%s", tr(Str::OpenGlmHint));
+}
+
+// Die Bedienung einer Ansicht mit Modell: G/R/S, Malen, Gewichte, Kontextmenue, Bewegungspfade, Gizmo, Griffe, Knochen, Rahmen und
+// Auswahl (die Navigation steht davor in eineAnsicht: modellNavMaus).
+void ansichtBedienen(int n, ModellAnsicht& a, bool ueber, bool hatMitte, float mitte[3]) {
     ModellTab& t = mt();
-    ModellAnsicht& a = t.ansichten[n];
-    const int w = std::max(32, static_cast<int>(groesse.x));
-    const int h = std::max(32, static_cast<int>(groesse.y));
-    ImGui::PushID(n);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
-    ImGui::BeginChild("mtansicht", ImVec2{static_cast<float>(w), static_cast<float>(h)}, ImGuiChildFlags_None,
-                      ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar);
-    ImGui::PopStyleVar();
-    const ImVec2 lo = ImGui::GetCursorScreenPos();
-    a.lo[0] = lo.x;
-    a.lo[1] = lo.y;
-    a.groesse[0] = static_cast<float>(w);
-    a.groesse[1] = static_cast<float>(h);
-    a.sichtbar = true;
-    modellAnsichtAnimieren(n);   // MBKOPF: weicher Wechsel von ViewCube/Gizmo
-    modellNavVorBild(n);         // MBNAV: weiche Wechsel der Navigation, Verlauf der Ansichtsaenderungen
-    baueSicht(a, w, h, a.viewProj);
     ImGuiIO& io = ImGui::GetIO();
-    // MBKOPF: Kopfzeile, ViewCube und Gizmo bedienen sich selbst - dort waehlt, kreist und oeffnet kein Klick die Ansicht
-    const bool ueberAnsicht = ImGui::IsWindowHovered() && !modellKopfTreffer(a, io.MousePos);
-    if (ueberAnsicht && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Middle) ||
-                         ImGui::IsMouseClicked(ImGuiMouseButton_Right))) {
-        t.aktiv = n;
-        t.klickDrinBild = ImGui::GetFrameCount();
-    }
-    // MBNAV: Rad und Mitteltaste je Bedienmodus wie 3ds Max bzw. Blender (app_modelltab_nav.cpp). Laeuft ein
-    // Navigationsmodus (Alt+Z, Strg+P, Strg+R, Strg+W), gehoeren ihm auch die linke und die rechte Taste: die Ansicht
-    // waehlt, malt und oeffnet dann nichts.
-    const bool ueber = ueberAnsicht && !modellNavMaus(n, a, ueberAnsicht);
-    float mitte[3];
-    const bool hatMitte = t.gizmo != 0 && t.modal.art == 0 && auswahlMitte(mitte);
     // mb1a2: G/R/S wie Blender laufen ueber die Maus, bis Klick/Enter/Esc (modellModalTasten)
     if (t.modal.art != 0 && t.modal.ansicht == n) { modalAnwenden(); }
     // mb1a2: im Bereich Weights malt die linke Taste mit dem Pinsel (ein Strich = ein Rueckgaengig-Schritt)
@@ -2437,6 +2450,44 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
         }
         g_app->modelDirty = true;
     }
+}
+
+void eineAnsicht(int n, ImVec2 groesse, bool neu) {
+    ModellTab& t = mt();
+    ModellAnsicht& a = t.ansichten[n];
+    const int w = std::max(32, static_cast<int>(groesse.x));
+    const int h = std::max(32, static_cast<int>(groesse.y));
+    ImGui::PushID(n);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
+    ImGui::BeginChild("mtansicht", ImVec2{static_cast<float>(w), static_cast<float>(h)}, ImGuiChildFlags_None,
+                      ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar);
+    ImGui::PopStyleVar();
+    const ImVec2 lo = ImGui::GetCursorScreenPos();
+    a.lo[0] = lo.x;
+    a.lo[1] = lo.y;
+    a.groesse[0] = static_cast<float>(w);
+    a.groesse[1] = static_cast<float>(h);
+    a.sichtbar = true;
+    modellAnsichtAnimieren(n);   // MBKOPF: weicher Wechsel von ViewCube/Gizmo
+    modellNavVorBild(n);         // MBNAV: weiche Wechsel der Navigation, Verlauf der Ansichtsaenderungen
+    baueSicht(a, w, h, a.viewProj);
+    ImGuiIO& io = ImGui::GetIO();
+    // MBKOPF: Kopfzeile, ViewCube und Gizmo bedienen sich selbst - dort waehlt, kreist und oeffnet kein Klick die Ansicht
+    const bool ueberAnsicht = ImGui::IsWindowHovered() && !modellKopfTreffer(a, io.MousePos);
+    if (ueberAnsicht && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Middle) ||
+                         ImGui::IsMouseClicked(ImGuiMouseButton_Right))) {
+        t.aktiv = n;
+        t.klickDrinBild = ImGui::GetFrameCount();
+    }
+    // MBNAV: Rad und Mitteltaste je Bedienmodus wie 3ds Max bzw. Blender (app_modelltab_nav.cpp). Laeuft ein
+    // Navigationsmodus (Alt+Z, Strg+P, Strg+R, Strg+W), gehoeren ihm auch die linke und die rechte Taste: die Ansicht
+    // waehlt, malt und oeffnet dann nichts.
+    const bool ueber = ueberAnsicht && !modellNavMaus(n, a, ueberAnsicht);
+    // TEST1411 B: ohne Modell bleibt nur die Navigation (wie 3ds Max in einer leeren Szene) - nichts zu waehlen, zu malen oder zu ziehen
+    const bool leer = g_app->model.empty();
+    float mitte[3];
+    const bool hatMitte = !leer && t.gizmo != 0 && t.modal.art == 0 && auswahlMitte(mitte);
+    if (!leer) { ansichtBedienen(n, a, ueber, hatMitte, mitte); }
     // --- Zeichnen -----------------------------------------------------------
     // TEST1411 D (shank 14.11.: "beim Zoomen sehe ich das Modell doppelt"): Rad, Orbit und Verschieben (modellNavMaus) aendern die
     // Kamera NACH baueSicht oben. Gezeichnet wurde mit der alten Matrix, gemerkt aber der Stand der neuen Kamera - im naechsten Bild
@@ -2486,10 +2537,10 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     if (gpu::modellZielTextur() != nullptr) {
         ImGui::Image(reinterpret_cast<ImTextureID>(gpu::modellZielTextur()), ImVec2{static_cast<float>(w), static_cast<float>(h)});
     }
-    if (!modellPr().overlaysAus[std::clamp(n, 0, 3)]) { ueberlagerung(a, ImGui::GetWindowDrawList()); }   // AP5 P10: Overlays wie Blender
+    if (!leer && !modellPr().overlaysAus[std::clamp(n, 0, 3)]) { ueberlagerung(a, ImGui::GetWindowDrawList()); }   // AP5 P10: Overlays wie Blender
     if (hatMitte) { gizmoZeichnen(a, mitte); }
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    if (gewichtsAnsicht() && ueber && modellGewichte().malen && modellGewichte().werkzeug != 2) {   // mb1a2: der Pinselkreis (AP8: nicht beim Waehlen und beim Verlauf)
+    if (!leer && gewichtsAnsicht() && ueber && modellGewichte().malen && modellGewichte().werkzeug != 2) {   // mb1a2: der Pinselkreis (AP8: nicht beim Waehlen und beim Verlauf)
         dl->AddCircle(io.MousePos, t.pinselRadius, IM_COL32(255, 255, 255, 200), 48, 1.5F);
         ++t.ueber[11];
     }
@@ -2509,7 +2560,8 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
     drawModellNavigation(n, a);
     drawModellKopfzeile(n, a);
     modellBlUeberlagerung(n, a, dl);   // AP4: wie Blender "N Seitenleiste - T Werkzeuge", die Messung
-    modellPrUeberlagerung(n, a, dl);   // AP5: rote Striche, Knochenbezuege, "LOD - Dreiecke" unten rechts
+    if (!leer) { modellPrUeberlagerung(n, a, dl); }   // AP5: rote Striche, Knochenbezuege, "LOD - Dreiecke" unten rechts
+    if (leer && n == t.aktiv) { leerHinweis(lo, static_cast<float>(w), static_cast<float>(h)); }   // TEST1411 B
     ImGui::EndChild();
     ImGui::PopID();
 }
@@ -2544,9 +2596,12 @@ void homeHolen();   // KLEIN: weiter unten bei modellHomeFlug
 
 void drawModellArbeitsflaeche() {
     ModellTab& t = mt();
+    // TEST1411 B: auch ohne Modell (die leere Szene) - sie wird wie ein eigenes Modell eingepasst, auf den Platz einer Figur (einpassen)
+    const bool ohneModell = g_app->model.empty();
+    const std::string einpassFuer = ohneModell ? std::string(kLeereSzene) : g_app->modelPath;
     modellPrSchritt();   // AP5: vier Ansichten je Bereich wie 3ds Max (R7), Z wie Blender
     modellAnzeigeAktualisieren();
-    if (g_eingepasst != g_app->modelPath) {
+    if (g_eingepasst != einpassFuer) {
         // Neue Figur: die vier Ansichten (Oben, Vorne, Links, Perspektive) auf sie einpassen.
         const AnsichtArt arten[4] = {AnsichtArt::Oben, AnsichtArt::Vorne, AnsichtArt::Links, AnsichtArt::Perspektive};
         for (int i = 0; i < 4; ++i) {
@@ -2559,7 +2614,7 @@ void drawModellArbeitsflaeche() {
         t.einpassenOffen = true;
         homeHolen();   // KLEIN: ein gesetztes Home gehoert zur Figur - das dieser Figur aus den Einstellungen, sonst keins
         modellNavZuruecksetzen();   // MBNAV
-        g_eingepasst = g_app->modelPath;
+        g_eingepasst = einpassFuer;
     }
     modellDrehteller();
     // Stufe 3: ein Griff, der in der Ansicht gezogen wird, aendert das Dokument erst nach posieren() dieses Bilds - und
@@ -2574,7 +2629,7 @@ void drawModellArbeitsflaeche() {
         float mx[3];
         const bool leer = !grenzen(false, mn, mx) && !(g_app->model.maxs[0] > g_app->model.mins[0] || g_app->model.maxs[1] > g_app->model.mins[1] ||
                                                        g_app->model.maxs[2] > g_app->model.mins[2]);
-        if (!leer) {
+        if (!leer || ohneModell) {   // TEST1411 B: ohne Modell der Platz einer Figur
             // die Orthoansichten der vier Ansichten ebenfalls in der Pose: oben beim Laden kannten sie nur die Ecken davor -
             // Vorne und Links standen nach Alt+W unten abgeschnitten (Rahmen y 0,43..1,35)
             for (int i = 0; i < 3; ++i) { einpassen(t.ansichten[i]); }

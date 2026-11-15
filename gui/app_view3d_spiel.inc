@@ -4741,25 +4741,12 @@ void loadSkeletonForModel() {
 
 void drawModelView() {
     g_app->modellAnsichtBild = ImGui::GetFrameCount();   // modell1 (darfRuhen, modellBrauchtBilder)
-    // Ohne Modell nur der Hinweis - die Bedienleiste steht trotzdem, damit
-    // die Anordnung nicht springt, sobald etwas geladen wird.
-    const bool haveModel = !g_app->model.empty();
-    // Platz fuer die Bedienleiste unten freihalten.
-    // Kein Platz mehr fuer die Bedienung reservieren: sie steht jetzt UNTER
-    // allen drei Spalten und nicht mehr hier. Das Bild bekommt die ganze
-    // Hoehe der Spalte.
-    const float panelH = 0.0F;
-    if (!haveModel) {
-        const ImVec2 free = ImGui::GetContentRegionAvail();
-        ImGui::BeginChild("modelempty",
-                          ImVec2{free.x, std::max(free.y - panelH, 40.0F)});
-        ImGui::TextDisabled("%s", tr(Str::ModelNone));
-        ImGui::EndChild();
-        return;
-    }
     // Modell-Block 1a-1: eine oder vier Ansichten und das Befehlsfeld
     // (gui/app_modelltab_ansicht.cpp). Bis rc610 stand hier eine Ansicht mit
     // linker Maustaste zum Kreisen; die Bedienung folgt jetzt 3ds Max.
+    // TEST1411 B (shank 14.11.: "wenn er leer ist sieht er nicht so aus wie wenn ein model drin ist. es sollte leer auch schon so
+    // aussehen"): auch ohne Modell, wie 3ds Max in einer leeren Szene - Ansichten mit Raster, ViewCube und Kopfzeile, das Befehlsfeld
+    // mit seinen Reitern; bis TEST1411 stand hier nur der Satz "Load a model", jetzt steht er mittig in der aktiven Ansicht.
     drawModellArbeitsflaeche();
 }
 
@@ -5615,7 +5602,7 @@ void drawMissionPicker() {
         // TEST1411 A: nichts eingerichtet - kurzer Hinweis (die drei Knoepfe stehen unten)
         if (g_app->missions.empty() && !sucht) {
             ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
-            ImGui::TextDisabled("%s", tr(Str::T1aNichtsEingerichtet));
+            cjkTextDisabled("%s", tr(Str::T1aNichtsEingerichtet));
             ImGui::PopTextWrapPos();
         }
     }

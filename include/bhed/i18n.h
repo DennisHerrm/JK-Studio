@@ -4469,8 +4469,6 @@ enum class Str {
     MbKvKanalTY,
     MbKvKanalTZ,
     MbKvKeineSchluessel,
-    MbKvBasisBinde,
-    MbKvBasisQuelle,
     MbKvDsOeffnen,
     MbKvKeOeffnen,
     MbKvOeffnenHint,
@@ -5929,8 +5927,6 @@ enum class Str {
     MzHinweisSequenz,
     MzHinweisKurz,
     MzAuswahlSpur,
-    MzLegendeMax,
-    MzLegendeBlender,
     MzPrimaerLang,
     MzOberkoerper,
     MzSekundaerLeer,
@@ -6844,6 +6840,9 @@ enum class Str {
     T1eSucheHint,
     T1eBilder,
     T1eSchleife,
+    T1bLeerTitel,
+    T1bNpcBrowser,
+    T1bFeldHinweis,
     Count,
 };
 

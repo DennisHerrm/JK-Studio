@@ -23,6 +23,8 @@
 //   P  Weights wie Skin: Ecke klicken, Liste des Weight Tools, Wert tippen, Mirror Paste, Copy/Paste, Weight Table, Backface Cull, Format des Spiels, Blender
 //   A  Load mission ohne pk3-Dialog: Liste des Spiels nach Archiv, Filter auf Archiv, Laden -> zuletzt geoeffnet, Ordner/Archiv oeffnen, nichts eingerichtet
 //   E  Sequenzen als eigener Reiter: Baum ohne Ast, Strg+F + Suche, Gruppe, Sortieren, Klick/Rechtsklick, Zeigen
+//   B  Model-Tab ohne Modell wie mit Modell: je Bereich und Bedienmodus dieselben Rahmen, Reiter und Gruppen (zu, gesperrt), Ansicht mit
+//      ViewCube/Kopfzeile und Ladehinweis (NPC-Browser, .glm oeffnen), Explorer mit Reitern/Suche/Filter und Hinweis im leeren Baum
 //   F  Zeitleiste: die Knoepfe rechts der Bildanzeige stehen still, wenn die Bildzahl waechst (0, 9, 10, 99, 100, letztes Bild der
 //      laengsten Sequenz - unter Movie Duels BOTH_MD_CIN_51 mit 660 Bildern)
 // Eingebunden in selbsttest.cpp (am Ende der Modell-Block-Gruppen).
@@ -2586,6 +2588,200 @@ void eSchritte(std::vector<Schritt>& s) {
     add(pruefe("T1411 E: Zeigen (Laden, NPC-Browser) springt in der Liste zur Sequenz", [st] { return st->zeigen; }));
 }
 
+// --- B: der Model-Tab ohne Modell wie mit Modell -------------------------------------------------------------------------------
+// Rot (vor TEST1411 B, Foto 15 von shank): ohne Modell links nur "No model yet..." mit "Show me how", rechts eine leere Flaeche mit "Load a
+// model" - kein Raster, kein ViewCube, keine Kopfzeile der Ansicht, kein Befehlsfeld. Soll (Vorbild die leere Szene in 3ds Max, Foto 21):
+// je Bereich und Bedienmodus dieselben Rahmen wie mit Modell (Explorer, Ansichten, Befehlsfeld, UV-Editor bzw. 2D-Bild), im Befehlsfeld
+// dieselben belegten Reiter und im vorgegebenen Reiter dieselben Gruppen - ohne Modell zu und gesperrt, mit einem kurzen Hinweis; die Ansicht
+// mit ViewCube und Kopfzeile, der Ladehinweis mittig mit "NPC-Browser" und ".glm oeffnen"; der Explorer mit Reitern, Suche und Filter,
+// gesperrt, der Hinweis und "Show me how" im leeren Baum.
+
+struct BLage {
+    bool da = false;
+    ImRect explorer;
+    ImRect ansichten;
+    ImRect feld;
+    ImRect editor;          // UV-Editor bzw. 2D-Bild (leer: keiner)
+    unsigned belegt = 0;    // Reiter des Befehlsfelds mit Gruppen
+    std::vector<std::string> titel;   // die Gruppen im vorgegebenen Reiter
+    int offen = 0;          // davon offen
+};
+
+struct BStand {
+    std::map<int, BLage> mit;
+    std::map<int, BLage> ohne;
+    bool leer = false;
+    bool explorer = false;
+    bool ansicht = false;
+    bool knoepfe = false;
+    bool npc = false;
+};
+
+ImRect bRect(const char* name) {
+    const ImGuiWindow* w = mbefoto::kindFenster(name);
+    return w != nullptr ? w->Rect() : ImRect{};
+}
+
+BLage bLage() {
+    BLage l;
+    l.da = true;
+    l.explorer = bRect("mtexplorer");
+    l.ansichten = bRect("mtansichten");
+    l.feld = bRect("mtbefehlsfeld");
+    l.editor = mbefoto::kindFenster("mtuveditor") != nullptr ? bRect("mtuveditor") : bRect("mtmaleditor");
+    l.belegt = ui::feldProbe().reiterBelegt;
+    for (int i = 0; i < ui::rolloutProbeZahl(); ++i) {
+        const ui::RolloutProbe& p = ui::rolloutProbe(i);
+        // die Spalte des Felds (auch Gruppen unter dem Rand des Felds: mit Modell schieben offene Gruppen die folgenden hinaus)
+        if (p.kopf.GetCenter().x < l.feld.Min.x || p.kopf.GetCenter().x > l.feld.Max.x) { continue; }
+        l.titel.push_back(p.titel);
+        l.offen += p.offen ? 1 : 0;
+    }
+    return l;
+}
+
+std::string bText(const ImRect& r) {
+    char z[80];
+    std::snprintf(z, sizeof z, "%.0f,%.0f-%.0f,%.0f", static_cast<double>(r.Min.x), static_cast<double>(r.Min.y), static_cast<double>(r.Max.x), static_cast<double>(r.Max.y));
+    return z;
+}
+
+bool bGleich(const ImRect& a, const ImRect& b) {
+    return std::fabs(a.Min.x - b.Min.x) <= 1.0F && std::fabs(a.Min.y - b.Min.y) <= 1.0F && std::fabs(a.Max.x - b.Max.x) <= 1.0F && std::fabs(a.Max.y - b.Max.y) <= 1.0F;
+}
+
+// Schluessel: Bedienmodus * 10 + Bereich, der Setup-Modus der Animation + 100
+const int kBBereiche[] = {0, 1, 2, 3, 4, 5, 105};
+
+void bDurchlauf(std::vector<Schritt>& s, const std::shared_ptr<BStand>& st, bool mitModell) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    for (int modus = 0; modus < 2; ++modus) {
+        for (const int bb : kBBereiche) {
+            const int bereich = bb % 100;
+            const bool setup = bb >= 100;
+            const int schluessel = modus * 10 + bb;
+            add(tu("T1411 B: " + std::string(mitModell ? "mit" : "ohne") + " Modell, " + (modus == 0 ? "3ds Max" : "Blender") + ", Bereich " + std::to_string(bereich) +
+                       (setup ? " Setup" : ""),
+                   [modus, bereich, setup] {
+                       modellBedienungSetzen(modus);
+                       mtab().bereich = static_cast<ModellBereich>(bereich);
+                       if (bereich == static_cast<int>(ModellBereich::Animation)) { modellAnimSetupSetzen(setup); }
+                   }));
+            add(pause(0.6));
+            add(tu("T1411 B: Lage merken", [st, mitModell, schluessel] {
+                const BLage l = bLage();
+                (mitModell ? st->mit : st->ohne)[schluessel] = l;
+                std::string z = "B " + std::string(mitModell ? "mit " : "ohne ") + std::to_string(schluessel) + ": Explorer " + bText(l.explorer) + ", Ansichten " +
+                                bText(l.ansichten) + ", Feld " + bText(l.feld) + ", Editor " + bText(l.editor) + ", Reiter " + std::to_string(l.belegt) + ", " +
+                                std::to_string(l.titel.size()) + " Gruppen (" + std::to_string(l.offen) + " offen):";
+                for (const std::string& t : l.titel) { z += " " + t + ";"; }
+                melde(z);
+            }));
+            if (modus == 0 || bereich == static_cast<int>(ModellBereich::Ansehen) || bereich == static_cast<int>(ModellBereich::Animation)) {
+                add(foto(std::string("t1411_b_") + (mitModell ? "mit" : "leer") + "_" + (modus == 0 ? "max" : "blender") + "_" + std::to_string(bereich) + (setup ? "s" : "")));
+            }
+        }
+    }
+}
+
+void bSchritte(std::vector<Schritt>& s, const std::string& modellPfad) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<BStand>();
+    const auto grund = [] {
+        mtab().vierAnsichten = false;
+        mtab().aktiv = 3;
+        mtab().malen.editorOffen = true;
+        modellExplorer().art = 0;
+        g_app->npcBrowserOffen = false;
+    };
+    add(tu("T1411 B: wie 3ds Max, eine Ansicht, Explorer nach Hierarchie", grund));
+    add(pause(0.5));
+    bDurchlauf(s, st, true);
+    add(tu("T1411 B: den letzten Reiter schliessen (gespeichert) - der Model-Tab ist leer", [] {
+        modellBedienungSetzen(0);
+        mtab().gespeichertStand = mtab().dok.stand();
+        modellReiterSchliessen(0);
+    }));
+    add(pause(0.8));
+    add(tu("T1411 B: leer, eine Ansicht", [st, grund] {
+        st->leer = g_app->model.empty() && modellReiterZahl() == 1;
+        grund();
+    }));
+    add(pause(0.5));
+    bDurchlauf(s, st, false);
+    // die leere Ansicht, der Explorer und die zwei Knoepfe (wie 3ds Max, Ansehen/Pruefen)
+    add(tu("T1411 B: leer, wie 3ds Max, Ansehen/Pruefen", [] {
+        modellBedienungSetzen(0);
+        mtab().bereich = ModellBereich::Ansehen;
+    }));
+    add(pause(0.6));
+    add(tu("T1411 B: Ansicht und Explorer ohne Modell", [st] {
+        const ModellAnsicht& a = mtab().ansichten[mtab().aktiv];
+        st->ansicht = modellNavigationSichtbar(mtab().aktiv) && a.wuerfel[2] > a.wuerfel[0] && a.kopfUnten > a.lo[1] && a.kopfRechts > a.lo[0];
+        const ModellExplorerZustand& x = modellExplorer();
+        st->explorer = x.leerHinweis && x.filterReihe && finde(tr(Str::MbNachHierarchie), "mtexplorer", 0, false) != nullptr &&
+                       finde(tr(Str::T1eSequenzen), "mtexplorer", 0, false) != nullptr && finde(tr(Str::EmptyShowHow), "mtexplorer", 0, false) != nullptr;
+        const Element* npc = finde(tr(Str::T1bNpcBrowser), "mtansicht", 0, false);
+        const Element* glm = finde(tr(Str::OpenGlm), "mtansicht", 0, false);
+        const ImVec2 mitte{a.lo[0] + a.groesse[0] * 0.5F, a.lo[1] + a.groesse[1] * 0.5F};
+        st->knoepfe = npc != nullptr && glm != nullptr && std::fabs((npc->rect.Min.x + glm->rect.Max.x) * 0.5F - mitte.x) < 2.0F &&
+                      std::fabs(npc->rect.GetCenter().y - mitte.y) < ImGui::GetFontSize() * 4.0F;
+        melde(std::string("B leer: ViewCube ") + bText(ImRect{a.wuerfel[0], a.wuerfel[1], a.wuerfel[2], a.wuerfel[3]}) + ", Kopfzeile bis " +
+              std::to_string(static_cast<int>(a.kopfUnten)) + ", Explorer-Hinweis " + std::to_string(x.leerHinweis ? 1 : 0) + ", Knoepfe " +
+              (npc != nullptr ? bText(npc->rect) : std::string("-")) + " / " + (glm != nullptr ? bText(glm->rect) : std::string("-")) + ", Mitte " +
+              std::to_string(static_cast<int>(mitte.x)) + "/" + std::to_string(static_cast<int>(mitte.y)));
+    }));
+    add(klick(tr(Str::T1bNpcBrowser), "mtansicht"));
+    add(pause(0.4));
+    add(tu("T1411 B: NPC-Browser offen", [st] {
+        st->npc = g_app->npcBrowserOffen;
+        g_app->npcBrowserOffen = false;
+    }));
+    add(pause(0.3));
+    add(pruefe("T1411 B: der letzte Reiter geschlossen, der Model-Tab ist leer", [st] { return st->leer; }));
+    add(pruefe("T1411 B: je Bereich und Bedienmodus stehen Explorer, Ansichten, Befehlsfeld und UV-Editor bzw. 2D-Bild ohne Modell an derselben Stelle wie mit Modell", [st] {
+        bool ok = st->mit.size() == st->ohne.size() && !st->mit.empty();
+        for (const auto& [k, m] : st->mit) {
+            const auto it = st->ohne.find(k);
+            if (it == st->ohne.end()) { return false; }
+            const BLage& o = it->second;
+            const bool gleich = bGleich(m.explorer, o.explorer) && bGleich(m.ansichten, o.ansichten) && bGleich(m.feld, o.feld) && bGleich(m.editor, o.editor) &&
+                                m.explorer.GetWidth() > 0.0F && m.ansichten.GetWidth() > 0.0F && m.feld.GetWidth() > 0.0F;
+            if (!gleich) { melde("B Rahmen anders bei " + std::to_string(k)); }
+            ok = ok && gleich;
+        }
+        return ok;
+    }));
+    add(pruefe("T1411 B: im Befehlsfeld dieselben belegten Reiter und im vorgegebenen Reiter dieselben Gruppen wie mit Modell; ohne Modell alle zu (Modellieren zeichnet seine eigenen)", [st] {
+        bool ok = !st->mit.empty();
+        for (const auto& [k, m] : st->mit) {
+            if (k % 100 % 10 == static_cast<int>(ModellBereich::Modellieren)) { continue; }
+            const auto it = st->ohne.find(k);
+            if (it == st->ohne.end()) { return false; }
+            const BLage& o = it->second;
+            const bool gleich = m.belegt == o.belegt && m.titel == o.titel && o.offen == 0 && !m.titel.empty();
+            if (!gleich) {
+                melde("B Gruppen anders bei " + std::to_string(k) + ": Reiter " + std::to_string(m.belegt) + "/" + std::to_string(o.belegt) + ", Gruppen " +
+                      std::to_string(m.titel.size()) + "/" + std::to_string(o.titel.size()) + ", offen " + std::to_string(o.offen));
+            }
+            ok = ok && gleich;
+        }
+        return ok;
+    }));
+    add(pruefe("T1411 B: die leere Ansicht hat ViewCube und Kopfzeile [+] [Perspective] [Standard]", [st] { return st->ansicht; }));
+    add(pruefe("T1411 B: der Explorer zeigt Reiter (By hierarchy | By layers | Sequences), Suche und Filter, der Hinweis und Show me how stehen im leeren Baum",
+               [st] { return st->explorer; }));
+    add(pruefe("T1411 B: der Ladehinweis steht mittig in der Ansicht mit NPC-Browser und .glm oeffnen; NPC-Browser oeffnet ihn", [st] { return st->knoepfe && st->npc; }));
+    // das Modell wieder laden (fuer die folgenden Abschnitte)
+    for (Schritt& x : mb1::laden(modellPfad.c_str())) { add(std::move(x)); }
+    add(tu("T1411 B: zurueck, wie 3ds Max, Ansehen/Pruefen", [] {
+        modellBedienungSetzen(0);
+        mtab().bereich = ModellBereich::Ansehen;
+        mtab().vierAnsichten = false;
+    }));
+    add(pause(0.5));
+}
+
 std::vector<Schritt> schritte(const char* nur) {
     std::vector<Schritt> s;
     const std::string n = nur != nullptr ? nur : "";
@@ -2632,6 +2828,7 @@ std::vector<Schritt> schritte(const char* nur) {
     if (abschnitt("p")) { pSchritte(s); }
     if (abschnitt("e")) { eSchritte(s); }
     if (abschnitt("a")) { aSchritte(s); }
+    if (abschnitt("b")) { bSchritte(s, modell != nullptr && *modell != '\0' ? modell : "models/players/alora/model.glm"); }
     if (abschnitt("fotos")) { fotoSchritte(s); }
     add(tu("T1411: zurueck", [=] {
         modellBedienungSetzen(*bedienung);

@@ -547,6 +547,13 @@ void modusSchalter() {
 
 }  // namespace
 
+// TEST1411 B: ohne Modell steht der Schalter gesperrt an seinem Ort - dieselbe Anordnung wie mit Modell
+void modellAnimModusSchalterLeer() {
+    ImGui::BeginDisabled();
+    modusSchalter();
+    ImGui::EndDisabled();
+}
+
 // --- Die Reihenfolge der Gruppen -------------------------------------------------------------------------------------------
 
 void drawModellAnimFeld() {

@@ -1043,6 +1043,8 @@ void modellKreisenSchritt(float gier, float nick);
 void drawModellExplorer(float hoehe);
 void drawModellBefehlsfeld();
 void drawModellArbeitsflaeche();
+// TEST1411 B: ohne Modell ein Editor (UV, 2D-Bild) als leerer Rahmen an seinem Platz - Kindfenster `id`, oben sein Titel, mittig der Hinweis
+void modellEditorLeer(const char* id, const char* titel, ImVec2 groesse);
 void drawModellAktionen();
 void modellAnsichtEinpassenAktiv();
 bool modellTasten();
@@ -1227,6 +1229,7 @@ struct ModellExplorerZustand {
     bool filterReihe = false;       // die Symbolreihe des Filters (wie 3ds Max) ist gezeichnet
     bool fussEbenen = false;        // der Satz zu Auge und Schneeflocke ist gezeichnet
     bool fussHinweis = false;       // die Hinweiszeile ist gezeichnet
+    bool leerHinweis = false;       // TEST1411 B: ohne Modell - der Hinweis steht im leeren Baum unter Reitern, Suche und Filter
     std::string tooltip;            // der Tooltip der Zeile unter der Maus in diesem Bild (Name und Info)
 };
 
@@ -1606,6 +1609,7 @@ bool modellAnimSpiegeln();
 [[nodiscard]] bool modellAnimSetupGewaehlt();
 void modellAnimSetupSetzen(bool setup);
 [[nodiscard]] unsigned modellAnimReiter(bool setupGruppe, unsigned reiter);
+void modellAnimModusSchalterLeer();   // TEST1411 B: der Schalter ohne Modell, gesperrt an seinem Ort
 bool modellAnimSchluesselGesperrt();
 [[nodiscard]] const char* modellAnimModusName(bool setup);
 // Die Gruppen (jede ein ui::rolloutBeginn): Entwurf A1, A2, A4, A8, A9 und die weiteren des Programms.
