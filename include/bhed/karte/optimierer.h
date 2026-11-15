@@ -409,6 +409,10 @@ struct AbbildModell {
     Kasten welt;                            // modellWeltKasten
     bool eingebacken = false;               // q3map2 backt es in die BSP (misc_model: UnparseEntities, eingebackeneEntitaet)
     int spawnflags = 0;
+    // CW-MODELL: die Detailstufen einer .md3 (RE_RegisterModel laedt name_2.md3, name_1.md3, name.md3 - tr_model.cpp:640-653): je
+    // vorhandener Datei name_1, name_2 ihre Ecken; stufenLuecke: name_2.md3 ohne name_1.md3 (ERR_DROP "has LOD 2 but is missing LOD 1")
+    std::vector<int> stufenEcken;
+    bool stufenLuecke = false;
 };
 // Die Shader und Bilder der Karte (Texturen-Pruefung) - Teil des Berichts
 struct CwInventar {

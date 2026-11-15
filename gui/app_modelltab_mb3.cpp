@@ -13,6 +13,7 @@
 #include "platform.h"
 
 #include "bhed/modell/animcfg.h"
+#include "bhed/modell/animnamen.h"
 #include "bhed/modell/gewichte.h"
 #include "bhed/modell/glmdatei.h"
 #include "bhed/modell/md3datei.h"
@@ -122,6 +123,9 @@ bool schreibenNach(const std::string& ziel) {
         t.speicherPfad = ziel;
         t.gespeichertStand = t.dok.stand();
         std::string m = format(Str::UvMd3Gespeichert, ziel.c_str(), static_cast<int>(bytes.size()), mb.flaechenRoh, mb.flaechenNeu);
+        // CW-MODELL: erzeugte Detailstufen als name_1.md3 / name_2.md3 daneben (ohne Stufen nichts)
+        const std::string stufen = modellLodMd3Schreiben(ziel, datei);
+        if (!stufen.empty()) { m += " " + stufen; }
         // ENTSCHEID3A (E3): auch eine .md3 bekommt ihren Stapel in die Begleitdatei daneben (die .md3 ist geschrieben wie bisher)
         const std::string begleit = modellEnt3aBegleitSchreiben(ziel, bytes);
         if (!begleit.empty()) { m += " " + begleit; }
@@ -189,8 +193,12 @@ void modellSpeichern(bool unter) {
     for (const modell::Befund& b : modellBefunde()) {
         if (b.art != modell::BefundArt::ShaderFehlt) { t.frageZeilen.push_back(befundText(b)); }
     }
+    const bool grenzen = !t.frageZeilen.empty();
+    // CW-MODELL: eine .md3 mit erzeugten Stufen ueberschreibt name_1.md3 / name_2.md3 daneben - liegen sie schon da (Ravens eigene,
+    // fruehere), fragt das Programm vorher (ohne erzeugte Stufen schreibt Speichern keine und laesst sie, wie sie sind)
+    for (const std::string& n : modellLodMd3Vorhanden(ziel, t.dok.inhalt())) { t.frageZeilen.push_back(format(Str::LodUeberschreibtZeile, n.c_str())); }
     if (!t.frageZeilen.empty()) {
-        t.frageArt = 1;
+        t.frageArt = grenzen ? 1 : 3;
         t.frageZiel = ziel;
         return;
     }
@@ -253,6 +261,9 @@ namespace {
 void cfgAbgleich() {
     ModellTab& t = mt();
     const std::string fuer = g_app->anim.skeletonName + "|" + std::to_string(g_app->anim.numFrames) + "|" + t.dokModell;
+    if (fuer != t.cfgFuer && t.dok.inhalt().skelett) {
+        t.cfgFuer = fuer;   // CW-MODELL: ein eigenes Skelett - seine animation.cfg steht im Dokument (Sequenzen angelegt), nichts nachladen
+    }
     if (fuer != t.cfgFuer) {
         t.cfgFuer = fuer;
         std::string pfad;
@@ -564,7 +575,9 @@ bool modellKartenGlaBauen(const std::string& datei, bool trotzdem) {
             // ein Satz mehr neben _humanoid (G_ParseAnimFileSet)
             for (const modell::CfgBefund& x : modell::animDateienPruefen(2, zielspiel())) { b.push_back(x); }
         }
-        for (const modell::CfgBefund& x : modell::cfgPruefen(cfg.eintraege(), k.numFrames, cfgText.size(), zielspiel())) { b.push_back(x); }
+        for (const modell::CfgBefund& x : modell::cfgPruefen(cfg.eintraege(), k.numFrames, cfgText.size(), zielspiel(), modell::animNamenSpiel(zielspiel()))) {
+            b.push_back(x);   // CW-MODELL: mit den Namen der animTable
+        }
         for (const modell::CfgBefund& x : b) { t.frageZeilen.push_back(cfgBefundText(x)); }
         if (!t.frageZeilen.empty()) {
             t.frageArt = 2;
@@ -643,6 +656,14 @@ std::string modellGlaAufPlatz(GlaAnimation g, const std::string& name, int loopF
 
 std::string modellZielKopf() { return zielKopf(); }
 
+// CW-MODELL: die Befunde der animation.cfg des Dokuments gegen die GLA und das Zielspiel (Gruppe animation.cfg)
+std::vector<modell::CfgBefund> modellCfgBefunde() {
+    const modell::Inhalt& in = mt().dok.inhalt();
+    const std::string text = modell::animCfgSchreiben(in.cfg);
+    // unbekannte Namen gegen die animTable des Zielspiels - das Spiel uebergeht solche Zeilen (NPC_stats.cpp:927-940), hier eine Warnung
+    return modell::cfgPruefen(in.cfg.eintraege(), g_app->anim.numFrames, text.size(), zielspiel(), modell::animNamenSpiel(zielspiel()));
+}
+
 void modellXsiAufnehmenFrage() {
     const std::string p = platform::openFileDialog(tr(Str::MbXsiAufnehmen), "dotXSI (*.xsi)|*.xsi", g_app->settings.lastDir);
     if (!p.empty()) { (void)modellXsiAufnehmen(p); }
@@ -700,7 +721,7 @@ void drawModellSpeichernFrage() {
     }
     t.frageSichtbar = true;
     ImGui::PushTextWrapPos(fs * 33.0F);
-    cjkTextUnformatted(format(Str::MbSpFrageText, modell::grenzen(zielspiel()).name).c_str());
+    cjkTextUnformatted(t.frageArt == 3 ? tr(Str::LodUeberschreibenFrage) : format(Str::MbSpFrageText, modell::grenzen(zielspiel()).name).c_str());
     const ImVec4 warn = ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram);
     for (std::size_t i = 0; i < t.frageZeilen.size() && i < 12U; ++i) { cjkTextColored(warn, "- %s", t.frageZeilen[i].c_str()); }
     if (t.frageZeilen.size() > 12U) { cjkTextDisabled("... %d", static_cast<int>(t.frageZeilen.size() - 12U)); }
@@ -710,7 +731,7 @@ void drawModellSpeichernFrage() {
         const int art = t.frageArt;
         t.frageArt = 0;
         ImGui::CloseCurrentPopup();
-        if (art == 1) { (void)schreibenNach(t.frageZiel); }
+        if (art == 1 || art == 3) { (void)schreibenNach(t.frageZiel); }
         if (art == 2) { (void)modellKartenGlaBauen(t.frageZiel, true); }
     }
     ImGui::SetItemTooltip("%s", tr(Str::MbSpTrotzdemHint));
@@ -781,7 +802,6 @@ void gruppeGla() {
 
 void gruppeCfg() {
     ModellTab& t = mt();
-    const GlaAnimation& a = g_app->anim;
     if (!ui::rolloutBeginn(tr(Str::MbRCfg), {.reiter = modellAnimReiter(true, modellReiter(MbReiter::Dienste, MbReiterBl::Daten))})) { return; }
     const modell::Inhalt& in = t.dok.inhalt();
     if (in.cfgPfad.empty()) {
@@ -790,7 +810,7 @@ void gruppeCfg() {
         const std::string text = modell::animCfgSchreiben(in.cfg);
         const std::vector<AnimEntry> e = in.cfg.eintraege();
         ui::absatz(format(Str::MbCfgInfo, in.cfgPfad.c_str(), static_cast<int>(e.size()), static_cast<int>(text.size())).c_str());
-        const std::vector<modell::CfgBefund> b = modell::cfgPruefen(e, a.numFrames, text.size(), zielspiel());
+        const std::vector<modell::CfgBefund> b = modellCfgBefunde();
         t.cfgBefunde = static_cast<int>(b.size());
         if (b.empty()) { ui::absatz(format(Str::MbCfgOk, modell::grenzen(zielspiel()).name).c_str(), ui::Ton::Gut); }
         for (std::size_t i = 0; i < b.size() && i < 40U; ++i) { ui::absatz(cfgBefundText(b[i]).c_str(), ui::Ton::Warnung); }

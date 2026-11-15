@@ -36,6 +36,8 @@
 #include "bhed/karte/karte.h"
 #include "bhed/karte/optimierer.h"
 #include "bhed/karte/texturen.h"
+#include "bhed/md3.h"
+#include "bhed/modell/detailstufen.h"
 #include "platform.h"
 #include "textumbruch.h"
 
@@ -52,6 +54,7 @@
 #include <filesystem>
 #include <future>
 #include <fstream>
+#include <map>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -163,6 +166,8 @@ constexpr PruefText kPruefTexte[] = {
     {"md3grenzen", Str::KeOptPrMd3Grenzen, Str::KeOptPrMd3GrenzenE},
     {"requisitschwebt", Str::KeOptPrSchwebt, Str::KeOptPrSchwebtE},
     {"requisitsteckt", Str::KeOptPrSteckt, Str::KeOptPrStecktE},
+    {"modellstufen", Str::KeOptPrModellStufen, Str::KeOptPrModellStufenE},   // CW-MODELL
+    {"modelldetail", Str::KeOptPrModellDetail, Str::KeOptPrModellDetailE},
 };
 const PruefText* pruefText(const std::string& id) {
     for (const PruefText& p : kPruefTexte) {
@@ -403,6 +408,30 @@ void cwModelleSammeln(karte::PruefOptionen& o) {
         m.welt = karte::modellWeltKasten(an, m.matrix);
         m.eingebacken = karte::eingebackeneEntitaet(kl);
         m.spawnflags = std::atoi(en.wert("spawnflags").c_str());
+        // CW-MODELL: die Detailstufen einer Laufzeit-.md3 (name_1.md3, name_2.md3 wie RE_RegisterModel), je Pfad einmal gelesen
+        if (!m.eingebacken) {
+            const std::string p = klein(pfad);
+            if (p.size() > 4 && p.compare(p.size() - 4, 4, ".md3") == 0) {
+                static std::map<std::string, std::pair<std::vector<int>, bool>> stufenMerk;
+                auto it = stufenMerk.find(p);
+                if (it == stufenMerk.end()) {
+                    std::vector<int> ecken;
+                    bool luecke = false;
+                    bool vorher = true;
+                    for (int s = 1; s < modell::kMd3StufenMax; ++s) {
+                        std::string bytes;
+                        Md3Model md;
+                        const bool da = readFromArchives(modell::md3StufenPfad(pfad, s), bytes) && readMd3(bytes, md);
+                        if (da && !vorher) { luecke = true; }
+                        if (da && vorher) { ecken.push_back(modell::stufenZahlen(md).ecken); }
+                        vorher = vorher && da;
+                    }
+                    it = stufenMerk.emplace(p, std::make_pair(ecken, luecke)).first;
+                }
+                m.stufenEcken = it->second.first;
+                m.stufenLuecke = it->second.second;
+            }
+        }
         o.modelle.push_back(std::move(m));
     }
 }
@@ -753,7 +782,8 @@ void optimiererBeenden() { fadenAbwarten(); }
 std::string befundDetail(const Befund& b) {
     static const Str kIds[] = {Str::KeOptD01, Str::KeOptD02, Str::KeOptD03, Str::KeOptD04, Str::KeOptD05, Str::KeOptD06, Str::KeOptD07, Str::KeOptD08, Str::KeOptD09, Str::KeOptD10, Str::KeOptD11, Str::KeOptD12, Str::KeOptD13, Str::KeOptD14, Str::KeOptD15, Str::KeOptD16, Str::KeOptD17, Str::KeOptD18, Str::KeOptD19, Str::KeOptD20, Str::KeOptD21, Str::KeOptD22, Str::KeOptD23, Str::KeOptD24, Str::KeOptD25, Str::KeOptD26, Str::KeOptD27, Str::KeOptD28, Str::KeOptD29, Str::KeOptD30, Str::KeOptD31, Str::KeOptD32, Str::KeOptD33, Str::KeOptD34, Str::KeOptD35, Str::KeOptD36, Str::KeOptD37, Str::KeOptD38,
                                Str::KeOptD39, Str::KeOptD40, Str::KeOptD41, Str::KeOptD42, Str::KeOptD43, Str::KeOptD44, Str::KeOptD45, Str::KeOptD46,
-                               Str::KeOptD47, Str::KeOptD48, Str::KeOptD49, Str::KeOptD50, Str::KeOptD51, Str::KeOptD52, Str::KeOptD53, Str::KeOptD54};
+                               Str::KeOptD47, Str::KeOptD48, Str::KeOptD49, Str::KeOptD50, Str::KeOptD51, Str::KeOptD52, Str::KeOptD53, Str::KeOptD54,
+                               Str::KeOptD55, Str::KeOptD56};
     for (std::size_t i = 0; i < karte::kOptimiererDetailVorlagenAnzahl && i < sizeof(kIds) / sizeof(kIds[0]); ++i) {
         if (b.detailVorlage == karte::kOptimiererDetailVorlagen[i]) {
             // uebersetzung1: die Werte sind Zahlen (std::to_string) - nach ihnen richtet sich die Form.

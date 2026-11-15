@@ -596,6 +596,10 @@ void hinzuZeilen() {
         if (ImGui::MenuItem(tr(artStr(art)), nullptr, false, aktiv)) { (void)modellStapelHinzufuegen(art); }
         ImGui::SetItemTooltip("%s", tr(art == ModArt::Spiegeln ? Str::StpSpiegelnHint : Str::StpGlaettenHint));
     }
+    // CW-MODELL: Detailstufen wie ProOptimizer / Decimate - fuer das ganze Modell, deshalb kein Eintrag im Stapel der Flaeche
+    ImGui::Separator();
+    if (ImGui::MenuItem(tr(modellBlender() ? Str::LodGruppeBl : Str::LodGruppeMax))) { modellLodZeigen(); }
+    ImGui::SetItemTooltip("%s", tr(Str::LodGruppeHint));
 }
 
 // Die Befehle fuer einen Eintrag als Menuezeilen (Rechtsklick auf die Zeile, Rechtsklick der Ansicht, Menue)
@@ -901,6 +905,9 @@ void modellStapelMenue() {
     }
     ImGui::Separator();
     eintragZeilen(gewaehlterEintrag());
+    ImGui::Separator();
+    modellLodMenueZeilen();   // CW-MODELL: Detailstufen
+    modellCwMenueZeilen();    // CW-MODELL: Bolts, eigenes Skelett
     ImGui::Separator();
     if (ImGui::MenuItem(tr(Str::StpAktZeigen))) { modellStapelZeigen(); }
     ImGui::SetItemTooltip("%s", tr(Str::StpAktZeigenHint));

@@ -1608,6 +1608,14 @@ private:
         const long long maxPunkte = gv != nullptr ? gv->erlaubt : 999;
         const long long maxIndizes = gi != nullptr ? gi->erlaubt : 5999;
         std::set<std::string> md3Gemeldet;
+        // CW-MODELL: Detailstufen der Laufzeit-Modelle (Liste des Bruders, Abschnitt 2: "Grosse Modelle sollten sie haben") - gross heisst
+        // hier: mehr Ecken als eine Flaeche des Zielspiels traegt (SHADER_MAX_VERTEXES); name_2.md3 ohne name_1.md3 bricht ab
+        Befund detail = neu("modelldetail", Schwere::Hinweis,
+                            "OpenJK code/rd-vanilla/tr_model.cpp:630-700 RE_RegisterModel (name_2.md3, name_1.md3, name.md3; MD3_MAX_LODS 3), "
+                            "tr_mesh.cpp:189-232 R_ComputeLOD");
+        Befund stufen = neu("modellstufen", Schwere::Fehler,
+                            "OpenJK code/rd-vanilla/tr_model.cpp:650-653 RE_RegisterModel (ERR_DROP \"has LOD N but is missing LOD N-1\")");
+        std::set<std::string> detailGemeldet;
         double weltMn[3] = {1e30, 1e30, 1e30};   // der Kasten aller Pinsel der Welt (worldspawn, func_group)
         double weltMx[3] = {-1e30, -1e30, -1e30};
         for (const AbbildEntitaet& en : m_a.ents) {
@@ -1664,6 +1672,16 @@ private:
                     break;
                 }
             }
+            if (!m.eingebacken && detailGemeldet.insert(p).second) {
+                long long ecken = 0;
+                for (const ModellFlaeche& f : m.modell->flaechen) { ecken += static_cast<long long>(f.punkte.size()); }
+                if (m.stufenLuecke) {
+                    add(stufen, ObjektRef{m.entitaet, -1, -1, stelle(m.entitaet, -1) + " " + m.pfad + ": _2.md3 without _1.md3"});
+                } else if (m.stufenEcken.empty() && ecken > maxPunkte) {
+                    add(detail, ObjektRef{m.entitaet, -1, -1,
+                                          stelle(m.entitaet, -1) + " " + m.pfad + ": " + std::to_string(ecken) + " vertices, no _1.md3 / _2.md3"});
+                }
+            }
             if (md3Gemeldet.count(p) != 0) { continue; }
             const std::size_t flaechen = m.modell->flaechen.size();
             std::size_t meistePunkte = 0;
@@ -1691,6 +1709,15 @@ private:
         if (md3.anzahl > 0) {
             detailSetzen(md3, "%s .md3 files over the format limits of qfiles.h (64 surfaces, 4096 vertices, 8192 triangles)", {std::to_string(md3.anzahl)});
             m_out.push_back(md3);
+        }
+        if (stufen.anzahl > 0) {
+            detailSetzen(stufen, "%s .md3 files with a _2.md3 but without _1.md3 (the game stops with ERR_DROP)", {std::to_string(stufen.anzahl)});
+            m_out.push_back(stufen);
+        }
+        if (detail.anzahl > 0) {
+            detailSetzen(detail, "%s run-time .md3 models with more than %s vertices and no detail levels (_1.md3, _2.md3)",
+                         {std::to_string(detail.anzahl), std::to_string(maxPunkte)});
+            m_out.push_back(detail);
         }
     }
 

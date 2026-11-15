@@ -288,7 +288,10 @@ const char* const kOptimiererDetailVorlagen[] = {
     "%s models whose geometry lies away from their origin (exported in world coordinates?)",
     "%s .md3 files over the format limits of qfiles.h (64 surfaces, 4096 vertices, 8192 triangles)",
     "%s props float in the air (they touch no collision within %s units)",
-    "%s props reach more than %s units into the floor (deepest %s)"
+    "%s props reach more than %s units into the floor (deepest %s)",
+    // CW-MODELL: Detailstufen der Laufzeit-Modelle
+    "%s .md3 files with a _2.md3 but without _1.md3 (the game stops with ERR_DROP)",
+    "%s run-time .md3 models with more than %s vertices and no detail levels (_1.md3, _2.md3)"
 };
 const std::size_t kOptimiererDetailVorlagenAnzahl = sizeof(kOptimiererDetailVorlagen) / sizeof(kOptimiererDetailVorlagen[0]);
 

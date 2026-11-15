@@ -3167,3 +3167,5 @@ from i18n_cwpruef import texte as _cwpruef  # noqa: E402
 TEXTE.update(_cwpruef("cs"))
 from i18n_cwimport import texte as _cwimport  # noqa: E402
 TEXTE.update(_cwimport("cs"))
+from i18n_cwmodell import texte as _cwmodell  # noqa: E402
+TEXTE.update(_cwmodell("cs"))

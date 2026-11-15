@@ -1965,9 +1965,11 @@ void drawModellMeshBereich() {
     const bool netzLeer = (z.kaestchenOffen ? z.basisNetz.lebendeFlaechen() : z.netz.lebendeFlaechen()) == 0;
     if (netzLeer) { gruppeGrundkoerper(true); }   // ein leeres Requisit beginnt mit einem Grundkoerper: ganz oben
     drawModellStapelGruppe();   // AP13S (M1, M2): der Modifier-Stapel der gewaehlten Flaeche, wie im Entwurf zuoberst
+    drawModellBoltGruppe();     // CW-MODELL: Bolts (Point-Helfer / Empties an Knochen; nur in den Reitern Erstellen / Objekt)
     gruppeAuswahl();
     gruppeWerkzeuge();
     gruppeGrenzen();
+    drawModellLodGruppe();      // CW-MODELL: Detailstufen (ProOptimizer / Decimate) bei den Grenzen - Auswahl und Werkzeuge bleiben, wo sie waren
     if (!netzLeer) { gruppeGrundkoerper(false); }
     gruppeRequisit(false);
 }

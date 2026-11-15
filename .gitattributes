@@ -11,6 +11,7 @@ third_party/libjpeg-turbo/** -text
 third_party/libxml2/** -text
 third_party/assimp/** -text
 third_party/xatlas/** -text
+third_party/meshoptimizer/** -text
 # Testkarten und NRC-Ergebnisse fuer ctest q3map2_vergleich: Bytes wie geschrieben
 tests/karte/q3map2/* -text
 tests/karte/q3map2/*.bsp binary

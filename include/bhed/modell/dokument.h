@@ -177,6 +177,9 @@ struct Inhalt {
     // Stufe 3: zaehlt jede Aenderung, die das Netz betrifft (aendern/vorschau mit netz = true, laden). Rig-Schluessel
     // aendern ihn nicht - die Anzeige baut nur neu, wenn er wechselt. Rueckgaengig bringt den Stand mit zurueck.
     int netzStand = 0;
+    // CW-MODELL: ein eigenes Skelett, das im Model-Tab entsteht (Knochen anlegen, bhed/modell/skelett.h) - im Dokument, damit
+    // Rueckgaengig es mitnimmt; der Model-Tab zeigt und animiert es statt der geladenen GLA. Leer: das Skelett ist die geladene GLA.
+    std::shared_ptr<const GlaAnimation> skelett;
 
     [[nodiscard]] bool leer() const noexcept { return teile.empty(); }
     [[nodiscard]] int teilIndex(const std::string& name) const;

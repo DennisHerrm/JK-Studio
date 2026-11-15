@@ -202,6 +202,7 @@ void modellDokumentLaden(const std::string& bytes) {
 
 void modellAnzeigeAktualisieren() {
     ModellTab& t = mt();
+    modellCwSkelettAbgleich();   // CW-MODELL: ein eigenes Skelett des Dokuments in die Anzeige (und nach Rueckgaengig wieder die GLA)
     if (g_app->model.empty()) {
         if (!t.anzeige.empty()) {
             t.anzeige = GlmModel{};
@@ -634,6 +635,7 @@ void rolloutLod() {
     }
     ui::absatz(absatzText.c_str());
     modellPr().lodText = absatzText;   // Selbsttest ap5
+    modellLodZahlen();   // CW-MODELL: Ecken, Dreiecke und Teilflaechen je Stufe mit den Grenzen (bei einer .md3 auch name_1/_2.md3 daneben)
     // Picmip wie die Vorschau (r_picmip, Einstellung).
     static const char* const kPicmip[4] = {"0##pm", "1##pm", "2##pm", "3##pm"};
     int picmip = std::clamp(g_app->settings.bildPicmip, 0, 3);
@@ -903,6 +905,7 @@ void drawModellBefehlsfeld() {
         drawModellRigBereich();       // Stufe 3: Rig, Posen, Ghosts, Pfade, Backen
         drawModellKurvenBereich();    // Stufe 3b: Editoren, Reduzieren, Spiegeln, Posen-Bibliothek
         drawModellAnimationBereich();   // Stufe 2
+        drawModellSkelettGruppe();      // CW-MODELL: eigenes Skelett (Bone Tools / Armature)
     }
     if (!g_app->model.empty()) {
         // MBKOPF: die Anzeige-Schalter stehen in der Kopfzeile der Ansicht - der Hinweis darauf nur im Reiter, den der Bereich vorgibt
@@ -1753,6 +1756,8 @@ void drawModellAktionen() {
     if (!rigAusgeloest && modellBlAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP4: Werkzeugleiste, Seitenleiste, Messen
     if (!rigAusgeloest && modellPrAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP5: Flaechenliste, Overlays, Gruppen von Ansehen/Pruefen
     if (!rigAusgeloest && modellStapelAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP13S: Modifier-Stapel
+    if (!rigAusgeloest && modellLodAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // CW-MODELL: Detailstufen
+    if (!rigAusgeloest && modellCwAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }    // CW-MODELL: Bolts, eigenes Skelett
     if (!rigAusgeloest && modellKdAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP13K: Durchsicht, Im Vordergrund, Rig-Stil, Anzeigen als
     if (!rigAusgeloest && modellReiterAktionenSuche(such)) { ImGui::CloseCurrentPopup(); }   // AP11: In neuem Tab oeffnen, Reiter schliessen, Kopieren, Einfuegen
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) { ImGui::CloseCurrentPopup(); }

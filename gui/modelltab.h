@@ -25,6 +25,7 @@
 #include "bhed/glm.h"
 #include "bhed/mapview.h"
 #include "bhed/modell/animcfg.h"
+#include "bhed/modell/detailstufen.h"
 #include "bhed/modell/dokument.h"
 #include "bhed/modell/fehler.h"
 #include "bhed/modell/g2.h"
@@ -37,6 +38,7 @@
 #include "bhed/modell/wof/poly.h"
 #include "bhed/modell/wof/uv.h"
 #include "bhed/modell/malen.h"
+#include "bhed/modell/detailstufen.h"
 #include "bhed/modell/stapel.h"
 
 namespace bhed::gpu {
@@ -583,7 +585,7 @@ struct ModellTab {
     std::string speicherPfad;     // wohin Strg+S schreibt (nach dem ersten Speichern)
     int gespeichertStand = -1;    // dok.stand() beim letzten Speichern
     bool beendenBeantwortet = false;   // pfix H3: "Verwerfen und beenden?" mit Ja beantwortet
-    int frageArt = 0;             // 0 keine, 1 Modell speichern, 2 Karten-GLA bauen (trotz Befunden?)
+    int frageArt = 0;             // 0 keine, 1 Modell speichern, 2 Karten-GLA bauen (trotz Befunden?), 3 Detailstufen-Dateien ueberschreiben (CW-MODELL)
     std::string frageZiel;
     std::vector<std::string> frageZeilen;
     bool frageSichtbar = false;
@@ -1859,6 +1861,100 @@ void modellStapelZeigen();                          // Bereich, Reiter und Grupp
 // Untermenue fuer den Rechtsklick der Ansicht und das Menue; Zeilen in "Alle Aktionen suchen".
 void modellStapelMenue();
 bool modellStapelAktionenSuche(const std::string& such);
+
+// --- CW-MODELL (15.11., Clone-Wars-Kette Teil 3): Detailstufen erzeugen und je Stufe zaehlen (gui/app_modelltab_lod.cpp) -----------
+// Gruppe wie 3ds Max ProOptimizer / Blender Decimate (Bereich Modellieren, Reiter Aendern bzw. Modifier); die Zahlen je Stufe in
+// "Detailstufe und Skin"; eine .md3 mit Stufen schreibt beim Speichern name_1.md3 / name_2.md3. Ab Werk wirkt nichts (nur auf Aufruf).
+struct ModellLod {
+    int vorlage = -1;              // -1 nach der Art des Modells, 0 Figur, 1 Ausruestung, 2 Requisit, 3 eigene Anteile
+    int stufen = 3;                // Stufen samt Stufe 0
+    float anteil[3] = {0.65F, 0.40F, 0.28F};
+    float gewichtNormale = 0.1F;
+    float gewichtUv = 0.1F;
+    float gewichtKnochen = 0.1F;
+    bool richtwertAn = true;       // Clone-Wars-Richtwert der letzten Stufe (nur mit dem Pruefprofil Clone-Wars-Kette)
+    std::string artFuer;           // Modell, fuer das die Vorlage gewaehlt ist
+    modell::DetailBericht bericht; // das letzte "Erzeugen"
+    std::string berichtFuer;
+    int berichtStand = -1;
+    int zeigen = 0;                // die Gruppe zeigen (Reiter waehlen, aufklappen, ins Bild rollen)
+    std::string md3Fuer;           // .md3: die Dateien name_1/_2 daneben (Anzeige)
+    std::vector<modell::StufenZahlen> md3Dateien;
+    std::vector<std::string> md3Namen;
+    // Selbsttest: das letzte Bild der Tabelle ("LOD n|Ecken|Dreiecke|Flaechen|Ton")
+    int probeBild = -1;
+    std::vector<std::string> probeZeilen;
+};
+[[nodiscard]] ModellLod& modellLod();
+// Pruefprofil "Clone-Wars-Kette" (Einstellung OptimizerCloneWars des Karten-Editors, ab Werk aus)
+[[nodiscard]] bool modellCloneWarsAn();
+void drawModellLodGruppe();
+void modellLodZahlen();                  // in "Detailstufe und Skin"
+bool modellLodErzeugen();                // ein Rueckgaengig-Schritt; false: nichts geaendert
+bool modellLodEntfernen();
+void modellLodZeigen();
+void modellLodMenueZeilen();
+bool modellLodAktionenSuche(const std::string& such);
+[[nodiscard]] std::vector<modell::StufenBefund> modellLodBefunde();
+// Beim Speichern einer .md3: name_1.md3 (name_2.md3) neben `ziel` aus den Stufen von `datei`; die Meldung (leer: keine Stufen)
+[[nodiscard]] std::string modellLodMd3Schreiben(const std::string& ziel, const modell::Inhalt& datei);
+// Die Dateien name_1.md3 / name_2.md3, die Speichern der .md3 `ziel` ueberschreiben wuerde und die schon daneben liegen (leer: keine
+// erzeugten Stufen oder nichts da) - fuer die Frage vor dem Speichern
+[[nodiscard]] std::vector<std::string> modellLodMd3Vorhanden(const std::string& ziel, const modell::Inhalt& in);
+
+// --- CW-MODELL: Bolts fuer Sitze und Muendungen, eigenes Skelett fuer Fahrzeuge (gui/app_modelltab_cwskelett.cpp) -------------------
+struct ModellCw {
+    bool fahrzeug = false;         // "Als Fahrzeug pruefen" (je Modell, nach dem Laden eines anderen aus)
+    std::string fahrzeugFuer;
+    // Bolts
+    char boltName[64] = "*driver";
+    int boltKnochen = 0;
+    float boltOrt[3]{};
+    float boltWinkel[3]{};
+    int boltGewaehlt = -1;
+    bool boltRollen = false;       // den gewaehlten Bolt in der Liste ins Bild rollen (nach Anlegen)
+    int zeigenBolts = 0;
+    // eigenes Skelett
+    char skelettName[64] = "cw_vehicle";
+    char knochenName[64] = "body";
+    int knochenEltern = 0;
+    float knochenOrt[3]{};
+    int knochenGewaehlt = -1;
+    char sequenzName[64] = "BOTH_STAND1";
+    int sequenzBilder = 20;
+    int sequenzFps = 20;
+    bool sequenzSchleife = true;
+    int zeigenSkelett = 0;
+    // Abgleich: das Skelett des Dokuments in der Anzeige, die GLA davor
+    int ladeStand = -1;
+    const GlaAnimation* angewendet = nullptr;
+    GlaAnimation glaVorher;
+    std::vector<AnimEntry> listeVorher;
+    bool vorherDa = false;
+    // Selbsttest: die Zeilen des letzten Bilds
+    std::vector<std::string> probeBolts;
+    std::vector<std::string> probeKnochen;
+};
+[[nodiscard]] ModellCw& modellCw();
+// Die Befunde der animation.cfg des Dokuments (Gruppe animation.cfg im Bereich Animation)
+[[nodiscard]] std::vector<modell::CfgBefund> modellCfgBefunde();
+void modellCwSkelettAbgleich();          // jedes Bild (modellAnzeigeAktualisieren)
+[[nodiscard]] bool modellCwEigenesSkelett();
+void drawModellBoltGruppe();             // Bereich Modellieren
+void drawModellSkelettGruppe();          // Bereich Animation
+bool modellBoltAnlegen();
+bool modellBoltUebernehmen();
+bool modellBoltEntfernen();
+[[nodiscard]] std::vector<std::string> modellBoltHinweise();
+bool modellSkelettNeu();
+bool modellKnochenAnlegen();
+bool modellKnochenUebernehmen();
+bool modellKnochenEntfernen();
+bool modellFlaechenAnKnochen();
+bool modellSequenzAnlegen();
+void modellCwZeigen(int was);            // 0 Bolts, 1 Skelett
+void modellCwMenueZeilen();
+bool modellCwAktionenSuche(const std::string& such);
 
 // FIX612C (Codepruefung seit rc611, P3-5): "Animation-Rig (nur FK)" - der Modus des Rigs (true: ohne IK-Griffe, Hand und Fuss
 // greifen ohne IK). Steht im Dokument (modell::RigDaten::nurFk). Setzen ohne Rueckgaengig-Schritt (Selbsttests; die Knoepfe

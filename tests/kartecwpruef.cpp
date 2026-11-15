@@ -440,6 +440,25 @@ void testeModelle() {
         g.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(-16, -16, 0, 16, 16, 32, 64), true));
         pruefe(anzahl(pruefen(karte("misc_model", "0 0 0"), g), "md3grenzen") == 0, "md3grenzen: 64 Flaechen (schweigt)");
     }
+    {   // CW-MODELL: Detailstufen einer Laufzeit-.md3 (RE_RegisterModel, tr_model.cpp:630-700)
+        PruefOptionen o = optionen();
+        o.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(-16, -16, 0, 16, 16, 32, 1, 992), false));   // 1000 Ecken
+        pruefe(anzahl(pruefen(karte("misc_model_static", "0 0 0"), o), "modelldetail") == 1, "modelldetail: 1000 Ecken ohne _1/_2.md3 (Hinweis)");
+        PruefOptionen mit = o;
+        mit.modelle[0].stufenEcken = {600, 300};
+        pruefe(anzahl(pruefen(karte("misc_model_static", "0 0 0"), mit), "modelldetail") == 0, "modelldetail: mit _1/_2.md3 (schweigt)");
+        PruefOptionen klein = optionen();
+        klein.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(-16, -16, 0, 16, 16, 32, 1, 991), false));   // 999 Ecken
+        pruefe(anzahl(pruefen(karte("misc_model_static", "0 0 0"), klein), "modelldetail") == 0, "modelldetail: 999 Ecken (schweigt)");
+        PruefOptionen luecke = o;
+        luecke.modelle[0].stufenLuecke = true;
+        pruefe(anzahl(pruefen(karte("misc_model_static", "0 0 0"), luecke), "modellstufen") == 1 &&
+                   anzahl(pruefen(karte("misc_model_static", "0 0 0"), luecke), "modelldetail") == 0,
+               "modellstufen: _2.md3 ohne _1.md3 (rot, ERR_DROP)");
+        PruefOptionen gebacken = optionen();
+        gebacken.modelle.push_back(modell(1, "models/test/kiste.md3", quaderModell(-16, -16, 0, 16, 16, 32, 1, 992), true));
+        pruefe(anzahl(pruefen(karte("misc_model", "0 0 0"), gebacken), "modelldetail") == 0, "modelldetail: eingebackenes misc_model (schweigt)");
+    }
 }
 
 void testeRequisiten() {
@@ -471,7 +490,8 @@ std::string lies(const std::string& pfad) {
 void testeSchalter() {
     static const std::set<std::string> kNeu = {"laufohnekollision", "unsichtbarekollision", "kollisionsabstand", "fastdeckungsgleich", "stufehoch",
                                                "tuerklein", "durchgangeng", "gangeng", "bildnpot", "bildfehlt", "bildgroesse", "modellteilflaeche",
-                                               "modellweltkoord", "md3grenzen", "requisitschwebt", "requisitsteckt"};
+                                               "modellweltkoord", "md3grenzen", "requisitschwebt", "requisitsteckt", "modellstufen",
+                                               "modelldetail"};
     // Boden, eine Stufe 24 (stufehoch) und ein nicht fester Deckel 4 ueber dem Boden (kollisionsabstand)
     const KartenAbbild a = welt({kasten(-256, -256, -16, 256, 256, 0, kFest), kasten(0, -64, 0, 128, 64, 24, kFest), kasten(-200, -60, 0, -100, 60, 4, kNichtFest)});
     PruefOptionen an = optionen();
@@ -539,7 +559,8 @@ int main(int argc, char** argv) {
         const auto t2 = Uhr::now();
         static const std::set<std::string> kNeu = {"laufohnekollision", "unsichtbarekollision", "kollisionsabstand", "fastdeckungsgleich", "stufehoch",
                                                    "tuerklein", "durchgangeng", "gangeng", "bildnpot", "bildfehlt", "bildgroesse", "modellteilflaeche",
-                                                   "modellweltkoord", "md3grenzen", "requisitschwebt", "requisitsteckt"};
+                                                   "modellweltkoord", "md3grenzen", "requisitschwebt", "requisitsteckt", "modellstufen",
+                                                   "modelldetail"};
         std::printf("Karte %s: %zu Entitaeten, laden %.0f ms, pruefen %.0f ms\n", argv[1], a.ents.size(),
                     std::chrono::duration<double, std::milli>(t1 - t0).count(), std::chrono::duration<double, std::milli>(t2 - t1).count());
         for (const Befund& x : b) {

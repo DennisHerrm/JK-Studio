@@ -132,7 +132,9 @@ void figurSchritte(std::vector<Schritt>& s) {
         // --- M0a / M0b: Aufbau ---
         // AP13S: zuoberst steht seit rc612 der Modifier-Stapel (wie 3ds Max "Modifier-Stapel", wie Blender "Modifier" - M1, M2 der
         // Abgleichtabelle, geprueft in selbsttest_ap13s.inc); darunter wie bisher die drei Gruppen des Entwurfs
-        const std::string drei = titel({bl ? Str::StpGruppeBl : Str::MgRStapel, Str::MdGrAuswahl, Str::Ap6Werkzeuge, Str::MdGrGrenzen});
+        // CW-MODELL: nach den JKA-Grenzen die Gruppe Detailstufen (ProOptimizer / Decimate)
+        const std::string drei = titel({bl ? Str::StpGruppeBl : Str::MgRStapel, Str::MdGrAuswahl, Str::Ap6Werkzeuge, Str::MdGrGrenzen,
+                                        bl ? Str::LodGruppeBl : Str::LodGruppeMax});
         add(pruefe(zeile(bl ? "M0b" : "M0a", modus, bl ? "im Reiter Modifier stehen die Gruppen Auswahl, Werkzeuge, JKA-Grenzen untereinander"
                                                       : "im Reiter Aendern stehen die Gruppen Auswahl, Werkzeuge, JKA-Grenzen untereinander"), [=] {
             melde("Gruppen: " + gruppen() + ", Reiter " + std::to_string(ui::feldProbe().reiterAktiv));
@@ -153,7 +155,8 @@ void figurSchritte(std::vector<Schritt>& s) {
             std::string gruppen;
             const char* was;
         };
-        const std::string erstellen = titel({Str::Ap6Grundkoerper, Str::MdGrRequisit});
+        // CW-MODELL: bei einer .glm steht dort zuerst die Gruppe Bolts (Point-Helfer / Empties an Knochen)
+        const std::string erstellen = titel({bl ? Str::CwBoltGruppeBl : Str::CwBoltGruppeMax, Str::Ap6Grundkoerper, Str::MdGrRequisit});
         const std::vector<ReiterSoll> weitere = bl ? std::vector<ReiterSoll>{{Str::MfWerkzeug, titel({Str::MdGrAuswahl, Str::Ap6Werkzeuge}), "der Reiter Werkzeug zeigt Auswahl und Werkzeuge"},
                                                                              {Str::MfObjekt, erstellen, "der Reiter Objekt zeigt Grundkoerper und Requisit"},
                                                                              {Str::MfDaten, titel({Str::MdGrGrenzen}), "der Reiter Daten zeigt die JKA-Grenzen"}}
@@ -492,6 +495,9 @@ void requisitSchritte(std::vector<Schritt>& s) {
         add(pause(0.6));
         // AP13S: der Modifier-Stapel steht ueber den drei Gruppen (auch beim Requisit: seine einzige Flaeche)
         const std::string drei = titel({modus == 1 ? Str::StpGruppeBl : Str::MgRStapel, Str::MdGrAuswahl, Str::Ap6Werkzeuge, Str::MdGrGrenzen});
+        // CW-MODELL: mit Dreiecken (der Kasten) steht nach den Grenzen die Gruppe Detailstufen; das leere Requisit hat keine
+        const std::string dreiLod = titel({modus == 1 ? Str::StpGruppeBl : Str::MgRStapel, Str::MdGrAuswahl, Str::Ap6Werkzeuge, Str::MdGrGrenzen,
+                                           modus == 1 ? Str::LodGruppeBl : Str::LodGruppeMax});
         add(pruefe(zeile("M11", modus, "ein leeres Requisit: im Reiter des Bereichs steht ganz oben Grundkoerper (mit dem Hinweis, damit zu beginnen) und am Ende Requisit"), [=] {
             melde("leeres Requisit: " + gruppen());
             return feldFrisch() && gruppen() == std::string(tr(Str::Ap6Grundkoerper)) + "|" + drei + "|" + tr(Str::MdGrRequisit) && imRoll(tr(Str::Ap6ErstellenLeer)) != nullptr;
@@ -524,7 +530,7 @@ void requisitSchritte(std::vector<Schritt>& s) {
         add(pruefe(zeile("M11", modus, "Uebernehmen: der Kasten steht (8/12/6); danach steht Grundkoerper nicht mehr im Reiter des Bereichs, Requisit bleibt mit In die Karte als Hauptknopf"), [=] {
             const ui::RolloutProbe* r = gruppe(Str::MdGrRequisit);
             melde("Requisit mit Kasten: " + gruppen() + ", " + md1d::zahlen());
-            return md1d::zahlen() == "8/12/6" && gruppen() == drei + "|" + tr(Str::MdGrRequisit) && r != nullptr && r->hauptKnoepfe == 1 && imRoll(tr(Str::MdInDieKarte)) != nullptr;
+            return md1d::zahlen() == "8/12/6" && gruppen() == dreiLod + "|" + tr(Str::MdGrRequisit) && r != nullptr && r->hauptKnoepfe == 1 && imRoll(tr(Str::MdInDieKarte)) != nullptr;
         }));
         add(tu("AP6 Requisit: Ansicht einpassen, Deckel waehlen", [] {
             modellAnsichtEinpassenAktiv();

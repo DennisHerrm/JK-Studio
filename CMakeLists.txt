@@ -255,6 +255,17 @@ else()
   target_compile_options(xatlas PRIVATE -w)
 endif()
 target_link_libraries(bhed_core PRIVATE xatlas)
+# CW-MODELL (15.11.): meshoptimizer (third_party/meshoptimizer, zeux/meshoptimizer v1.3, MIT) - der Vereinfacher fuer die
+# Detailstufen (simplifier.cpp, allocator.cpp; bhed/modell/detailstufen.h). Fremder Code ohne unsere Warnungspolitik.
+add_library(meshoptimizer STATIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/meshoptimizer/simplifier.cpp
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/third_party/meshoptimizer/allocator.cpp)
+target_include_directories(meshoptimizer SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/meshoptimizer)
+if(MSVC)
+  target_compile_options(meshoptimizer PRIVATE /W0 /utf-8)
+else()
+  target_compile_options(meshoptimizer PRIVATE -w)
+endif()
+target_link_libraries(bhed_core PRIVATE meshoptimizer)
 
 if(MSVC)
   target_compile_options(bhed_core PUBLIC /W4 /permissive- /utf-8 /Zc:__cplusplus)
@@ -2306,4 +2317,25 @@ if(BEHAVED_TESTS)
   target_link_libraries(modellcwvergleich PRIVATE bhed_core)
   add_test(NAME modell_cwvergleich COMMAND modellcwvergleich ${CMAKE_CURRENT_BINARY_DIR}/modell_cwvergleich.txt
            --soll ${CMAKE_CURRENT_SOURCE_DIR}/tests/modell/cwvergleich_soll.txt ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
+endif()
+
+# CW-MODELL (15.11., Clone-Wars-Kette Teil 3): Detailstufen erzeugen (bhed/modell/detailstufen.h, meshoptimizer), ctest
+# modell_detailstufen (Gleichheit, Grenzen, unberuehrte Tags/_off/_cap_, UV-Naehte, Gewichte, Raender, .md3 mit Bildern)
+target_sources(bhed_core PRIVATE src/modell/detailstufen.cpp)
+if(TARGET behaved)
+  target_sources(behaved PRIVATE gui/app_modelltab_lod.cpp gui/app_modelltab_cwskelett.cpp)
+endif()
+if(BEHAVED_TESTS)
+  add_executable(modelldetailstufentest tests/modell_detailstufen.cpp)
+  target_link_libraries(modelldetailstufentest PRIVATE bhed_core)
+  add_test(NAME modell_detailstufen COMMAND modelldetailstufentest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
+endif()
+
+# CW-MODELL (15.11.): Bolts fuer Sitze und Muendungen (bhed/modell/bolts.h), eigenes Skelett fuer Fahrzeuge (bhed/modell/skelett.h), die
+# Namen der animTable je Zielspiel (bhed/modell/animnamen.h, erzeugt von tools/modell/gen_animnamen.py); ctest modell_cwskelett
+target_sources(bhed_core PRIVATE src/modell/bolts.cpp src/modell/skelett.cpp src/modell/animnamen.cpp)
+if(BEHAVED_TESTS)
+  add_executable(modellcwskelettest tests/modell_cwskelett.cpp)
+  target_link_libraries(modellcwskelettest PRIVATE bhed_core)
+  add_test(NAME modell_cwskelett COMMAND modellcwskelettest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
 endif()

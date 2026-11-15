@@ -2396,6 +2396,8 @@ from i18n_cwpruef import zeilen_vier as _cwpruef  # noqa: E402  (CW-PRUEF: Pruef
 S += _cwpruef()
 from i18n_cwimport import zeilen_vier as _cwimport  # noqa: E402  (CW-IMPORT: Pruefprofil, Testfigur, Import mit Massstab, Clip-Werkzeuge)
 S += _cwimport()
+from i18n_cwmodell import zeilen_vier as _cwmodell  # noqa: E402  (CW-MODELL: Detailstufen, Bolts, eigene Skelette)
+S += _cwmodell()
 
 # --- Weitere Sprachen (tools/sprachen.py) ----------------------------------
 #
