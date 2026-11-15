@@ -116,6 +116,7 @@ Laeufe `Y:\p_ap6\build\laeufe\t1411e_*` und `t1411c_e_*`, Skripte `Y:\werkzeuge\
 | ap8 | Klicks auf Knoepfe unter dem sichtbaren Teil des Befehlsfelds kamen nicht an (90/40) | Testfehler seit TEST1411 P (das Feld wurde hoeher; ap8 lief seitdem nicht) | vor jedem Klick ins Feld ap3::insFeld |
 | ap13s | 4 FEHLER "kein Ordner zum Speichern" | Umgebung: ohne BHED_FOTOS | mit BHED_FOTOS |
 | Dialogbilder (Punkt 6) | h_start 1171, h_spielordner 1798, h_mission_neu 1054, h_mission_speichern 1240, k_pk3/s_pk3_art 1240 breit | hb::breit1920: das Fenster in voller Groesse, links und rechts das Programm (wie h_mission_wahl) | 6 Sprachen neu |
+| Dialogbilder, Nacharbeit (Hauptchat) | 1. h_mission_neu/_speichern zeigten den Laufordner ("Y:\p_ap6\build\laeufe\t1411e_voll_de\missionen\...") - e/voll.sh setzte BHED_MISSIONEN/BHED_HB_ZIEL nicht; 2. Ziffernkreise und Rahmen 1,75-mal so gross (bilder.py bemass sie nach der Bildbreite 1920) und verdeckten die Feldbeschriftungen | Bildlauf (Aufruf) bzw. bilder.py | neuer Pruefschritt im grossen Bildlauf "zeigt keinen Pfad des Laufs" (Y:\, p_ap6, laeufe, Users\): rot ohne X: (beide Bilder FEHLER), gruen mit X: wie skripte/ab/bilder.sh; die .rect traegt die Fensterbreite als Bezug der Markierungen (Kreise wie vor TEST1411e), die Plakette steht bei breiten Ausschnitten links neben dem Rahmen statt auf der Beschriftung; 7 Bilder (mit h_mission_wahl) x 6 Sprachen neu |
 
 Entscheidungen: Die Paare von Hand gelten fuer alle Wege des Spiegelns (auch im Modus Blender, der sie nicht anzeigt) - sie sind eine Eigenschaft
 des Skeletts. Max paart Knochen im Mirror Mode ueber die Lage; eine Liste von Hand gibt es dort nicht (shank P: "sichtbar und aenderbar").
@@ -127,7 +128,9 @@ hilfe1 schreibt keine Bilder anderer Seiten). Byte-gleich blieben alle bis auf d
 h_mbn_orbit, h_ph_sprung, h_pr_gang, h_rt_ketten, h_rt_uebertragen, h_uv_schnell (je 6 Sprachen, angesehen). Nicht uebernommen (Unterschied nicht
 aus TEST1411e): h_mb7_* (mit BHED_MB7_BSP die Testkarte mb7raum statt md_am_sith - fast schwarz), h_mb3_animation (Bild der Animation), h_ap12_*
 (Zeit des Auto-Skin), h_mb3_speichern/h_md_karte (Pfad des Laufordners), m_npc (397 statt 367 Figuren - Datenstand), h_modell/m_*/k_modell_leiste
-(2-93 Bildpunkte Rauschen). Dazu die sechs Dialogbilder 1920 breit (angesehen: en h_mission_neu, ja k_pk3).
+(2-93 Bildpunkte Rauschen). Dazu die Dialogbilder 1920 breit (h_start, h_spielordner, h_mission_wahl, h_mission_neu, h_mission_speichern,
+k_pk3, s_pk3_art), nach der Nacharbeit ohne Pfad des Laufs (X:\missionen, X:\zz_taspir_tut.pk3) und mit Markierungen in der alten Groesse.
+Bekannt, nicht aus TEST1411e: h_mb7_* (Stand TEST1411c) zeigen im Feld Output folder ebenfalls einen Laufordner.
 
 ## Offen
 

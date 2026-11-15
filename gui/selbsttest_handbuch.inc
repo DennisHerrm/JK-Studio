@@ -946,7 +946,8 @@ std::vector<Schritt> karteneditorSchritte() {
 //
 // shank: "Dokumentation mit Bildern und Tutorials ... fuer alle Sprachen".
 // Nimmt jede Szene des Handbuchs auf - nur das eigene Fenster. Neben jedes
-// Bild <name>.bmp schreibt fotoTeil <name>.rect (x0 y0 x1 y1 in Bildpunkten),
+// Bild <name>.bmp schreibt fotoTeil <name>.rect (x0 y0 x1 y1 in Bildpunkten, dahinter
+// wahlweise die Breite, nach der die Markierungen bemessen werden - TEST1411e),
 // tools/handbuch/bilder.py schneidet danach zu und macht .webp daraus.
 //   BHED_FOTOS           Zielordner
 //   BHED_SPRACHE         Kurzname aus tools/sprachen.py (en, de, zh, ja, es, cs)
@@ -964,9 +965,15 @@ ImRect karte() {
     return ImRect{g_app->kartenAnsicht[0], g_app->kartenAnsicht[1], g_app->kartenAnsicht[2], g_app->kartenAnsicht[3]};
 }
 
+// TEST1411e: die Breite, nach der tools/handbuch/bilder.py die Markierungen bemisst (5. Wert der .rect). breit1920 setzt sie auf das
+// Fenster - sonst wuchsen Rahmen und Ziffernkreise mit dem breiten Ausschnitt (h_mission_neu: 1054 -> 1920, Kreise 1,75-mal so gross,
+// sie verdeckten die Feldbeschriftungen). 0: die Breite des Bilds wie bisher.
+float g_markenBezug = 0.0F;
+
 // TEST1411d/e: ein Ausschnitt mindestens 1920 breit (Regel Handbuchbilder) - das Fenster in seiner Groesse, nichts skaliert, links und
-// rechts das Programm; am Rand des Hauptfensters verschoben statt abgeschnitten
+// rechts das Programm; am Rand des Hauptfensters verschoben statt abgeschnitten. Die Markierungen bleiben so gross wie im Bild des Fensters.
 ImRect breit1920(ImRect r) {
+    g_markenBezug = r.GetWidth();
     const float fehlt = std::max(0.0F, 1920.0F - r.GetWidth());
     r.Min.x -= std::floor(fehlt * 0.5F);
     r.Max.x += std::ceil(fehlt * 0.5F);
@@ -983,6 +990,25 @@ ImRect breit1920(ImRect r) {
 }
 
 ImRect um(ImVec2 c, float halbB, float halbH) { return ImRect{c.x - halbB, c.y - halbH, c.x + halbB, c.y + halbH}; }
+
+// TEST1411e: kein Pfad aus dem Arbeitsbereich, den Laufordnern oder dem Benutzerordner ins Handbuch (Hauptchat 15.11.: h_mission_neu zeigte
+// "Y:\p_ap6\build\laeufe\t1411e_voll_de\missionen\..." statt "X:\missionen\..."). Der Bildlauf legt Missionen und Zielarchiv auf ein
+// Laufwerk X: (skripte/ab/bilder.sh: BHED_MISSIONEN, BHED_HB_ZIEL); fehlt das, faellt der Lauf auf den Laufordner zurueck.
+bool laufPfad(const std::string& s) {
+    std::string k = s;
+    for (char& c : k) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    for (const char* teil : {"y:\\", "y:/", "p_ap6", "laeufe", "users\\", "users/"}) {
+        if (k.find(teil) != std::string::npos) { return true; }
+    }
+    return false;
+}
+Schritt keinLaufpfad(const std::string& bild, std::function<std::string()> pfad) {
+    return pruefe("Handbuch: " + bild + " zeigt keinen Pfad des Laufs (Arbeitsbereich, Laufordner, Benutzerordner)", [bild, pfad] {
+        const std::string p = pfad();
+        diag::detail("Knopftest: Handbuch - Pfad in " + bild + ": " + p);
+        return !laufPfad(p);
+    });
+}
 
 ImRect vereint(ImRect a, ImRect b) {
     if (a.GetWidth() <= 0.0F) { return b; }
@@ -1055,7 +1081,9 @@ Schritt fotoTeil(const std::string& name, std::function<ImRect()> ausschnitt, Ma
                     }
                 }
                 if (b == 1) {
+                    g_markenBezug = 0.0F;
                     ImRect r = ausschnitt ? ausschnitt() : ImRect{};
+                    const float bezug = std::exchange(g_markenBezug, 0.0F);
                     const ImVec2 d = ImGui::GetIO().DisplaySize;
                     r.Min.x = std::max(0.0F, r.Min.x);
                     r.Min.y = std::max(0.0F, r.Min.y);
@@ -1064,7 +1092,9 @@ Schritt fotoTeil(const std::string& name, std::function<ImRect()> ausschnitt, Ma
                     std::ofstream f(::bhed::utf8Pfad(std::string(ordner) + "\\" + name + ".rect"));
                     if (r.GetWidth() > 8.0F && r.GetHeight() > 8.0F) {
                         f << static_cast<int>(r.Min.x) << " " << static_cast<int>(r.Min.y) << " " << static_cast<int>(r.Max.x)
-                          << " " << static_cast<int>(r.Max.y) << "\n";
+                          << " " << static_cast<int>(r.Max.y);
+                        if (bezug > 8.0F) { f << " " << static_cast<int>(bezug); }   // TEST1411e: Bezugsbreite der Markierungen
+                        f << "\n";
                     }
                 }
                 if (b == 2) { render::fotoAnfordern(std::string(ordner) + "\\" + name + ".bmp"); }
@@ -3785,6 +3815,10 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     // --- 1. Die Mission anlegen ------------------------------------------------
     add(tu("Handbuch: Neue Mission (Fenster)", [] { g_app->neueMissionOffen = true; }));
     add(pause(0.6));
+    add(hb::keinLaufpfad("h_mission_neu", [] {   // das Fenster nennt den Missionsordner unter BHED_MISSIONEN
+        const char* m = std::getenv("BHED_MISSIONEN");
+        return std::string(m != nullptr ? m : "");
+    }));
     add(hb::fotoTeil("h_mission_neu", [] { return hb::breit1920(hb::fensterRect("##neuemission")); }));
     add(hb::fotoTeil("t4_1", [] { return hb::fensterRect("##neuemission"); }));
     add(tu("Handbuch: Fenster zu, Mission taspir_tut anlegen", [=] {
@@ -7138,6 +7172,7 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         g_app->missionSpeichernOffen = true;
     }));
     add(pause(0.8));
+    add(hb::keinLaufpfad("h_mission_speichern", [] { return g_app->mission.zielPk3; }));
     add(hb::fotoTeil("h_mission_speichern", [] { return hb::breit1920(hb::fensterRect("##missionspeichern")); }));
     add(hb::fotoTeil("t4_4", [] { return hb::fensterRect("##missionspeichern"); }));
     add(tu("Handbuch: speichern", [] {

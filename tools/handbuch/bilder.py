@@ -3,7 +3,8 @@
 Aufruf:  python tools/handbuch/bilder.py <fotoordner> <sprache> [<ziel-handbuch>]
 
   <fotoordner>/<name>.bmp   das ganze Fenster
-  <fotoordner>/<name>.rect  "x0 y0 x1 y1" - der Ausschnitt (fehlt/leer: ganz)
+  <fotoordner>/<name>.rect  "x0 y0 x1 y1 [bezug]" - der Ausschnitt (fehlt/leer: ganz); bezug: die Breite, nach der die
+                            Markierungen bemessen werden (TEST1411e: das Fenster eines breiten Ausschnitts, hb::breit1920)
   <name>_00 ... _NN         eine Bildfolge -> ein bewegtes Bild <name>.webp
 
 Ziel: handbuch/bilder/<sprache>/<name>.webp (Breite hoechstens 2560 Pixel, bewegte Bilder 1920;
@@ -31,8 +32,8 @@ def lade(bmp, mit_marken=False):
     rect = os.path.splitext(bmp)[0] + ".rect"
     if os.path.exists(rect):
         teile = open(rect).read().split()
-        if len(teile) == 4:
-            x0, y0, x1, y1 = (int(t) for t in teile)
+        if len(teile) in (4, 5):
+            x0, y0, x1, y1 = (int(t) for t in teile[:4])
             x0, y0 = max(0, x0), max(0, y0)
             x1, y1 = min(bild.width, x1), min(bild.height, y1)
             if x1 - x0 > 8 and y1 - y0 > 8:
@@ -76,13 +77,22 @@ def _schrift(groesse):
     return ImageFont.load_default()
 
 
-def zeichne_marken(bild, marken, f):
+def bezug(bmp):
+    """Die Breite, nach der die Markierungen bemessen werden (5. Wert der .rect), sonst None."""
+    rect = os.path.splitext(bmp)[0] + ".rect"
+    teile = open(rect).read().split() if os.path.exists(rect) else []
+    return float(teile[4]) if len(teile) == 5 else None
+
+
+def zeichne_marken(bild, marken, f, breite=None):
     if not marken:
         return bild
     bild = bild.convert("RGB")
     # Strichstaerke und Groesse wachsen mit dem Bild - grosse Bilder werden im
     # Handbuch verkleinert gezeigt, die Markierung soll dann gleich kraeftig sein.
-    massstab = max(1.0, bild.width / 1100.0)
+    # TEST1411e: bei einem breiten Ausschnitt um ein Fenster (breite) mit dem
+    # Fenster, nicht mit dem Ausschnitt - sonst verdeckten die Kreise die Felder.
+    massstab = max(1.0, (breite * f if breite else bild.width) / 1100.0)
     st = max(3, round(4 * massstab + 1))
     nummern = [m for m in marken if m[4] > 0]
     # Eine Reihe (alle Rahmen nebeneinander, wie eine Leiste): die Nummern in
@@ -126,6 +136,10 @@ def zeichne_marken(bild, marken, f):
                 # Links oben am Rahmen; liegt dort schon eine, in eine andere Ecke.
                 ecken = [(box[0] - 4, box[1] - 4), (box[2] + 4, box[1] - 4), (box[0] - 4, box[3] + 4),
                          (box[2] + 4, box[3] + 4), (box[0] - 4, (box[1] + box[3]) / 2)]
+                if breite:
+                    # TEST1411e: ein Fenster im breiten Ausschnitt (hb::breit1920) - die Plakette links neben den Rahmen, mittig:
+                    # links oben laege sie auf der Beschriftung ueber dem Feld, neben dem Fenster ist Platz
+                    ecken.insert(0, (box[0] - rr - 8, (box[1] + box[3]) / 2))
                 mx, my = im_bild(*ecken[0])
                 for ex, ey in ecken:
                     px, py = im_bild(ex, ey)
@@ -212,7 +226,7 @@ def main():
             continue
         bild, marken = lade(bmp, True)
         kl = klein(bild, 2560)
-        kl = zeichne_marken(kl, marken, kl.width / bild.width)
+        kl = zeichne_marken(kl, marken, kl.width / bild.width, bezug(bmp))
         kl.save(os.path.join(ziel, name + ".webp"), "WEBP", quality=84, method=6)
         einzeln += 1
     for name, liste in folgen.items():
@@ -224,7 +238,7 @@ def main():
         for b in liste:
             roh, marken = lade(b, True)
             kl = klein(roh, 1920)
-            bilder.append(zeichne_marken(kl, marken, kl.width / roh.width))
+            bilder.append(zeichne_marken(kl, marken, kl.width / roh.width, bezug(b)))
         # Viele Bilder: fluessig (shank: "die GIFs sollten mehr Bilder haben,
         # damit sie hochwertiger sind"), wenige: Zeit zum Hinsehen.
         dauer = 110 if len(bilder) >= 30 else 450
