@@ -905,6 +905,34 @@ def main():
             print("  ohne %s: %s" % ("/".join(sorted(T.fehlende_texte[en])), en[:110].encode("ascii", "replace").decode()))
     bilder_da = os.path.isdir(os.path.join(BILDER, "en"))
     fehler = bool(T.fehlend) or (bilder_da and bool(fehlende_bilder or nur_englisch))
+    # CW-MODELL: ein Bild, das in zwei Sprachen Byte fuer Byte gleich ist, zeigt dort die Oberflaeche einer anderen Sprache (die zh-Bilder
+    # von CW-MODELL waren die deutschen) - ausser es steht in tools/handbuch/bilder_gleich_erlaubt.txt (Datei und Sprachgruppe)
+    if bilder_da:
+        import hashlib
+        erlaubt = set()
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "bilder_gleich_erlaubt.txt"), encoding="utf-8") as f:
+            for z in f:
+                z = z.strip()
+                if z and not z.startswith("#"):
+                    erlaubt.add(tuple(z.split()))
+        summen = {}
+        for sp in sorted(os.listdir(BILDER)):
+            ordner = os.path.join(BILDER, sp)
+            if not os.path.isdir(ordner):
+                continue
+            for name in os.listdir(ordner):
+                pfad = os.path.join(ordner, name)
+                if os.path.isfile(pfad):
+                    with open(pfad, "rb") as f:
+                        summen.setdefault(name, {}).setdefault(hashlib.md5(f.read()).hexdigest(), []).append(sp)
+        gleich = []
+        for name in sorted(summen):
+            for spr in summen[name].values():
+                if len(spr) > 1 and (name, "=".join(sorted(spr))) not in erlaubt:
+                    gleich.append("%s (%s)" % (name, "=".join(sorted(spr))))
+        if gleich:
+            print("Bilder in mehreren Sprachen gleich (%d) - falsche Sprache aufgenommen?: %s" % (len(gleich), " ".join(gleich[:40])))
+            fehler = True
     for sp in PFLICHT:
         fehler = fehler or T.fehlend_neu.get(sp, 0) > 0 or (bilder_da and any(b.startswith(sp + "/") for b in englisch_neu))
     # Jede Sprache hat ihre Seiten, ihren Suchindex und ihre Touren, und jede

@@ -99,6 +99,7 @@ QUELLEN = [
     Seite("inhalt_ph"),                             # modell-physik
     Seite("inhalt_rt"),                             # modell-retarget
     Seite("inhalt_animimp"),                        # modell-animimport
+    Seite("inhalt_cwmodell"),                       # modell-clonewars: Detailstufen, Bolts, eigenes Skelett (CW-MODELL)
     # --- ueber den Tab hinaus -------------------------------------------------------------------------------------------
     Seite("inhalt_mb7"),                            # mission-animieren: Figuren im Mission-Tab animieren
     # --- ENTSCHEID3A (Entscheidungen B7-B13, C4): Bausteine hinter Absaetzen anderer Quellen ------------------------------

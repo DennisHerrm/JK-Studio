@@ -1,0 +1,45 @@
+# Bilder des Handbuchs, die in mehreren Sprachen Byte fuer Byte gleich sein duerfen (gen_handbuch.py --pruefen, CW-MODELL 15.11.2026).
+# Je Zeile: Datei und die Sprachen, deren Dateien gleich sind (mit = verbunden). Jede andere Gleichheit ist ein FEHLER - ein Bild mit
+# Oberflaechentext, das in zwei Sprachen gleich ist, wurde in der falschen Sprache aufgenommen oder kopiert (zh-Bilder von CW-MODELL waren
+# die deutschen: der Bildlauf setzte language=zh, das Programm kennt nur zh-Hans und nahm die Sprache des Systems).
+# Stand: alle Gleichheiten auf karte1 13ea0a9bd, ohne Pruefung, ob jedes davon wirklich ohne Text ist (Liste fuer den Hauptchat in
+# docs/intern/NOTIZEN_cwmodell_1511.md).
+b_cam_disable_c.webp cs=de=en=es=zh
+b_do_c.webp cs=de=zh
+b_dowait_c.webp de=zh
+b_else_c.webp de=es=zh
+b_free_c.webp cs=de=en=es=ja=zh
+b_set_c.webp de=en=zh
+b_sound_c.webp cs=en=es=zh
+b_wait_task_c.webp de=zh
+e_musik_baum.webp cs=de=zh
+e_use_fx.webp cs=de=zh
+e_use_level.webp cs=de=es=ja=zh
+f_gruppe.webp de=zh
+g_gang_baum.webp de=zh
+h_karte8b_terrain.webp cs=en
+h_karte_portale.webp en=zh
+h_tour_spielordner.webp en=zh
+h_tour_update.webp en=zh
+h_weg_abdeckung.webp de=zh
+h_weg_bereich.webp en=zh
+h_weg_pfad.webp en=zh
+h_weg_route.webp de=zh
+h_zl_untertitel.webp cs=en
+k_folgen_blick.webp cs=en
+k_kampf_an.webp de=zh
+k_kampf_ende.webp de=zh
+k_kampf_run.webp cs=de=zh
+k_sperren_aus.webp cs=de=en=es=zh
+l_aus.webp cs=de=en=es=ja=zh
+p6_pan.webp de=en=es
+s_lese_gesetzt.webp cs=de=es=zh
+s_task_affects.webp de=zh
+s_task_do.webp de=zh
+s_task_do.webp cs=es
+s_task_dowait.webp de=zh
+s_task_task.webp de=zh
+s_var_free.webp cs=de=en=es=zh
+s_var_set.webp cs=de=en=zh
+t1_ergebnis.webp cs=en
+t3_5.webp cs=en
