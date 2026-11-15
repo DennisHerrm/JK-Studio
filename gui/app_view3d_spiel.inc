@@ -4960,6 +4960,7 @@ void missionsSucheBeenden() {
         g_app->missionsSuche.reset();
         if (behalten != 0U) { missionsVerweiseSichern(); }
     }
+    missionsListeOrdnen();   // TEST1411e: die Auswahl ist zu - nichts steht mehr unter der Maus
     g_app->missionsSuchGezeigt.clear();
     g_app->missionsSuchKarten.clear();
     g_app->missionsSuchArchive.clear();
@@ -4969,8 +4970,10 @@ void missionsSucheBeenden() {
 
 namespace {
 // Eine Karte der Hintergrundsuche in die Auswahl (gelesen; eine Karte, die sich nicht lesen laesst, bleibt ohne Skripte - wie bisher
-// in findMissions)
+// in findMissions). TEST1411e: ans Ende - die gezeigten Zeilen bleiben, wo sie sind (bis TEST1411e sortiert eingefuegt: die Zeilen
+// rutschten, ein Klick traf die falsche Mission, Lauf t1411e_jk2_rot)
 void suchKarteZeigen(const MissionsSuche& su, std::size_t i, const DateiGibt& gibt) {
+    if (g_app->missionsNeuAb == static_cast<std::size_t>(-1)) { g_app->missionsNeuAb = g_app->missions.size(); }
     Mission m = missionAus(g_app->missionsSuchKarten[i], su.verweise()[i], gibt);
     m.archivPfad = g_app->missionsSuchArchive[i];
     m.archiv = nurDateiname(m.archivPfad);
@@ -4985,16 +4988,17 @@ void missionsSucheZwischenstand() {
     if (!g_app->missionsSuche || g_app->missionsSuche->fertig()) { return; }
     const MissionsSuche& su = *g_app->missionsSuche;
     const DateiGibt gibt = skriptGibt();
-    bool neu = false;
     for (std::size_t i = 0; i < su.gesamt() && i < g_app->missionsSuchKarten.size() && i < g_app->missionsSuchGezeigt.size(); ++i) {
-        if (g_app->missionsSuchGezeigt[i] == 0 && su.istFertig(i)) {
-            suchKarteZeigen(su, i, gibt);
-            neu = true;
-        }
+        if (g_app->missionsSuchGezeigt[i] == 0 && su.istFertig(i)) { suchKarteZeigen(su, i, gibt); }
     }
-    if (neu) { sortiereMissionen(g_app->missions); }
 }
 }  // namespace
+
+void missionsListeOrdnen() {
+    if (g_app->missionsNeuAb != static_cast<std::size_t>(-1)) { sortiereMissionen(g_app->missions); }
+    g_app->missionsNeuAb = static_cast<std::size_t>(-1);
+    g_app->missionsOrdnen = false;
+}
 
 void missionsSucheUebernehmen() {
     if (!g_app->missionsSuche || !g_app->missionsSuche->fertig()) {
@@ -5011,7 +5015,7 @@ void missionsSucheUebernehmen() {
         }
         if (i >= g_app->missionsSuchGezeigt.size() || g_app->missionsSuchGezeigt[i] == 0) { suchKarteZeigen(su, i, gibt); }
     }
-    sortiereMissionen(g_app->missions);
+    g_app->missionsOrdnen = g_app->missionsNeuAb != static_cast<std::size_t>(-1);   // TEST1411e: geordnet wird in drawMissionPicker
     const double ms =
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - g_app->missionsSucheAb).count();
     diag::info("Missionssuche fertig: " + std::to_string(su.gesamt()) + " Karten im Hintergrund gelesen (" +
@@ -5099,6 +5103,8 @@ void missionenAusArchiv(const std::string& p, const std::string& wunsch) {
     // Je Karte: aus dem Zwischenspeicher, sofort (im gewaehlten Archiv - so
     // viel wie bisher), oder im Hintergrund.
     g_app->missions.clear();
+    g_app->missionsNeuAb = static_cast<std::size_t>(-1);
+    g_app->missionsOrdnen = false;
     std::vector<MissionsAuftrag> hinten;
     std::size_t sofort = 0;
     std::size_t gemerkt = 0;
@@ -5462,7 +5468,7 @@ void loadMission(const Mission& m) {
 // eigenen Feld, Kopf (Spielordner, Filter) und Abbrechen bleiben stehen.
 namespace {
 // Eine Zeile der Auswahl; true, wenn diese Mission geladen werden soll.
-bool missionsZeile(std::size_t i) {
+bool missionsZeile(std::size_t i, bool mitGruppe = false) {
     const Mission& m = g_app->missions[i];
     ImGui::PushID(static_cast<int>(i));
     ImGui::BeginDisabled(!m.playable());
@@ -5534,6 +5540,10 @@ bool missionsZeile(std::size_t i) {
     } else {
         ImGui::TextDisabled("%s", tr(Str::MissionDuel));
     }
+    if (mitGruppe) {   // TEST1411e: neu gelesen, noch nicht in ihrer Gruppe
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", m.gruppe.c_str());
+    }
     ImGui::PopID();
     return false;
 }
@@ -5557,10 +5567,14 @@ void drawMissionPicker() {
         if (g_app->missionsSuche) {
             missionsSucheBeenden();
         }
+        if (g_app->missionsOrdnen) { missionsListeOrdnen(); }
+        g_app->missionsListeUnterMaus = false;
         return;
     }
     missionsSucheZwischenstand();   // TEST1411d
     missionsSucheUebernehmen();
+    // TEST1411e: am Ende der Suche einmal ordnen - steht die Maus ueber der Liste, erst wenn sie sie verlaesst
+    if (g_app->missionsOrdnen && !g_app->missionsListeUnterMaus) { missionsListeOrdnen(); }
     ImGui::OpenPopup("##missionpick");
     const ImVec2 centre = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(centre, ImGuiCond_Appearing, ImVec2{0.5F, 0.5F});
@@ -5606,11 +5620,13 @@ void drawMissionPicker() {
         }
         (m.imGewaehlten ? eigene : weitere) += 1;
     }
-    const bool sucht = static_cast<bool>(g_app->missionsSuche);
+    // TEST1411e: bis geordnet ist, bleibt die Zeile der Suche stehen (sonst rueckte alles darunter um sie hoch)
+    const bool sucht = static_cast<bool>(g_app->missionsSuche) || g_app->missionsOrdnen;
+    const std::size_t ende = std::min(g_app->missionsNeuAb, g_app->missions.size());   // ab hier die neu gelesenen (am Ende)
     // Hoehe: so viele Zeilen wie da sind, hoechstens 22 - dann rollt das Feld.
     const float zeile = ImGui::GetFrameHeightWithSpacing();
     const float zeilen = static_cast<float>(eigene + weitere) + (eigene > 0 ? 1.5F : 0.0F) +
-                         ((weitere > 0 || sucht) ? 1.5F : 0.0F) + (sucht ? 2.0F : 0.0F);
+                         ((weitere > 0 || sucht) ? 1.5F : 0.0F) + (sucht ? 2.0F : 0.0F) + (ende < g_app->missions.size() ? 1.5F : 0.0F);
     const float hoehe = std::max(2.0F, std::min(22.0F, zeilen)) * zeile + ImGui::GetStyle().WindowPadding.y * 2.0F;
     std::optional<Mission> laden;
     const bool anyPlayable =
@@ -5620,6 +5636,7 @@ void drawMissionPicker() {
     // Spiel, dessen erste Missionen dann ausserhalb des Bilds lagen.
     if (ImGui::IsWindowAppearing()) { ImGui::SetNextWindowScroll(ImVec2{0.0F, 0.0F}); }
     if (ImGui::BeginChild("##missionliste", ImVec2{ImGui::GetFontSize() * 34.0F, hoehe}, ImGuiChildFlags_None)) {
+        g_app->missionsListeUnterMaus = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
         if (eigene > 0) {
             char kopf[600];
             std::snprintf(kopf, sizeof(kopf), tr(Str::MissionInArchive), nurDateiname(g_app->missionArchive).c_str());
@@ -5634,19 +5651,21 @@ void drawMissionPicker() {
         if ((weitere > 0 || sucht) && !laden) {
             if (eigene > 0) { ImGui::SeparatorText(tr(Str::MissionOtherArchives)); }
             if (sucht) {
-                const MissionsSuche& su = *g_app->missionsSuche;
+                // TEST1411e: nach dem Ende der Suche steht sie fertig da, bis geordnet ist (alle Karten der Suche stehen dann am Ende)
+                const int neu = static_cast<int>(g_app->missions.size() - ende);
+                const int erledigt = g_app->missionsSuche ? static_cast<int>(g_app->missionsSuche->erledigt()) : neu;
+                const int gesamt = g_app->missionsSuche ? static_cast<int>(g_app->missionsSuche->gesamt()) : neu;
                 char z[200];
-                std::snprintf(z, sizeof(z), tr(Str::MissionSearching), static_cast<int>(su.erledigt()),
-                              static_cast<int>(su.gesamt()));
+                std::snprintf(z, sizeof(z), tr(Str::MissionSearching), erledigt, gesamt);
                 ImGui::TextDisabled("%s", z);
-                ImGui::ProgressBar(su.gesamt() > 0 ? static_cast<float>(su.erledigt()) / static_cast<float>(su.gesamt()) : 1.0F,
-                                   ImVec2{ImGui::GetFontSize() * 20.0F, 0.0F}, "");
+                ImGui::ProgressBar(gesamt > 0 ? static_cast<float>(erledigt) / static_cast<float>(gesamt) : 1.0F, ImVec2{ImGui::GetFontSize() * 20.0F, 0.0F}, "");
             }
             // TEST1411 A: je Archiv der spielbaren Missionen eine aufklappbare Gruppe (ab Werk offen, wie Movie Duels MD_Missions_Ep1 ... Ep8),
             // am Ende die Karten ohne Skripte (Duellkarten) in einer eigenen Gruppe, ab Werk zu
             std::vector<std::string> archive;
             std::size_t duelle = 0;
-            for (const Mission& m : g_app->missions) {
+            for (std::size_t i = 0; i < ende; ++i) {
+                const Mission& m = g_app->missions[i];
                 if (m.imGewaehlten || !passtZumFilter(m, filter)) { continue; }
                 if (!m.playable()) {
                     ++duelle;
@@ -5663,10 +5682,13 @@ void drawMissionPicker() {
             for (const std::string& arch : archive) {
                 if (laden) { break; }
                 std::size_t n = 0;
-                for (const Mission& m : g_app->missions) { n += !m.imGewaehlten && m.playable() && m.gruppe == arch && passtZumFilter(m, filter) ? 1U : 0U; }
+                for (std::size_t i = 0; i < ende; ++i) {
+                    const Mission& m = g_app->missions[i];
+                    n += !m.imGewaehlten && m.playable() && m.gruppe == arch && passtZumFilter(m, filter) ? 1U : 0U;
+                }
                 const std::string kopf = arch + "  (" + std::to_string(n) + ")###mgruppe_" + arch;
                 if (!ImGui::CollapsingHeader(kopf.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) { continue; }
-                for (std::size_t i = 0; i < g_app->missions.size() && !laden; ++i) {
+                for (std::size_t i = 0; i < ende && !laden; ++i) {
                     const Mission& m = g_app->missions[i];
                     if (!m.imGewaehlten && m.playable() && m.gruppe == arch && passtZumFilter(m, filter) && missionsZeile(i)) { laden = m; }
                 }
@@ -5674,10 +5696,17 @@ void drawMissionPicker() {
             if (duelle > 0 && !laden) {
                 const std::string kopf = std::string(tr(Str::T1aOhneSkripte)) + "  (" + std::to_string(duelle) + ")###mgruppe_duelle";
                 if (ImGui::CollapsingHeader(kopf.c_str())) {
-                    for (std::size_t i = 0; i < g_app->missions.size() && !laden; ++i) {
+                    for (std::size_t i = 0; i < ende && !laden; ++i) {
                         const Mission& m = g_app->missions[i];
                         if (!m.imGewaehlten && !m.playable() && passtZumFilter(m, filter) && missionsZeile(i)) { laden = m; }
                     }
+                }
+            }
+            // TEST1411e: die neu gelesenen Karten am Ende, in der Reihenfolge des Lesens, mit ihrer Gruppe - eingeordnet wird am Ende der Suche
+            if (ende < g_app->missions.size() && !laden) {
+                ImGui::SeparatorText(tr(Str::T1eNeuGelesen));
+                for (std::size_t i = ende; i < g_app->missions.size() && !laden; ++i) {
+                    if (passtZumFilter(g_app->missions[i], filter) && missionsZeile(i, true)) { laden = g_app->missions[i]; }
                 }
             }
         }

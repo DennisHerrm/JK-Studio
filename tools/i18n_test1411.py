@@ -195,6 +195,10 @@ ZEILEN = [
     ("T1pSpiegelPaste", "Mirror Paste", "Spiegeln einfügen", "镜像粘贴", "ミラー貼り付け", "Pegar simetría", "Zrcadlově vložit"),
     ("T1pSpiegelPasteHint", "Pastes the weights of the selected vertices onto their counterparts on the other side, bones swapped left/right (3ds Max Mirror Mode: Mirror Paste).", "Fügt die Gewichte der gewählten Ecken auf ihren Gegenstücken der anderen Seite ein, Knochen links/rechts getauscht (3ds Max Mirror Mode: Mirror Paste).", "将所选顶点的权重粘贴到另一侧的对应顶点上, 骨骼左右交换 (3ds Max 镜像模式: 镜像粘贴)。", "選択した頂点のウェイトを反対側の対応頂点に貼り付けます、ボーンは左右入れ替え (3ds Max ミラーモード: ミラー貼り付け)。", "Pega los pesos de los vértices seleccionados en sus homólogos del otro lado, con los huesos intercambiados izquierda/derecha (3ds Max Modo simetría: Pegar simetría).", "Vloží váhy vybraných vrcholů na jejich protějšky na druhé straně, kosti prohozené vlevo/vpravo (3ds Max Mirror Mode: Mirror Paste)."),
     ("T1pPaare", "Bone pairs", "Knochenpaare", "骨骼对", "ボーンのペア", "Pares de huesos", "Páry kostí"),
+    # --- TEST1411e: Load mission - waehrend des Lesens springt nichts ---
+    ("T1eNeuGelesen", "Just read (sorted into the groups when the search is done)", "Gerade gelesen (kommt am Ende der Suche in die Gruppen)",
+     "刚读取 (搜索结束后归入分组)", "読み込んだばかり (検索終了後にグループへ整理)", "Recién leídas (se ordenan en los grupos al terminar la búsqueda)",
+     "Právě načtené (po dokončení hledání se zařadí do skupin)"),
     ("T1pBlVertexGewichte", "Vertex Weights", "Vertex-Gewichte", "顶点权重", "頂点ウェイト", "Pesos de vértice", "Váhy vrcholů"),
     # --- A: Mission laden ohne pk3-Dialog ---
     ("T1aOrdnerOeffnen", "Open folder...", "Ordner öffnen...", "打开文件夹...", "フォルダーを開く...", "Abrir carpeta...", "Otevřít složku..."),

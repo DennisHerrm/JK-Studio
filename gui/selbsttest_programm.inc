@@ -2616,6 +2616,12 @@ bool hat(const std::string& name, bool spielbar) {
     }
     return false;
 }
+// TEST1411e: die Suche im Hintergrund ist fertig und die Liste geordnet (Gruppen) - mit der Maus ueber der Liste ordnet sie sich erst, wenn
+// die Maus sie verlaesst; mausWeg() setzt sie vorher an den Rand des Fensters
+bool fertigGeordnet() { return !g_app->missionsSuche && !g_app->missionsOrdnen; }
+Schritt mausWeg() {
+    return tu("Missionsliste: die Maus weg von der Liste", [] { setzeMaus(ImVec2{2.0F, ImGui::GetMainViewport()->Size.y - 2.0F}); });
+}
 std::string liste() {
     int spielbar = 0;
     for (const Mission& m : g_app->missions) {
@@ -2791,7 +2797,10 @@ std::vector<Schritt> jk2Schritte() {
         (void)regelwerkPruefen();
         missionenAusArchiv(z->jk2 + "\\assets0.pk3");
     }));
-    add(warteBis("JK2: kejim_post in der Auswahl", [] { return missionsliste::hat("kejim_post", true); }, 3500));
+    // TEST1411e: seit TEST1411 A/d steht kejim_post (im gewaehlten Archiv) sofort in der Auswahl, die Missionen der uebrigen Archive kommen
+    // aus der Suche im Hintergrund - die 25 spielbaren erst, wenn sie fertig gelesen hat
+    add(missionsliste::mausWeg());
+    add(warteBis("JK2: kejim_post in der Auswahl, fertig gelesen", [] { return missionsliste::hat("kejim_post", true) && missionsliste::fertigGeordnet(); }, 3500));
     add(pruefe("JK2: Load mission nennt 25 spielbare Missionen von Jedi Outcast", [] {
         diag::detail("Knopftest: JK2 - Missionen: " + missionsliste::liste());
         int spielbar = 0;
@@ -2910,7 +2919,8 @@ std::vector<Schritt> jk2Schritte() {
         neuerReiter();
         missionenAusArchiv(z->jkaArchiv);
     }));
-    add(warteBis("Reiter: md_am_sith in der Auswahl", [] { return missionsliste::hat("md_am_sith", true); }, 3500));
+    add(missionsliste::mausWeg());
+    add(warteBis("Reiter: md_am_sith in der Auswahl, fertig gelesen", [] { return missionsliste::hat("md_am_sith", true) && missionsliste::fertigGeordnet(); }, 3500));
     add(waehleInListe("md_am_sith", false, 0, "##missionpick"));
     add(warteBis("Reiter: md_am_sith geladen, Jedi Academy", [] {
         return g_app->map.path.find("md_am_sith") != std::string::npos && !regelwerkJediOutcast();
@@ -2954,7 +2964,9 @@ std::vector<Schritt> jk2Schritte() {
     add(tu("JKA danach: Load mission aus dem eingerichteten Ordner (md_am_sith)", [=] {
         if (!z->jkaArchiv.empty()) { missionenAusArchiv(z->jkaArchiv); }
     }));
-    add(warteBis("JKA danach: md_am_sith in der Auswahl", [] { return missionsliste::hat("md_am_sith", true); }, 3500));
+    add(missionsliste::mausWeg());
+    add(warteBis("JKA danach: md_am_sith in der Auswahl, fertig gelesen", [] { return missionsliste::hat("md_am_sith", true) && missionsliste::fertigGeordnet(); },
+                 3500));
     add(waehleInListe("md_am_sith", false, 0, "##missionpick"));
     add(warteBis("JKA danach: md_am_sith geladen, Figuren mit Modell", [] {
         return g_app->map.path.find("md_am_sith") != std::string::npos && jk2probe::figurenGeladen();
@@ -3000,7 +3012,8 @@ std::vector<Schritt> missionsListeSchritte() {
     // --- 1. Eine pk3 OHNE Karten aus dem reinen JKA ------------------------
     add(tu("Missionsliste: Load mission mit assets1.pk3 des reinen JKA", [=] { missionenAusArchiv(z->jka + "\\assets1.pk3"); }));
     // TEST1411d: die Auswahl zeigt Karten schon waehrend des Lesens - die Pruefungen darunter vergleichen die ganze Liste
-    add(warteBis("Missionsliste: t1_sour in der Auswahl, fertig gelesen", [] { return missionsliste::hat("t1_sour", true) && !g_app->missionsSuche; }, 3500));
+    add(missionsliste::mausWeg());
+    add(warteBis("Missionsliste: t1_sour in der Auswahl, fertig gelesen", [] { return missionsliste::hat("t1_sour", true) && missionsliste::fertigGeordnet(); }, 3500));
     add(pruefe("Missionsliste: assets1.pk3 (ohne Karten) nennt die Missionen von JKA - t1_sour, t2_trip, t3_bounty, kor1, yavin1, taspir1", [] {
         diag::detail("Knopftest: Missionsliste - reines JKA: " + missionsliste::liste());
         bool alle = g_app->missionPickOpen;
@@ -3056,7 +3069,8 @@ std::vector<Schritt> missionsListeSchritte() {
     // --- 2. Eine pk3 aus einem EINGERICHTETEN Spielordner -------------------
     add(tu("Missionsliste: Load mission mit assets1.pk3 aus dem eingerichteten Spielordner (Movie Duels base)",
            [=] { missionenAusArchiv(z->mdBasis + "\\assets1.pk3"); }));
-    add(warteBis("Missionsliste: md_am_sith in der Auswahl, fertig gelesen", [] { return missionsliste::hat("md_am_sith", true) && !g_app->missionsSuche; },
+    add(missionsliste::mausWeg());
+    add(warteBis("Missionsliste: md_am_sith in der Auswahl, fertig gelesen", [] { return missionsliste::hat("md_am_sith", true) && missionsliste::fertigGeordnet(); },
                  3500));
     add(pruefe("Missionsliste: Missionen von Movie Duels (md_am_sith, md_ga_jedi) UND des Grundspiels (t1_sour, kor1)", [] {
         diag::detail("Knopftest: Missionsliste - eingerichtet: " + missionsliste::liste());

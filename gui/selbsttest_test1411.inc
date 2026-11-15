@@ -27,6 +27,8 @@
 //      ViewCube/Kopfzeile und Ladehinweis (NPC-Browser, .glm oeffnen), Explorer mit Reitern/Suche/Filter und Hinweis im leeren Baum
 //   F  Zeitleiste: die Knoepfe rechts der Bildanzeige stehen still, wenn die Bildzahl waechst (0, 9, 10, 99, 100, letztes Bild der
 //      laengsten Sequenz - unter Movie Duels BOTH_MD_CIN_51 mit 660 Bildern)
+//   s  TEST1411e: Load mission - waehrend die Suche im Hintergrund Karten bringt, bleibt die Zeile unter der Maus dieselbe (auch am Ende der
+//      Suche, solange die Maus ueber der Liste steht); verlaesst sie die Liste, ordnet sie sich (Namen, Gruppen)
 // Eingebunden in selbsttest.cpp (am Ende der Modell-Block-Gruppen).
 namespace t1411 {
 
@@ -2343,6 +2345,114 @@ struct AStand {
 
 bool aSucheFertig() { return !g_app->missionsSuche || g_app->missionsSuche->fertig(); }
 
+// --- TEST1411e: Load mission - waehrend des Lesens springt unter der Maus nichts ------------------------------------------------
+// Rot (Lauf t1411e_jk2_rot, Gruppe jk2): der Klick auf md_am_sith kam bei md_afif_sith an - die Suche im Hintergrund fuegte Karten
+// sortiert in die Auswahl ein, die Zeilen rutschten. Das trifft ebenso einen Nutzer. Gewollt (Hauptchat 15.11.): unter der Maus springt
+// nichts - neue Karten duerfen kommen, eine gezeigte Zeile behaelt ihren Platz, solange gelesen wird; am Ende ordnet sich die Liste
+// einmal, mit der Maus darueber erst, wenn sie sie verlaesst. Hier: der ganze Spielordner kalt (Zwischenspeicher leer), die Maus auf
+// die unterste ganz sichtbare spielbare Zeile, solange gelesen wird; je Bild die Zeile unter der Maus.
+
+struct SStand {
+    std::string unterMaus;      // die Zeile unter der Maus beim Ansetzen
+    ImVec2 maus{};
+    int bilder = 0;             // Bilder mit der Maus darueber, waehrend gelesen wurde
+    std::size_t vorher = 0;     // Karten in der Auswahl beim Ansetzen
+    std::size_t nachher = 0;    // ... am Ende der Suche
+    int gesprungen = 0;         // Bilder, in denen eine andere Zeile unter der Maus lag
+    std::string anders;         // die erste andere
+    bool nachEndeStill = false; // Suche fertig, Maus noch darueber: dieselbe Zeile
+    bool geordnet = false;      // Maus weg: nach Namen geordnet und in Gruppen
+};
+
+// die Beschriftung der Zeile unter der Maus (Kennung aus dem letzten Bild)
+std::string sUnterMaus() {
+    const Element* e = findeKennung(GImGui->HoveredIdPreviousFrame);
+    return e != nullptr && e->innen.find("##missionliste") != std::string::npos ? e->label : std::string();
+}
+
+bool sGeordnet() {
+    std::vector<Mission> kopie = g_app->missions;
+    sortiereMissionen(kopie);
+    for (std::size_t i = 0; i < kopie.size(); ++i) {
+        if (kopie[i].name != g_app->missions[i].name) { return false; }
+    }
+    return !kopie.empty();
+}
+
+void sSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<SStand>();
+    add(tu("T1411 s: kalt - Zwischenspeicher leer, Load mission ueber den ganzen Spielordner", [] {
+        missionsSucheBeenden();
+        g_app->missionPickOpen = false;
+        g_app->missionsVerweise.clear();
+        g_app->missionsVerweiseGeladen = false;
+        std::error_code ec;
+        std::filesystem::remove(::bhed::utf8Pfad(missionsVerweisePfad()), ec);
+        g_app->missionsFilter[0] = '\0';
+        missionenAusArchiv("");
+    }));
+    add(warteBis("T1411 s: die Liste fuellt sich, die Suche laeuft noch", [] {
+        return (g_app->missions.size() >= 30U && g_app->missionsSuche && !g_app->missionsSuche->fertig()) || aSucheFertig();
+    }, 6000));
+    add(pause(0.2));
+    add(tu("T1411 s: Maus auf die unterste ganz sichtbare spielbare Zeile", [st] {
+        const Element* best = nullptr;
+        for (const Element& e : g_elemente) {
+            if (e.innen.find("##missionliste") == std::string::npos || e.label.empty() || !ganzSichtbar(e)) { continue; }
+            const bool mission = std::any_of(g_app->missions.begin(), g_app->missions.end(), [&](const Mission& m) { return m.name == e.label && m.playable(); });
+            if (mission && (best == nullptr || e.rect.Min.y > best->rect.Min.y)) { best = &e; }
+        }
+        if (best != nullptr) {
+            st->maus = ImVec2{std::floor(best->rect.Min.x + 20.0F), std::floor(best->rect.GetCenter().y)};
+            st->unterMaus = best->label;
+            setzeMaus(st->maus);
+        }
+        st->vorher = g_app->missions.size();
+        melde("s Ansatz: \"" + st->unterMaus + "\", " + std::to_string(st->vorher) + " Karten, Suche " + (aSucheFertig() ? "fertig" : "laeuft"));
+    }));
+    add({"T1411 s: je Bild die Zeile unter der Maus, bis die Suche fertig ist", [st](int b) {
+             setzeMaus(st->maus);
+             if (b >= 2) {
+                 const std::string jetzt = sUnterMaus();
+                 ++st->bilder;
+                 if (jetzt != st->unterMaus) {
+                     if (st->gesprungen == 0) { st->anders = jetzt + " (Bild " + std::to_string(b) + ", " + std::to_string(g_app->missions.size()) + " Karten)"; }
+                     ++st->gesprungen;
+                 }
+             }
+             if (aSucheFertig() || b > 12000) {
+                 st->nachher = g_app->missions.size();
+                 melde("s gelesen: " + std::to_string(st->bilder) + " Bilder, " + std::to_string(st->vorher) + " -> " + std::to_string(st->nachher) + " Karten, " +
+                       std::to_string(st->gesprungen) + " mal eine andere Zeile" + (st->anders.empty() ? std::string() : ", zuerst " + st->anders));
+                 return true;
+             }
+             return false;
+         }});
+    add(pause(0.4));
+    add(tu("T1411 s: Suche fertig, die Maus noch ueber der Liste", [st] {
+        st->nachEndeStill = sUnterMaus() == st->unterMaus;
+        melde("s nach dem Ende: unter der Maus \"" + sUnterMaus() + "\", geordnet " + std::to_string(sGeordnet() ? 1 : 0));
+    }));
+    add(tu("T1411 s: die Maus verlaesst die Liste (auf das Suchfeld)", [] {
+        const Element* e = finde("##missionfilter", "##missionpick", 0, false);
+        if (e != nullptr) { setzeMaus(e->rect.GetCenter()); }
+    }));
+    add(pause(0.3));
+    add(tu("T1411 s: geordnet?", [st] {
+        st->geordnet = sGeordnet() && !g_app->missionsGruppen.empty();
+        melde("s Maus weg: geordnet " + std::to_string(sGeordnet() ? 1 : 0) + ", Gruppen " + std::to_string(g_app->missionsGruppen.size()));
+        g_app->missionPickOpen = false;
+        missionsSucheBeenden();
+    }));
+    add(pause(0.3));
+    add(pruefe("T1411 s: waehrend die Suche Karten bringt, bleibt die Zeile unter der Maus dieselbe", [st] {
+        return !st->unterMaus.empty() && st->gesprungen == 0 && st->bilder >= 10 && st->nachher > st->vorher;
+    }));
+    add(pruefe("T1411 s: am Ende der Suche, die Maus noch ueber der Liste: dieselbe Zeile", [st] { return st->nachEndeStill; }));
+    add(pruefe("T1411 s: verlaesst die Maus die Liste, ordnet sie sich (Namen, Gruppen)", [st] { return st->geordnet; }));
+}
+
 // --- TEST1411d (Rest von A): die Missionsliste aus dem Zwischenspeicher der Platte ------------------------------------------
 struct ZStand {
     std::vector<std::string> frisch;        // je Mission Name | Gruppe | Archiv | .bsp | .ent | Skripte - frisch gelesen
@@ -2956,6 +3066,7 @@ std::vector<Schritt> schritte(const char* nur) {
     if (abschnitt("e")) { eSchritte(s); }
     if (abschnitt("a")) { aSchritte(s); }
     if (abschnitt("z")) { zSchritte(s); }   // TEST1411d: die Missionsliste aus dem Zwischenspeicher der Platte
+    if (abschnitt("s")) { sSchritte(s); }   // TEST1411e: Load mission - waehrend des Lesens springt unter der Maus nichts
     if (abschnitt("b")) { bSchritte(s, modell != nullptr && *modell != '\0' ? modell : "models/players/alora/model.glm"); }
     if (abschnitt("fotos")) { fotoSchritte(s); }
     add(tu("T1411: zurueck", [=] {

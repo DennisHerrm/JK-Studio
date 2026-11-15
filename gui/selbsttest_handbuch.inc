@@ -3718,7 +3718,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     add(pause(0.6));
     // rc603: die weiteren Missionen des Spiels liest "Load mission" im
     // Hintergrund - fotografiert wird die fertige Liste.
-    add(warteBis("Handbuch: Missionssuche fertig", [] { return !g_app->missionsSuche; }, 3500));
+    // TEST1411e: geordnet (in Gruppen) ist die Liste erst, wenn die Maus nicht ueber ihr steht - sie geht dafuer auf den Rand des Fensters
+    add(tu("Handbuch: die Maus weg von der Liste", [] { setzeMaus(ImVec2{2.0F, ImGui::GetMainViewport()->Size.y - 2.0F}); }));
+    add(warteBis("Handbuch: Missionssuche fertig, geordnet", [] { return !g_app->missionsSuche && !g_app->missionsOrdnen; }, 3500));
     // rc603 Zusammenfuehrung: taspir1 steht in assets0.pk3 so weit unten, dass
     // nach dem Rollen keine Abschnittsueberschrift mehr im Bild war (Durchsicht
     // t_mission). Mit dem Filter "tasp" steht die Ueberschrift "Missions in

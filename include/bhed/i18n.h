@@ -6826,6 +6826,7 @@ enum class Str {
     T1pSpiegelPaste,
     T1pSpiegelPasteHint,
     T1pPaare,
+    T1eNeuGelesen,
     T1pBlVertexGewichte,
     T1aOrdnerOeffnen,
     T1aOrdnerOeffnenHint,

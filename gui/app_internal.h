@@ -1572,6 +1572,12 @@ struct App {
     char missionsFilter[64] = {};
     std::vector<std::string> missionsGruppen;   // TEST1411 A: die Archivgruppen der Auswahl im letzten Bild (Selbsttest)
     std::vector<std::string> missionsSuchGruppen;   // TEST1411 A: je Karte der Hintergrundsuche ihre Gruppe (Archiv der .ent, sonst der .bsp)
+    // TEST1411e: waehrend gelesen wird, behaelt jede gezeigte Zeile der Auswahl ihren Platz - die neu gelesenen Karten stehen ab
+    // missionsNeuAb am Ende (Reihenfolge des Lesens). Geordnet (Namen, Gruppen) wird einmal am Ende der Suche (missionsOrdnen), mit der
+    // Maus ueber der Liste (missionsListeUnterMaus, letztes Bild) erst, wenn sie sie verlaesst.
+    std::size_t missionsNeuAb = static_cast<std::size_t>(-1);
+    bool missionsOrdnen = false;
+    bool missionsListeUnterMaus = false;
     bool npcMapRead = false;
 
     // Die Shaderskripte EINMAL fuer die ganze Sitzung.
@@ -4126,6 +4132,7 @@ void missionenAusArchiv(const std::string& archiv, const std::string& wunsch = s
 void missionsSucheBeenden();
 // rc603: ist die Hintergrundsuche fertig, ihre Missionen in die Liste nehmen.
 void missionsSucheUebernehmen();
+void missionsListeOrdnen();   // TEST1411e: die neu gelesenen Karten einordnen (Namen, Gruppen)
 void loadMission(const Mission& m);
 void drawMissionPicker();
 
