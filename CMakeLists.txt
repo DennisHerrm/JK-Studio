@@ -2298,3 +2298,12 @@ if(BEHAVED_TESTS)
   target_link_libraries(modellablagetest PRIVATE bhed_core)
   add_test(NAME modell_ablage COMMAND modellablagetest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
 endif()
+
+# CW-MODELL (15.11., Clone-Wars-Kette Teil 3): Speichern, Export und Laden mit den Vorgaben bytegleich wie auf karte1 13ea0a9bd
+# (tests/modell_cwvergleich.cpp: nur Funktionen, die es dort schon gab; dasselbe Werkzeug gegen den Kern von 13ea0a9bd ergab das Soll)
+if(BEHAVED_TESTS)
+  add_executable(modellcwvergleich tests/modell_cwvergleich.cpp)
+  target_link_libraries(modellcwvergleich PRIVATE bhed_core)
+  add_test(NAME modell_cwvergleich COMMAND modellcwvergleich ${CMAKE_CURRENT_BINARY_DIR}/modell_cwvergleich.txt
+           --soll ${CMAKE_CURRENT_SOURCE_DIR}/tests/modell/cwvergleich_soll.txt ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
+endif()
