@@ -29,6 +29,8 @@
 //      laengsten Sequenz - unter Movie Duels BOTH_MD_CIN_51 mit 660 Bildern)
 //   s  TEST1411e: Load mission - waehrend die Suche im Hintergrund Karten bringt, bleibt die Zeile unter der Maus dieselbe (auch am Ende der
 //      Suche, solange die Maus ueber der Liste steht); verlaesst sie die Liste, ordnet sie sich (Namen, Gruppen)
+//   x  TEST1411e: ohne Auswahl nennt die Statuszeile (wie 3ds Max) X/Y/Z des Mauspunkts auf dem Raster der Ansicht darunter (eine Ansicht
+//      oben/vorne/links/Perspektive, vier Ansichten), ausserhalb der Ansichten bleibt der letzte Punkt, mit Auswahl deren Mitte
 // Eingebunden in selbsttest.cpp (am Ende der Modell-Block-Gruppen).
 namespace t1411 {
 
@@ -2825,6 +2827,209 @@ void eSchritte(std::vector<Schritt>& s) {
     add(pruefe("T1411 E: Zeigen (Laden, NPC-Browser) springt in der Liste zur Sequenz", [st] { return st->zeigen; }));
 }
 
+// --- TEST1411e: der Mauspunkt auf dem Raster in der Statuszeile (wie 3ds Max) ------------------------------------------------
+// shank (G): in der Mitte der Statuszeile "Koordinaten X/Y/Z der Auswahl bzw. des Mauspunkts". Ein Weltpunkt der Rasterebene einer
+// Ansicht (oben und Perspektive: XY in Bodenhoehe, vorne XZ, links YZ) wird auf den Schirm gerechnet (modellAufSchirm, die Matrix des
+// letzten Bilds), die Maus dorthin gesetzt - die Statuszeile muss ihn wieder nennen. ImGui setzt die Maus auf ganze Bildpunkte
+// (AddMousePosEvent: ImFloorSigned, erster Lauf t1411e_sxw_rot bis 0,05 daneben): erwartet wird darum der Punkt der Ebene unter dem
+// abgerundeten Bildpunkt, ueber die Ableitung der Abbildung am Weltpunkt (je eine Einheit entlang der beiden Achsen der Ebene).
+
+struct XyzStand {
+    float abweichung = 0.0F;   // groesste Abweichung der Anzeige vom Weltpunkt
+    int geprueft = 0;
+    int faelle = 0;
+    std::string vorher;        // der Text, bevor die Maus die Ansichten verlaesst
+    bool bleibt = false;
+    bool auswahl = false;
+    bool wieder = false;
+    bool knochenLeer = false;  // ein gewaehlter Knochen ohne Mitte (Bereich Ansehen): die Felder leer wie bisher, kein Mauspunkt
+};
+
+bool xyzLesen(const std::string& text, float v[3]) { return std::sscanf(text.c_str(), "X: %f Y: %f Z: %f", &v[0], &v[1], &v[2]) == 3; }
+
+// Den Weltpunkt `p` (die Achse der Ebene setzt der Fall) in Ansicht n anfahren und die Anzeige mit ihm vergleichen
+void xyzFall(std::vector<Schritt>& s, const std::shared_ptr<XyzStand>& st, const std::string& name, int n, float u, float v) {
+    auto ziel = std::make_shared<std::array<float, 3>>();
+    auto da = std::make_shared<bool>(false);
+    s.push_back(tu("T1411 x: " + name + " - Maus auf den Rasterpunkt", [=] {
+        const ModellAnsicht& a = mtab().ansichten[n];
+        const int k = modellRasterNormale(a.art);
+        const int au = k == 0 ? 1 : 0;   // die beiden Achsen der Ebene wie rasterFuer
+        const int av = k == 2 ? 1 : 2;
+        (*ziel)[uz(k)] = k == 2 ? mtab().an.bodenZ : 0.0F;
+        (*ziel)[uz(au)] = u;
+        (*ziel)[uz(av)] = v;
+        ImVec2 q;
+        ImVec2 qu;
+        ImVec2 qv;
+        std::array<float, 3> pu = *ziel;
+        std::array<float, 3> pv = *ziel;
+        pu[uz(au)] += 1.0F;
+        pv[uz(av)] += 1.0F;
+        *da = modellAufSchirm(a, ziel->data(), q) && modellAufSchirm(a, pu.data(), qu) && modellAufSchirm(a, pv.data(), qv) && q.x > a.lo[0] &&
+              q.x < a.lo[0] + a.groesse[0] && q.y > a.lo[1] && q.y < a.lo[1] + a.groesse[1];
+        const ImVec2 m{std::floor(q.x), std::floor(q.y)};
+        // m - q = J (du, dv), J = [qu - q, qv - q]
+        const float j00 = qu.x - q.x;
+        const float j10 = qu.y - q.y;
+        const float j01 = qv.x - q.x;
+        const float j11 = qv.y - q.y;
+        const float det = j00 * j11 - j01 * j10;
+        if (*da && std::fabs(det) > 1e-6F) {
+            const float dx = m.x - q.x;
+            const float dy = m.y - q.y;
+            (*ziel)[uz(au)] += (j11 * dx - j01 * dy) / det;
+            (*ziel)[uz(av)] += (-j10 * dx + j00 * dy) / det;
+            setzeMaus(m);
+        } else {
+            *da = false;
+        }
+        ++st->faelle;
+        char z[220];
+        std::snprintf(z, sizeof z, "x %s: Weltpunkt unter dem Bildpunkt %.0f %.0f: %.4f %.4f %.4f (%s)", name.c_str(), static_cast<double>(m.x),
+                      static_cast<double>(m.y), static_cast<double>((*ziel)[0]), static_cast<double>((*ziel)[1]), static_cast<double>((*ziel)[2]),
+                      *da ? "in der Ansicht" : "AUSSERHALB");
+        melde(z);
+    }));
+    s.push_back(pause(0.2));
+    s.push_back(tu("T1411 x: " + name + " - Anzeige lesen", [=] {
+        float w[3];
+        const std::string text = zp().koordText;
+        if (!*da || !xyzLesen(text, w)) {
+            melde("x " + name + ": Anzeige \"" + text + "\" nicht lesbar");
+            return;
+        }
+        float d = 0.0F;
+        for (std::size_t k = 0; k < 3; ++k) { d = std::max(d, std::fabs(w[k] - (*ziel)[k])); }
+        st->abweichung = std::max(st->abweichung, d);
+        ++st->geprueft;
+        char z[160];
+        std::snprintf(z, sizeof z, "x %s: Anzeige \"%s\", Abweichung %.5f", name.c_str(), text.c_str(), static_cast<double>(d));
+        melde(z);
+    }));
+}
+
+void xSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<XyzStand>();
+    const auto einrichten = [](bool vier, AnsichtArt art) {
+        return [vier, art] {
+            modellBedienungSetzen(0);
+            ModellTab& t = mtab();
+            t.bereich = ModellBereich::Ansehen;
+            t.auswahlArt = AuswahlArt::Objekt;
+            t.auswahl.clear();
+            t.vierAnsichten = vier;
+            if (vier) {
+                const AnsichtArt arten[4] = {AnsichtArt::Oben, AnsichtArt::Vorne, AnsichtArt::Links, AnsichtArt::Perspektive};
+                for (int n = 0; n < 4; ++n) { t.ansichten[n].art = arten[n]; }
+            } else {
+                t.aktiv = 3;
+                t.ansichten[3].art = art;
+                modellAnsichtEinpassenAktiv();
+            }
+            g_app->modelDirty = true;
+        };
+    };
+    const struct {
+        const char* name;
+        AnsichtArt art;
+        float u;
+        float v;
+    } kEine[4] = {{"oben", AnsichtArt::Oben, 13.37F, -21.53F},
+                  {"vorne", AnsichtArt::Vorne, 13.37F, 20.29F},
+                  {"links", AnsichtArt::Links, -13.37F, 20.29F},
+                  {"Perspektive", AnsichtArt::Perspektive, 2.37F, -1.53F}};
+    for (const auto& f : kEine) {
+        add(tu(std::string("T1411 x: eine Ansicht ") + f.name + ", wie 3ds Max, nichts gewaehlt", einrichten(false, f.art)));
+        add(pause(0.5));
+        xyzFall(s, st, std::string("eine Ansicht ") + f.name, 3, f.u, f.v);
+    }
+    // vier Ansichten: es zaehlt die Ansicht unter der Maus
+    add(tu("T1411 x: vier Ansichten (oben, vorne, links, Perspektive)", einrichten(true, AnsichtArt::Perspektive)));
+    add(pause(0.3));
+    for (int n = 0; n < 3; ++n) {
+        add(tu("T1411 x: vier Ansichten - Ansicht " + std::to_string(n) + " einpassen", [n] {
+            mtab().aktiv = n;
+            modellAnsichtEinpassenAktiv();
+            g_app->modelDirty = true;
+        }));
+        add(pause(0.3));
+    }
+    xyzFall(s, st, "vier Ansichten oben", 0, -9.71F, 15.13F);
+    xyzFall(s, st, "vier Ansichten vorne", 1, -9.71F, 15.13F);
+    xyzFall(s, st, "vier Ansichten links", 2, 9.71F, -7.43F);
+    // die Maus verlaesst die Ansichten (ueber die Statuszeile): der letzte Punkt bleibt stehen
+    add(tu("T1411 x: Maus auf die Statuszeile", [st] {
+        st->vorher = zp().koordText;
+        const ModellZeitProbe& p = zp();
+        setzeMaus(ImVec2{std::floor(p.status[0] + p.status[2] * 0.5F), std::floor(p.status[1] + p.status[3] * 0.5F)});   // merke: x, y, Breite, Hoehe
+    }));
+    add(pause(0.2));
+    add(tu("T1411 x: der letzte Punkt bleibt", [st] {
+        st->bleibt = !st->vorher.empty() && zp().koordText == st->vorher;
+        melde("x Statuszeile: vorher \"" + st->vorher + "\", jetzt \"" + zp().koordText + "\"");
+    }));
+    add(foto("t1411e_x_status"));
+    // mit Auswahl: die Mitte der Auswahl wie bisher, auch mit der Maus in einer Ansicht
+    add(tu("T1411 x: torso waehlen, Maus in die Ansicht vorne", [] {
+        mtab().auswahl = {teil("torso")};
+        const ModellAnsicht& a = mtab().ansichten[1];
+        setzeMaus(ImVec2{std::floor(a.lo[0] + a.groesse[0] * 0.3F), std::floor(a.lo[1] + a.groesse[1] * 0.7F)});
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.2));
+    add(tu("T1411 x: Anzeige = Mitte der Auswahl", [st] {
+        float m[3];
+        char soll[160] = "";
+        if (modellAuswahlMitteJetzt(m)) {
+            std::snprintf(soll, sizeof soll, "X: %.2f   Y: %.2f   Z: %.2f", static_cast<double>(m[0]), static_cast<double>(m[1]), static_cast<double>(m[2]));
+        }
+        st->auswahl = soll[0] != '\0' && zp().koordText == soll;
+        melde(std::string("x Auswahl: soll \"") + soll + "\", Anzeige \"" + zp().koordText + "\"");
+    }));
+    add(tu("T1411 x: Auswahl weg", [] {
+        mtab().auswahl.clear();
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.2));
+    add(tu("T1411 x: ohne Auswahl wieder der Mauspunkt", [st] {
+        float w[3];
+        st->wieder = xyzLesen(zp().koordText, w) && zp().koordText != st->vorher;
+        melde("x wieder: \"" + zp().koordText + "\"");
+    }));
+    // rot (Handbuchbild h_ap1_pruefen aus Bau bau_e10): "Bone rhand Selected" links, in der Mitte der Mauspunkt - als laege dort der Knochen
+    add(tu("T1411 x: einen Knochen waehlen (Bereich Ansehen: keine Mitte)", [] {
+        mtab().knochenWahl = boneIndex(g_app->anim, "rhand");
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.2));
+    add(tu("T1411 x: mit dem Knochen die Felder leer", [st] {
+        float m[3];
+        st->knochenLeer = mtab().knochenWahl >= 0 && !modellAuswahlMitteJetzt(m) && zp().koordText == "X:    Y:    Z:";
+        melde("x Knochen ohne Mitte: \"" + zp().koordText + "\", links \"" + zp().auswahlText + "\"");
+        mtab().knochenWahl = -1;
+    }));
+    add(pruefe("T1411 x: ohne Auswahl nennt die Statuszeile den Mauspunkt auf dem Raster (oben, vorne, links, Perspektive, vier Ansichten) "
+               "auf 0,01 genau (zwei Nachkommastellen)", [st] {
+        char z[120];
+        std::snprintf(z, sizeof z, "x: %d von %d Faellen gelesen, groesste Abweichung %.5f", st->geprueft, st->faelle, static_cast<double>(st->abweichung));
+        melde(z);
+        return st->faelle == 7 && st->geprueft == st->faelle && st->abweichung <= 0.0051F;
+    }));
+    add(pruefe("T1411 x: ausserhalb der Ansichten bleibt der letzte Punkt stehen", [st] { return st->bleibt; }));
+    add(pruefe("T1411 x: mit Auswahl die Mitte der Auswahl wie bisher, danach wieder der Mauspunkt", [st] { return st->auswahl && st->wieder; }));
+    add(pruefe("T1411 x: ein gewaehlter Knochen ohne Mitte (Bereich Ansehen) laesst die Felder leer wie bisher - der Mauspunkt nur ohne Auswahl",
+               [st] { return st->knochenLeer; }));
+    add(tu("T1411 x: zurueck", [] {
+        mtab().vierAnsichten = false;
+        mtab().aktiv = 3;
+        mtab().ansichten[3].art = AnsichtArt::Perspektive;
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.3));
+}
+
 // --- B: der Model-Tab ohne Modell wie mit Modell -------------------------------------------------------------------------------
 // Rot (vor TEST1411 B, Foto 15 von shank): ohne Modell links nur "No model yet..." mit "Show me how", rechts eine leere Flaeche mit "Load a
 // model" - kein Raster, kein ViewCube, keine Kopfzeile der Ansicht, kein Befehlsfeld. Soll (Vorbild die leere Szene in 3ds Max, Foto 21):
@@ -3066,6 +3271,7 @@ std::vector<Schritt> schritte(const char* nur) {
     if (abschnitt("e")) { eSchritte(s); }
     if (abschnitt("a")) { aSchritte(s); }
     if (abschnitt("z")) { zSchritte(s); }   // TEST1411d: die Missionsliste aus dem Zwischenspeicher der Platte
+    if (abschnitt("x")) { xSchritte(s); }   // TEST1411e: der Mauspunkt auf dem Raster in der Statuszeile
     if (abschnitt("s")) { sSchritte(s); }   // TEST1411e: Load mission - waehrend des Lesens springt unter der Maus nichts
     if (abschnitt("b")) { bSchritte(s, modell != nullptr && *modell != '\0' ? modell : "models/players/alora/model.glm"); }
     if (abschnitt("fotos")) { fotoSchritte(s); }

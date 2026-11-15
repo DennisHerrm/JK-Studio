@@ -404,12 +404,7 @@ std::vector<gpu::ModellRaster> rasterFuer(const ModellAnsicht& a, int w, int h) 
     const bool persp = a.art == AnsichtArt::Perspektive;
     // Blender: in der Perspektive und der freien Ansicht (RV3D_VIEW_USER) der Boden auf der Ebene XY, sonst die Ebene der Ansicht
     const bool frei = persp || a.art == AnsichtArt::Orthographisch;
-    int normale = 2;
-    if (a.art == AnsichtArt::Vorne || a.art == AnsichtArt::Hinten) {
-        normale = 1;
-    } else if (a.art == AnsichtArt::Links || a.art == AnsichtArt::Rechts) {
-        normale = 0;
-    }
+    const int normale = modellRasterNormale(a.art);
     const int achseU = normale == 0 ? 1 : 0;   // XY: X und Y, XZ: X und Z, YZ: Y und Z
     const int achseV = normale == 2 ? 1 : 2;
     float hg[3];
@@ -2570,6 +2565,11 @@ void eineAnsicht(int n, ImVec2 groesse, bool neu) {
 
 bool modellAufSchirm(const ModellAnsicht& a, const float p[3], ImVec2& out) { return aufSchirm(a, p, out); }
 bool modellAuswahlMitteJetzt(float m[3]) { return auswahlMitte(m); }   // TEST1411 G
+int modellRasterNormale(AnsichtArt art) {
+    if (art == AnsichtArt::Vorne || art == AnsichtArt::Hinten) { return 1; }
+    if (art == AnsichtArt::Links || art == AnsichtArt::Rechts) { return 0; }
+    return 2;
+}
 bool modellGrenzen(bool nurAuswahl, float mn[3], float mx[3]) { return grenzen(nurAuswahl, mn, mx); }   // MBNAV
 // Modell-Block 1d: fuer das Modellieren (gui/wof/app_modelltab_mesh.cpp)
 bool modellDreieckUnter(const ModellAnsicht& a, ImVec2 maus, int& teil, int& dreieck) { return dreieckUnter(a, maus, teil, dreieck); }

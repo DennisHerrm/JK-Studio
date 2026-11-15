@@ -1024,20 +1024,26 @@ void zeitSchieber(const AnimEntry* e, ImVec2 lo, float breite, float h) {
     mt().zaehlungText = std::to_string(rel) + zeitText;
 }
 
+bool knochenGewaehlt() { return mt().knochenWahl >= 0 && static_cast<std::size_t>(mt().knochenWahl) < g_app->anim.bones.size(); }
+
+// TEST1411e: nichts gewaehlt (links "None Selected") - nur dann nennt die Mitte der Statuszeile den Mauspunkt auf dem Raster; ein gewaehlter
+// Knochen ohne Mitte (ausserhalb des Bereichs Animation) laesst die Felder leer wie bisher
+bool nichtsGewaehlt() {
+    const ModellTab& t = mt();
+    return !knochenGewaehlt() && (t.auswahlArt == AuswahlArt::Objekt || t.eckenWahl.empty()) && t.auswahl.empty();
+}
+
 std::string auswahlUndHinweis() {
     const ModellTab& t = mt();
     std::string a;
-    if (t.bereich == ModellBereich::Animation && t.griffWahl >= 0 && static_cast<std::size_t>(t.griffWahl) < t.rig.griffe.size() && t.knochenWahl >= 0 &&
-        static_cast<std::size_t>(t.knochenWahl) < g_app->anim.bones.size()) {
-        a = format(Str::T1AuswahlKnochen, g_app->anim.bones[static_cast<std::size_t>(t.knochenWahl)].name.c_str());
-    } else if (t.knochenWahl >= 0 && static_cast<std::size_t>(t.knochenWahl) < g_app->anim.bones.size()) {
+    if (nichtsGewaehlt()) {
+        a = tr(Str::T1KeineAuswahl);
+    } else if (knochenGewaehlt()) {   // auch mit dem Griff des Rigs im Bereich Animation: dessen Knochen
         a = format(Str::T1AuswahlKnochen, g_app->anim.bones[static_cast<std::size_t>(t.knochenWahl)].name.c_str());
     } else if (t.auswahlArt != AuswahlArt::Objekt && !t.eckenWahl.empty()) {
         a = format(Str::T1AuswahlEcken, static_cast<int>(t.eckenWahl.size()));
-    } else if (!t.auswahl.empty()) {
-        a = format(Str::T1AuswahlFlaechen, static_cast<int>(t.auswahl.size()));
     } else {
-        a = tr(Str::T1KeineAuswahl);
+        a = format(Str::T1AuswahlFlaechen, static_cast<int>(t.auswahl.size()));
     }
     static const Str kHinweis[4] = {Str::T1HinweisWaehlen, Str::T1HinweisBewegen, Str::T1HinweisDrehen, Str::T1HinweisSkalieren};
     if (modellAnimSetup()) { return a + "\t" + format(Str::T1nStatus, modellAnimModusName(true)); }   // TEST1411 N
@@ -1127,10 +1133,21 @@ void maxStatusZeile(const AnimEntry* e, ImVec2 lo, float breite, const Masse& m)
     g_probe.auswahlText = auswahl + " | " + hinweis;
     float m3[3];
     const bool mitte = modellAuswahlMitteJetzt(m3);
+    // TEST1411e: ohne Auswahl wie 3ds Max der Mauszeiger auf dem Raster der Ansicht darunter; steht die Maus ausserhalb der Ansichten
+    // (ueber der Statuszeile, dem Befehlsfeld), bleibt der letzte Punkt stehen. Etwas gewaehlt ohne Mitte: die Felder bleiben leer.
+    bool punkt = false;
+    if (!mitte && nichtsGewaehlt()) {
+        float p[3];
+        const int lage = modellNavRasterPunkt(ImGui::GetIO().MousePos, p);
+        if (lage > 0) { std::copy(p, p + 3, z.rasterPunkt); }
+        if (lage >= 0) { z.rasterPunktDa = lage > 0; }
+        punkt = z.rasterPunktDa;
+        if (punkt) { std::copy(z.rasterPunkt, z.rasterPunkt + 3, m3); }
+    }
     char koord[160];
     char raster[48];
     std::snprintf(raster, sizeof raster, tr(Str::T1Raster), static_cast<double>(g_app->settings.modellRasterAbstand));
-    if (mitte) {
+    if (mitte || punkt) {
         std::snprintf(koord, sizeof koord, "X: %.2f   Y: %.2f   Z: %.2f", static_cast<double>(m3[0]), static_cast<double>(m3[1]), static_cast<double>(m3[2]));
     } else {
         std::snprintf(koord, sizeof koord, "X:    Y:    Z:");
@@ -1151,9 +1168,10 @@ void maxStatusZeile(const AnimEntry* e, ImVec2 lo, float breite, const Masse& m)
     ImGui::SetCursorScreenPos(ImVec2{lo.x, lo.y + 1.0F});
     ImGui::InvisibleButton("##mzauswahl", ImVec2{std::max(textFrei, 1.0F), m.status - 1.0F});
     tooltip(ganz.c_str());
+    g_probe.koordText = mitteDa ? koord : "";
     if (mitteDa) {
         const float xm = linksEnde - mitteB;
-        zifferText(dl, ImVec2{xm, ty}, ImGui::GetColorU32(mitte ? ImGuiCol_Text : ImGuiCol_TextDisabled), koord);
+        zifferText(dl, ImVec2{xm, ty}, ImGui::GetColorU32(mitte || punkt ? ImGuiCol_Text : ImGuiCol_TextDisabled), koord);
         dl->AddText(ImVec2{xm + koordB + weit, ty}, ImGui::GetColorU32(ImGuiCol_TextDisabled), raster);
     }
 }

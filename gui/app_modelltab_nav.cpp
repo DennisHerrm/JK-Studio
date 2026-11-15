@@ -1150,6 +1150,36 @@ void modellNavBlVier() {
 }
 
 // Die Reihenfolge der vier Ansichten im Bild (links oben, rechts oben, links unten, rechts unten).
+// TEST1411e: der Sehstrahl wie flaechenPunkt (in der Perspektive vom Ort der Kamera, sonst senkrecht zur Ansicht) gegen die Ebene des
+// Bodenrasters der Ansicht - durch den Boden (an.bodenZ) bzw. den Ursprung, wie rasterFuer sie zeichnet.
+int modellNavRasterPunkt(ImVec2 maus, float out[3]) {
+    const ModellTab& t = mt();
+    for (int n = 0; n < 4; ++n) {
+        const ModellAnsicht& a = t.ansichten[n];
+        if (!mausIn(a, maus)) { continue; }
+        const Sicht s = sichtVon(n);
+        V3 f;
+        V3 r;
+        V3 u;
+        achsenVon(s, f, r, u);
+        const V3 ziel = unterMaus(s, a, maus);
+        const bool persp = s.art == AnsichtArt::Perspektive;
+        const V3 start = persp ? v3(s.p) - f * (s.halb / tanHalb()) : ziel;
+        const V3 richtung = persp ? norm(ziel - start) : f;
+        const int k = modellRasterNormale(a.art);
+        const float ebene = k == 2 ? t.an.bodenZ : 0.0F;
+        const float von[3] = {start.x, start.y, start.z};
+        const float hin[3] = {richtung.x, richtung.y, richtung.z};
+        if (std::fabs(hin[k]) < 1e-6F) { return 0; }
+        const float l = (ebene - von[k]) / hin[k];
+        if (persp && l <= 0.0F) { return 0; }   // ueber dem Horizont: die Ebene liegt hinter der Kamera
+        for (int i = 0; i < 3; ++i) { out[i] = von[i] + hin[i] * l; }
+        out[k] = ebene;
+        return 1;
+    }
+    return -1;
+}
+
 int modellNavVierPlatz(int platz) {
     static const int kBlender[4] = {0, 3, 1, 2};
     return modellBlender() ? kBlender[std::clamp(platz, 0, 3)] : std::clamp(platz, 0, 3);

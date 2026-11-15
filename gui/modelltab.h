@@ -888,6 +888,9 @@ void modellRigZiehen(int gizmoArt, const float wert[3]);   // Gizmo: 1 verschieb
 bool modellAnimKnochenKlick(const ModellAnsicht& a, ImVec2 maus);
 // TEST1411 G: die Mitte der Auswahl (Flaechen, Ecken, Griff, Knochen) fuer die Koordinaten der Statuszeile; false: nichts gewaehlt
 [[nodiscard]] bool modellAuswahlMitteJetzt(float m[3]);
+// TEST1411e: die Weltachse senkrecht zur Rasterebene einer Ansicht (0 X, 1 Y, 2 Z): Z in der Perspektive, der freien Orthoansicht und
+// oben/unten, Y vorne/hinten, X links/rechts - die Ebene des Bodenrasters (rasterFuer) und des Mauspunkts der Statuszeile
+[[nodiscard]] int modellRasterNormale(AnsichtArt art);
 [[nodiscard]] bool modellAnimKnochenDirekt();
 [[nodiscard]] bool modellAnimKnochenMitte(float m[3]);
 [[nodiscard]] int modellRigGriffUnter(const ModellAnsicht& a, ImVec2 maus);
@@ -1159,6 +1162,9 @@ void modellNavBlAchse(AnsichtArt art);
 bool modellNavBlEinpassen(bool nurAuswahl, bool mitUrsprung);
 void modellNavBlVier();
 [[nodiscard]] int modellNavVierPlatz(int platz);                // welche Ansicht an welchem Platz der Vierer-Ansicht steht
+// TEST1411e: der Punkt unter der Maus auf der Rasterebene der Ansicht darunter (3ds Max: ohne Auswahl zeigt die Koordinatenanzeige den
+// Mauszeiger auf dem Raster). 1: getroffen (out), 0: in einer Ansicht, aber der Sehstrahl verfehlt die Ebene, -1: in keiner Ansicht
+[[nodiscard]] int modellNavRasterPunkt(ImVec2 maus, float out[3]);
 void modellNavMenue(int n);
 bool modellNavAktionenSuche(const std::string& such);
 void drawModellNavPopups();
@@ -1329,6 +1335,7 @@ struct ModellZeitProbe {
     float hinweis[4]{};       // die Zeile unter der Leiste (Hoehe 0: keine)
     float bildfeld[4]{};      // das Bildfeld der Statuszeile
     std::string auswahlText;  // links in der Statuszeile: Auswahl und Hinweis
+    std::string koordText;    // TEST1411e: X/Y/Z in der Mitte der Statuszeile (leer: nicht gezeichnet)
 };
 struct ModellZeit {
     // Auto Key (Max: N) / Auto-Keying (Blender): an = jeder Zug an einem Griff setzt einen Schluessel. ENTSCHEID1: ab Werk aus wie
@@ -1356,6 +1363,8 @@ struct ModellZeit {
     bool schieberZieht = false;   // TEST1411 G: der Zeitschieber wird gezogen
     float schieberVersatz = 0.0F; // ... Abstand der Maus vom linken Rand des Griffs
     bool miniKurve = false;       // TEST1411 G/I: wie 3ds Max "Mini Curve Editor" - Dope Sheet/Kurveneditor ueber der Spurleiste (ab Werk zu)
+    float rasterPunkt[3]{};       // TEST1411e: der letzte Mauspunkt auf dem Raster (Statuszeile ohne Auswahl)
+    bool rasterPunktDa = false;
     int letzterModus = -1;        // Bedienmodus im letzten Bild (Spurbereich je Modus)
     bool einstellungenGelesen = false;
     float breite = 0.0F;       // Breite der Leiste im letzten Bild (Umbruch der Knopfreihe)
