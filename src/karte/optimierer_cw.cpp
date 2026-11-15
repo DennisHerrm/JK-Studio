@@ -1282,6 +1282,9 @@ private:
                     const V e = f.punkte[(i + 1) % f.punkte.size()] - a;
                     const double lh = std::sqrt(e[0] * e[0] + e[1] * e[1]);
                     if (lh < 1) { continue; }
+                    // CW-IMPORT: die Oberkante einer Stufe liegt waagerecht - eine steigende Kante (die Seite einer Rampe, auch der Clip-Rampe
+                    // von "Treppe zu Clip-Rampe") ist keine Stufenkante, auch wenn der Boden daneben irgendwo 18 bis 31,6 tiefer liegt
+                    if (std::fabs(e[2]) > 1.0) { continue; }
                     V senk(-e[1] / lh, e[0] / lh, 0);
                     if (punkt(senk, (a + e * 0.5) - mitte) < 0) { senk = senk * -1.0; }
                     const int zahlProben = std::max(1, static_cast<int>(lh / 16.0));

@@ -214,13 +214,20 @@ void testeRampe() {
         pruefe(ebene >= 0 && e.rampe && e.rampe->schicht == ebene && k.schichten[static_cast<std::size_t>(ebene)].name == "Collision",
                "die Rampe liegt in der Ebene Collision");
         pruefe(sichtKollision(k) == 0, "feste Stufen nach dem Werkzeug: Sicht gegen Kollision meldet nichts");
-        {   // zur Auskunft: alle Clone-Wars-Befunde nach dem Werkzeug
+        {   // CW-IMPORT/CW-PRUEF: stufehoch meldete die steigende Seitenkante der Rampe (seitlich liegt der Boden irgendwo 18 bis 31,6
+            // tiefer) - die Oberkante einer Stufe liegt waagerecht (Entscheidung Hauptchat 14.11.: Fehlmeldung beheben)
             PruefOptionen o;
             o.spiel = GrenzSpiel::JkaSp;
             o.clonewars = true;
+            std::string text;
+            long long stufen = 0;
             for (const Befund& b : pruefeKarte(kartenAbbild(k), o)) {
-                std::printf("      nach dem Werkzeug: %s %lld %s\n", b.pruefung.c_str(), b.anzahl, b.objekte.empty() ? "" : b.objekte[0].text.c_str());
+                if (b.pruefung == "stufehoch") {
+                    stufen += b.anzahl;
+                    text = b.objekte.empty() ? std::string() : b.objekte[0].text;
+                }
             }
+            pruefe(stufen == 0, "stufehoch: die Seitenkante der Clip-Rampe ist keine Stufe (" + text + ")");
         }
         (void)k.undo.undo();
         const std::string zurueck = karteSchreiben(k);
