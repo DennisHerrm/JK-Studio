@@ -543,10 +543,18 @@ std::vector<Schritt> handbuchBilder() {
     std::vector<Schritt> s;
     auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
     const auto voll = [] { return ImRect{0.0F, 0.0F, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y}; };
-    const auto kameraSetzen = [] {
+    const auto kameraSetzen = [] {   // nah an Figur und Treppe (die Treppe x 0 ... 192, die Figur davor)
         ke::Editor& e = ke::editor();
-        e.kamera.ursprung = karte::Vektor3f(-200.0F, -260.0F, 140.0F);
-        e.kamera.winkel = karte::Vektor3f(-17.0F, 46.0F, 0.0F);
+        e.kamera.ursprung = karte::Vektor3f(-190.0F, -130.0F, 84.0F);
+        e.kamera.winkel = karte::Vektor3f(-11.0F, 33.0F, 0.0F);
+    };
+    // die Maus aus allen Tooltips (leere Flaeche des Texturbrowsers), die 2D-Ansichten auf die Treppe und zwei Stufen naeher
+    const auto bildRuhig = [] {
+        stufenWaehlenCw();
+        (void)ke::ausfuehren("XYFocusOnSelected");
+        (void)ke::ausfuehren("ZoomIn");
+        (void)ke::ausfuehren("ZoomIn");
+        setzeMaus(ImVec2{ImGui::GetIO().DisplaySize.x * 0.25F, ImGui::GetIO().DisplaySize.y - 6.0F});   // Statuszeile links: kein Tooltip
     };
     for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
     add(tu("Handbuch CW-IMPORT: Raum mit Treppe, Kamera, Testfigur vor der Treppe", [kameraSetzen] {
@@ -563,7 +571,11 @@ std::vector<Schritt> handbuchBilder() {
         ++ke::editor().sichtStand;
     }));
     add(warteBis("Handbuch CW-IMPORT: Texturen und Spielermodell geladen", [] { return ke::kameraBilderFertig() && ke::editor().testfigur.modellDreiecke > 0; }, 6000));
-    add(pause(0.5));
+    add(tu("Handbuch CW-IMPORT: Ansichten auf die Treppe, Auswahl weg", [bildRuhig] {
+        bildRuhig();
+        ke::editor().karte.auswahl.leeren();
+    }));
+    add(pause(0.6));
     add(hb::fotoTeil("h_cwimport_figur", voll));
     add(tu("Handbuch CW-IMPORT: Import-Dialog mit Vorlage Battlefield 3, Hoehe = Testfigur", [] {
         stufe2::testDateiSchreiben(karteTestPfad("cw_quader.obj"), quaderObj());
@@ -571,6 +583,7 @@ std::vector<Schritt> handbuchBilder() {
         z.vorlage = static_cast<int>(karte::AchsVorlage::Battlefield3);
         z.skala = 3.2F;
         (void)ke::geoImportLaden(karteTestPfad("cw_quader.obj"));
+        setzeMaus(ImVec2{ImGui::GetIO().DisplaySize.x * 0.25F, ImGui::GetIO().DisplaySize.y - 6.0F});   // Statuszeile links: kein Tooltip
     }));
     add(pause(0.8));
     add(hb::fotoTeil("h_cwimport_import", voll));
@@ -583,7 +596,11 @@ std::vector<Schritt> handbuchBilder() {
         (void)ke::cwTreppeZuRampe();
         ke::TestfigurZustand& t = ke::editor().testfigur;
         t.ursprung = karte::Vektor3f(24.0F, 0.0F, 24.0F + 48.0F * 2.0F / 3.0F);
-        ++ke::editor().sichtStand;
+        ke::Editor& e = ke::editor();
+        e.kamera.ursprung = karte::Vektor3f(-150.0F, -150.0F, 110.0F);
+        e.kamera.winkel = karte::Vektor3f(-18.0F, 38.0F, 0.0F);
+        setzeMaus(ImVec2{ImGui::GetIO().DisplaySize.x * 0.25F, ImGui::GetIO().DisplaySize.y - 6.0F});   // Statuszeile links: kein Tooltip
+        ++e.sichtStand;
     }));
     add(pause(0.8));
     add(hb::fotoTeil("h_cwimport_rampe", voll));
