@@ -3513,7 +3513,6 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     // assets0.pk3 der eingerichteten Spielordner (vorher md_am_sith ohne
     // Archiv: die Mission entstand auf der falschen Karte, die Raven's Claw
     // fehlte, das Animationsfenster blieb zu).
-    const std::string archiv = std::getenv("BHED_MISSION_ARCHIV") ? std::getenv("BHED_MISSION_ARCHIV") : "";
     const std::string name = std::getenv("BHED_MISSION_NAME") ? std::getenv("BHED_MISSION_NAME") : "taspir1";
     const auto voll = [] { return ImRect{0.0F, 0.0F, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y}; };
     const auto kartePlusLeiste = [] {
@@ -3673,15 +3672,11 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     add(tu("Handbuch: Spielordner", [] { g_app->pathsOpen = true; }));
     add(pause(0.5));
     add(hb::fotoTeil("h_spielordner", [] { return hb::fensterRect(tr(Str::PathsTitle)); }));
-    // Die Missionen des Grundspiels in assets0.pk3 - nur das Bild der Auswahl.
-    add(tu("Handbuch: Spielordner zu, Missionen der pk3", [=] {
+    // Die Auswahl, wie "Load mission" sie oeffnet (TEST1411 A): die Missionen des Spiels nach dem Archiv ihrer Karte gruppiert, ohne
+    // gewaehltes Archiv - nur das Bild der Auswahl (bis TEST1411d der alte Weg ueber assets0.pk3 mit dem Abschnitt "In assets0.pk3").
+    add(tu("Handbuch: Spielordner zu, Load mission", [] {
         g_app->pathsOpen = false;
-        std::string a = archiv;
-        for (const std::string& o : g_app->settings.gamePaths) {
-            std::error_code ec;
-            if (a.empty() && std::filesystem::is_regular_file(::bhed::utf8Pfad(o + "\\assets0.pk3"), ec)) { a = o + "\\assets0.pk3"; }
-        }
-        missionenAusArchiv(a);
+        loadMissionArchive();
     }));
     add(pause(0.6));
     // rc603: die weiteren Missionen des Spiels liest "Load mission" im
@@ -3722,7 +3717,14 @@ std::vector<Schritt> handbuchSchritteInhalt() {
              return b > 400;
          }});
     add(pause(0.4));
-    add(hb::fotoTeil("h_mission_wahl", [] { return hb::fensterRect("##missionpick"); }));
+    // TEST1411d: mindestens 1920 breit (Regel Handbuchbilder, bis dahin 1084) - die Auswahl in ihrer Groesse, links und rechts das Programm
+    add(hb::fotoTeil("h_mission_wahl", [] {
+        ImRect r = hb::fensterRect("##missionpick");
+        const float fehlt = std::max(0.0F, 1920.0F - r.GetWidth());
+        r.Min.x -= std::floor(fehlt * 0.5F);
+        r.Max.x += std::ceil(fehlt * 0.5F);
+        return r;
+    }));
     add(tu("Handbuch: Auswahl zu", [] {
         g_app->missionPickOpen = false;
         g_app->missionsFilter[0] = 0;
@@ -3794,7 +3796,17 @@ std::vector<Schritt> handbuchSchritteInhalt() {
         const auto nur = [](ImRect r) { return std::vector<hb::Marke>{hb::Marke(r)}; };
         markiere("h_start", [=] { return nur(knopf(tr(Str::StartCardNew))); });
         markiere("h_spielordner", [=] { return nur(knopf(tr(Str::Pk3AddPath), tr(Str::PathsTitle))); });
-        markiere("h_mission_wahl", [=] { return nur(knopf("taspir1", "##missionpick")); });
+        // TEST1411d: die ganze Zeile (Knopf, Zahl der Skripte, geteilte Karte) bis an den Rand der Liste - der Pfeil steht daneben und
+        // verdeckt die Zahl nicht mehr
+        markiere("h_mission_wahl", [=] {
+            ImRect r = knopf("taspir1", "##missionpick");
+            for (ImGuiWindow* w : GImGui->Windows) {
+                if (std::strstr(w->Name, "##missionpick") != nullptr && std::strstr(w->Name, "##missionliste") != nullptr && r.GetWidth() > 1.0F) {
+                    r.Max.x = std::max(r.Max.x, w->InnerRect.Max.x - ImGui::GetStyle().WindowPadding.x);
+                }
+            }
+            return nur(r);
+        });
         markiere("h_mission_neu", [=] { return nur(knopf(tr(Str::MissionCreate), "##neuemission")); });
         markiere("t4_1", [=] { return nur(knopf(tr(Str::MissionCreate), "##neuemission")); });
         markiere("t4_2", [=] {

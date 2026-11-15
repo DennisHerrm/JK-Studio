@@ -71,17 +71,42 @@ Entscheidungen TEST1411c:
   Ansicht nur die Navigation; der Ladehinweis steht in der aktiven Ansicht. UV-Editor und 2D-Bild stehen als leerer Rahmen an ihrem Platz.
 - Quad-Menue: die linken Viertel klappen nach links, die rechten nach rechts aus (wie 3ds Max); am Fensterrand rueckt das ganze Menue nach innen.
 
+## TEST1411d (Reste, 15.11.2026)
+
+Laeufe `Y:\p_ap6\build\laeufe\t1411d_*`, Skripte `Y:\werkzeuge\test1411\d\` (`hb.sh` mit den Daten des Modell-Blocks wie `tools/testrunde.py`
+und nur den Bildern der Gruppe).
+
+| Gruppe | Befund | Art | Rot -> Gruen |
+|---|---|---|---|
+| mb5 Dopesheet | "Dope sheet" ueber Animation > Animationswerkzeuge > Editoren (und die Suche) oeffnete im Modus 3ds Max nichts | Programmfehler (G): `editorOeffnen` setzte nur `kvOffen`, die Zeitleiste stellt es dort in jedem Bild auf den Stand des Mini Curve Editors zurueck | Menue und Suche gehen ueber `modellZeitMiniKurve` wie Knopf und Quad-Menue; t1411d_hb_mb5_en 146/17 -> 167/0 |
+| mb5 Quad-Menue | nach Quad > Dope Sheet nahm der naechste Klick (Knopf Mini Curve Editor) nur das Schliessen des Quad-Menues | Programmfehler (J): Eintraege der Viertel (Kindfenster) schliessen das Popup nicht - ImGui-Selectable schliesst nur das Popup-Fenster, in dem es steht | neue Pruefung "der gewaehlte Eintrag schliesst das Quad-Menue" rot (151/16) -> gruen |
+| mb5 Alt+D | Regler "Zum Nachbarn mischen" ging nicht auf | Testfehler: nach "Cancel" stand die Maus auf dem Knopf des Reglers (117/1303, ueber dem Editor 0), die Tasten des Graph Editors gelten wie in Blender nur ueber dem Editor | Maus wie vor Alt+S zurueck ueber den Editor -> gruen |
+| mb5 Tasten | BHED_MB_BELEGE nicht gesetzt | Umgebung (Testkatalog) | mit der Variable gruen |
+| ph | "PH Mission: kein Flug" | Umgebung: ohne BHED_MB7_BSP baut MB7 die Szene auf md_am_sith statt auf der Testkarte mb7raum | mit den Variablen 15/0 |
+| rt | Gruppe nicht gelaufen | Umgebung: BHED_RT_GLA | mit der Variable 2/0 |
+
+Dazu: der mb5-Test prueft jetzt alle drei Wege zum Dope Sheet/Kurveneditor (Menue, Knopf des Mini Curve Editors zu/auf, Quad-Menue Curve
+Editor/Dope Sheet). Handbuchbild `h_mission_wahl` aus "Load mission" (Gruppe statt "In assets0.pk3"), 1920 statt 1084 breit, die Marke umfasst
+die ganze Zeile (der Pfeil verdeckte die Zahl der Skripte). Anleitung "Eine Zwischensequenz des Spiels aendern" (inhalt_kurz2/inhalt_schritte2)
+an den neuen Weg. Hinweis von gen_handbuch "2 Eintraege ... nicht mehr gebraucht": "mouse wheel" (es, cs) aus inhalt_mbnav (`X["rad"]` steht nur
+per Index in `_taste`) - nicht mehr in der Tabelle, das erzeugte Handbuch byte-gleich. h_ent3a_stapel zeigte in allen Sprachen den Tooltip
+"Filter: Tags" (die Maus wurde im selben Schritt gesetzt, in dem Bereich und Stapel wechselten) - Schritt geteilt, Bild ohne Tooltip.
+
+Rest aus Punkt 5 (A), erledigt: die Missionsliste bleibt auf der Platte (`missionsverweise.txt` im Einstellungsordner, Format und Pruefung
+in `src/mission.cpp` `missionsVerweiseText`/`missionsVerweiseLesen`, ctest mission), Karten veraenderter oder fehlender Archive fallen beim
+Sichern heraus; die Auswahl zeigt gelesene Karten schon waehrend der Hintergrundsuche (`MissionsSuche::istFertig`, Freigabe-Semantik).
+Selbsttest `BHED_T1411=z` (t1411d_z1, 5/0): Liste aus der Datei == frisch gelesen (282 Karten Movie Duels), MD_Assets.pk3 mit anderer Zeit ->
+genau ihre 5 Karten neu gelesen, alte Zeit aus der Datei; waehrend des Lesens bis 281 Karten in 24 Gruppen. Messung
+(`Y:\werkzeuge\test1411\messung_missionsliste.txt`): kalt 2956 ms bis zur vollen Liste, aus der Datei 11.9 ms (Platten-Cache warm, daneben
+ein Bildlauf - Richtwerte). missionsliste: zwei Wartezeilen ("t1_sour/md_am_sith in der Auswahl") warten jetzt auch auf das Ende der Suche -
+Testfehler durch das gewollte neue Verhalten (rot 10/3, gruen 13/0). app_view3d.cpp braucht /bigobj (C1128, wie selbsttest.cpp).
+
 ## Offen
 
-- Handbuch: Texte zu A-P in 6 Sprachen (inhalt_test1411.py, inhalt_ap1 "aufbau", inhalt_ap2 "baum", inhalt_mission), `gen_handbuch.py --pruefen` gruen.
-  Bilder des Model-Tabs in 6 Sprachen neu (ap1-ap5, ap7-ap10, ap13k, ai, ent3b, mb1a1, mb1a2, mb2-mb4, mb6, mb7, mbkopf, mbnav, mbraster, md, pt, uv,
-  Tour k-modell/m_*, h_modell, h_mission_wahl). Alt geblieben: h_mb5_* (Handbuch-Gruppe mb5 145/19: das Dopesheet-Fenster geht seit G anders auf,
-  dazu fehlt BHED_MB_BELEGE - nicht geklaert), h_ph_* (Gruppe ph 14/2 "PH Mission: kein Flug" - nicht geklaert), h_rt_* (BHED_RT_GLA nicht gesetzt),
-  h_ap6/ap11/ap12/ap13s/ent3a (Modell-Block-Gruppen ...hb, nicht gelaufen). Die Anleitungen in inhalt_kurz2/inhalt_schritte2 ("Load mission,
-  assets0.pk3 waehlen") gehen ueber "Archiv oeffnen..." weiter - Wortlaut nicht angepasst.
+- Handbuch: Texte zu A-P in 6 Sprachen, `gen_handbuch.py --pruefen` gruen. Alle Bilder des Model-Tabs der Gruppen von TEST1411 in 6 Sprachen neu,
+  mit TEST1411d auch h_mb5_*, h_ph_*, h_rt_*/h_pr_gang, h_ap6/ap11/ap12/ap13s/ent3a und h_mission_wahl.
 - Handbuch-Gruppe mb3: zwei Pruefungen an I/N angepasst (Silhouette ohne Knochen, 3/8 Tasten).
 - F: eigener Selbsttest der Vorschau-Zeitleiste; G: Mauspunkt auf dem Raster als X/Y/Z.
-- A: Zwischenspeicher `missionsVerweise` auf der Platte und Gruppen schon waehrend des Lesens (empfohlen).
 - P: Knochenpaare von Hand aendern (Max hat das auch nicht als Liste).
 
 ## Changelog
@@ -106,6 +131,8 @@ Entscheidungen TEST1411c:
 - Model tab without a model: the same layout as with one - scene explorer with tabs, search and filters, views with grid, ViewCube and header, the command panel with its tabs and greyed-out groups; NPC browser and Open .glm in the middle of the view.
 - Quad menu: submenus open outwards (left quadrants to the left, right ones to the right) and the menu stays inside the window.
 - Sequences tab: a row can be dragged onto a slot of the map GLA again; Painting: Show image and Bake to new UVs stand side by side again, the picker below.
+- Model tab, 3ds Max mode: Dope sheet and Curve editor from the Animation menu and the action search open the mini curve editor again; choosing an entry of the quad menu closes it, as in 3ds Max.
+- Load mission: the mission list is kept on disk - from the second time on it is there at once, also after a restart; a changed archive is read again. While reading, finished maps already stand in their groups.
 
 ## Deutsch
 
@@ -127,6 +154,8 @@ Entscheidungen TEST1411c:
 - Model-Tab ohne Modell: dieselbe Anordnung wie mit Modell - Szenen-Explorer mit Reitern, Suche und Filtern, Ansichten mit Raster, ViewCube und Kopfzeile, das Befehlsfeld mit seinen Reitern und ausgegrauten Gruppen; NPC-Browser und .glm öffnen mitten in der Ansicht.
 - Quad-Menü: Untermenüs gehen nach außen auf (linke Viertel nach links, rechte nach rechts), und das Menü bleibt im Fenster.
 - Reiter Sequenzen: eine Zeile lässt sich wieder auf einen Platz der Karten-GLA ziehen; Painting: Bild zeigen und Auf neue UVs backen stehen wieder nebeneinander, die Pipette darunter.
+- Model-Tab, Modus 3ds Max: Dope Sheet und Kurveneditor aus dem Menü Animation und der Aktionssuche öffnen den Mini Curve Editor wieder; ein gewählter Eintrag des Quad-Menüs schließt es wie in 3ds Max.
+- Mission laden: die Missionsliste bleibt auf der Platte gespeichert - ab dem zweiten Mal steht sie sofort da, auch nach einem Neustart; ein verändertes Archiv wird neu gelesen. Während des Lesens stehen fertige Karten schon in ihren Gruppen.
 
 ## 中文
 
@@ -148,6 +177,8 @@ Entscheidungen TEST1411c:
 - 未加载模型的模型标签: 布局与加载后相同 - 带选项卡、搜索和筛选的场景资源管理器, 带网格、ViewCube 和标题栏的视图, 带选项卡和灰显组的命令面板; 视图中央有 NPC 浏览器和打开 .glm。
 - 四元菜单: 子菜单向外展开 (左侧象限向左, 右侧向右), 菜单保持在窗口内。
 - 序列选项卡: 行又可以拖到地图 GLA 的槽位上; 绘制: 显示图像和烘焙到新 UV 又并排显示, 吸管在下方。
+- 模型标签, 3ds Max 模式: 从动画菜单和操作搜索打开摄影表和曲线编辑器时又会打开迷你曲线编辑器; 选择四元菜单中的条目后菜单关闭, 与 3ds Max 相同。
+- 加载任务: 任务列表保存在磁盘上 - 从第二次起立即显示, 重启后也是如此; 已更改的存档会重新读取。读取过程中, 已读完的地图已显示在各自的组中。
 
 ## 日本語
 
@@ -169,6 +200,8 @@ Entscheidungen TEST1411c:
 - モデルなしのモデルタブ: 読み込み後と同じ配置 - タブ・検索・フィルター付きのシーン エクスプローラ、グリッド・ViewCube・ヘッダー付きのビュー、タブとグレー表示のグループを持つコマンド パネル。ビュー中央に NPC ブラウザーと .glm を開く。
 - クアッド メニュー: サブメニューは外側に開き (左の区画は左へ、右は右へ)、メニューはウィンドウ内に収まります。
 - シーケンス タブ: 行を再びマップ GLA のスロットへドラッグできます。ペイント: 画像を表示と新しい UV にベイクが再び並び、スポイトはその下。
+- モデルタブ、3ds Max モード: アニメーションメニューとアクション検索のドープシートとカーブエディタで、再びミニカーブエディタが開きます。クアッドメニューの項目を選ぶと、3ds Max と同じくメニューが閉じます。
+- ミッションの読み込み: ミッション一覧をディスクに保存します。2 回目からは再起動後でもすぐに表示され、変更されたアーカイブは読み直します。読み込み中も、読み終えたマップはすでにグループに表示されます。
 
 ## Español
 
@@ -190,6 +223,8 @@ Entscheidungen TEST1411c:
 - Pestaña Modelo sin modelo: la misma disposición que con uno - explorador de escena con pestañas, búsqueda y filtros, vistas con cuadrícula, ViewCube y cabecera, el panel de comandos con sus pestañas y grupos en gris; Navegador de NPC y Abrir .glm en el centro de la vista.
 - Menú cuádruple: los submenús se abren hacia fuera (los cuadrantes izquierdos a la izquierda, los derechos a la derecha) y el menú queda dentro de la ventana.
 - Pestaña Secuencias: una fila se puede volver a arrastrar a una ranura de la GLA del mapa; Pintura: Mostrar imagen y Hornear en UV nuevas vuelven a estar juntos, el cuentagotas debajo.
+- Pestaña Modelo, modo 3ds Max: Hoja de claves y Editor de curvas desde el menú Animación y la búsqueda de acciones vuelven a abrir el mini editor de curvas; elegir una entrada del menú cuádruple lo cierra, como en 3ds Max.
+- Cargar misión: la lista de misiones se guarda en disco; desde la segunda vez aparece al momento, también tras reiniciar; un archivo modificado se vuelve a leer. Mientras se lee, los mapas terminados ya aparecen en sus grupos.
 
 ## Čeština
 
@@ -211,3 +246,5 @@ Entscheidungen TEST1411c:
 - Karta Model bez modelu: stejné uspořádání jako s modelem - průzkumník scény s kartami, hledáním a filtry, pohledy s mřížkou, ViewCube a záhlavím, příkazový panel s kartami a zašedlými skupinami; prohlížeč NPC a Otevřít .glm uprostřed pohledu.
 - Čtyřdílné menu: podmenu se otevírají směrem ven (levé kvadranty doleva, pravé doprava) a menu zůstává v okně.
 - Karta Sekvence: řádek lze opět přetáhnout na slot GLA mapy; Malování: Zobrazit obrázek a Zapéct do nových UV stojí opět vedle sebe, kapátko pod nimi.
+- Karta Model, režim 3ds Max: Dope Sheet a Editor křivek z nabídky Animace a z hledání akcí znovu otevřou mini editor křivek; zvolená položka čtyřdílné nabídky ji zavře jako v 3ds Max.
+- Načíst misi: seznam misí se ukládá na disk - od druhého otevření je hned k dispozici, i po restartu; změněný archiv se načte znovu. Během čtení se hotové mapy už zobrazují ve svých skupinách.

@@ -175,8 +175,8 @@ MISSION2 = [
         T("Open a mission of Jedi Academy, change a camera shot of its intro, and pack it as your own version."),
         T("Missions · five steps"), "h_mission_wahl",
         [
-            (T("**Open it.** **{{MenuFile}} → {{LoadMission}}**, choose `assets0.pk3` in the game's `base` folder and pick a map, for example `taspir1`. The map and all its scripts open in tabs."),
-             "h_mission_wahl", T("The missions of an archive.")),
+            (T("**Open it.** **{{MenuFile}} → {{LoadMission}}** lists the missions of the game at once, grouped by archive - pick a map, for example `taspir1` in the group `assets0.pk3` (the filter field finds it). The map and all its scripts open in tabs. **{{T1aArchivOeffnen}}** is only for a single downloaded .pk3."),
+             "h_mission_wahl", T("The missions of the game, grouped by archive.")),
             T("**Find the scene.** In the **{{ViewMap}}** tab, **Scripts (N)** lists the scripts the map uses - pick the intro. The timeline shows its camera."),
             T("**Change a shot.** Select a shot in the **{{CamShots}}** list, fly to a better view and press **{{CamSetToView}}** - or change a time in the timeline."),
             T("**Pack it.** **{{MissionSave}}** writes the changed scripts with the map into `zz_<map>.pk3`. Archives load in alphabetical order, so `zz_` wins over the game's own files."),

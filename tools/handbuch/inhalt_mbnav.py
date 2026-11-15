@@ -286,9 +286,11 @@ def _tabellen_es_cs(i):
     return {_taste(v, 0): _taste(v, i) for v, _ in _MAX + _BLENDER}
 
 
-ES = {t[0]: t[4] for t in X.values()}
+# "rad" setzt _taste in die Tastenzeilen je Sprache selbst ein - als Eintrag der Tabelle sucht ihn keine Seite (TEST1411d:
+# Hinweis "2 Eintraege in uebersetzung/ werden nicht mehr gebraucht" von gen_handbuch, es und cs)
+ES = {t[0]: t[4] for k, t in X.items() if k != "rad"}
 ES.update(_tabellen_es_cs(4))
-CS = {t[0]: t[5] for t in X.values()}
+CS = {t[0]: t[5] for k, t in X.items() if k != "rad"}
 CS.update(_tabellen_es_cs(5))
 
 

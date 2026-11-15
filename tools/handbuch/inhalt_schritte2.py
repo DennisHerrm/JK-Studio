@@ -390,8 +390,8 @@ SCHRITTE = {
           "m_details", "Bones and Textures in the toolbar."),
     ],
     "k-szene-aendern": [
-        S("**Open it.** **{{MenuFile}} → {{LoadMission}}**, choose `assets0.pk3` in the game's `base` folder and pick a map, for example `taspir1`. The map and all its scripts open in tabs.",
-          "h_mission_wahl", "The missions of an archive."),
+        S("**Open it.** **{{MenuFile}} → {{LoadMission}}** lists the missions of the game at once, grouped by archive - pick a map, for example `taspir1` in the group `assets0.pk3` (the filter field finds it). The map and all its scripts open in tabs. **{{T1aArchivOeffnen}}** is only for a single downloaded .pk3.",
+          "h_mission_wahl", "The missions of the game, grouped by archive."),
         S("**Find the scene.** In the **{{ViewMap}}** tab, **Scripts (N)** on the map toolbar lists the scripts the map uses - pick the intro. The timeline shows its camera.",
           "e_skripte", "The scripts of the map."),
         S("**Change a shot.** Select a shot in **{{CamShots}}**, fly to a better view and press **{{CamSetToView}}** - or change a time in the timeline.",

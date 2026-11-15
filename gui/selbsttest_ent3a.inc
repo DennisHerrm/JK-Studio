@@ -940,7 +940,13 @@ void fotoSchritte(std::vector<Schritt>& s, bool handbuch) {
         g_app->animFrame += 10;
         g_app->animPlaying = false;
         if (!modellEnt3aSkinAus()) { modellEnt3aSkinSchalten(); }
-        setzeMaus(ap13s::imRoll(tr(Str::EaSkinAn)) != nullptr ? ap13s::imRoll(tr(Str::EaSkinAn))->rect.GetCenter() : kv5::fokusPunkt());
+    }));
+    add(pause(0.6));
+    // TEST1411d: die Maus erst im neuen Bild auf die Zeile "Skin" - im selben Schritt lag sie an der alten Stelle der Zeile, ueber dem Filter
+    // des Szenen-Explorers (Tooltip "Filter: Tags" im Bild, alle Sprachen)
+    add(tu("ENT3A Foto: Maus auf die Zeile Skin", [] {
+        const Element* e = ap13s::imRoll(tr(Str::EaSkinAn));
+        setzeMaus(e != nullptr ? e->rect.GetCenter() : kv5::fokusPunkt());
     }));
     add(pause(1.4));
     add(foto(p + "stapel"));
