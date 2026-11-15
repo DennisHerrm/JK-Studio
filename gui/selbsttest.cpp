@@ -6543,7 +6543,8 @@ void selbsttest() {
         if (a.bild >= kVorlauf + 5) {
             a.teil = 1;
             if (nurZeitleiste) {
-                a.schritte = zeitleisteSchritte();
+                a.schritte = zeitleisteStillSchritte();   // TEST1411e: die Knoepfe stehen still
+                for (Schritt& x : zeitleisteSchritte()) { a.schritte.push_back(std::move(x)); }
                 for (Schritt& x : tonSchritte()) { a.schritte.push_back(std::move(x)); }   // rc601 ton
                 for (Schritt& x : endeSchritte(false)) { a.schritte.push_back(std::move(x)); }
                 a.teil = 2;
@@ -7169,6 +7170,7 @@ void selbsttest() {
             for (Schritt& x : reste1::ruheOhneKarte()) { a.schritte.push_back(std::move(x)); }   // reste1 Punkt 5
             for (Schritt& x : reiterRadSchritte()) { a.schritte.push_back(std::move(x)); }
             for (Schritt& x : sicherungSchritte()) { a.schritte.push_back(std::move(x)); }
+            for (Schritt& x : zeitleisteStillSchritte()) { a.schritte.push_back(std::move(x)); }   // TEST1411e
             for (Schritt& x : zeitleisteSchritte()) { a.schritte.push_back(std::move(x)); }
             for (Schritt& x : tonSchritte()) { a.schritte.push_back(std::move(x)); }   // rc601 ton
             // rc601 integ: der zentrale Schalter OpenJK / Movie Duels (neben dem

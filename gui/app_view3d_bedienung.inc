@@ -1114,6 +1114,7 @@ void drawTimeline() {
             }
             ImGui::EndCombo();
         }
+        if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, ImGui::GetItemID(), "##tempo"); }   // TEST1411e: Zeitleiste still
         if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip("%s", tr(Str::TlSpeedHint));
         }
