@@ -1416,9 +1416,16 @@ bool modellKdFormPunkt(int form, int ansicht, ImVec2& out) {
             if (!modellAufSchirm(a, p3.data(), p)) { continue; }
             if (p.x < a.lo[0] + rand || p.y < std::max(a.lo[1], a.kopfUnten) + rand || p.x > a.lo[0] + a.groesse[0] - rand || p.y > a.lo[1] + a.groesse[1] - rand) { continue; }
             if (modellKopfTreffer(a, p)) { continue; }
-            const Treffer t = formUnter(a, p, alsGriff ? std::function<bool(const Form&)>(griffWaehlbar) : std::function<bool(const Form&)>(knochenWaehlbar));
-            const bool derselbe = t.form == form || (t.form >= 0 && alsGriff && s.formen[static_cast<std::size_t>(t.form)].info.griff == f.info.griff);
-            if (derselbe || (!alsGriff && !f.skelett && t.form < 0)) {
+            const auto waehlbar = alsGriff ? std::function<bool(const Form&)>(griffWaehlbar) : std::function<bool(const Form&)>(knochenWaehlbar);
+            const auto derselbe = [&](ImVec2 q) {
+                const Treffer t = formUnter(a, q, waehlbar);
+                return t.form == form || (t.form >= 0 && alsGriff && s.formen[static_cast<std::size_t>(t.form)].info.griff == f.info.griff) ||
+                       (!alsGriff && !f.skelett && t.form < 0);
+            };
+            // TEST1411c: auch zwei Bildpunkte daneben dieselbe Form - nicht die Kante, an der seit TEST1411 H zwei Kaesten am Gelenk
+            // zusammenstossen (ap13k T2: die Mitte der Kante am Knie traf mit dem gerundeten Klick den Oberschenkel)
+            if (derselbe(p) && derselbe(ImVec2{p.x - 2.0F, p.y}) && derselbe(ImVec2{p.x + 2.0F, p.y}) && derselbe(ImVec2{p.x, p.y - 2.0F}) &&
+                derselbe(ImVec2{p.x, p.y + 2.0F})) {
                 out = p;
                 return true;
             }

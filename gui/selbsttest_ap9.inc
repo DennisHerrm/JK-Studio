@@ -260,7 +260,10 @@ void zeilenSchritte(std::vector<Schritt>& s) {
             const Element* zeigen = imRoll(tr(Str::PtEditorZeigen));
             const Element* backen = imRoll(tr(Str::PtUmbacken));
             if (g == nullptr || zeigen == nullptr || backen == nullptr) { return false; }
-            return g->rasterSpalten == 2 && g->knoepfe == 2 && g->symbole == 2 && g->kasten.Contains(zeigen->rect) && g->kasten.Contains(backen->rect) &&
+            // TEST1411 O: dazu die Pipette "Textur aufnehmen" (mit Symbol) in der Reihe darunter - drei Knoepfe
+            const Element* pipette = imRoll(tr(Str::T1oTexturAufnehmen));
+            return g->rasterSpalten == 2 && g->knoepfe == 3 && g->symbole == 3 && pipette != nullptr && pipette->rect.Min.y > zeigen->rect.Max.y &&
+                   g->kasten.Contains(zeigen->rect) && g->kasten.Contains(backen->rect) &&
                    std::fabs(zeigen->rect.GetWidth() - backen->rect.GetWidth()) < 0.5F && zeigen->rect.Min.y == backen->rect.Min.y && backen->rect.Min.x > zeigen->rect.Max.x;
         }));
         add(tu("AP9 T1: Gruppe und Datei merken", [st] {
@@ -307,6 +310,16 @@ void zeilenSchritte(std::vector<Schritt>& s) {
             const ModellAnsicht& a = g_app->mtab.ansichten[g_app->mtab.aktiv];
             return w != nullptr && w->Rect().Max.x <= a.lo[0] + 1.0F && mz().leinwand[2] > 100.0F && mz().leinwand[3] > 100.0F;
         }));
+        // TEST1411 O: die Gruppe Ziel ist mit den Vorschaubildern, dem Schalter "Nur Ziel-Textur" und der Pipette hoeher - wie Blender steht
+        // "Bild zeigen" darin unter dem Rand des Felds: erst hinrollen (wie ein Anwender)
+        add(tu("AP9 T7: Bild zeigen ins Bild rollen", [] {
+            const Element* e = imRoll(tr(Str::PtEditorZeigen));
+            ImGuiWindow* w = kindFenster("mtrollouts");
+            if (e != nullptr && w != nullptr && (e->rect.Min.y < w->InnerRect.Min.y || e->rect.Max.y > w->InnerRect.Max.y)) {
+                ImGui::SetScrollY(w, std::clamp(w->Scroll.y + e->rect.GetCenter().y - w->InnerRect.GetCenter().y, 0.0F, w->ScrollMax.y));
+            }
+        }));
+        add(pause(0.3));
         add(klick(tr(Str::PtEditorZeigen), "mtrollouts"));
         add(pause(0.4));
         add(pruefe(titel("T7", modus, "Bild zeigen in der Gruppe Ziel blendet das 2D-Bild aus"), [] { return !mz().editorOffen && kindFenster("mtmaleditor") == nullptr && !gewaehlt(imRoll(tr(Str::PtEditorZeigen))); }));

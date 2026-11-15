@@ -81,13 +81,26 @@ void popupFenster(ImGuiID id) {
 
 }  // namespace
 
+namespace {
+ImGuiDir g_richtung = ImGuiDir_None;   // menueRichtung
+}  // namespace
+
+void menueRichtung(ImGuiDir richtung) { g_richtung = richtung; }
+
 bool menue(const char* text, bool an) {
     // ImGui zeichnet das Menue dieser Tiefe immer in dasselbe Fenster ("<Titel>###Menu_<Tiefe>", BeginPopupMenuEx); die Lage eines
     // Menues rechnet ImGui immer selbst (SetNextWindowPos in BeginMenuEx ist nur der Bezugspunkt)
     char name[24];
     std::snprintf(name, sizeof name, "###Menu_%02d", GImGui->BeginMenuDepth);
     imFenster(name, false);
-    return ergebnis(ImGui::BeginMenu(text, an));   // lint-menue: die eine Stelle fuer ImGui::BeginMenu
+    // TEST1411c: die Richtung - FindBestWindowPosForPopupEx versucht zuerst AutoPosLastDirection, dann rechts, unten, links, oben. Ohne
+    // Vorgabe rechts zuerst wie ImGui ab Werk (das Fenster dieser Tiefe teilen sich alle Menues - die Vorgabe eines anderen bleibt nicht haengen).
+    // Gesetzt vor BeginMenu (gilt im selben Bild) und im offenen Menue (ein eben angelegtes Fenster gab es davor noch nicht).
+    const ImGuiDir richtung = g_richtung != ImGuiDir_None ? g_richtung : ImGuiDir_Right;
+    if (ImGuiWindow* w = ImGui::FindWindowByName(name)) { w->AutoPosLastDirection = richtung; }
+    const bool offen = ImGui::BeginMenu(text, an);   // lint-menue: die eine Stelle fuer ImGui::BeginMenu
+    if (offen) { GImGui->CurrentWindow->AutoPosLastDirection = richtung; }
+    return ergebnis(offen);
 }
 
 bool popup(const char* id, ImGuiWindowFlags flags) {

@@ -707,6 +707,9 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
     add(tu("MB4 Silhouette an, Ghosts aus", [] {
         g_app->mtab.geister.an = false;
         g_app->mtab.silhouette = true;
+        // TEST1411 I: im Bereich Animation sind die Knochen ab Werk sichtbar (wie 3ds Max) - der Kasten des Beckens laege genau auf der
+        // gemessenen Stelle (orange 253/153/43); gemessen wird die Silhouette der Figur, also ohne Knochen
+        g_app->modellKnochen = false;
         g_app->modelDirty = true;
     }));
     add(pause(0.4));
@@ -729,6 +732,7 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
         return k[0] < 30 && k[1] < 30 && k[2] < 30 && std::abs(e[0] - 232) <= 2 && std::abs(e[2] - 232) <= 2;
     }));
     add(tu("MB4 Silhouette aus", [] {
+        g_app->modellKnochen = true;   // TEST1411 I: wieder wie ab Werk im Bereich Animation
         g_app->mtab.silhouette = false;
         g_app->modelDirty = true;
     }));
@@ -895,7 +899,8 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
             blender += modellRigAktionTaste(i, true)[0] != '\0' ? 1 : 0;
         }
         diag::detail("Knopftest: MB4 Tasten - wie 3ds Max " + std::to_string(max) + ", wie Blender " + std::to_string(blender));
-        return ok == modellRigAktionZahl() && max == 2 && blender == 7;
+        // TEST1411 N: dazu Setup-/Animationsmodus umschalten (Strg+Umschalt+M wie 3ds Max frei belegt, Tab wie Blender)
+        return ok == modellRigAktionZahl() && max == 3 && blender == 8;
     }));
     add(klickAn("in die Ansicht (Fokus)", [] {
         const ModellAnsicht& a = g_app->mtab.ansichten[g_app->mtab.aktiv];

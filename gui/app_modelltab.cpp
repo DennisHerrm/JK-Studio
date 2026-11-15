@@ -1175,6 +1175,7 @@ void modellZusatzAusloesen(int i) { zusatzAusloesen(zusatzAktionen()[static_cast
 // Menus"; Reihenfolge und Schreibweise wie dort). Was das Menue bis rc612 in einer Spalte hatte, steht in tools 1 (Unterobjekte, die
 // Werkzeuge des Bereichs) und tools 2 (Anzeige, Weights, Animation, Werkzeugleisten).
 struct Quad {
+    ImVec2 groesse{0.0F, 0.0F};   // TEST1411c: das ganze Quad-Menue im letzten Bild (fuer die Lage im Fenster)
     ImVec2 klick{};
     float w[4]{};   // Breite und Hoehe der Viertel im letzten Bild: 0 links oben, 1 rechts oben, 2 links unten, 3 rechts unten
     float h[4]{};
@@ -1246,11 +1247,20 @@ void quadViertel(int nr, const char* titel, const std::function<void()>& inhalt,
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{fs * 0.3F, fs * 0.2F});
     char id[16];
     std::snprintf(id, sizeof id, "##quad%d", nr);
+    // TEST1411c: die Viertel einer Seite gleich breit (links rechtsbuendig, rechts linksbuendig an der Mitte) - ein Untermenue, das nach aussen
+    // aufgeht, liegt so neben der ganzen Seite und nicht ueber dem breiteren Nachbarviertel (pt: Maske und Bild unter tools 2)
+    if (const float seite = nr % 2 == 0 ? std::max(g_quad.w[0], g_quad.w[2]) : std::max(g_quad.w[1], g_quad.w[3]); seite > 0.0F) {
+        ImGui::SetNextWindowSizeConstraints(ImVec2{seite, 0.0F}, ImVec2{FLT_MAX, FLT_MAX});
+    }
     ImGui::BeginChild(id, ImVec2{0.0F, 0.0F}, ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding,
                       ImGuiWindowFlags_NoScrollbar);
     ImGui::PopStyleVar();
     if (nr >= 2) { cjkTextDisabled("%s", titel); }   // unten: der Name an der Mitte (oben), wie 3ds Max
+    // TEST1411c: wie die Quad-Menues von 3ds Max klappen die Untermenues nach aussen auf - die linken Viertel nach links, die rechten nach
+    // rechts (bis dahin rechts vom Viertel: ueber dem Nachbarviertel bzw. ueber dem eigenen Eintrag, ap13k S8 und pt)
+    ui::menueRichtung(nr % 2 == 0 ? ImGuiDir_Left : ImGuiDir_Right);
     inhalt();
+    ui::menueRichtung(ImGuiDir_None);
     if (nr < 2) { cjkTextDisabled("%s", titel); }   // oben: unter den Zeilen, an der Mitte
     ImGui::EndChild();
     g_quad.w[nr] = ImGui::GetItemRectSize().x;
@@ -1266,9 +1276,17 @@ void drawModellKontextMenue() {
             const float jx = std::max(g_quad.w[0], g_quad.w[2]);
             const float jy = std::max(g_quad.h[0], g_quad.h[1]);
             const ImVec2 pad = ImGui::GetStyle().WindowPadding;
-            ImGui::SetNextWindowPos(ImVec2{g_quad.klick.x - jx - pad.x - 1.0F, g_quad.klick.y - jy - pad.y - 1.0F}, ImGuiCond_Always);
+            ImVec2 ort{g_quad.klick.x - jx - pad.x - 1.0F, g_quad.klick.y - jy - pad.y - 1.0F};
+            // TEST1411c: wie 3ds Max ganz im Fenster - am Rand rueckt das Quad-Menue nach innen (seine Mitte liegt dann neben der Maus); bis
+            // dahin lagen die oberen Viertel bei einem Rechtsklick oben in der Ansicht ausserhalb (pt: y -208)
+            const ImGuiViewport* vp = ImGui::GetWindowViewport();
+            ort.x = std::clamp(ort.x, vp->WorkPos.x, std::max(vp->WorkPos.x, vp->WorkPos.x + vp->WorkSize.x - g_quad.groesse.x));
+            ort.y = std::clamp(ort.y, vp->WorkPos.y, std::max(vp->WorkPos.y, vp->WorkPos.y + vp->WorkSize.y - g_quad.groesse.y));
+            ImGui::SetNextWindowPos(ort, ImGuiCond_Always);
         }
-        t.kontextSichtbar = ui::popup("##mtkontext", ImGuiWindowFlags_NoBackground);
+        // TEST1411c: die leere Flaeche zwischen den Vierteln gehoert nicht zum Menue (NoMouseInputs - die Viertel sind eigene Kindfenster): ein
+        // Untermenue links neben einem schmalen Viertel lag sonst unter dieser Flaeche, die Maus traf das Popup statt des Untermenues (pt)
+        t.kontextSichtbar = ui::popup("##mtkontext", ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMouseInputs);
         if (!t.kontextSichtbar) {
             g_quad.gemessen = false;
             return;
@@ -1276,6 +1294,7 @@ void drawModellKontextMenue() {
         if (ImGui::IsWindowAppearing()) {
             g_quad.klick = ImGui::GetMousePosOnOpeningCurrentPopup();
             g_quad.gemessen = false;
+            for (int k = 0; k < 4; ++k) { g_quad.w[k] = 0.0F; }   // neu messen (der Inhalt haengt vom Bereich ab)
         }
         const ImVec2 o = ImGui::GetCursorScreenPos();
         const float jx = std::max(g_quad.w[0], g_quad.w[2]);
@@ -1285,6 +1304,7 @@ void drawModellKontextMenue() {
         quadViertel(2, tr(Str::T1QuadTools2), kontextZusatz, ImVec2{o.x + jx - g_quad.w[2], o.y + jy + 2.0F});
         quadViertel(3, tr(Str::T1QuadTransform), quadTransform, ImVec2{o.x + jx + 2.0F, o.y + jy + 2.0F});
         g_quad.gemessen = true;
+        g_quad.groesse = ImGui::GetWindowSize();
         ImGui::EndPopup();
         return;
     }

@@ -471,6 +471,9 @@ void wurzelSchritte(std::vector<Schritt>& s) {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     add(tu("ENT3B B17: wie 3ds Max, frisches Control Rig, Stil Control Rig, Knochen aus, Verschieben (W)", [] {
         modellBedienungSetzen(0);
+        // TEST1411 N: Bewegen und Drehen setzen Schluessel - wie CAT nur im Animationsmodus; seit dem Modusschalter stand der Test nach
+        // zeige(AzRRig) oben im Setup-Modus, dort wirkt kein Zug (die Setup-Pose ist statisch)
+        modellAnimSetupSetzen(false);
         rigFrisch();
         ModellTab& t = g_app->mtab;
         t.vierAnsichten = false;

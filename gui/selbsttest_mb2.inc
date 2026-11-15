@@ -355,7 +355,8 @@ std::vector<Schritt> uiSchritte() {
     add(tu("MB3 Plaetze: Karte mb3test, die Zeile BOTH_WALK1 ins Bild", [] {
         std::snprintf(g_app->mtab.kgKarte, sizeof g_app->mtab.kgKarte, "%s", "mb3test");
         animWaehlen(mb1::animNach("BOTH_WALK1"), true);
-        g_app->animScrollen = true;
+        // TEST1411 E: die Sequenzen stehen im eigenen Reiter des Explorers (der Baum hat nur noch den Eintrag, der dorthin springt)
+        modellExplorerZeigen(ExplorerArt::Sequenz, mb1::animNach("BOTH_WALK1"));
     }));
     add(pause(0.5));
     add(tu("MB3 Plaetze: das Befehlsfeld zu den Plaetzen rollen (darueber stehen seit Stufe 3 die Rig-Rollouts)", [] {

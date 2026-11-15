@@ -1725,6 +1725,7 @@ void sequenzListe() {
             const bool geklickt = ImGui::Selectable(e.name.c_str(), primaer || sekundaer, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick,
                                                     ImVec2{0.0F, ImGui::GetFrameHeight()});
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip)) { ImGui::SetTooltip("%s", infoSequenz(i).c_str()); }
+            modellSequenzZiehen(i);   // TEST1411c: wie im Baum bis TEST1411 E - auf einen Platz der Karten-GLA ziehen (Stufe 2, mb3)
             if (geklickt) {
                 if (g_z.torsoSekundaer && e.name.rfind("TORSO_", 0) == 0) {
                     sequenzSekundaer(i);   // wie ModView: TORSO_... auf den Oberkoerper, die Primaersequenz bleibt
@@ -1733,7 +1734,7 @@ void sequenzListe() {
                     animWaehlen(i, true);
                 }
             }
-            if (ImGui::BeginPopupContextItem("##t1eseqmenue")) {
+            if (ui::popupKontext("##t1eseqmenue")) {
                 sequenzMenue(i);
                 ImGui::EndPopup();
             }

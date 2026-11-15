@@ -1862,9 +1862,10 @@ void rolloutZiel(const std::vector<Gruppe>& gr, MalBild* m) {
     }
     (void)ui::schalter(tr(Str::T1oNurZiel), &z.nurZiel, tr(Str::T1oNurZielHint));   // TEST1411 O
     ui::rasterBeginn(2);
-    aktionsKnopf(Str::T1oTexturAufnehmen, UiIcon::MalPipette);   // TEST1411 O: Pipette (Alt+Klick)
+    // wie im Entwurf (AP9) "Bild zeigen | Auf neue UVs backen" in der ersten Reihe; TEST1411 O: die Pipette (Alt+Klick) darunter
     aktionsKnopf(Str::PtEditorZeigen, UiIcon::Bildschirm);
     aktionsKnopf(Str::PtUmbacken, UiIcon::Neuladen);
+    aktionsKnopf(Str::T1oTexturAufnehmen, UiIcon::MalPipette);
     ui::rasterEnde();
     ui::rolloutEnde();
 }

@@ -608,6 +608,11 @@ void bedienSchritte(std::vector<Schritt>& s) {
         return schluessel() == *schluesselVor && g_app->mtab.dok.rueckgaengigName() == *schritte;
     }));
     // --- A2: Tooltip ---
+    // TEST1411c: Auf Rig legen steht in der Gruppe Rig erstellen des Setup-Modus (TEST1411 N); seit TEST1411b schaltet der Test nach dem
+    // Klick in den Animationsmodus (zeige AzRAnimation oben). Dort ist der Knopf nicht gezeichnet - die Maus stand auf seinem alten Ort ueber
+    // einer Sequenzzeile (Lauf t1411_ap10e: Tooltip "BOTH_CIN_1" an der Stelle). Deshalb die Gruppe wieder zeigen.
+    add(zeige(Str::AzRRig));
+    add(pause(0.3));
     add(tu("AP10 A2: Maus auf Auf Rig legen", [] {
         if (const Element* e = imRoll(tr(Str::AzAufRig))) { setzeMaus(e->rect.GetCenter()); }
     }));

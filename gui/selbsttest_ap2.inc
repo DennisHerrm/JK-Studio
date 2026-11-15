@@ -50,6 +50,17 @@ std::function<ImVec2()> ort(const std::string& name, int was, int art = -1) {
     };
 }
 
+// TEST1411c: die sichtbare Flaeche der Sequenzliste unter ihrem festen Kopf (TableSetupScrollFreeze(0, 1)). ImGui setzt BgClipRect der
+// Tabelle beim Ende der festen Zeilen auf den rollbaren Koerper; der Wert bleibt bis zum naechsten BeginTable stehen. Leer ohne Liste.
+ImRect seqKoerper() {
+    const ImGuiWindow* w = kindFenster("##t1eseq");
+    for (int i = 0; w != nullptr && i < GImGui->Tables.GetMapSize(); ++i) {
+        const ImGuiTable* tb = GImGui->Tables.TryGetMapData(i);
+        if (tb != nullptr && tb->InnerWindow == w) { return tb->BgClipRect; }
+    }
+    return ImRect{};
+}
+
 bool tooltipRect(ImRect& r) {
     for (ImGuiWindow* w : GImGui->Windows) {
         if ((w->Flags & ImGuiWindowFlags_Tooltip) != 0 && w->Active && !w->Hidden) {
@@ -738,21 +749,35 @@ void maxSchritte(std::vector<Schritt>& s) {
         return kop && ins;
     }));
     auto vorher = std::make_shared<int>(-1);
-    add(tu("AP2 X17: Klick auf TORSO_ spielt als Sekundaer (Schalter wie ModView)", [vorher] {
+    auto torsoZiel = std::make_shared<int>(-1);
+    add(tu("AP2 X17: Klick auf TORSO_ spielt als Sekundaer (Schalter wie ModView)", [vorher, torsoZiel] {
         ex().torsoSekundaer = true;
         *vorher = g_app->animIndex;
         int torso = -1;
         for (std::size_t i = 0; i < g_app->animList.size() && torso < 0; ++i) {
             if (g_app->animList[i].name.rfind("TORSO_", 0) == 0) { torso = static_cast<int>(i); }
         }
+        *torsoZiel = torso;
         modellExplorerZeigen(ExplorerArt::Sequenz, torso);
     }));
     add(pause(0.4));
-    add(klickAn("AP2 X17: Klick auf die erste TORSO_-Sequenz", [] {
-        // TEST1411 E: in der Liste die erste sichtbare Zeile (der Clipper zeichnet die Zielzeile auch ausserhalb mit)
-        const ImGuiWindow* w = mbefoto::kindFenster("mtexplorer");
+    add(klickAn("AP2 X17: Klick auf die TORSO_-Sequenz, zu der Zeigen gerollt hat", [torsoZiel] {
+        // TEST1411c: Die Sequenzliste (TEST1411 E) ist eine Tabelle mit festem Kopf und eigener Rollflaeche. Bis TEST1411b klickte X17 die
+        // erste gezeichnete TORSO_-Zeile unterhalb von 1,5 em unter dem Rand des Explorers - nach dem Rollen liegt sie (nach Namen sortiert,
+        // Zeigen stellt die Zielzeile auf 40 % der Hoehe) halb hinter dem Tabellenkopf bzw. dem Suchfeld, der Klick traf den Kopf (Lauf
+        // t1411_ap2e: Sekundaer -1). Jetzt die Zeile, zu der Zeigen gerollt hat, und nur, wenn sie ganz im sichtbaren Koerper der Tabelle steht.
+        const ImRect k = seqKoerper();
         for (const ExplorerLage& l : ex().lage) {
-            if (l.art == ExplorerArt::Sequenz && l.name.rfind("TORSO_", 0) == 0 && (w == nullptr || (l.y0 >= w->InnerRect.Min.y + em() * 1.5F && l.y1 <= w->InnerRect.Max.y))) {
+            if (l.art == ExplorerArt::Sequenz && l.name.rfind("TORSO_", 0) == 0) {
+                const float y = (l.y0 + l.y1) * 0.5F;
+                melde("X17: erste gezeichnete TORSO_-Zeile '" + l.name + "' Mitte y " + std::to_string(static_cast<int>(y)) + ", sichtbarer Koerper der Liste y " +
+                      std::to_string(static_cast<int>(k.Min.y)) + ".." + std::to_string(static_cast<int>(k.Max.y)) + (y < k.Min.y ? " (hinter dem Kopf)" : ""));
+                break;
+            }
+        }
+        for (const ExplorerLage& l : ex().lage) {
+            if (l.art == ExplorerArt::Sequenz && l.index == *torsoZiel && l.y0 >= k.Min.y && l.y1 <= k.Max.y) {
+                melde("X17: Klick auf '" + l.name + "' bei y " + std::to_string(static_cast<int>((l.y0 + l.y1) * 0.5F)));
                 return ImVec2{l.xName + em(), (l.y0 + l.y1) * 0.5F};
             }
         }

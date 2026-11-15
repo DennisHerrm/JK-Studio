@@ -39,6 +39,9 @@
 namespace bhed::gui::ui {
 
 [[nodiscard]] bool menue(const char* text, bool an = true);
+// TEST1411c: wohin die Untermenues von menue() aufgehen (ImGuiDir_Left / _Right; ImGuiDir_None: wie ImGui, rechts vom Menue, sonst links).
+// Das Quad-Menue wie 3ds Max: die linken Viertel klappen nach links, die rechten nach rechts aus - nie ueber das Nachbarviertel.
+void menueRichtung(ImGuiDir richtung);
 [[nodiscard]] bool popup(const char* id, ImGuiWindowFlags flags = 0);
 [[nodiscard]] bool popupKontext(const char* id = nullptr, ImGuiPopupFlags flags = 0);
 [[nodiscard]] bool popupKontextFenster(const char* id = nullptr, ImGuiPopupFlags flags = 0);

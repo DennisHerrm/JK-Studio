@@ -123,6 +123,9 @@ void grundstellung(int modus, ModellBereich bereich) {
     modellBedienungSetzen(modus);
     ModellTab& t = mtab();
     t.bereich = bereich;
+    // TEST1411 I: der Schalter Bones gilt je Bereich (Weights und Animation merken ihren eigenen Stand) - der Wechsel zuerst, sonst setzte
+    // das naechste Bild den Stand des neuen Bereichs ueber das modellKnochen = true unten (ap13k T7: von Animation nach Ansehen ohne Knochen)
+    modellGewichteBereichSchritt();
     t.vierAnsichten = false;
     t.aktiv = 3;
     t.knochenWahl = -1;
@@ -159,6 +162,23 @@ void knochenMenue(std::vector<Schritt>& s, int modus) {
 
 // --- K: Knochen-Darstellung (R14) -----------------------------------------------------------------------------------------
 
+// TEST1411 H: ein Hilfspunkt (Drehhilfe oder Wurzel ohne "Hilfsknochen zeigen") - Schmuck mit Knochen, ohne Linien, ein Punkt
+bool hilfsPunkt(const KdFormInfo& f) { return f.schmuck && f.knochen >= 0 && f.linien == 0 && f.punkte >= 1; }
+
+int hilfsPunkte() {
+    int n = 0;
+    for (int i = 0; i < modellKdFormZahl(); ++i) { n += hilfsPunkt(modellKdFormInfo(i)) ? 1 : 0; }
+    return n;
+}
+
+// die erste Form eines Knochens, der kein Hilfspunkt ist (die erste Form ist seit TEST1411 H die Wurzel model_root als Punkt)
+KdFormInfo ersteKnochenForm() {
+    for (int i = 0; i < modellKdFormZahl(); ++i) {
+        if (!hilfsPunkt(modellKdFormInfo(i))) { return modellKdFormInfo(i); }
+    }
+    return KdFormInfo{};
+}
+
 void knochenSchritte(std::vector<Schritt>& s) {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto ohne = std::make_shared<Bild>();
@@ -178,18 +198,23 @@ void knochenSchritte(std::vector<Schritt>& s) {
     }));
     add(pause(0.6));
     add(bildHolen("Bone-Kasten", mit));
-    add(pruefe(zeile("K1", 0, "Knochen sind Bone-Kaesten - je Knochen eine Form mit zwoelf Kanten, gefuellt wie im Entwurf; im Bild der Ansicht gezeichnet"), [ohne, mit] {
+    // TEST1411 H (shank 14.11.: "keine ordentliche hierachy"): je Knochen genau eine Form - ein Kasten entlang der Kette, Drehhilfen und
+    // Wurzeln ab Werk ein Hilfspunkt (Schalter "Hilfsknochen zeigen"). Bis rc612 zaehlte K1 einen Kasten je Knochen.
+    add(pruefe(zeile("K1", 0, "Knochen sind Bone-Kaesten - je Knochen eine Form mit zwoelf Kanten, gefuellt wie im Entwurf (Drehhilfen und Wurzeln ein Hilfspunkt); im Bild der Ansicht gezeichnet"), [ohne, mit] {
         int kaesten = 0;
         int gefuellt = 0;
+        int punkte = 0;
         for (int i = 0; i < modellKdFormZahl(); ++i) {
             const KdFormInfo f = modellKdFormInfo(i);
             kaesten += f.gestalt == static_cast<int>(KdGestalt::BoneKasten) && f.linien == 12 && f.knochen >= 0 ? 1 : 0;
             gefuellt += f.flaechen > 0 ? 1 : 0;
+            punkte += hilfsPunkt(f) ? 1 : 0;
         }
         const int d = unterschied(*ohne, *mit);
-        melde("K1: " + std::to_string(modellKdFormZahl()) + " Formen, " + std::to_string(kaesten) + " Kaesten, " + std::to_string(gefuellt) + " gefuellt, im Bild " +
-              std::to_string(d) + " Bildpunkte, Knochenlinien " + std::to_string(g_app->modellKnochenLinien));
-        return modellKdFormZahl() > 40 && kaesten == modellKdFormZahl() && gefuellt == kaesten && d > 2000 && g_app->modellKnochenLinien == 12 * kaesten;
+        melde("K1: " + std::to_string(modellKdFormZahl()) + " Formen, " + std::to_string(kaesten) + " Kaesten, " + std::to_string(punkte) + " Hilfspunkte, " +
+              std::to_string(gefuellt) + " gefuellt, im Bild " + std::to_string(d) + " Bildpunkte, Knochenlinien " + std::to_string(g_app->modellKnochenLinien));
+        return modellKdFormZahl() > 40 && kaesten > 30 && kaesten + punkte == modellKdFormZahl() && gefuellt == kaesten && d > 2000 &&
+               g_app->modellKnochenLinien == 12 * kaesten;
     }));
     add(tu("AP13K K: Knochenflossen an", [] {
         g_app->settings.modellFlossen = true;
@@ -198,8 +223,14 @@ void knochenSchritte(std::vector<Schritt>& s) {
     add(pause(0.5));
     add(pruefe(zeile("K2", 0, "Knochenflossen: je Kasten vier Flossen (acht Linien mehr)"), [] {
         bool alle = modellKdFormZahl() > 40;
-        for (int i = 0; i < modellKdFormZahl(); ++i) { alle = alle && modellKdFormInfo(i).linien == 20; }
-        return alle;
+        int kaesten = 0;
+        for (int i = 0; i < modellKdFormZahl(); ++i) {
+            const KdFormInfo f = modellKdFormInfo(i);
+            if (hilfsPunkt(f)) { continue; }   // TEST1411 H: Hilfspunkte haben keine Flossen
+            alle = alle && f.linien == 20;
+            ++kaesten;
+        }
+        return alle && kaesten > 30;
     }));
     knochenMenue(s, 0);
     add(pruefe(zeile("K3", 0, "Menue [+] > Knochen und Pruefen: Im Vordergrund, Anzeigen als, Rig-Stil stehen dort"), [] {
@@ -228,8 +259,10 @@ void knochenSchritte(std::vector<Schritt>& s) {
             const KdFormInfo f = modellKdFormInfo(i);
             okta += f.gestalt == static_cast<int>(KdGestalt::Oktaeder) && f.linien == 12 && f.flaechen == 8 && f.punkte >= 1 ? 1 : 0;
         }
-        melde("K4: " + std::to_string(okta) + " Oktaeder von " + std::to_string(modellKdFormZahl()) + ", Knochenlinien " + std::to_string(g_app->modellKnochenLinien));
-        return modellKnochenArt() == KnochenArt::Oktaeder && modellKnochenWieBlender() && okta > 40 && okta == modellKdFormZahl() && g_app->modellKnochenLinien == 12 * okta;
+        melde("K4: " + std::to_string(okta) + " Oktaeder von " + std::to_string(modellKdFormZahl()) + ", " + std::to_string(hilfsPunkte()) + " Hilfspunkte, Knochenlinien " +
+              std::to_string(g_app->modellKnochenLinien));
+        return modellKnochenArt() == KnochenArt::Oktaeder && modellKnochenWieBlender() && okta > 30 && okta + hilfsPunkte() == modellKdFormZahl() &&
+               g_app->modellKnochenLinien == 12 * okta;
     }));
     knochenMenue(s, 1);
     add(ap5::klickPopup(tr(Str::KdAnzeigenAls)));
@@ -248,8 +281,8 @@ void knochenSchritte(std::vector<Schritt>& s) {
         const std::string geschrieben = writeSettings(g_app->settings);
         Settings gelesen;
         const bool ok = readSettings(geschrieben, gelesen);
-        melde("K5: " + std::to_string(stick) + " Sticks von " + std::to_string(modellKdFormZahl()));
-        return modellKnochenArt() == KnochenArt::Stick && stick > 40 && stick == modellKdFormZahl() && geschrieben.find("modelBoneDisplay=1") != std::string::npos && ok &&
+        melde("K5: " + std::to_string(stick) + " Sticks von " + std::to_string(modellKdFormZahl()) + ", " + std::to_string(hilfsPunkte()) + " Hilfspunkte");
+        return modellKnochenArt() == KnochenArt::Stick && stick > 30 && stick + hilfsPunkte() == modellKdFormZahl() && geschrieben.find("modelBoneDisplay=1") != std::string::npos && ok &&
                gelesen.modellKnochenArt == 1;
     }));
     for (int a = 2; a < kKnochenArten; ++a) {
@@ -269,20 +302,20 @@ void knochenSchritte(std::vector<Schritt>& s) {
             }
         }
         melde(z);
-        const KdFormInfo f = modellKdFormZahl() > 0 ? modellKdFormInfo(0) : KdFormInfo{};
+        const KdFormInfo f = ersteKnochenForm();
         return alle && modellKnochenArt() == KnochenArt::Draht && f.gestalt == static_cast<int>(KdGestalt::Draht) && f.linien == 1 && f.punkte == 0;
     }));
     add(tu("AP13K K: Huelle", [] { modellKnochenArtSetzen(KnochenArt::Huelle); }));
     add(pause(0.4));
     add(pruefe(zeile("K6", 1, "Huelle: an beiden Gelenken eine Kugel (drei Kreise), dazwischen vier Linien"), [] {
-        const KdFormInfo f = modellKdFormZahl() > 0 ? modellKdFormInfo(0) : KdFormInfo{};
+        const KdFormInfo f = ersteKnochenForm();
         melde("K6 Huelle: Linien " + std::to_string(f.linien));
         return f.gestalt == static_cast<int>(KdGestalt::Huelle) && f.linien > 40;
     }));
     add(tu("AP13K K: B-Bone", [] { modellKnochenArtSetzen(KnochenArt::BBone); }));
     add(pause(0.4));
     add(pruefe(zeile("K6", 1, "B-Bone: zwoelf Kanten, gefuellt"), [] {
-        const KdFormInfo f = modellKdFormZahl() > 0 ? modellKdFormInfo(0) : KdFormInfo{};
+        const KdFormInfo f = ersteKnochenForm();
         return f.gestalt == static_cast<int>(KdGestalt::BBone) && f.linien == 12 && f.flaechen == 12;
     }));
     // --- der gewaehlte Knochen ---
@@ -962,7 +995,11 @@ void treffSchritte(std::vector<Schritt>& s) {
     add(klickAn("AP13K T: auf eine Kante des Kastens Unterschenkel L", [] { return formOrt(formVonGriff(griffNr(modell::GriffArt::Unterschenkel, modell::Seite::Links))); }));
     add(pause(0.5));
     add(pruefe(zeile("T2", 0, "CAT: ein Klick auf eine Kante des Kastens waehlt den FK-Griff seines Knochens (Unterschenkel L)"), [] {
-        melde("T2 Kante: gewaehlt " + std::to_string(mtab().griffWahl));
+        const int soll = griffNr(modell::GriffArt::Unterschenkel, modell::Seite::Links);
+        const int w = mtab().griffWahl;
+        melde("T2 Kante: gewaehlt " + std::to_string(w) + (w >= 0 ? " Art " + std::to_string(static_cast<int>(mtab().rig.griffe[static_cast<std::size_t>(w)].art)) + " Seite " +
+                                                                          std::to_string(static_cast<int>(mtab().rig.griffe[static_cast<std::size_t>(w)].seite)) : std::string()) +
+              ", soll " + std::to_string(soll) + ", Maus " + std::to_string(static_cast<int>(ImGui::GetIO().MousePos.x)) + "/" + std::to_string(static_cast<int>(ImGui::GetIO().MousePos.y)));
         return mtab().griffWahl == griffNr(modell::GriffArt::Unterschenkel, modell::Seite::Links);
     }));
     add(abwaehlen());
@@ -1103,12 +1140,15 @@ void treffSchritte(std::vector<Schritt>& s) {
         return p;
     }));
     add(pause(0.5));
+    // TEST1411 H: wie 3ds Max Bones und Blender (Kopf am eigenen Gelenk, Spitze am Folgegelenk) reicht die Form eines Knochens von seinem
+    // Gelenk bis zum Gelenk der Kette - vom Knie zum Fuss ist das ltibia (bis rc612 vom Gelenk des Elternteils gezeichnet: ltalus)
     add(pruefe(zeile("T7", 1, "Knochen waehlen trifft den Knochen an seiner Form: ein Klick mitten auf den Oktaeder (weiter als eine Zeichenhoehe von jedem Gelenk) waehlt "
-                              "den Knochen, den die Form zeigt (ltalus - der Oktaeder vom Knie zum Fuss)"),
+                              "den Knochen, den die Form zeigt (ltibia - der Oktaeder vom Knie zum Fuss)"),
                [] {
         const int k = mtab().knochenWahl;
-        melde("T7: gewaehlt " + (k >= 0 ? g_app->anim.bones[static_cast<std::size_t>(k)].name : std::string("-")));
-        return k == knochenNach("ltalus");
+        const int f = modellKdFormVonKnochen(knochenNach("ltibia"));
+        melde("T7: gewaehlt " + (k >= 0 ? g_app->anim.bones[static_cast<std::size_t>(k)].name : std::string("-")) + ", Form von ltibia " + std::to_string(f));
+        return k == knochenNach("ltibia") && f >= 0;
     }));
     add(tu("AP13K T: Werkzeug Auswaehlen", [] {
         (void)modellBlWerkzeugAusloesen(0);
