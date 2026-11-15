@@ -1384,6 +1384,15 @@ void quadViertel(int nr, const char* titel, const std::function<void()>& inhalt,
     ui::menueRichtung(nr % 2 == 0 ? ImGuiDir_Left : ImGuiDir_Right);
     inhalt();
     ui::menueRichtung(ImGuiDir_None);
+    // TEST1411d: wie 3ds Max schliesst ein gewaehlter Eintrag das Quad-Menue. MenuItem/Selectable schliessen nur das Popup-Fenster, in dem
+    // sie stehen (imgui_widgets.cpp, Selectable: window->Flags & ImGuiWindowFlags_Popup) - die Viertel sind Kindfenster, das Menue blieb
+    // offen und nahm den naechsten Klick daneben nur zum Schliessen (mb5: der Knopf Mini Curve Editor nach Quad > Dope Sheet). Losgelassen
+    // ueber einem (nicht gesperrten) Eintrag dieses Viertels und kein Untermenue offen (dessen Eintraege schliessen die Kette selbst, ImGuiWindowFlags_ChildMenu)
+    const ImGuiContext& g = *GImGui;
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && ImGui::IsWindowHovered() && ImGui::GetHoveredID() != 0 && !g.HoveredIdIsDisabled &&
+        g.OpenPopupStack.Size <= g.BeginPopupStack.Size) {
+        ImGui::CloseCurrentPopup();
+    }
     if (nr < 2) { cjkTextDisabled("%s", titel); }   // oben: unter den Zeilen, an der Mitte
     ImGui::EndChild();
     g_quad.w[nr] = ImGui::GetItemRectSize().x;

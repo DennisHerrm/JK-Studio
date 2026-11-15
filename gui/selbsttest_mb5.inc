@@ -185,6 +185,65 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
         const ModellTab& t = g_app->mtab;
         return t.kvOffen && t.kvArt == 0 && t.kvGezeichnet >= ImGui::GetFrameCount() - 2 && t.kvTitel == tr(Str::MbKvDsMax);
     }));
+    // TEST1411d: wie 3ds Max ist der Spurbereich der Mini Curve Editor (TEST1411 G) - dieselben Editoren ueber seinen Knopf
+    // (zu, auf) und das Quad-Menue (Curve Editor, Dope Sheet); der Spurbereich hat Hoehe und der Editor ist gezeichnet
+    auto spurbereichAuf = [] { return modellZeit().probe.spuren[3] > ImGui::GetFrameHeight(); };   // x, y, Breite, Hoehe
+    auto knopfMini = [] {
+        const Element* e = finde(tr(Str::T1MiniKurve), "", 0, false);
+        if (e == nullptr) {
+            meldeFehler("MB5: Knopf Mini Curve Editor nicht gefunden: " + woIst(tr(Str::T1MiniKurve)));
+            return ImVec2{};
+        }
+        return e->rect.GetCenter();
+    };
+    auto quadZeileAn = [](Str text) {
+        return [text] {
+            const Element* e = finde(tr(text), "", 0, false);
+            if (e == nullptr) {
+                meldeFehler(std::string("MB5: ") + tr(text) + " nicht im Quad-Menue: " + woIst(tr(text)));
+                return ImVec2{};
+            }
+            return e->rect.GetCenter();
+        };
+    };
+    auto ansichtMitte = [] {
+        const ModellAnsicht& a = g_app->mtab.ansichten[g_app->mtab.aktiv];
+        return ImVec2{std::floor(a.lo[0] + a.groesse[0] * 0.5F), std::floor(a.lo[1] + a.groesse[1] * 0.5F)};
+    };
+    add(klickAn("auf den Knopf Mini Curve Editor (zu)", knopfMini));
+    add(pause(0.4));
+    add(pruefe("MB5 Mini Curve Editor: sein Knopf schliesst den Spurbereich (Hoehe 0, kein Editor gezeichnet)", [spurbereichAuf] {
+        const ModellTab& t = g_app->mtab;
+        return !modellZeit().miniKurve && !t.kvOffen && !spurbereichAuf() && t.kvGezeichnet < ImGui::GetFrameCount() - 2;
+    }));
+    add(klickAn("Rechtsklick in die Ansicht (Quad-Menue)", ansichtMitte, 1));
+    add(pause(0.3));
+    add(klickAn("Quad-Menue > Curve Editor", quadZeileAn(Str::T1QuadCurveEditor)));
+    add(pause(0.4));
+    add(pruefe("MB5 Quad-Menue > Curve Editor: der Spurbereich zeigt \"Track View - Curve Editor\" (wie 3ds Max)", [spurbereichAuf] {
+        const ModellTab& t = g_app->mtab;
+        return modellZeit().miniKurve && t.kvOffen && t.kvArt == 1 && spurbereichAuf() && t.kvGezeichnet >= ImGui::GetFrameCount() - 2 &&
+               t.kvTitel == tr(Str::MbKvKeMax);
+    }));
+    add(pruefe("MB5 Quad-Menue: der gewaehlte Eintrag schliesst das Quad-Menue (wie 3ds Max)", [] { return !g_app->mtab.kontextSichtbar; }));   // kontextSichtbar: das Popup ##mtkontext in diesem Bild
+    add(klickAn("Rechtsklick in die Ansicht (Quad-Menue)", ansichtMitte, 1));
+    add(pause(0.3));
+    add(klickAn("Quad-Menue > Dope Sheet", quadZeileAn(Str::T1QuadDopeSheet)));
+    add(pause(0.4));
+    add(pruefe("MB5 Quad-Menue > Dope Sheet: wieder \"Track View - Dope Sheet\"", [spurbereichAuf] {
+        const ModellTab& t = g_app->mtab;
+        return modellZeit().miniKurve && t.kvOffen && t.kvArt == 0 && spurbereichAuf() && t.kvGezeichnet >= ImGui::GetFrameCount() - 2 &&
+               t.kvTitel == tr(Str::MbKvDsMax);
+    }));
+    add(klickAn("auf den Knopf Mini Curve Editor (zu)", knopfMini));
+    add(pause(0.4));
+    add(klickAn("auf den Knopf Mini Curve Editor (auf)", knopfMini));
+    add(pause(0.4));
+    add(pruefe("MB5 Mini Curve Editor: sein Knopf oeffnet den Spurbereich wieder mit dem Dope Sheet", [spurbereichAuf] {
+        const ModellTab& t = g_app->mtab;
+        return modellZeit().miniKurve && t.kvOffen && t.kvArt == 0 && spurbereichAuf() && t.kvGezeichnet >= ImGui::GetFrameCount() - 2 &&
+               t.kvTitel == tr(Str::MbKvDsMax);
+    }));
     // --- K setzt einen Schluessel (Max: Keys einstellen) --------------------------------------------------------------
     add(tu("MB5: Griff Hand R, Frame +5, Schicht leer", [] {
         modellRigGriffWaehlen(griffNach(modell::GriffArt::Hand, modell::Seite::Rechts));
@@ -1092,6 +1151,19 @@ std::vector<Schritt> uiSchritte(bool handbuch) {
     add(pruefe("MB5 Blender Alt+S ueber dem Editor: der Regler Glaetten ist offen", [] { return g_app->mtab.kvRegler != 0 && g_app->mtab.kvReglerText == static_cast<int>(Str::MbKvWzGlaetten); }));
     add(klickImPopup(tr(Str::MbKvAbbrechen)));
     add(pause(0.2));
+    // TEST1411d: die Tasten des Graph Editors gelten wie in Blender nur mit der Maus ueber dem Editor (imEditor); nach "Cancel"
+    // steht sie auf dem Knopf des Reglers - wie vor Alt+S wieder ueber den Editor
+    add(tu("MB5 Blender: Maus wieder ueber den Editor", [] {
+        const ImVec2 m = ImGui::GetIO().MousePos;
+        char z[200];
+        std::snprintf(z, sizeof z, "Knopftest: MB5 nach Cancel - Maus %.0f/%.0f, ueber dem Editor %d, im Zeitfeld %d", static_cast<double>(m.x), static_cast<double>(m.y),
+                      g_app->mtab.kvHoverVorher ? 1 : 0, modellKvFeldEnthaelt(m) ? 1 : 0);
+        diag::detail(z);
+        ImVec2 p;
+        (void)modellKvZeileAufSchirm(0, -1, p);
+        setzeMaus(ImVec2{modellKvBildAufSchirm(static_cast<float>(f0() + 15)), p.y});
+    }));
+    add(pause(0.3));
     add(tasteKombi(ImGuiMod_Alt | ImGuiKey_D, "Alt+D (Mischen, Graph Editor)"));
     add(pause(0.3));
     add(pruefe("MB5 Blender Alt+D: der Regler Zum Nachbarn mischen ist offen", [] { return g_app->mtab.kvRegler != 0 && g_app->mtab.kvReglerText == static_cast<int>(Str::MbKvWzNachbar); }));

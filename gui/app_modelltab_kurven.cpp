@@ -862,16 +862,24 @@ void markerWaehlen() {
     melden(format(Str::MbKvGeaendert, tr(Str::MbKvMkWaehlen), static_cast<int>(t.kvWahl.size())));
 }
 
+// TEST1411d: wie 3ds Max ist der Spurbereich der Mini Curve Editor - die Zeitleiste setzt kvOffen dort in jedem Bild auf
+// dessen Stand; Menue und Suche gehen deshalb denselben Weg wie sein Knopf und das Quad-Menue (sonst blieb er zu, mb5)
+bool editorOffen(int art) { return (modellBlender() ? mt().kvOffen : modellZeit().miniKurve) && mt().kvArt == art; }
+
 void editorOeffnen(int art) {
     ModellTab& t = mt();
-    if (t.kvOffen && t.kvArt == art) {
-        t.kvOffen = false;
-    } else {
-        t.kvOffen = true;
+    if (t.bereich != ModellBereich::Animation) { t.bereich = ModellBereich::Animation; }
+    const bool max = !modellBlender();
+    const bool zu = editorOffen(art);
+    if (!zu) {
         t.kvArt = art;
         t.kvEinpassen = true;
     }
-    if (t.bereich != ModellBereich::Animation) { t.bereich = ModellBereich::Animation; }
+    if (max) {
+        modellZeitMiniKurve(!zu);
+    } else {
+        t.kvOffen = !zu;
+    }
 }
 
 // --- Aktionsliste --------------------------------------------------------------------------------------------------------
@@ -893,8 +901,8 @@ const std::vector<KvAktion>& kvAktionen() {
     using K = modell::KurvenWerkzeug;
     using P = modell::PosenSchieber;
     static const std::vector<KvAktion> kListe = {
-        {Str::MbKvDsOeffnen, Str::MbKvOeffnenHint, "", "", 0, 0, "", [] { editorOeffnen(0); }, [] { return mt().kvOffen && mt().kvArt == 0; }, 0},
-        {Str::MbKvKeOeffnen, Str::MbKvOeffnenHint, "", "", 0, 0, "", [] { editorOeffnen(1); }, [] { return mt().kvOffen && mt().kvArt == 1; }, 0},
+        {Str::MbKvDsOeffnen, Str::MbKvOeffnenHint, "", "", 0, 0, "", [] { editorOeffnen(0); }, [] { return editorOffen(0); }, 0},
+        {Str::MbKvKeOeffnen, Str::MbKvOeffnenHint, "", "", 0, 0, "", [] { editorOeffnen(1); }, [] { return editorOffen(1); }, 0},
         {Str::MbKvNurAnimierte, Str::MbKvNurAnimierteHint, "", "", 0, 0, "", [] { mt().kvNurAnimierte = !mt().kvNurAnimierte; }, [] { return mt().kvNurAnimierte; }, 0},
         {Str::MbKvNurGewaehlte, Str::MbKvNurGewaehlteHint, "", "", 0, 0, "", [] { mt().kvNurGewaehlte = !mt().kvNurGewaehlte; }, [] { return mt().kvNurGewaehlte; }, 0},
         {Str::MbKvAllesZeigen, Str::MbKvAllesZeigenHint, "", "", 0, 0, "", [] { mt().kvEinpassen = true; }, {}, 0},
