@@ -6,38 +6,12 @@ Rechtsklick-Menues. Jeder Text einmal in allen sechs Sprachen (en, de, zh, ja, e
 
 X = {
     "baum": (
-        "**One tree for everything:** at the top the model, below it **{{MbXArtFlaechen}}** with their hierarchy, **{{MbXArtTags}}** with the "
-        "models attached to them, **{{MbXArtKnochen}}**, the handles of the control rig and the sequences of the `animation.cfg` - the same "
-        "tree in every area of the tab. A click on a sequence plays it as the primary sequence (lock with **P**), a right-click locks it as "
-        "the secondary one (**S**); a red warning sign marks sequences whose frames lie behind the end of the GLA. The list under the node "
-        "shows only one group (BOTH_, TORSO_, LEGS_, FACE_), the two buttons next to it copy the name and open **{{ModelAnimToScript}}** "
-        "(also: double-click). **{{MbSuche}}** filters all rows by name.",
-        "**Ein Baum für alles:** oben das Modell, darunter **{{MbXArtFlaechen}}** mit ihrer Hierarchie, **{{MbXArtTags}}** mit den daran "
-        "angebauten Modellen, **{{MbXArtKnochen}}**, die Griffe des Control Rigs und die Sequenzen der `animation.cfg` - derselbe Baum in "
-        "jedem Bereich des Tabs. Ein Klick auf eine Sequenz spielt sie als Primärsequenz (Schloss mit **P**), ein Rechtsklick sperrt sie als "
-        "Sekundärsequenz (**S**); ein rotes Warnzeichen markiert Sequenzen, deren Bilder hinter dem Ende der GLA liegen. Die Liste unter dem "
-        "Knoten zeigt nur eine Gruppe (BOTH_, TORSO_, LEGS_, FACE_), die zwei Knöpfe daneben kopieren den Namen und öffnen "
-        "**{{ModelAnimToScript}}** (auch: Doppelklick). **{{MbSuche}}** filtert alle Zeilen nach dem Namen.",
-        "**一棵树包含一切:**最上面是模型,其下是带层级的 **{{MbXArtFlaechen}}**、带挂接模型的 **{{MbXArtTags}}**、**{{MbXArtKnochen}}**、控制绑定的控制柄以及 "
-        "`animation.cfg` 的序列——选项卡的每个区域都是同一棵树。单击序列将其作为主序列播放(带 **P** 的锁),右键可将其锁定为次序列(**S**);"
-        "红色警告标志标出帧位于 GLA 末尾之后的序列。节点下的列表只显示一个分组(BOTH_、TORSO_、LEGS_、FACE_),旁边的两个按钮复制名称并打开 "
-        "**{{ModelAnimToScript}}**(也可双击)。**{{MbSuche}}** 按名称筛选所有行。",
-        "**すべてを 1 本のツリーに:**一番上がモデル、その下に階層付きの **{{MbXArtFlaechen}}**、取り付けたモデル付きの **{{MbXArtTags}}**、"
-        "**{{MbXArtKnochen}}**、コントロールリグのハンドル、`animation.cfg` のシーケンスが並びます。タブのどのエリアでも同じツリーです。シーケンスを"
-        "クリックするとプライマリとして再生し(**P** 付きの錠)、右クリックでセカンダリ(**S**)に固定できます。フレームが GLA の終わりを超える"
-        "シーケンスには赤い警告マークが付きます。ノードの下のリストは 1 つのグループ(BOTH_、TORSO_、LEGS_、FACE_)だけを表示し、隣の 2 つのボタンは"
-        "名前のコピーと **{{ModelAnimToScript}}** です(ダブルクリックでも可)。**{{MbSuche}}** はすべての行を名前で絞り込みます。",
-        "**Un árbol para todo:** arriba el modelo y debajo **{{MbXArtFlaechen}}** con su jerarquía, **{{MbXArtTags}}** con los modelos "
-        "acoplados, **{{MbXArtKnochen}}**, los controles del control rig y las secuencias del `animation.cfg`; el mismo árbol en todas las "
-        "áreas de la pestaña. Un clic en una secuencia la reproduce como primaria (candado con **P**), un clic derecho la fija como "
-        "secundaria (**S**); una señal roja marca las secuencias cuyos fotogramas quedan detrás del final del GLA. La lista bajo el nodo "
-        "muestra solo un grupo (BOTH_, TORSO_, LEGS_, FACE_); los dos botones de al lado copian el nombre y abren **{{ModelAnimToScript}}** "
-        "(también: doble clic). **{{MbSuche}}** filtra todas las filas por nombre.",
-        "**Jeden strom pro všechno:** nahoře model, pod ním **{{MbXArtFlaechen}}** s hierarchií, **{{MbXArtTags}}** s připojenými modely, "
-        "**{{MbXArtKnochen}}**, úchyty control rigu a sekvence z `animation.cfg` - stejný strom v každé oblasti karty. Kliknutí na sekvenci ji "
-        "přehraje jako primární (zámek s **P**), pravé tlačítko ji zamkne jako sekundární (**S**); červená výstraha označuje sekvence, jejichž "
-        "snímky leží za koncem GLA. Seznam pod uzlem ukáže jen jednu skupinu (BOTH_, TORSO_, LEGS_, FACE_), dvě tlačítka vedle zkopírují "
-        "název a otevřou **{{ModelAnimToScript}}** (také: dvojklik). **{{MbSuche}}** filtruje všechny řádky podle názvu."),
+        '**One tree for everything:** at the top the model, below it **{{MbXArtFlaechen}}** with their hierarchy, **{{MbXArtTags}}** with the models attached to them, **{{MbXArtKnochen}}** as a nested tree (parent - child) and the handles of the control rig - the same tree in every area of the tab. **{{MbSuche}}** filters all rows by name. As in 3ds Max there is no hint line under the tree; the hints are in the tooltips.',
+        '**Ein Baum für alles:** oben das Modell, darunter **{{MbXArtFlaechen}}** mit ihrer Hierarchie, **{{MbXArtTags}}** mit den daran gehängten Modellen, **{{MbXArtKnochen}}** als verschachtelter Baum (Elternteil - Kind) und die Griffe des Control Rigs - derselbe Baum in jedem Bereich des Tabs. **{{MbSuche}}** filtert alle Zeilen nach Namen. Wie in 3ds Max steht unter dem Baum keine Hinweiszeile; die Hinweise stehen in den Tooltips.',
+        '**一棵树包含一切:** 顶部是模型, 下方是带层级的 **{{MbXArtFlaechen}}**、挂接了模型的 **{{MbXArtTags}}**、作为嵌套树 (父 - 子) 的 **{{MbXArtKnochen}}** 以及控制绑定的控制器 - 选项卡的每个区域都是同一棵树。**{{MbSuche}}** 按名称筛选所有行。与 3ds Max 相同, 树下没有提示行; 提示在工具提示中。',
+        '**すべてを 1 つのツリーに:** 一番上にモデル、その下に階層付きの **{{MbXArtFlaechen}}**、取り付けたモデル付きの **{{MbXArtTags}}**、入れ子のツリー (親 - 子) の **{{MbXArtKnochen}}**、コントロール リグのハンドル - タブのどのエリアでも同じツリーです。**{{MbSuche}}** で全行を名前で絞り込みます。3ds Max と同じくツリーの下にヒント行はなく、ヒントはツールチップにあります。',
+        '**Un árbol para todo:** arriba el modelo, debajo **{{MbXArtFlaechen}}** con su jerarquía, **{{MbXArtTags}}** con los modelos acoplados, **{{MbXArtKnochen}}** como árbol anidado (padre - hijo) y los controles del control rig: el mismo árbol en todas las áreas de la pestaña. **{{MbSuche}}** filtra todas las filas por nombre. Como en 3ds Max no hay línea de ayuda bajo el árbol; las indicaciones están en las descripciones emergentes.',
+        '**Jeden strom pro všechno:** nahoře model, pod ním **{{MbXArtFlaechen}}** s hierarchií, **{{MbXArtTags}}** s připojenými modely, **{{MbXArtKnochen}}** jako vnořený strom (rodič - potomek) a úchyty control rigu - stejný strom v každé oblasti karty. **{{MbSuche}}** filtruje všechny řádky podle názvu. Jako v 3ds Max není pod stromem řádek nápovědy; nápovědy jsou v bublinách.'),
     "bild_max": (
         "Like 3ds Max: arrow, eye and symbol stand directly in front of the name; the column with the snowflake freezes.",
         "Wie 3ds Max: Pfeil, Auge und Symbol stehen direkt vor dem Namen; die Spalte mit der Schneeflocke friert ein.",

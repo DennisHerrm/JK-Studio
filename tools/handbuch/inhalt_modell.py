@@ -108,6 +108,16 @@ QUELLEN = [
     Hinter("inhalt_ent3a", "bloecke_seite", "modell-blender", "inhalt_ap4", "seite"),           # B9 Seitenleiste bei Knochen
     Hinter("inhalt_ent3a", "bloecke_stapel", "modell-modellieren", "inhalt_ap13s", "bedienen"), # B11-B13 im Modifier-Stapel
     Anhang("inhalt_ap11", "modell-ansehen"),        # AP11: Abschnitt Mehrere Modelle in Reitern, Flaechen kopieren und einfuegen
+    # --- TEST1411 (14.11.): die Testrueckmeldungen von shank zu rc612 (F und G in inhalt_ap1 "aufbau", der Baum in inhalt_ap2 "baum") -----
+    Hinter("inhalt_test1411", "bloecke_leer", "modell-ansehen", "inhalt_mb1a1", "aufbau"),         # B leerer Model-Tab
+    Hinter("inhalt_test1411", "bloecke_sequenzen", "modell-ansehen", "inhalt_ap2", "baum"),         # E Sequenzen im eigenen Reiter
+    Hinter("inhalt_test1411", "bloecke_ansicht", "modell-ansehen", "inhalt_mbkopf", "cube"),        # D, L, M Ansicht und ViewCube
+    Hinter("inhalt_test1411", "bloecke_quad", "modell-bedienung", "inhalt_mb1a2", "b_text"),        # J Quad-Menue
+    Hinter("inhalt_test1411", "bloecke_motion", "modell-animationsfeld", "inhalt_ap10", "gruppen"), # N, I Setup/Animation, Knochen
+    Hinter("inhalt_test1411", "bloecke_knochen", "modell-knochen", "inhalt_ap13k", "knochen"),      # H, K Kette je Glied, Fussplattform
+    Hinter("inhalt_test1411", "bloecke_painting", "modell-painting", "inhalt_ap9", "feld"),         # O Ziel folgt dem Pinsel
+    Hinter("inhalt_test1411", "bloecke_weights", "modell-weights", "inhalt_ap8", "werkzeug"),       # P wie der Skin-Modifier
+    Hinter("inhalt_test1411", "bloecke_gla", "modell-dateien", "inhalt_mb2", "gla"),                # C Load .gla aus den pk3
 ]
 
 
