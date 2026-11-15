@@ -1053,9 +1053,53 @@ int knochenSeite(const std::vector<std::string>& namen, int knochen) {
     return 0;
 }
 
-int linkeSeite(const Inhalt& in, int stufe, const std::vector<std::string>& namen) {
-    std::vector<int> seite(namen.size(), 0);
-    for (std::size_t k = 0; k < namen.size(); ++k) { seite[k] = knochenSeite(namen, static_cast<int>(k)); }
+KnochenSpiegel::KnochenSpiegel(const std::vector<std::string>& namen, const std::vector<KnochenPaarHand>& hand) : partner(namen.size(), -1), seite(namen.size(), 0) {
+    for (std::size_t k = 0; k < namen.size(); ++k) {
+        partner[k] = spiegelKnochen(namen, static_cast<int>(k));
+        seite[k] = knochenSeite(namen, static_cast<int>(k));
+    }
+    const auto index = [&](const std::string& name) {
+        for (std::size_t i = 0; i < namen.size(); ++i) {
+            if (namen[i].size() != name.size()) { continue; }
+            bool gleich = true;
+            for (std::size_t c = 0; c < name.size() && gleich; ++c) {
+                gleich = std::tolower(static_cast<unsigned char>(namen[i][c])) == std::tolower(static_cast<unsigned char>(name[c]));
+            }
+            if (gleich) { return static_cast<int>(i); }
+        }
+        return -1;
+    };
+    const auto loesen = [&](int k) {
+        const int alt = partner[uz(k)];
+        if (alt >= 0 && alt != k) { partner[uz(alt)] = -1; }
+        partner[uz(k)] = -1;
+    };
+    for (const KnochenPaarHand& h : hand) {
+        const int a = index(h.knochen);
+        const int b = h.partner.empty() ? -1 : index(h.partner);
+        if (a < 0 || (!h.partner.empty() && (b < 0 || b == a))) { continue; }
+        loesen(a);
+        if (b < 0) { continue; }
+        loesen(b);
+        partner[uz(a)] = b;
+        partner[uz(b)] = a;
+        if (seite[uz(a)] != 0) {
+            seite[uz(b)] = -seite[uz(a)];
+        } else if (seite[uz(b)] != 0) {
+            seite[uz(a)] = -seite[uz(b)];
+        } else {
+            seite[uz(a)] = 1;
+            seite[uz(b)] = -1;
+        }
+    }
+}
+
+int KnochenSpiegel::partnerVon(int knochen) const noexcept { return knochen >= 0 && uz(knochen) < partner.size() ? partner[uz(knochen)] : -1; }
+
+int KnochenSpiegel::seiteVon(int knochen) const noexcept { return knochen >= 0 && uz(knochen) < seite.size() ? seite[uz(knochen)] : 0; }
+
+int linkeSeite(const Inhalt& in, int stufe, const KnochenSpiegel& paare) {
+    const std::vector<int>& seite = paare.seite;
     double summe[2] = {0.0, 0.0};     // links, rechts: Summe x * Gewicht
     double gewicht[2] = {0.0, 0.0};
     for (std::size_t t = 0; t < in.teile.size(); ++t) {
@@ -1165,11 +1209,11 @@ std::vector<int> spiegelPartnerTopologie(const Schweissnetz& s) {
     return partner;
 }
 
-SpiegelBefund spiegelBefund(const std::vector<std::string>& namen, const Schweissnetz& s, const std::vector<int>& partner) {
+SpiegelBefund spiegelBefund(const KnochenSpiegel& knochen, const Schweissnetz& s, const std::vector<int>& partner) {
     SpiegelBefund b;
-    for (std::size_t k = 0; k < namen.size(); ++k) {
-        if (knochenSeite(namen, static_cast<int>(k)) == 0) { continue; }
-        const int m = spiegelKnochen(namen, static_cast<int>(k));
+    for (std::size_t k = 0; k < knochen.seite.size(); ++k) {
+        if (knochen.seite[k] == 0) { continue; }
+        const int m = knochen.partnerVon(static_cast<int>(k));
         if (m >= 0 && m != static_cast<int>(k)) {
             if (static_cast<int>(k) < m) {
                 ++b.knochenPaare;
@@ -1204,10 +1248,10 @@ SpiegelBefund spiegelBefund(const std::vector<std::string>& namen, const Schweis
 
 namespace {
 
-// Die Knochen einer Liste auf die andere Seite (l <-> r nach den Namen; ohne Partner bleibt der Knochen).
-GewichtListe gespiegelteListe(GewichtListe l, const std::vector<std::string>& namen) {
+// Die Knochen einer Liste auf die andere Seite (l <-> r nach den Paaren; ohne Partner bleibt der Knochen).
+GewichtListe gespiegelteListe(GewichtListe l, const KnochenSpiegel& paare) {
     for (KnochenGewicht& g : l) {
-        const int m = spiegelKnochen(namen, g.knochen);
+        const int m = paare.partnerVon(g.knochen);
         if (m >= 0) { g.knochen = m; }
     }
     zusammenfassen(l);
@@ -1216,7 +1260,7 @@ GewichtListe gespiegelteListe(GewichtListe l, const std::vector<std::string>& na
 
 }  // namespace
 
-int spiegelnSeite(Inhalt& in, int stufe, const std::vector<std::string>& namen, const Schweissnetz& s, const std::vector<int>& partner, int quelle,
+int spiegelnSeite(Inhalt& in, int stufe, const KnochenSpiegel& paare, const Schweissnetz& s, const std::vector<int>& partner, int quelle,
                   float mitte, const EckenMaske* wahl, const std::vector<char>* nurTeile) {
     if (!netzPasst(in, stufe, s)) { return 0; }   // FIX612B P2-3
     const std::size_t np = std::min(uz(s.zahl()), partner.size());
@@ -1232,9 +1276,9 @@ int spiegelnSeite(Inhalt& in, int stufe, const std::vector<std::string>& namen, 
         if (q < 0 || (gewaehlt[p] == 0 && gewaehlt[uz(q)] == 0)) { continue; }
         if (quelle == 0) {
             // Tauschen: jeder Punkt bekommt die gespiegelten Gewichte seines Partners; ein Punkt der Mitte tauscht l <-> r
-            neu.emplace_back(static_cast<int>(p), gespiegelteListe(punktListe(in, stufe, s, q), namen));
+            neu.emplace_back(static_cast<int>(p), gespiegelteListe(punktListe(in, stufe, s, q), paare));
         } else if (q != static_cast<int>(p) && seite(static_cast<int>(p)) == -quelle && seite(q) == quelle) {
-            neu.emplace_back(static_cast<int>(p), gespiegelteListe(punktListe(in, stufe, s, q), namen));
+            neu.emplace_back(static_cast<int>(p), gespiegelteListe(punktListe(in, stufe, s, q), paare));
         }
     }
     int z = 0;
@@ -1242,7 +1286,7 @@ int spiegelnSeite(Inhalt& in, int stufe, const std::vector<std::string>& namen, 
     return z;
 }
 
-SpiegelZahl spiegelnBlender(Inhalt& in, int stufe, const std::vector<std::string>& namen, const Schweissnetz& s, const std::vector<int>& partner,
+SpiegelZahl spiegelnBlender(Inhalt& in, int stufe, const KnochenSpiegel& paare, const Schweissnetz& s, const std::vector<int>& partner,
                             const BlenderSpiegel& o, const EckenMaske* wahl) {
     SpiegelZahl zahl;
     if ((!o.gewichte && !o.namenTauschen) || (!o.alleGruppen && o.aktiv < 0)) { return zahl; }
@@ -1250,9 +1294,9 @@ SpiegelZahl spiegelnBlender(Inhalt& in, int stufe, const std::vector<std::string
     const std::size_t np = std::min(uz(s.zahl()), partner.size());
     const std::vector<char> gewaehlt = zielPunkte(s, wahl);
     // BKE_object_defgroup_flip_map (alle) bzw. _flip_map_single (nur der aktive Knochen und sein Partner); -1: bleibt
-    const int aktivPartner = o.aktiv >= 0 ? spiegelKnochen(namen, o.aktiv) : -1;
+    const int aktivPartner = o.aktiv >= 0 ? paare.partnerVon(o.aktiv) : -1;
     const auto anders = [&](int k) {
-        if (o.alleGruppen) { return spiegelKnochen(namen, k); }
+        if (o.alleGruppen) { return paare.partnerVon(k); }
         if (aktivPartner < 0) { return -1; }
         return k == o.aktiv ? aktivPartner : (k == aktivPartner ? o.aktiv : -1);
     };

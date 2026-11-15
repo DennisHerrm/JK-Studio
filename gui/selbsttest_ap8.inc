@@ -268,12 +268,13 @@ void zeilenSchritte(std::vector<Schritt>& s) {
         add(pause(0.8));
 
         // --- W0a / W0b: Aufbau ---
-        const std::string soll = bl ? std::string(tr(Str::MgRPinsel)) + "|" + tr(Str::MgROptionen) + "|" + tr(Str::MgRBereinigen) + "|" + tr(Str::MgRSpiegeln) + "|" + tr(Str::AsGruppe) + "|" +
+        // TEST1411 P: wie Blender ueber dem Pinsel das Panel Vertex-Gewichte
+        const std::string soll = bl ? std::string(tr(Str::T1pBlVertexGewichte)) + "|" + tr(Str::MgRPinsel) + "|" + tr(Str::MgROptionen) + "|" + tr(Str::MgRBereinigen) + "|" + tr(Str::MgRSpiegeln) + "|" + tr(Str::AsGruppe) + "|" +
                                           tr(Str::MgRKnochen) + "|" + tr(Str::MgRGrenzen)
                                     : std::string(tr(Str::MgRStapel)) + "|" + tr(Str::MgRWerkzeug) + "|" + tr(Str::MgRSpiegeln) + "|" + tr(Str::AsGruppe) + "|" + tr(Str::MgRKnochen) + "|" +
                                           tr(Str::MgRGrenzen) + "|" + tr(Str::MgRErweitert);
         add(pruefe(zeile(bl ? "W0b" : "W0a", modus,
-                         bl ? "Eigenschaften, Reiter Daten: Pinsel, Optionen, Bereinigen, Spiegeln, Automatisch, Knochen, JKA-Grenzen untereinander"
+                         bl ? "Eigenschaften, Reiter Daten: Vertex-Gewichte, Pinsel, Optionen, Bereinigen, Spiegeln, Automatisch, Knochen, JKA-Grenzen untereinander"
                             : "Befehlsfeld, Reiter Aendern: Modifier-Stapel, Gewichts-Werkzeug, Spiegeln, Automatisch, Knochen, JKA-Grenzen untereinander (dazu zugeklappt Erweiterte Parameter)"),
                    [=] {
                        const ui::FeldProbe& f = ui::feldProbe();
@@ -293,6 +294,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 return inGruppe(Str::MgRStapel, skin) && inGruppe(Str::MgRStapel, poly) && (skin->flags & ImGuiItemStatusFlags_Checked) != 0 &&
                        (poly->flags & ImGuiItemStatusFlags_Checked) == 0 && poly->rect.Min.y >= skin->rect.Max.y;
             }));
+            add(ap3::insFeld(tr(Str::MgStapelPoly)));
             add(klick(tr(Str::MgStapelPoly), "mtrollouts"));
             add(pause(0.3));
             add(pruefe(zeile("W1", modus, "ein Klick auf Edit Poly wechselt in den Bereich Modellieren"), [] { return mtab().bereich == ModellBereich::Modellieren; }));
@@ -330,6 +332,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                        c->rect.Min.y == d->rect.Min.y && e->rect.Min.y > c->rect.Max.y && e->rect.Min.y == f->rect.Min.y && m->rect.Min.y > e->rect.Max.y && g->symbole == g->knoepfe &&
                        g->knoepfe >= 8;
             }));
+            add(ap3::insFeld(".25"));
             add(klick(".25", "mtrollouts"));
             add(pause(0.2));
             add(pruefe(zeile("W2", modus, "ein Klick auf den Festwert .25 stellt das Gewicht des Pinsels auf 0,25 (beim Malen aendert er das Modell nicht)"), [] {
@@ -341,6 +344,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 p->a = modell::EckOrt{mb1::teil("torso"), vordereEcke(mb1::teil("torso"), p->ort)};
                 p->zahl = mtab().tupferZahl;
             }));
+            add(ap3::insFeld(tr(Str::MgMalenMax)));
             add(klick(tr(Str::MgMalenMax), "mtrollouts"));
             add(pause(0.2));
             add(klickAn("AP8 W2: auf die Ecke (Malen aus)", [p] { return p->ort; }));
@@ -358,17 +362,20 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 p->vorher = gewicht(p->a, mtab().knochenWahl);
                 p->stand = mtab().dok.stand();
             }));
+            add(ap3::insFeld(".5"));
             add(klick(".5", "mtrollouts"));
             add(pause(0.3));
             add(pruefe(zeile("W2", modus, "Malen aus, Ecke gewaehlt: der Festwert .5 setzt das Gewicht des Knochens sofort auf die Auswahl (wie das Weight Tool), Summe 1, ein Rueckgaengig-Schritt"), [p] {
                 melde("W2 Festwert: " + std::to_string(p->vorher) + " -> " + std::to_string(gewicht(p->a, mtab().knochenWahl)) + ", Summe " + std::to_string(summe(p->a)));
                 return gewicht(p->a, mtab().knochenWahl) == 0.5F && std::fabs(summe(p->a) - 1.0F) < 1e-5F && mtab().dok.rueckgaengigName() == tr(Str::MbUndoSetzen);
             }));
+            add(ap3::insFeld(tr(Str::MgSkalieren)));
             add(klick(tr(Str::MgSkalieren), "mtrollouts"));
             add(pause(0.3));
             add(pruefe(zeile("W2", modus, "Skalieren: das Gewicht mal 0,95 (Vorgabe von Scale Weight) = 0,475"), [p] {
                 return std::fabs(gewicht(p->a, mtab().knochenWahl) - 0.475F) < 1e-6F && mtab().dok.rueckgaengigName() == tr(Str::MgUndoSkalieren);
             }));
+            add(ap3::insFeld(tr(Str::MgWachsen)));
             add(klick(tr(Str::MgWachsen), "mtrollouts"));
             add(pause(0.3));
             add(pruefe(zeile("W2", modus, "Wachsen: die Auswahl nimmt die Nachbarn der Ecke dazu"), [p] {
@@ -376,6 +383,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 melde("W2 Wachsen: " + std::to_string(p->zahl) + " Ecken");
                 return p->zahl > 3;
             }));
+            add(ap3::insFeld(tr(Str::MgMischen)));
             add(klick(tr(Str::MgMischen), "mtrollouts"));
             add(pause(0.3));
             add(pruefe(zeile("W2", modus, "Mischen: die Gewichte der Auswahl naehern sich ihren Nachbarn (die Mitte faellt unter 0,475), Summe 1"), [p] {
@@ -383,6 +391,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 melde("W2 Mischen: Mitte " + std::to_string(w) + ", Summe " + std::to_string(summe(p->a)));
                 return w < 0.475F && w > 0.0F && std::fabs(summe(p->a) - 1.0F) < 1e-5F && mtab().dok.rueckgaengigName() == tr(Str::MgUndoMischen);
             }));
+            add(ap3::insFeld(tr(Str::MgSchrumpfen)));
             add(klick(tr(Str::MgSchrumpfen), "mtrollouts"));
             add(pause(0.3));
             add(pruefe(zeile("W2", modus, "Schrumpfen nimmt die aeussersten Ecken wieder aus der Auswahl"), [p] { return static_cast<int>(mtab().eckenWahl.size()) < p->zahl && !mtab().eckenWahl.empty(); }));
@@ -390,6 +399,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 mtab().eckenWahl = zweiNachbarn(mb1::teil("torso"), true);
                 p->zahl = static_cast<int>(mtab().eckenWahl.size());
             }));
+            add(ap3::insFeld(tr(Str::MgSchleife)));
             add(klick(tr(Str::MgSchleife), "mtrollouts"));
             add(pause(0.4));
             add(pruefe(zeile("W2", modus, "Schleife: von zwei benachbarten Ecken aus laeuft die Auswahl die Kanten entlang weiter"), [p] {
@@ -401,6 +411,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 mtab().eckenWahl = zweiNachbarn(mb1::teil("torso"), false);
                 p->zahl = static_cast<int>(mtab().eckenWahl.size());
             }));
+            add(ap3::insFeld(tr(Str::MgRing)));
             add(klick(tr(Str::MgRing), "mtrollouts"));
             add(pause(0.4));
             add(pruefe(zeile("W2", modus, "Ring: die Auswahl nimmt die parallelen Kanten dazu"), [p] {
@@ -408,9 +419,11 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 return p->zahl == 2 && mtab().eckenWahl.size() > 2U;
             }));
             add(tu("AP8 W2: ohne Auswahl", [] { mtab().eckenWahl.clear(); }));
+            add(ap3::insFeld(tr(Str::MgSkalieren)));
             add(klick(tr(Str::MgSkalieren), "mtrollouts"));
             add(pause(0.3));
             add(pruefe(zeile("W2", modus, "ohne Auswahl sagt die Meldung, was fehlt (kein stilles Nichtstun)"), [] { return mtab().meldung == tr(Str::MgKeineAuswahl); }));
+            add(ap3::insFeld(tr(Str::MgMalOptionen)));
             add(klick(tr(Str::MgMalOptionen), "mtrollouts"));
             add(pause(0.3));
             add(pruefe(zeile("W2", modus, "was rc611 konnte, bleibt: unter Pinsel-Optionen die Pinselarten Hinzufuegen/Abziehen/Glaetten/Setzen, Radius, Staerke, Beim Malen spiegeln"), [] {
@@ -420,11 +433,13 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 }
                 return da && inGruppe(Str::MgRWerkzeug, imRoll(tr(Str::MbGwGewicht)));
             }));
+            add(ap3::insFeld(tr(Str::MgMalOptionen)));
             add(klick(tr(Str::MgMalOptionen), "mtrollouts"));
             // --- W11: Tasten ---
             add(pruefe(zeile("W11", modus, "der Hinweis zur Bedienung steht als Tipp in der Gruppe (linke Taste malt, Festwerte, Strg+Z)"), [] {
                 return inGruppe(Str::MgRWerkzeug, imRoll(tr(Str::MbGwTastenMax)));
             }));
+            add(ap3::insFeld(tr(Str::MgMalenMax)));
             add(klick(tr(Str::MgMalenMax), "mtrollouts"));   // Malen wieder an
             add(tu("AP8: zurueck auf die Datei, Objektmodus", [] {
                 alleZurueck();
@@ -479,6 +494,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 p->startX = std::floor(p->ort.x) + 1.0F;
                 melde("W3 Verlauf: rechteste Ecke " + std::to_string(rechts - p->ort.x) + " Bildpunkte rechts der Ecke, Strecke " + std::to_string(p->laenge));
             }));
+            add(ap3::insFeld(tr(Str::MgVerlauf)));
             add(klick(tr(Str::MgVerlauf), "mtrollouts"));
             add(pause(0.2));
             add(pruefe(zeile("W3", modus, "Verlauf gewaehlt: der Knopf ist an, darunter die Wahl Linear / Radial"), [] {
@@ -522,6 +538,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
             add(pruefe(zeile("W3", modus, "Rueckgaengig nimmt den ganzen Verlauf zurueck"), [p] { return gewichteVon(p->a.teil, mtab().knochenWahl) == p->gewichte; }));
             // Verwischen: erst ein Verlauf als Gefaelle, dann ein Strich gegen das Gefaelle
             add(ziehenProbe("AP8 W3: noch einmal der Verlauf", p, 0.0F, 1.0F));
+            add(ap3::insFeld(tr(Str::MgVerwischen)));
             add(klick(tr(Str::MgVerwischen), "mtrollouts"));
             add(pause(0.2));
             add(tu("AP8 W3: Gewichte vor dem Verwischen", [p] { p->gewichte = gewichteVon(p->a.teil, mtab().knochenWahl); }));
@@ -538,9 +555,11 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 melde("W3 Verwischen: " + std::to_string(hoeher) + " Ecken hoeher, " + std::to_string(tiefer) + " tiefer");
                 return gw().werkzeug == 1 && hoeher > 0 && tiefer == 0 && mtab().dok.rueckgaengigName() == tr(Str::MbUndoMalen);
             }));
+            add(ap3::insFeld(tr(Str::MgWeich)));
             add(klick(tr(Str::MgWeich), "mtrollouts"));
             add(pause(0.2));
             add(pruefe(zeile("W3", modus, "Weichzeichnen waehlt den Glaetten-Pinsel von rc611"), [] { return gw().werkzeug == 0 && mtab().pinselArt == static_cast<int>(modell::PinselArt::Glaetten); }));
+            add(ap3::insFeld(tr(Str::MbGwHinzu)));
             add(klick(tr(Str::MbGwHinzu), "mtrollouts"));
             add(pause(0.2));
 
@@ -572,6 +591,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
             add(tu("AP8 W4: Rueckgaengig", [] { (void)modellRueckgaengig(); }));
             add(ap3::insFeld(tr(Str::MgAutoNorm)));
             add(pause(0.3));
+            add(ap3::insFeld(tr(Str::MgAutoNorm)));
             add(klick(tr(Str::MgAutoNorm), "mtrollouts"));
             add(pause(0.2));
             add(tu("AP8 W4: derselbe Tupfer ohne Auto-Normalisieren", [p] {
@@ -586,6 +606,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
             }));
             add(ap3::insFeld(tr(Str::MgAutoNorm)));
             add(pause(0.3));
+            add(ap3::insFeld(tr(Str::MgAutoNorm)));
             add(klick(tr(Str::MgAutoNorm), "mtrollouts"));
             add(klickAn("AP8 W4: auf den gesperrten Schalter Hoechstens 4", [] {
                 const Element* e = imRoll(tr(Str::MgVier));
@@ -614,12 +635,14 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 mtab().knochenWahl = 2;
             }));
             add(pause(0.3));
+            add(ap3::insFeld(tr(Str::MgSaeubern)));
             add(klick(tr(Str::MgSaeubern), "mtrollouts"));
             add(pause(0.3));
             add(pruefe(zeile("W4", modus, "Saeubern entfernt das Gewicht 0,04 (bis zur Grenze 0,05), 0,06 bleibt; die Summe wird 1"), [p] {
                 melde("W4 Saeubern: Knochen 6 " + std::to_string(gewicht(p->a, 6)) + ", Knochen 5 " + std::to_string(gewicht(p->a, 5)) + ", Summe " + std::to_string(summe(p->a)));
                 return gewicht(p->a, 6) == 0.0F && gewicht(p->a, 5) > 0.0F && std::fabs(summe(p->a) - 1.0F) < 1e-5F && mtab().dok.rueckgaengigName() == tr(Str::MgUndoSaeubern);
             }));
+            add(ap3::insFeld(tr(Str::MgBegrenzen)));
             add(klick(tr(Str::MgBegrenzen), "mtrollouts"));
             add(pause(0.3));
             add(pruefe(zeile("W4", modus, "Begrenzen: 4 laesst der Ecke ihre vier groessten Knochen"), [p] {
@@ -632,6 +655,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 (void)modellRueckgaengig();
                 gw().autoNormalisieren = false;
             }));
+            add(ap3::insFeld(tr(Str::MgNormAlle)));
             add(klick(tr(Str::MgNormAlle), "mtrollouts"));
             add(pause(0.3));
             add(pruefe(zeile("W4", modus, "Alles normalisieren: Summe 1, der gewaehlte Knochen behaelt 0,4 (Lock Active)"), [p] {
@@ -639,6 +663,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 return gewicht(p->a, 2) == 0.4F && std::fabs(summe(p->a) - 1.0F) < 1e-5F && mtab().dok.rueckgaengigName() == tr(Str::MgUndoNorm);
             }));
             add(tu("AP8 W4: Gewicht vor dem Glaetten", [p] { p->vorher = gewicht(p->a, 1); }));
+            add(ap3::insFeld(tr(Str::MbGwGlaetten)));
             add(klick(tr(Str::MbGwGlaetten), "mtrollouts", 0, false, tr(Str::MgBegrenzen)));
             add(pause(0.4));
             add(pruefe(zeile("W4", modus, "Glaetten zieht die Gewichte aller Knochen zu den Nachbarn (Knochen 1 faellt, die Nachbarn haben ihn nicht)"), [p] {
@@ -692,7 +717,9 @@ void zeilenSchritte(std::vector<Schritt>& s) {
         }));
         add(pause(0.3));
         if (!bl) {
-            add(pruefe(zeile("W5", modus, "Haken Spiegelmodus (links blau, rechts gruen), Raster Blau -> Gruen, Gruen -> Blau / Seiten tauschen, Nur Auswahl"), [] {
+            add(ap3::insFeld(tr(Str::MgNurAuswahl)));   // TEST1411e: das Feld ist seit TEST1411 P hoeher als das Fenster des Laufs
+            add(pause(0.2));
+            add(pruefe(zeile("W5", modus, "Haken Spiegelmodus (links blau, rechts gruen), Raster Blau -> Gruen, Gruen -> Blau / Seiten tauschen, Nur Auswahl (dazu Mirror Paste)"), [] {
                 const ui::RolloutProbe* g = feldGruppe(Str::MgRSpiegeln);
                 const Element* m = imRoll(tr(Str::MgSpiegelModus));
                 const Element* a = imRoll(tr(Str::MgBlauGruen));
@@ -701,8 +728,9 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 const Element* d = imRoll(tr(Str::MgNurAuswahl));
                 if (g == nullptr || m == nullptr || a == nullptr || b == nullptr || c == nullptr || d == nullptr) { return false; }
                 return (m->flags & ImGuiItemStatusFlags_Checked) == 0 && a->rect.Min.y >= m->rect.Max.y && a->rect.Min.y == b->rect.Min.y && c->rect.Min.y == d->rect.Min.y &&
-                       c->rect.Min.y > a->rect.Max.y && g->rasterSpalten == 2 && g->symbole == 4;
+                       c->rect.Min.y > a->rect.Max.y && g->rasterSpalten == 2 && g->symbole == 5;   // TEST1411 P: Mirror Paste
             }));
+            add(ap3::insFeld(tr(Str::MgSpiegelModus)));
             add(klick(tr(Str::MgSpiegelModus), "mtrollouts"));
             add(pause(0.5));
             add(pruefe(zeile("W5", modus, "Spiegelmodus an: die Ansicht zeigt die Ecken links blau, rechts gruen und die ohne Gegenstueck gelb"), [p] {
@@ -724,6 +752,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 gw().spiegelModus = false;
             }));
             add(pause(0.4));
+            add(ap3::insFeld(tr(Str::MgBlauGruen)));
             add(klick(tr(Str::MgBlauGruen), "mtrollouts"));
             add(pause(0.4));
             add(pruefe(zeile("W5", modus, "Blau -> Gruen: das Gegenstueck rechts traegt rhumerus 0,6 (der Knochen wechselt ueber den Namen die Seite); ein Rueckgaengig-Schritt, die Meldung zaehlt"), [p] {
@@ -732,6 +761,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                        gw().letzteZahl > 300 && !mtab().meldung.empty();
             }));
             add(tu("AP8 W5: Rueckgaengig", [] { (void)modellRueckgaengig(); }));
+            add(ap3::insFeld(tr(Str::MgTauschen)));
             add(klick(tr(Str::MgTauschen), "mtrollouts"));
             add(pause(0.4));
             add(pruefe(zeile("W5", modus, "Seiten tauschen: rechts rhumerus 0,6, links jetzt, was rechts stand (als linker Knochen)"), [p] {
@@ -744,19 +774,23 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 modellAuswahlArtSetzen(AuswahlArt::Ecke);
                 mtab().eckenWahl = {modell::EckOrt{mb1::teil("torso"), 0}};
             }));
+            add(ap3::insFeld(tr(Str::MgNurAuswahl)));
             add(klick(tr(Str::MgNurAuswahl), "mtrollouts"));
+            add(ap3::insFeld(tr(Str::MgBlauGruen)));
             add(klick(tr(Str::MgBlauGruen), "mtrollouts"));
             add(pause(0.4));
             add(pruefe(zeile("W5", modus, "Nur Auswahl: das Paar ist nicht gewaehlt und bleibt, wie es war"), [p] {
                 return gw().nurAuswahl && gewicht(p->b, knochen("rhumerus")) == p->vorher && gewicht(p->a, knochen("lhumerus")) == 0.6F;
             }));
             add(tu("AP8 W5: das linke der beiden gewaehlt", [p] { mtab().eckenWahl = {p->a}; }));
+            add(ap3::insFeld(tr(Str::MgBlauGruen)));
             add(klick(tr(Str::MgBlauGruen), "mtrollouts"));
             add(pause(0.4));
             add(pruefe(zeile("W5", modus, "Nur Auswahl mit der linken Ecke gewaehlt: nur ihr Gegenstueck bekommt die Gewichte"), [p] {
                 melde("W5 Nur Auswahl: " + std::to_string(gw().letzteZahl) + " Ecken");
                 return gewicht(p->b, knochen("rhumerus")) == 0.6F && gw().letzteZahl >= 1 && gw().letzteZahl < 12;
             }));
+            add(ap3::insFeld(tr(Str::MgNurAuswahl)));
             add(klick(tr(Str::MgNurAuswahl), "mtrollouts"));
         } else {
             add(pruefe(zeile("W6", modus, "Raster Gruppe spiegeln, Alle Gruppen; Haken Gewichte spiegeln (an), Namen tauschen (an), Topologie-Spiegeln (aus), Beim Malen spiegeln"), [] {
@@ -773,6 +807,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                        (c->flags & ImGuiItemStatusFlags_Checked) != 0 && (d->flags & ImGuiItemStatusFlags_Checked) != 0 && (e->flags & ImGuiItemStatusFlags_Checked) == 0;
             }));
             add(tu("AP8 W6: Knochen lhumerus", [] { mtab().knochenWahl = knochen("lhumerus"); }));
+            add(ap3::insFeld(tr(Str::MgGruppeSpiegeln)));
             add(klick(tr(Str::MgGruppeSpiegeln), "mtrollouts"));
             add(pause(0.4));
             add(pruefe(zeile("W6", modus, "Gruppe spiegeln (ohne Auswahl tauschen beide Seiten, mit Namentausch): rechts steht das Gewicht 0,6 jetzt an rhumerus, links an lhumerus, was rechts stand"), [p] {
@@ -784,6 +819,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                        gw().letzteZahl > 300;
             }));
             add(tu("AP8 W6: Rueckgaengig", [] { (void)modellRueckgaengig(); }));
+            add(ap3::insFeld(tr(Str::MgAlleGruppen)));
             add(klick(tr(Str::MgAlleGruppen), "mtrollouts"));
             add(pause(0.4));
             add(pruefe(zeile("W6", modus, "Alle Gruppen: die ganzen Gewichte der beiden Punkte tauschen und wechseln die Seite"), [p] {
@@ -793,12 +829,14 @@ void zeilenSchritte(std::vector<Schritt>& s) {
                 (void)modellRueckgaengig();
                 p->zahl = gw().befund.ohneGegenstueck;
             }));
+            add(ap3::insFeld(tr(Str::MgBlTopologie)));
             add(klick(tr(Str::MgBlTopologie), "mtrollouts"));
             add(pause(0.5));
             add(pruefe(zeile("W6", modus, "Topologie-Spiegeln: die Gegenstuecke kommen aus dem Aufbau des Netzes (die Tabelle zaehlt neu)"), [p] {
                 melde("W6 Topologie: ohne Gegenstueck " + std::to_string(gw().befund.ohneGegenstueck) + " (ueber die Lage " + std::to_string(p->zahl) + ")");
                 return gw().blTopologie && gw().befund.ohneGegenstueck != p->zahl;
             }));
+            add(ap3::insFeld(tr(Str::MgBlTopologie)));
             add(klick(tr(Str::MgBlTopologie), "mtrollouts"));
             add(tu("AP8 W6: Knochen rhumerus", [] { mtab().knochenWahl = knochen("rhumerus"); }));
         }
@@ -851,6 +889,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
         // --- W12: Sperren ---
         add(ap3::insFeld(tr(Str::MgSperre)));
         add(pause(0.3));
+        add(ap3::insFeld(tr(Str::MgSperre)));
         add(klick(tr(Str::MgSperre), "mtrollouts"));
         add(pause(0.3));
         add(pruefe(zeile("W12", modus, "Haken Sperren: der gewaehlte Knochen ist gesperrt und steht als Zeile mit x in der Gruppe"), [] {
@@ -901,6 +940,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
         }));
         add(ap3::insFeld(tr(Str::MgEntsperren)));
         add(pause(0.3));
+        add(ap3::insFeld(tr(Str::MgEntsperren)));
         add(klick(tr(Str::MgEntsperren), "mtrollouts"));
         add(pause(0.3));
         add(pruefe(zeile("W12", modus, "das x der Zeile entsperrt den Knochen"), [] { return !modellGewichtGesperrt(knochen("rhumerus")) && imRoll(tr(Str::MgEntsperren)) == nullptr; }));
@@ -940,6 +980,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
             }));
             add(tu("AP8 W12: alle entsperren", [] { modellGewichteSperren(2, 0); }));
         } else {
+            add(ap3::insFeld(tr(Str::MgSperrMenue)));
             add(klick(tr(Str::MgSperrMenue), "mtrollouts"));
             add(pause(0.4));
             add(pruefe(zeile("W12", modus, "der Knopf Sperren... oeffnet dasselbe Menue (wie 3ds Max ohne Taste)"), [] { return gw().sperrMenueSichtbar && finde(tr(Str::MgLockAlle), "##Popup_", 0, false) != nullptr; }));
@@ -996,6 +1037,7 @@ void zeilenSchritte(std::vector<Schritt>& s) {
         }));
         add(ap3::insFeld(tr(Str::MbGwUebernehmen)));
         add(pause(0.3));
+        add(ap3::insFeld(tr(Str::MbGwUebernehmen)));
         add(klick(tr(Str::MbGwUebernehmen), "mtrollouts"));
         add(pause(0.4));
         add(pruefe(zeile("W9", modus, "Uebernehmen schreibt vier Gewichte wie das Spiel sie liest in die Ecke (kein Knochen ohne Gewicht), die Mallisten sind weg"), [p] {
@@ -1064,8 +1106,9 @@ void zeilenSchritte(std::vector<Schritt>& s) {
         }));
 
         // --- Finden: Suche, Rechtsklick, Tooltip ---
-        add(pruefe(zeile("Finden", modus, "jede neue Funktion steht mit einem Hinweis in der Liste fuer Suche und Rechtsklick (24 Aktionen in vier Gruppen)"), [] {
-            bool ok = modellGewichteAktionZahl() == 24;
+        // 24 von AP8, 6 von TEST1411 P (Mirror Paste, Copy, Paste, Paste-Pos, Weight Table, Backface Cull), 1 von TEST1411e (Paare nach den Namen)
+        add(pruefe(zeile("Finden", modus, "jede neue Funktion steht mit einem Hinweis in der Liste fuer Suche und Rechtsklick (31 Aktionen in vier Gruppen)"), [] {
+            bool ok = modellGewichteAktionZahl() == 31;
             for (int i = 0; i < modellGewichteAktionZahl(); ++i) {
                 ok = ok && modellGewichteAktionText(i)[0] != '\0' && std::strlen(modellGewichteAktionHinweis(i)) > 20U && modellGewichteAktionGruppe(i) >= 0 && modellGewichteAktionGruppe(i) <= 3;
             }
@@ -1108,6 +1151,8 @@ void zeilenSchritte(std::vector<Schritt>& s) {
         // Tooltip an einem Knopf des Felds
         add(zeige(Str::MgRSpiegeln));
         add(pause(0.4));
+        add(ap3::insFeld(tr(Str::MgToleranz)));
+        add(pause(0.2));
         add(mbefoto::mausAuf("den Regler Toleranz", [] { return imRoll(tr(Str::MgToleranz)); }));
         add(pruefe(zeile("Finden", modus, "unter der Maus zeigt der Regler Toleranz seinen Tooltip"), [] { return tooltipDa(); }));
         add(tu("AP8: Maus weg", [] { setzeMaus(ImVec2{-50.0F, -50.0F}); }));

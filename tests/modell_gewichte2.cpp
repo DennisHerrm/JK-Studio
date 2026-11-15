@@ -703,6 +703,56 @@ void pruefeSpiegeln() {
         (void)spiegelMalen(x, 0, s, partner, mitte, 1, spiegelKnochen(kNamen, 1), r);
         expect("ein Punkt der Mitte mit einem Knochenpaar: lhand und rhand gleich", nah(gewichtVon(x.teile[2].stufen[0], 2, 1), gewichtVon(x.teile[2].stufen[0], 2, 2)) &&
                                                                                      gewichtVon(x.teile[2].stufen[0], 2, 1) > 0.0F);
+    }    {
+        // TEST1411e: die Paare von Hand (wie die Zuordnung im Mirror Mode von 3ds Max). Ohne Paare von Hand die Namen.
+        const KnochenSpiegel namen(kNamen);
+        bool gleich = namen.partner.size() == kNamen.size() && namen.seite.size() == kNamen.size();
+        for (int k = 0; k < static_cast<int>(kNamen.size()) && gleich; ++k) {
+            gleich = namen.partnerVon(k) == spiegelKnochen(kNamen, k) && namen.seiteVon(k) == knochenSeite(kNamen, k);
+        }
+        expect("Paare ohne Hand = nach den Namen (spiegelKnochen, knochenSeite); ausserhalb der Tabelle kein Partner",
+               gleich && namen.partnerVon(-1) == -1 && namen.partnerVon(99) == -1 && namen.seiteVon(99) == 0);
+        // lhand <-> r_arm: beide verlassen ihre Paare (rhand und l_arm ohne Partner), die Seiten aus dem Namen von lhand
+        const KnochenSpiegel h1(kNamen, {{"lhand", "r_arm"}});
+        expect("lhand <-> r_arm von Hand: rhand und l_arm ohne Partner, lhand links, r_arm rechts",
+               h1.partnerVon(1) == 5 && h1.partnerVon(5) == 1 && h1.partnerVon(2) == -1 && h1.partnerVon(4) == -1 && h1.seiteVon(1) == 1 && h1.seiteVon(5) == -1 &&
+                   h1.partnerVon(6) == 7);
+        // zwei Knochen ohne Seite im Namen: der erste links; Gross/klein wie spiegelKnochen egal
+        const KnochenSpiegel h2(kNamen, {{"LOWER_LUMBAR", "lonely"}});
+        expect("lower_lumbar <-> lonely (ohne Seite im Namen): der erste links, der zweite rechts",
+               h2.partnerVon(3) == 8 && h2.partnerVon(8) == 3 && h2.seiteVon(3) == 1 && h2.seiteVon(8) == -1);
+        // ohne Partner; unbekannte Namen zaehlen nicht; der Reihe nach (das spaetere Paar gilt)
+        const KnochenSpiegel h3(kNamen, {{"knee_l", ""}, {"gibtsnicht", "rhand"}, {"lhand", "gibtsnicht"}, {"l_arm", "l_arm"}});
+        expect("knee_l ohne Partner (knee_r auch), unbekannte Namen und ein Knochen mit sich selbst aendern nichts",
+               h3.partnerVon(6) == -1 && h3.partnerVon(7) == -1 && h3.seiteVon(6) == 1 && h3.partnerVon(1) == 2 && h3.partnerVon(4) == 5);
+        const KnochenSpiegel h4(kNamen, {{"lhand", "r_arm"}, {"lhand", "rhand"}});
+        expect("der Reihe nach: lhand <-> rhand nach lhand <-> r_arm - r_arm steht ohne Partner, l_arm bleibt ohne",
+               h4.partnerVon(1) == 2 && h4.partnerVon(2) == 1 && h4.partnerVon(5) == -1 && h4.partnerVon(4) == -1);
+        // Befund und Spiegeln folgen der Tabelle
+        Inhalt x = figur();
+        Netz& l = x.teile[0].stufen[0];
+        malAnlegen(l);
+        for (GewichtListe& g : l.mal) { g = {{1, 0.75F}, {3, 0.25F}}; }   // links lhand 0,75, lower_lumbar 0,25
+        const Schweissnetz s = schweissen(x, 0);
+        const std::vector<int> partner = spiegelPartner(x, 0, s, 0.01F);
+        const SpiegelBefund b = spiegelBefund(h1, s, partner);
+        expect(f("Befund mit lhand <-> r_arm: 2 Paare von 5 (l_only, rhand, l_arm ohne): %d / %d", b.knochenPaare, b.knochenPaareSoll),
+               b.knochenPaare == 2 && b.knochenPaareSoll == 5);
+        Inhalt a = x;
+        (void)spiegelnSeite(a, 0, KnochenSpiegel(kNamen, {{"lhand", "knee_r"}}), s, partner, 1, 0.01F);
+        expect("+X -> -X mit lhand <-> knee_r: der rechte Arm traegt knee_r 0,75 statt rhand", gewichtVon(a.teile[1].stufen[0], 1, 7) == 0.75F &&
+                                                                                         gewichtVon(a.teile[1].stufen[0], 1, 2) == 0.0F &&
+                                                                                         gewichtVon(a.teile[1].stufen[0], 1, 3) == 0.25F);
+        BlenderSpiegel alle;
+        alle.alleGruppen = true;
+        Inhalt c = x;
+        (void)spiegelnBlender(c, 0, KnochenSpiegel(kNamen, {{"lhand", "knee_r"}}), s, partner, alle);
+        expect("wie Blender (alle Gruppen) mit lhand <-> knee_r: rechts knee_r 0,75", gewichtVon(c.teile[1].stufen[0], 1, 7) == 0.75F);
+        Inhalt y = x;
+        Netz& r = y.teile[1].stufen[0];
+        malAnlegen(r);
+        for (GewichtListe& g : r.mal) { g = {{2, 1.0F}}; }   // rechts rhand (mit h1 ohne Partner, die Seite bleibt rechts)
+        expect("linke Seite der Figur mit Paaren von Hand: x > 0", linkeSeite(y, 0, h1) == 1);
     }
 }
 

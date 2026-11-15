@@ -245,9 +245,27 @@ int begrenzen(Inhalt& in, int stufe, const EckenMaske* wahl, int grenze, const M
 // Die Seite eines Knochens aus seinem Namen (wie spiegelKnochen): +1 links, -1 rechts, 0 keine. Ein einzelnes l/r am
 // Anfang zaehlt nur mit Partner (lhand, aber nicht lower_lumbar).
 [[nodiscard]] int knochenSeite(const std::vector<std::string>& namen, int knochen);
+// TEST1411e: die Knochenpaare des Spiegelns als Tabelle - je Knochen sein Partner (-1: keiner) und seine Seite (+1 links, -1 rechts,
+// 0 keine). Ohne Paare von Hand nach den Namen (spiegelKnochen, knochenSeite); von Hand gesetzte Paare gehen vor (wie die Zuordnung
+// im Mirror Mode von 3ds Max: sichtbar und aenderbar), der Reihe nach: a <-> b loest beide aus ihren bisherigen Paaren (die bisherigen
+// Partner bleiben ohne), a <-> "" laesst a ohne Partner. Die Seite eines Paars von Hand: traegt einer eine Seite im Namen, bekommt der
+// andere die Gegenseite, sonst ist der erste links. Namen, die es im Skelett nicht gibt, zaehlen nicht. Eine Namensliste allein ergibt
+// die Paare nach den Namen - so nehmen die Funktionen unten weiter die Namen wie bis TEST1411.
+struct KnochenPaarHand {
+    std::string knochen;
+    std::string partner;   // leer: ohne Partner
+};
+struct KnochenSpiegel {
+    std::vector<int> partner;
+    std::vector<int> seite;
+    KnochenSpiegel() = default;
+    KnochenSpiegel(const std::vector<std::string>& namen, const std::vector<KnochenPaarHand>& hand = {});   // NOLINT: Namen ergeben die Paare nach den Namen
+    [[nodiscard]] int partnerVon(int knochen) const noexcept;   // -1: keiner (auch ausserhalb der Tabelle)
+    [[nodiscard]] int seiteVon(int knochen) const noexcept;
+};
 // Wo die linke Seite der Figur liegt: +1 bei x > 0, -1 bei x < 0, 0 ohne Befund - gemessen am Schwerpunkt der Gewichte
 // linker gegen rechter Knochen.
-[[nodiscard]] int linkeSeite(const Inhalt& in, int stufe, const std::vector<std::string>& namen);
+[[nodiscard]] int linkeSeite(const Inhalt& in, int stufe, const KnochenSpiegel& paare);
 
 // Je Punkt sein Spiegelpartner (x -> -x): der naechste Punkt am gespiegelten Ort mit Abstand <= toleranz; ein Punkt auf
 // der Spiegelebene ist sein eigener Partner. -1: kein Gegenstueck.
@@ -258,7 +276,7 @@ int begrenzen(Inhalt& in, int stufe, const EckenMaske* wahl, int grenze, const M
 [[nodiscard]] std::vector<int> spiegelPartnerTopologie(const Schweissnetz& s);
 
 struct SpiegelBefund {
-    int knochenPaare = 0;        // gefundene Paare linker und rechter Knochen (ueber die Namen)
+    int knochenPaare = 0;        // gefundene Paare linker und rechter Knochen (ueber die Namen, TEST1411e: und von Hand)
     int knochenPaareSoll = 0;    // dazu die Knochen, deren Name eine Seite traegt (l_/r_, _l/_r), aber keinen Partner hat
     int punkte = 0;
     int ohneGegenstueck = 0;     // Punkte ohne Partner
@@ -266,7 +284,7 @@ struct SpiegelBefund {
     int eckenOhne = 0;           // Ecken an Punkten ohne Partner
     std::vector<std::pair<int, int>> teilPaare;   // Teile, deren Punkte einander spiegeln (kleinerer Index zuerst, je einmal)
 };
-[[nodiscard]] SpiegelBefund spiegelBefund(const std::vector<std::string>& namen, const Schweissnetz& s, const std::vector<int>& partner);
+[[nodiscard]] SpiegelBefund spiegelBefund(const KnochenSpiegel& knochen, const Schweissnetz& s, const std::vector<int>& partner);
 
 // Wie 3ds Max (Mirror Parameters): "Paste Blue to Green Verts" / "Paste Green to Blue Verts" kopieren die Gewichte einer
 // Seite auf die andere (Knochen nach spiegelKnochen), Tauschen wechselt beide Seiten (Punkte der Mitte tauschen nur ihre
@@ -278,7 +296,7 @@ struct SpiegelBefund {
 // "Nur Auswahl" mit "Spiegeln": die uebrigen Flaechen behalten ihre Gewichte).
 // FIX612B P2-3: `s` und `partner` muessen zur Stufe gehoeren (schweissen(in, stufe)); passt das Schweissnetz nicht zu den
 // Netzen der Stufe (es stammt von einer anderen), geschieht nichts - das gilt auch fuer spiegelnBlender und spiegelMalen.
-int spiegelnSeite(Inhalt& in, int stufe, const std::vector<std::string>& namen, const Schweissnetz& s, const std::vector<int>& partner, int quelle,
+int spiegelnSeite(Inhalt& in, int stufe, const KnochenSpiegel& paare, const Schweissnetz& s, const std::vector<int>& partner, int quelle,
                   float mitte, const EckenMaske* wahl = nullptr, const std::vector<char>* nurTeile = nullptr);
 
 // Wie Blender (object.vertex_group_mirror, vgroup_mirror / dvert_mirror_op): je Paar - sind beide gewaehlt (ohne Auswahl:
@@ -295,7 +313,7 @@ struct SpiegelZahl {
     int gespiegelt = 0;    // Paare ("%d vertex weights mirrored")
     int ohnePartner = 0;   // Punkte ohne Gegenstueck ("%d vertices not found")
 };
-SpiegelZahl spiegelnBlender(Inhalt& in, int stufe, const std::vector<std::string>& namen, const Schweissnetz& s, const std::vector<int>& partner,
+SpiegelZahl spiegelnBlender(Inhalt& in, int stufe, const KnochenSpiegel& paare, const Schweissnetz& s, const std::vector<int>& partner,
                             const BlenderSpiegel& o, const EckenMaske* wahl = nullptr);
 
 // Spiegeln beim Malen wie Blender (X Mirror, do_weight_paint_vertex_single: "dw_mirr->weight = dw->weight"): nach einem

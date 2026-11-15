@@ -189,6 +189,7 @@ const std::vector<GwAktion>& aktionen() {
         {Str::MgNurAuswahl, Str::MgNurAuswahlHint, "", "", 2, [] { gw().nurAuswahl = !gw().nurAuswahl; }, [] { return gw().nurAuswahl; }},
         // TEST1411 P: wie das Weight Tool und der Mirror Mode des Skin-Modifiers von 3ds Max
         {Str::T1pSpiegelPaste, Str::T1pSpiegelPasteHint, "", "", 2, [] { (void)modellGewichteSpiegelPaste(); }, nullptr},
+        {Str::T1ePaareNamen, Str::T1ePaareNamenHint, "", "", 2, [] { modellKnochenPaareNachNamen(); }, nullptr},   // TEST1411e
         {Str::T1pKopieren, Str::T1pKopierenHint, "", "", 0, [] { (void)modellGewichteKopieren(); }, nullptr},
         {Str::T1pEinfuegen, Str::T1pEinfuegenHint, "", "", 0, [] { (void)modellGewichteEinfuegen(false); }, nullptr},
         {Str::T1pEinfuegenOrt, Str::T1pEinfuegenOrtHint, "", "", 0, [] { (void)modellGewichteEinfuegen(true); }, nullptr},
@@ -557,24 +558,95 @@ void spiegelTabelle() {
     ui::tipp(text(Str::MgSpiegelTipp, gr.knochenJeFlaeche).c_str());
 }
 
-// TEST1411 P: die Zuordnung der Knochenpaare sichtbar (Max Mirror Mode zeigt sie blau/gruen an den Knochen): je Knochen der linken Seite
-// sein Partner nach dem Namen (modell::spiegelKnochen), ohne Partner gekennzeichnet
+// Eine Klappliste der Knochen (ohne `ohne`); "-" waehlt keinen. Rueckgabe: der gewaehlte Knochen, -2 wenn nichts gewaehlt wurde. `zelle`:
+// in der naechsten Zelle des Rasters (ui::rasterZelle setzt die Breite), sonst so breit wie der Platz.
+int knochenListe(const char* id, const std::vector<std::string>& namen, const char* vorschau, ImU32 farbe, int ohne, bool keiner, bool zelle = false) {
+    int wahl = -2;
+    const ImGuiID kennung = ImGui::GetID(id);   // vor BeginCombo: danach ist bei offener Liste ihr Fenster das aktuelle
+    if (zelle) {
+        ui::rasterZelle();
+    } else {
+        ImGui::SetNextItemWidth(-FLT_MIN);
+    }
+    ImGui::PushStyleColor(ImGuiCol_Text, farbe);
+    const bool auf = ImGui::BeginCombo(id, vorschau);
+    ImGui::PopStyleColor();
+    if (auf) {
+        if (keiner && ImGui::Selectable("-")) { wahl = -1; }
+        for (int k = 0; k < static_cast<int>(namen.size()); ++k) {
+            if (k != ohne && ImGui::Selectable(namen[uz(k)].c_str())) { wahl = k; }
+        }
+        ImGui::EndCombo();
+    }
+    if (GImGui->TestEngineHookItems) { selbsttestMerkeText(GImGui, kennung, id); }   // BeginCombo meldet keine Beschriftung
+    return wahl;
+}
+
+// TEST1411 P: die Zuordnung der Knochenpaare sichtbar (Max Mirror Mode zeigt sie blau/gruen an den Knochen). TEST1411e: und von Hand
+// aenderbar - je Paar eine Zeile (links blau, rechts gruen), darunter die Knochen mit Seite ohne Partner; der Partner ist eine Klappliste
+// ("-": ohne Partner), die letzte Zeile bildet ein Paar aus zwei beliebigen Knochen (Namen, die die Regel nicht kennt, z. B. "Bip01 L
+// Hand"). Paare von Hand tragen ein *, "Paare nach den Namen" verwirft sie.
 void knochenPaare() {
+    ModellGewichte& g = gw();
     const std::vector<std::string> namen = knochenNamen();
     if (namen.empty() || !ui::mehrBeginn(tr(Str::T1pPaare))) { return; }
+    const modell::KnochenSpiegel paare(namen, g.handPaare);
+    const auto vonHand = [&](int k) {
+        for (const modell::KnochenPaarHand& h : g.handPaare) {
+            if (klein(h.knochen) == klein(namen[uz(k)]) || klein(h.partner) == klein(namen[uz(k)])) { return true; }
+        }
+        return false;
+    };
+    const ImU32 blau = ImGui::GetColorU32(ImVec4{0.35F, 0.6F, 1.0F, 1.0F});
+    const ImU32 gruen = ImGui::GetColorU32(ImVec4{0.3F, 0.85F, 0.35F, 1.0F});
+    int zeilen = 0;
+    int stern = 0;
     if (ImGui::BeginTable("##t1ppaare", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY,
                           ImVec2{0.0F, ImGui::GetFrameHeight() * 8.0F})) {
         for (int k = 0; k < static_cast<int>(namen.size()); ++k) {
-            const int p = modell::spiegelKnochen(namen, k);
-            if (p < 0 || p == k || modell::knochenSeite(namen, k) <= 0) { continue; }
+            const int p = paare.partnerVon(k);
+            const int s = paare.seiteVon(k);
+            if (!((p >= 0 && p != k && s > 0) || (p < 0 && s != 0))) { continue; }
+            ++zeilen;
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
-            ImGui::TextColored(ImVec4{0.35F, 0.6F, 1.0F, 1.0F}, "%s", namen[uz(k)].c_str());
+            ImGui::AlignTextToFramePadding();
+            ImGui::PushStyleColor(ImGuiCol_Text, s > 0 ? blau : gruen);
+            ImGui::TextUnformatted((namen[uz(k)] + (vonHand(k) ? " *" : "")).c_str());
+            ImGui::PopStyleColor();
+            if (vonHand(k)) {
+                ImGui::SetItemTooltip("%s", tr(Str::T1ePaarHand));
+                ++stern;
+            }
             ImGui::TableSetColumnIndex(1);
-            ImGui::TextColored(ImVec4{0.3F, 0.85F, 0.35F, 1.0F}, "%s", namen[uz(p)].c_str());
+            const std::string id = "##pk" + std::to_string(k);
+            const int wahl = knochenListe(id.c_str(), namen, p >= 0 ? namen[uz(p)].c_str() : "-", s > 0 ? gruen : blau, k, true);
+            ImGui::SetItemTooltip("%s", tr(Str::T1ePaarHint));
+            if (wahl != -2) { modellKnochenPaarSetzen(k, wahl); }
         }
         ImGui::EndTable();
     }
+    // ein neues Paar aus zwei beliebigen Knochen, nebeneinander in den zwei Zellen einer Zeile
+    ui::rasterBeginn(2);
+    const int erster = knochenListe("##paarneu1", namen, g.paarNeu >= 0 ? namen[uz(std::min(g.paarNeu, static_cast<int>(namen.size()) - 1))].c_str() : tr(Str::T1ePaarNeu),
+                                    blau, -1, false, true);
+    ImGui::SetItemTooltip("%s", tr(Str::T1ePaarNeuHint));
+    if (erster >= 0) { g.paarNeu = erster; }
+    ImGui::BeginDisabled(g.paarNeu < 0);
+    const int zweiter = knochenListe("##paarneu2", namen, "-", gruen, g.paarNeu, false, true);
+    ImGui::EndDisabled();
+    ImGui::SetItemTooltip("%s", tr(Str::T1ePaarNeuHint));
+    if (zweiter >= 0 && g.paarNeu >= 0) {
+        modellKnochenPaarSetzen(g.paarNeu, zweiter);
+        g.paarNeu = -1;
+    }
+    ui::rasterEnde();
+    if (!g.handPaare.empty() && ui::werkzeugKnopf(tr(Str::T1ePaareNamen), {.icon = UiIcon::Rueckgaengig, .hinweis = tr(Str::T1ePaareNamenHint)})) {
+        modellKnochenPaareNachNamen();
+    }
+    g.paareZeilen = zeilen;
+    g.paareStern = stern;
+    g.paareBild = ImGui::GetFrameCount();
     ui::mehrEnde();
 }
 
@@ -1168,28 +1240,55 @@ void modellGewichteSpiegelStand() {
     ModellGewichte& g = gw();
     const bool topologie = g.blTopologie && modellBlender();
     char schluessel[120];
-    std::snprintf(schluessel, sizeof schluessel, "%d|%d|%d|%.4f|%d|%zu", t.dok.ladeStand(), t.dok.stand(), t.lodJetzt, static_cast<double>(g.toleranz), topologie ? 1 : 0,
-                  g_app->anim.bones.size());
+    std::snprintf(schluessel, sizeof schluessel, "%d|%d|%d|%.4f|%d|%zu|%d", t.dok.ladeStand(), t.dok.stand(), t.lodJetzt, static_cast<double>(g.toleranz), topologie ? 1 : 0,
+                  g_app->anim.bones.size(), g.handStand);
     if (g.spiegelSchluessel == schluessel) { return; }
     const modell::Inhalt& in = t.dok.inhalt();
-    const std::vector<std::string> namen = knochenNamen();
+    const modell::KnochenSpiegel paare = modellKnochenSpiegel();
     g.netz = modell::schweissen(in, t.lodJetzt);
     g.partner = topologie ? modell::spiegelPartnerTopologie(g.netz) : modell::spiegelPartner(in, t.lodJetzt, g.netz, g.toleranz);
-    g.befund = modell::spiegelBefund(namen, g.netz, g.partner);
-    g.links = modell::linkeSeite(in, t.lodJetzt, namen);
+    g.befund = modell::spiegelBefund(paare, g.netz, g.partner);
+    g.links = modell::linkeSeite(in, t.lodJetzt, paare);
     g.spiegelSchluessel = schluessel;
+}
+
+modell::KnochenSpiegel modellKnochenSpiegel() { return {knochenNamen(), gw().handPaare}; }
+
+// Ein Paar von Hand ersetzt die Eintraege beider Knochen (der Reihe nach angewandt gilt sonst ein aelteres a <-> b neben dem neuen weiter)
+void modellKnochenPaarSetzen(int knochen, int partner) {
+    ModellGewichte& g = gw();
+    const std::vector<std::string> namen = knochenNamen();
+    if (knochen < 0 || uz(knochen) >= namen.size() || partner >= static_cast<int>(namen.size()) || partner == knochen) { return; }
+    const std::string a = klein(namen[uz(knochen)]);
+    const std::string b = partner >= 0 ? klein(namen[uz(partner)]) : std::string();
+    std::erase_if(g.handPaare, [&](const modell::KnochenPaarHand& h) {
+        const std::string x = klein(h.knochen);
+        const std::string y = klein(h.partner);
+        return x == a || y == a || (!b.empty() && (x == b || y == b));
+    });
+    g.handPaare.push_back({namen[uz(knochen)], partner >= 0 ? namen[uz(partner)] : std::string()});
+    ++g.handStand;
+    melde(text(Str::T1ePaarGesetzt, namen[uz(knochen)].c_str(), partner >= 0 ? namen[uz(partner)].c_str() : "-"));
+}
+
+void modellKnochenPaareNachNamen() {
+    ModellGewichte& g = gw();
+    g.handPaare.clear();
+    g.paarNeu = -1;
+    ++g.handStand;
+    melde(tr(Str::T1ePaareNamenFertig));
 }
 
 int modellSpiegeln(int quelle) {
     ModellTab& t = mt();
     ModellGewichte& g = gw();
     modellGewichteSpiegelStand();
-    const std::vector<std::string> namen = knochenNamen();
+    const modell::KnochenSpiegel paare = modellKnochenSpiegel();
     const int stufe = t.lodJetzt;
     const modell::EckenMaske m = g.nurAuswahl ? modellGewichteAuswahl() : modell::EckenMaske{};
     const modell::EckenMaske* wahl = g.nurAuswahl ? &m : nullptr;
     // Seiten nach dem Vorzeichen von x; zur Mitte gehoert ein Punkt nur, wenn er sein eigener Partner ist
-    const int n = befehl(Str::MbUndoSpiegeln, [&](modell::Inhalt& x) { return modell::spiegelnSeite(x, stufe, namen, g.netz, g.partner, quelle, 0.0F, wahl); });
+    const int n = befehl(Str::MbUndoSpiegeln, [&](modell::Inhalt& x) { return modell::spiegelnSeite(x, stufe, paare, g.netz, g.partner, quelle, 0.0F, wahl); });
     grenzeMelden(text(Str::MgGespiegelt, n, g.befund.eckenOhne));
     return n;
 }
@@ -1213,7 +1312,7 @@ int modellGewichteSpiegelnBlender(bool alleGruppen) {
         return 0;
     }
     modellGewichteSpiegelStand();
-    const std::vector<std::string> namen = knochenNamen();
+    const modell::KnochenSpiegel paare = modellKnochenSpiegel();
     const int stufe = t.lodJetzt;
     // die Auswahlmaske von Blender: gewaehlte Ecken; ohne sie gelten alle als gewaehlt (beide Seiten tauschen)
     const bool mitWahl = t.auswahlArt != AuswahlArt::Objekt && !t.eckenWahl.empty();
@@ -1225,7 +1324,7 @@ int modellGewichteSpiegelnBlender(bool alleGruppen) {
     o.aktiv = t.knochenWahl;
     modell::SpiegelZahl zahl;
     (void)befehl(Str::MbUndoSpiegeln, [&](modell::Inhalt& x) {
-        zahl = modell::spiegelnBlender(x, stufe, namen, g.netz, g.partner, o, mitWahl ? &m : nullptr);
+        zahl = modell::spiegelnBlender(x, stufe, paare, g.netz, g.partner, o, mitWahl ? &m : nullptr);
         return zahl.gespiegelt;
     });
     grenzeMelden(text(Str::MgGespiegelt, zahl.gespiegelt, zahl.ohnePartner));

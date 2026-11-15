@@ -1511,6 +1511,14 @@ struct ModellGewichte {
     modell::SpiegelBefund befund;
     int links = 0;                   // +1: die linke Seite der Figur liegt bei x > 0, -1: bei x < 0, 0: nicht bestimmbar
     std::string spiegelSchluessel;
+    // TEST1411e: von Hand gesetzte Knochenpaare (vor denen nach den Namen, modell::KnochenSpiegel), ihr Stand (Teil des Spiegelstands) und
+    // der erste Knochen eines neuen Paars in der letzten Zeile der Tabelle
+    std::vector<modell::KnochenPaarHand> handPaare;
+    int handStand = 0;
+    int paarNeu = -1;
+    int paareZeilen = -1;            // Selbsttest: Zeilen der Tabelle im letzten Bild (-1: nicht gezeichnet), davon mit * (von Hand)
+    int paareStern = 0;
+    int paareBild = -1;
     // der laufende Verlauf (Ziehen in der Ansicht) und die letzte Pinselbewegung (Verwischen)
     bool verlaufZieht = false;
     int verlaufAnsicht = -1;
@@ -1529,6 +1537,9 @@ struct ModellGewichte {
     int letzteZahl = 0;              // was der letzte Befehl gezaehlt hat (Ecken bzw. Gewichte)
 };
 [[nodiscard]] ModellGewichte& modellGewichte();
+[[nodiscard]] modell::KnochenSpiegel modellKnochenSpiegel();   // TEST1411e: die Knochenpaare des Spiegelns (Namen, dazu die von Hand)
+void modellKnochenPaarSetzen(int knochen, int partner);       // TEST1411e: ein Paar von Hand (partner -1: ohne Partner)
+void modellKnochenPaareNachNamen();                           // TEST1411e: die Paare von Hand verwerfen
 [[nodiscard]] modell::MalRegeln modellGewichteRegeln();      // Sperren und Auto-Normalisieren fuer jedes Werkzeug
 void modellGewichteBereichSchritt();                          // W10: je Bild (Bereichswechsel)
 void modellGewichteMalenSetzen(bool an);

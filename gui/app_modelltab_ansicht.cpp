@@ -1824,7 +1824,7 @@ bool modellTupfer(int ansicht, ImVec2 maus, bool neuerStrich) {
     t.letzterTupfer[0] = maus.x;
     t.letzterTupfer[1] = maus.y;
     if (zahl == 0) { return false; }
-    const int spiegelK = modell::spiegelKnochen(knochenNamen(), t.knochenWahl);
+    const int spiegelK = modellKnochenSpiegel().partnerVon(t.knochenWahl);   // TEST1411e: mit den Paaren von Hand
     const int knochen = t.knochenWahl;
     const float wert = t.pinselGewicht;
     // AP8: Pinsel bzw. Verwischen mit den Regeln (Sperren, Auto-Normalisieren), danach das Spiegeln beim Malen

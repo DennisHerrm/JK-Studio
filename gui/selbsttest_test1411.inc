@@ -29,6 +29,8 @@
 //      laengsten Sequenz - unter Movie Duels BOTH_MD_CIN_51 mit 660 Bildern)
 //   s  TEST1411e: Load mission - waehrend die Suche im Hintergrund Karten bringt, bleibt die Zeile unter der Maus dieselbe (auch am Ende der
 //      Suche, solange die Maus ueber der Liste steht); verlaesst sie die Liste, ordnet sie sich (Namen, Gruppen)
+//   w  TEST1411e: Weights-Mirror - ein Knochenpaar von Hand ueber die Klappliste der Tabelle (beide verlassen ihre alten Paare, Befund), Mirror
+//      Paste folgt dem Paar von Hand, ein neues Paar aus zwei beliebigen Knochen, "Paare nach den Namen" stellt die Namen wieder her
 //   x  TEST1411e: ohne Auswahl nennt die Statuszeile (wie 3ds Max) X/Y/Z des Mauspunkts auf dem Raster der Ansicht darunter (eine Ansicht
 //      oben/vorne/links/Perspektive, vier Ansichten), ausserhalb der Ansichten bleibt der letzte Punkt, mit Auswahl deren Mitte
 // Eingebunden in selbsttest.cpp (am Ende der Modell-Block-Gruppen).
@@ -2141,6 +2143,27 @@ Schritt pRahmen(const std::string& was) {
                    }};
 }
 
+// die Ecke von l_arm, die der Mitte ihres groessten Dreiecks am Schirm am naechsten liegt
+ImVec2 pEckeLArm() {
+    const int i = teil("l_arm");
+    const ImVec2 m = flaechenPunkt("l_arm");
+    const auto& h = modellHaut();
+    ImVec2 best = m;
+    float bd = 1e30F;
+    if (i >= 0 && uz(i) < h.size()) {
+        for (const auto& e : h[uz(i)]) {
+            ImVec2 sp;
+            if (!modellAufSchirm(mtab().ansichten[mtab().aktiv], e.data(), sp)) { continue; }
+            const float d = (sp.x - m.x) * (sp.x - m.x) + (sp.y - m.y) * (sp.y - m.y);
+            if (d < bd) {
+                bd = d;
+                best = sp;
+            }
+        }
+    }
+    return best;
+}
+
 void pSchritte(std::vector<Schritt>& s) {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto st = std::make_shared<PStand>();
@@ -2165,26 +2188,7 @@ void pSchritte(std::vector<Schritt>& s) {
     add(klick(tr(Str::T1pEcken), "mtrollouts"));
     add(pause(0.3));
     add(tu("T1411 P: Ecken an?", [st] { st->eckenAn = !modellGewichte().malen && mtab().auswahlArt == AuswahlArt::Ecke; }));
-    add(klickAn("T1411 P: Klick auf eine Ecke von l_arm", [] {
-        // die Ecke von l_arm, die der Mitte ihres groessten Dreiecks am Schirm am naechsten liegt
-        const int i = teil("l_arm");
-        const ImVec2 m = flaechenPunkt("l_arm");
-        const auto& h = modellHaut();
-        ImVec2 best = m;
-        float bd = 1e30F;
-        if (i >= 0 && uz(i) < h.size()) {
-            for (const auto& e : h[uz(i)]) {
-                ImVec2 sp;
-                if (!modellAufSchirm(mtab().ansichten[mtab().aktiv], e.data(), sp)) { continue; }
-                const float d = (sp.x - m.x) * (sp.x - m.x) + (sp.y - m.y) * (sp.y - m.y);
-                if (d < bd) {
-                    bd = d;
-                    best = sp;
-                }
-            }
-        }
-        return best;
-    }));
+    add(klickAn("T1411 P: Klick auf eine Ecke von l_arm", pEckeLArm));
     add(pause(0.4));
     add(tu("T1411 P: gewaehlte Ecke und die Liste des Weight Tools", [st] {
         ModellGewichte& g = modellGewichte();
@@ -2323,6 +2327,254 @@ void pSchritte(std::vector<Schritt>& s) {
     add(pruefe("T1411 P: Backface Cull Vertices - der Rahmen nimmt nur die Ecken der Vorderseite", [st] { return st->rahmenVorn > 0 && st->rahmenVorn < st->rahmenAlle; }));
     add(pruefe("T1411 P: uebernommen traegt die Ecke das Format des Spiels (hoechstens 4 Gewichte, 10 Bit, Summe 1)", [st] { return st->spielFormat; }));
     add(pruefe("T1411 P: wie Blender steht das Panel Vertex-Gewichte mit der Liste der gewaehlten Ecke", [st] { return st->blender; }));
+}
+
+// --- TEST1411e: Knochenpaare des Weights-Mirror von Hand (wie die Zuordnung im Mirror Mode von 3ds Max) ---------------------------
+// Rot (vor TEST1411e, am Code): die Tabelle "Bone pairs" zeigte die Paare nach den Namen nur an (Text), aendern liess sich nichts - shank
+// (P): "Die Zuordnung der Knochenpaare ist sichtbar und aenderbar". Hier: der staerkste Knochen b0 einer Ecke von l_arm bekommt in seiner
+// Klappliste einen anderen Partner T; danach haben sein alter Partner und der alte Partner von T keinen mehr (Befund), Mirror Paste
+// schreibt das Gewicht von b0 auf der Gegenseite an T; die letzte Zeile paart zwei beliebige Knochen; "Paare nach den Namen" stellt alles
+// wieder her.
+
+struct WStand {
+    int punkt = -1;
+    int partner = -1;
+    int b0 = -1;          // der Knochen der Ecke mit Seite und dem groessten Gewicht
+    int p0 = -1;          // sein Partner nach den Namen
+    int ziel = -1;        // der neue Partner von Hand
+    int zielAlt = -1;     // dessen Partner nach den Namen
+    float w0 = 0.0F;      // Gewicht von b0 an der Ecke
+    modell::SpiegelBefund vorher;
+    bool paar = false;
+    bool befund = false;
+    bool stern = false;
+    bool paste = false;
+    bool neuesPaar = false;
+    bool zurueck = false;
+    int zeilen = -1;
+};
+
+std::vector<std::string> wNamen() {
+    std::vector<std::string> n;
+    for (const GlaBone& b : g_app->anim.bones) { n.push_back(b.name); }
+    return n;
+}
+
+// den Abschnitt "Bone pairs" im Rollout Mirror aufklappen, falls er zu ist (die Tabelle meldet sich mit paareBild)
+Schritt wPaareAuf() {
+    auto innen = std::make_shared<Schritt>();
+    auto offen = std::make_shared<bool>(false);
+    return {"T1411 w: Bone pairs aufklappen", [=](int b) {
+                if (b == 0) {
+                    *offen = modellGewichte().paareBild >= ImGui::GetFrameCount() - 2;
+                    *innen = klick(tr(Str::T1pPaare), "mtrollouts");
+                }
+                return *offen || innen->tun(b);
+            }};
+}
+
+// ein Element der Tabelle ins Bild: erst die Tabelle (ein eigenes Kindfenster mit Rollbalken), dann das Befehlsfeld darum
+Schritt wInsBild(const std::string& was, const std::function<std::string()>& label) {
+    return tu("T1411 w: ins Bild - " + was, [label] {
+        const Element* e = finde(label(), "mtrollouts", 0, false);
+        if (e == nullptr) { return; }
+        ImGuiWindow* innen = ImGui::FindWindowByName(e->innen.c_str());
+        ImGuiWindow* feld = mbefoto::kindFenster("mtrollouts");
+        for (ImGuiWindow* w : {innen, feld}) {
+            if (w == nullptr || !(w->ScrollMax.y > 0.0F)) { continue; }
+            float d = 0.0F;
+            if (e->rect.Max.y > w->InnerClipRect.Max.y) {
+                d = e->rect.Max.y - w->InnerClipRect.Max.y + ImGui::GetFontSize() * 0.5F;
+            } else if (e->rect.Min.y < w->InnerClipRect.Min.y) {
+                d = e->rect.Min.y - w->InnerClipRect.Min.y - ImGui::GetFontSize() * 0.5F;
+            }
+            if (d != 0.0F) {
+                ImGui::SetScrollY(w, std::clamp(w->Scroll.y + d, 0.0F, w->ScrollMax.y));
+                return;   // je Schritt ein Fenster: das naechste Bild zeigt die neue Lage
+            }
+        }
+    });
+}
+
+void wSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<WStand>();
+    add(tu("T1411 w: wie 3ds Max, Bereich Weights, eine Ansicht von vorn, keine Paare von Hand", [] {
+        modellBedienungSetzen(0);
+        ModellTab& t = mtab();
+        t.bereich = ModellBereich::Weights;
+        t.eckenWahl.clear();
+        t.knochenWahl = -1;
+        modellGewichteMalenSetzen(true);   // der Klick auf "Vertices" schaltet die Auswahl der Ecken ein
+        modellAuswahlArtSetzen(AuswahlArt::Objekt);
+        modellKnochenPaareNachNamen();
+    }));
+    add(pause(0.4));
+    // wie P in einem eigenen Schritt: der Wechsel des Bereichs stellt im naechsten Bild dessen Aufteilung her (Weights: vier Ansichten)
+    add(tu("T1411 w: eine Ansicht von vorn", [] {
+        mtab().vierAnsichten = false;
+        mtab().aktiv = 3;
+        mtab().ansichten[3].art = AnsichtArt::Vorne;
+        modellAnsichtEinpassenAktiv();
+        g_app->modelDirty = true;
+    }));
+    add(pause(0.6));
+    add(ap3::insFeld(tr(Str::T1pEcken)));
+    add(klick(tr(Str::T1pEcken), "mtrollouts"));   // wie P: die Auswahl der Ecken im Rollout
+    add(pause(0.3));
+    add(klickAn("T1411 w: Klick auf eine Ecke von l_arm", pEckeLArm));
+    add(pause(0.4));
+    add(tu("T1411 w: die Ecke, ihr staerkster Knochen mit Seite und ein anderer Partner", [st] {
+        ModellGewichte& g = modellGewichte();
+        modellGewichteSpiegelStand();
+        if (!mtab().eckenWahl.empty()) {
+            const modell::EckOrt o = mtab().eckenWahl.front();
+            if (uz(o.teil) < g.netz.punktVon.size() && uz(o.ecke) < g.netz.punktVon[uz(o.teil)].size()) { st->punkt = g.netz.punktVon[uz(o.teil)][uz(o.ecke)]; }
+        }
+        st->partner = st->punkt >= 0 && uz(st->punkt) < g.partner.size() ? g.partner[uz(st->punkt)] : -1;
+        const std::vector<std::string> namen = wNamen();
+        const modell::KnochenSpiegel nachNamen(namen);
+        for (const modell::KnochenGewicht& kg : pListe(st->punkt)) {
+            if (nachNamen.seiteVon(kg.knochen) != 0 && nachNamen.partnerVon(kg.knochen) >= 0 && kg.gewicht > st->w0) {
+                st->b0 = kg.knochen;
+                st->w0 = kg.gewicht;
+            }
+        }
+        st->p0 = nachNamen.partnerVon(st->b0);
+        // der neue Partner: ein Knochen der Gegenseite mit eigenem Partner, nicht p0 und nicht b0 (rhand, sonst rfemur, rtibia)
+        for (const char* n : {"rhand", "rfemur", "rtibia"}) {
+            const int k = boneIndex(g_app->anim, n);
+            if (k >= 0 && k != st->p0 && k != st->b0 && nachNamen.partnerVon(k) >= 0 && st->ziel < 0) { st->ziel = k; }
+        }
+        st->zielAlt = nachNamen.partnerVon(st->ziel);
+        st->vorher = g.befund;
+        melde("w Punkt " + std::to_string(st->punkt) + ", Partner " + std::to_string(st->partner) + ", b0 " + (st->b0 >= 0 ? namen[uz(st->b0)] : "-") + " " +
+              std::to_string(st->w0) + ", p0 " + (st->p0 >= 0 ? namen[uz(st->p0)] : "-") + ", neu " + (st->ziel >= 0 ? namen[uz(st->ziel)] : "-") + " (bisher mit " +
+              (st->zielAlt >= 0 ? namen[uz(st->zielAlt)] : "-") + "), Befund " + std::to_string(st->vorher.knochenPaare) + " / " + std::to_string(st->vorher.knochenPaareSoll));
+    }));
+    add(ap3::insFeld(tr(Str::T1pPaare)));
+    add(wPaareAuf());
+    add(pause(0.3));
+    // erst die Zeile unter der Tabelle ins Bild (dann steht die ganze Tabelle im Feld - ausserhalb zeichnet sie keine Zeilen), dann in der
+    // Tabelle die Zeile von b0
+    add(ap3::insFeld("##paarneu1"));
+    add(pause(0.2));
+    const auto pk = [st] { return "##pk" + std::to_string(st->b0); };
+    add(wInsBild("die Zeile von b0", pk));
+    add(pause(0.2));
+    add(wInsBild("die Zeile von b0", pk));
+    add(pause(0.2));
+    add(klickAn("T1411 w: Klappliste des Partners von b0", [st] {
+        const Element* e = st->b0 >= 0 ? finde("##pk" + std::to_string(st->b0), "mtrollouts", 0, false) : nullptr;
+        if (e == nullptr) { melde("w die Klappliste von b0 steht nicht im Bild"); }
+        return e != nullptr ? e->rect.GetCenter() : ImVec2{0.0F, 0.0F};
+    }));
+    add(pause(0.3));
+    {
+        auto innen = std::make_shared<Schritt>();
+        add({"T1411 w: den neuen Partner in der Liste waehlen", [st, innen](int b) {
+                 if (b == 0) { *innen = waehleInListe(st->ziel >= 0 ? g_app->anim.bones[uz(st->ziel)].name : std::string("?"), false); }
+                 return innen->tun(b);
+             }});
+    }
+    add(pause(0.4));
+    add(tu("T1411 w: Paare und Befund nach der Wahl", [st] {
+        const modell::KnochenSpiegel p = modellKnochenSpiegel();
+        const ModellGewichte& g = modellGewichte();
+        modellGewichteSpiegelStand();
+        st->paar = st->b0 >= 0 && st->ziel >= 0 && p.partnerVon(st->b0) == st->ziel && p.partnerVon(st->ziel) == st->b0 && p.partnerVon(st->p0) == -1 &&
+                   p.partnerVon(st->zielAlt) == -1;
+        // vorher zwei Paare (b0 - p0, Ziel - sein Partner), jetzt eines; p0 und der alte Partner des Ziels stehen ohne Partner im Soll
+        st->befund = g.befund.knochenPaare == st->vorher.knochenPaare - 1 && g.befund.knochenPaareSoll == st->vorher.knochenPaareSoll + 1;
+        st->zeilen = g.paareZeilen;
+        melde("w nach der Wahl: Befund " + std::to_string(g.befund.knochenPaare) + " / " + std::to_string(g.befund.knochenPaareSoll) + ", Zeilen " +
+              std::to_string(g.paareZeilen) + ", Meldung \"" + mtab().meldung + "\"");
+    }));
+    add(tu("T1411 w: das Paar traegt den Stern", [st] { st->stern = modellGewichte().paareStern == 1; }));
+    add(foto("t1411e_w_paare"));
+    add(ap3::insFeld(tr(Str::T1pSpiegelPaste)));
+    add(klick(tr(Str::T1pSpiegelPaste), "mtrollouts"));
+    add(pause(0.3));
+    add(tu("T1411 w: Mirror Paste folgt dem Paar von Hand", [st] {
+        const modell::GewichtListe a = pListe(st->punkt);
+        const modell::GewichtListe b = pListe(st->partner);
+        const modell::KnochenSpiegel p = modellKnochenSpiegel();
+        bool ok = st->partner >= 0 && st->partner != st->punkt && !a.empty();
+        std::string z;
+        for (const modell::KnochenGewicht& kg : a) {
+            const int gegen = p.partnerVon(kg.knochen);
+            const float w = pIn(b, gegen >= 0 ? gegen : kg.knochen);
+            z += g_app->anim.bones[uz(kg.knochen)].name + " " + std::to_string(kg.gewicht) + " -> " + std::to_string(w) + "; ";
+            ok = ok && std::fabs(w - kg.gewicht) < 0.002F;
+        }
+        // b0 landet an seinem Partner von Hand, sein Partner nach den Namen bekommt nichts von ihm
+        st->paste = ok && std::fabs(pIn(b, st->ziel) - pIn(a, st->b0)) < 0.002F && pIn(b, st->ziel) > 0.0F && pIn(b, st->p0) < 0.002F;
+        melde("w Mirror Paste: " + z + " | am Ziel " + std::to_string(pIn(b, st->ziel)) + ", an p0 " + std::to_string(pIn(b, st->p0)));
+    }));
+    // ein neues Paar aus zwei beliebigen Knochen in der letzten Zeile: p0 (jetzt ohne Partner) mit dem alten Partner des Ziels
+    add(ap3::insFeld("##paarneu1"));
+    add(klickAn("T1411 w: neues Paar - erster Knochen", [] {
+        const Element* e = finde("##paarneu1", "mtrollouts", 0, false);
+        return e != nullptr ? e->rect.GetCenter() : ImVec2{0.0F, 0.0F};
+    }));
+    add(pause(0.3));
+    {
+        auto innen = std::make_shared<Schritt>();
+        add({"T1411 w: p0 als ersten Knochen", [st, innen](int b) {
+                 if (b == 0) { *innen = waehleInListe(st->p0 >= 0 ? g_app->anim.bones[uz(st->p0)].name : std::string("?"), false); }
+                 return innen->tun(b);
+             }});
+    }
+    add(pause(0.3));
+    add(klickAn("T1411 w: neues Paar - zweiter Knochen", [] {
+        const Element* e = finde("##paarneu2", "mtrollouts", 0, false);
+        char z[200];
+        std::snprintf(z, sizeof z, "w neues Paar: erster Knochen %d, zweite Liste %s bei %.0f/%.0f%s", modellGewichte().paarNeu, e != nullptr ? "da" : "fehlt",
+                      e != nullptr ? static_cast<double>(e->rect.GetCenter().x) : 0.0, e != nullptr ? static_cast<double>(e->rect.GetCenter().y) : 0.0,
+                      e != nullptr && e->gesperrt ? " (gesperrt)" : "");
+        melde(z);
+        return e != nullptr ? e->rect.GetCenter() : ImVec2{0.0F, 0.0F};
+    }));
+    add(pause(0.3));
+    {
+        auto innen = std::make_shared<Schritt>();
+        add({"T1411 w: den alten Partner des Ziels als zweiten", [st, innen](int b) {
+                 if (b == 0) { *innen = waehleInListe(st->zielAlt >= 0 ? g_app->anim.bones[uz(st->zielAlt)].name : std::string("?"), false); }
+                 return innen->tun(b);
+             }});
+    }
+    add(pause(0.3));
+    add(tu("T1411 w: das neue Paar steht", [st] {
+        const modell::KnochenSpiegel p = modellKnochenSpiegel();
+        modellGewichteSpiegelStand();
+        st->neuesPaar = st->p0 >= 0 && p.partnerVon(st->p0) == st->zielAlt && p.partnerVon(st->zielAlt) == st->p0 && p.partnerVon(st->b0) == st->ziel &&
+                        modellGewichte().befund.knochenPaare == st->vorher.knochenPaare && modellGewichte().handPaare.size() == 2U;
+    }));
+    add(ap3::insFeld(tr(Str::T1ePaareNamen)));
+    add(klick(tr(Str::T1ePaareNamen), "mtrollouts"));
+    add(pause(0.3));
+    add(tu("T1411 w: nach den Namen wie vorher", [st] {
+        const modell::KnochenSpiegel p = modellKnochenSpiegel();
+        const modell::KnochenSpiegel nachNamen(wNamen());
+        modellGewichteSpiegelStand();
+        const ModellGewichte& g = modellGewichte();
+        st->zurueck = g.handPaare.empty() && p.partner == nachNamen.partner && p.seite == nachNamen.seite && g.befund.knochenPaare == st->vorher.knochenPaare &&
+                      g.befund.knochenPaareSoll == st->vorher.knochenPaareSoll;
+    }));
+    add(tu("T1411 w: zurueck", [] {
+        mtab().eckenWahl.clear();
+        modellGewichteMalenSetzen(true);
+        modellAuswahlArtSetzen(AuswahlArt::Objekt);
+        mtab().ansichten[3].art = AnsichtArt::Perspektive;
+        modellAnsichtEinpassenAktiv();
+        mtab().bereich = ModellBereich::Ansehen;
+    }));
+    add(pause(0.3));
+    add(pruefe("T1411 w: die Klappliste in der Tabelle paart b0 von Hand mit einem anderen Knochen, beide alten Partner stehen ohne (Befund: ein Paar weniger, "
+               "einer mehr im Soll), die Zeile traegt den Stern", [st] { return st->paar && st->befund && st->stern && st->zeilen > 0; }));
+    add(pruefe("T1411 w: Mirror Paste folgt dem Paar von Hand (das Gewicht von b0 steht auf der Gegenseite am neuen Partner)", [st] { return st->paste; }));
+    add(pruefe("T1411 w: die letzte Zeile paart zwei beliebige Knochen", [st] { return st->neuesPaar; }));
+    add(pruefe("T1411 w: Paare nach den Namen stellt die Paare und den Befund von vorher her", [st] { return st->zurueck; }));
 }
 
 // --- A: "Mission laden" ohne pk3-Dialog ------------------------------------------------------------------------------------------
@@ -3273,6 +3525,7 @@ std::vector<Schritt> schritte(const char* nur) {
     if (abschnitt("z")) { zSchritte(s); }   // TEST1411d: die Missionsliste aus dem Zwischenspeicher der Platte
     if (abschnitt("x")) { xSchritte(s); }   // TEST1411e: der Mauspunkt auf dem Raster in der Statuszeile
     if (abschnitt("s")) { sSchritte(s); }   // TEST1411e: Load mission - waehrend des Lesens springt unter der Maus nichts
+    if (abschnitt("w")) { wSchritte(s); }   // TEST1411e: Knochenpaare des Weights-Mirror von Hand
     if (abschnitt("b")) { bSchritte(s, modell != nullptr && *modell != '\0' ? modell : "models/players/alora/model.glm"); }
     if (abschnitt("fotos")) { fotoSchritte(s); }
     add(tu("T1411: zurueck", [=] {
