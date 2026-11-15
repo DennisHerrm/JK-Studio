@@ -13,6 +13,7 @@
 #include "bhed/karte/optimierer.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <fstream>

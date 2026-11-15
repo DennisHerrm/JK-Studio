@@ -250,6 +250,13 @@ struct GeoImportZustand {
     // kommen aus dem Modell (kein Vorsatz, kein Y oben); ersetzt: die misc_model, die Einfuegen entfernt (gleiche Undo-Stufe)
     bool modellNamen = false;
     std::vector<std::weak_ptr<karte::Entitaet>> ersetzt;
+    // CW-IMPORT Punkt 2: Vorlage (karte::AchsVorlage; ab Werk Heute = wie bisher), eigene Achsen, Umlauf umdrehen ("BhedImportPreset",
+    // "BhedImportAxes", "BhedImportFlip"), die Vorschau neben der Testfigur
+    int vorlage = 0;
+    std::array<int, 3> achse{0, 1, 2};
+    std::array<int, 3> vorzeichen{1, 1, 1};
+    bool umdrehen = false;
+    std::size_t vorschauGezeichnet = 0;   // Selbsttest
 };
 
 struct TerrainZustand {
@@ -1344,6 +1351,20 @@ bool testfigurHierher(ImVec2 punkt);         // Shift+F7, "Testfigur hierher": 2
 void testfigurMenue();                       // das Untermenue (View)
 void testfigurMenueEintraege();
 void testfigurPopupOeffnen();                // Rechtsklick auf den Knopf
+// --- CW-IMPORT Punkte 3 bis 6: Werkzeuge (app_karte_cwimport.cpp) ---
+void cwWerkzeugMenue();                      // Untermenue "Clone-Wars-Werkzeuge" (Modify)
+void cwWerkzeugKontext();                    // dieselben Werkzeuge oben im Rechtsklickmenue der Ansichten (mit Auswahl)
+void cwRaumDialogZeichnen();
+void cwRaumDialogOeffnen();
+bool cwTreppeZuRampe();                      // false mit Meldung
+bool cwClipWand(bool huelle);
+void cwKollisionZeigen(bool an);
+[[nodiscard]] bool cwKollisionSichtbar();
+struct CwWerkzeugStand {                     // Selbsttest: das letzte Ergebnis
+    std::size_t rampen = 0, waende = 0, raeume = 0;
+    std::string meldung;
+};
+[[nodiscard]] CwWerkzeugStand& cwWerkzeugStand();
 void testfigurPopupZeichnen();
 // die Linien fuer die 2D-Ansichten (leer, wenn aus) und ihre Beschriftungen (Weltpunkt, Text)
 [[nodiscard]] std::vector<karte::Linie> testfigurLinien2d(std::vector<std::pair<karte::Vektor3f, std::string>>* texte, std::vector<karte::Farbe>* textFarben);

@@ -5,18 +5,27 @@
 // Ansichten "Testfigur hierher"): der Kasten der Engine (karte::testfigurZeichnung) in den 2D-Ansichten und der Kamera, dazu das
 // Spielermodell in der Pose von PM_Footsteps ohne Bewegung (BOTH_STAND1 / geduckt BOTH_CROUCH1), am Ursprung der Figur wie
 // CG_Player (OpenJK code/cgame/cg_players.cpp:7178-7184: ent.origin = lerpOrigin). Gezeichnet ueber kartegpu (Direct3D 12 und 11).
+//
+// Punkte 3 bis 6 (Modify > Clone-Wars-Werkzeuge, oben im Rechtsklickmenue der Ansichten): Raum skalieren (Dialog), Treppe zu
+// Clip-Rampe, glatte Clip-Wand (Ebene/Huelle), Ebene Collision ein/aus - die Rechnung in src/karte/cwwerkzeuge.cpp.
 #include "karteneditor.h"
 
 #include "app_internal.h"
 #include "karte_gpu.h"
+#include "textumbruch.h"
 
 #include "bhed/karte/auswahlsystem.h"
 #include "bhed/karte/cwimport.h"
+#include "bhed/karte/cwwerkzeuge.h"
+#include "bhed/karte/ebenen.h"
+#include "bhed/karte/entitaetbefehle.h"
+#include "bhed/karte/bearbeitung.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/modell.h"
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -339,6 +348,201 @@ std::vector<float> testfigurLage() {
     const TestfigurZustand& t = e().testfigur;
     return {t.an ? 1.0F : 0.0F, t.geduckt ? 1.0F : 0.0F, t.marken ? 1.0F : 0.0F, t.quer ? 1.0F : 0.0F, t.modellZeigen ? 1.0F : 0.0F,
             t.ursprung.x(), t.ursprung.y(), t.ursprung.z(), static_cast<float>(g_modell.dreiecke.size())};
+}
+
+// --- Punkte 3 bis 6: Werkzeuge -------------------------------------------------------------------------------------------------------
+
+namespace {
+
+struct RaumDialog {
+    bool offen = false;
+    bool oeffnen = false;
+    float faktor = 1.2F;
+    char name[64] = "";
+    karte::Vektor3d pivot{0, 0, 0};
+};
+RaumDialog g_raum;
+
+void cwMeldung(const std::string& fehlerEnglisch) {
+    char t[512];
+    std::snprintf(t, sizeof(t), trK(Str::KeCwFehler), fehlerEnglisch.c_str());
+    fehler(t);
+    cwWerkzeugStand().meldung = t;
+}
+
+bool auswahlDa() { return e().karte.auswahl.anzahl() != 0; }
+
+}  // namespace
+
+CwWerkzeugStand& cwWerkzeugStand() {
+    static CwWerkzeugStand s;
+    return s;
+}
+
+bool cwTreppeZuRampe() {
+    Editor& ed = e();
+    if (bspRueckSperre()) { return false; }
+    karte::TreppeOptionen o;
+    o.nichtFest = karte::gemeinsamerShader("nodrawnonsolid");   // Jedi Academy: textures/system/nodraw (nodraw + nonsolid)
+    o.gehen = karte::spielfigur(optimiererRegelwerk()).gehen;
+    const karte::TreppeErgebnis r = karte::treppeZuRampe(ed.karte, o);
+    if (!r.ok) {
+        cwMeldung(r.fehler);
+        return false;
+    }
+    char t[512];
+    std::snprintf(t, sizeof(t), trK(Str::KeCwRampeFertig), static_cast<int>(r.tritte), karte::zahlText(static_cast<float>(r.steigung)).c_str(),
+                  static_cast<int>(r.pinselNichtFest), static_cast<int>(r.modelleOhneClip), static_cast<int>(r.kollisionEntfernt));
+    ausgabe(t);
+    cwWerkzeugStand().meldung = t;
+    if (!r.begehbar) { warnung(trK(Str::KeCwRampeSteil)); }
+    ++cwWerkzeugStand().rampen;
+    ++ed.sichtStand;
+    auswahlGeaendert();
+    return true;
+}
+
+bool cwClipWand(bool huelle) {
+    Editor& ed = e();
+    if (bspRueckSperre()) { return false; }
+    const karte::Vektor3f& k = ed.kamera.ursprung;
+    const karte::WandErgebnis r = karte::glatteClipWand(ed.karte, huelle ? karte::WandArt::Huelle : karte::WandArt::Ebene, karte::Vektor3d(k.x(), k.y(), k.z()),
+                                                        karte::kClipSpieler);
+    if (!r.ok) {
+        cwMeldung(r.fehler);
+        return false;
+    }
+    ++cwWerkzeugStand().waende;
+    ++ed.sichtStand;
+    auswahlGeaendert();
+    return true;
+}
+
+bool cwKollisionSichtbar() {
+    const Editor& ed = e();
+    const int ebene = karte::kollisionsEbeneFinden(ed.karte);
+    if (ebene < 0) { return true; }
+    for (const auto& p : ed.karte.welt() ? ed.karte.welt()->kinder() : karte::Entitaet::Kinder{}) {
+        if (p->schicht == ebene) { return !p->ebeneVersteckt; }
+    }
+    return true;
+}
+
+void cwKollisionZeigen(bool an) {
+    Editor& ed = e();
+    const int ebene = karte::kollisionsEbeneFinden(ed.karte);
+    if (ebene < 0) { return; }
+    karte::ebenenSichtbar(ed.karte, karte::ebenenUnterbaum(ed.karte, ebene), an);   // LayersSetVisible
+    ++ed.sichtStand;
+}
+
+void cwRaumDialogOeffnen() {
+    Editor& ed = e();
+    if (!auswahlDa()) {
+        cwMeldung("nothing selected");
+        return;
+    }
+    // um die Mitte der Auswahl, unten (der Boden des Raums bleibt, wo er ist)
+    const karte::Kasten b = karte::auswahlGrenzenMitEntitaeten(ed.karte);
+    g_raum.pivot = karte::Vektor3d(b.origin.x(), b.origin.y(), b.origin.z() - b.extents.z());
+    g_raum.offen = true;
+    g_raum.oeffnen = true;
+}
+
+void cwRaumDialogZeichnen() {
+    if (!g_raum.offen) { return; }
+    Editor& ed = e();
+    const std::string titel = std::string(trK(Str::KeCwRaum)) + "###cwraumdialog";
+    if (g_raum.oeffnen) {
+        g_raum.oeffnen = false;
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Always, ImVec2(0.5F, 0.5F));
+    }
+    bool offen = true;
+    if (ui::fensterBegin(titel.c_str(), &offen, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8.0F);
+        ImGui::InputFloat((std::string(trK(Str::KeCwRaumFaktor)) + "##cwraumfaktor").c_str(), &g_raum.faktor, 0.05F, 0.1F, "%.3f");
+        g_raum.faktor = std::clamp(g_raum.faktor, 0.05F, 20.0F);
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14.0F);
+        ImGui::InputText((std::string(trK(Str::KeCwRaumName)) + "##cwraumname").c_str(), g_raum.name, sizeof(g_raum.name));
+        ImGui::TextDisabled("%s %s (%g %g %g)", trK(Str::KeCwRaumPunkt), trK(Str::KeCwRaumMitte), g_raum.pivot.x(), g_raum.pivot.y(), g_raum.pivot.z());
+        cjkTextWrapped("%s", trK(Str::KeCwRaumTip));   // CJK zwischen den Zeichen umbrechen (gui/textumbruch.h)
+        const auto los = [&](bool speichern) {
+            karte::RaumOptionen o;
+            o.faktor = static_cast<double>(g_raum.faktor);
+            o.pivot = g_raum.pivot;
+            o.name = g_raum.name;
+            const karte::RaumErgebnis r = karte::raumSkalieren(ed.karte, o);
+            if (!r.fehler.empty()) {
+                cwMeldung(r.fehler);
+                return;
+            }
+            char t[512];
+            std::snprintf(t, sizeof(t), trK(Str::KeCwRaumFertig), karte::zahlText(g_raum.faktor).c_str(), static_cast<int>(r.primitive), static_cast<int>(r.entitaeten));
+            ausgabe(t);
+            cwWerkzeugStand().meldung = t;
+            ++cwWerkzeugStand().raeume;
+            ++ed.sichtStand;
+            auswahlGeaendert();
+            g_raum.offen = false;
+            if (speichern) { (void)ausfuehren("SaveSelected"); }   // File > Save selected: die Auswahl samt Marker als eigenes Teil
+        };
+        if (ImGui::Button((std::string(trK(Str::KeCwRaumOk)) + "##cwraumok").c_str())) { los(false); }
+        ImGui::SameLine();
+        if (ImGui::Button((std::string(trK(Str::KeCwRaumSpeichern)) + "##cwraumspeichern").c_str())) { los(true); }
+        ImGui::SameLine();
+        if (ImGui::Button((std::string(trK(Str::KeGiAbbrechen)) + "##cwraumab").c_str())) { g_raum.offen = false; }
+    }
+    ImGui::End();
+    if (!offen) { g_raum.offen = false; }
+}
+
+namespace {
+
+// Die Eintraege der Werkzeuge (Modify-Menue und Rechtsklickmenue der Ansichten)
+void werkzeugEintraege(bool kontext) {
+    const bool da = auswahlDa();
+    const auto punkt = [&](Str text, const char* id, Str tip, bool aktiv, const std::function<void()>& tun) {
+        const std::string l = std::string(trK(text)) + id;
+        QtPunkt p;
+        p.id = l.c_str();
+        p.aktiv = aktiv;
+        p.tooltip = trK(tip);
+        if (qtPunkt(p)) { tun(); }
+    };
+    punkt(Str::KeCwRampe, kontext ? "###cwrampek" : "###cwrampe", Str::KeCwRampeTip, da, [] { (void)cwTreppeZuRampe(); });
+    punkt(Str::KeCwWandEbene, kontext ? "###cwwandebenek" : "###cwwandebene", Str::KeCwWandTip, da, [] { (void)cwClipWand(false); });
+    punkt(Str::KeCwWandHuelle, kontext ? "###cwwandhuellek" : "###cwwandhuelle", Str::KeCwWandTip, da, [] { (void)cwClipWand(true); });
+    punkt(Str::KeCwRaum, kontext ? "###cwraumk" : "###cwraum", Str::KeCwRaumTip, da, [] { cwRaumDialogOeffnen(); });
+    if (kontext) { return; }
+    qtTrenner();
+    const std::string l = std::string(trK(Str::KeCwKollision)) + "###cwkollision";
+    QtPunkt p;
+    p.id = l.c_str();
+    p.art = QtArt::Pruefbar;
+    p.haken = cwKollisionSichtbar();
+    p.aktiv = karte::kollisionsEbeneFinden(e().karte) >= 0;
+    p.tooltip = trK(Str::KeCwKollisionTip);
+    if (qtPunkt(p)) { cwKollisionZeigen(!cwKollisionSichtbar()); }
+}
+
+}  // namespace
+
+void cwWerkzeugMenue() {
+    const std::string id = std::string(trK(Str::KeCwWzMenue)) + "###cwwerkzeuge";
+    if (qtMenueAnfang(id.c_str())) {
+        werkzeugEintraege(false);
+        qtMenueEnde();
+    }
+}
+
+void cwWerkzeugKontext() {
+    if (!auswahlDa()) { return; }
+    const std::string id = std::string(trK(Str::KeCwWzMenue)) + "###cwwerkzeugek";
+    if (qtMenueAnfang(id.c_str())) {
+        werkzeugEintraege(true);
+        qtMenueEnde();
+    }
+    qtTrenner();
 }
 
 }  // namespace bhed::gui::karteneditor

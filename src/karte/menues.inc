@@ -193,6 +193,7 @@ const MenueEintrag kMenues[] = {
     {MenueArt::Liste, "", "Transforms", Str::Count, kImmer},
     {MenueArt::Punkt, "Reset Transforms", "ResetTransforms", Str::KeLResetTransforms, kImmer},
     {MenueArt::Ende, "", "", Str::Count, kImmer},
+    {MenueArt::Liste, "", "ProgrammModify", Str::Count, kImmer},   // CW-IMPORT: Clone-Wars-Werkzeuge (nicht in NRC)
     {MenueArt::Ende, "", "", Str::Count, kImmer},
     // Build (radiant/mainframe.cpp:1135)
     {MenueArt::Menue, "&Build", "", Str::KeLBuild, kImmer},

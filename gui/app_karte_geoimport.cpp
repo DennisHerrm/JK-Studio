@@ -18,6 +18,8 @@
 #include "textumbruch.h"
 
 #include "bhed/karte/brushexport.h"
+#include "bhed/karte/cwimport.h"
+#include "bhed/karte/cwwerkzeuge.h"
 #include "bhed/karte/karte.h"
 #include "bhed/karte/modell.h"
 #include "bhed/karte/modellimport.h"
@@ -111,6 +113,21 @@ bool modellDateiLesen(const std::string& pfad, karte::Modell& m, std::string& gr
     return karte::modellWieQ3map2(vfs, leser, m, &grund);
 }
 
+// CW-IMPORT Punkt 2: die Lese-Optionen aus Skala, Y oben, Vorlage, eigenen Achsen und Umlauf (Vorlage Heute: genau wie bisher)
+karte::NetzOptionen netzOptionen() {
+    const GeoImportZustand& z = e().geoImport;
+    karte::NetzOptionen no;
+    no.skala = static_cast<double>(z.skala);
+    no.yOben = z.yOben;
+    const auto v = static_cast<karte::AchsVorlage>(std::clamp(z.vorlage, 0, karte::kAchsVorlagen - 1));
+    const karte::AchsWerte w = karte::achsVorlage(v);
+    no.achsenGesetzt = w.achsenGesetzt;
+    no.achse = v == karte::AchsVorlage::Eigene ? z.achse : w.achse;
+    no.vorzeichen = v == karte::AchsVorlage::Eigene ? z.vorzeichen : w.vorzeichen;
+    no.umdrehen = z.umdrehen;
+    return no;
+}
+
 karte::ZerlegOptionen optionen() {
     karte::ZerlegOptionen o;
     o.shaderVorsatz = e().geoImport.vorsatz;
@@ -159,16 +176,14 @@ bool geoImportLaden(const std::string& pfad) {
             for (karte::ImportTeil& teil : netz.teile) {
                 for (karte::ImportPunkt& p : teil.punkte) { p = {p.x * z.skala, p.y * z.skala, p.z * z.skala}; }
             }
+            if (z.umdrehen) { karte::umlaufUmdrehen(netz); }   // CW-IMPORT Punkt 2
             ok = !netz.teile.empty();
             if (!ok) { grund = "no triangles"; }
         }
     } else {
         std::string bytes;
         (void)dateiLesen(pfad, bytes);
-        karte::NetzOptionen no;
-        no.skala = static_cast<double>(z.skala);
-        no.yOben = z.yOben;
-        ok = karte::netzLesen(bytes, x, no, netz, &grund);
+        ok = karte::netzLesen(bytes, x, netzOptionen(), netz, &grund);   // CW-IMPORT Punkt 2: mit Vorlage und Umlauf
     }
     if (!ok) {
         std::snprintf(t, sizeof(t), trK(Str::KeGiFehler), pfad.c_str(), grund.c_str());
@@ -235,7 +250,10 @@ void geoImportEinfuegen() {
             halten.push_back(std::move(en));
         }
     }
-    z.letztes = karte::importEinfuegen(ed.karte, z.vorschau, modell, weg);
+    // CW-IMPORT Punkt 6: mit dem Pruefprofil Clone-Wars-Kette kommen die Clip-Brushes von Modell + Clip in die Ebene Collision
+    int clipEbene = -1;
+    if (ed.optimierer.clonewars && !modellTeile.empty()) { clipEbene = karte::kollisionsEbeneHolen(ed.karte); }
+    z.letztes = karte::importEinfuegen(ed.karte, z.vorschau, modell, weg, clipEbene);
     z.ersetzt.clear();
     ++ed.sichtStand;
     auswahlGeaendert();
@@ -398,9 +416,7 @@ karte::Vektor3f ablageOrt(ImVec2 punkt) {
 
 bool modellAbgelegt(const std::string& pfad, ImVec2 punkt) {
     Editor& ed = e();
-    karte::NetzOptionen no;
-    no.yOben = ed.geoImport.yOben;
-    no.skala = static_cast<double>(ed.geoImport.skala);
+    const karte::NetzOptionen no = netzOptionen();   // CW-IMPORT Punkt 2: Vorlage, Achsen und Umlauf wie im Dialog
     karte::ImportNetz netz;
     std::string grund;
     char t[1400];
@@ -518,6 +534,138 @@ ModellUmwandlung modellUmwandeln(const std::string& vfsPfad) {
     return {paket.modellPfad, paket.modelscale};
 }
 
+namespace {
+
+// CW-IMPORT Punkt 2: die Klappliste Vorlage (und bei "Eigene" die drei Achsen); true = neu lesen
+bool vorlageZeichnen(float sk) {
+    GeoImportZustand& z = e().geoImport;
+    bool neu = false;
+    const char* vorlagen[karte::kAchsVorlagen] = {trK(Str::KeCwVorHeute), trK(Str::KeCwVorBf3), trK(Str::KeCwVorBf2), trK(Str::KeCwVorSource),
+                                                  trK(Str::KeCwVorEigene)};
+    float breite = 0.0F;
+    for (const char* v : vorlagen) { breite = std::max(breite, ImGui::CalcTextSize(v).x); }
+    ImGui::SameLine();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(trK(Str::KeCwVorlage));
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(breite + ImGui::GetFrameHeight() + ImGui::GetStyle().FramePadding.x * 2.0F);
+    int v = std::clamp(z.vorlage, 0, karte::kAchsVorlagen - 1);
+    if (ImGui::Combo("##givorlage", &v, vorlagen, karte::kAchsVorlagen)) {
+        z.vorlage = v;
+        const karte::AchsWerte w = karte::achsVorlage(static_cast<karte::AchsVorlage>(v));
+        if (w.skalaSetzen) { z.skala = static_cast<float>(w.skala); }
+        neu = true;
+        einstellungenSpeichern();
+    }
+    e().klappOrte.push_back({"##givorlage", ImGui::GetItemRectMin().x, ImGui::GetItemRectMin().y, ImGui::GetItemRectMax().x, ImGui::GetItemRectMax().y});
+    ImGui::SetItemTooltip("%s", trK(Str::KeCwVorlageTip));
+    if (z.vorlage == static_cast<int>(karte::AchsVorlage::Eigene)) {
+        static const char* const kAchsen[6] = {"+X", "-X", "+Y", "-Y", "+Z", "-Z"};
+        for (int i = 0; i < 3; ++i) {
+            const std::size_t a = static_cast<std::size_t>(i);
+            int wahl = z.achse[a] * 2 + (z.vorzeichen[a] < 0 ? 1 : 0);
+            ImGui::SameLine();
+            ImGui::TextUnformatted(i == 0 ? "X =" : i == 1 ? "Y =" : "Z =");
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(std::round(60.0F * sk));
+            const std::string id = "##giachse" + std::to_string(i);
+            if (ImGui::Combo(id.c_str(), &wahl, kAchsen, 6)) {
+                z.achse[a] = wahl / 2;
+                z.vorzeichen[a] = (wahl % 2) != 0 ? -1 : 1;
+                neu = true;
+                einstellungenSpeichern();
+            }
+            e().klappOrte.push_back({id, ImGui::GetItemRectMin().x, ImGui::GetItemRectMin().y, ImGui::GetItemRectMax().x, ImGui::GetItemRectMax().y});
+        }
+    }
+    return neu;
+}
+
+// CW-IMPORT Punkt 2: die Groesse in Einheiten und Testfiguren, "Hoehe = Testfigur" und die Vorderansicht neben der Figur; true = neu lesen
+bool groesseUndVorschau(float sk) {
+    GeoImportZustand& z = e().geoImport;
+    bool neu = false;
+    double mn[3] = {1e30, 1e30, 1e30}, mx[3] = {-1e30, -1e30, -1e30};
+    std::size_t dreiecke = 0;
+    for (const karte::ImportTeil& t : z.netz.teile) {
+        dreiecke += t.dreiecke.size();
+        for (const karte::ImportPunkt& p : t.punkte) {
+            const double v[3] = {p.x, p.y, p.z};
+            for (int i = 0; i < 3; ++i) {
+                mn[i] = std::min(mn[i], v[i]);
+                mx[i] = std::max(mx[i], v[i]);
+            }
+        }
+    }
+    if (dreiecke == 0 || mn[0] > mx[0]) { return false; }
+    const karte::Spielfigur fig = karte::spielfigur(optimiererRegelwerk());
+    const double hoch = fig.hoehe();
+    const double b = mx[0] - mn[0], t = mx[1] - mn[1], h = mx[2] - mn[2];
+    char text[256];
+    std::snprintf(text, sizeof(text), trK(Str::KeCwGroesse), karte::zahlText(static_cast<float>(b)).c_str(), karte::zahlText(static_cast<float>(t)).c_str(),
+                  karte::zahlText(static_cast<float>(h)).c_str(), karte::zahlText(static_cast<float>(h / hoch)).c_str());
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(text);
+    if (z.ersetzt.empty()) {
+        ImGui::SameLine();
+        if (ImGui::Button((std::string(trK(Str::KeCwAufFigur)) + "##giauffigur").c_str()) && h > 0.001) {
+            z.skala = static_cast<float>(static_cast<double>(z.skala) * hoch / h);
+            neu = true;
+        }
+        ImGui::SetItemTooltip("%s", trK(Str::KeCwAufFigurTip));
+    }
+    // die Vorderansicht: X nach rechts, Z nach oben; rechts daneben die Figur (32 x 64), die Fuesse auf der Unterkante des Modells
+    const float hoehePx = std::round(170.0F * sk);
+    const ImVec2 o = ImGui::GetCursorScreenPos();
+    const float breitePx = ImGui::GetContentRegionAvail().x;
+    ImGui::InvisibleButton("##givorschau", ImVec2(breitePx, hoehePx));
+    ImGui::SetItemTooltip("%s", trK(Str::KeCwVorschauTip));
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(o, ImVec2(o.x + breitePx, o.y + hoehePx), IM_COL32(28, 30, 34, 255), 3.0F);
+    const double luecke = std::max(16.0, b * 0.1);
+    const double figB = fig.halb * 2.0;
+    const double spanX = b + luecke + figB;
+    const double spanZ = std::max(h, hoch);
+    const double rand = 12.0 * static_cast<double>(sk);
+    const double m = std::min((static_cast<double>(breitePx) - 2 * rand) / spanX, (static_cast<double>(hoehePx) - 2 * rand) / spanZ);
+    const double x0 = static_cast<double>(o.x) + rand + (static_cast<double>(breitePx) - 2 * rand - spanX * m) * 0.5;
+    const double boden = static_cast<double>(o.y + hoehePx) - rand;
+    const auto P = [&](double x, double zz) { return ImVec2(static_cast<float>(x0 + (x - mn[0]) * m), static_cast<float>(boden - (zz - mn[2]) * m)); };
+    dl->PushClipRect(o, ImVec2(o.x + breitePx, o.y + hoehePx), true);
+    dl->AddLine(ImVec2(o.x, static_cast<float>(boden)), ImVec2(o.x + breitePx, static_cast<float>(boden)), IM_COL32(90, 90, 90, 255));
+    std::size_t gezeichnet = 0;
+    for (const karte::ImportTeil& teil : z.netz.teile) {
+        for (const auto& d : teil.dreiecke) {
+            if (gezeichnet >= 40000) { break; }   // sehr grosse Modelle: die ersten 40000 Dreiecke (Vorschau)
+            if (d[0] >= teil.punkte.size() || d[1] >= teil.punkte.size() || d[2] >= teil.punkte.size()) { continue; }
+            const karte::ImportPunkt& a = teil.punkte[d[0]];
+            const karte::ImportPunkt& c = teil.punkte[d[1]];
+            const karte::ImportPunkt& e2 = teil.punkte[d[2]];
+            // Helligkeit nach der Normalen (zur Kamera -y; Netze laufen von aussen gegen den Uhrzeiger)
+            const double ux = c.x - a.x, uy = c.y - a.y, uz = c.z - a.z, vx = e2.x - a.x, vy = e2.y - a.y, vz = e2.z - a.z;
+            const double ny = uz * vx - ux * vz;
+            const double l = std::sqrt((uy * vz - uz * vy) * (uy * vz - uz * vy) + ny * ny + (ux * vy - uy * vx) * (ux * vy - uy * vx));
+            const double hell = l > 0 ? 0.35 + 0.65 * std::fabs(ny / l) : 0.5;
+            const int g = static_cast<int>(std::lround(90.0 + 120.0 * hell));
+            dl->AddTriangleFilled(P(a.x, a.z), P(c.x, c.z), P(e2.x, e2.z), IM_COL32(g, g, std::min(255, g + 15), 200));
+            ++gezeichnet;
+        }
+    }
+    // die Testfigur: Kasten, Marke STEPSIZE, Hoehe
+    const double fx = mx[0] + luecke;
+    const ImU32 orange = IM_COL32(255, 158, 38, 255);
+    dl->AddRect(P(fx, mn[2] + hoch), P(fx + figB, mn[2]), orange, 0.0F, 0, 2.0F);
+    dl->AddLine(P(fx - 4, mn[2] + fig.stufe), P(fx + figB + 4, mn[2] + fig.stufe), IM_COL32(102, 242, 115, 255), 1.5F);
+    dl->AddLine(P(fx, mn[2] + fig.geduckt - fig.unten), P(fx + figB, mn[2] + fig.geduckt - fig.unten), IM_COL32(115, 204, 255, 255), 1.0F);
+    const std::string zahl = karte::zahlText(static_cast<float>(hoch));
+    dl->AddText(ImVec2(P(fx + figB, mn[2] + hoch).x + 4.0F, P(fx + figB, mn[2] + hoch).y), orange, zahl.c_str());
+    dl->PopClipRect();
+    ++z.vorschauGezeichnet;
+    return neu;
+}
+
+}  // namespace
+
 void geoImportDialogZeichnen() {
     GeoImportZustand& z = e().geoImport;
     if (!z.offen) { return; }
@@ -527,7 +675,7 @@ void geoImportDialogZeichnen() {
     // 150 % lag die dritte Zeile unter dem festen Tabellenrand von 220 Punkten, und die Vorschau war abgeschnitten
     const float sk = std::max(1.0F, ImGui::GetFontSize() / 13.0F);
     const ImVec2 platz = ImGui::GetMainViewport()->WorkSize;
-    ImGui::SetNextWindowSize(ImVec2(std::min(std::round(760.0F * sk), platz.x * 0.6F), std::min(std::round(460.0F * sk), platz.y * 0.8F)),
+    ImGui::SetNextWindowSize(ImVec2(std::min(std::round(760.0F * sk), platz.x * 0.6F), std::min(std::round(700.0F * sk), platz.y * 0.8F)),
                              ImGuiCond_Appearing);
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5F, 0.5F));
     bool offen = true;
@@ -541,15 +689,25 @@ void geoImportDialogZeichnen() {
         }
         if (!z.modellNamen) {
             ImGui::SameLine();
+            ImGui::BeginDisabled(z.vorlage != 0);   // CW-IMPORT Punkt 2: die anderen Vorlagen legen die Achsen selbst fest
             neuLesen |= ImGui::Checkbox((std::string(trK(Str::KeGiYOben)) + "##giyoben").c_str(), &z.yOben);
+            ImGui::EndDisabled();
+            neuLesen |= vorlageZeichnen(sk);
             ImGui::SetNextItemWidth(std::round(260.0F * sk));
             if (ImGui::InputText((std::string(trK(Str::KeGiVorsatz)) + "##givorsatz").c_str(), z.vorsatz, sizeof(z.vorsatz))) { z.neu = true; }
         } else {
             ImGui::TextDisabled("%s", trK(Str::KeGiModellNamen));
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) { ImGui::SetTooltip("%s", trK(Str::KeGiModellNamenTip)); }
         }
+        if (ImGui::Checkbox((std::string(trK(Str::KeCwUmdrehen)) + "##giumdrehen").c_str(), &z.umdrehen)) {   // CW-IMPORT Punkt 2 (EaW)
+            neuLesen = true;
+            einstellungenSpeichern();
+        }
+        ImGui::SetItemTooltip("%s", trK(Str::KeCwUmdrehenTip));
+        ImGui::SameLine();
         ImGui::Checkbox((std::string(trK(Str::KeGiOptimierer)) + "##gioptimierer").c_str(), &z.optimierer);
-        if (neuLesen && z.skala > 0.0F && z.ersetzt.empty()) {
+        neuLesen |= groesseUndVorschau(sk);
+        if (neuLesen && z.skala > 0.0F && z.ersetzt.empty() && !z.datei.empty()) {
             const std::vector<int> alt = z.wahl;
             if (geoImportLaden(z.datei) && alt.size() == z.wahl.size()) {
                 z.wahl = alt;
@@ -567,7 +725,7 @@ void geoImportDialogZeichnen() {
         teilBreite = std::min(teilBreite + ImGui::GetStyle().CellPadding.x * 2.0F, ImGui::GetContentRegionAvail().x * 0.4F);
         // die Tabelle fuellt das Fenster bis ueber die Knoepfe; Dreiecke und Geschlossen so breit wie ihr Inhalt
         if (ImGui::BeginTable("##giteile", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY,
-                              ImVec2(0.0F, -ImGui::GetFrameHeightWithSpacing()))) {
+                              ImVec2(0.0F, std::max(ImGui::GetFrameHeightWithSpacing() * 3.0F, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing())))) {
             ImGui::TableSetupScrollFreeze(0, 1);
             ImGui::TableSetupColumn(trK(Str::KeGiTeil), ImGuiTableColumnFlags_WidthFixed, teilBreite);
             ImGui::TableSetupColumn(trK(Str::KeGiDreiecke), ImGuiTableColumnFlags_WidthFixed);

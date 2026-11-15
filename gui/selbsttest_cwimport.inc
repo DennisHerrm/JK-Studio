@@ -4,6 +4,9 @@
 // Punkt 1 Testfigur: ab Werk aus; View > Testfigur, Taste F7, Werkzeugleiste mit Rechtsklick; Kasten der Engine in 2D und Kamera, das
 // Spielermodell des Spiels in der Pose BOTH_STAND1 / BOTH_CROUCH1; Shift+F7 setzt sie unter den Zeiger (2D: zwei Achsen, die Tiefe
 // bleibt; Kamera: Fuesse auf der Flaeche). Foto der Ansichten (BHED_FOTOS; je Lauf mit BHED_D3D12=1 und =0).
+// Punkt 2 Import: Vorlagen (Vorgabe wie bisher, BF3, BF2, Source, eigene), Umlauf umdrehen, Hoehe = Testfigur, Vorschau, gemerkt.
+// Punkte 3 bis 6: Treppe -> Clip-Rampe mit q3map2-Bau vorher/nachher und Pmove (die Figur laeuft glatt), Sicht gegen Kollision (CW-PRUEF)
+// schweigt, glatte Clip-Wand, Ebene Collision aus/ein, Raum skalieren mit Marker und Kommentar.
 // Eingebunden in gui/selbsttest.cpp nach selbsttest_cwpruef.inc, aufgerufen aus selbsttest_handbuch.inc.
 namespace cwimport {
 
@@ -184,9 +187,422 @@ std::vector<Schritt> testfigur() {
     return s;
 }
 
+
+// --- Punkt 2: Import mit Massstab und Achsen --------------------------------------------------------------------------------------------
+
+std::function<ImVec2()> klappOrtCw(const std::string& id) {
+    return [id]() {
+        for (const auto& k : ke::editor().klappOrte) {
+            if (k.id == id) { return ImVec2{(k.x0 + k.x1) * 0.5F, (k.y0 + k.y1) * 0.5F}; }
+        }
+        return ImVec2{-50, -50};
+    };
+}
+
+// Ein Quader 10 x 20 x 30 in der .obj (x 0..10, y 0..20, z 0..30), je Seite zwei Dreiecke gegen den Uhrzeiger von aussen
+std::string quaderObj() {
+    std::string t = "# JK Studio self-test CW-IMPORT\n";
+    const float p[8][3] = {{0, 0, 0}, {10, 0, 0}, {10, 20, 0}, {0, 20, 0}, {0, 0, 30}, {10, 0, 30}, {10, 20, 30}, {0, 20, 30}};
+    char z[96];
+    for (const auto& q : p) {
+        std::snprintf(z, sizeof(z), "v %g %g %g\n", static_cast<double>(q[0]), static_cast<double>(q[1]), static_cast<double>(q[2]));
+        t += z;
+    }
+    t += "f 1 3 2\nf 1 4 3\nf 5 6 7\nf 5 7 8\nf 1 2 6\nf 1 6 5\nf 2 3 7\nf 2 7 6\nf 3 4 8\nf 3 8 7\nf 4 1 5\nf 4 5 8\n";
+    return t;
+}
+
+// Die Ausdehnung des gelesenen Netzes (Q3) und das erste Dreieck
+std::array<double, 3> netzMass(std::array<std::uint32_t, 3>* erstes = nullptr) {
+    double mn[3] = {1e30, 1e30, 1e30}, mx[3] = {-1e30, -1e30, -1e30};
+    const karte::ImportNetz& n = ke::editor().geoImport.netz;
+    for (const karte::ImportTeil& t : n.teile) {
+        for (const karte::ImportPunkt& p : t.punkte) {
+            const double v[3] = {p.x, p.y, p.z};
+            for (int i = 0; i < 3; ++i) {
+                mn[i] = std::min(mn[i], v[i]);
+                mx[i] = std::max(mx[i], v[i]);
+            }
+        }
+    }
+    if (erstes != nullptr && !n.teile.empty() && !n.teile[0].dreiecke.empty()) { *erstes = n.teile[0].dreiecke[0]; }
+    return {mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]};
+}
+bool massGleich(const std::array<double, 3>& a, double x, double y, double z) {
+    return std::fabs(a[0] - x) < 0.01 && std::fabs(a[1] - y) < 0.01 && std::fabs(a[2] - z) < 0.01;
+}
+
+std::vector<Schritt> importVorlagen() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto vorher = std::make_shared<std::array<std::uint32_t, 3>>();
+    add(pruefe("CW-IMPORT P2: Vorlage ab Werk \"Vorgabe (wie bisher)\", Umlauf nicht umgedreht", [] {
+        const ke::GeoImportZustand z;
+        return z.vorlage == 0 && !z.umdrehen && ke::editor().geoImport.vorlage == 0 && !ke::editor().geoImport.umdrehen;
+    }));
+    add(tu("CW-IMPORT P2: Quader 10 x 20 x 30 (.obj) schreiben, Import-Dialog mit der Vorgabe", [] {
+        stufe2::testDateiSchreiben(karteTestPfad("cw_quader.obj"), quaderObj());
+        ke::GeoImportZustand& z = ke::editor().geoImport;
+        z.skala = 1.0F;
+        z.yOben = true;
+        (void)ke::geoImportLaden(karteTestPfad("cw_quader.obj"));
+    }));
+    add(pause(0.3));
+    add(pruefe("CW-IMPORT P2: Vorgabe wie bisher - Y oben: (x, -z, y), also 10 x 30 x 20", [] { return massGleich(netzMass(), 10, 30, 20); }));
+    add(klickAn("Klappliste Vorlage", klappOrtCw("##givorlage")));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeCwVorBf2)), "", 0, true));
+    add(pause(0.4));
+    add(pruefe("CW-IMPORT P2: Battlefront 2 / Z oben - wie in der Datei, 10 x 20 x 30, gemerkt (BhedImportPreset 2)", [] {
+        const auto it = g_app->settings.karte.find("BhedImportPreset");
+        return massGleich(netzMass(), 10, 20, 30) && ke::editor().geoImport.vorlage == 2 && it != g_app->settings.karte.end() && it->second == "2";
+    }));
+    add(tu("Erstes Dreieck merken", [vorher] { (void)netzMass(vorher.get()); }));
+    add(klick(std::string(ke::trK(Str::KeCwUmdrehen)) + "##giumdrehen", "", 0, true));
+    add(pause(0.4));
+    add(pruefe("CW-IMPORT P2: Umlauf umdrehen - das erste Dreieck laeuft andersherum, gemerkt (BhedImportFlip 1)", [vorher] {
+        std::array<std::uint32_t, 3> jetzt{};
+        (void)netzMass(&jetzt);
+        const auto it = g_app->settings.karte.find("BhedImportFlip");
+        return jetzt[0] == (*vorher)[0] && jetzt[1] == (*vorher)[2] && jetzt[2] == (*vorher)[1] && it != g_app->settings.karte.end() && it->second == "1";
+    }));
+    add(klick(std::string(ke::trK(Str::KeCwUmdrehen)) + "##giumdrehen", "", 0, true));
+    add(klickAn("Klappliste Vorlage", klappOrtCw("##givorlage")));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeCwVorSource)), "", 0, true));
+    add(pause(0.4));
+    add(pruefe("CW-IMPORT P2: Source/GMod - Z oben, Faktor 64 / 72", [] {
+        return std::fabs(ke::editor().geoImport.skala - 64.0F / 72.0F) < 1e-4F && massGleich(netzMass(), 10 * 64.0 / 72, 20 * 64.0 / 72, 30 * 64.0 / 72);
+    }));
+    add(klickAn("Klappliste Vorlage", klappOrtCw("##givorlage")));
+    add(pause(0.3));
+    add(klick(std::string(ke::trK(Str::KeCwVorBf3)), "", 0, true));
+    add(pause(0.4));
+    add(pruefe("CW-IMPORT P2: Battlefield 3 / Y oben - (x, -z, y), die Skala bleibt", [] {
+        return massGleich(netzMass(), 10 * 64.0 / 72, 30 * 64.0 / 72, 20 * 64.0 / 72);
+    }));
+    add(klick(std::string(ke::trK(Str::KeCwAufFigur)) + "##giauffigur", "", 0, true));
+    add(pause(0.4));
+    add(pruefe("CW-IMPORT P2: Hoehe = Testfigur - das Modell ist 64 hoch, die Vorschau zeigt es neben der Figur", [] {
+        const std::array<double, 3> m = netzMass();
+        return std::fabs(m[2] - 64.0) < 0.05 && ke::editor().geoImport.vorschauGezeichnet > 0;
+    }));
+    add(foto("cw_import_vorschau"));
+    add(tu("CW-IMPORT P2: Vorlage wie ab Werk, Dialog zu", [] {
+        ke::GeoImportZustand& z = ke::editor().geoImport;
+        z.vorlage = 0;
+        z.umdrehen = false;
+        z.skala = 1.0F;
+        z.offen = false;
+        ke::einstellungenSpeichern();
+    }));
+    return s;
+}
+
+// --- Punkte 3 bis 6: Werkzeuge -------------------------------------------------------------------------------------------------------
+
+// Raum mit Treppe: 4 Stufen 16 hoch, 24 tief, 128 breit in +x ab x 0 (Unterseiten caulk), oben ein Podest bis x 192, Spielerstart davor
+std::string treppenText(const std::string& fest) {
+    const char* f = fest.c_str();
+    std::string t = raumText(fest);
+    t = t.substr(0, t.find("}\n{\n\"classname\" \"info_player_start\""));   // ohne das Ende des worldspawn
+    for (int i = 1; i <= 4; ++i) {
+        t += stufe5::kastenText(24.0 * (i - 1), -64.0, 0.0, 24.0 * i, 64.0, 16.0 * i, f, 0, false);
+    }
+    t += stufe5::kastenText(96.0, -64.0, 0.0, 192.0, 64.0, 64.0, f, 0, false);
+    // eine unregelmaessige Wand: drei Pinsel verschieden tief (Vorderseite bei y -400 + 8, -400 + 20, -400 + 4)
+    t += stufe5::kastenText(-256.0, -512.0, 0.0, -192.0, -392.0, 160.0, f, 0, false);
+    t += stufe5::kastenText(-192.0, -512.0, 0.0, -128.0, -380.0, 160.0, f, 0, false);
+    t += stufe5::kastenText(-128.0, -512.0, 0.0, -64.0, -396.0, 160.0, f, 0, false);
+    return t + "}\n{\n\"classname\" \"info_player_start\"\n\"origin\" \"-400 0 24\"\n}\n";
+}
+std::string treppenKarteCw() { return karteTestPfad("cw_treppe.map"); }
+
+// Die Stufen (die Pinsel, deren Grenzen in x 0 ... 96 und y -64 ... 64 liegen) waehlen
+void stufenWaehlenCw() {
+    ke::Editor& ed = ke::editor();
+    ed.karte.auswahl.leeren();
+    const auto welt = ed.karte.welt();
+    for (const auto& p : welt->kinder()) {
+        if (p->art() != karte::Primitiv::Art::Pinsel) { continue; }
+        const karte::Kasten& g = static_cast<const karte::Pinsel&>(*p).grenzen(ed.karte.kontext);
+        if (g.origin.x() - g.extents.x() >= -0.5F && g.origin.x() + g.extents.x() <= 96.5F && std::fabs(g.extents.y() - 64.0F) < 0.5F) {
+            ed.karte.auswahl.waehlen(welt, p);
+        }
+    }
+}
+void wandWaehlenCw() {
+    ke::Editor& ed = ke::editor();
+    ed.karte.auswahl.leeren();
+    const auto welt = ed.karte.welt();
+    for (const auto& p : welt->kinder()) {
+        if (p->art() != karte::Primitiv::Art::Pinsel) { continue; }
+        const karte::Kasten& g = static_cast<const karte::Pinsel&>(*p).grenzen(ed.karte.kontext);
+        if (g.origin.x() + g.extents.x() <= -63.5F && g.origin.x() - g.extents.x() >= -256.5F && g.origin.y() < -380.0F && g.extents.y() < 100.0F) {
+            ed.karte.auswahl.waehlen(welt, p);
+        }
+    }
+}
+
+// Die Spielfigur laeuft mit Pmove (navSpielerPmove: PM_WalkMove, PM_StepSlideMove ...) gegen die Kollision der gebauten .bsp die
+// Treppe hinauf (forwardmove 127, 8 ms je Bild); gemessen: der groesste Hoehensprung in einem Bild und wie hoch sie ankommt
+struct LaufMessung {
+    bool ok = false;
+    float groessterSprung = 0;   // z je Bild
+    float oben = 0;              // z am Ende (Ursprung)
+    int bilder = 0;
+};
+LaufMessung treppeHinauf(const std::string& bspPfad) {
+    LaufMessung m;
+    std::string daten;
+    {
+        std::ifstream f(std::filesystem::path(bspPfad), std::ios::binary);
+        std::ostringstream o;
+        o << f.rdbuf();
+        daten = o.str();
+    }
+    KollisionsKarte k;
+    if (!leseKollision(daten, k)) { return m; }
+    const NavSpurFn spur = [&k](const NavVec& a, const NavVec& mins, const NavVec& maxs, const NavVec& b, int, std::uint32_t maske) {
+        const KollisionsSpur t = kollisionsSpur(k, a.data(), mins.data(), maxs.data(), b.data(), maske);
+        NavSpur r;
+        r.allsolid = t.allsolid;
+        r.startsolid = t.startsolid;
+        r.fraction = t.fraction;
+        r.endpos = t.endpos;
+        r.normal = t.normale;
+        r.contents = t.inhalt;
+        r.entity = t.fraction < 1.0F ? kNavWeltEntity : kNavKeineEntity;
+        return r;
+    };
+    NavSpieler s;
+    s.ort = {-150.0F, 0.0F, 24.25F};
+    s.gier = 0.0F;   // +x, die Treppe hinauf
+    NavSpielerEingabe e;
+    e.vor = 127;
+    float letzte = s.ort[2];
+    for (int i = 0; i < 400 && s.ort[0] < 150.0F; ++i) {
+        navSpielerPmove(s, spur, e, 8);
+        if (i > 20) { m.groessterSprung = std::max(m.groessterSprung, std::fabs(s.ort[2] - letzte)); }   // erst nach dem Anlaufen
+        letzte = s.ort[2];
+        m.bilder = i + 1;
+    }
+    m.oben = s.ort[2];
+    m.ok = true;
+    return m;
+}
+std::string bspVon(const std::string& map) { return map.substr(0, map.size() - 4) + ".bsp"; }
+
+std::vector<Schritt> werkzeuge() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    auto vorher = std::make_shared<LaufMessung>();
+    add(tu("CW-IMPORT P4: Raum mit Treppe schreiben, oeffnen, Build > Single: bsp stage (vorher, feste Stufen)", [] {
+        stufe2::testDateiSchreiben(treppenKarteCw(), treppenText(festerShader()));
+        (void)ke::karteOeffnen(treppenKarteCw());
+        stufe3::q3map2Bereitstellen();
+        ke::konsoleLeeren();
+        ke::bauMenueSicherstellen();
+        cwpruef::bauEintragStarten("Single: bsp stage");
+    }));
+    add(stufe8::warteSek("CW-IMPORT P4: Bau fertig (vorher)", [] { return !ke::bauLaeuft(); }, 300));
+    add(pruefe("CW-IMPORT P4: vorher (feste Stufen, q3map2) - die Figur springt je Stufe hoch (PM_StepSlideMove), oben auf 88", [vorher] {
+        *vorher = treppeHinauf(bspVon(treppenKarteCw()));
+        diag::detail("Knopftest: CW-IMPORT vorher groesster Sprung " + std::to_string(vorher->groessterSprung) + ", oben " + std::to_string(vorher->oben) +
+                     ", Bilder " + std::to_string(vorher->bilder));
+        return vorher->ok && vorher->groessterSprung >= 15.0F && std::fabs(vorher->oben - 88.0F) < 1.0F;
+    }));
+    add(pruefe("CW-IMPORT P6: vor den Werkzeugen gibt es keine Ebene Collision", [] { return karte::kollisionsEbeneFinden(ke::editor().karte) < 0; }));
+    // Punkt 4 per Menue: Modify > Clone-Wars-Werkzeuge > Treppe zu Clip-Rampe
+    add(tu("CW-IMPORT P4: Stufen waehlen", [] { stufenWaehlenCw(); }));
+    add(klick(ke::trK(Str::KeLModify), "###main"));
+    add(pause(0.25));
+    add(tu("Maus auf Modify > Clone-Wars-Werkzeuge", [] {
+        if (const Element* el = finde(std::string(ke::trK(Str::KeCwWzMenue)) + "###cwwerkzeuge", "", 0, true)) { setzeMaus(el->rect.GetCenter()); }
+    }));
+    add(pause(0.4));
+    add(klick(std::string(ke::trK(Str::KeCwRampe)) + "###cwrampe", "", 0, true));
+    add(pause(0.3));
+    add(pruefe("CW-IMPORT P4/P6: eine Clip-Rampe aus textures/system/clip in der Ebene Collision, die 4 Stufen nicht fest (system/nodraw unten)", [] {
+        const ke::Editor& ed = ke::editor();
+        const int ebene = karte::kollisionsEbeneFinden(ed.karte);
+        int rampen = 0;
+        int nodraw = 0;
+        for (const auto& p : ed.karte.welt()->kinder()) {
+            if (p->art() != karte::Primitiv::Art::Pinsel) { continue; }
+            const auto& pin = static_cast<const karte::Pinsel&>(*p);
+            bool clip = true;
+            for (const auto& f : pin.flaechen()) {
+                clip = clip && f->shader() == "textures/system/clip";
+                nodraw += f->shader() == "textures/system/nodraw" ? 1 : 0;
+            }
+            rampen += (clip && p->schicht == ebene) ? 1 : 0;
+        }
+        diag::detail("Knopftest: CW-IMPORT Rampe: Ebene " + std::to_string(ebene) + ", Clip-Pinsel " + std::to_string(rampen) + ", nodraw-Seiten " +
+                     std::to_string(nodraw) + ", " + std::to_string(ke::cwWerkzeugStand().rampen) + " - " + ke::cwWerkzeugStand().meldung);
+        return ebene >= 0 && rampen == 1 && nodraw == 4;
+    }));
+    add(tu("CW-IMPORT P4: Karte speichern, Build > Single: bsp stage (nachher)", [] {
+        (void)ke::karteSpeichernUnter(treppenKarteCw());
+        ke::konsoleLeeren();
+        cwpruef::bauEintragStarten("Single: bsp stage");
+    }));
+    add(stufe8::warteSek("CW-IMPORT P4: Bau fertig (nachher)", [] { return !ke::bauLaeuft(); }, 300));
+    add(pruefe("CW-IMPORT P4: nachher (q3map2) - die Figur laeuft glatt hinauf (kein Sprung ueber 4 je Bild), oben auf derselben Hoehe", [vorher] {
+        const LaufMessung m = treppeHinauf(bspVon(treppenKarteCw()));
+        diag::detail("Knopftest: CW-IMPORT nachher groesster Sprung " + std::to_string(m.groessterSprung) + ", oben " + std::to_string(m.oben) +
+                     ", Bilder " + std::to_string(m.bilder) + " (vorher " + std::to_string(vorher->groessterSprung) + ")");
+        return m.ok && m.groessterSprung < 4.0F && std::fabs(m.oben - vorher->oben) < 1.0F;
+    }));
+    add(tu("CW-IMPORT P4: Optimierer mit Pruefprofil Clone-Wars-Kette", [] {
+        ke::editor().optimierer.clonewars = true;
+        ke::optimiererOeffnen();
+    }));
+    add(stufe8::warteSek("CW-IMPORT P4: Optimierer fertig", [] { return !ke::optimiererLaeuft() && ke::optimiererBlick().hatErgebnis; }, 120));
+    add(pruefe("CW-IMPORT P4: die Pruefung Sicht gegen Kollision (CW-PRUEF) meldet an der Treppe nichts", [] {
+        diag::detail("Knopftest: CW-IMPORT Treppe - Befunde " + stufe5::befundListe());
+        return !stufe5::hatBefund("laufohnekollision") && !stufe5::hatBefund("kollisionsabstand");
+    }));
+    add(tu("CW-IMPORT P4: Optimierer zu, Profil wie ab Werk", [] {
+        ke::optimiererSchliessen();
+        ke::editor().optimierer.clonewars = false;
+    }));
+    add(foto("cw_rampe"));
+    // Punkt 5: glatte Clip-Wand (Ebene) ueber das Rechtsklickmenue der Kamera-Seite: hier ueber dieselbe Funktion wie der Menuepunkt
+    add(tu("CW-IMPORT P5: Wand waehlen, Kamera davor", [] {
+        wandWaehlenCw();
+        ke::Editor& ed = ke::editor();
+        ed.kamera.ursprung = karte::Vektor3f(-160, -150, 80);
+    }));
+    add(klick(ke::trK(Str::KeLModify), "###main"));
+    add(pause(0.25));
+    add(tu("Maus auf Modify > Clone-Wars-Werkzeuge", [] {
+        if (const Element* el = finde(std::string(ke::trK(Str::KeCwWzMenue)) + "###cwwerkzeuge", "", 0, true)) { setzeMaus(el->rect.GetCenter()); }
+    }));
+    add(pause(0.4));
+    add(klick(std::string(ke::trK(Str::KeCwWandEbene)) + "###cwwandebene", "", 0, true));
+    add(pause(0.3));
+    add(pruefe("CW-IMPORT P5: Clip-Wand vorn am weitesten vorstehenden Punkt (y -380), so lang wie die Wand (x -256 ... -64), in der Ebene Collision", [] {
+        const ke::Editor& ed = ke::editor();
+        for (const auto& a : ed.karte.auswahl.elemente()) {
+            const auto p = a.primitiv.lock();
+            if (!p || p->art() != karte::Primitiv::Art::Pinsel) { continue; }
+            const karte::Kasten& g = static_cast<const karte::Pinsel&>(*p).grenzen(ed.karte.kontext);
+            return std::fabs(g.origin.y() + g.extents.y() + 380.0F) < 0.01F && std::fabs(g.origin.x() - g.extents.x() + 256.0F) < 0.01F &&
+                   std::fabs(g.origin.x() + g.extents.x() + 64.0F) < 0.01F && p->schicht == karte::kollisionsEbeneFinden(ed.karte);
+        }
+        return false;
+    }));
+    // Punkt 6: Ebene Collision aus- und einblenden (View-Menue der Werkzeuge)
+    add(tu("CW-IMPORT P6: Ebene Collision ausblenden", [] { ke::cwKollisionZeigen(false); }));
+    add(pruefe("CW-IMPORT P6: ausgeblendet - die Clip-Pinsel sind versteckt (ebeneVersteckt)", [] {
+        const ke::Editor& ed = ke::editor();
+        const int ebene = karte::kollisionsEbeneFinden(ed.karte);
+        bool alle = true;
+        int n = 0;
+        for (const auto& p : ed.karte.welt()->kinder()) {
+            if (p->schicht != ebene) { continue; }
+            ++n;
+            alle = alle && p->ebeneVersteckt;
+        }
+        return n == 2 && alle && !ke::cwKollisionSichtbar();
+    }));
+    add(tu("CW-IMPORT P6: Ebene Collision einblenden", [] { ke::cwKollisionZeigen(true); }));
+    // Punkt 3: Raum skalieren (Dialog), Marker und Kommentar
+    add(tu("CW-IMPORT P3: Stufen waehlen, Modify > Clone-Wars-Werkzeuge > Raum skalieren...", [] { stufenWaehlenCw(); }));
+    add(klick(ke::trK(Str::KeLModify), "###main"));
+    add(pause(0.25));
+    add(tu("Maus auf Modify > Clone-Wars-Werkzeuge", [] {
+        if (const Element* el = finde(std::string(ke::trK(Str::KeCwWzMenue)) + "###cwwerkzeuge", "", 0, true)) { setzeMaus(el->rect.GetCenter()); }
+    }));
+    add(pause(0.4));
+    add(klick(std::string(ke::trK(Str::KeCwRaum)) + "###cwraum", "", 0, true));
+    add(pause(0.4));
+    add(foto("cw_raum_dialog"));
+    add(klick(std::string(ke::trK(Str::KeCwRaumOk)) + "##cwraumok", "", 0, true));
+    add(pause(0.3));
+    add(pruefe("CW-IMPORT P3: info_notnull mit cw_scale 1.2 in der Karte, Kommentar \"// cw_scale 1.2\" in der gespeicherten .map", [] {
+        const ke::Editor& ed = ke::editor();
+        bool marker = false;
+        for (const auto& en : ed.karte.entitaeten()) { marker = marker || (en->klassenname() == "info_notnull" && en->wert("cw_scale") == "1.2"); }
+        (void)ke::karteSpeichernUnter(treppenKarteCw());
+        std::ifstream f(std::filesystem::path(treppenKarteCw()), std::ios::binary);
+        std::ostringstream o;
+        o << f.rdbuf();
+        return marker && o.str().find("// cw_scale 1.2") != std::string::npos && ke::cwWerkzeugStand().raeume > 0;
+    }));
+    add(tu("CW-IMPORT: neue Karte", [] {
+        ke::editor().karte.undo.alsGespeichertMarkieren();
+        ke::neueKarte();
+    }));
+    return s;
+}
+
+// Die Handbuchbilder (BHED_EDITORTEST=handbuch, BHED_HB_NUR=cwimport): ganzes Fenster (mindestens 1920 breit)
+std::vector<Schritt> handbuchBilder() {
+    std::vector<Schritt> s;
+    auto add = [&s](Schritt x) { s.push_back(std::move(x)); };
+    const auto voll = [] { return ImRect{0.0F, 0.0F, ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y}; };
+    const auto kameraSetzen = [] {
+        ke::Editor& e = ke::editor();
+        e.kamera.ursprung = karte::Vektor3f(-200.0F, -260.0F, 140.0F);
+        e.kamera.winkel = karte::Vektor3f(-17.0F, 46.0F, 0.0F);
+    };
+    for (Schritt& x : stufe9c::einrichten()) { add(std::move(x)); }
+    add(tu("Handbuch CW-IMPORT: Raum mit Treppe, Kamera, Testfigur vor der Treppe", [kameraSetzen] {
+        karteDialogeZu();
+        stufe2::testDateiSchreiben(treppenKarteCw(), treppenText(festerShader()));
+        (void)ke::karteOeffnen(treppenKarteCw());
+        ke::editor().karte.auswahl.leeren();
+        kameraSetzen();
+        ke::TestfigurZustand& t = ke::editor().testfigur;
+        t = ke::Editor::TestfigurVorgabe();
+        t.an = true;
+        t.gesetzt = true;
+        t.ursprung = karte::Vektor3f(-48.0F, 0.0F, 24.0F);
+        ++ke::editor().sichtStand;
+    }));
+    add(warteBis("Handbuch CW-IMPORT: Texturen und Spielermodell geladen", [] { return ke::kameraBilderFertig() && ke::editor().testfigur.modellDreiecke > 0; }, 6000));
+    add(pause(0.5));
+    add(hb::fotoTeil("h_cwimport_figur", voll));
+    add(tu("Handbuch CW-IMPORT: Import-Dialog mit Vorlage Battlefield 3, Hoehe = Testfigur", [] {
+        stufe2::testDateiSchreiben(karteTestPfad("cw_quader.obj"), quaderObj());
+        ke::GeoImportZustand& z = ke::editor().geoImport;
+        z.vorlage = static_cast<int>(karte::AchsVorlage::Battlefield3);
+        z.skala = 3.2F;
+        (void)ke::geoImportLaden(karteTestPfad("cw_quader.obj"));
+    }));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_cwimport_import", voll));
+    add(tu("Handbuch CW-IMPORT: Dialog zu, Treppe zu Clip-Rampe, Figur auf der Rampe", [] {
+        ke::GeoImportZustand& z = ke::editor().geoImport;
+        z.offen = false;
+        z.vorlage = 0;
+        z.skala = 1.0F;
+        stufenWaehlenCw();
+        (void)ke::cwTreppeZuRampe();
+        ke::TestfigurZustand& t = ke::editor().testfigur;
+        t.ursprung = karte::Vektor3f(24.0F, 0.0F, 24.0F + 48.0F * 2.0F / 3.0F);
+        ++ke::editor().sichtStand;
+    }));
+    add(pause(0.8));
+    add(hb::fotoTeil("h_cwimport_rampe", voll));
+    add(tu("Handbuch CW-IMPORT: Ende", [] {
+        karteDialogeZu();
+        ke::editor().testfigur = ke::Editor::TestfigurVorgabe();
+        ke::editor().karte.undo.alsGespeichertMarkieren();
+        ke::neueKarte();
+        g_app->leftMode = 0;
+    }));
+    add(pause(0.3));
+    return s;
+}
+
 std::vector<Schritt> schritte() {
     std::vector<Schritt> s;
     for (Schritt& x : testfigur()) { s.push_back(std::move(x)); }
+    for (Schritt& x : importVorlagen()) { s.push_back(std::move(x)); }
+    for (Schritt& x : werkzeuge()) { s.push_back(std::move(x)); }
     return s;
 }
 

@@ -1443,6 +1443,7 @@ target_sources(bhed_core PRIVATE
   src/karte/geometrieimport.cpp
   # CW-IMPORT: Clone-Wars-Kette Teil 2 (Testfigur, Massstab, Clip-Werkzeuge)
   src/karte/cwimport.cpp
+  src/karte/cwwerkzeuge.cpp
   # Stufe 9 Punkt 3: Modell-Import (MD3 samt Shader und Texturen)
   src/karte/modellimport.cpp
   # Stufe 9 Punkt 4: Sprungweite und Platz pruefen

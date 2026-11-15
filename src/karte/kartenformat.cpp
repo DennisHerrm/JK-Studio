@@ -25,6 +25,7 @@
 //   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
 //   Public License for more details (LICENSE).
 #include "bhed/karte/kartenformat.h"
+#include "bhed/karte/cwwerkzeuge.h"
 #include "tokenizer.h"
 
 #include <algorithm>
@@ -863,6 +864,13 @@ std::string karteSchreiben(const Karte& karte, const std::function<bool(const En
         w.token("entity");
         w.vorzeichenlos(entitaeten++);
         w.nextLine();
+        // CW-IMPORT Punkt 3 (eigene Erweiterung, nicht in NRC): der Massstab eines Raums auch als Kommentar - nur fuer eine Entitaet
+        // mit dem Schluessel cw_scale (raumSkalieren); q3map2 und der Leser ueberlesen Kommentare, NRC-Karten haben den Schluessel nicht
+        if (const std::string kommentar = raumKommentar(*e); !kommentar.empty()) {
+            w.token("//");
+            w.token(kommentar.c_str());
+            w.nextLine();
+        }
         ebeneSchreiben(w, e->schicht, aktuelleEbene);
         w.token("{");
         w.nextLine();

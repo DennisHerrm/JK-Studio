@@ -351,6 +351,7 @@ std::vector<Schritt> schritte();   // selbsttest_cwpruef.inc: CW-PRUEF, Pruefung
 }  // namespace cwpruef
 namespace cwimport {
 std::vector<Schritt> schritte();   // selbsttest_cwimport.inc: CW-IMPORT, Testfigur, Import mit Massstab, Clip-Werkzeuge
+std::vector<Schritt> handbuchBilder();   // BHED_HB_NUR=cwimport: h_cwimport_figur, h_cwimport_import, h_cwimport_rampe
 }  // namespace cwimport
 namespace rd {   // p_render (selbsttest_rd.inc)
 std::vector<Schritt> schritte();
@@ -2800,6 +2801,9 @@ std::vector<Schritt> handbuchSchritteInhalt() {
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "tutgeo") == 0) {
         return tutgeo::tour();   // rc610 TUT-GEO: die Bilder h_tut_geo_1 .. _6 (die Tour an jedem Schritt)
+    }
+    if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "cwimport") == 0) {
+        return cwimport::handbuchBilder();   // CW-IMPORT: Testfigur, Import mit Vorlage und Vorschau, Clip-Rampe
     }
     if (const char* nur = std::getenv("BHED_HB_NUR"); nur != nullptr && std::strcmp(nur, "modobj") == 0) {
         return modobj::handbuchSchritte();   // rc610 MODOBJ: der Modell-Browser mit .obj, .fbx usw.

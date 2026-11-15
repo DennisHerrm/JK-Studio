@@ -218,6 +218,7 @@ MENUES = [
             ('LISTE', 'Transforms'),            # SelectionSystem_connectTransformsCallbacks (mainframe.cpp:1123)
             ('ITEM', 'Reset Transforms', 'ResetTransforms', ''),
         ]),
+        ('LISTE', 'ProgrammModify', 'CW-IMPORT: Clone-Wars-Werkzeuge (nicht in NRC)'),
     ]),
     ('&Build', 'radiant/mainframe.cpp:1135', [
         ('ITEM', 'Customize...', 'BuildMenuCustomize', ''),

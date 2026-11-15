@@ -676,6 +676,10 @@ void listeZeichnen(const std::string& name) {
             }
             qtMenueEnde();
         }
+    } else if (name == "ProgrammModify") {
+        // CW-IMPORT Punkte 3 bis 6 (eigene Werkzeuge, nicht in NRC): ein Untermenue am Ende von Modify
+        qtTrenner();
+        cwWerkzeugMenue();
     } else if (name == "ProgrammGrid") {
         // rc612 NUMPAD (eigene Einstellung, nicht in NetRadiant-Custom): der Ziffernblock setzt das Raster
         qtTrenner();
@@ -1526,6 +1530,18 @@ void einstellungenLaden() {
     ed.testfigur.marken = zahl("BhedTestFigureMarks", 1) != 0.0F;
     ed.testfigur.modellZeigen = zahl("BhedTestFigureModel", 1) != 0.0F;
     if (const auto it = k.find("BhedTestFigureModelPath"); it != k.end() && !it->second.empty()) { ed.testfigur.modellPfad = it->second; }
+    // CW-IMPORT Punkt 2: die Vorlage des Import-Dialogs (ab Werk 0 = wie bisher), eigene Achsen, Umlauf umdrehen
+    ed.geoImport.vorlage = std::clamp(static_cast<int>(zahl("BhedImportPreset", 0)), 0, karte::kAchsVorlagen - 1);
+    ed.geoImport.umdrehen = zahl("BhedImportFlip", 0) != 0.0F;
+    if (const auto it = k.find("BhedImportAxes"); it != k.end()) {
+        int a[6] = {0, 1, 2, 1, 1, 1};
+        if (std::sscanf(it->second.c_str(), "%d %d %d %d %d %d", &a[0], &a[1], &a[2], &a[3], &a[4], &a[5]) == 6) {
+            for (std::size_t i = 0; i < 3; ++i) {
+                ed.geoImport.achse[i] = std::clamp(a[i], 0, 2);
+                ed.geoImport.vorzeichen[i] = a[i + 3] < 0 ? -1 : 1;
+            }
+        }
+    }
     {
         const auto it = k.find("RegionBoxShader");
         ed.regionKastenShader = it != k.end() ? it->second : std::string();
@@ -1872,6 +1888,12 @@ void einstellungenSpeichern() {
         k["BhedTestFigureMarks"] = ed.testfigur.marken ? "1" : "0";
         k["BhedTestFigureModel"] = ed.testfigur.modellZeigen ? "1" : "0";
         k["BhedTestFigureModelPath"] = ed.testfigur.modellPfad;
+        k["BhedImportPreset"] = std::to_string(ed.geoImport.vorlage);   // CW-IMPORT Punkt 2
+        k["BhedImportFlip"] = ed.geoImport.umdrehen ? "1" : "0";
+        char achsen[64];
+        std::snprintf(achsen, sizeof(achsen), "%d %d %d %d %d %d", ed.geoImport.achse[0], ed.geoImport.achse[1], ed.geoImport.achse[2],
+                      ed.geoImport.vorzeichen[0], ed.geoImport.vorzeichen[1], ed.geoImport.vorzeichen[2]);
+        k["BhedImportAxes"] = achsen;
     }
     k["RegionBoxShader"] = ed.regionKastenShader;
     k["GridDefault"] = std::to_string(ed.rasterStandard);

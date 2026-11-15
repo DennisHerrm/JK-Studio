@@ -1461,6 +1461,7 @@ void entitaetenMenueZeichnen() {
             if (qtPunkt(m)) { (void)testfigurHierher(ImVec2{e().testfigur.menueX, e().testfigur.menueY}); }
             qtTrenner();
         }
+        cwWerkzeugKontext();   // CW-IMPORT Punkte 3 bis 5: die Clone-Wars-Werkzeuge auf der Auswahl (nur mit Auswahl)
         if (modellZuBrushesMoeglich()) {
             const std::string id = std::string(trK(Str::KeMbMenue)) + "###kmmodellbrushes";
             QtPunkt m;

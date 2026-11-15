@@ -459,6 +459,46 @@ std::string klein(std::string s) {
 
 }  // namespace
 
+AchsWerte achsVorlage(AchsVorlage v) {
+    AchsWerte w;
+    switch (v) {
+    case AchsVorlage::Battlefield3:
+        w.achsenGesetzt = true;
+        w.achse = {0, 2, 1};
+        w.vorzeichen = {1, -1, 1};   // (x, -z, y)
+        break;
+    case AchsVorlage::Battlefront2: w.achsenGesetzt = true; break;
+    case AchsVorlage::Source:
+        w.achsenGesetzt = true;
+        w.skala = 64.0 / 72.0;
+        w.skalaSetzen = true;
+        break;
+    case AchsVorlage::Eigene: w.achsenGesetzt = true; break;
+    case AchsVorlage::Heute: break;
+    }
+    return w;
+}
+
+int achsDeterminante(const std::array<int, 3>& achse, const std::array<int, 3>& vorzeichen) {
+    // Vorzeichen der Permutation (eine fehlende Achse: keine Permutation, 0)
+    if (achse[0] == achse[1] || achse[1] == achse[2] || achse[0] == achse[2]) { return 0; }
+    int wechsel = 0;
+    for (int i = 0; i < 3; ++i) {
+        for (int j = i + 1; j < 3; ++j) {
+            if (achse[static_cast<std::size_t>(i)] > achse[static_cast<std::size_t>(j)]) { ++wechsel; }
+        }
+    }
+    const int perm = (wechsel % 2 == 0) ? 1 : -1;
+    return perm * vorzeichen[0] * vorzeichen[1] * vorzeichen[2];
+}
+
+void umlaufUmdrehen(ImportNetz& n) {
+    for (ImportTeil& t : n.teile) {
+        for (auto& d : t.dreiecke) { std::swap(d[1], d[2]); }
+        for (ImportPunkt& p : t.normalen) { p = {-p.x, -p.y, -p.z}; }
+    }
+}
+
 std::string materialShader(const std::string& material, const ZerlegOptionen& o) {
     std::string m = material;
     const std::size_t sl = m.find_last_of("/\\");
@@ -624,7 +664,7 @@ TeilErgebnis teilUmwandeln(const ImportTeil& t, TeilArt wahl, const ZerlegOption
 }
 
 EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teile, const std::string& modellPfad,
-                                 const std::vector<const Entitaet*>& ersetzt) {
+                                 const std::vector<const Entitaet*>& ersetzt, int clipEbene) {
     EinfuegeErgebnis r;
     Befehl undo(k.undo, "importGeometry");
     k.auswahl.leeren();
@@ -655,7 +695,7 @@ EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teil
             }
             if (p->anzahl() < 4) { continue; }
             if (ip.detail) { p->setzeDetail(true); }
-            p->schicht = static_cast<int>(k.aktuelleSchicht);
+            p->schicht = (clipEbene >= 0 && t.art == TeilArt::ModellClip) ? clipEbene : static_cast<int>(k.aktuelleSchicht);
             if (!welt) { welt = k.weltHolenOderAnlegen(); }
             welt->kindEinfuegen(p);
             k.auswahl.waehlen(welt, p);
@@ -831,7 +871,13 @@ void knotenSammeln(const aiScene* sc, const aiNode* k, const aiMatrix4x4& eltern
         for (unsigned v = 0; v < me->mNumVertices; ++v) {
             const aiVector3D p = m * me->mVertices[v];
             ImportPunkt q{p.x * o.skala, p.y * o.skala, p.z * o.skala};
-            if (o.yOben) { q = {p.x * o.skala, -p.z * o.skala, p.y * o.skala}; }
+            if (o.achsenGesetzt) {   // CW-IMPORT Punkt 2: die Achsen der Vorlage
+                const double c[3] = {p.x, p.y, p.z};
+                const auto a = [&](std::size_t i) { return static_cast<double>(o.vorzeichen[i]) * c[static_cast<std::size_t>(o.achse[i]) % 3] * o.skala; };
+                q = {a(0), a(1), a(2)};
+            } else if (o.yOben) {
+                q = {p.x * o.skala, -p.z * o.skala, p.y * o.skala};
+            }
             t.punkte.push_back(q);
             if (t.hatUv) {
                 // assimp liefert UV mit v nach oben (glTF wird umgedreht) - Q3: t nach unten
@@ -840,8 +886,9 @@ void knotenSammeln(const aiScene* sc, const aiNode* k, const aiMatrix4x4& eltern
                 t.uv.push_back({0, 0});
             }
         }
-        // gespiegelte Lage (negative Determinante): Umlaufsinn umdrehen
-        const bool spiegel = m.Determinant() < 0;
+        // gespiegelte Lage (negative Determinante): Umlaufsinn umdrehen - CW-IMPORT Punkt 2: dazu gespiegelte Achsen und "umdrehen"
+        const bool achsenSpiegel = o.achsenGesetzt && achsDeterminante(o.achse, o.vorzeichen) < 0;
+        const bool spiegel = ((m.Determinant() < 0) != achsenSpiegel) != o.umdrehen;
         for (unsigned f = 0; f < me->mNumFaces; ++f) {
             const aiFace& fa = me->mFaces[f];
             if (fa.mNumIndices != 3) { continue; }

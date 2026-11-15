@@ -910,6 +910,7 @@ void pluginDialogeZeichnen() {
     meshTexDialogeZeichnen();
     terrainDialogZeichnen();   // Stufe 8b Punkt 1
     geoImportDialogZeichnen();   // Stufe 9 Punkt 2
+    cwRaumDialogZeichnen();      // CW-IMPORT Punkt 3
     assetBrowserZeichnen();      // Stufe 9 Punkt 11
     ueberblendenZeichnen();      // Stufe 9 Punkt 9
     if (b.dialog == 0) { return; }

@@ -68,7 +68,32 @@ struct ImportNetz {
 struct NetzOptionen {
     double skala = 1.0;
     bool yOben = true;   // Blender/glTF: Y oben -> Q3: Z oben
+    // CW-IMPORT Punkt 2 (Clone-Wars-Kette): eigene Achsen statt yOben - die Q3-Achse i ist vorzeichen[i] * Achse achse[i] der Datei
+    // (0 x, 1 y, 2 z); eine Spiegelung (Determinante < 0) dreht den Umlauf wie eine gespiegelte Lage im Knoten
+    bool achsenGesetzt = false;
+    std::array<int, 3> achse{0, 1, 2};
+    std::array<int, 3> vorzeichen{1, 1, 1};
+    bool umdrehen = false;   // Umlauf und damit die Normalen umdrehen (Modelle, deren Dreiecke andersherum laufen, z. B. Empire at War)
 };
+
+// CW-IMPORT Punkt 2: die Vorlagen des Import-Dialogs. Heute = wie bisher (yOben aus dem Dialog, Skala unveraendert, ab Werk gewaehlt).
+enum class AchsVorlage : int { Heute = 0, Battlefield3, Battlefront2, Source, Eigene };
+inline constexpr int kAchsVorlagen = 5;
+struct AchsWerte {
+    bool achsenGesetzt = false;
+    std::array<int, 3> achse{0, 1, 2};
+    std::array<int, 3> vorzeichen{1, 1, 1};
+    double skala = 1.0;          // nur mit skalaSetzen
+    bool skalaSetzen = false;
+};
+// Battlefield 3 / Y oben: (x, -z, y) wie yOben; Battlefront 2 / Z oben: wie sie sind; Source/GMod: Z oben, Skala 64 / 72 (die
+// Spielfigur: Source SDK 2013 src/game/shared/gamerules.cpp:47-61 g_DefaultViewVectors VEC_HULL_MAX (16, 16, 72), Jedi Academy
+// -24 ... 40 = 64 - bg_public.h:51-52); Eigene: die Achsen des Dialogs
+[[nodiscard]] AchsWerte achsVorlage(AchsVorlage v);
+// +1 Drehung, -1 Spiegelung (Vorzeichen der Permutation mal der Vorzeichen)
+[[nodiscard]] int achsDeterminante(const std::array<int, 3>& achse, const std::array<int, 3>& vorzeichen);
+// Umlauf (und Normalen) eines Netzes umdrehen
+void umlaufUmdrehen(ImportNetz& n);
 
 // endung: "obj", "fbx", "glb", "gltf" (klein). false mit Grund, wenn nichts lesbar ist.
 [[nodiscard]] bool netzLesen(const std::string& bytes, const std::string& endung, const NetzOptionen& o, ImportNetz& out,
@@ -129,8 +154,10 @@ struct EinfuegeErgebnis {
     std::size_t ersetzt = 0;
 };
 class Entitaet;
+// CW-IMPORT Punkt 6: clipEbene >= 0 - die Clip-Brushes der Modell+Clip-Teile kommen in diese Ebene (Collision, nur mit dem Pruefprofil
+// Clone-Wars-Kette); -1 wie bisher die aktuelle Ebene
 EinfuegeErgebnis importEinfuegen(Karte& k, const std::vector<TeilErgebnis>& teile, const std::string& modellPfad,
-                                 const std::vector<const Entitaet*>& ersetzt = {});
+                                 const std::vector<const Entitaet*>& ersetzt = {}, int clipEbene = -1);
 
 // Die Modell+Clip-Teile als .obj (Y oben: Q3 (x, y, z) als (x, z, -y), usemtl = Shader, vt = s, 1 - t) - so liest
 // q3map2 (assimp) das misc_model und nimmt die Shader der Brushes.
