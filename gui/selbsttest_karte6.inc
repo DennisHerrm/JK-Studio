@@ -1631,6 +1631,8 @@ std::vector<Schritt> knoepfe() {
     const auto leiste = [&](const std::vector<kb::Knopf>& knoepfe, const std::string& leisteId) {
         for (const kb::Knopf& k : knoepfe) {
             if (k.trenner || k.befehl[0] == 0 || !gewuenscht(k.befehl)) { continue; }
+            // CW-IMPORT: eigene Knoepfe (nicht in NRC, Vorsilbe "Bhed") prueft ihre eigene Gruppe (cwimport: Testfigur per Klick und Rechtsklick)
+            if (std::string(k.befehl).rfind("Bhed", 0) == 0) { continue; }
             const std::string befehl = k.befehl;
             const Erwartung* x = erwartung(befehl);
             if (x == nullptr) {

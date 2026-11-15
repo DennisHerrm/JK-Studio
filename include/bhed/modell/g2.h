@@ -113,7 +113,8 @@ struct LodLage {
 // Gewicht * (Knochen * Ecke + Verschiebung), Normale nur mit dem ersten Knochen. Das Netz steht im Raum der Entity wie
 // ein .md3 mit einem Bild (ent.axis und origin stellen es, R_RotateForEntity). false: GLA leer oder mit anderen
 // Knochen (R_LoadMDXM :3670-3699: "missing animation file" / "different bones than anim" - das Spiel zeichnet nichts).
-[[nodiscard]] bool glmStandbild(const GlmModel& stufe, const GlaAnimation& gla, Md3Model& aus);
+// CW-IMPORT: `bild` = ein anderes Bild der GLA (die Testfigur des Karten-Editors in der Pose BOTH_STAND1 / BOTH_CROUCH1)
+[[nodiscard]] bool glmStandbild(const GlmModel& stufe, const GlaAnimation& gla, Md3Model& aus, int bild = 0);
 // Die GLA eines Modells mit animName "*default" (sDEFAULT_GLA_NAME, mdx_format.h:91): RE_RegisterModels_GetDiskFile gibt
 // fuer "*default.gla" die eingebaute FakeGLAFile zurueck (tr_model.cpp:112-131, 155-163 OpenJK) - ein Knochen, ein Bild.
 [[nodiscard]] const GlaAnimation& standardGla();

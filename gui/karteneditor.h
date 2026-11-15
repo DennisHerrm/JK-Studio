@@ -261,6 +261,26 @@ struct TerrainZustand {
     karte::terraingen::Ergebnis letztes;    // Selbsttest
 };
 
+// CW-IMPORT Punkt 1: die Testfigur (eigene Funktion, nicht in NRC; app_karte_cwimport.cpp) - ab Werk aus
+struct TestfigurZustand {
+    bool an = false;                  // "BhedTestFigure" (View > Testfigur, F7, Werkzeugleiste)
+    bool geduckt = false;             // "BhedTestFigureCrouch"
+    bool marken = true;               // Hoehenmarken, Tuer und Gang ("BhedTestFigureMarks")
+    bool quer = false;                // Tuer- und Gangrahmen quer
+    bool modellZeigen = true;         // das Spielermodell in der Kamera ("BhedTestFigureModel")
+    std::string modellPfad = "models/players/kyle/model.glm";   // "BhedTestFigureModelPath"
+    karte::Vektor3f ursprung{0, 0, 24};
+    bool gesetzt = false;             // schon einmal hingestellt (sonst beim Einschalten vor die Kamera)
+    bool popupOeffnen = false;        // Rechtsklick auf den Knopf der Werkzeugleiste
+    float menueX = 0, menueY = 0;    // wo das Rechtsklickmenue der Ansicht aufging ("Testfigur hierher")
+    // Selbsttest
+    std::size_t gezeichnet2d = 0;
+    std::size_t xyAufrufe = 0;        // gezeichnete 2D-Ansichten (auch ohne Figur; Anordnungen ohne 2D-Ansicht zaehlen nicht hoch)
+    std::size_t gezeichnetKamera = 0;
+    std::size_t modellDreiecke = 0;
+    int modellBild = -1;              // das Bild der GLA (erstes Bild der Sequenz)
+};
+
 // Stufe 8b Punkt 3: Im Editor spielen (eigene Funktion, nicht in NRC)
 struct SpielenZustand {
     bool aktiv = false;
@@ -688,6 +708,8 @@ struct Editor {
     MeshTexZustand meshtex;
     TerrainZustand terrain;   // Stufe 8b Punkt 1
     GeoImportZustand geoImport;   // Stufe 9 Punkt 2
+    TestfigurZustand testfigur;   // CW-IMPORT Punkt 1
+    static TestfigurZustand TestfigurVorgabe() { return TestfigurZustand{}; }
     SpielenZustand spielen;   // Stufe 8b Punkt 3
     LogikZustand logik;       // Stufe 8b Punkt 4
     AnsichtsModiZustand ansichtsmodi;   // Stufe 8b Punkt 5
@@ -1315,6 +1337,19 @@ void splitPlatzWaehlen(int platz, int wahl);
 // Stufe 8b Punkt 3: Im Editor spielen (app_karte_spielen.cpp)
 [[nodiscard]] bool spielenAktiv();
 void spielenStarten();
+// --- CW-IMPORT Punkt 1: Testfigur (app_karte_cwimport.cpp) ---
+void testfigurUmschalten();                  // F7, View > Testfigur, Werkzeugleiste
+void testfigurGeduckt(bool an);
+bool testfigurHierher(ImVec2 punkt);         // Shift+F7, "Testfigur hierher": 2D zwei Achsen (Tiefe bleibt), Kamera Fuesse auf der Flaeche
+void testfigurMenue();                       // das Untermenue (View)
+void testfigurMenueEintraege();
+void testfigurPopupOeffnen();                // Rechtsklick auf den Knopf
+void testfigurPopupZeichnen();
+// die Linien fuer die 2D-Ansichten (leer, wenn aus) und ihre Beschriftungen (Weltpunkt, Text)
+[[nodiscard]] std::vector<karte::Linie> testfigurLinien2d(std::vector<std::pair<karte::Vektor3f, std::string>>* texte, std::vector<karte::Farbe>* textFarben);
+void testfigurKameraZeichnen(const float* matrix, const float auge[3], const float vpn[3]);
+[[nodiscard]] std::vector<float> testfigurLage();   // fuer das Neuzeichnen der Ansichten (ZeichenAnlass)
+[[nodiscard]] karte::GrenzSpiel optimiererRegelwerk();   // das Regelwerk des Optimierers (Auto = Spiel der Karte)
 void spielenBeenden();
 void spielenSchritt(int msec);                              // Pmove mit spielen.eingabe
 void spielenBild(const ImVec2& o, const ImVec2& groesse);   // aus kameraZeichnen: Eingabe, Zeit, Anzeige

@@ -1452,6 +1452,15 @@ void entitaetenMenueZeichnen() {
     // das naechste das Menue.
     if (qtPopupAnfang("##entitaetenmenue")) {
         // ASEB (eigene Funktion, nicht in NetRadiant-Custom): ein gewaehltes misc_model in Brushes umwandeln - oben, nur dann
+        if (e().testfigur.an) {   // CW-IMPORT Punkt 1 (eigene Funktion): die Testfigur an die Stelle des Rechtsklicks
+            const std::string id = std::string(trK(Str::KeCwFigurHierMenue)) + "###kmfigurhier";
+            QtPunkt m;
+            m.id = id.c_str();
+            m.taste = "Shift+F7";
+            m.tooltip = trK(Str::KeCwFigurHierTip);
+            if (qtPunkt(m)) { (void)testfigurHierher(ImVec2{e().testfigur.menueX, e().testfigur.menueY}); }
+            qtTrenner();
+        }
         if (modellZuBrushesMoeglich()) {
             const std::string id = std::string(trK(Str::KeMbMenue)) + "###kmmodellbrushes";
             QtPunkt m;
@@ -2012,6 +2021,8 @@ void entitaetenMenueOeffnen(bool kamera) {
     u.erzeugtZaehler = 0;      // g_entityCreationOffset = 0
     u.kameraMenue = kamera;    // g_bCamEntityMenu
     u.menueOeffnen = true;
+    e().testfigur.menueX = ImGui::GetIO().MousePos.x;   // CW-IMPORT Punkt 1: "Testfigur hierher" setzt sie an diese Stelle
+    e().testfigur.menueY = ImGui::GetIO().MousePos.y;
 }
 
 std::vector<karte::EntitaetMenuePunkt> entitaetenMenuePunkte() {
@@ -2085,6 +2096,7 @@ void entitaetMenueGewaehlt(const std::string& klasse) {   // entitycreate_activa
 void entitaetenDialogeZeichnen() {
     entitaetenListeZeichnen();
     entitaetenMenueZeichnen();
+    testfigurPopupZeichnen();   // CW-IMPORT Punkt 1: Rechtsklick auf den Knopf der Testfigur
     lichtDialogZeichnen();
     farbDialogZeichnen();
 }

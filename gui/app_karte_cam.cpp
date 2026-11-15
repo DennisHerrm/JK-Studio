@@ -1359,6 +1359,7 @@ void kameraZeichnen() {
                           ed.farben.auswahl3d[0], ed.farben.auswahl3d[1], ed.farben.auswahl3d[2]}) {
         lage.push_back(x);
     }
+    for (const float x : testfigurLage()) { lage.push_back(x); }   // CW-IMPORT Punkt 1
     const bool zeichnen = !kartegpu::verfuegbar() || ansichtZeichnen(f.anlass, std::move(lage), laeuft, kartegpu::textur(200));
     void* spielbildSrv = nullptr;
     if (zeichnen && kartegpu::verfuegbar() && texturModus) {
@@ -1858,6 +1859,7 @@ void kameraZeichnen() {
         portaleKameraZeichnen(&vp[0], vp, fuellen);
         pluginKameraUeber(&vp[0], fuellen);   // Stufe 4 Punkt 3: DTrainDrawer, DVisDrawer (eSortOverlayFirst)
         ansichtsmodiZeichnen(&vp[0], k.ursprung.data());   // Stufe 8b Punkt 5: Ansichtsmodi (nicht in NRC)
+        testfigurKameraZeichnen(&vp[0], k.ursprung.data(), basis.vpn);   // CW-IMPORT Punkt 1: Testfigur (nicht in NRC)
         // eSortOverlayFirst: verdeckte Kanten gestrichelt grau
         {
             kartegpu::Zustand3 z = basis;

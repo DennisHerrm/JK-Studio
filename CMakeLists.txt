@@ -560,6 +560,7 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     gui/app_karte_kleineplugins.cpp
     gui/app_karte_terrain.cpp
     gui/app_karte_geoimport.cpp
+    gui/app_karte_cwimport.cpp
     gui/app_karte_sprung.cpp
     gui/app_karte_assets.cpp
     gui/app_karte_modellsetzen.cpp
@@ -1440,6 +1441,8 @@ target_sources(bhed_core PRIVATE
   src/karte/spieltest.cpp
   # Stufe 9 Punkt 2: Geometrie zu Brushes (obj/fbx/glb ueber assimp)
   src/karte/geometrieimport.cpp
+  # CW-IMPORT: Clone-Wars-Kette Teil 2 (Testfigur, Massstab, Clip-Werkzeuge)
+  src/karte/cwimport.cpp
   # Stufe 9 Punkt 3: Modell-Import (MD3 samt Shader und Texturen)
   src/karte/modellimport.cpp
   # Stufe 9 Punkt 4: Sprungweite und Platz pruefen
@@ -2043,6 +2046,10 @@ if(BEHAVED_TESTS)
   add_executable(kartecwvergleich tests/kartecwvergleich.cpp)
   target_link_libraries(kartecwvergleich PRIVATE bhed_core)
   add_test(NAME karte_cwvergleich COMMAND kartecwvergleich)
+  # CW-IMPORT: Testfigur, Import mit Massstab und Achsen, Raumfaktor, Clip-Rampe, Clip-Wand, Ebene Collision
+  add_executable(kartecwimport tests/kartecwimport.cpp)
+  target_link_libraries(kartecwimport PRIVATE bhed_core)
+  add_test(NAME karte_cwimport COMMAND kartecwimport)
   add_executable(kartebefehle tests/kartebefehle.cpp)
   target_link_libraries(kartebefehle PRIVATE bhed_core)
   add_test(NAME karte_befehle COMMAND kartebefehle ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/nrc_inventar.md)

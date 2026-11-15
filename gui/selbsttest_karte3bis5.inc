@@ -5469,6 +5469,8 @@ std::vector<Schritt> karteneditorAlleBefehleSchritte() {
         }
         const std::vector<std::string> da = ke::nachgebauteBefehle();
         for (const std::string& n : da) {
+            // CW-IMPORT: eigene Befehle (nicht in NRC, Vorsilbe "Bhed") - der Knopf der Testfigur in der Werkzeugleiste und sein Rechtsklick
+            if (n.rfind("Bhed", 0) == 0) { continue; }
             if (std::find(fertig.begin(), fertig.end(), n) == fertig.end()) { zuviel += " " + n; }
         }
         diag::detail("Knopftest: Checkliste - " + std::to_string(fertig.size() - rufe - plugins) + " fertige Befehle, " + std::to_string(rufe) +

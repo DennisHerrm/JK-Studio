@@ -370,6 +370,8 @@ void listeZeichnen(const std::string& name) {
                 einstellungenSpeichern();
             }
         }
+        // CW-IMPORT Punkt 1 (eigene Funktion): die Testfigur - ein Untermenue (Zeigen F7, Geduckt, Marken, Modell, quer, Hierher)
+        testfigurMenue();
         // Stufe 9 (eigene Funktionen, nicht in NRC): ein Untermenue fuer die Werkzeuge der Stufe 9 -
         // sechs eigene Untermenues direkt in View machten es hoeher als das Fenster
         {
@@ -996,7 +998,9 @@ void knopf(const Knopf& k, int x, int y) {
             zeilen.push_back((tab ? "    " : "") + text);
             ++z;
         }
-        std::string tip = befehle::knopfTooltip(zeilen, ed.belegung.text(befehl));
+        std::string taste = ed.belegung.text(befehl);
+        if (taste.empty() && befehl == "BhedTestFigure") { taste = "F7"; }   // CW-IMPORT: eigene Taste (app_karte_befehle.cpp)
+        std::string tip = befehle::knopfTooltip(zeilen, taste);
         if (!da && !befehl.empty()) { tip += "\n" + stufeText(befehl); }
         ImGui::SetTooltip("%s", tip.c_str());
     }
@@ -1516,6 +1520,12 @@ void einstellungenLaden() {
     ed.optimierer.masse.bildMin = std::clamp(static_cast<int>(zahl("OptimizerImageMin", 64)), 1, 8192);
     ed.optimierer.masse.bildMax = std::clamp(static_cast<int>(zahl("OptimizerImageMax", 2048)), 1, 16384);
     ed.optimierer.clonewars = zahl("OptimizerCloneWars", 0) != 0.0F;   // CW-IMPORT: Pruefprofil Clone-Wars-Kette, ab Werk aus
+    // CW-IMPORT Punkt 1: die Testfigur (ab Werk aus)
+    ed.testfigur.an = zahl("BhedTestFigure", 0) != 0.0F;
+    ed.testfigur.geduckt = zahl("BhedTestFigureCrouch", 0) != 0.0F;
+    ed.testfigur.marken = zahl("BhedTestFigureMarks", 1) != 0.0F;
+    ed.testfigur.modellZeigen = zahl("BhedTestFigureModel", 1) != 0.0F;
+    if (const auto it = k.find("BhedTestFigureModelPath"); it != k.end() && !it->second.empty()) { ed.testfigur.modellPfad = it->second; }
     {
         const auto it = k.find("RegionBoxShader");
         ed.regionKastenShader = it != k.end() ? it->second : std::string();
@@ -1857,6 +1867,11 @@ void einstellungenSpeichern() {
         k["OptimizerImageMin"] = std::to_string(ed.optimierer.masse.bildMin);
         k["OptimizerImageMax"] = std::to_string(ed.optimierer.masse.bildMax);
         k["OptimizerCloneWars"] = ed.optimierer.clonewars ? "1" : "0";   // CW-IMPORT
+        k["BhedTestFigure"] = ed.testfigur.an ? "1" : "0";                // CW-IMPORT Punkt 1
+        k["BhedTestFigureCrouch"] = ed.testfigur.geduckt ? "1" : "0";
+        k["BhedTestFigureMarks"] = ed.testfigur.marken ? "1" : "0";
+        k["BhedTestFigureModel"] = ed.testfigur.modellZeigen ? "1" : "0";
+        k["BhedTestFigureModelPath"] = ed.testfigur.modellPfad;
     }
     k["RegionBoxShader"] = ed.regionKastenShader;
     k["GridDefault"] = std::to_string(ed.rasterStandard);

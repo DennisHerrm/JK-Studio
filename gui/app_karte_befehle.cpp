@@ -117,6 +117,9 @@ std::map<std::string, Umsetzung>& umsetzungen() {
     // --- Edit ---
     m["Preferences"] = {[] { e().einstellungenOffen = true; }, nullptr};
     m["Shortcuts"] = {[] { e().tastenDialogOffen = true; }, nullptr};   // DoCommandListDlg (commands.cpp:332)
+    // CW-IMPORT Punkt 1 (eigene Befehle, nicht in NRC): der Knopf der Testfigur in der Werkzeugleiste und sein Rechtsklick
+    m["BhedTestFigure"] = {[] { testfigurUmschalten(); }, [] { return e().testfigur.an; }};
+    m["BhedTestFigureMenu"] = {[] { testfigurPopupOeffnen(); }, nullptr};
     // --- Auswahl und Bearbeiten (select.cpp:1840-1907, tools.cpp:420-437) ---
     for (const char* n : {"Undo", "Redo", "Redo2", "Copy", "Paste", "PasteToCamera", "MoveToCamera", "CloneSelection",
                           "CloneSelectionAndMakeUnique", "DeleteSelection", "DeleteSelection2", "DeleteSelection3",
@@ -394,6 +397,10 @@ void tastenVerarbeiten() {
             // Stufe 8b Punkt 3: eigene Taste ohne NRC-Belegung (nur, solange kein
             // NRC-Befehl darauf liegt - die Belegung oben hat Vorrang)
             spielenStarten();
+        } else if (mods == 0 && key == ImGuiKey_F7) {
+            testfigurUmschalten();   // CW-IMPORT Punkt 1: eigene Taste ohne NRC-Belegung
+        } else if (mods == befehle::kShift && key == ImGuiKey_F7) {
+            (void)testfigurHierher(ImGui::GetIO().MousePos);   // unter den Zeiger (2D oder Kamera)
         } else if (mods == befehle::kAlt) {
             // QMenuBar: die Mnemoniken der Titel sind Alt-Kuerzel derselben
             // Kuerzeltabelle (QKeySequence::mnemonic) - ohne Befehl auf der Taste.

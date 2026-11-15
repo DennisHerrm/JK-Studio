@@ -82,6 +82,8 @@
 #include "bhed/menue/roq.h"
 #include "karte_qtdialog.h"          // Stufe 4: Bausteine der Plugin-Dialoge
 #include "bhed/karte/optimierer.h"
+#include "bhed/gla.h"
+#include "bhed/karte/cwimport.h"
 #include "bhed/missionbau.h"
 #include "bhed/karte/bspoeffnen.h"
 #include "bhed/karte/bsplumps.h"
@@ -6013,6 +6015,7 @@ std::vector<Schritt> eigenstaendigSchritte() {
 #include "selbsttest_rest9.inc"         // REST9: die Update-Leiste oben (updateleiste, updateleiste2, Handbuch BHED_HB_NUR=updateleiste)
 #include "selbsttest_rest8.inc"         // REST8: doppelte Shadernamen - Echtzeit-Licht nach q3map2, Kartenpruefung (karteneditor, BHED_KARTE_NUR=rest8)
 #include "selbsttest_cwpruef.inc"       // CW-PRUEF: Pruefungen der Clone-Wars-Kette im Optimierer, JSON-Bericht (karteneditor, BHED_KARTE_NUR=cwpruef)
+#include "selbsttest_cwimport.inc"      // CW-IMPORT: Testfigur, Import mit Massstab, Clip-Werkzeuge (karteneditor, BHED_KARTE_NUR=cwimport)
 #include "selbsttest_cjkweit.inc"       // MR4 Punkt 5: CJK-Umbruch ausserhalb des Model-Tabs (karteneditor, BHED_KARTE_NUR=cjkweit)
 #include "selbsttest_numpad.inc"        // rc612 NUMPAD: der Ziffernblock setzt das Raster (karteneditor, BHED_KARTE_NUR=numpad)
 #include "selbsttest_modell1.inc"    // modell1: was der Model-Tab je Bild kostet, Ruhe beim Abspielen

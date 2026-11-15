@@ -253,7 +253,17 @@ const std::vector<Knopf>& texturKnoepfe() {
 }
 
 const std::vector<Knopf>& werkzeugleiste() {
-    static const std::vector<Knopf> v(std::begin(kWerkzeuge), std::end(kWerkzeuge));
+    // CW-IMPORT Punkt 1 (eigener Knopf, nicht in NRC): nach NRCs Knoepfen die Testfigur - Klick schaltet sie (BhedTestFigure, F7),
+    // Rechtsklick oeffnet ihr Menue (BhedTestFigureMenu)
+    using i18n::Str;
+    static const std::vector<Knopf> v = [] {
+        std::vector<Knopf> w(std::begin(kWerkzeuge), std::end(kWerkzeuge));
+        const std::array<Str, 5> leer{Str::Count, Str::Count, Str::Count, Str::Count, Str::Count};
+        w.push_back({"", "", "", false, kImmer, "", true, leer});
+        w.push_back({"BhedTestFigure", "Test figure\nRightClick: menu", "bhed_testfigur", true, kImmer, "BhedTestFigureMenu", false,
+                     {Str::KeCwFigurKnopf, Str::KeCwFigurKnopf2, Str::Count, Str::Count, Str::Count}});
+        return w;
+    }();
     return v;
 }
 

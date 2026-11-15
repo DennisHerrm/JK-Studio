@@ -295,13 +295,13 @@ const GlaAnimation& standardGla() {
     return gla;
 }
 
-bool glmStandbild(const GlmModel& stufe, const GlaAnimation& gla, Md3Model& aus) {
+bool glmStandbild(const GlmModel& stufe, const GlaAnimation& gla, Md3Model& aus, int bild) {
     aus = Md3Model{};
     if (gla.empty()) { return false; }   // "missing animation file"
     // R_LoadMDXM ausserhalb von JK2_MODE: andere Knochenzahl als die GLA nur bei einem umgewandelten JK2-Modell.
     if (!ghoul2Jk2() && !stufe.jk2Umgewandelt && stufe.numBones != static_cast<int>(gla.bones.size())) { return false; }
     std::vector<BoneMatrix> welt;
-    gla.worldMatrices(0, welt);
+    gla.worldMatrices(bild, welt);
     std::vector<BoneMatrix> knochen;
     gpu::baueKnochenmatrizen(welt, gla.bones, knochen);
     const std::vector<char> an = gezeichnet(hierarchieAus(stufe), G2Zustand{});

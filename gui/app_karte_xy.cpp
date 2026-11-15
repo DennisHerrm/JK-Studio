@@ -634,6 +634,10 @@ void xyZeichnen(int index) {
     // CPortalsRender::renderWireframe (width_2d, color_2d; eSortOverlayFirst) und
     // Feedback_draw2D (nach der Groessenanzeige)
     const std::vector<Linie> leckLinien = punktdateiLinien();
+    // CW-IMPORT Punkt 1: die Testfigur (Kasten der Engine, Hoehenmarken, Tuer und Gang), 2 breit wie die Auswahl
+    std::vector<std::pair<Vektor3f, std::string>> figurTexte;
+    std::vector<Farbe> figurTextFarben;
+    const std::vector<Linie> figurLinien = testfigurLinien2d(&figurTexte, &figurTextFarben);
     float portalBreite = 1.0F;
     const std::vector<Linie> portalLinien = portalLinien2d(portalBreite);
     const RueckmeldungZeichnung rueck = rueckmeldungZeichnung2d(v.typ);
@@ -650,6 +654,7 @@ void xyZeichnen(int index) {
                           ed.kamera.winkel[2], f.maus[0], f.maus[1], f.maus[2], ed.farben.auswahl[0], ed.farben.auswahl[1], ed.farben.auswahl[2]}) {
         lage.push_back(x);
     }
+    for (const float x : testfigurLage()) { lage.push_back(x); }   // CW-IMPORT Punkt 1
     const bool zeichnen = !kartegpu::verfuegbar() || ansichtZeichnen(f.anlass, std::move(lage), (f.jagen ? 2U : 0U) | (bauLaeuft() ? 128U : 0U),
                                                                 kartegpu::textur(100 + index));
     if (!zeichnen) {
@@ -716,6 +721,7 @@ void xyZeichnen(int index) {
         kartegpu::zeichnen(s.gpuGeo, &mvp[0], 1.0F);
         kartegpu::zeichnen(s.gpuWelt, &mvp[0], 1.0F);
         kartegpu::zeichnen(leckLinien, &mvp[0], 4.0F);
+        kartegpu::zeichnen(figurLinien, &mvp[0], 2.0F);   // CW-IMPORT Punkt 1
         kartegpu::zeichnen(portalLinien, &mvp[0], portalBreite);
         for (const PluginLinien& pl : pluginLinien) { kartegpu::zeichnen(pl.linien, &mvp[0], pl.breite); }
         if (ed.anzeige.keineStrichelung) {
@@ -770,6 +776,7 @@ void xyZeichnen(int index) {
         imguiLinien(dl, v, o, s.geo, 1.0F);
         imguiLinien(dl, v, o, s.welt, 1.0F);
         imguiLinien(dl, v, o, leckLinien, 4.0F);
+        imguiLinien(dl, v, o, figurLinien, 2.0F);   // CW-IMPORT Punkt 1
         imguiLinien(dl, v, o, portalLinien, portalBreite);
         for (const PluginLinien& pl : pluginLinien) { imguiLinien(dl, v, o, pl.linien, pl.breite); }
         imguiLinien(dl, v, o, s.wahl, 2.0F, ed.anzeige.keineStrichelung ? 0U : kXyOverlayMuster, kXyOverlayFaktor);
@@ -800,6 +807,12 @@ void xyZeichnen(int index) {
     };
     for (const karte::Text& t : raster.texte) { text(t); }
     for (const karte::Text& t : overlayTexte) { text(t); }
+    for (std::size_t i = 0; i < figurTexte.size(); ++i) {   // CW-IMPORT Punkt 1: Masse der Testfigur, mit Schatten
+        const auto p = v.zuBild(figurTexte[i].first);
+        const ImVec2 at{o.x + p[0] + 3.0F, o.y + p[1] - static_cast<float>(schriftHoehe)};
+        dl->AddText(ImVec2{at.x + 1, at.y + 1}, IM_COL32(0, 0, 0, 255), figurTexte[i].second.c_str());
+        dl->AddText(at, i < figurTextFarben.size() ? figurTextFarben[i] : IM_COL32(255, 255, 255, 255), figurTexte[i].second.c_str());
+    }
     for (const auto& t : mz.texte) {   // ClipperPoint::render: drawChar am Rasterpunkt
         const auto p = v.zuBild(t.p);
         dl->AddText(ImVec2{o.x + p[0], o.y + p[1] - static_cast<float>(schriftHoehe)}, IM_COL32(t.farbe.r, t.farbe.g, t.farbe.b, t.farbe.a), t.text.c_str());

@@ -724,6 +724,8 @@ void optimiererStarten(bool nachBau) {
     g_z.startGesamtMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tStart).count();
 }
 
+GrenzSpiel optimiererRegelwerk() { return spielWahl(); }
+
 void clonewarsProfilSetzen(bool an) {
     Editor& ed = e();
     if (ed.optimierer.clonewars == an) { return; }

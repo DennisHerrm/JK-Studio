@@ -159,6 +159,8 @@ ImVec4 karteIconFarbe(const char* n) {
         setze(0.55F, 0.78F, 1.00F);
     } else if (std::strncmp(n, "bobtoolz_", 9) == 0) {
         setze(0.62F, 0.84F, 0.48F);
+    } else if (ist(n, "bhed_testfigur")) {
+        setze(1.00F, 0.66F, 0.25F);
     } else if (ist(n, "view_change") || ist(n, "view_cubicclipping") || ist(n, "texture_browser") || ist(n, "console") ||
                std::strncmp(n, "texbro_", 7) == 0 || std::strncmp(n, "window", 6) == 0 || ist(n, "search") ||
                ist(n, "search_from_start") || ist(n, "copy")) {
@@ -493,6 +495,16 @@ bool karteIcon(ImDrawList* dl, const char* n, ImVec2 pos, float groesse, unsigne
         return true;
     }
     if (ist(n, "texbro_view")) { uiIcon(dl, UiIcon::Sichtbar, pos, groesse, farbe); return true; }
+    if (ist(n, "bhed_testfigur")) {   // CW-IMPORT: die Testfigur - eine Figur im gestrichelten Kasten der Engine, die Stufe als Strich
+        z.strichRahmen(3.5F, 1.5F, 12.5F, 14.5F);
+        z.kreis(8.0F, 4.2F, 1.7F);
+        z.flaeche({ImVec2{6.2F, 6.6F}, ImVec2{9.8F, 6.6F}, ImVec2{9.4F, 10.6F}, ImVec2{6.6F, 10.6F}}, schwach);
+        z.zug({ImVec2{6.2F, 6.6F}, ImVec2{9.8F, 6.6F}, ImVec2{9.4F, 10.6F}, ImVec2{6.6F, 10.6F}}, true);
+        z.linie(7.2F, 10.6F, 6.6F, 14.0F);
+        z.linie(8.8F, 10.6F, 9.4F, 14.0F);
+        z.linie(1.0F, 11.5F, 3.5F, 11.5F);   // STEPSIZE
+        return true;
+    }
     // Filterfeld des Texturbrowsers (TextureBrowser_filterSetModeIcon):
     // search.png (irgendwo) / search_from_start.png (vom Anfang: Lupe mit Strich)
     if (ist(n, "search")) { uiIcon(dl, UiIcon::Suche, pos, groesse, farbe); return true; }

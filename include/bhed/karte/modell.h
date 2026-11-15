@@ -88,6 +88,11 @@ bool assimpLesen(const std::string& pfad, const ModellDateiLeser& leser, Modell&
 // MRESTE 4: ein .glm, wie das Spiel es als model2 eines Movers zeichnet (bhed::modell::glmStandbild: Stufe 0, Bild 0 der
 // GLA "<animName>.gla" ueber `leser`, Wurzel, Shader der Datei ohne Haut). false: nicht lesbar oder die GLA fehlt/passt nicht.
 bool glmLesenImSpiel(const std::string& bytes, const ModellDateiLeser& leser, Modell& m, std::string* fehler = nullptr);
+// CW-IMPORT (Testfigur): wie glmLesenImSpiel, die Knochen aber auf dem Bild der Sequenz `sequenz` (ohne Schleife das letzte, das das
+// Spiel haelt, sonst das erste) aus der animation.cfg neben
+// der GLA (G_ParseAnimationFile: <Ordner der GLA>/animation.cfg, OpenJK code/game/NPC_stats.cpp:879-1027) - *bild = dieses Bild.
+bool glmLesenInPose(const std::string& bytes, const ModellDateiLeser& leser, const std::string& sequenz, Modell& m, std::string* fehler = nullptr,
+                    int* bild = nullptr);
 // ASEB: ein Modell genau so, wie q3map2 es fuer misc_model einbackt (tools/quake3/q3map2/model.cpp LoadModel: assimp mit den
 // Einstellungen und Schritten von q3map2; AssModel/AssModelMesh: Netze mit Dreiecken, Shadername aus Material bzw. Diffuse-Bild).
 // q3map2 laedt jede Endung ueber assimp, auch .ase und .md3 (modellArtQ3map2; .glm nicht). Fuer "Geometrie zu Brushes" und

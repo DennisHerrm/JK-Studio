@@ -329,6 +329,44 @@ bool glmLesenImSpiel(const std::string& bytes, const ModellDateiLeser& leser, Mo
     return true;
 }
 
+bool glmLesenInPose(const std::string& bytes, const ModellDateiLeser& leser, const std::string& sequenz, Modell& m, std::string* fehler, int* bild) {
+    GlmModel g;
+    if (!readGlm(bytes, g, fehler, 0)) { return false; }
+    std::string glaDaten;
+    GlaAnimation gla;
+    if (!leser(g.animFile + ".gla", glaDaten) || !readGla(glaDaten, gla, fehler)) {
+        if (fehler != nullptr && fehler->empty()) { *fehler = "missing animation file " + g.animFile; }
+        return false;
+    }
+    const std::string ordner = g.animFile.substr(0, g.animFile.find_last_of('/') + 1);
+    std::string cfg;
+    if (!leser(ordner + "animation.cfg", cfg)) {
+        if (fehler != nullptr) { *fehler = "missing " + ordner + "animation.cfg"; }
+        return false;
+    }
+    int erstes = -1;
+    for (const bhed::AnimEntry& a : bhed::parseAnimationCfg(cfg)) {
+        if (klein(a.name) == klein(sequenz)) {
+            // ohne Schleife (loopFrames -1) haelt das Spiel das letzte Bild (BONE_ANIM_OVERRIDE_FREEZE, OpenJK code/game/bg_panimate.cpp:4723),
+            // sonst laeuft die Schleife ab dem ersten
+            erstes = a.loopFrame == -1 && a.numFrames > 1 ? a.firstFrame + a.numFrames - 1 : a.firstFrame;
+            break;
+        }
+    }
+    if (erstes < 0 || erstes >= gla.numFrames) {
+        if (fehler != nullptr) { *fehler = "no frame for " + sequenz; }
+        return false;
+    }
+    Md3Model md3;
+    if (!bhed::modell::glmStandbild(g, gla, md3, erstes)) {
+        if (fehler != nullptr) { *fehler = "different bones than anim"; }
+        return false;
+    }
+    md3Uebernehmen(md3, m);
+    if (bild != nullptr) { *bild = erstes; }
+    return true;
+}
+
 bool glmLesen(const std::string& bytes, const std::string& skinText, Modell& m, std::string* fehler) {
     GlmModel g;
     if (!readGlm(bytes, g, fehler)) { return false; }
