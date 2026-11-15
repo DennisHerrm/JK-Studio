@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <map>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -270,11 +271,101 @@ bool leseSkriptVerweise(const MissionsAuftrag& a, std::vector<MapData::ScriptRef
     return true;
 }
 
+// --- TEST1411d: der Zwischenspeicher auf der Platte ----------------------------------------------------------------------------
+
+namespace {
+constexpr std::string_view kVerweiseKopf = "jkstudio missionsverweise 1";
+
+void maskiert(std::string& out, const std::string& s) {
+    for (const char z : s) {
+        switch (z) {
+            case '\\': out += "\\\\"; break;
+            case '\t': out += "\\t"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            default: out += z; break;
+        }
+    }
+}
+
+std::string unmaskiert(std::string_view s) {
+    std::string out;
+    out.reserve(s.size());
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        if (s[i] != '\\' || i + 1 >= s.size()) {
+            out += s[i];
+            continue;
+        }
+        const char n = s[++i];
+        out += n == 't' ? '\t' : n == 'n' ? '\n' : n == 'r' ? '\r' : n;
+    }
+    return out;
+}
+}  // namespace
+
+std::string missionsVerweiseText(const MissionsVerweise& v) {
+    std::string out(kVerweiseKopf);
+    out += '\n';
+    for (const auto& [schluessel, verweise] : v) {
+        out += "K\t";
+        maskiert(out, schluessel);
+        out += '\n';
+        for (const MapData::ScriptRef& r : verweise) {
+            out += "R\t";
+            maskiert(out, r.path);
+            out += '\t';
+            maskiert(out, r.key);
+            out += '\t';
+            maskiert(out, r.owner);
+            out += '\n';
+        }
+    }
+    return out;
+}
+
+bool missionsVerweiseLesen(const std::string& text, MissionsVerweise& v) {
+    MissionsVerweise neu;
+    std::vector<MapData::ScriptRef>* karte = nullptr;
+    std::size_t ab = 0;
+    bool kopf = false;
+    while (ab < text.size()) {
+        std::size_t ende = text.find('\n', ab);
+        if (ende == std::string::npos) { ende = text.size(); }
+        std::string_view zeile(text.data() + ab, ende - ab);
+        ab = ende + 1;
+        if (!zeile.empty() && zeile.back() == '\r') { zeile.remove_suffix(1); }
+        if (!kopf) {
+            if (zeile != kVerweiseKopf) { return false; }
+            kopf = true;
+            continue;
+        }
+        if (zeile.empty()) { continue; }
+        if (zeile.size() >= 2 && zeile[0] == 'K' && zeile[1] == '\t') {
+            karte = &neu[unmaskiert(zeile.substr(2))];
+            continue;
+        }
+        if (zeile.size() < 2 || zeile[0] != 'R' || zeile[1] != '\t' || karte == nullptr) { return false; }
+        const std::string_view rest = zeile.substr(2);
+        const std::size_t t1 = rest.find('\t');
+        const std::size_t t2 = t1 == std::string_view::npos ? t1 : rest.find('\t', t1 + 1);
+        if (t2 == std::string_view::npos || rest.find('\t', t2 + 1) != std::string_view::npos) { return false; }
+        MapData::ScriptRef r;
+        r.path = unmaskiert(rest.substr(0, t1));
+        r.key = unmaskiert(rest.substr(t1 + 1, t2 - t1 - 1));
+        r.owner = unmaskiert(rest.substr(t2 + 1));
+        karte->push_back(std::move(r));
+    }
+    if (!kopf) { return false; }
+    for (auto& e : neu) { v.emplace(e.first, std::move(e.second)); }
+    return true;
+}
+
 MissionsSuche::MissionsSuche(std::vector<MissionsAuftrag> auftraege, unsigned faeden)
     : auftraege_(std::move(auftraege)),
       verweise_(auftraege_.size()),
       gelesen_(auftraege_.size(), 0),
-      bearbeitet_(auftraege_.size(), 0) {
+      bearbeitet_(auftraege_.size(), 0),
+      fertig_(std::make_unique<std::atomic<char>[]>(auftraege_.size())) {
     const unsigned n = std::max(1U, std::min<unsigned>(faeden, static_cast<unsigned>(std::max<std::size_t>(1, auftraege_.size()))));
     if (auftraege_.empty()) {
         return;
@@ -300,6 +391,7 @@ void MissionsSuche::arbeite() {
         // fertig() (erledigt_ zaehlt mit Freigabe-Semantik hoch).
         gelesen_[i] = leseSkriptVerweise(auftraege_[i], verweise_[i]) ? 1 : 0;
         bearbeitet_[i] = 1;
+        fertig_[i].store(1, std::memory_order_release);
         erledigt_.fetch_add(1);
     }
 }

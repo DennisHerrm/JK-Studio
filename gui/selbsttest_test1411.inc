@@ -2343,6 +2343,133 @@ struct AStand {
 
 bool aSucheFertig() { return !g_app->missionsSuche || g_app->missionsSuche->fertig(); }
 
+// --- TEST1411d (Rest von A): die Missionsliste aus dem Zwischenspeicher der Platte ------------------------------------------
+struct ZStand {
+    std::vector<std::string> frisch;        // je Mission Name | Gruppe | Archiv | .bsp | .ent | Skripte - frisch gelesen
+    std::vector<std::string> ausPlatte;     // ... nach einem Neustart des Zwischenspeichers (nur die Datei)
+    std::vector<std::string> nachAenderung; // ... nachdem ein Archiv eine andere Zeit hat
+    std::size_t sofort = 0;                 // Karten in der Auswahl gleich nach Load mission (kalt)
+    std::size_t zwischen = 0;               // die meisten Karten in der Auswahl, waehrend noch gelesen wurde
+    std::size_t zwischenGruppen = 0;        // ... und ihre Gruppen
+    double kaltMs = 0.0;
+    double warmMs = 0.0;
+    bool warmOhneSuche = false;
+    std::size_t geaendert = 0;              // Karten, deren Archiv eine andere Zeit bekam
+    std::size_t neuGelesen = 0;             // ... die die Hintergrundsuche danach las
+    bool bereinigt = false;                 // die alte Zeit steht danach nicht mehr in der Datei
+    std::string archiv;                     // das veraenderte Archiv
+    std::chrono::steady_clock::time_point ab;
+};
+
+std::vector<std::string> zListe() {
+    std::vector<std::string> l;
+    for (const Mission& m : g_app->missions) {
+        std::string z = m.name + "|" + m.gruppe + "|" + m.archivPfad + "|" + m.mapFile + "|" + m.entFile;
+        for (const Mission::Script& sc : m.scripts) { z += "|" + sc.ref + ">" + sc.file + ":" + sc.key; }
+        l.push_back(std::move(z));
+    }
+    std::sort(l.begin(), l.end());
+    return l;
+}
+
+std::string zDatei() {
+    std::ifstream f(::bhed::utf8Pfad(missionsVerweisePfad()), std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+}
+
+void zSchritte(std::vector<Schritt>& s) {
+    auto add = [&](Schritt x) { s.push_back(std::move(x)); };
+    auto st = std::make_shared<ZStand>();
+    add(tu("T1411 Z: kalt - Zwischenspeicher leer (Speicher und Datei), Load mission", [st] {
+        missionsSucheBeenden();
+        g_app->missionPickOpen = false;
+        g_app->missionsVerweise.clear();
+        g_app->missionsVerweiseGeladen = false;
+        std::error_code ec;
+        std::filesystem::remove(::bhed::utf8Pfad(missionsVerweisePfad()), ec);
+        st->ab = std::chrono::steady_clock::now();
+        loadMissionArchive();
+        st->sofort = g_app->missions.size();
+    }));
+    add(warteBis("T1411 Z: kalt gelesen (Karten schon waehrend des Lesens in der Auswahl?)", [st] {
+        if (g_app->missionsSuche && !g_app->missionsSuche->fertig() && g_app->missions.size() > st->zwischen) {
+            st->zwischen = g_app->missions.size();
+            std::set<std::string> g;
+            for (const Mission& m : g_app->missions) { g.insert(m.gruppe); }
+            st->zwischenGruppen = g.size();
+        }
+        if (!aSucheFertig()) { return false; }
+        st->kaltMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - st->ab).count();
+        return true;
+    }, 9000));
+    add(pause(0.5));   // das Bild uebernimmt das Ergebnis (missionsSucheUebernehmen) und sichert die Datei
+    add(tu("T1411 Z: frische Liste, warm - nur die Datei (Speicher leer), Load mission", [st] {
+        st->frisch = zListe();
+        missionsSucheBeenden();
+        g_app->missionPickOpen = false;
+        g_app->missionsVerweise.clear();
+        g_app->missionsVerweiseGeladen = false;
+        st->ab = std::chrono::steady_clock::now();
+        loadMissionArchive();
+        st->warmOhneSuche = !g_app->missionsSuche;
+        st->warmMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - st->ab).count();
+        st->ausPlatte = zListe();
+    }));
+    add(pause(0.3));
+    add(tu("T1411 Z: ein Archiv bekommt in der Datei eine andere Zeit (wie eine neu gepackte pk3), Load mission", [st] {
+        std::string text = zDatei();
+        // das Archiv der ersten Karte mit Skripten (Schluessel "K<Tab>pfad@zeit|...")
+        for (const Mission& m : g_app->missions) {
+            if (m.playable()) {
+                st->archiv = m.archivPfad;
+                break;
+            }
+        }
+        std::string esc;   // so steht der Pfad in der Datei (Backslash verdoppelt, missionsVerweiseText)
+        for (const char c : st->archiv) { esc += c == '\\' ? std::string("\\\\") : std::string(1, c); }
+        st->archiv = esc;
+        const std::string such = "K\t" + esc + "@";
+        std::string neu;
+        std::size_t ab = 0;
+        for (std::size_t i = text.find(such); i != std::string::npos; i = text.find(such, ab)) {
+            const std::size_t zeit = i + such.size();
+            const std::size_t bis = text.find('|', zeit);
+            neu += text.substr(ab, zeit - ab) + "1";   // Zeit 1: kein Archiv hat sie
+            ab = bis;
+            ++st->geaendert;
+        }
+        neu += text.substr(ab);
+        std::string fehler;
+        (void)::bhed::sicherSchreiben(missionsVerweisePfad(), neu, &fehler);
+        missionsSucheBeenden();
+        g_app->missionPickOpen = false;
+        g_app->missionsVerweise.clear();
+        g_app->missionsVerweiseGeladen = false;
+        loadMissionArchive();
+        st->neuGelesen = g_app->missionsSuche ? g_app->missionsSuche->gesamt() : 0U;
+    }));
+    add(warteBis("T1411 Z: die Karten des veraenderten Archivs neu gelesen", [] { return aSucheFertig(); }, 6000));
+    add(pause(0.5));
+    add(tu("T1411 Z: Liste und Datei nach der Aenderung", [st] {
+        st->nachAenderung = zListe();
+        st->bereinigt = zDatei().find("K\t" + st->archiv + "@1|") == std::string::npos;
+        g_app->missionPickOpen = false;
+        char z[400];
+        std::snprintf(z, sizeof z, "Z Zwischenspeicher: %zu Karten, kalt %.0f ms (sofort %zu, waehrend des Lesens bis %zu in %zu Gruppen), warm %.1f ms "
+                      "(ohne Suche %d), %s: %zu Schluessel mit anderer Zeit -> %zu neu gelesen, bereinigt %d", st->frisch.size(), st->kaltMs, st->sofort,
+                      st->zwischen, st->zwischenGruppen, st->warmMs, st->warmOhneSuche ? 1 : 0, st->archiv.c_str(), st->geaendert, st->neuGelesen,
+                      st->bereinigt ? 1 : 0);
+        melde(z);
+    }));
+    add(pruefe("T1411 Z: die Liste aus dem Zwischenspeicher der Platte ist gleich der frisch gelesenen, ohne Hintergrundsuche", [st] {
+        return !st->frisch.empty() && st->ausPlatte == st->frisch && st->warmOhneSuche;
+    }));
+    add(pruefe("T1411 Z: eine veraenderte pk3 (andere Zeit) wird neu gelesen - genau ihre Karten, danach dieselbe Liste, die alte Zeit ist aus der Datei",
+               [st] { return st->geaendert > 0U && st->neuGelesen == st->geaendert && st->nachAenderung == st->frisch && st->bereinigt; }));
+    add(pruefe("T1411 Z: waehrend des Lesens stehen schon Karten in ihren Gruppen in der Auswahl (nicht erst am Ende)",
+               [st] { return st->zwischen > st->sofort && st->zwischenGruppen > 0U && st->zwischen < st->frisch.size(); }));
+}
+
 void aSchritte(std::vector<Schritt>& s) {
     auto add = [&](Schritt x) { s.push_back(std::move(x)); };
     auto st = std::make_shared<AStand>();
@@ -2828,6 +2955,7 @@ std::vector<Schritt> schritte(const char* nur) {
     if (abschnitt("p")) { pSchritte(s); }
     if (abschnitt("e")) { eSchritte(s); }
     if (abschnitt("a")) { aSchritte(s); }
+    if (abschnitt("z")) { zSchritte(s); }   // TEST1411d: die Missionsliste aus dem Zwischenspeicher der Platte
     if (abschnitt("b")) { bSchritte(s, modell != nullptr && *modell != '\0' ? modell : "models/players/alora/model.glm"); }
     if (abschnitt("fotos")) { fotoSchritte(s); }
     add(tu("T1411: zurueck", [=] {

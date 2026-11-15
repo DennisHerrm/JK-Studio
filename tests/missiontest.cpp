@@ -366,6 +366,10 @@ int main() {
             }
             expect("rc603: Hintergrundsuche mit 4 Faeden - .bsp-Lump und .ent (Vorrang) je Karte richtig", alle);
             expect("rc603: ein fehlendes Archiv gilt als nicht lesbar", suche.fertig() && suche.gelesen()[80] == 0);
+            // TEST1411d: die Auswahl zeigt fertige Karten schon waehrend des Lesens - jeder bearbeitete Platz meldet sich fertig
+            bool alleFertig = true;
+            for (std::size_t i = 0; i < suche.gesamt(); ++i) { alleFertig = alleFertig && suche.istFertig(i) && suche.bearbeitet()[i] != 0; }
+            expect("TEST1411d: nach fertig() meldet jeder Platz istFertig", alleFertig);
             bhed::MissionsSuche abbruch(auftraege, 2);
             abbruch.abbrechen();
             bool teilRichtig = abbruch.erledigt() <= abbruch.gesamt();
@@ -378,6 +382,9 @@ int main() {
                               v[0].path == (i % 2 == 0 ? "m/aus_bsp" : "m/aus_ent");
             }
             std::printf("  (abgebrochen nach %zu bearbeiteten Karten)\n", bearbeitet);
+            bool fertigGleich = true;
+            for (std::size_t i = 0; i < abbruch.gesamt(); ++i) { fertigGleich = fertigGleich && abbruch.istFertig(i) == (abbruch.bearbeitet()[i] != 0); }
+            expect("TEST1411d: nach abbrechen() ist istFertig genau bei den bearbeiteten Plaetzen", fertigGleich);
             expect("rc603: Abbrechen wartet auf die Faeden; was bearbeitet ist, ist richtig gelesen", teilRichtig &&
                                                                                                     bearbeitet == abbruch.erledigt());
         } else {
@@ -385,6 +392,47 @@ int main() {
         }
         std::error_code ec;
         std::filesystem::remove_all(ordner, ec);
+    }
+
+    // --- TEST1411d: der Zwischenspeicher der Skriptverweise auf der Platte ------------------------------------------------
+    {
+        bhed::MissionsVerweise v;
+        bhed::MapData::ScriptRef a;
+        a.path = "md_tfoaj/intro_jedi";
+        a.key = "usescript";
+        a.owner = "intro\ttab\\slash\nzeile\r";   // Zeichen, die maskiert werden muessen
+        bhed::MapData::ScriptRef b;
+        b.path = "taspir1/preIntro";
+        b.key = "spawnscript";
+        b.owner = "";
+        v["C:/GameData/base/assets0.pk3@133|maps/taspir1.bsp|10|20|@||0|0"] = {a, b};
+        v["X:/mit@at/z.pk3@7|maps/leer.bsp|1|2|X:/mit@at/z.pk3@7|maps/leer.ent|3|4"] = {};
+        const std::string text = bhed::missionsVerweiseText(v);
+        bhed::MissionsVerweise zurueck;
+        const bool ok = bhed::missionsVerweiseLesen(text, zurueck);
+        bool gleich = ok && zurueck.size() == v.size();
+        for (const auto& [k, refs] : v) {
+            const auto it = zurueck.find(k);
+            gleich = gleich && it != zurueck.end() && it->second.size() == refs.size();
+            for (std::size_t i = 0; gleich && i < refs.size(); ++i) {
+                gleich = it->second[i].path == refs[i].path && it->second[i].key == refs[i].key && it->second[i].owner == refs[i].owner;
+            }
+        }
+        expect("TEST1411d: Zwischenspeicher - geschrieben und gelesen gleich (auch Tab, Backslash, Zeilenwechsel, leere Liste)", gleich);
+        bhed::MissionsVerweise vorhanden;
+        vorhanden["C:/GameData/base/assets0.pk3@133|maps/taspir1.bsp|10|20|@||0|0"] = {b};
+        expect("TEST1411d: Zwischenspeicher - Gelesenes ergaenzt, ein Schluessel im Speicher bleibt",
+               bhed::missionsVerweiseLesen(text, vorhanden) && vorhanden.size() == 2U && vorhanden.begin()->second.size() == 1U &&
+                   vorhanden.begin()->second[0].path == "taspir1/preIntro");
+        bhed::MissionsVerweise unberuehrt;
+        unberuehrt["k"] = {a};
+        expect("TEST1411d: Zwischenspeicher - fremder Kopf oder kaputte Zeile: false, nichts geaendert",
+               !bhed::missionsVerweiseLesen("andere datei 1\nK\tx\n", unberuehrt) && !bhed::missionsVerweiseLesen(text + "R\tnur\tzwei\n", unberuehrt) &&
+                   !bhed::missionsVerweiseLesen("", unberuehrt) && unberuehrt.size() == 1U);
+        std::string crlf;
+        for (const char z : text) { crlf += z == '\n' ? std::string("\r\n") : std::string(1, z); }
+        bhed::MissionsVerweise w;
+        expect("TEST1411d: Zwischenspeicher - Zeilenenden CRLF werden gelesen", bhed::missionsVerweiseLesen(crlf, w) && w.size() == v.size());
     }
 
     std::printf("\n%s (%d Fehlschlaege)\n",

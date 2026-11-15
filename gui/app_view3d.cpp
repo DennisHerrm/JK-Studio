@@ -32,6 +32,7 @@
 #include "bhed/gpuskin.h"
 #include "bhed/num.h"
 #include "bhed/portalsicht.h"   // rc609 P
+#include "bhed/sicherschreiben.h"   // TEST1411d: missionsverweise.txt
 
 #include <chrono>
 
@@ -46,6 +47,7 @@
 #include <atomic>
 #include <deque>
 #include <functional>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <sstream>

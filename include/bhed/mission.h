@@ -28,6 +28,8 @@
 #include <atomic>
 #include <cstddef>
 #include <functional>
+#include <map>
+#include <memory>
 #include <string>
 #include <thread>
 #include <unordered_set>
@@ -140,6 +142,15 @@ struct MissionsAuftrag {
 // ohne gemeinsamen Zustand - laeuft in Arbeitsfaeden. false: nicht lesbar.
 [[nodiscard]] bool leseSkriptVerweise(const MissionsAuftrag& a, std::vector<MapData::ScriptRef>& out);
 
+// TEST1411d: der Zwischenspeicher der Skriptverweise je Karte, auch auf der Platte. Der Schluessel nennt Archiv mit Aenderungszeit,
+// Eintrag, Versatz und Groesse von .bsp und .ent (verweisSchluessel) - eine veraenderte pk3 hat eine andere Zeit, ihre Karten einen
+// anderen Schluessel und werden neu gelesen. Textdatei: Kopfzeile, je Karte "K<Tab>Schluessel" und je Verweis
+// "R<Tab>Pfad<Tab>Schluessel<Tab>Besitzer"; \ Tab Zeilenwechsel maskiert (\\ \t \n \r).
+using MissionsVerweise = std::map<std::string, std::vector<MapData::ScriptRef>>;
+[[nodiscard]] std::string missionsVerweiseText(const MissionsVerweise& v);
+// Fuegt die Karten des Texts hinzu (schon vorhandene Schluessel bleiben). false, und v bleibt, wie es war: kein Text dieses Formats.
+[[nodiscard]] bool missionsVerweiseLesen(const std::string& text, MissionsVerweise& v);
+
 // Liest viele Karten im Hintergrund (eigene Faeden). Die Entities stehen in
 // fast jeder .bsp am ENDE (289 von 291 Karten in base und Movie Duels: Lump 0
 // liegt hinter der Geometrie) - jede Karte muss also ganz entpackt werden,
@@ -156,12 +167,14 @@ public:
     [[nodiscard]] std::size_t gesamt() const { return auftraege_.size(); }
     [[nodiscard]] std::size_t erledigt() const { return erledigt_.load(); }
     [[nodiscard]] bool fertig() const { return erledigt_.load() >= auftraege_.size(); }
-    // Erst nach fertig() oder abbrechen() lesen: je Auftrag die Verweise;
+    // Erst nach fertig() oder abbrechen() lesen - oder je Platz, sobald istFertig(i): je Auftrag die Verweise;
     // bearbeitet()[i] == 0, wenn die Karte nicht mehr drankam (abgebrochen),
     // gelesen()[i] == 0, wenn sie nicht lesbar war.
     [[nodiscard]] const std::vector<std::vector<MapData::ScriptRef>>& verweise() const { return verweise_; }
     [[nodiscard]] const std::vector<char>& gelesen() const { return gelesen_; }
     [[nodiscard]] const std::vector<char>& bearbeitet() const { return bearbeitet_; }
+    // TEST1411d: dieser Platz ist gelesen (Freigabe-Semantik) - die Auswahl zeigt die fertigen Karten schon waehrend des Lesens
+    [[nodiscard]] bool istFertig(std::size_t i) const { return fertig_[i].load(std::memory_order_acquire) != 0; }
     // Bricht ab und wartet auf die Faeden (hoechstens eine Karte je Faden).
     // Was bis dahin gelesen ist, bleibt (bearbeitet).
     void abbrechen();
@@ -172,6 +185,7 @@ private:
     std::vector<std::vector<MapData::ScriptRef>> verweise_;
     std::vector<char> gelesen_;
     std::vector<char> bearbeitet_;
+    std::unique_ptr<std::atomic<char>[]> fertig_;
     std::atomic<std::size_t> naechster_{0};
     std::atomic<std::size_t> erledigt_{0};
     std::atomic<bool> halt_{false};

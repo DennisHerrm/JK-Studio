@@ -1567,6 +1567,8 @@ struct App {
     // Groesse von .bsp und .ent) - ein zweites "Load mission" desselben
     // Spiels liest keine Karte noch einmal.
     std::map<std::string, std::vector<MapData::ScriptRef>> missionsVerweise;
+    bool missionsVerweiseGeladen = false;   // TEST1411d: der Zwischenspeicher der Platte ist gelesen (einmal je Sitzung)
+    std::vector<char> missionsSuchGezeigt;  // TEST1411d: je Karte der Hintergrundsuche - steht schon in der Auswahl
     char missionsFilter[64] = {};
     std::vector<std::string> missionsGruppen;   // TEST1411 A: die Archivgruppen der Auswahl im letzten Bild (Selbsttest)
     std::vector<std::string> missionsSuchGruppen;   // TEST1411 A: je Karte der Hintergrundsuche ihre Gruppe (Archiv der .ent, sonst der .bsp)
@@ -4109,6 +4111,9 @@ const std::vector<std::string>& aktiveSpielordner();
 // und neu einlesen, wenn sich dadurch etwas aendert.
 void setzeSitzungsSpielordner(std::vector<std::string> ordner);
 void loadMissionArchive();
+void missionsVerweiseLaden();    // TEST1411d: missionsVerweise von der Platte (einmal je Sitzung)
+void missionsVerweiseSichern();  // TEST1411d: ... auf die Platte, ohne Karten veraenderter oder fehlender Archive
+[[nodiscard]] std::string missionsVerweisePfad();
 // TEST1411 A: die Auswahl mit einem einzelnen Archiv (Dateidialog) bzw. einem Spiel- oder Mod-Ordner (Ordnerdialog), nur diese Sitzung
 void missionArchivOeffnen();
 void missionSpielordnerOeffnen();

@@ -666,6 +666,8 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     # Der Selbsttest ist eine einzige grosse Datei voller Lambdas - mehr als
     # die 65536 Abschnitte einer normalen Objektdatei (C1128).
     set_source_files_properties(gui/selbsttest.cpp PROPERTIES COMPILE_OPTIONS /bigobj)
+    # TEST1411d: ebenso app_view3d.cpp (mit app_view3d_spiel.inc) - mit dem Zwischenspeicher der Missionsliste ueber der Grenze
+    set_source_files_properties(gui/app_view3d.cpp PROPERTIES COMPILE_OPTIONS /bigobj)
   endif()
 
   target_link_libraries(behaved PRIVATE bhed_core imgui opengl32 gdi32 imm32 dwmapi comdlg32 ole32 shell32 uuid version winmm winhttp ws2_32)

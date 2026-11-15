@@ -4892,6 +4892,56 @@ DateiGibt skriptGibt() {
 }
 }  // namespace
 
+// TEST1411d: der Zwischenspeicher missionsVerweise auf der Platte, bei den anderen Zwischenspeichern des Programms (Einstellungsordner,
+// wie shader\pso12.bin) - ab dem zweiten "Load mission" steht die Liste sofort da, auch nach einem Neustart (Movie Duels: rund 3 GB Karten)
+std::string missionsVerweisePfad() { return platform::settingsDirectory() + "\\missionsverweise.txt"; }
+
+void missionsVerweiseLaden() {
+    if (g_app->missionsVerweiseGeladen) { return; }
+    g_app->missionsVerweiseGeladen = true;
+    std::ifstream f(::bhed::utf8Pfad(missionsVerweisePfad()), std::ios::binary);
+    if (!f) { return; }
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    const std::size_t vorher = g_app->missionsVerweise.size();
+    if (!missionsVerweiseLesen(text, g_app->missionsVerweise)) {
+        diag::info("Missionen: Zwischenspeicher " + missionsVerweisePfad() + " nicht lesbar - die Karten werden neu gelesen");
+        return;
+    }
+    diag::detail("Missionen: " + std::to_string(g_app->missionsVerweise.size() - vorher) + " Karten aus dem Zwischenspeicher " + missionsVerweisePfad());
+}
+
+void missionsVerweiseSichern() {
+    // Nur Karten, deren Archive noch dieselbe Aenderungszeit haben: eine veraenderte oder entfernte pk3 faellt heraus (sonst wuchse die
+    // Datei mit jedem neu gepackten Archiv). Schluessel: bspArchiv@Zeit | bsp | Versatz | Groesse | entArchiv@Zeit | ent | Versatz | Groesse
+    std::map<std::string, std::string> staende;
+    auto stimmt = [&staende](const std::string& teil) {
+        const std::size_t at = teil.rfind('@');
+        if (at == std::string::npos) { return false; }
+        const std::string pfad = teil.substr(0, at);
+        if (pfad.empty()) { return true; }   // keine .ent
+        auto it = staende.find(pfad);
+        if (it == staende.end()) { it = staende.emplace(pfad, archivStand(pfad)).first; }
+        return it->second != "?" && it->second == teil.substr(at + 1);
+    };
+    MissionsVerweise behalten;
+    for (const auto& [schluessel, verweise] : g_app->missionsVerweise) {
+        std::vector<std::string> teile;
+        for (std::size_t ab = 0;;) {
+            const std::size_t bis = schluessel.find('|', ab);
+            teile.push_back(schluessel.substr(ab, bis == std::string::npos ? std::string::npos : bis - ab));
+            if (bis == std::string::npos) { break; }
+            ab = bis + 1;
+        }
+        if (teile.size() == 8 && stimmt(teile[0]) && stimmt(teile[4])) { behalten.emplace(schluessel, verweise); }
+    }
+    std::string fehler;
+    if (!::bhed::sicherSchreiben(missionsVerweisePfad(), missionsVerweiseText(behalten), &fehler)) {
+        diag::info("Missionen: Zwischenspeicher nicht geschrieben: " + fehler);
+        return;
+    }
+    diag::detail("Missionen: " + std::to_string(behalten.size()) + " Karten im Zwischenspeicher " + missionsVerweisePfad());
+}
+
 void missionsSucheBeenden() {
     if (g_app->missionsSuche) {
         MissionsSuche& su = *g_app->missionsSuche;
@@ -4908,12 +4958,43 @@ void missionsSucheBeenden() {
         diag::detail("Missionssuche abgebrochen bei " + std::to_string(su.erledigt()) + " von " +
                      std::to_string(su.gesamt()) + " Karten, " + std::to_string(behalten) + " gemerkt");
         g_app->missionsSuche.reset();
+        if (behalten != 0U) { missionsVerweiseSichern(); }
     }
+    g_app->missionsSuchGezeigt.clear();
     g_app->missionsSuchKarten.clear();
     g_app->missionsSuchArchive.clear();
     g_app->missionsSuchGruppen.clear();
     g_app->missionsSuchSchluessel.clear();
 }
+
+namespace {
+// Eine Karte der Hintergrundsuche in die Auswahl (gelesen; eine Karte, die sich nicht lesen laesst, bleibt ohne Skripte - wie bisher
+// in findMissions)
+void suchKarteZeigen(const MissionsSuche& su, std::size_t i, const DateiGibt& gibt) {
+    Mission m = missionAus(g_app->missionsSuchKarten[i], su.verweise()[i], gibt);
+    m.archivPfad = g_app->missionsSuchArchive[i];
+    m.archiv = nurDateiname(m.archivPfad);
+    m.gruppe = i < g_app->missionsSuchGruppen.size() ? g_app->missionsSuchGruppen[i] : m.archiv;
+    g_app->missions.push_back(std::move(m));
+    g_app->missionsSuchGezeigt[i] = 1;
+}
+
+// TEST1411d: die schon gelesenen Karten stehen gleich in der Auswahl (die Gruppen wachsen waehrend des Lesens; bis dahin erschien alles
+// erst am Ende)
+void missionsSucheZwischenstand() {
+    if (!g_app->missionsSuche || g_app->missionsSuche->fertig()) { return; }
+    const MissionsSuche& su = *g_app->missionsSuche;
+    const DateiGibt gibt = skriptGibt();
+    bool neu = false;
+    for (std::size_t i = 0; i < su.gesamt() && i < g_app->missionsSuchKarten.size() && i < g_app->missionsSuchGezeigt.size(); ++i) {
+        if (g_app->missionsSuchGezeigt[i] == 0 && su.istFertig(i)) {
+            suchKarteZeigen(su, i, gibt);
+            neu = true;
+        }
+    }
+    if (neu) { sortiereMissionen(g_app->missions); }
+}
+}  // namespace
 
 void missionsSucheUebernehmen() {
     if (!g_app->missionsSuche || !g_app->missionsSuche->fertig()) {
@@ -4923,18 +5004,12 @@ void missionsSucheUebernehmen() {
     const DateiGibt gibt = skriptGibt();
     std::size_t nichtLesbar = 0;
     for (std::size_t i = 0; i < su.gesamt() && i < g_app->missionsSuchKarten.size(); ++i) {
-        // Eine Karte, die sich nicht lesen laesst, bleibt ohne Skripte - wie
-        // bisher in findMissions.
         if (su.gelesen()[i] != 0) {
             g_app->missionsVerweise[g_app->missionsSuchSchluessel[i]] = su.verweise()[i];
         } else {
             ++nichtLesbar;
         }
-        Mission m = missionAus(g_app->missionsSuchKarten[i], su.verweise()[i], gibt);
-        m.archivPfad = g_app->missionsSuchArchive[i];
-        m.archiv = nurDateiname(m.archivPfad);
-        m.gruppe = i < g_app->missionsSuchGruppen.size() ? g_app->missionsSuchGruppen[i] : m.archiv;
-        g_app->missions.push_back(std::move(m));
+        if (i >= g_app->missionsSuchGezeigt.size() || g_app->missionsSuchGezeigt[i] == 0) { suchKarteZeigen(su, i, gibt); }
     }
     sortiereMissionen(g_app->missions);
     const double ms =
@@ -4948,6 +5023,8 @@ void missionsSucheUebernehmen() {
     g_app->missionsSuchArchive.clear();
     g_app->missionsSuchGruppen.clear();
     g_app->missionsSuchSchluessel.clear();
+    g_app->missionsSuchGezeigt.clear();
+    missionsVerweiseSichern();
 }
 
 void missionenAusArchiv(const std::string& p, const std::string& wunsch) {
@@ -5017,6 +5094,7 @@ void missionenAusArchiv(const std::string& p, const std::string& wunsch) {
     }
     g_app->missionsSkriptNamen = skriptNamen(spiel);
     const DateiGibt gibt = skriptGibt();
+    missionsVerweiseLaden();   // TEST1411d
 
     // Je Karte: aus dem Zwischenspeicher, sofort (im gewaehlten Archiv - so
     // viel wie bisher), oder im Hintergrund.
@@ -5074,6 +5152,7 @@ void missionenAusArchiv(const std::string& p, const std::string& wunsch) {
         g_app->missionsSuchArchive.push_back(a.bspArchiv);   // TEST1411 A: der volle Pfad (der Name kommt beim Uebernehmen)
         g_app->missionsSuchGruppen.push_back(nurDateiname(a.entArchiv.empty() ? a.bspArchiv : a.entArchiv));
         g_app->missionsSuchSchluessel.push_back(schluessel);
+        g_app->missionsSuchGezeigt.push_back(0);
         hinten.push_back(std::move(a));
     }
     sortiereMissionen(g_app->missions);
@@ -5088,6 +5167,8 @@ void missionenAusArchiv(const std::string& p, const std::string& wunsch) {
         const unsigned faeden = std::max(1U, std::min(8U, kerne > 2U ? kerne - 2U : 1U));
         g_app->missionsSucheAb = std::chrono::steady_clock::now();
         g_app->missionsSuche = std::make_unique<MissionsSuche>(std::move(hinten), faeden);
+    } else if (sofort != 0U) {
+        missionsVerweiseSichern();   // TEST1411d: gleich gelesen und nichts im Hintergrund
     }
 
     // Genau eine spielbare Mission im ganzen Spiel? Dann direkt laden.
@@ -5478,6 +5559,7 @@ void drawMissionPicker() {
         }
         return;
     }
+    missionsSucheZwischenstand();   // TEST1411d
     missionsSucheUebernehmen();
     ImGui::OpenPopup("##missionpick");
     const ImVec2 centre = ImGui::GetMainViewport()->GetCenter();

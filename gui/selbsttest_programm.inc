@@ -2999,7 +2999,8 @@ std::vector<Schritt> missionsListeSchritte() {
     }));
     // --- 1. Eine pk3 OHNE Karten aus dem reinen JKA ------------------------
     add(tu("Missionsliste: Load mission mit assets1.pk3 des reinen JKA", [=] { missionenAusArchiv(z->jka + "\\assets1.pk3"); }));
-    add(warteBis("Missionsliste: t1_sour in der Auswahl", [] { return missionsliste::hat("t1_sour", true); }, 3500));
+    // TEST1411d: die Auswahl zeigt Karten schon waehrend des Lesens - die Pruefungen darunter vergleichen die ganze Liste
+    add(warteBis("Missionsliste: t1_sour in der Auswahl, fertig gelesen", [] { return missionsliste::hat("t1_sour", true) && !g_app->missionsSuche; }, 3500));
     add(pruefe("Missionsliste: assets1.pk3 (ohne Karten) nennt die Missionen von JKA - t1_sour, t2_trip, t3_bounty, kor1, yavin1, taspir1", [] {
         diag::detail("Knopftest: Missionsliste - reines JKA: " + missionsliste::liste());
         bool alle = g_app->missionPickOpen;
@@ -3055,7 +3056,8 @@ std::vector<Schritt> missionsListeSchritte() {
     // --- 2. Eine pk3 aus einem EINGERICHTETEN Spielordner -------------------
     add(tu("Missionsliste: Load mission mit assets1.pk3 aus dem eingerichteten Spielordner (Movie Duels base)",
            [=] { missionenAusArchiv(z->mdBasis + "\\assets1.pk3"); }));
-    add(warteBis("Missionsliste: md_am_sith in der Auswahl", [] { return missionsliste::hat("md_am_sith", true); }, 3500));
+    add(warteBis("Missionsliste: md_am_sith in der Auswahl, fertig gelesen", [] { return missionsliste::hat("md_am_sith", true) && !g_app->missionsSuche; },
+                 3500));
     add(pruefe("Missionsliste: Missionen von Movie Duels (md_am_sith, md_ga_jedi) UND des Grundspiels (t1_sour, kor1)", [] {
         diag::detail("Knopftest: Missionsliste - eingerichtet: " + missionsliste::liste());
         return missionsliste::hat("md_am_sith", true) && missionsliste::hat("md_ga_jedi", true) &&
