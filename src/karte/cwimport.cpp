@@ -1,6 +1,11 @@
 // cwimport.cpp - Karten-Editor, CW-IMPORT: Teil 2 der Clone-Wars-Kette (siehe cwimport.h). Eigene Funktionen, nicht in
 // NetRadiant-Custom; die Masse der Spielfigur aus OpenJK und Movie Duels (Spielfigur, optimierer.h).
 //
+// Portiert aus OpenJK sind nur die Regeln der Spielfigur: Kasten und Ursprung in Hueftenhoehe (ueber karte::spielfigur:
+// code/game/g_client.cpp:55-58, code/game/bg_public.h:51-53 und :71, codemp/game/g_client.c:31) und die Sequenz im Stand bzw.
+// geduckt (code/game/bg_pmove.cpp PM_Footsteps: BOTH_STAND1, BOTH_CROUCH1); Movie Duels Update 9 an denselben Stellen
+// (g_client.cpp:94-96, bg_public.h:76-78 und :93). Die Zeichnung selbst ist eigener Code.
+//
 //   Copyright (C) 1999 - 2005, Id Software, Inc.
 //   Copyright (C) 2000 - 2013, Raven Software, Inc.
 //   Copyright (C) 2013 - 2015, OpenJK contributors

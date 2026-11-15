@@ -2,6 +2,11 @@
 // Collision (siehe cwwerkzeuge.h). Eigene Werkzeuge, nicht in NetRadiant-Custom; was q3map2 daraus baut, nach q3map2 (NRC 20260114:
 // map.cpp SetBrushContents, model.cpp clipflags_doClip) und den Shadern von Jedi Academy (shaders/system.shader).
 //
+// Portiert aus q3map2 (NetRadiant-Custom 20260114) ist nur, was q3map2 aus den Werkzeugen baut: die Clip-Spawnflags eines
+// misc_model (model.cpp:357-371 clipflags_doClip, kClipFlags) und die Regel, dass eine nicht feste Seite den ganzen Pinsel
+// durchlaessig macht (map.cpp:455-503 SetBrushContents). Die konvexe Huelle rechnet QuickHull (third_party/quickhull, Public
+// Domain, wie in NetRadiant-Custom); die Werkzeuge selbst sind eigener Code.
+//
 //   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
 //   This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as
 //   published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version (LICENSE).

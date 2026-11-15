@@ -2,6 +2,13 @@
 // nicht in NetRadiant-Custom. Sie wirken nur, wenn man sie aufruft (shank 14.11.: "zwar drin, aber nicht standard"); jedes ist eine
 // Undo-Stufe. Was q3map2 daraus macht, steht je Werkzeug (Quelle: third_party/q3map2, NetRadiant-Custom 20260114).
 //
+// Portiert aus q3map2 (NetRadiant-Custom 20260114) sind nur diese Regeln (map.cpp SetBrushContents, model.cpp clipflags_doClip);
+// die Werkzeuge selbst sind eigener Code.
+//
+//   Copyright (C) 1999-2006 Id Software, Inc. and contributors.
+//   This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as
+//   published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version (LICENSE).
+//
 //   Punkt 3 raumSkalieren: die Auswahl (ein Raum) um einen Punkt mit einem Faktor skalieren; der Faktor steht in der Karte als
 //           Schluessel cw_scale an einem info_notnull (Marker) und als Kommentar in der .map (raumKommentar) - nur Daten, das Spiel
 //           liest beides nicht (G_ParseField uebergeht unbekannte Schluessel; Kommentare ueberliest jeder Leser).
