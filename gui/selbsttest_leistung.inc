@@ -34,9 +34,23 @@ inline std::string zahlen(std::vector<double> v, const char* format) {
     return z;
 }
 
+// D3D12-5: wo die Zuteilungen des Prozesses liegen (Windows): Grafikspeicher, Arbeitsspeicher der Karte, nicht im bevorzugten
+// Segment, herabgestuft. Eine eigene Zeile je Messpunkt und je gemessener Ansicht.
+inline void speicherLage(const std::string& wann) {
+    if (const render::GrafikSpeicherSystem w = render::grafikSpeicherSystem(); w.gueltig) {
+        char z[340];
+        std::snprintf(z, sizeof(z), "Leistung: Speicherlage %s | lokal %llu MB, nicht lokal %llu MB, Apertur %llu MB, nicht im bevorzugten Segment %lu / %llu MB, "
+                      "herabgestuft %llu MB, privat sichtbar %llu MB",
+                      wann.c_str(), w.lokal / 1048576ULL, w.nichtLokal / 1048576ULL, w.apertur / 1048576ULL, w.nichtBevorzugt, w.nichtBevorzugtBytes / 1048576ULL,
+                      w.herabgestuft / 1048576ULL, w.privatSichtbar / 1048576ULL);
+        diag::detail(z);
+    }
+}
+
 inline void speicher(const std::string& wann) {
     const platform::ProzessStand p = platform::prozessStand();
     const gpu::SpeicherStand g = gpu::speicherStand();
+    speicherLage(wann);
     char z[260];
     std::snprintf(z, sizeof(z), "Leistung: Speicher %s | Spitze %lld MB, Arbeitssatz %lld MB, privat %lld MB, Grafikkarte %lld MB", wann.c_str(),
                   p.spitzeBytes / 1048576, p.arbeitBytes / 1048576, p.privatBytes / 1048576, g.grafikBytes / 1048576);
@@ -45,6 +59,12 @@ inline void speicher(const std::string& wann) {
     // brauchen): danach raeumen der D3D11-Treiber und der D3D12-Abgeber. Eine eigene Zeile - die Auswertung liest die obere.
     std::snprintf(z, sizeof(z), "Leistung: Grafikspeicher-Budget %s | %lld MB", wann.c_str(), static_cast<long long>(kartegpu::grafikBudget() / 1048576U));
     diag::detail(z);
+    // D3D12-5: Grafikspeicher und von der Karte gelesener Arbeitsspeicher nach Windows, unter beiden Grafikschnittstellen gleich
+    if (const render::GrafikSpeicherSystem w = render::grafikSpeicherSystem(); w.gueltig) {
+        std::snprintf(z, sizeof(z), "Leistung: Grafikspeicher Windows %s | lokal %llu MB, nicht lokal %llu MB; Heaps des Prozesses zugeteilt %lld MB, belegt %lld MB",
+                      wann.c_str(), w.lokal / 1048576ULL, w.nichtLokal / 1048576ULL, g.heapZugeteilt / 1048576, g.heapBelegt / 1048576);
+        diag::detail(z);
+    }
     // Direct3D 12: woraus der Grafikspeicher an dieser Stelle besteht (Speicherbericht des Abgebers)
     for (const std::string& zeile : render::grafikSpeicherZeilen()) { diag::detail("Leistung: " + wann + " | " + zeile); }
 }
@@ -131,6 +151,7 @@ inline Schritt bildzeit(const std::string& was, std::function<void()> lage, std:
                                   (render::hauptfadenWartenMs() - st->warten0) / n);
                     diag::detail(zs);
                 }
+                speicherLage(was);   // D3D12-5
                 render::bildMessung(false);
                 g_m1Messen = false;
                 diag::detail("Leistung: Bildzeit " + was + " | CPU " + zahlen(st->cpu, "Mittel %.2f p50 %.2f p99 %.2f ms") + " | GPU " +
@@ -677,6 +698,17 @@ inline std::vector<Schritt> schritte() {
             // hat der D3D11-Treiber den Atlas der Schattenwuerfel noch nicht belegt (er belegt erst, was beschrieben ist),
             // Direct3D 12 belegt ihn beim Anlegen - der Vergleich dort zeigt den Zeitpunkt, nicht den Bedarf.
             add(tu("Leistung: Speicher mit Echtzeit-Licht", [] { speicher("mit Echtzeit-Licht"); }));
+            // D3D12-5: keine Befehlsliste ueber der Grenze - das Oeffnen der .map zeichnet bis 430 000 Mal je Bild; in einer Liste
+            // nahm das rund 100 MB Befehlsspeicher, den der Treiber behaelt (Rot: BHED_D3D12_LISTE=0)
+            add(tu("Leistung: Befehlslisten begrenzt", [] {
+                const render::ListenGroesse g = render::listenGroesse();
+                char z[200];
+                std::snprintf(z, sizeof(z), "Leistung: Befehlslisten | hoechstens %llu Zeichenbefehle je Liste, Grenze %llu", g.hoechstens, g.grenze);
+                diag::detail(z);
+                if (render::current() == render::Backend::Direct3D12 && (g.grenze == 0U || g.hoechstens > g.grenze + 1U)) {
+                    meldeFehler(std::string("Leistung: eine Befehlsliste ueber der Grenze (") + z + ")");
+                }
+            }));
             add(tu("Leistung: Editor leeren", [] {
                 ke::Editor& e = ke::editor();
                 e.echtLicht.an = false;

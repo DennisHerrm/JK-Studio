@@ -138,6 +138,8 @@ struct Zaehler {
     std::uint64_t psoMikro = 0;       // Zeit fuer alle Pipeline-Zustaende, Mikrosekunden
     std::uint64_t inGrafik = 0;       // Kopien vom Shader gelesener dynamischer Puffer in den Grafikspeicher
     std::uint64_t langeBilder = 0;    // Bilder ueber der Grenze (BHED_D3D12_LANGBILD)
+    std::uint64_t listeHoechstens = 0;   // D3D12-5: die meisten Zeichenbefehle (und UpdateSubresource) einer abgeschickten Liste
+    std::uint64_t listeGrenze = 0;       // D3D12-5: die Grenze je Liste (BHED_D3D12_LISTE; 0: keine)
 };
 [[nodiscard]] Zaehler zaehler();
 // Was der Abgeber belegt, als Zeilen fuer das Protokoll (Grafikspeicher und Arbeitsspeicher nach Art, die groessten Texturen).

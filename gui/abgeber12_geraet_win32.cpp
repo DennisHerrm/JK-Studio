@@ -41,6 +41,7 @@ std::atomic<std::uint64_t> g_lebend{0};
 std::atomic<std::uint64_t> g_lebendJetzt{0};
 long long g_teilAbgabe = 0;
 int g_teilAbgabenMax = 4;
+std::uint32_t g_listeBefehle = 8192;
 bool g_markenArbeitsuhr = true;
 std::uint32_t g_naechsteKennung = 0;
 std::uint32_t g_generation = 0;
@@ -1724,6 +1725,8 @@ bool anlegen() {
         QueryPerformanceFrequency(&f);
         g_teilAbgabe = mikro * f.QuadPart / 1000000LL;
         if (const char* v = std::getenv("BHED_D3D12_TEILABGABEN"); v != nullptr && v[0] != '\0') { g_teilAbgabenMax = std::atoi(v); }
+        g_listeBefehle = 8192;
+        if (const char* v = std::getenv("BHED_D3D12_LISTE"); v != nullptr && v[0] != '\0') { g_listeBefehle = static_cast<std::uint32_t>(std::strtoul(v, nullptr, 10)); }
         const char* m = std::getenv("BHED_D3D12_MARKEN");
         g_markenArbeitsuhr = m == nullptr || std::strcmp(m, "roh") != 0;
     }
@@ -2223,7 +2226,7 @@ std::vector<std::string> speicherBericht(std::uint64_t& summe) {
     summe = ziele.bytes + tiefen.bytes + texturen.bytes + puffer.bytes + ruhende.bytes + g_vorratJetzt;
     const auto mb = [](std::uint64_t b) { return static_cast<double>(b) / (1024.0 * 1024.0); };
     std::vector<std::string> aus;
-    char z[420];
+    char z[640];
     std::snprintf(z, sizeof(z),
                   "D3D12-Speicher Grafikspeicher %.0f MB: Ziele %llu / %.0f MB, Tiefe %llu / %.0f MB, Texturen %llu / %.0f MB, Puffer %llu / %.0f MB, "
                   "ruhende Kopien %llu / %.0f MB, Vorrat an Puffern %.1f MB",
@@ -2242,6 +2245,51 @@ std::vector<std::string> speicherBericht(std::uint64_t& summe) {
                   static_cast<unsigned long long>(fort.n), mb(fort.bytes), static_cast<unsigned long long>(g_ausgelagertMal),
                   static_cast<unsigned long long>(g_eingelagertMal), g_eingelagertMs, mb(g_belegtZuletzt), mb(g_budgetZuletzt));
     aus.emplace_back(z);
+    // D3D12-5: wie viel davon Verschnitt einzelner Zuteilungen ist (jede Ressource mindestens 64 KB; der D3D11-Treiber legt
+    // kleine Texturen dicht mit 4-KB-Ausrichtung, Speicherprobe 16.11.) und was nie gebraucht wurde (der D3D11-Treiber legt
+    // Ressourcen ohne Anfangsdaten erst beim ersten Gebrauch in den Grafikspeicher).
+    {
+        Art klein, kleinDicht, nie, nieDa, pufferKlein, pufferInhalt, ruheZut;
+        for (const Textur* t : g_texturenLebend) {
+            if (t->res == nullptr || t->lesepuffer || !t->schichtHeap.empty()) { continue; }
+            D3D12_RESOURCE_DESC rd = t->res->GetDesc();
+            const std::uint64_t b = t->bytes;
+            if (!t->jeGebraucht) {
+                ++nie.n;
+                nie.bytes += b;
+                if (!t->ausgelagert) {
+                    ++nieDa.n;
+                    nieDa.bytes += b;
+                }
+            }
+            if (rd.SampleDesc.Count != 1U || (rd.Flags & (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL)) != 0U) { continue; }
+            rd.Alignment = D3D12_SMALL_RESOURCE_PLACEMENT_ALIGNMENT;
+            const D3D12_RESOURCE_ALLOCATION_INFO ai = dev->GetResourceAllocationInfo(0, 1, &rd);
+            if (ai.Alignment != D3D12_SMALL_RESOURCE_PLACEMENT_ALIGNMENT || ai.SizeInBytes == UINT64_MAX) { continue; }
+            ++klein.n;
+            klein.bytes += b;
+            kleinDicht.bytes += ai.SizeInBytes;
+        }
+        std::uint64_t pufferZuteilung = 0;
+        for (const Puffer* p : g_pufferLebend) {
+            if (p->ruhe != nullptr) { ruheZut.bytes += (static_cast<std::uint64_t>(p->art.ByteWidth) + kGrossSchritt - 1U) / kGrossSchritt * kGrossSchritt; }
+            if (p->dynamisch || p->res == nullptr) { continue; }
+            pufferZuteilung += p->res->GetDesc().Width;
+            pufferInhalt.bytes += p->art.ByteWidth;
+            if (p->art.ByteWidth < kGrossSchritt) {
+                ++pufferKlein.n;
+                pufferKlein.bytes += p->art.ByteWidth;
+            }
+        }
+        std::snprintf(z, sizeof(z),
+                      "D3D12-Speicher Zuteilung: kleine Texturen %llu / %.1f MB (dicht mit 4 KB: %.1f MB), "
+                      "nie gebrauchte Texturen %llu / %.0f MB (davon im Grafikspeicher %llu / %.0f MB), Puffer im Grafikspeicher %.1f MB fuer %.1f MB Inhalt (unter 64 KB: %llu / %.1f MB), "
+                      "ruhende Kopien %.1f MB",
+                      static_cast<unsigned long long>(klein.n), mb(klein.bytes), mb(kleinDicht.bytes), static_cast<unsigned long long>(nie.n),
+                      mb(nie.bytes), static_cast<unsigned long long>(nieDa.n), mb(nieDa.bytes), mb(pufferZuteilung), mb(pufferInhalt.bytes), static_cast<unsigned long long>(pufferKlein.n), mb(pufferKlein.bytes),
+                      mb(ruheZut.bytes));
+        aus.emplace_back(z);
+    }
     std::sort(gross.begin(), gross.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
     for (std::size_t i = 0; i < gross.size() && i < 12U; ++i) {
         std::snprintf(z, sizeof(z), "D3D12-Speicher   %7.1f MB  %s", mb(gross[i].first), gross[i].second.c_str());
@@ -2259,6 +2307,7 @@ std::vector<std::string> speicherZeilen() {
 
 Zaehler zaehler() {
     Zaehler z = g_zaehler;
+    z.listeGrenze = g_listeBefehle;
     z.lebend = g_lebend.load();
     z.lebendFrueher = z.lebend - g_lebendJetzt.load();
     return z;

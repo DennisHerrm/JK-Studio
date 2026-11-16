@@ -477,6 +477,7 @@ void listeNeu(ID3D12GraphicsCommandList* cl) {
     if (c == nullptr || !aktiv()) { return; }
     c->offeneListe = cl;
     c->kopierZiele.clear();   // eine neue Ausfuehrung: Puffer stehen wieder in COMMON
+    c->befehleInListe = 0;
     LARGE_INTEGER t{};
     QueryPerformanceCounter(&t);
     c->listeSeit = t.QuadPart;
@@ -489,6 +490,8 @@ void fremdGezeichnet() { kontextAllesNeu(); }
 
 void nachAbschicken(std::uint64_t zaun) {
     if (Kontext* c = kontextZeiger(); c != nullptr) {
+        Zaehler& z = zaehlerIntern();
+        if (c->befehleInListe > z.listeHoechstens) { z.listeHoechstens = c->befehleInListe; }   // D3D12-5
         c->offeneListe = nullptr;
         c->kopierZiele.clear();   // Puffer fallen nach der Ausfuehrung auf COMMON zurueck
     }
@@ -757,6 +760,11 @@ void kopierZieleLesbar() {
 
 // Alles Geaenderte in die Liste. false: so kann nicht gezeichnet werden (kein Shader, Pipeline-Zustand abgelehnt).
 bool Kontext::vorZeichnen() {
+    // D3D12-5: eine volle Liste geht hier ab (g_listeBefehle); die naechste setzt alle Zustaende neu (listeNeu)
+    if (offeneListe != nullptr && ++befehleInListe > g_listeBefehle && g_listeBefehle != 0U) {
+        (void)rahmen::abschicken();
+        ++zaehlerIntern().teilAbgaben;
+    }
     if (offeneListe == nullptr) { (void)rahmen::liste(); }   // ruft listeNeu: offeneListe gesetzt, alles neu
     ID3D12GraphicsCommandList* cl = offeneListe;
     if (cl == nullptr) { return false; }
@@ -1400,6 +1408,10 @@ void STDMETHODCALLTYPE Kontext::CopyResource(ID3D11Resource* pDstResource, ID3D1
 void STDMETHODCALLTYPE Kontext::UpdateSubresource(ID3D11Resource* pDstResource, UINT DstSubresource, const D3D11_BOX* pDstBox, const void* pSrcData, UINT SrcRowPitch,
                                                   UINT) {
     if (pDstResource == nullptr || pSrcData == nullptr) { return; }
+    if (offeneListe != nullptr && ++befehleInListe > g_listeBefehle && g_listeBefehle != 0U) {   // D3D12-5 (vorZeichnen)
+        (void)rahmen::abschicken();
+        ++zaehlerIntern().teilAbgaben;
+    }
     ID3D12GraphicsCommandList* cl = liste();
     if (Puffer* p = alsPuffer(pDstResource); p != nullptr) {
         if (p->dynamisch) {

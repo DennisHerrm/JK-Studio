@@ -13,6 +13,7 @@
 //     Bild der 3D-Ansichten ueber dessen festen Deskriptor - keine Kopie, keine Bruecke.
 
 #include <windows.h>
+#include <psapi.h>   // D3D12-5: K32GetProcessMemoryInfo (Speicher je Schritt des Starts)
 
 #include "backend_d3d12.h"
 
@@ -75,8 +76,7 @@ struct Hochlade {
 };
 
 struct Platz {
-    ID3D12CommandAllocator* haupt = nullptr;   // die Befehlsliste des Bildes
-    ID3D12CommandAllocator* vor = nullptr;     // Hochladen neuer Texturen und Puffer vor dem Bild
+    // D3D12-5: die Befehlsspeicher kommen aus einem Vorrat (speicherNehmen), nicht mehr je Bildplatz
     UINT64 zaun = 0;
     std::vector<Hochlade> hoch;      // von der Befehlsliste des Bildes gelesen
     std::vector<Hochlade> hochVor;   // von der Vor-Liste gelesen
@@ -91,6 +91,8 @@ struct Textur {
 };
 
 ID3D12Device* g_dev = nullptr;
+int g_imguiEckenMax = 0;   // D3D12-5: groesstes TotalVtxCount/TotalIdxCount des Hauptfensters (Eckpuffer von imgui_impl_dx12)
+int g_imguiIndexMax = 0;
 ID3D12CommandQueue* g_queue = nullptr;
 ID3D12Fence* g_zaun = nullptr;
 HANDLE g_zaunEreignis = nullptr;
@@ -618,6 +620,69 @@ D3D12_CPU_DESCRIPTOR_HANDLE rtv(UINT i) {
     return h;
 }
 
+// --- Befehlsspeicher ------------------------------------------------------------
+//
+// D3D12-5: Jede Liste nimmt ihren Befehlsspeicher (ID3D12CommandAllocator) aus einem Vorrat und gibt ihn mit dem Zaunwert ihrer
+// Abgabe zurueck; abgearbeitet wird er zurueckgesetzt und wieder vergeben. Vorher hatte jeder Bildplatz einen Speicher fuer die
+// Liste des Bildes und einen fuer die Vor-Liste, und alle Teile eines Bildes schrieben in denselben: ein Bild mit 355 000
+// Zeichenbefehlen (Karten-Editor beim Oeffnen der .map) liess ihn auf rund 100 MB wachsen. Der Treiber behaelt solchen Speicher
+// fuer das Geraet, auch nach dem Freigeben (Speicherprobe 16.11.: 400 000 Kopien in einer Liste +50 MB privat, +36 MB von der Karte
+// gelesener Arbeitsspeicher, nie zurueck; dieselben in Stuecken zu 4000 auf vier Speichern im Kreis +4,8 / +3,5 MB). Zusammen mit
+// der Grenze je Liste (abgeber::kListeBefehle) bleibt so der Befehlsspeicher klein. Sind mehr als kSpeicherUnterwegs Speicher
+// unterwegs, wartet die Aufzeichnung auf den aeltesten (nur in sehr grossen Bildern).
+constexpr std::size_t kSpeicherUnterwegs = 16;
+struct SpeicherUnterwegs {
+    ID3D12CommandAllocator* speicher = nullptr;
+    UINT64 zaun = 0;
+};
+std::vector<ID3D12CommandAllocator*> g_speicherFrei;
+std::deque<SpeicherUnterwegs> g_speicherUnterwegs;
+ID3D12CommandAllocator* g_hauptSpeicher = nullptr;   // der Speicher der offenen Liste des Bildes
+ID3D12CommandAllocator* g_vorSpeicher = nullptr;     // ... und der offenen Vor-Liste
+std::uint64_t g_speicherAngelegt = 0;
+
+ID3D12CommandAllocator* speicherNehmen() {
+    for (;;) {
+        while (!g_speicherUnterwegs.empty() && (g_zaun == nullptr || geraetWeg() || g_zaun->GetCompletedValue() >= g_speicherUnterwegs.front().zaun)) {
+            ID3D12CommandAllocator* s = g_speicherUnterwegs.front().speicher;
+            g_speicherUnterwegs.pop_front();
+            if (SUCCEEDED(s->Reset())) {
+                g_speicherFrei.push_back(s);
+            } else {
+                s->Release();
+            }
+        }
+        if (!g_speicherFrei.empty()) {
+            ID3D12CommandAllocator* s = g_speicherFrei.back();
+            g_speicherFrei.pop_back();
+            return s;
+        }
+        if (g_speicherUnterwegs.size() < kSpeicherUnterwegs) { break; }
+        wartenAuf(g_speicherUnterwegs.front().zaun);
+        if (geraetWeg()) { break; }
+    }
+    ID3D12CommandAllocator* s = nullptr;
+    if (FAILED(g_dev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&s)))) { return nullptr; }
+    ++g_speicherAngelegt;
+    return s;
+}
+
+// Der Speicher einer eben abgegebenen Liste: unterwegs bis zu ihrem Zaunwert.
+void speicherAbgegeben(ID3D12CommandAllocator*& s, UINT64 zaun) {
+    if (s == nullptr) { return; }
+    g_speicherUnterwegs.push_back(SpeicherUnterwegs{s, zaun});
+    s = nullptr;
+}
+
+void speicherAbbauen() {
+    for (const SpeicherUnterwegs& u : g_speicherUnterwegs) { u.speicher->Release(); }
+    g_speicherUnterwegs.clear();
+    for (ID3D12CommandAllocator* s : g_speicherFrei) { s->Release(); }
+    g_speicherFrei.clear();
+    frei(g_hauptSpeicher);
+    frei(g_vorSpeicher);
+}
+
 // --- Bildplaetze ----------------------------------------------------------------
 
 void platzFrei(Platz& p) {
@@ -630,8 +695,6 @@ void naechsterPlatz() {
     g_platz = (g_platz + 1U) % kPuffer;
     Platz& p = g_plaetze[g_platz];
     wartenAuf(p.zaun);
-    p.haupt->Reset();
-    p.vor->Reset();
     platzFrei(p);
     ++g_hochBild;
     unterwegsEinsammeln();
@@ -981,7 +1044,8 @@ ID3D12CommandQueue* schlange() { return g_queue; }
 
 ID3D12GraphicsCommandList* liste() {
     if (!g_hauptOffen) {
-        g_liste = listeNehmen(g_plaetze[g_platz].haupt);
+        if (g_hauptSpeicher == nullptr) { g_hauptSpeicher = speicherNehmen(); }
+        g_liste = g_hauptSpeicher != nullptr ? listeNehmen(g_hauptSpeicher) : nullptr;
         g_hauptOffen = g_liste != nullptr;
         if (g_hauptOffen) {
             grenzeAnfang(g_liste, 1);
@@ -993,7 +1057,8 @@ ID3D12GraphicsCommandList* liste() {
 
 ID3D12GraphicsCommandList* vorListe() {
     if (!g_vorOffen) {
-        g_vorListe = listeNehmen(g_plaetze[g_platz].vor);
+        if (g_vorSpeicher == nullptr) { g_vorSpeicher = speicherNehmen(); }
+        g_vorListe = g_vorSpeicher != nullptr ? listeNehmen(g_vorSpeicher) : nullptr;
         g_vorOffen = g_vorListe != nullptr;
         if (g_vorOffen) { grenzeAnfang(g_vorListe, 0); }
     }
@@ -1066,12 +1131,15 @@ void spaeterFrei(IUnknown* objekt) {
 
 std::uint64_t abschicken() {
     Auftrag a;
+    ID3D12CommandAllocator* speicher[2] = {nullptr, nullptr};   // D3D12-5: die Befehlsspeicher der abgegebenen Listen
     if (g_vorOffen && !g_hauptOffen) { grenzeEnde(g_vorListe); }
     if (g_vorOffen) {
         g_vorListe->Close();
         a.listen[a.n++] = g_vorListe;
         g_vorListe = nullptr;
         g_vorOffen = false;
+        speicher[0] = g_vorSpeicher;
+        g_vorSpeicher = nullptr;
     }
     if (g_hauptOffen) {
         abgeber::vorAbschicken(g_liste);
@@ -1080,9 +1148,12 @@ std::uint64_t abschicken() {
         a.listen[a.n++] = g_liste;
         g_liste = nullptr;
         g_hauptOffen = false;
+        speicher[1] = g_hauptSpeicher;
+        g_hauptSpeicher = nullptr;
     }
     if (a.n == 0U) { return g_letzterZaun; }
     a.zaun = ++g_zaunWert;
+    for (ID3D12CommandAllocator*& s : speicher) { speicherAbgegeben(s, a.zaun); }   // unterwegs bis zu diesem Zaunwert
     auftragGeben(a);
     g_letzterZaun = g_zaunWert;
     ++g_ausfuehrung;
@@ -1208,6 +1279,15 @@ bool init(HWND hwnd, IDXGIAdapter1* karte, bool debug) {
     QueryPerformanceCounter(&startZuletzt);
     const LARGE_INTEGER startAnfang = startZuletzt;
     std::string startZeiten;
+    // D3D12-5: dazu je Schritt der Speicher (privat; lokal / nicht lokal nach Windows auf dieser Karte) - was der Start unter
+    // Direct3D 12 mehr belegt als unter Direct3D 11
+    std::string startSpeicher;
+    IDXGIAdapter3* startKarte = nullptr;
+    if (karte != nullptr) { (void)karte->QueryInterface(IID_PPV_ARGS(&startKarte)); }
+    struct KarteHalter {
+        IDXGIAdapter3*& k;
+        ~KarteHalter() { frei(k); }
+    } karteHalter{startKarte};
     const auto schritt = [&](const char* was) {
         LARGE_INTEGER jetzt{};
         QueryPerformanceCounter(&jetzt);
@@ -1215,6 +1295,18 @@ bool init(HWND hwnd, IDXGIAdapter1* karte, bool debug) {
         std::snprintf(z, sizeof(z), "%s%s %.1f", startZeiten.empty() ? "" : ", ", was,
                       static_cast<double>(jetzt.QuadPart - startZuletzt.QuadPart) * 1000.0 / static_cast<double>(startTakt.QuadPart));
         startZeiten += z;
+        PROCESS_MEMORY_COUNTERS_EX pm{};
+        DXGI_QUERY_VIDEO_MEMORY_INFO lokal{};
+        DXGI_QUERY_VIDEO_MEMORY_INFO nicht{};
+        (void)K32GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pm), sizeof(pm));
+        if (startKarte != nullptr) {
+            (void)startKarte->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &lokal);
+            (void)startKarte->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &nicht);
+        }
+        char m[120];
+        std::snprintf(m, sizeof(m), "%s%s %.0f / %.0f / %.0f", startSpeicher.empty() ? "" : ", ", was, static_cast<double>(pm.PrivateUsage) / 1048576.0,
+                      static_cast<double>(lokal.CurrentUsage) / 1048576.0, static_cast<double>(nicht.CurrentUsage) / 1048576.0);
+        startSpeicher += m;
         startZuletzt = jetzt;
     };
     if (fehlerSpielen("dll") || !einstiegeDa()) {
@@ -1295,19 +1387,14 @@ bool init(HWND hwnd, IDXGIAdapter1* karte, bool debug) {
     g_srvGpu0 = g_srvHeap->GetGPUDescriptorHandleForHeapStart();
     hintenHolen();
 
-    for (Platz& p : g_plaetze) {
-        if (FAILED(g_dev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&p.haupt))) ||
-            FAILED(g_dev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&p.vor)))) {
-            return false;
-        }
-    }
-    // Zwei Listen im Vorrat (Bild und Vor-Liste); weitere entstehen, wenn der Abschickfaden beide noch haelt.
+    // Zwei Befehlsspeicher und zwei Listen im Vorrat (Bild und Vor-Liste); weitere entstehen, wenn alle unterwegs sind.
     for (int i = 0; i < 2; ++i) {
+        ID3D12CommandAllocator* speicher = nullptr;
+        if (FAILED(g_dev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&speicher))) || speicher == nullptr) { return false; }
+        ++g_speicherAngelegt;
+        g_speicherFrei.push_back(speicher);
         ID3D12GraphicsCommandList* l = nullptr;
-        if (FAILED(g_dev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, i == 0 ? g_plaetze[0].haupt : g_plaetze[0].vor, nullptr, IID_PPV_ARGS(&l))) ||
-            l == nullptr) {
-            return false;
-        }
+        if (FAILED(g_dev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, speicher, nullptr, IID_PPV_ARGS(&l))) || l == nullptr) { return false; }
         l->Close();
         g_listenFrei.push_back(l);
     }
@@ -1351,6 +1438,7 @@ bool init(HWND hwnd, IDXGIAdapter1* karte, bool debug) {
         char v[80] = "";
         if (vorMs > 0.0) { std::snprintf(v, sizeof(v), " (Geraet vorgewaermt in einem eigenen Faden: %.1f ms)", vorMs); }
         diag::detail(z + startZeiten + v);
+        diag::detail("D3D12-Start Speicher (privat / lokal / nicht lokal MB) nach: " + startSpeicher);
     }
     return true;
 }
@@ -1402,9 +1490,8 @@ void shutdown() {
     g_zeigenErledigt = 0;
     g_hauptOffen = false;
     g_vorOffen = false;
+    speicherAbbauen();
     for (Platz& p : g_plaetze) {
-        frei(p.haupt);
-        frei(p.vor);
         for (Hochlade& h : p.hoch) { h.puffer->Release(); }
         p.hoch.clear();
         for (Hochlade& h : p.hochVor) { h.puffer->Release(); }
@@ -1502,6 +1589,11 @@ bool karteLuid(LUID& luid) {
 }
 
 std::uint64_t abgabenBisher() { return g_statistik.abgeschickt; }
+void listenGroesse(std::uint64_t& hoechstens, std::uint64_t& grenze) {
+    const abgeber::Zaehler z = abgeber::zaehler();
+    hoechstens = z.listeHoechstens;
+    grenze = z.listeGrenze;
+}
 double hauptfadenWartenMs() { return g_statistik.warteMs + g_statistik.abwartenMs; }
 
 void newFrame() {
@@ -1556,6 +1648,10 @@ void hauptfensterZeichnen(const float farbe[4], void (*vorAbschicken)(), void (*
         l->ClearRenderTargetView(ziel, farbe, 0, nullptr);
     }
     abgeber::protokollNotiz(l, "Oberflaeche: ImGui");
+    if (const ImDrawData* dd = ImGui::GetDrawData(); dd != nullptr) {   // D3D12-5: Groesse der Eckpuffer von imgui_impl_dx12 (Speicherbericht)
+        g_imguiEckenMax = std::max(g_imguiEckenMax, dd->TotalVtxCount);
+        g_imguiIndexMax = std::max(g_imguiIndexMax, dd->TotalIdxCount);
+    }
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), l);
     abgeber::fremdGezeichnet();
     abgeber::protokollNotiz(l, "Oberflaeche fertig");
@@ -1609,6 +1705,54 @@ bool inZielZeichnen(ID3D11Resource* ziel, ImDrawData* dd) {
     return true;
 }
 
+namespace {
+// DIAG D3D12-5 (BHED_D3D12_SPEICHERSPUR=1): je Bild der Speicher nach Windows; aendert sich "nicht lokal" um 2 MB oder mehr, eine
+// Zeile mit dem, was sich im Bild getan hat - so zeigt sich, welcher Schritt Arbeitsspeicher der Grafikkarte dazunimmt.
+void speicherSpur() {
+    static const bool an = std::getenv("BHED_D3D12_SPEICHERSPUR") != nullptr;
+    if (!an || g_dev == nullptr) { return; }
+    static IDXGIAdapter3* karte = nullptr;
+    if (karte == nullptr) {
+        IDXGIFactory4* fabrik = nullptr;
+        if (SUCCEEDED(CreateDXGIFactory2(0, IID_PPV_ARGS(&fabrik))) && fabrik != nullptr) {
+            (void)fabrik->EnumAdapterByLuid(g_luid, IID_PPV_ARGS(&karte));
+            fabrik->Release();
+        }
+        if (karte == nullptr) { return; }
+    }
+    DXGI_QUERY_VIDEO_MEMORY_INFO lokal{};
+    DXGI_QUERY_VIDEO_MEMORY_INFO nicht{};
+    if (FAILED(karte->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &lokal)) ||
+        FAILED(karte->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &nicht))) {
+        return;
+    }
+    static std::uint64_t bild = 0;
+    static std::uint64_t nichtVor = 0;
+    static std::uint64_t lokalVor = 0;
+    static abgeber::Zaehler zVor{};
+    static rahmen::Statistik sVor{};
+    ++bild;
+    const std::int64_t dn = static_cast<std::int64_t>(nicht.CurrentUsage) - static_cast<std::int64_t>(nichtVor);
+    if (dn > -(2LL << 20) && dn < (2LL << 20)) { return; }
+    const abgeber::Zaehler z = abgeber::zaehler();
+    const rahmen::Statistik s = rahmen::statistik();
+    char t[400];
+    std::snprintf(t, sizeof(t),
+                  "D3D12-Speicherspur Bild %llu: nicht lokal %+.1f MB -> %.0f MB, lokal %+.1f MB -> %.0f MB | Bloecke %.0f MB, Hochladepuffer %.0f MB, "
+                  "ImGui %d Ecken | seit voriger Zeile: %llu Zeichenbefehle, %llu Abgaben, %.1f MB hochgeladen, %llu Ressourcen angelegt",
+                  static_cast<unsigned long long>(bild), static_cast<double>(dn) / 1048576.0, static_cast<double>(nicht.CurrentUsage) / 1048576.0,
+                  (static_cast<double>(lokal.CurrentUsage) - static_cast<double>(lokalVor)) / 1048576.0, static_cast<double>(lokal.CurrentUsage) / 1048576.0,
+                  static_cast<double>(z.hochladeBytes) / 1048576.0, static_cast<double>(s.hochladeJetzt) / 1048576.0, g_imguiEckenMax,
+                  static_cast<unsigned long long>(z.zeichnen - zVor.zeichnen), static_cast<unsigned long long>(s.abgeschickt - sVor.abgeschickt),
+                  static_cast<double>(s.hochladeBytes - sVor.hochladeBytes) / 1048576.0, static_cast<unsigned long long>(z.angelegt - zVor.angelegt));
+    diag::detail(t);
+    nichtVor = nicht.CurrentUsage;
+    lokalVor = lokal.CurrentUsage;
+    zVor = z;
+    sVor = s;
+}
+}  // namespace
+
 long zeigen() {
     (void)rahmen::abschicken();   // was nach dem Hauptfenster noch kam (Zeitmarken, Hochladen), gehoert zu diesem Bild
     Auftrag a;
@@ -1625,6 +1769,7 @@ long zeigen() {
     if (SUCCEEDED(hr)) { naechsterPlatz(); }
     einsammeln();
     abgeber::bildAnfang();
+    speicherSpur();
     return hr;
 }
 
@@ -1707,7 +1852,47 @@ bool befund(std::string& text) {
     return z.fehlt == 0U && g_debugFehler == 0U;
 }
 
-std::vector<std::string> speicherZeilen() { return abgeber::speicherZeilen(); }
+std::vector<std::string> speicherZeilen() {
+    std::vector<std::string> aus = abgeber::speicherZeilen();
+    if (g_dev == nullptr) { return aus; }
+    // D3D12-5: was der Rahmen selbst belegt - Bilder der Oberflaeche (Vorschaubilder, Symbole: je ein eigenes Objekt, mindestens
+    // 64 KB; dicht mit 4-KB-Ausrichtung gerechnet daneben) und die Hintergrundpuffer.
+    std::uint64_t ober = 0;
+    std::uint64_t oberDicht = 0;
+    std::uint64_t klein = 0;
+    for (const auto& [k, t] : g_texturen) {
+        (void)k;
+        if (t.res == nullptr) { continue; }
+        D3D12_RESOURCE_DESC rd = t.res->GetDesc();
+        const D3D12_RESOURCE_ALLOCATION_INFO ai = g_dev->GetResourceAllocationInfo(0, 1, &rd);
+        ober += ai.SizeInBytes;
+        rd.Alignment = D3D12_SMALL_RESOURCE_PLACEMENT_ALIGNMENT;
+        const D3D12_RESOURCE_ALLOCATION_INFO dicht = g_dev->GetResourceAllocationInfo(0, 1, &rd);
+        if (dicht.Alignment == D3D12_SMALL_RESOURCE_PLACEMENT_ALIGNMENT && dicht.SizeInBytes != UINT64_MAX) {
+            ++klein;
+            oberDicht += dicht.SizeInBytes;
+        } else {
+            oberDicht += ai.SizeInBytes;
+        }
+    }
+    std::uint64_t hinten = 0;
+    for (ID3D12Resource* r : g_hinten) {
+        if (r == nullptr) { continue; }
+        const D3D12_RESOURCE_DESC rd = r->GetDesc();
+        hinten += g_dev->GetResourceAllocationInfo(0, 1, &rd).SizeInBytes;
+    }
+    const auto mb = [](std::uint64_t b) { return static_cast<double>(b) / (1024.0 * 1024.0); };
+    // imgui_impl_dx12: je Bildplatz ein Eck- und ein Indexpuffer im Hochladespeicher, so gross wie das groesste Bild (+5000/+10000)
+    const std::uint64_t imgui = static_cast<std::uint64_t>(kPuffer) *
+                                ((static_cast<std::uint64_t>(g_imguiEckenMax) + 5000U) * sizeof(ImDrawVert) + (static_cast<std::uint64_t>(g_imguiIndexMax) + 10000U) * sizeof(ImDrawIdx));
+    char z[460];
+    std::snprintf(z, sizeof(z), "D3D12-Speicher Rahmen: Bilder der Oberflaeche %zu / %.1f MB (davon klein %llu; dicht mit 4 KB: %.1f MB), Hintergrundpuffer %.1f MB, "
+                  "Deskriptoren der Texturen %u belegt, Eckpuffer der Oberflaeche %.1f MB (%d Ecken, %d Indizes), Befehlsspeicher %llu angelegt (%zu frei, %zu unterwegs)",
+                  g_texturen.size(), mb(ober), static_cast<unsigned long long>(klein), mb(oberDicht), mb(hinten), g_srvNaechster - static_cast<UINT>(g_srvFrei.size()),
+                  mb(imgui), g_imguiEckenMax, g_imguiIndexMax, static_cast<unsigned long long>(g_speicherAngelegt), g_speicherFrei.size(), g_speicherUnterwegs.size());
+    aus.emplace_back(z);
+    return aus;
+}
 std::uint64_t vorratBytes() { return abgeber::vorratBytes(); }
 
 void info(std::string& hersteller, std::string& version, std::string& kartenName, std::vector<std::string>& merkmale) {

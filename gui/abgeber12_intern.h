@@ -46,6 +46,11 @@ extern long long g_teilAbgabe;
 // der Hauptfaden nicht rechnet: dann ging jeder Zielwechsel einzeln ab (bis 364 Abgaben je Bild, Bilder 10- bis 15-mal laenger
 // als unter Direct3D 11, 12.11. abends). Ohne Last sind es im Mittel rund eine je Bild.
 extern int g_teilAbgabenMax;
+// D3D12-5: so viele Zeichenbefehle (und UpdateSubresource) hoechstens in einer Liste - danach geht sie am naechsten Zeichenbefehl
+// ab. Ohne Grenze nahm ein Bild mit 355 000 Zeichenbefehlen (Karten-Editor beim Oeffnen der .map) rund 100 MB Befehlsspeicher, den
+// der Treiber danach behaelt (rahmen: Befehlsspeicher im Kreis). Die gemessenen Ansichten haben hoechstens 4768 je Bild - sie gehen
+// ungeteilt ab wie bisher. BHED_D3D12_LISTE=<n> (0: ohne Grenze, zum Vergleichen).
+extern std::uint32_t g_listeBefehle;
 // D3D12-4: Zeitmarken (GetData) ohne den Leerlauf der Grafikkarte zwischen den Abgaben (rahmen::leerlaufBis) - so misst die
 // Strecke zwischen zwei Marken, was die Grafikkarte dazwischen gerechnet hat, auch ueber eine Teilabgabe hinweg.
 // BHED_D3D12_MARKEN=roh: die Zeitmarken wie geschrieben (Leerlauf zwischen den Teilen zaehlt mit).
@@ -214,6 +219,7 @@ struct Textur final : Kind<Textur, ID3D11Texture2D> {
     std::uint64_t bytes = 0;           // Groesse der Zuteilung (duenne Felder zaehlen nach ihren Heaps)
     std::uint32_t gebrauchtBild = 0;   // g_gebrauchBild beim letzten Gebrauch
     bool ausgelagert = false;
+    bool jeGebraucht = false;          // D3D12-5 (Speicherbericht): kam je in eine Befehlsliste
 
     ~Textur();
     static bool istSchnittstelle(REFIID iid) { return iid == __uuidof(ID3D11Resource) || iid == __uuidof(ID3D11Texture2D); }
@@ -363,6 +369,7 @@ extern std::uint32_t g_gebrauchBild;   // das laufende Bild
 void einlagern(Textur* t);             // MakeResident nach dem Auslagern
 inline void gebraucht(Textur* t) {
     t->gebrauchtBild = g_gebrauchBild;
+    t->jeGebraucht = true;
     if (t->ausgelagert) { einlagern(t); }
 }
 // Zustandswechsel einer Textur in die Liste (alle Teile); zaehlt.
@@ -549,6 +556,7 @@ struct Kontext final : ID3D11DeviceContext1 {
     std::uint32_t teilBild = ~0U;                      // Teilabgaben: das Bild (g_gebrauchBild) ...
     int teilImBild = 0;                                // ... und wie viele darin schon abgingen
     long long listeSeit = 0;                           // QueryPerformanceCounter beim Oeffnen der Liste (Teilabgabe); 0: noch keine Arbeit
+    std::uint32_t befehleInListe = 0;                  // D3D12-5: Zeichenbefehle und UpdateSubresource in der offenen Liste (g_listeBefehle)
     // D3D12-4: Puffer, die in der offenen Liste nach UpdateSubresource in COPY_DEST stehen; vor dem naechsten Zeichenbefehl alle
     // zusammen zurueck in ihren Lesezustand (kopierZieleLesbar).
     std::vector<Puffer*> kopierZiele;

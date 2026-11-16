@@ -1218,6 +1218,89 @@ GpuSystemZeit gpuSystemZeit() {
     return z;
 }
 
+GrafikSpeicherSystem grafikSpeicherSystem() {
+    GrafikSpeicherSystem s;
+#ifdef BHED_WITH_D3D11
+    {
+        MEMORY_BASIC_INFORMATION mbi{};
+        const unsigned char* a = nullptr;
+        while (VirtualQuery(a, &mbi, sizeof(mbi)) == sizeof(mbi)) {
+            if (mbi.State == MEM_COMMIT && mbi.Type == MEM_PRIVATE) { s.privatSichtbar += mbi.RegionSize; }
+            const unsigned char* weiter = static_cast<const unsigned char*>(mbi.BaseAddress) + mbi.RegionSize;
+            if (weiter <= a) { break; }
+            a = weiter;
+        }
+    }
+    LUID luid{};
+    if (!zeichenKarte(luid)) { return s; }
+    IDXGIFactory4* fabrik = nullptr;
+    if (FAILED(CreateDXGIFactory2(0, IID_PPV_ARGS(&fabrik))) || fabrik == nullptr) { return s; }
+    IDXGIAdapter3* karte = nullptr;
+    if (SUCCEEDED(fabrik->EnumAdapterByLuid(luid, IID_PPV_ARGS(&karte))) && karte != nullptr) {
+        DXGI_QUERY_VIDEO_MEMORY_INFO lokal{};
+        DXGI_QUERY_VIDEO_MEMORY_INFO nicht{};
+        if (SUCCEEDED(karte->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &lokal)) &&
+            SUCCEEDED(karte->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &nicht))) {
+            s.gueltig = true;
+            s.lokal = lokal.CurrentUsage;
+            s.nichtLokal = nicht.CurrentUsage;
+            s.budget = lokal.Budget;
+        }
+        karte->Release();
+    }
+    fabrik->Release();
+    // Lage der Zuteilungen nach dem Planer der Karte (D3DKMTQueryStatistics)
+    HMODULE gdi = GetModuleHandleW(L"gdi32.dll");
+    const auto statistik = gdi != nullptr ? reinterpret_cast<PFND3DKMT_QUERYSTATISTICS>(reinterpret_cast<void*>(GetProcAddress(gdi, "D3DKMTQueryStatistics"))) : nullptr;
+    if (statistik == nullptr) { return s; }
+    D3DKMT_QUERYSTATISTICS q{};
+    q.Type = D3DKMT_QUERYSTATISTICS_ADAPTER;
+    q.AdapterLuid = luid;
+    if (statistik(&q) != 0) { return s; }
+    const ULONG segmente = q.QueryResult.AdapterInformation.NbSegments;
+    for (ULONG i = 0; i < segmente; ++i) {
+        D3DKMT_QUERYSTATISTICS a{};
+        a.Type = D3DKMT_QUERYSTATISTICS_SEGMENT;
+        a.AdapterLuid = luid;
+        a.QuerySegment.SegmentId = i;
+        const bool apertur = statistik(&a) == 0 && a.QueryResult.SegmentInformation.Aperture != 0U;
+        D3DKMT_QUERYSTATISTICS p{};
+        p.Type = D3DKMT_QUERYSTATISTICS_PROCESS_SEGMENT;
+        p.AdapterLuid = luid;
+        p.hProcess = GetCurrentProcess();
+        p.QueryProcessSegment.SegmentId = i;
+        if (statistik(&p) != 0) { continue; }
+        const D3DKMT_QUERYSTATISTICS_PROCESS_SEGMENT_INFORMATION& ps = p.QueryResult.ProcessSegmentInformation;
+        s.nichtBevorzugt += ps.VideoMemory.AllocsResidentInNonPreferred.Count;
+        s.nichtBevorzugtBytes += ps.VideoMemory.AllocsResidentInNonPreferred.Bytes;
+        if (apertur) { s.apertur += ps.BytesCommitted; }
+    }
+    D3DKMT_QUERYSTATISTICS g{};
+    g.Type = D3DKMT_QUERYSTATISTICS_PROCESS_SEGMENT_GROUP;
+    g.AdapterLuid = luid;
+    g.hProcess = GetCurrentProcess();
+    g.QueryProcessSegmentGroup = D3DKMT_MEMORY_SEGMENT_GROUP_LOCAL;
+    if (statistik(&g) == 0) {
+        for (const UINT64 d : g.QueryResult.ProcessSegmentGroupInformation.Demoted) { s.herabgestuft += d; }
+    }
+#endif
+    return s;
+}
+
+ListenGroesse listenGroesse() {
+    ListenGroesse g;
+#ifdef BHED_WITH_D3D11
+    if (g_backend == Backend::Direct3D12) {
+        std::uint64_t h = 0;
+        std::uint64_t n = 0;
+        d3d12::listenGroesse(h, n);
+        g.hoechstens = h;
+        g.grenze = n;
+    }
+#endif
+    return g;
+}
+
 unsigned long long abgabenBisher() {
 #ifdef BHED_WITH_D3D11
     if (g_backend == Backend::Direct3D12) { return d3d12::abgabenBisher(); }

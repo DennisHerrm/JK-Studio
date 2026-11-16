@@ -41,6 +41,8 @@ HANDLE bildFrei();   // wartbare Swapchain (wie Direct3D 11, rc596)
 // D3D12-4 (Messung): die Grafikkarte des Geraets und die Zahl der Abgaben (ExecuteCommandLists) seit dem Start.
 bool karteLuid(LUID& luid);
 std::uint64_t abgabenBisher();
+// D3D12-5: die meisten Zeichenbefehle einer abgeschickten Liste und die Grenze je Liste (render::listenGroesse)
+void listenGroesse(std::uint64_t& hoechstens, std::uint64_t& grenze);
 double hauptfadenWartenMs();   // D3D12-4: Hauptfaden wartete auf Zaunwerte und den Abschickfaden, seit dem Start
 
 void newFrame();
