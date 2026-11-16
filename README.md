@@ -26,17 +26,20 @@ all four languages (Help → *Guide and tutorials*).
 
 ## Download
 
-Open the [latest release](https://github.com/DennisHerrm/JK-Studio/releases/latest)
-and, under **Assets**, download **`JK-Studio-rcNNN-windows-x64.zip`**
-(Windows 10/11, 64-bit). *Source code (zip)* and *Source code (tar.gz)* are
-for developers – they contain no program. Unzip the file (right-click →
-*Extract All…*) and start `JK-Studio/jkstudio.exe`. Nothing is installed;
-keep `jkstudio.exe` next to its `data` folder.
+Download **[`JK-Studio-Starter.exe`](https://github.com/DennisHerrm/JK-Studio/releases/latest/download/JK-Studio-Starter.exe)**
+(Windows 10/11, 64-bit, under **Assets** of the
+[latest release](https://github.com/DennisHerrm/JK-Studio/releases/latest)),
+put it into a folder of your own (for example *Documents*) and start it. It
+downloads JK Studio into a `JK-Studio` folder next to it, checks the download,
+starts the program and keeps it up to date – later updates load only what has
+changed since your version. No administrator rights, nothing is installed
+anywhere else. Start JK Studio with the starter or with `JK-Studio/jkstudio.exe`.
 
-Just want the program? **`JK-Studio-rcNNN-windows-x64.exe`** from the same
-release runs on its own: it carries its data and unpacks it to
-`%APPDATA%\jkstudio\data\base` the first time. The offline guide and the map
-compiler are only in the zip.
+Without the starter: **`JK-Studio-rcNNN-windows-x64.zip`** from the same
+release is the complete program. Unzip it (right-click → *Extract All…*) and
+start `JK-Studio/jkstudio.exe`; keep it next to its `data` folder.
+*Source code (zip)* and *Source code (tar.gz)* are for developers – they
+contain no program.
 
 Coming from BehavEd-Remake? It updates itself to JK Studio (Help → *Check for
 updates…*). Your settings move along: on the first start JK Studio copies
@@ -54,17 +57,19 @@ The warning disappears by itself once enough people have started the same file.
 
 ### Verifying a download
 
-Every release lists `SHA256SUMS.txt` with the checksums of the zip and the
-`.exe`. In PowerShell, in the folder with the download:
+Every release lists `SHA256SUMS.txt` with the checksums of all its files – the
+starter, the zip, the manifest and the update deltas. In PowerShell, in the
+folder with the download:
 
 ```
-Get-FileHash .\JK-Studio-rcNNN-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\JK-Studio-Starter.exe -Algorithm SHA256
 ```
 
 The printed hash must equal the line for that file in `SHA256SUMS.txt`
 (upper/lower case does not matter). The built-in updater does the same check
 before it changes a single file, and refuses a download whose checksum does not
-match; when a release also carries `SHA256SUMS.txt.sig`, the updater checks that
+match (the starter too, and for an update delta also every single file against the
+signed manifest); when a release also carries `SHA256SUMS.txt.sig`, the updater checks that
 signature with the key built into the program. The releases are built from the
 tagged source by GitHub Actions (`.github/workflows/release.yml`).
 

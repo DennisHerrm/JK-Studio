@@ -18,6 +18,7 @@ import inhalt_rest8  # REST8: doppelte Shadernamen - Echtzeit-Licht nach q3map2,
 import inhalt_rest9  # REST9: die Update-Leiste oben (wie im Programm G2C)
 import inhalt_cwpruef  # CW-PRUEF: Pruefungen der Clone-Wars-Kette im Optimierer, JSON-Bericht
 import inhalt_cwimport  # CW-IMPORT: Pruefprofil, Testfigur, Import mit Massstab, Clip-Werkzeuge
+import inhalt_installation  # REL-TEMPO: Starter, Updates mit Deltas, das Zip ohne Starter
 import inhalt_modell  # der Model-Tab: alle Quellen (inhalt_mb*, inhalt_ap*, ...) mit EINER Zeile je Quelle, siehe dort
 import inhalt_funktionen
 import inhalt_skript
@@ -76,6 +77,9 @@ inhalt_cwimport.einhaengen(inhalt_karte5.OPTIMIERER)
 
 SEITEN = (inhalt_start.SEITEN[:1] + inhalt_hilfe1.SEITEN + inhalt_funktionen.SEITEN + inhalt_start.SEITEN[1:] + [inhalt_skript.FENSTER] + inhalt_dock.SEITEN + inhalt_skript.SEITEN + inhalt_karte.SEITEN + inhalt_karteneditor.SEITEN + inhalt_karteneditor2.SEITEN + inhalt_kartebauen.SEITEN + inhalt_karte4.SEITEN + inhalt_bspmerge.SEITEN + inhalt_karte5.SEITEN + inhalt_karte6.SEITEN + inhalt_karte7.SEITEN + inhalt_karte8.SEITEN + inhalt_karte8b.SEITEN + inhalt_karte8g.SEITEN + inhalt_karte9.SEITEN + [inhalt_cwimport.seite()] + inhalt_menue.SEITEN + inhalt_menue3.SEITEN + inhalt_menue5.SEITEN + inhalt_menue5b.SEITEN + inhalt_menue6.SEITEN + inhalt_menue7.SEITEN +
           inhalt_mission.SEITEN + inhalt_modell.seiten() + inhalt_tutorials.SEITEN + inhalt_karte8c.SEITEN + inhalt_hilfe2.SEITEN + [inhalt_tutgeo.seite()] + inhalt_kurz.SEITEN + inhalt_kurz2.SEITEN + inhalt_kurz3.SEITEN + inhalt_referenz.SEITEN + inhalt_knoepfe.SEITEN + inhalt_befehle.SEITEN + inhalt_befehlseiten.SEITEN)
+
+# REL-TEMPO: "Installieren und aktualisieren" gleich nach "Erste Schritte"
+SEITEN.insert(next(n for n, s in enumerate(SEITEN) if s["id"] == "erste-schritte") + 1, inhalt_installation.seite())
 
 import inhalt_schritte
 inhalt_schritte.anwenden(SEITEN)

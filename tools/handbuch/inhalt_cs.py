@@ -1487,12 +1487,6 @@ TEXTE = {
         "Rozbalte, řekněte programu, kde je hra, otevřete misi. To je celé nastavení.",
     "Install":
         "Instalace",
-    "Download the latest `JK Studio-…-windows-x64.zip` from the releases page - under **Assets**, not \"Source code\", which contains no program - and unpack it into a folder of your choice, for example next to your game. Nothing is installed into Windows.":
-        "Stáhněte nejnovější `JK Studio-…-windows-x64.zip` ze stránky vydání - pod **Assets**, ne \"Source code\", který žádný program neobsahuje - a rozbalte ho do libovolné složky, například vedle hry. Do Windows se nic neinstaluje.",
-    "Start `jkstudio.exe`. At startup the program looks for a newer version on GitHub and offers it; nothing is downloaded without asking you (the switch is in **{{MenuHelp}}**).":
-        "Spusťte `jkstudio.exe`. Při spuštění program hledá na GitHubu novější verzi a nabídne ji; bez dotazu se nic nestahuje (přepínač je v **{{MenuHelp}}**).",
-    "**Just the program?** `JK Studio-…-windows-x64.exe` from the same release runs on its own: on the first start it puts its data into `%APPDATA%\\behaved\\data\\base`. The guide is only in the zip. Windows SmartScreen may warn the first time because the program is not code-signed: click **More info → Run anyway**.":
-        "**Jen program?** `JK Studio-…-windows-x64.exe` ze stejného vydání běží samostatně: při prvním spuštění uloží svá data do `%APPDATA%\\behaved\\data\\base`. Příručka je jen v zipu. Windows SmartScreen může napoprvé varovat, protože program není podepsaný: klikněte na **Další informace → Přesto spustit**.",
     "Tell it where the game is":
         "Řekněte mu, kde je hra",
     "Maps, models, sounds and the scripts of the game live in the game's `.pk3` archives. Open **{{MenuEdit}} → {{PathsTitle}}** and add the game folders with **{{Pk3AddPath}}**: first `base`, then a mod such as Movie Duels (`MD`). The bottom folder wins, exactly as `fs_game` overrides `base` in the game.":
@@ -7561,6 +7555,8 @@ from inhalt_cwpruef import CS as _CWPRUEF  # noqa: E402
 TEXTE.update(_CWPRUEF)
 from inhalt_cwimport import CS as _CWIMPORT  # noqa: E402
 TEXTE.update(_CWIMPORT)
+from inhalt_installation import CS as _INSTALLATION  # noqa: E402
+TEXTE.update(_INSTALLATION)
 from inhalt_mr4 import CS as _MR4  # noqa: E402
 TEXTE.update(_MR4)
 from inhalt_merge2 import CS as _MERGE2  # noqa: E402

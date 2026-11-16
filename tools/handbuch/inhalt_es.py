@@ -1490,12 +1490,6 @@ TEXTE = {
         "Descomprime, dile al programa dónde está el juego, abre una misión. Esa es toda la configuración.",
     "Install":
         "Instalar",
-    "Download the latest `JK Studio-…-windows-x64.zip` from the releases page - under **Assets**, not \"Source code\", which contains no program - and unpack it into a folder of your choice, for example next to your game. Nothing is installed into Windows.":
-        "Descarga el último `JK Studio-…-windows-x64.zip` de la página de versiones (en **Assets**, no \"Source code\", que no contiene ningún programa) y descomprímelo en una carpeta de tu elección, por ejemplo junto a tu juego. No se instala nada en Windows.",
-    "Start `jkstudio.exe`. At startup the program looks for a newer version on GitHub and offers it; nothing is downloaded without asking you (the switch is in **{{MenuHelp}}**).":
-        "Inicia `jkstudio.exe`. Al iniciar, el programa busca una versión más reciente en GitHub y la ofrece; no se descarga nada sin preguntarte (el interruptor está en **{{MenuHelp}}**).",
-    "**Just the program?** `JK Studio-…-windows-x64.exe` from the same release runs on its own: on the first start it puts its data into `%APPDATA%\\behaved\\data\\base`. The guide is only in the zip. Windows SmartScreen may warn the first time because the program is not code-signed: click **More info → Run anyway**.":
-        "**¿Solo el programa?** `JK Studio-…-windows-x64.exe` de la misma versión funciona por sí solo: en el primer inicio pone sus datos en `%APPDATA%\\behaved\\data\\base`. La guía solo está en el zip. Windows SmartScreen puede avisar la primera vez porque el programa no está firmado: pulsa **Más información → Ejecutar de todas formas**.",
     "Tell it where the game is":
         "Dile dónde está el juego",
     "Maps, models, sounds and the scripts of the game live in the game's `.pk3` archives. Open **{{MenuEdit}} → {{PathsTitle}}** and add the game folders with **{{Pk3AddPath}}**: first `base`, then a mod such as Movie Duels (`MD`). The bottom folder wins, exactly as `fs_game` overrides `base` in the game.":
@@ -7564,6 +7558,8 @@ from inhalt_cwpruef import ES as _CWPRUEF  # noqa: E402
 TEXTE.update(_CWPRUEF)
 from inhalt_cwimport import ES as _CWIMPORT  # noqa: E402
 TEXTE.update(_CWIMPORT)
+from inhalt_installation import ES as _INSTALLATION  # noqa: E402
+TEXTE.update(_INSTALLATION)
 from inhalt_mr4 import ES as _MR4  # noqa: E402
 TEXTE.update(_MR4)
 from inhalt_merge2 import ES as _MERGE2  # noqa: E402

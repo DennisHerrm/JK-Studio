@@ -4,6 +4,7 @@ import inhalt_kurz
 import inhalt_kurz2
 import inhalt_kurz3
 import inhalt_hilfe2  # H2: neue Tutorials mit Tour
+import inhalt_installation  # REL-TEMPO: Installieren und aktualisieren (Starter, Deltas)
 
 # Alle Kurz-Tutorials auf der Startseite (shank: "warum stehen in der
 # Tutorial-Section nur 5 Tutorials, wenn du mehr gemacht hast"): nach
@@ -136,21 +137,9 @@ SEITEN = [
             "展開して、ゲームの場所を教え、ミッションを開く。準備はそれだけです。"),
         "bloecke": [
             ("h2", "installieren", T("Install", "Installieren", "安装", "インストール")),
-            ("steps", [
-                T("Download the latest `JK Studio-…-windows-x64.zip` from the releases page - under **Assets**, not \"Source code\", which contains no program - and unpack it into a folder of your choice, for example next to your game. Nothing is installed into Windows.",
-                  "Lade die neueste `JK Studio-…-windows-x64.zip` von der Release-Seite - unter **Assets**, nicht „Source code“, darin ist kein Programm - und pack sie in einen Ordner deiner Wahl aus, etwa neben dein Spiel. In Windows wird nichts installiert.",
-                  "从发布页面下载最新的 `JK Studio-…-windows-x64.zip`(在 **Assets** 下;不要下载“Source code”,里面没有程序),解压到任意文件夹,例如游戏旁边。不会向 Windows 安装任何东西。",
-                  "リリースページから最新の `JK Studio-…-windows-x64.zip` をダウンロードし(**Assets** の下にあります。「Source code」にはプログラムが入っていません)、好きなフォルダー(例えばゲームの隣)に展開します。Windows には何もインストールされません。"),
-                T("Start `jkstudio.exe`. At startup the program looks for a newer version on GitHub and offers it; nothing is downloaded without asking you (the switch is in **{{MenuHelp}}**).",
-                  "Starte `jkstudio.exe`. Beim Start sieht das Programm auf GitHub nach einer neueren Fassung und bietet sie an; ohne Nachfrage wird nichts geladen (der Schalter steht unter **{{MenuHelp}}**).",
-                  "启动 `jkstudio.exe`。程序启动时会在 GitHub 上检查新版本并提示你;未经同意不会下载任何内容(开关位于 **{{MenuHelp}}**)。",
-                  "`jkstudio.exe` を起動します。起動時に GitHub で新しいバージョンを確認して案内します。確認なしにダウンロードすることはありません(切り替えは **{{MenuHelp}}** にあります)。"),
-            ]),
-            ("note", T(
-                "**Just the program?** `JK Studio-…-windows-x64.exe` from the same release runs on its own: on the first start it puts its data into `%APPDATA%\\behaved\\data\\base`. The guide is only in the zip. Windows SmartScreen may warn the first time because the program is not code-signed: click **More info → Run anyway**.",
-                "**Nur das Programm?** `JK Studio-…-windows-x64.exe` aus demselben Release läuft auch allein: beim ersten Start legt sie ihre Daten nach `%APPDATA%\\behaved\\data\\base`. Das Handbuch gibt es nur im Zip. Windows SmartScreen warnt beim ersten Start womöglich, weil das Programm nicht signiert ist: **Weitere Informationen → Trotzdem ausführen**.",
-                "**只需要程序?** 同一发布中的 `JK Studio-…-windows-x64.exe` 可以单独运行:首次启动时会把数据放到 `%APPDATA%\\behaved\\data\\base`。手册只在 zip 中。由于程序没有代码签名,Windows SmartScreen 首次启动时可能会警告:点击 **更多信息 → 仍要运行**。",
-                "**プログラムだけでよい場合:** 同じリリースの `JK Studio-…-windows-x64.exe` は単体で動きます。初回起動時にデータを `%APPDATA%\\behaved\\data\\base` に置きます。ガイドは zip にだけ入っています。プログラムにコード署名がないため、初回起動時に Windows SmartScreen が警告することがあります:**詳細情報 → 実行** をクリックしてください。")),
+            # REL-TEMPO: der Starter ist der eine Download (Seite installation, tools/handbuch/inhalt_installation.py)
+            ("steps", [inhalt_installation.text("schritt1"), inhalt_installation.text("schritt2")]),
+            ("note", inhalt_installation.text("hinweis")),
             ("h2", "spielordner", T("Tell it where the game is", "Den Spielordner angeben", "指定游戏文件夹", "ゲームフォルダーを指定する")),
             ("p", T(
                 "Maps, models, sounds and the scripts of the game live in the game's `.pk3` archives. Open **{{MenuEdit}} → {{PathsTitle}}** and add the game folders with **{{Pk3AddPath}}**: first `base`, then a mod such as Movie Duels (`MD`). The bottom folder wins, exactly as `fs_game` overrides `base` in the game.",

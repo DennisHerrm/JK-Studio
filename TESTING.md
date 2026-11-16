@@ -11,13 +11,13 @@ what to trust and what to poke at.
 
 ## Getting started
 
-1. From the release page, under **Assets**, take
+1. From the release page, under **Assets**, take `JK-Studio-Starter.exe`, put
+   it into a folder of your own and start it: it downloads JK Studio into
+   `JK-Studio` next to it and starts it. Or take
    `JK-Studio-rcNNN-windows-x64.zip` (not "Source code" – that has no
-   program in it). Unzip anywhere. Keep `jkstudio.exe` and the `data` folder
-   together. Or take `JK-Studio-rcNNN-windows-x64.exe` alone: it runs
-   without the zip and unpacks its data to `%APPDATA%\behaved\data\base`
-   (the guide is only in the zip).
-2. Run `jkstudio.exe`.
+   program in it), unzip anywhere and keep `jkstudio.exe` and the `data`
+   folder together.
+2. Run `jkstudio.exe` (or the starter again - it updates first).
 3. **Add a game folder first:** `Datei → In .pk3 blättern → Spielordner
    hinzufügen`, then pick any `.pk3` inside your `GameData/base`. Do the same
    for your mod folder. Without this, sounds cannot be found and you cannot
@@ -279,10 +279,18 @@ Since rc601 every release is built by GitHub Actions
 (`.github/workflows/release.yml`) when a tag `v1.0.0-rcNNN` is pushed. The run
 builds with the static C++ runtime, runs all unit tests, packs
 `JK-Studio-rcNNN-windows-x64.zip` with `tools/release_paket.py`, checks it,
-starts the standalone `JK-Studio-rcNNN-windows-x64.exe` alone in an empty
-folder with `--pruefe-daten`, and creates a **draft** release with exactly
-these three files: the zip, the standalone exe and `SHA256SUMS.txt`. The draft
-is published by hand after the GUI self-test has passed on that very exe.
+starts `jkstudio.exe` alone in an empty folder with `--pruefe-daten`, and
+creates a **draft** release. Since REL-TEMPO (15.11.2026) its files are
+`JK-Studio-Starter.exe` (the main download, a fixed name so that
+`releases/latest/download/JK-Studio-Starter.exe` always works), the zip (the
+complete program and the rescue path; older updaters install it),
+`JK-Studio-rcNNN-manifest.txt` (every file with SHA-256 and size), one
+`JK-Studio-rcNNN-from-rcMMM.delta` for each of the last three published
+releases (only what that version does not have) and `SHA256SUMS.txt` (+ `.sig`)
+over all of them. There is no standalone exe in the release any more. The build
+goes through ccache (the cache comes from the last CI run on `main`), and ctest
+runs in parallel. The draft is published by hand after the GUI self-test has
+passed on that very exe.
 
 How to make a release:
 
@@ -291,8 +299,8 @@ How to make a release:
 2. Tag and push the tag: `git tag v1.0.0-rcNNN && git push origin v1.0.0-rcNNN`.
    The tag must be `v1.0.0-<kFassung>` (the run stops otherwise), and the
    tagged commit must contain the workflow.
-3. Wait for the run. It creates the **draft** with the zip, the standalone exe
-   and `SHA256SUMS.txt`; the PDB is kept as the artifact
+3. Wait for the run. It creates the **draft** with the starter, the zip, the
+   manifest, the deltas and `SHA256SUMS.txt`; the PDB is kept as the artifact
    `JK-Studio-rcNNN-debug-symbols` for 90 days. Download the artifact
    (`gh run download <run-id> -n JK-Studio-rcNNN`) into a scratch folder
    and run the GUI self-test (mode 1) on exactly that exe, with `BHED_ABLAGE_PROBE=1`:
@@ -315,7 +323,8 @@ key is in the code but the secret is missing). Setting up the key is described i
 Never upload a hand-made zip to a release (no `gh release create` with a
 local zip, no extra `.zip` asset): older built-in updaters install the
 **first** `.zip` of the release, so a second zip can end up on users' PCs
-instead of the checked one. Never use `--prerelease` either – the updater
+instead of the checked one. That is why the update deltas are called `.delta`
+(the ctest `updater_uebergang` with `--delta-als-zip` shows what would happen otherwise). Never use `--prerelease` either – the updater
 reads `/releases/latest`, which does not show pre-releases or drafts.
 
 A dry run without a release: Actions → Release → **Run workflow** on `main`
