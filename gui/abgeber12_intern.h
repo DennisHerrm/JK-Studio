@@ -147,6 +147,7 @@ struct Block {
     unsigned char* cpu = nullptr;
     std::uint64_t groesse = 0;    // des Blocks (Groessenklasse)
     std::uint32_t klasse = ~0U;   // Groessenklasse (256 B << klasse); ~0: ein grosser Block, einzeln angelegt
+    std::uint32_t seite = ~0U;    // D3D12-5: Seite (kleine Bloecke), aus der er stammt
 };
 [[nodiscard]] Block blockNehmen(std::uint64_t groesse);
 // Ein frischer Block derselben Groesse wie `vorlage` (Map(WRITE_DISCARD): ohne die Klasse neu zu suchen).

@@ -123,7 +123,18 @@ std::map<std::string, Abtaster*> g_abtaster;
 std::map<std::string, UINT> g_abtasterPlatz;   // Deskriptor je Beschreibung, bleibt bis zum Abbau
 
 // Hochladespeicher in Bloecken
-std::vector<ID3D12Resource*> g_seiten;
+// D3D12-5: je Seite, wie viele ihrer Bloecke frei sind; eine Seite, deren Bloecke kGrossBilder Bilder lang alle frei lagen (oder
+// beim Trimmen nach dem Laden eines Levels), geht an das System zurueck. Vorher blieben Seiten fuer immer (Karten-Editor: 26-37 MB
+// freie Bloecke, Messung 16.11.).
+struct Seite {
+    ID3D12Resource* res = nullptr;   // nullptr: Platz frei (die Nummern der Bloecke bleiben gueltig)
+    std::uint32_t klasse = 0;
+    std::uint32_t frei = 0;          // Bloecke dieser Seite in g_freiKlein[klasse]
+    std::uint32_t gesamt = 0;
+    std::uint64_t leerSeit = 0;      // g_bild, seit dem alle frei sind (0: nicht leer)
+};
+std::vector<Seite> g_seiten;
+std::vector<std::uint32_t> g_seitenPlatzFrei;
 std::vector<Block> g_freiKlein[kKlassen];
 struct GrossFrei {
     std::vector<Block> bloecke;
@@ -226,6 +237,10 @@ UINT klasseFuer(std::uint64_t groesse) {
 void blockZurueck(const Block& b) {
     if (b.klasse < kKlassen) {
         g_freiKlein[b.klasse].push_back(b);
+        if (b.seite < g_seiten.size()) {
+            Seite& s = g_seiten[b.seite];
+            if (++s.frei == s.gesamt) { s.leerSeit = std::max<std::uint64_t>(g_bild, 1U); }
+        }
         return;
     }
     GrossFrei& gf = g_freiGross[b.groesse];
@@ -724,7 +739,17 @@ Block blockNehmen(std::uint64_t groesse) {
             unsigned char* cpu = nullptr;
             ID3D12Resource* seite = hochladePuffer(kSeite, &cpu);
             if (seite == nullptr) { return b; }
-            g_seiten.push_back(seite);
+            std::uint32_t nummer = static_cast<std::uint32_t>(g_seiten.size());
+            if (!g_seitenPlatzFrei.empty()) {
+                nummer = g_seitenPlatzFrei.back();
+                g_seitenPlatzFrei.pop_back();
+            } else {
+                g_seiten.emplace_back();
+            }
+            Seite& neueSeite = g_seiten[nummer];
+            neueSeite = Seite{};
+            neueSeite.res = seite;
+            neueSeite.klasse = k;
             g_zaehler.hochladeBytes += kSeite;
             const std::uint64_t va = seite->GetGPUVirtualAddress();
             const std::uint64_t schritt = kKleinsterBlock << k;
@@ -736,11 +761,18 @@ Block blockNehmen(std::uint64_t groesse) {
                 n.cpu = cpu + n.versatz;
                 n.groesse = schritt;
                 n.klasse = k;
+                n.seite = nummer;
                 frei_.push_back(n);
+                ++neueSeite.gesamt;
             }
+            neueSeite.frei = neueSeite.gesamt;
         }
         b = frei_.back();
         frei_.pop_back();
+        if (b.seite < g_seiten.size()) {
+            --g_seiten[b.seite].frei;
+            g_seiten[b.seite].leerSeit = 0;
+        }
         return b;
     }
     const std::uint64_t g = (groesse + kGrossSchritt - 1U) / kGrossSchritt * kGrossSchritt;
@@ -766,6 +798,10 @@ Block blockWieNehmen(const Block& vorlage) {
     if (vorlage.klasse < kKlassen && !g_freiKlein[vorlage.klasse].empty()) {
         const Block b = g_freiKlein[vorlage.klasse].back();
         g_freiKlein[vorlage.klasse].pop_back();
+        if (b.seite < g_seiten.size()) {
+            --g_seiten[b.seite].frei;
+            g_seiten[b.seite].leerSeit = 0;
+        }
         return b;
     }
     return blockNehmen(vorlage.groesse);
@@ -1851,8 +1887,11 @@ void abbauen() {
         }
     }
     g_wartend.clear();
-    for (ID3D12Resource* s : g_seiten) { s->Release(); }
+    for (Seite& s : g_seiten) {
+        if (s.res != nullptr) { s.res->Release(); }
+    }
     g_seiten.clear();
+    g_seitenPlatzFrei.clear();
     g_nullSeite = Block{};
     g_zaehler.hochladeBytes = 0;
     g_mischungen.clear();
@@ -2041,39 +2080,61 @@ void langesBildMelden() {
 
 Zeiten& zeitenBild() { return g_zeitenBild; }
 
+namespace {
+// D3D12-5: freie grosse Bloecke, deren Groesse lange niemand genommen hat, Puffer, die lange im Vorrat lagen, und Seiten, deren
+// Bloecke lange alle frei waren, gehen zurueck - alle Faelligen je Bild (vorher hoechstens einer: nach einem Kartenwechsel lagen
+// so Hunderte Bilder lang die Puffer der vorigen Karte im Vorrat), beim Trimmen alles Freie sofort.
+void vorraeteKuerzen(bool alles) {
+    for (auto it = g_freiGross.begin(); it != g_freiGross.end();) {
+        GrossFrei& gf = it->second;
+        const bool alt = alles || g_bild - gf.genommen > kGrossBilder;
+        while (alt && !gf.bloecke.empty()) {
+            g_zaehler.hochladeBytes -= gf.bloecke.back().groesse;
+            gf.bloecke.back().res->Release();
+            gf.bloecke.pop_back();
+        }
+        if (alt) {
+            it = g_freiGross.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    for (std::size_t i = 0; i < g_vorrat.size();) {
+        if (alles || g_bild - g_vorrat[i].bild > kVorratBilder) {
+            g_vorratJetzt -= g_vorrat[i].groesse;
+            g_vorrat[i].res->Release();
+            g_vorrat[i] = g_vorrat.back();
+            g_vorrat.pop_back();
+        } else {
+            ++i;
+        }
+    }
+    for (std::uint32_t nummer = 0; nummer < g_seiten.size(); ++nummer) {
+        Seite& s = g_seiten[nummer];
+        if (s.res == nullptr || s.leerSeit == 0U || s.frei != s.gesamt || (!alles && g_bild - s.leerSeit <= kGrossBilder)) { continue; }
+        std::vector<Block>& f = g_freiKlein[s.klasse];
+        f.erase(std::remove_if(f.begin(), f.end(), [nummer](const Block& b) { return b.seite == nummer; }), f.end());
+        s.res->Release();
+        g_zaehler.hochladeBytes -= kSeite;
+        s = Seite{};
+        g_seitenPlatzFrei.push_back(nummer);
+    }
+}
+}  // namespace
+
+void trimmen() {
+    if (!g_aktiv) { return; }
+    bloeckeEinsammeln();
+    vorraeteKuerzen(true);
+}
+
 void bildAnfang() {
     langesBildMelden();
     bloeckeEinsammeln();
     ++g_bild;
     g_gebrauchBild = static_cast<std::uint32_t>(g_bild);
     auslagernPruefen();
-    // freie grosse Bloecke, deren Groesse lange niemand genommen hat (hoechstens einer je Bild)
-    for (auto it = g_freiGross.begin(); it != g_freiGross.end(); ++it) {
-        GrossFrei& gf = it->second;
-        if (gf.bloecke.empty()) {
-            if (g_bild - gf.genommen > kGrossBilder) {
-                g_freiGross.erase(it);
-                break;
-            }
-            continue;
-        }
-        if (g_bild - gf.genommen > kGrossBilder) {
-            g_zaehler.hochladeBytes -= gf.bloecke.back().groesse;
-            gf.bloecke.back().res->Release();
-            gf.bloecke.pop_back();
-            break;
-        }
-    }
-    // Vorrat: was lange niemand genommen hat, geht zurueck (hoechstens einer je Bild)
-    for (std::size_t i = 0; i < g_vorrat.size(); ++i) {
-        if (g_bild - g_vorrat[i].bild > kVorratBilder) {
-            g_vorratJetzt -= g_vorrat[i].groesse;
-            g_vorrat[i].res->Release();
-            g_vorrat[i] = g_vorrat.back();
-            g_vorrat.pop_back();
-            break;
-        }
-    }
+    vorraeteKuerzen(false);
     protokoll::bildWechsel();
 }
 

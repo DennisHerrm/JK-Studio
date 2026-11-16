@@ -96,6 +96,9 @@ void nachAbschicken(std::uint64_t zaun);
 void bildAnfang();
 // Nur einsammeln (kein neues Bild).
 void einsammeln();
+// D3D12-5: nach dem Laden eines Levels (render::grafikTrimmenAnfordern, wie IDXGIDevice3::Trim unter Direct3D 11): leere Seiten der
+// Bloecke, freie grosse Bloecke und der Vorrat freigegebener Puffer gehen an das System zurueck.
+void trimmen();
 // Ein Eintrag des Rahmens im Bildprotokoll (abgeber12_protokoll_win32.cpp), mit einer Zeitmarke in l.
 void protokollNotiz(ID3D12GraphicsCommandList* l, const char* text);
 

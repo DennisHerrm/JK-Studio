@@ -1781,6 +1781,7 @@ void trimmen() {
     wartenAuf(g_zaunWert);
     einsammeln();
     abgeber::einsammeln();
+    abgeber::trimmen();   // D3D12-5: leere Seiten der Bloecke, freie grosse Bloecke, Vorrat freigegebener Puffer
     unterwegsEinsammeln();
     vorratKuerzen(true);
 }
