@@ -68,6 +68,8 @@ struct Statistik {
     std::uint64_t hochladePuffer = 0;   // dafuer angelegte Hochladepuffer
     std::uint64_t hochladeJetzt = 0;    // Bytes der Hochladepuffer, die die Bildplaetze gerade halten
     std::uint64_t spaeter = 0;          // Objekte, die auf ihren Zaunwert warten (noch nicht freigegeben)
+    std::uint64_t speicherGenommen = 0; // D3D12-5: Befehlsspeicher fuer eine neue Liste genommen (Reset oder angelegt)
+    double speicherMs = 0.0;            // D3D12-5: Zeit dafuer (Reset, Anlegen, Warten)
 };
 [[nodiscard]] Statistik statistik();
 
@@ -143,6 +145,8 @@ struct Zaehler {
     std::uint64_t langeBilder = 0;    // Bilder ueber der Grenze (BHED_D3D12_LANGBILD)
     std::uint64_t listeHoechstens = 0;   // D3D12-5: die meisten Zeichenbefehle (und UpdateSubresource) einer abgeschickten Liste
     std::uint64_t listeGrenze = 0;       // D3D12-5: die Grenze je Liste (BHED_D3D12_LISTE; 0: keine)
+    double kuerzenHoechstMs = 0.0;       // D3D12-5: laengste Zeit eines Bildes fuer das Zurueckgeben der Vorraete (ohne Trimmen)
+    double kuerzenGrenzeMs = 0.0;        // D3D12-5: die Grenze dafuer je Bild (BHED_D3D12_KUERZEN_MS; 0: keine)
 };
 [[nodiscard]] Zaehler zaehler();
 // Was der Abgeber belegt, als Zeilen fuer das Protokoll (Grafikspeicher und Arbeitsspeicher nach Art, die groessten Texturen).

@@ -43,6 +43,8 @@ bool karteLuid(LUID& luid);
 std::uint64_t abgabenBisher();
 // D3D12-5: die meisten Zeichenbefehle einer abgeschickten Liste und die Grenze je Liste (render::listenGroesse)
 void listenGroesse(std::uint64_t& hoechstens, std::uint64_t& grenze);
+// D3D12-5: laengste Zeit eines Bildes fuer das Zurueckgeben der Vorraete und die Grenze je Bild (render::kuerzenZeit)
+void kuerzenZeit(double& hoechstMs, double& grenzeMs);
 double hauptfadenWartenMs();   // D3D12-4: Hauptfaden wartete auf Zaunwerte und den Abschickfaden, seit dem Start
 
 void newFrame();

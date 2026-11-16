@@ -23,12 +23,15 @@
 #include "abgeber12_intern.h"
 
 #include <algorithm>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <map>
+#include <mutex>
 #include <set>
+#include <thread>
 #include <unordered_set>
 
 #include <dxgi1_4.h>
@@ -42,6 +45,7 @@ std::atomic<std::uint64_t> g_lebendJetzt{0};
 long long g_teilAbgabe = 0;
 int g_teilAbgabenMax = 4;
 std::uint32_t g_listeBefehle = 8192;
+double g_kuerzenMs = 0.5;
 bool g_markenArbeitsuhr = true;
 std::uint32_t g_naechsteKennung = 0;
 std::uint32_t g_generation = 0;
@@ -132,10 +136,94 @@ struct Seite {
     std::uint32_t frei = 0;          // Bloecke dieser Seite in g_freiKlein[klasse]
     std::uint32_t gesamt = 0;
     std::uint64_t leerSeit = 0;      // g_bild, seit dem alle frei sind (0: nicht leer)
+    std::uint32_t gen = 0;           // erhoeht beim Zurueckgeben: Bloecke mit anderer Generation in g_freiKlein sind alt
 };
 std::vector<Seite> g_seiten;
 std::vector<std::uint32_t> g_seitenPlatzFrei;
 std::vector<Block> g_freiKlein[kKlassen];
+std::uint64_t g_freiKleinAlt[kKlassen] = {};   // D3D12-5: davon Bloecke zurueckgegebener Seiten (werden beim Nehmen uebersprungen)
+
+// D3D12-5: Freigabefaden - Release der Ressourcen, die vorraeteKuerzen an das System zurueckgibt. Im Hauptfaden kostete ein
+// einzelnes Release gelegentlich 8,7-9,5 ms im Systemkern (sonst ~0,1 ms).
+std::mutex g_freigabeSperre;
+std::condition_variable g_freigabeSignal;
+std::vector<ID3D12Resource*> g_freigabeListe;
+bool g_freigabeEnde = false;
+void freigabeFadenBeenden();
+// Wie VorFaden (backend_d3d12_win32.cpp): beim Prozessende darf kein laufender std::thread zerstoert werden (std::terminate) -
+// die Huelle beendet ihn, falls abbauen() nicht mehr kam. Steht nach Sperre, Signal und Liste: wird vor ihnen zerstoert.
+struct FreigabeFaden {
+    std::thread faden;
+    FreigabeFaden() = default;
+    FreigabeFaden(const FreigabeFaden&) = delete;
+    FreigabeFaden& operator=(const FreigabeFaden&) = delete;
+    ~FreigabeFaden() { freigabeFadenBeenden(); }
+};
+FreigabeFaden g_freigabe;
+std::thread& g_freigabeFaden = g_freigabe.faden;
+
+void freigabeFadenLauf() {
+    (void)SetThreadDescription(GetCurrentThread(), L"D3D12 Freigabe");
+    for (;;) {
+        std::vector<ID3D12Resource*> jetzt;
+        {
+            std::unique_lock<std::mutex> sperre(g_freigabeSperre);
+            g_freigabeSignal.wait(sperre, [] { return g_freigabeEnde || !g_freigabeListe.empty(); });
+            if (g_freigabeListe.empty()) { return; }   // nur bei Ende
+            jetzt.swap(g_freigabeListe);
+        }
+        for (ID3D12Resource* r : jetzt) { r->Release(); }
+    }
+}
+
+void freigabeFadenStarten() {
+    if (g_freigabeFaden.joinable()) { return; }
+    // BHED_D3D12_FREIGABEFADEN=0: ohne Faden, Release im Hauptfaden (Gegenprobe fuer Messungen und den Selbsttest)
+    if (const char* v = std::getenv("BHED_D3D12_FREIGABEFADEN"); v != nullptr && v[0] == '0') { return; }
+    g_freigabeEnde = false;
+    g_freigabeFaden = std::thread(freigabeFadenLauf);
+}
+
+// Leert die Liste (der Faden gibt den Rest frei) und wartet auf ihn.
+void freigabeFadenBeenden() {
+    if (!g_freigabeFaden.joinable()) { return; }
+    {
+        const std::lock_guard<std::mutex> sperre(g_freigabeSperre);
+        g_freigabeEnde = true;
+    }
+    g_freigabeSignal.notify_one();
+    g_freigabeFaden.join();
+}
+
+// Eine nicht mehr gebrauchte Ressource an den Freigabefaden (ohne Faden: sofort).
+void spaeterLoslassen(ID3D12Resource* r) {
+    if (!g_freigabeFaden.joinable()) {
+        r->Release();
+        return;
+    }
+    {
+        const std::lock_guard<std::mutex> sperre(g_freigabeSperre);
+        g_freigabeListe.push_back(r);
+    }
+    g_freigabeSignal.notify_one();
+}
+
+// D3D12-5: gehoert der Block noch zu einer lebenden Seite? (Bloecke einer zurueckgegebenen Seite bleiben in der Freiliste, bis sie
+// beim Nehmen vorbeikommen - so muss das Zurueckgeben die Liste nicht durchsuchen.)
+bool blockGueltig(const Block& b) {
+    if (b.seite >= g_seiten.size()) { return true; }
+    const Seite& s = g_seiten[b.seite];
+    return s.res != nullptr && s.gen == b.seiteGen;
+}
+
+// Alte Bloecke oben auf der Freiliste der Klasse wegraeumen.
+void freiKleinAufraeumen(UINT k) {
+    std::vector<Block>& f = g_freiKlein[k];
+    while (!f.empty() && !blockGueltig(f.back())) {
+        f.pop_back();
+        --g_freiKleinAlt[k];
+    }
+}
 struct GrossFrei {
     std::vector<Block> bloecke;
     std::uint64_t genommen = 0;   // Bild, in dem zuletzt einer dieser Groesse genommen oder zurueckgegeben wurde
@@ -735,7 +823,10 @@ Block blockNehmen(std::uint64_t groesse) {
     if (groesse <= (kKleinsterBlock << (kKlassen - 1U))) {
         const UINT k = klasseFuer(groesse);
         std::vector<Block>& frei_ = g_freiKlein[k];
+        freiKleinAufraeumen(k);
         if (frei_.empty()) {
+            const Stoppuhr uhr(zeitenBild().seitenMs);
+            ++zeitenBild().seiten;
             unsigned char* cpu = nullptr;
             ID3D12Resource* seite = hochladePuffer(kSeite, &cpu);
             if (seite == nullptr) { return b; }
@@ -747,7 +838,9 @@ Block blockNehmen(std::uint64_t groesse) {
                 g_seiten.emplace_back();
             }
             Seite& neueSeite = g_seiten[nummer];
+            const std::uint32_t gen = neueSeite.gen;
             neueSeite = Seite{};
+            neueSeite.gen = gen;
             neueSeite.res = seite;
             neueSeite.klasse = k;
             g_zaehler.hochladeBytes += kSeite;
@@ -762,6 +855,7 @@ Block blockNehmen(std::uint64_t groesse) {
                 n.groesse = schritt;
                 n.klasse = k;
                 n.seite = nummer;
+                n.seiteGen = gen;
                 frei_.push_back(n);
                 ++neueSeite.gesamt;
             }
@@ -795,6 +889,7 @@ Block blockNehmen(std::uint64_t groesse) {
 }
 
 Block blockWieNehmen(const Block& vorlage) {
+    if (vorlage.klasse < kKlassen) { freiKleinAufraeumen(vorlage.klasse); }
     if (vorlage.klasse < kKlassen && !g_freiKlein[vorlage.klasse].empty()) {
         const Block b = g_freiKlein[vorlage.klasse].back();
         g_freiKlein[vorlage.klasse].pop_back();
@@ -1735,6 +1830,7 @@ bool anlegen() {
     ++g_generation;   // was die Zeichenschichten vom frueheren Geraet noch halten, gehoert nicht zu diesem Abgeber
     g_lebendJetzt = 0;
     g_faden = GetCurrentThreadId();
+    freigabeFadenStarten();
     g_wurzel = wurzelAnlegen();
     g_zielStapel = stapel(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, kZielSichten + 1U, false);   // der letzte: hilfsZiel
     g_tiefeStapel = stapel(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, kTiefeSichten, false);
@@ -1763,6 +1859,8 @@ bool anlegen() {
         if (const char* v = std::getenv("BHED_D3D12_TEILABGABEN"); v != nullptr && v[0] != '\0') { g_teilAbgabenMax = std::atoi(v); }
         g_listeBefehle = 8192;
         if (const char* v = std::getenv("BHED_D3D12_LISTE"); v != nullptr && v[0] != '\0') { g_listeBefehle = static_cast<std::uint32_t>(std::strtoul(v, nullptr, 10)); }
+        g_kuerzenMs = 0.5;
+        if (const char* v = std::getenv("BHED_D3D12_KUERZEN_MS"); v != nullptr && v[0] != '\0') { g_kuerzenMs = std::strtod(v, nullptr); }
         const char* m = std::getenv("BHED_D3D12_MARKEN");
         g_markenArbeitsuhr = m == nullptr || std::strcmp(m, "roh") != 0;
     }
@@ -1847,6 +1945,7 @@ bool anlegen() {
 }
 
 void abbauen() {
+    freigabeFadenBeenden();   // D3D12-5: was er noch haelt, ist danach freigegeben
     if (g_kontext != nullptr) { g_kontext->allesLoesen(); }
     psoAbbauen();
     protokoll::abbauen();
@@ -1860,6 +1959,7 @@ void abbauen() {
     g_markenOffen.clear();
     g_markeNaechste = 0;
     for (auto& k : g_freiKlein) { k.clear(); }
+    for (auto& a : g_freiKleinAlt) { a = 0; }
     for (auto& [g, gf] : g_freiGross) {
         (void)g;
         for (Block& b : gf.bloecke) { b.res->Release(); }
@@ -2061,16 +2161,18 @@ void langesBildMelden() {
     g_zaehler.psoAusSpeicher += z.psoAusSpeicher;
     if (ms >= g_langBildMs && g_langBildMs > 0.0) {
         ++g_zaehler.langeBilder;
-        char t[560];
+        char t[760];
         std::snprintf(t, sizeof(t),
                       "D3D12: langes Bild %.0f ms - im Abgeber: Pipeline-Zustaende %u (%u aus dem Zwischenspeicher) %.1f ms, Texturen %u / %.1f MB %.1f ms, "
                       "Puffer %u %.1f ms, zurueckgeholt %u / %.1f MB %.1f ms, ausgelagert %.1f ms, auf die Grafikkarte gewartet %llu-mal %.1f ms, "
-                      "%llu Hochladepuffer angelegt, %llu-mal abgeschickt",
+                      "%llu Hochladepuffer angelegt, %llu-mal abgeschickt, Vorraete gekuerzt %u / %.1f ms (Release %.1f ms, laengstes %.1f), Seiten angelegt %u / %.1f ms, "
+                      "Befehlsspeicher %llu / %.1f ms",
                       ms, z.pso, z.psoAusSpeicher, z.psoMs, z.textur, static_cast<double>(z.texturBytes) / 1048576.0, z.texturMs, z.puffer, z.pufferMs,
                       z.einlagern, static_cast<double>(z.einlagernBytes) / 1048576.0, z.einlagernMs, z.auslagernMs,
                       static_cast<unsigned long long>(st.gewartet - g_statistikBild.gewartet), st.warteMs - g_statistikBild.warteMs,
                       static_cast<unsigned long long>(st.hochladePuffer - g_statistikBild.hochladePuffer),
-                      static_cast<unsigned long long>(st.abgeschickt - g_statistikBild.abgeschickt));
+                      static_cast<unsigned long long>(st.abgeschickt - g_statistikBild.abgeschickt), z.gekuerzt, z.kuerzenMs, z.releaseMs, z.releaseHoechstMs, z.seiten, z.seitenMs,
+                      static_cast<unsigned long long>(st.speicherGenommen - g_statistikBild.speicherGenommen), st.speicherMs - g_statistikBild.speicherMs);
         diag::detail(t);
     }
     g_statistikBild = st;
@@ -2082,16 +2184,35 @@ Zeiten& zeitenBild() { return g_zeitenBild; }
 
 namespace {
 // D3D12-5: freie grosse Bloecke, deren Groesse lange niemand genommen hat, Puffer, die lange im Vorrat lagen, und Seiten, deren
-// Bloecke lange alle frei waren, gehen zurueck - alle Faelligen je Bild (vorher hoechstens einer: nach einem Kartenwechsel lagen
-// so Hunderte Bilder lang die Puffer der vorigen Karte im Vorrat), beim Trimmen alles Freie sofort.
-void vorraeteKuerzen(bool alles) {
+// Bloecke lange alle frei waren, gehen zurueck - je Bild so viele, wie in g_kuerzenMs passen (vorher hoechstens einer: nach einem
+// Kartenwechsel lagen so Hunderte Bilder lang die Puffer der vorigen Karte im Vorrat; alle auf einmal kosteten bis 35 ms in einem
+// Bild), beim Trimmen alles Freie sofort.
+void vorraeteKuerzenTeil(bool alles, const LARGE_INTEGER& anfang) {
+    const auto zeitUm = [&]() {
+        if (alles || g_kuerzenMs <= 0.0) { return false; }
+        LARGE_INTEGER jetzt{};
+        QueryPerformanceCounter(&jetzt);
+        return static_cast<double>(jetzt.QuadPart - anfang.QuadPart) * g_msJeTakt >= g_kuerzenMs;
+    };
+    const auto loslassen = [](ID3D12Resource* r) {
+        LARGE_INTEGER a{};
+        LARGE_INTEGER e{};
+        QueryPerformanceCounter(&a);
+        spaeterLoslassen(r);
+        QueryPerformanceCounter(&e);
+        const double ms = static_cast<double>(e.QuadPart - a.QuadPart) * g_msJeTakt;
+        g_zeitenBild.releaseMs += ms;
+        g_zeitenBild.releaseHoechstMs = std::max(g_zeitenBild.releaseHoechstMs, ms);
+    };
     for (auto it = g_freiGross.begin(); it != g_freiGross.end();) {
         GrossFrei& gf = it->second;
         const bool alt = alles || g_bild - gf.genommen > kGrossBilder;
         while (alt && !gf.bloecke.empty()) {
+            if (zeitUm()) { return; }
             g_zaehler.hochladeBytes -= gf.bloecke.back().groesse;
-            gf.bloecke.back().res->Release();
+            loslassen(gf.bloecke.back().res);
             gf.bloecke.pop_back();
+            ++g_zeitenBild.gekuerzt;
         }
         if (alt) {
             it = g_freiGross.erase(it);
@@ -2101,8 +2222,10 @@ void vorraeteKuerzen(bool alles) {
     }
     for (std::size_t i = 0; i < g_vorrat.size();) {
         if (alles || g_bild - g_vorrat[i].bild > kVorratBilder) {
+            if (zeitUm()) { return; }
             g_vorratJetzt -= g_vorrat[i].groesse;
-            g_vorrat[i].res->Release();
+            loslassen(g_vorrat[i].res);
+            ++g_zeitenBild.gekuerzt;
             g_vorrat[i] = g_vorrat.back();
             g_vorrat.pop_back();
         } else {
@@ -2112,13 +2235,28 @@ void vorraeteKuerzen(bool alles) {
     for (std::uint32_t nummer = 0; nummer < g_seiten.size(); ++nummer) {
         Seite& s = g_seiten[nummer];
         if (s.res == nullptr || s.leerSeit == 0U || s.frei != s.gesamt || (!alles && g_bild - s.leerSeit <= kGrossBilder)) { continue; }
-        std::vector<Block>& f = g_freiKlein[s.klasse];
-        f.erase(std::remove_if(f.begin(), f.end(), [nummer](const Block& b) { return b.seite == nummer; }), f.end());
-        s.res->Release();
+        if (zeitUm()) { return; }
+        // ihre Bloecke (alle frei) bleiben als alt in der Freiliste: kein Durchsuchen
+        g_freiKleinAlt[s.klasse] += s.gesamt;
+        loslassen(s.res);
+        ++g_zeitenBild.gekuerzt;
         g_zaehler.hochladeBytes -= kSeite;
+        const std::uint32_t gen = s.gen + 1U;
         s = Seite{};
+        s.gen = gen;
         g_seitenPlatzFrei.push_back(nummer);
     }
+}
+
+void vorraeteKuerzen(bool alles) {
+    LARGE_INTEGER anfang{};
+    QueryPerformanceCounter(&anfang);
+    vorraeteKuerzenTeil(alles, anfang);
+    LARGE_INTEGER ende{};
+    QueryPerformanceCounter(&ende);
+    const double ms = static_cast<double>(ende.QuadPart - anfang.QuadPart) * g_msJeTakt;
+    g_zeitenBild.kuerzenMs += ms;
+    if (!alles) { g_zaehler.kuerzenHoechstMs = std::max(g_zaehler.kuerzenHoechstMs, ms); }
 }
 }  // namespace
 
@@ -2275,7 +2413,7 @@ std::vector<std::string> speicherBericht(std::uint64_t& summe) {
         }
     }
     std::uint64_t frei_ = 0;
-    for (UINT k = 0; k < kKlassen; ++k) { frei_ += g_freiKlein[k].size() * (kKleinsterBlock << k); }
+    for (UINT k = 0; k < kKlassen; ++k) { frei_ += (g_freiKlein[k].size() - g_freiKleinAlt[k]) * (kKleinsterBlock << k); }
     for (const auto& [g, gf] : g_freiGross) { frei_ += g * gf.bloecke.size(); }
     std::uint64_t wartend = 0;
     for (const Block& b : g_offen) { wartend += b.groesse; }
@@ -2369,6 +2507,7 @@ std::vector<std::string> speicherZeilen() {
 Zaehler zaehler() {
     Zaehler z = g_zaehler;
     z.listeGrenze = g_listeBefehle;
+    z.kuerzenGrenzeMs = g_kuerzenMs;
     z.lebend = g_lebend.load();
     z.lebendFrueher = z.lebend - g_lebendJetzt.load();
     return z;

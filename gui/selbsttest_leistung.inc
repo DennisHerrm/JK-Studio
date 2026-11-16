@@ -709,6 +709,17 @@ inline std::vector<Schritt> schritte() {
                     meldeFehler(std::string("Leistung: eine Befehlsliste ueber der Grenze (") + z + ")");
                 }
             }));
+            // D3D12-5: das Zurueckgeben der Vorraete verteilt sich auf mehrere Bilder, das Release macht ein eigener Faden - beim
+            // Umschalten auf "mit Halmen" und "mit Effekten" wurden Hunderte Puffer zugleich faellig, alle in einem Bild kosteten bis
+            // 38 ms, ein einzelnes Release im Hauptfaden gelegentlich 9 ms (Rot: BHED_D3D12_KUERZEN_MS=0 BHED_D3D12_FREIGABEFADEN=0)
+            add(tu("Leistung: Vorraete ohne lange Bilder", [] {
+                const render::KuerzenZeit k = render::kuerzenZeit();
+                if (!k.gueltig) { return; }
+                char z[200];
+                std::snprintf(z, sizeof(z), "Leistung: Vorraete zurueckgeben | hoechstens %.2f ms in einem Bild, Grenze %.2f ms", k.hoechstMs, k.grenzeMs);
+                diag::detail(z);
+                if (k.grenzeMs <= 0.0 || k.hoechstMs > 5.0) { meldeFehler(std::string("Leistung: Vorraete zurueckgeben kostete ein langes Bild (") + z + ")"); }
+            }));
             add(tu("Leistung: Editor leeren", [] {
                 ke::Editor& e = ke::editor();
                 e.echtLicht.an = false;

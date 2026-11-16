@@ -1301,6 +1301,17 @@ ListenGroesse listenGroesse() {
     return g;
 }
 
+KuerzenZeit kuerzenZeit() {
+    KuerzenZeit k;
+#ifdef BHED_WITH_D3D11
+    if (g_backend == Backend::Direct3D12) {
+        d3d12::kuerzenZeit(k.hoechstMs, k.grenzeMs);
+        k.gueltig = true;
+    }
+#endif
+    return k;
+}
+
 unsigned long long abgabenBisher() {
 #ifdef BHED_WITH_D3D11
     if (g_backend == Backend::Direct3D12) { return d3d12::abgabenBisher(); }

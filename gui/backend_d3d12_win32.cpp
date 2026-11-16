@@ -641,7 +641,22 @@ ID3D12CommandAllocator* g_hauptSpeicher = nullptr;   // der Speicher der offenen
 ID3D12CommandAllocator* g_vorSpeicher = nullptr;     // ... und der offenen Vor-Liste
 std::uint64_t g_speicherAngelegt = 0;
 
+ID3D12CommandAllocator* speicherNehmenOhneUhr();
+
 ID3D12CommandAllocator* speicherNehmen() {
+    LARGE_INTEGER t0{};
+    LARGE_INTEGER t1{};
+    LARGE_INTEGER f{};
+    QueryPerformanceCounter(&t0);
+    ID3D12CommandAllocator* s = speicherNehmenOhneUhr();
+    QueryPerformanceCounter(&t1);
+    QueryPerformanceFrequency(&f);
+    ++g_statistik.speicherGenommen;
+    g_statistik.speicherMs += static_cast<double>(t1.QuadPart - t0.QuadPart) * 1000.0 / static_cast<double>(f.QuadPart);
+    return s;
+}
+
+ID3D12CommandAllocator* speicherNehmenOhneUhr() {
     for (;;) {
         while (!g_speicherUnterwegs.empty() && (g_zaun == nullptr || geraetWeg() || g_zaun->GetCompletedValue() >= g_speicherUnterwegs.front().zaun)) {
             ID3D12CommandAllocator* s = g_speicherUnterwegs.front().speicher;
@@ -1593,6 +1608,11 @@ void listenGroesse(std::uint64_t& hoechstens, std::uint64_t& grenze) {
     const abgeber::Zaehler z = abgeber::zaehler();
     hoechstens = z.listeHoechstens;
     grenze = z.listeGrenze;
+}
+void kuerzenZeit(double& hoechstMs, double& grenzeMs) {
+    const abgeber::Zaehler z = abgeber::zaehler();
+    hoechstMs = z.kuerzenHoechstMs;
+    grenzeMs = z.kuerzenGrenzeMs;
 }
 double hauptfadenWartenMs() { return g_statistik.warteMs + g_statistik.abwartenMs; }
 

@@ -41,5 +41,14 @@ struct ListenGroesse {
 };
 [[nodiscard]] ListenGroesse listenGroesse();
 
+// D3D12-5: Direct3D 12 - die laengste Zeit eines Bildes fuer das Zurueckgeben der Vorraete an das System seit dem Start (ohne das
+// Trimmen nach dem Laden) und die Grenze je Bild (BHED_D3D12_KUERZEN_MS, 0: keine). Unter Direct3D 11 gueltig = false.
+struct KuerzenZeit {
+    bool gueltig = false;
+    double hoechstMs = 0.0;
+    double grenzeMs = 0.0;
+};
+[[nodiscard]] KuerzenZeit kuerzenZeit();
+
 }  // namespace bhed::render
 #endif

@@ -51,6 +51,10 @@ extern int g_teilAbgabenMax;
 // der Treiber danach behaelt (rahmen: Befehlsspeicher im Kreis). Die gemessenen Ansichten haben hoechstens 4768 je Bild - sie gehen
 // ungeteilt ab wie bisher. BHED_D3D12_LISTE=<n> (0: ohne Grenze, zum Vergleichen).
 extern std::uint32_t g_listeBefehle;
+// D3D12-5: so viel Zeit je Bild fuer das Zurueckgeben der Vorraete (Millisekunden, mindestens eine Freigabe; BHED_D3D12_KUERZEN_MS,
+// 0 = ohne Grenze). Ein Release kostet im Systemkern ~0,09 ms; nach dem Umschalten im Karten-Editor wurden 153 bzw. 382 auf einmal
+// faellig (13,6 / 34,9 ms in einem Bild).
+extern double g_kuerzenMs;
 // D3D12-4: Zeitmarken (GetData) ohne den Leerlauf der Grafikkarte zwischen den Abgaben (rahmen::leerlaufBis) - so misst die
 // Strecke zwischen zwei Marken, was die Grafikkarte dazwischen gerechnet hat, auch ueber eine Teilabgabe hinweg.
 // BHED_D3D12_MARKEN=roh: die Zeitmarken wie geschrieben (Leerlauf zwischen den Teilen zaehlt mit).
@@ -148,6 +152,7 @@ struct Block {
     std::uint64_t groesse = 0;    // des Blocks (Groessenklasse)
     std::uint32_t klasse = ~0U;   // Groessenklasse (256 B << klasse); ~0: ein grosser Block, einzeln angelegt
     std::uint32_t seite = ~0U;    // D3D12-5: Seite (kleine Bloecke), aus der er stammt
+    std::uint32_t seiteGen = 0;   // D3D12-5: Generation der Seite beim Anlegen (anders: Seite inzwischen zurueckgegeben)
 };
 [[nodiscard]] Block blockNehmen(std::uint64_t groesse);
 // Ein frischer Block derselben Groesse wie `vorlage` (Map(WRITE_DISCARD): ohne die Klasse neu zu suchen).
@@ -426,6 +431,12 @@ struct Zeiten {
     std::uint32_t einlagern = 0;
     std::uint64_t einlagernBytes = 0;
     std::uint64_t texturBytes = 0;   // Anfangsdaten
+    double kuerzenMs = 0.0;          // D3D12-5: Vorraete kuerzen (Bloecke, Puffer, Seiten an das System zurueck)
+    double seitenMs = 0.0;           // D3D12-5: neue Seiten fuer kleine Bloecke anlegen
+    std::uint32_t gekuerzt = 0;      // davon zurueckgegeben (Stueck)
+    double releaseMs = 0.0;          // davon fuer das Uebergeben an den Freigabefaden (vorher: Release im Systemkern)
+    double releaseHoechstMs = 0.0;   // das laengste einzelne Uebergeben
+    std::uint32_t seiten = 0;        // davon angelegt (Stueck)
 };
 [[nodiscard]] Zeiten& zeitenBild();
 extern double g_msJeTakt;   // Millisekunden je Takt von QueryPerformanceCounter
