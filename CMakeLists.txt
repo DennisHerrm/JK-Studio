@@ -922,6 +922,11 @@ if(BEHAVED_TESTS)
     target_link_libraries(uebergangtest PRIVATE bhed_core winhttp)
     # der Code von rc604 ruft std::filesystem::u8path (C++20: veraltet) - so wie er war
     target_compile_definitions(uebergangtest PRIVATE _SILENCE_CXX20_U8PATH_DEPRECATION_WARNING)
+    # REL-TEMPO: ebenso der Updater von rc612 (git 348f0e345, rc606-rc612) - tests/uebergang/alt612_*.inc aus
+    # tools/karte/gen_uebergang612.py; holt das Release im neuen Format (Starter, Manifest, Deltas neben dem .zip)
+    add_executable(uebergangtest612 tests/uebergangtest612.cpp)
+    target_include_directories(uebergangtest612 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/gui ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+    target_link_libraries(uebergangtest612 PRIVATE bhed_core winhttp bcrypt)
   endif()
   # rc601 tour: die Tutorials im Programm ohne Oberflaeche - Kennung <-> Text,
   # JSON, Tourdaten, Zielangaben, Schrittfolge, Fortschritt, Suche. Das
@@ -1340,7 +1345,8 @@ if(BEHAVED_TESTS)
       if(TARGET uebergangtest)
         add_test(NAME updater_uebergang
                  COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/updater_uebergang.py
-                         $<TARGET_FILE:behaved> $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe $<TARGET_FILE:uebergangtest>)
+                         $<TARGET_FILE:behaved> $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe $<TARGET_FILE:uebergangtest>
+                         --rc612 $<TARGET_FILE:uebergangtest612>)
         set_tests_properties(updater_uebergang PROPERTIES TIMEOUT 900)
       endif()
       # Stufe 6: die Regressionsfaelle aus NRC-PR #316 (regression_tests/auto-pigeon des Forks

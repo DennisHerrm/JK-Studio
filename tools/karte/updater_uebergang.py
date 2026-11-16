@@ -22,7 +22,17 @@ Mit --ohne-uebergang baut der Test ein Paket OHNE behaved.exe (eine schlichte Um
 - dann muessen A und B scheitern (die Rot-Probe: der alte Updater fasst die laufende
 .exe nicht an, die Installation bliebe alt und boete das Update ewig an).
 
-  updater_uebergang.py <jkstudio.exe> <bhed_q3map2.exe> <uebergangtest.exe> [--ohne-uebergang]
+REL-TEMPO: das Release hat das neue Format - zuerst JK-Studio-Starter.exe, ein Delta (ohne .zip-Endung) und das
+Manifest, dann das einzige .zip, dazu eine echte SHA256SUMS.txt; keine eigenstaendige .exe mehr. Mit --rc612 dazu der
+Updater von rc612 (tests/uebergangtest612.cpp, Code aus git 348f0e345, er prueft gegen SHA256SUMS.txt):
+
+  C  Ordner-Installation jkstudio.exe (rc612) mit data\\base -> danach die neue jkstudio.exe, data, handbuch,
+     version.txt; jkstudio.exe.alt ist die alte; die neue laeuft (--pruefe-daten, 0)
+  D  eigenstaendige JK-Studio-rc612-windows-x64.exe -> nur sie wird neu, daneben nur die .alt
+
+Mit --delta-als-zip heisst das Delta .zip (die Rot-Probe: dann nimmt rc612 das Delta statt des Pakets, C und D scheitern).
+
+  updater_uebergang.py <jkstudio.exe> <bhed_q3map2.exe> <uebergangtest.exe> [--rc612 <uebergangtest612.exe>] [--ohne-uebergang] [--delta-als-zip]
 """
 import hashlib
 import http.server
@@ -54,7 +64,8 @@ class Server(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
 
-def server_starten(zip_bytes):
+def server_starten(zip_bytes, neben):
+    """neben: {Name: Bytes} - die anderen Dateien des Releases (Starter, Delta, Manifest, SHA256SUMS.txt)."""
     anfragen = []
 
     class H(http.server.BaseHTTPRequestHandler):
@@ -70,19 +81,20 @@ def server_starten(zip_bytes):
                 self.send_header('Content-Length', '0')
                 self.end_headers()
                 return
-            if self.path == '/repositories/4711/releases/latest':
+            # REL-TEMPO: rc606 bis rc612 fragen schon den neuen Namen direkt
+            if self.path in ('/repositories/4711/releases/latest', '/repos/DennisHerrm/JK-Studio/releases/latest'):
                 dl = basis + '/DennisHerrm/JK-Studio/releases/download/%s/' % TAG
                 text = json.dumps({
                     'url': basis + '/repos/DennisHerrm/JK-Studio/releases/1', 'tag_name': TAG, 'name': 'JK Studio 1.0.0-' + RC,
                     'html_url': 'https://github.com/DennisHerrm/JK-Studio/releases/tag/' + TAG, 'draft': False, 'prerelease': False,
                     'body': 'JK Studio test release',
-                    'assets': [
+                    # REL-TEMPO: das .zip NICHT zuerst - davor Starter, Delta, Manifest (der alte Updater sucht das erste .zip)
+                    'assets': [{'url': basis + '/repos/DennisHerrm/JK-Studio/releases/assets/%d' % (i + 10), 'name': n, 'size': len(b),
+                                'browser_download_url': dl + n} for i, (n, b) in enumerate(neben.items()) if n != 'SHA256SUMS.txt'] + [
                         {'url': basis + '/repos/DennisHerrm/JK-Studio/releases/assets/1', 'name': ZIPNAME, 'size': len(zip_bytes),
                          'browser_download_url': dl + ZIPNAME},
-                        {'url': basis + '/repos/DennisHerrm/JK-Studio/releases/assets/2', 'name': 'JK-Studio-%s-windows-x64.exe' % RC,
-                         'size': 1, 'browser_download_url': dl + 'JK-Studio-%s-windows-x64.exe' % RC},
-                        {'url': basis + '/repos/DennisHerrm/JK-Studio/releases/assets/3', 'name': 'SHA256SUMS.txt', 'size': 1,
-                         'browser_download_url': dl + 'SHA256SUMS.txt'}]}).encode('utf-8')
+                        {'url': basis + '/repos/DennisHerrm/JK-Studio/releases/assets/3', 'name': 'SHA256SUMS.txt',
+                         'size': len(neben['SHA256SUMS.txt']), 'browser_download_url': dl + 'SHA256SUMS.txt'}]}).encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Content-Length', str(len(text)))
@@ -102,6 +114,14 @@ def server_starten(zip_bytes):
                 self.end_headers()
                 self.wfile.write(zip_bytes)
                 return
+            for n, b in neben.items():
+                if self.path == '/DennisHerrm/JK-Studio/releases/download/%s/%s' % (TAG, n):
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/octet-stream')
+                    self.send_header('Content-Length', str(len(b)))
+                    self.end_headers()
+                    self.wfile.write(b)
+                    return
             self.send_response(404)
             self.send_header('Content-Length', '0')
             self.end_headers()
@@ -127,9 +147,15 @@ def pruefe_daten(exe, einst):
 
 
 def main():
-    args = [a for a in sys.argv[1:] if not a.startswith('--')]
-    ohne = '--ohne-uebergang' in sys.argv
-    if len(args) != 3 or not all(os.path.isfile(a) for a in args):
+    argv = list(sys.argv[1:])
+    rc612 = None
+    if '--rc612' in argv:
+        k = argv.index('--rc612')
+        rc612 = os.path.abspath(argv[k + 1])
+        del argv[k:k + 2]
+    args = [a for a in argv if not a.startswith('--')]
+    ohne = '--ohne-uebergang' in argv
+    if len(args) != 3 or not all(os.path.isfile(a) for a in args) or (rc612 is not None and not os.path.isfile(rc612)):
         print(__doc__)
         return 2
     jk, q3, harness = (os.path.abspath(a) for a in args)
@@ -155,7 +181,13 @@ def main():
             namen = z.namelist()
         print('Paket: %s, %d Eintraege, letzte: %s' % (ZIPNAME, len(namen), ', '.join(n.split('/')[-1] for n in namen[-2:])))
         zip_bytes = open(zip_pfad, 'rb').read()
-        server, anfragen = server_starten(zip_bytes)
+        # REL-TEMPO: die anderen Dateien des neuen Formats (das Delta hier nur der Form nach - die alten Updater fassen es nie an)
+        neben = {rp.STARTER: open(jk, 'rb').read()[:4096],
+                 ('JK-Studio-%s-from-rc9998.zip' if '--delta-als-zip' in argv else 'JK-Studio-%s-from-rc9998.delta') % RC: b'PK\x05\x06' + bytes(18),
+                 'JK-Studio-%s-manifest.txt' % RC: rp.manifest_aus_zip(zip_pfad).encode('utf-8')}
+        alle = dict(neben, **{ZIPNAME: zip_bytes})
+        neben['SHA256SUMS.txt'] = ''.join('%s  %s\n' % (hashlib.sha256(b).hexdigest(), n) for n, b in sorted(alle.items())).encode('ascii')
+        server, anfragen = server_starten(zip_bytes, neben)
         api = 'http://127.0.0.1:%d/repos/' % server.server_port
         jk_sha = sha(jk)
         try:
@@ -214,6 +246,51 @@ def main():
                       'B: Neustart: JK Studio laeuft unter dem alten Namen selbst, mit seinen eingebauten Daten (Rueckgabe %d)' % rc)
             else:
                 melde(False, 'B: Neustart - es laeuft weiter die alte Fassung')
+            if rc612 is not None:
+                # --- C: der Updater von rc612, Ordner-Installation ---------------------------------
+                c = os.path.join(t, 'C', 'JK-Studio')
+                os.makedirs(os.path.join(c, 'data', 'base'))
+                with open(os.path.join(c, 'jkstudio.exe'), 'wb') as f:
+                    f.write(b'MZ alte Fassung rc612')
+                with open(os.path.join(c, 'behaved.exe'), 'wb') as f:
+                    f.write(b'MZ alte Fassung rc612')
+                with open(os.path.join(c, 'data', 'base', 'behaved.bhc'), 'wb') as f:
+                    f.write(b'// alt\r\n')
+                del anfragen[:]
+                r = subprocess.run([rc612, api, os.path.join(c, 'jkstudio.exe'), os.path.join(t, 'ablageC')], capture_output=True, timeout=300)
+                aus = r.stdout.decode('utf-8', 'replace')
+                print('  ' + aus.strip().replace('\n', '\n  '))
+                melde(r.returncode == 0 and ZIPNAME in aus,
+                      'C: der Updater von rc612 nimmt aus dem neuen Release (Starter, Delta, Manifest zuerst) das .zip und spielt es ein')
+                melde(any(a.endswith('SHA256SUMS.txt') for a in anfragen) and not any(a.endswith('.delta') or a.endswith(rp.STARTER) for a in anfragen),
+                      'C: er prueft gegen SHA256SUMS.txt und laedt weder Delta noch Starter (%s)' % ', '.join(a.rsplit('/', 1)[-1] for a in anfragen))
+                ist = os.path.join(c, 'jkstudio.exe')
+                melde(os.path.isfile(ist) and sha(ist) == jk_sha and sha(os.path.join(c, 'behaved.exe')) == jk_sha and
+                      open(os.path.join(c, 'jkstudio.exe.alt'), 'rb').read() == b'MZ alte Fassung rc612',
+                      'C: jkstudio.exe und behaved.exe sind neu, jkstudio.exe.alt die alte')
+                bhc_repo = open(os.path.join(WURZEL, 'data', 'base', 'behaved.bhc'), 'rb').read()
+                melde(open(os.path.join(c, 'data', 'base', 'behaved.bhc'), 'rb').read() == bhc_repo and
+                      open(os.path.join(c, 'version.txt'), 'rb').read().strip().startswith(b'rc') and
+                      os.path.isfile(os.path.join(c, 'handbuch', 'index.html')),
+                      'C: data, handbuch und version.txt sind neu (der Starter erkennt danach die Fassung)')
+                if os.path.isfile(ist) and sha(ist) == jk_sha:
+                    rc, txt = pruefe_daten(ist, os.path.join(t, 'einstC'))
+                    melde(rc == 0 and 'Programm: jkstudio.exe' in txt, 'C: die eingespielte jkstudio.exe laeuft (Rueckgabe %d)' % rc)
+                else:
+                    melde(False, 'C: die eingespielte jkstudio.exe laeuft - sie ist nicht die neue')
+                # --- D: der Updater von rc612, eigenstaendige .exe -----------------------------------
+                d = os.path.join(t, 'D', 'Downloads')
+                os.makedirs(d)
+                allein = os.path.join(d, 'JK-Studio-rc612-windows-x64.exe')
+                with open(allein, 'wb') as f:
+                    f.write(b'MZ eigenstaendig rc612')
+                r = subprocess.run([rc612, api, allein, os.path.join(t, 'ablageD')], capture_output=True, timeout=300)
+                aus = r.stdout.decode('utf-8', 'replace')
+                print('  ' + aus.strip().replace('\n', '\n  '))
+                neben_d = sorted(os.listdir(d))
+                melde(r.returncode == 0 and sha(allein) == jk_sha and
+                      neben_d == ['JK-Studio-rc612-windows-x64.exe', 'JK-Studio-rc612-windows-x64.exe.alt'],
+                      'D: eigenstaendige .exe von rc612 -> nur sie wird JK Studio, daneben nur die .alt (%s)' % ', '.join(neben_d))
         finally:
             server.shutdown()
     print('updater_uebergang: %d Fehler' % fehler)
