@@ -362,6 +362,29 @@ add_custom_command(TARGET bhed POST_BUILD
           ${CMAKE_CURRENT_SOURCE_DIR}/data/jk2
           $<TARGET_FILE_DIR:bhed>/data/jk2)
 
+# --- REL-TEMPO: JK-Studio-Starter.exe, der eine Download-Link ----------------------
+#
+# shank 14.11.: "lassen wir die aktuelle exe einfach weg in Zukunft und bieten eine zentrale an und
+# der Rest wird automatisch geupdated". Klein: kein ImGui, nicht bhed_core (dessen Uebersetzungstabelle
+# allein mehrere MB hat) - nur der Updater (update*.cpp) mit dem Zip-Leser und den eigenen Texten
+# (starter/starter_texte.inc, tools/gen_starter_texte.py). Pruefung: ctest starter, starter_texte.
+if(WIN32 AND MSVC)
+  add_executable(jkstudio_starter WIN32
+    starter/starter_win32.cpp starter/starter.rc
+    src/update.cpp src/update_einspielen.cpp src/update_delta.cpp src/json.cpp src/pk3.cpp src/inflate.cpp src/diag.cpp
+    src/sicherschreiben.cpp)
+  set_target_properties(jkstudio_starter PROPERTIES OUTPUT_NAME JK-Studio-Starter)
+  target_include_directories(jkstudio_starter PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  target_compile_options(jkstudio_starter PRIVATE /W4 /permissive- /utf-8 /Zc:__cplusplus)
+  if(BEHAVED_WARNUNGEN_FEHLER)
+    target_compile_options(jkstudio_starter PRIVATE /WX)
+  endif()
+  target_compile_definitions(jkstudio_starter PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+  target_link_libraries(jkstudio_starter PRIVATE bcrypt winhttp)
+  # das Manifest steht in starter/starter.rc (wie bei jkstudio.exe)
+  target_link_options(jkstudio_starter PRIVATE /MANIFEST:NO /ENTRY:wWinMainCRTStartup)
+endif()
+
 # --- Stufe 3: q3map2 aus NetRadiant-Custom 20260114 als bhed_q3map2.exe -----------
 # (src/q3map2/CMakeLists.txt; die Quellen liegen unveraendert unter third_party).
 option(BEHAVED_Q3MAP2 "q3map2 (Karten bauen) mitbauen" ${MSVC})
@@ -1218,6 +1241,20 @@ if(BEHAVED_TESTS)
       add_test(NAME exe_importe
                COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_exe_imports.py
                        $<TARGET_FILE:behaved>)
+    endif()
+    # REL-TEMPO: der Starter - seine Texte sind aktuell (tools/gen_starter_texte.py aus src/i18n.cpp), er bindet nur
+    # Windows-DLLs fest, und er tut gegen einen lokalen Testserver, was er soll (tools/karte/starter_test.py: erster Start
+    # voll, dann Delta, kaputtes Delta -> volles Paket, ohne Netz, Abbrechen, Ordner nicht beschreibbar); jkstudio.exe ist
+    # dort eine Attrappe (tests/starter_attrappe.cpp), die nur aufschreibt, dass sie lief.
+    add_test(NAME starter_texte COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_starter_texte.py --check)
+    if(TARGET jkstudio_starter)
+      add_executable(starter_attrappe tests/starter_attrappe.cpp)
+      add_test(NAME starter_importe
+               COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_exe_imports.py $<TARGET_FILE:jkstudio_starter>)
+      add_test(NAME starter
+               COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/starter_test.py
+                       $<TARGET_FILE:jkstudio_starter> $<TARGET_FILE:starter_attrappe>)
+      set_tests_properties(starter PROPERTIES TIMEOUT 600)
     endif()
     # Das Werkzeug fuer Zip, Pruefung und Notizen prueft sich selbst: es muss
     # die Fehler eines kaputten Zips finden (zwei oberste Ordner, "..",
