@@ -18,6 +18,7 @@
 #define BHED_UPDATE_H
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>
@@ -165,11 +166,15 @@ struct Einspielergebnis {
     // Sicherung bleibt im Zwischenordner, resteAufraeumen stellt sie beim
     // naechsten Start zurueck.
     bool sicherungBleibt = false;
+    int geloescht = 0;          // REL-TEMPO: im Delta weggefallene Dateien (in den Zwischenordner)
 };
+// REL-TEMPO: was eingespielt wird. WieDaneben (das Programm): wie bisher - ohne dataase neben
+// der .exe nur das Programm. Alles (der Starter, auch in einen leeren Ordner): jede Datei.
+enum class Umfang { WieDaneben, Alles };
 [[nodiscard]] Einspielergebnis einspielen(const std::wstring& zipPfad, const std::string& zipName,
                                           const std::string* summen, const std::string* signatur,
                                           const std::string& schluesselHex, const std::wstring& exe,
-                                          const std::atomic<bool>* abbrechen = nullptr);
+                                          const std::atomic<bool>* abbrechen = nullptr, Umfang umfang = Umfang::WieDaneben);
 
 // Beim Programmstart (rc610 F78): ein Zwischenordner neben `exe` ist der Rest
 // eines Updates, das nicht zu Ende kam (Rueckstellen gescheitert, Programm
@@ -177,6 +182,8 @@ struct Einspielergebnis {
 // Sicherungen kommen zurueck an ihren Platz, die dabei neu angelegten Dateien
 // weg. Mit "<exe>.alt" war er fertig, nur der Ordner bleibt uebrig. Der
 // Zwischenordner verschwindet erst, wenn alles zurueckgestellt ist.
+// REL-TEMPO: ebenso fertig ist er mit der Marke "fertig" im Zwischenordner (ein Delta, das das
+// Programm nicht aendert, und der Starter beim ersten Einspielen haben kein "<exe>.alt").
 // Rueckgabe: so viele Dateien wurden zurueckgestellt.
 int resteAufraeumen(const std::wstring& exe);
 
@@ -185,6 +192,107 @@ int resteAufraeumen(const std::wstring& exe);
 // im Faden des Einspielens. Leer = aus.
 enum class TestPhase { Entpackt, Getauscht };
 void testHakenSetzen(std::function<void(TestPhase, const std::string& rel)> haken);
+
+// --- REL-TEMPO (15.11.): Meldungen, Manifest, Delta-Pakete, der ganze Ablauf ----
+//
+// shank 14.11.: "lassen wir die aktuelle exe einfach weg in Zukunft und bieten eine zentrale an
+// und der Rest wird automatisch geupdated". Dazu: ein kleiner Starter (starter/) und Updates,
+// die nur laden, was sich geaendert hat.
+//
+// Die Meldungen des Einspielens (Einspielergebnis::problem): das Programm setzt seine
+// Uebersetzungen (gui/update_win32.cpp), der Starter seine kleine Tabelle - so braucht der
+// Starter die grosse Uebersetzungstabelle nicht. Ohne Tabelle: Englisch. Jeder Text bekommt wie
+// bisher (const char* name, long long zahl) fuer printf.
+enum class Meldung { ZipUnlesbar, OhneSummen, NichtGelistet, Pruefsumme, Signatur, Abbruch, Schreiben, Ersetzen };
+using Meldungstexte = const char* (*)(Meldung);
+void meldungstexteSetzen(Meldungstexte texte);
+[[nodiscard]] std::string meldungText(Meldung m, const std::string& name = {}, long long zahl = 0);
+
+// Ein Release ab REL-TEMPO traegt neben dem vollen Paket (das ERSTE und einzige .zip - die
+// Updater bis rc612 nehmen es) und SHA256SUMS.txt:
+//   JK-Studio-<rc>-manifest.txt         jede Datei des Pakets: SHA-256, Groesse, Pfad
+//   JK-Studio-<rc>-from-<alt>.delta     je eine der letzten Fassungen: nur die Inhalte, die <alt>
+//                                       nicht hat, und welche Dateien wegfallen (ein Zip, aber
+//                                       ohne die Endung .zip)
+// Beide stehen in SHA256SUMS.txt, sind also wie das .zip geprueft und unterschrieben. Scheitert
+// das Delta an irgendetwas (Pruefung, fehlender Inhalt, geaenderte Datei), ist nichts geaendert,
+// und das volle Paket kommt (aktualisieren).
+inline constexpr const char* kPaketName = "JK-Studio";
+inline constexpr const char* kDeltaKopf = "delta.txt";        // im .delta: von, nach, weg
+inline constexpr const char* kDeltaInhalt = "inhalt/";        // im .delta: inhalt/<sha256>
+// "v1.0.0-rc613" -> "rc613" (leer ohne Nummer).
+[[nodiscard]] std::string rcVon(const std::string& tag);
+[[nodiscard]] std::string zipName(const std::string& rc);                              // JK-Studio-rc613-windows-x64.zip
+[[nodiscard]] std::string manifestName(const std::string& rc);                         // JK-Studio-rc613-manifest.txt
+[[nodiscard]] std::string deltaName(const std::string& neu, const std::string& alt);   // JK-Studio-rc613-from-rc612.delta
+
+struct ManifestDatei {
+    std::string sha256;        // 64 kleine Hex-Zeichen
+    long long groesse = 0;
+    std::string pfad;          // relativ zum Programmordner, '/' (zielImOrdner-tauglich)
+};
+struct Manifest {
+    std::string fassung;       // "rc613"
+    std::vector<ManifestDatei> dateien;
+};
+// "# JK Studio manifest 1" / "fassung rc613" / "<sha256> <groesse> <pfad>" je Zeile (LF).
+// false bei unbekanntem Kopf, kaputter Zeile, unsicherem oder doppeltem Pfad.
+[[nodiscard]] bool parseManifest(const std::string& text, Manifest& out, std::string* fehler = nullptr);
+struct DeltaKopf {
+    std::string von, nach;
+    std::vector<std::string> weg;   // Dateien von `von`, die es in `nach` nicht mehr gibt
+};
+// "# JK Studio delta 1" / "von rc612" / "nach rc613" / "weg <pfad>" je Zeile.
+[[nodiscard]] bool parseDeltaKopf(const std::string& text, DeltaKopf& out, std::string* fehler = nullptr);
+
+// SHA-256 einer Datei in Stuecken (64 kleine Hex-Zeichen; leer, wenn sie fehlt).
+[[nodiscard]] std::string sha256Datei(const std::wstring& pfad);
+// Wie pruefeEchtheit, mit der schon berechneten Summe `istHex` der Datei `name`.
+[[nodiscard]] Echtheit pruefeSumme(const std::string& name, const std::string& istHex, const std::string* summen,
+                                   const std::string* signatur, const std::string& schluesselHex);
+
+// Das Delta einspielen: `deltaPfad`/`manifestPfad` sind die geladenen Dateien. Prueft beide gegen
+// SHA256SUMS.txt (und die Signatur), dann je Datei des Manifests: liegt sie schon so da (SHA-256),
+// bleibt sie; sonst kommt ihr Inhalt aus dem Delta oder aus einer gleichen Datei im Ordner (jeder
+// Inhalt wieder gegen das Manifest geprueft). Fehlt einer, ist nichts geaendert (problem gesetzt,
+// dateien 0). Getauscht wird wie bei einspielen (Zwischenordner, Programm zuletzt, Rueckstellen);
+// wegfallende Dateien gehen in den Zwischenordner und mit ihm weg.
+[[nodiscard]] Einspielergebnis einspielenDelta(const std::wstring& deltaPfad, const std::string& deltaDatei,
+                                               const std::wstring& manifestPfad, const std::string& manifestDatei,
+                                               const std::string* summen, const std::string* signatur,
+                                               const std::string& schluesselHex, const std::wstring& exe,
+                                               const std::string& vonFassung, const std::string& nachFassung,
+                                               const std::atomic<bool>* abbrechen = nullptr,
+                                               Umfang umfang = Umfang::WieDaneben);
+
+// Woher die Dateien eines Releases kommen: GitHub (Programm, Starter), ein Testserver, ctest.
+class Quelle {
+public:
+    Quelle() = default;
+    Quelle(const Quelle&) = delete;
+    Quelle& operator=(const Quelle&) = delete;
+    virtual ~Quelle() = default;
+    // `a` nach `ziel` laden. fortschritt(geladen, gesamt; 0 = unbekannt). false: `fehler`
+    // (uebersetzt) - auch beim Abbruch.
+    virtual bool laden(const Asset& a, const std::wstring& ziel,
+                       const std::function<void(std::uint64_t, std::uint64_t)>& fortschritt, std::string& fehler) = 0;
+};
+struct Ablaufergebnis {
+    Einspielergebnis einspielen;
+    bool mitDelta = false;        // aus dem Delta eingespielt
+    std::string deltaGrund;       // warum das Delta nicht ging (leer: keins da oder es ging)
+    std::string ladeFehler;       // das volle Paket kam nicht an (dann ist nichts eingespielt)
+};
+// Der ganze Ablauf nach "Jetzt aktualisieren" (Programm) bzw. im Starter: gibt es fuer
+// `lokaleFassung` ein Delta und ein Manifest, erst das Delta; sonst - oder wenn es scheitert und
+// nichts geaendert ist - das volle Paket (zipAsset) wie bisher. Erst die grosse Datei, dann
+// SHA256SUMS.txt und die Signatur (bricht man das Laden ab, kommt nichts weiter). `ablage`: Ordner
+// fuer die geladenen Dateien (der Aufrufer raeumt ihn weg). `lokaleFassung` leer: nur das volle Paket.
+[[nodiscard]] Ablaufergebnis aktualisieren(const Release& r, const std::string& lokaleFassung, const std::wstring& exe,
+                                           Quelle& quelle, const std::wstring& ablage, const std::string& schluesselHex,
+                                           const std::atomic<bool>* abbrechen,
+                                           const std::function<void(std::uint64_t, std::uint64_t)>& fortschritt,
+                                           Umfang umfang = Umfang::WieDaneben);
 
 }  // namespace bhed::update
 

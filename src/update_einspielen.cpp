@@ -11,6 +11,11 @@
 //   entpacken alles in den Zwischenordner neben der .exe
 //   tauschen  erst wenn alles da ist; scheitert ein Tausch, kommen die alten
 //             Dateien zurueck
+//
+// REL-TEMPO: der Tausch steht als intern::tauschen fuer einspielen und das Delta
+// (src/update_delta.cpp) bereit; die Meldungen kommen ueber meldungText (das Programm setzt die
+// Uebersetzungen, der Starter seine kleine Tabelle); die Summe des .zip wird in Stuecken
+// gerechnet (das Paket von rc612 hat 470 MB - bisher lag es dafuer ganz im Speicher).
 #include "bhed/update.h"
 
 #include <windows.h>
@@ -32,50 +37,85 @@
 #include <vector>
 
 #include "bhed/diag.h"
-#include "bhed/i18n.h"
 #include "bhed/pk3.h"
+#include "update_intern.h"
 
 namespace bhed::update {
 namespace {
 
 namespace fs = std::filesystem;
-using ::bhed::i18n::Str;
+using intern::klein;
+using intern::schmal;
+using intern::utf8Pfad;
 
 // Im Zwischenordner: die Ziele, die es vor dem Tausch nicht gab (eines je Zeile).
 constexpr const wchar_t* kNeuAngelegt = L"neu_angelegt.txt";
+// REL-TEMPO: im Zwischenordner, sobald alles getauscht ist (fuer resteAufraeumen).
+constexpr const wchar_t* kFertig = L"fertig";
 
 std::mutex g_hakenSperre;
 std::function<void(TestPhase, const std::string&)> g_haken;
 
-std::function<void(TestPhase, const std::string&)> haken() {
-    std::lock_guard<std::mutex> l(g_hakenSperre);
-    return g_haken;
+// REL-TEMPO: die Meldungen. Ohne Tabelle Englisch - wortgleich mit den englischen Texten von
+// Str::UpdErrZip ... (tools/gen_i18n.py), die das Programm bis rc612 hier zeigte.
+std::atomic<Meldungstexte> g_texte{nullptr};
+
+const char* englisch(Meldung m) {
+    switch (m) {
+    case Meldung::ZipUnlesbar: return "The downloaded .zip cannot be read: %s";
+    case Meldung::OhneSummen: return "The release has no SHA256SUMS.txt%s - the download cannot be checked, nothing was changed";
+    case Meldung::NichtGelistet: return "%s is not listed in SHA256SUMS.txt - nothing was changed";
+    case Meldung::Pruefsumme:
+        return "The checksum of %s does not match SHA256SUMS.txt - the download is damaged or was altered, nothing was changed";
+    case Meldung::Signatur: return "The signature of SHA256SUMS.txt is missing or invalid%s - nothing was changed";
+    case Meldung::Abbruch: return "Download interrupted%s";
+    case Meldung::Schreiben: return "%s cannot be written";
+    case Meldung::Ersetzen: return "%s cannot be replaced (error %lld)";
+    }
+    return "%s";
 }
 
-std::string klein(std::string s) {
-    for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
-    return s;
-}
-
-// SHA-256 (32 Byte roh) mit BCrypt; leer bei einem Fehler.
-std::string sha256Roh(const std::string& daten) {
+// SHA-256 (32 Byte roh) mit BCrypt, in Stuecken aus `lies` (liefert false am Ende); leer bei einem Fehler.
+template <class Lies>
+std::string sha256Stuecke(Lies lies) {
     BCRYPT_ALG_HANDLE alg = nullptr;
     if (!BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(&alg, BCRYPT_SHA256_ALGORITHM, nullptr, 0))) { return {}; }
     std::string roh(32, '\0');
     BCRYPT_HASH_HANDLE h = nullptr;
     bool ok = BCRYPT_SUCCESS(BCryptCreateHash(alg, &h, nullptr, 0, nullptr, 0, 0));
-    // In Stuecken: ULONG reicht fuer ein .zip ueber 4 GB nicht.
-    std::size_t pos = 0;
-    while (ok && pos < daten.size()) {
-        const std::size_t n = std::min<std::size_t>(daten.size() - pos, 1u << 30);
-        ok = BCRYPT_SUCCESS(BCryptHashData(h, reinterpret_cast<PUCHAR>(const_cast<char*>(daten.data() + pos)),
-                                           static_cast<ULONG>(n), 0));
-        pos += n;
+    const char* daten = nullptr;
+    std::size_t n = 0;
+    while (ok && lies(daten, n)) {
+        ok = BCRYPT_SUCCESS(BCryptHashData(h, reinterpret_cast<PUCHAR>(const_cast<char*>(daten)), static_cast<ULONG>(n), 0));
     }
     ok = ok && BCRYPT_SUCCESS(BCryptFinishHash(h, reinterpret_cast<PUCHAR>(roh.data()), 32, 0));
     if (h != nullptr) { BCryptDestroyHash(h); }
     BCryptCloseAlgorithmProvider(alg, 0);
     return ok ? roh : std::string();
+}
+
+// SHA-256 (32 Byte roh) mit BCrypt; leer bei einem Fehler.
+std::string sha256Roh(const std::string& daten) {
+    // In Stuecken: ULONG reicht fuer ein .zip ueber 4 GB nicht.
+    std::size_t pos = 0;
+    return sha256Stuecke([&](const char*& p, std::size_t& n) {
+        if (pos >= daten.size()) { return false; }
+        n = std::min<std::size_t>(daten.size() - pos, 1u << 30);
+        p = daten.data() + pos;
+        pos += n;
+        return true;
+    });
+}
+
+std::string alsHex(const std::string& roh) {
+    std::string hex;
+    static const char* const ziffern = "0123456789abcdef";
+    for (const char c : roh) {
+        const auto b = static_cast<unsigned char>(c);
+        hex.push_back(ziffern[b >> 4]);
+        hex.push_back(ziffern[b & 15]);
+    }
+    return hex;
 }
 
 bool hexZuBytes(const std::string& hex, std::string& out) {
@@ -119,6 +159,21 @@ bool derZuRoh(const std::string& der, std::string& roh) {
     return i == n;
 }
 
+}  // namespace
+
+// --- intern (update_intern.h) ---------------------------------------------------
+namespace intern {
+
+std::function<void(TestPhase, const std::string&)> haken() {
+    std::lock_guard<std::mutex> l(g_hakenSperre);
+    return g_haken;
+}
+
+std::string klein(std::string s) {
+    for (char& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+    return s;
+}
+
 // Liest eine Datei ganz; false, wenn sie fehlt.
 bool liesDatei(const fs::path& p, std::string& out) {
     std::ifstream f(p, std::ios::binary);
@@ -140,13 +195,115 @@ fs::path utf8Pfad(const std::string& s) {
     return fs::path(std::u8string(reinterpret_cast<const char8_t*>(s.data()), s.size()));
 }
 
-std::string meldung(Str id, const std::string& a = {}, long long n = 0) {
-    char z[512];
-    std::snprintf(z, sizeof(z), ::bhed::i18n::tr(id), a.c_str(), n);
-    return z;
+Tausch tauschFuer(const std::string& rel, bool programm, bool weg, const fs::path& zwischen, const fs::path& exe) {
+    Tausch t;
+    t.rel = rel;
+    t.programm = programm;
+    t.weg = weg;
+    if (!weg) { t.neu = programm ? zwischen / L"neu.exe" : zwischen / L"neu" / utf8Pfad(rel); }
+    t.ziel = programm ? exe : exe.parent_path() / utf8Pfad(rel);
+    if (programm) {
+        t.alt = exe;
+        t.alt += L".alt";
+    } else {
+        t.alt = zwischen / L"alt" / utf8Pfad(rel);
+    }
+    return t;
 }
 
-}  // namespace
+void tauschen(std::vector<Tausch>& liste, const fs::path& zwischen, const fs::path& exe, Einspielergebnis& erg) {
+    const auto testHaken = haken();
+    std::error_code ec;
+    // rc610 F78: das Programm zuletzt (auch wenn das .zip es frueher nennt). Dann
+    // heisst "<exe>.alt ist da": alles ist getauscht - darauf verlaesst sich
+    // resteAufraeumen beim naechsten Start.
+    std::stable_partition(liste.begin(), liste.end(), [](const Tausch& t) { return !t.programm; });
+    // Was es noch nicht gibt, steht in neu_angelegt.txt: bricht der Tausch ohne
+    // Rueckstellen ab (das Programm endet), entfernt resteAufraeumen es wieder.
+    {
+        std::ofstream liste_(zwischen / kNeuAngelegt, std::ios::binary | std::ios::trunc);
+        for (const Tausch& t : liste) {
+            if (!t.programm && !t.weg && !fs::exists(t.ziel, ec)) { liste_ << t.rel << '\n'; }
+        }
+    }
+
+    // 3. Tauschen. Die laufende .exe laesst sich nur umbenennen, nicht ueberschreiben.
+    bool zurueckGescheitert = false;
+    for (Tausch& t : liste) {
+        t.hatteAlt = fs::exists(t.ziel, ec);
+        if (t.weg && !t.hatteAlt) { continue; }   // REL-TEMPO: schon weg
+        if (t.hatteAlt) {
+            fs::create_directories(t.alt.parent_path(), ec);
+            if (t.programm) { DeleteFileW(t.alt.c_str()); }
+            if (!MoveFileExW(t.ziel.c_str(), t.alt.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+                erg.problem = meldungText(Meldung::Ersetzen, t.rel, static_cast<long long>(GetLastError()));
+                break;
+            }
+        } else {
+            fs::create_directories(t.ziel.parent_path(), ec);
+        }
+        if (!t.weg && !MoveFileExW(t.neu.c_str(), t.ziel.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+            erg.problem = meldungText(Meldung::Ersetzen, t.rel, static_cast<long long>(GetLastError()));
+            if (t.hatteAlt && !MoveFileExW(t.alt.c_str(), t.ziel.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+                diag::detail("Update: " + t.rel + " nicht zurueckgestellt (Fehler " + std::to_string(GetLastError()) + ")");
+                zurueckGescheitert = true;
+            }
+            break;
+        }
+        t.getauscht = true;
+        if (testHaken) { testHaken(TestPhase::Getauscht, t.rel); }
+        if (t.programm) { diag::detail("Update: neues Programm an " + schmal(exe.wstring()) + " (aus " + t.rel + ")"); }
+        if (t.weg) {
+            ++erg.geloescht;
+        } else {
+            ++erg.dateien;
+        }
+    }
+    if (!erg.problem.empty()) {
+        // Zurueck: in umgekehrter Reihenfolge die alten Dateien an ihren Platz.
+        // rc610 F78 (Fund B8-5): jeder Schritt geprueft. Was sich nicht
+        // zurueckstellen laesst (meist dieselbe Sperre, an der der Tausch
+        // scheiterte), bleibt als Sicherung im Zwischenordner liegen; der naechste
+        // Start stellt es zurueck (resteAufraeumen). Bis rc609 loeschte aufraeumen
+        // sie in jedem Fall.
+        int zurueck = 0;
+        for (auto it = liste.rbegin(); it != liste.rend(); ++it) {
+            if (!it->getauscht) { continue; }
+            const bool ok = it->hatteAlt ? MoveFileExW(it->alt.c_str(), it->ziel.c_str(), MOVEFILE_REPLACE_EXISTING) != 0
+                                         : DeleteFileW(it->ziel.c_str()) != 0;
+            if (ok) {
+                ++zurueck;
+            } else {
+                diag::detail("Update: " + it->rel + " nicht zurueckgestellt (Fehler " + std::to_string(GetLastError()) +
+                             "), die Sicherung bleibt in " + kZwischenOrdner);
+                zurueckGescheitert = true;
+            }
+        }
+        diag::detail("Update: Tausch abgebrochen, " + std::to_string(zurueck) + " von " +
+                     std::to_string(erg.dateien + erg.geloescht) + " Dateien zurueckgestellt - " + erg.problem);
+        erg.dateien = 0;
+        erg.geloescht = 0;
+        erg.sicherungBleibt = zurueckGescheitert;
+    } else {
+        // REL-TEMPO: alles getauscht - auch ohne "<exe>.alt" (Delta ohne neues Programm, erster
+        // Start des Starters) weiss resteAufraeumen das, falls das Wegraeumen nicht mehr gelingt.
+        std::ofstream(zwischen / kFertig, std::ios::binary | std::ios::trunc) << "ok\n";
+    }
+    if (!zurueckGescheitert) { fs::remove_all(zwischen, ec); }
+}
+
+}  // namespace intern
+
+void meldungstexteSetzen(Meldungstexte texte) { g_texte = texte; }
+
+std::string meldungText(Meldung m, const std::string& name, long long zahl) {
+    const Meldungstexte t = g_texte.load();
+    const char* format = t != nullptr ? t(m) : nullptr;
+    if (format == nullptr) { format = englisch(m); }
+    char z[512];
+    std::snprintf(z, sizeof(z), format, name.c_str(), zahl);
+    return z;
+}
 
 const Asset* assetNamens(const Release& r, const char* name) {
     const std::string gesucht = klein(name);
@@ -156,16 +313,26 @@ const Asset* assetNamens(const Release& r, const char* name) {
     return nullptr;
 }
 
-std::string sha256Hex(const std::string& daten) {
-    const std::string roh = sha256Roh(daten);
-    std::string hex;
-    static const char* const ziffern = "0123456789abcdef";
-    for (const char c : roh) {
-        const auto b = static_cast<unsigned char>(c);
-        hex.push_back(ziffern[b >> 4]);
-        hex.push_back(ziffern[b & 15]);
-    }
-    return hex;
+std::string sha256Hex(const std::string& daten) { return alsHex(sha256Roh(daten)); }
+
+std::string sha256Datei(const std::wstring& pfad) {
+    HANDLE f = CreateFileW(pfad.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+                           FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+    if (f == INVALID_HANDLE_VALUE) { return {}; }
+    std::string puffer(1u << 20, '\0');
+    bool fehler = false;
+    const std::string roh = sha256Stuecke([&](const char*& p, std::size_t& n) {
+        DWORD gelesen = 0;
+        if (!ReadFile(f, puffer.data(), static_cast<DWORD>(puffer.size()), &gelesen, nullptr)) {
+            fehler = true;
+            return false;
+        }
+        p = puffer.data();
+        n = gelesen;
+        return gelesen > 0;
+    });
+    CloseHandle(f);
+    return fehler ? std::string() : alsHex(roh);
 }
 
 std::string summeFuer(const std::string& summen, const std::string& datei) {
@@ -210,8 +377,8 @@ bool signaturGueltig(const std::string& nachricht, const std::string& signaturDe
     return ok;
 }
 
-Echtheit pruefeEchtheit(const std::string& zipName, const std::string& zip, const std::string* summen,
-                        const std::string* signatur, const std::string& schluesselHex) {
+Echtheit pruefeSumme(const std::string& name, const std::string& istHex, const std::string* summen, const std::string* signatur,
+                     const std::string& schluesselHex) {
     if (summen == nullptr) { return Echtheit::OhneSummen; }
     // Erst die Signatur ueber die Summen-Datei: ohne sie waeren die Summen
     // nur so echt wie der Download selbst.
@@ -219,10 +386,14 @@ Echtheit pruefeEchtheit(const std::string& zipName, const std::string& zip, cons
         if (signatur == nullptr) { return Echtheit::OhneSignatur; }
         if (!signaturGueltig(*summen, *signatur, schluesselHex)) { return Echtheit::SignaturFalsch; }
     }
-    const std::string soll = summeFuer(*summen, zipName);
+    const std::string soll = summeFuer(*summen, name);
     if (soll.empty()) { return Echtheit::NichtGelistet; }
-    const std::string ist = sha256Hex(zip);
-    return (!ist.empty() && ist == soll) ? Echtheit::Ok : Echtheit::SummeFalsch;
+    return (!istHex.empty() && istHex == soll) ? Echtheit::Ok : Echtheit::SummeFalsch;
+}
+
+Echtheit pruefeEchtheit(const std::string& zipName, const std::string& zip, const std::string* summen,
+                        const std::string* signatur, const std::string& schluesselHex) {
+    return pruefeSumme(zipName, sha256Hex(zip), summen, signatur, schluesselHex);
 }
 
 void testHakenSetzen(std::function<void(TestPhase, const std::string& rel)> h) {
@@ -232,36 +403,40 @@ void testHakenSetzen(std::function<void(TestPhase, const std::string& rel)> h) {
 
 Einspielergebnis einspielen(const std::wstring& zipPfad, const std::string& zipName, const std::string* summen,
                             const std::string* signatur, const std::string& schluesselHex, const std::wstring& exeW,
-                            const std::atomic<bool>* abbrechen) {
+                            const std::atomic<bool>* abbrechen, Umfang umfang) {
     Einspielergebnis erg;
-    const auto testHaken = haken();
+    const auto testHaken = intern::haken();
     const fs::path exe(exeW);
     const fs::path ordner = exe.parent_path();
     std::error_code ec;
 
-    // 1. Pruefen - die Bytes, die gleich der pk3-Leser oeffnet.
-    std::string zip;
-    if (!liesDatei(fs::path(zipPfad), zip)) {
-        erg.problem = meldung(Str::UpdErrZip, schmal(zipPfad));
+    // 1. Pruefen - die Bytes, die gleich der pk3-Leser oeffnet (REL-TEMPO: in Stuecken gelesen).
+    if (!fs::exists(fs::path(zipPfad), ec)) {
+        erg.problem = meldungText(Meldung::ZipUnlesbar, schmal(zipPfad));
         return erg;
     }
-    erg.echtheit = pruefeEchtheit(zipName, zip, summen, signatur, schluesselHex);
+    const std::string ist = sha256Datei(zipPfad);
+    if (ist.empty()) {
+        erg.problem = meldungText(Meldung::ZipUnlesbar, schmal(zipPfad));
+        return erg;
+    }
+    erg.echtheit = pruefeSumme(zipName, ist, summen, signatur, schluesselHex);
     diag::detail("Update: Pruefung von " + zipName + ": " +
                  (erg.echtheit == Echtheit::Ok ? std::string("echt (SHA-256") + (schluesselHex.empty() ? ")" : " und Signatur)")
                                                : "ABGELEHNT (" + std::to_string(static_cast<int>(erg.echtheit)) + ")"));
     switch (erg.echtheit) {
     case Echtheit::Ok: break;
-    case Echtheit::OhneSummen: erg.problem = meldung(Str::UpdErrNoSums); return erg;
-    case Echtheit::NichtGelistet: erg.problem = meldung(Str::UpdErrNotListed, zipName); return erg;
-    case Echtheit::SummeFalsch: erg.problem = meldung(Str::UpdErrChecksum, zipName); return erg;
-    case Echtheit::OhneSignatur: erg.problem = meldung(Str::UpdErrSignature); return erg;
-    case Echtheit::SignaturFalsch: erg.problem = meldung(Str::UpdErrSignature); return erg;
+    case Echtheit::OhneSummen: erg.problem = meldungText(Meldung::OhneSummen); return erg;
+    case Echtheit::NichtGelistet: erg.problem = meldungText(Meldung::NichtGelistet, zipName); return erg;
+    case Echtheit::SummeFalsch: erg.problem = meldungText(Meldung::Pruefsumme, zipName); return erg;
+    case Echtheit::OhneSignatur: erg.problem = meldungText(Meldung::Signatur); return erg;
+    case Echtheit::SignaturFalsch: erg.problem = meldungText(Meldung::Signatur); return erg;
     }
 
     Pk3 archiv;
     std::string fehler;
     if (!readPk3Directory(schmal(zipPfad), archiv, &fehler)) {
-        erg.problem = meldung(Str::UpdErrZip, fehler);
+        erg.problem = meldungText(Meldung::ZipUnlesbar, fehler);
         return erg;
     }
     std::vector<std::string> namen;
@@ -269,19 +444,15 @@ Einspielergebnis einspielen(const std::wstring& zipPfad, const std::string& zipN
     const std::string ober = gemeinsamerOrdner(namen);
     // rc601 release: WAS mit einem Eintrag geschieht, entscheidet einspielenAls.
     // Ohne data\base neben der .exe laeuft das Programm eigenstaendig.
-    const bool nurProgramm = !fs::exists(ordner / L"data" / L"base" / L"behaved.bhc", ec);
+    // REL-TEMPO: der Starter (Umfang::Alles) spielt immer alles ein, auch in einen leeren Ordner.
+    const bool nurProgramm = umfang == Umfang::WieDaneben && !fs::exists(ordner / L"data" / L"base" / L"behaved.bhc", ec);
     const std::string laufenderName = schmal(exe.filename().wstring());
 
     // 2. Entpacken in den Zwischenordner: neu/<rel> fuer Dateien, das Programm als
     //    neu.exe, die alten Dateien spaeter nach alt/<rel>.
     const fs::path zwischen = ordner / kZwischenOrdner;
     fs::remove_all(zwischen, ec);
-    struct Tausch {
-        fs::path neu, ziel, alt;
-        std::string rel;
-        bool programm = false, hatteAlt = false, getauscht = false;
-    };
-    std::vector<Tausch> liste;
+    std::vector<intern::Tausch> liste;
     const auto aufraeumen = [&] { fs::remove_all(zwischen, ec); };
     for (const Pk3Entry& e : archiv.entries) {
         const std::string rel = zielImOrdner(e.name, ober);
@@ -289,7 +460,7 @@ Einspielergebnis einspielen(const std::wstring& zipPfad, const std::string& zipN
         if (art == Einspielen::Ueberspringen) { continue; }
         // rc610 F78 (Fund B8-4): das Programm wird beendet - bis hierher ist nichts getauscht.
         if (abbrechen != nullptr && abbrechen->load()) {
-            erg.problem = meldung(Str::UpdErrAbort);
+            erg.problem = meldungText(Meldung::Abbruch);
             aufraeumen();
             return erg;
         }
@@ -299,23 +470,13 @@ Einspielergebnis einspielen(const std::wstring& zipPfad, const std::string& zipN
             aufraeumen();
             return erg;
         }
-        Tausch t;
-        t.rel = rel;
-        t.programm = art == Einspielen::Programm;
-        t.neu = t.programm ? zwischen / L"neu.exe" : zwischen / L"neu" / utf8Pfad(rel);
-        t.ziel = t.programm ? exe : ordner / utf8Pfad(rel);
-        if (t.programm) {
-            t.alt = exe;
-            t.alt += L".alt";
-        } else {
-            t.alt = zwischen / L"alt" / utf8Pfad(rel);
-        }
+        intern::Tausch t = intern::tauschFuer(rel, art == Einspielen::Programm, false, zwischen, exe);
         fs::create_directories(t.neu.parent_path(), ec);
         std::ofstream f(t.neu, std::ios::binary | std::ios::trunc);
         f.write(inhalt.data(), static_cast<std::streamsize>(inhalt.size()));
         f.close();
         if (!f) {
-            erg.problem = meldung(Str::UpdErrWrite, rel);
+            erg.problem = meldungText(Meldung::Schreiben, rel);
             aufraeumen();
             return erg;
         }
@@ -323,72 +484,8 @@ Einspielergebnis einspielen(const std::wstring& zipPfad, const std::string& zipN
         liste.push_back(std::move(t));
     }
 
-    // rc610 F78: das Programm zuletzt (auch wenn das .zip es frueher nennt). Dann
-    // heisst "<exe>.alt ist da": alles ist getauscht - darauf verlaesst sich
-    // resteAufraeumen beim naechsten Start.
-    std::stable_partition(liste.begin(), liste.end(), [](const Tausch& t) { return !t.programm; });
-    // Was es noch nicht gibt, steht in neu_angelegt.txt: bricht der Tausch ohne
-    // Rueckstellen ab (das Programm endet), entfernt resteAufraeumen es wieder.
-    {
-        std::ofstream liste_(zwischen / kNeuAngelegt, std::ios::binary | std::ios::trunc);
-        for (const Tausch& t : liste) {
-            if (!t.programm && !fs::exists(t.ziel, ec)) { liste_ << t.rel << '\n'; }
-        }
-    }
-
-    // 3. Tauschen. Die laufende .exe laesst sich nur umbenennen, nicht ueberschreiben.
-    bool zurueckGescheitert = false;
-    for (Tausch& t : liste) {
-        t.hatteAlt = fs::exists(t.ziel, ec);
-        if (t.hatteAlt) {
-            fs::create_directories(t.alt.parent_path(), ec);
-            if (t.programm) { DeleteFileW(t.alt.c_str()); }
-            if (!MoveFileExW(t.ziel.c_str(), t.alt.c_str(), MOVEFILE_REPLACE_EXISTING)) {
-                erg.problem = meldung(Str::UpdErrReplace, t.rel, static_cast<long long>(GetLastError()));
-                break;
-            }
-        } else {
-            fs::create_directories(t.ziel.parent_path(), ec);
-        }
-        if (!MoveFileExW(t.neu.c_str(), t.ziel.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-            erg.problem = meldung(Str::UpdErrReplace, t.rel, static_cast<long long>(GetLastError()));
-            if (t.hatteAlt && !MoveFileExW(t.alt.c_str(), t.ziel.c_str(), MOVEFILE_REPLACE_EXISTING)) {
-                diag::detail("Update: " + t.rel + " nicht zurueckgestellt (Fehler " + std::to_string(GetLastError()) + ")");
-                zurueckGescheitert = true;
-            }
-            break;
-        }
-        t.getauscht = true;
-        if (testHaken) { testHaken(TestPhase::Getauscht, t.rel); }
-        if (t.programm) { diag::detail("Update: neues Programm an " + schmal(exe.wstring()) + " (aus " + t.rel + ")"); }
-        ++erg.dateien;
-    }
-    if (!erg.problem.empty()) {
-        // Zurueck: in umgekehrter Reihenfolge die alten Dateien an ihren Platz.
-        // rc610 F78 (Fund B8-5): jeder Schritt geprueft. Was sich nicht
-        // zurueckstellen laesst (meist dieselbe Sperre, an der der Tausch
-        // scheiterte), bleibt als Sicherung im Zwischenordner liegen; der naechste
-        // Start stellt es zurueck (resteAufraeumen). Bis rc609 loeschte aufraeumen
-        // sie in jedem Fall.
-        int zurueck = 0;
-        for (auto it = liste.rbegin(); it != liste.rend(); ++it) {
-            if (!it->getauscht) { continue; }
-            const bool ok = it->hatteAlt ? MoveFileExW(it->alt.c_str(), it->ziel.c_str(), MOVEFILE_REPLACE_EXISTING) != 0
-                                         : DeleteFileW(it->ziel.c_str()) != 0;
-            if (ok) {
-                ++zurueck;
-            } else {
-                diag::detail("Update: " + it->rel + " nicht zurueckgestellt (Fehler " + std::to_string(GetLastError()) +
-                             "), die Sicherung bleibt in " + kZwischenOrdner);
-                zurueckGescheitert = true;
-            }
-        }
-        diag::detail("Update: Tausch abgebrochen, " + std::to_string(zurueck) + " von " + std::to_string(erg.dateien) +
-                     " Dateien zurueckgestellt - " + erg.problem);
-        erg.dateien = 0;
-        erg.sicherungBleibt = zurueckGescheitert;
-    }
-    if (!zurueckGescheitert) { aufraeumen(); }
+    // 3. Tauschen (intern::tauschen: Programm zuletzt, Rueckstellen, Zwischenordner weg).
+    intern::tauschen(liste, zwischen, exe, erg);
     return erg;
 }
 
@@ -404,7 +501,8 @@ int resteAufraeumen(const std::wstring& exeW) {
     // "<exe>.alt" da: das Programm (zuletzt) ist getauscht, also alles - die
     // Reste sind nur noch wegzuraeumen. Sonst ist der Tausch nicht fertig
     // geworden: die Sicherungen zurueck, die neu angelegten Dateien weg.
-    if (!fs::exists(exeAlt, ec)) {
+    // REL-TEMPO: ebenso mit der Marke "fertig" (tauschen legt sie nach dem letzten Tausch an).
+    if (!fs::exists(exeAlt, ec) && !fs::exists(zwischen / kFertig, ec)) {
         const fs::path alt = zwischen / L"alt";
         for (fs::recursive_directory_iterator it(alt, ec), ende; !ec && it != ende; it.increment(ec)) {
             if (!it->is_regular_file(ec)) { continue; }

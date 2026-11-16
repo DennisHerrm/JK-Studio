@@ -5,6 +5,7 @@
 #include "bhed/update.h"
 
 void echtheitsproben(void (*expect)(const char*, bool));   // updatetest_echtheit.cpp (Stufe 8d)
+void deltaproben(void (*expect)(const char*, bool));      // updatetest_delta.cpp (REL-TEMPO)
 
 namespace {
 
@@ -162,6 +163,7 @@ int main() {
            istNeuer("v1.0.0-rc606", "rc605") && istNeuer("v1.0.0-rc606", "rc604"));
 
     echtheitsproben(expect);
+    deltaproben(expect);
 
     std::printf(fehler == 0 ? "\nalle Updateproben bestanden\n" : "\nFEHLGESCHLAGEN (%d)\n", fehler);
     return fehler == 0 ? 0 : 1;

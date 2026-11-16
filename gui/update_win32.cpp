@@ -338,9 +338,23 @@ bool prozessLaeuft(const std::wstring& name) {
     return laeuft;
 }
 
+// REL-TEMPO: der Anfang der API-Adresse. Ab Werk GitHub; nur zum Testen (lokaler Testserver,
+// tools/karte/updater_delta.py) per BHED_UPDATE_API - und nur auf diesem Rechner (http://127.0.0.1:).
+std::wstring apiBasis() {
+    const wchar_t* const github = L"https://api.github.com/repos/";
+    wchar_t wert[256] = {};
+    const DWORD n = GetEnvironmentVariableW(L"BHED_UPDATE_API", wert, 256);
+    const std::wstring s = (n > 0 && n < 256) ? std::wstring(wert, n) : std::wstring();
+    if (s.rfind(L"http://127.0.0.1:", 0) == 0 && !s.empty() && s.back() == L'/') {
+        diag::detail("Update: Testserver " + schmal(s));
+        return s;
+    }
+    return github;
+}
+
 // --- Die beiden Hintergrundauftraege --------------------------------------
 void pruefAuftrag() {
-    const std::wstring url = L"https://api.github.com/repos/" + breit(bhed::update::kRepo) + L"/releases/latest";
+    const std::wstring url = apiBasis() + breit(bhed::update::kRepo) + L"/releases/latest";
     // Erst ohne Anmeldung - das Release-Repository ist oeffentlich.
     Antwort a = holen(url, apiKopf({}, L"application/vnd.github+json"), true);
     bool angemeldet = false;
@@ -387,14 +401,65 @@ void pruefAuftrag() {
     }
 }
 
+// REL-TEMPO: die Meldungen des Einspielens (src/update_einspielen.cpp) in der Sprache des Programms.
+const char* meldungstext(bhed::update::Meldung m) {
+    using bhed::update::Meldung;
+    switch (m) {
+    case Meldung::ZipUnlesbar: return tr(Str::UpdErrZip);
+    case Meldung::OhneSummen: return tr(Str::UpdErrNoSums);
+    case Meldung::NichtGelistet: return tr(Str::UpdErrNotListed);
+    case Meldung::Pruefsumme: return tr(Str::UpdErrChecksum);
+    case Meldung::Signatur: return tr(Str::UpdErrSignature);
+    case Meldung::Abbruch: return tr(Str::UpdErrAbort);
+    case Meldung::Schreiben: return tr(Str::UpdErrWrite);
+    case Meldung::Ersetzen: return tr(Str::UpdErrReplace);
+    }
+    return nullptr;
+}
+
+// REL-TEMPO: die Dateien des Releases fuer bhed::update::aktualisieren - wie bis rc612 das .zip:
+// oeffentlich ueber den Download-Link, sonst (oder wenn das abgelehnt wird) ueber die API mit
+// Schluessel. Die API leitet auf einen signierten Speicherort um, und DORT darf der Schluessel
+// nicht mitgehen - deshalb von Hand folgen. holen() nimmt im Selbsttest das simulierte Netz.
+class GitHubQuelle final : public bhed::update::Quelle {
+public:
+    bool laden(const bhed::update::Asset& asset, const std::wstring& ziel,
+               const std::function<void(std::uint64_t, std::uint64_t)>& fortschritt, std::string& fehler) override {
+        Antwort a;
+        if (!asset.downloadUrl.empty()) { a = holen(breit(asset.downloadUrl), {}, true, fortschritt); }
+        if ((asset.downloadUrl.empty() || a.status == 401 || a.status == 403 || a.status == 404) && !asset.apiUrl.empty()) {
+            const std::string token = schluessel();
+            if (!token.empty()) {
+                a = holen(breit(asset.apiUrl), apiKopf(token, L"application/octet-stream"), false);
+                if (a.fehler.empty() && (a.status == 301 || a.status == 302 || a.status == 307) && !a.weiter.empty()) {
+                    a = holen(a.weiter, {}, true, fortschritt);
+                }
+            }
+        }
+        if (!a.fehler.empty() || a.status != 200) {
+            fehler = a.fehler.empty() ? "HTTP " + std::to_string(a.status) : a.fehler;
+            return false;
+        }
+        std::ofstream f(fs::path(ziel), std::ios::binary | std::ios::trunc);
+        f.write(a.body.data(), static_cast<std::streamsize>(a.body.size()));
+        f.close();
+        if (!f) {
+            fehler = text(Str::UpdErrWrite, schmal(ziel));
+            return false;
+        }
+        return true;
+    }
+};
+
 void installAuftrag(bhed::update::Release r) {
-    const bhed::update::Asset* asset = bhed::update::zipAsset(r);
-    if (asset == nullptr) {
+    bhed::update::meldungstexteSetzen(&meldungstext);
+    if (bhed::update::zipAsset(r) == nullptr) {
         setze([&](Zustand& z) { z.stand = Stand::Fehler; z.meldung = tr(Str::UpdNoZip); });
         return;
     }
-    const auto fortschritt = [&](std::uint64_t n, std::uint64_t gesamt) {
-        const std::uint64_t alles = gesamt > 0 ? gesamt : (asset->size > 0 ? static_cast<std::uint64_t>(asset->size) : 0U);
+    // REL-TEMPO: `alles` ist die Content-Length, sonst die Groesse aus der Release-Antwort (das
+    // gibt aktualisieren mit) - beim Delta die des Deltas.
+    const auto fortschritt = [&](std::uint64_t n, std::uint64_t alles) {
         const double teil = alles > 0 ? static_cast<double>(n) / static_cast<double>(alles) : 0.0;
         setze([&](Zustand& z) {
             z.fortschritt = std::min(1.0, teil);
@@ -416,74 +481,33 @@ void installAuftrag(bhed::update::Release r) {
             z.beimInstallieren = false;
         });
     };
-    // Oeffentlich: der normale Download-Link, ohne Anmeldung.
-    Antwort a;
-    if (!asset->downloadUrl.empty()) {
-        a = holen(breit(asset->downloadUrl), {}, true, fortschritt);
-    }
-    // Sonst (oder wenn das abgelehnt wird) ueber die API mit Schluessel: sie
-    // leitet auf einen signierten Speicherort um, und DORT darf der
-    // Schluessel nicht mitgehen - deshalb von Hand folgen.
-    if ((asset->downloadUrl.empty() || a.status == 401 || a.status == 403 || a.status == 404) && !asset->apiUrl.empty()) {
-        const std::string token = schluessel();
-        if (!token.empty()) {
-            a = holen(breit(asset->apiUrl), apiKopf(token, L"application/octet-stream"), false);
-            if (a.fehler.empty() && (a.status == 301 || a.status == 302 || a.status == 307) && !a.weiter.empty()) {
-                a = holen(a.weiter, {}, true, fortschritt);
-            }
-        }
-    }
-    if (abgebrochen()) {
+    // REL-TEMPO (src/update_delta.cpp): gibt es ein Delta fuer diese Fassung, erst das (nur was sich
+    // geaendert hat); sonst - oder wenn es scheitert und nichts geaendert ist - das volle .zip wie
+    // bisher. Erst die grosse Datei, dann SHA256SUMS.txt und die Signatur; einspielen prueft, entpackt
+    // in den Zwischenordner und tauscht erst dann. Die Ablage gehoert diesem Prozess (rc610 F78).
+    std::error_code ec;
+    const fs::path ablage = ablageOrdner() / std::to_wstring(GetCurrentProcessId());
+    GitHubQuelle quelle;
+    const bhed::update::Ablaufergebnis ab =
+        bhed::update::aktualisieren(r, lokaleFassung(), exePfad(), quelle, ablage.wstring(), bhed::update::kSignaturSchluessel,
+                                    &g().abbruch, fortschritt);
+    fs::remove_all(ablage, ec);
+    const bhed::update::Einspielergebnis& erg = ab.einspielen;
+    if (abgebrochen() && erg.dateien == 0 && (!ab.ladeFehler.empty() || !erg.problem.empty())) {
         zurueck();
         return;
     }
-    if (!a.fehler.empty() || a.status != 200 || a.body.size() < 22) {
+    if (!ab.ladeFehler.empty()) {
         setze([&](Zustand& z) {
             z.stand = Stand::Fehler;
-            z.meldung = a.fehler.empty() ? "HTTP " + std::to_string(a.status) : a.fehler;
+            z.meldung = ab.ladeFehler;
         });
         return;
     }
     setze([&](Zustand& z) { z.fortschritt = 1.0; });
-    // Stufe 8d: SHA256SUMS.txt (Pflicht) und SHA256SUMS.txt.sig (Pflicht, sobald ein
-    // Schluessel im Programm steht) des Releases - klein, ohne Fortschritt.
-    const auto kleineDatei = [&](const char* name, std::string& inhalt) {
-        const bhed::update::Asset* d = bhed::update::assetNamens(r, name);
-        if (d == nullptr || d->downloadUrl.empty()) { return false; }
-        const Antwort k = holen(breit(d->downloadUrl), {}, true);
-        if (!k.fehler.empty() || k.status != 200) { return false; }
-        inhalt = k.body;
-        return true;
-    };
-    std::string summen;
-    std::string signatur;
-    const bool mitSummen = kleineDatei(bhed::update::kSummenDatei, summen);
-    const bool mitSignatur = kleineDatei(bhed::update::kSignaturDatei, signatur);
-    if (abgebrochen()) {
-        zurueck();
-        return;
-    }
-    diag::detail(std::string("Update: ") + bhed::update::kSummenDatei + (mitSummen ? " geladen" : " FEHLT") + ", " +
-                 bhed::update::kSignaturDatei + (mitSignatur ? " geladen" : " fehlt"));
-    // Das .zip ablegen; einspielen (src/update_einspielen.cpp) prueft es, entpackt
-    // in den Zwischenordner und tauscht erst dann.
-    std::error_code ec;
-    const fs::path ablage = ablageOrdner() / std::to_wstring(GetCurrentProcessId());
-    fs::create_directories(ablage, ec);
-    const fs::path zipDatei = ablage / breit(asset->name);
-    {
-        std::ofstream f(zipDatei, std::ios::binary);
-        f.write(a.body.data(), static_cast<std::streamsize>(a.body.size()));
-    }
-    const bhed::update::Einspielergebnis erg =
-        bhed::update::einspielen(zipDatei.wstring(), asset->name, mitSummen ? &summen : nullptr,
-                                 mitSignatur ? &signatur : nullptr, bhed::update::kSignaturSchluessel, exePfad(), &g().abbruch);
-    fs::remove_all(ablage, ec);
-    if (!erg.problem.empty() && erg.dateien == 0 && abgebrochen()) {
-        zurueck();
-        return;
-    }
-    diag::detail("Update: " + std::to_string(erg.dateien) + " Dateien ersetzt" + (erg.problem.empty() ? "" : " - " + erg.problem));
+    diag::detail("Update: " + std::string(ab.mitDelta ? "aus dem Delta, " : "") + std::to_string(erg.dateien) + " Dateien ersetzt" +
+                 (erg.geloescht > 0 ? ", " + std::to_string(erg.geloescht) + " weg" : "") +
+                 (erg.problem.empty() ? "" : " - " + erg.problem));
     setze([&](Zustand& z) {
         z.dateien = erg.dateien;
         if (!erg.problem.empty()) {

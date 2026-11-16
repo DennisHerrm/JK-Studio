@@ -30,9 +30,25 @@ Aufrufe
       Stufe 3: mit --q3map2 dazu JK-Studio/bhed_q3map2.exe (Karten bauen)
       und JK-Studio/licenses/ (GPL v2 und die Lizenztexte der
       Bibliotheken in bhed_q3map2.exe, siehe LIZENZEN).
+      REL-TEMPO: dazu JK-Studio/version.txt ("rcNNN") - daran erkennt der
+      Starter die installierte Fassung (Deltas von genau ihr).
   release_paket.py pruefe <zip> --fassung rcNNN [--exe <eigenstaendige.exe>] [--q3map2]
+                   [--starter <JK-Studio-Starter.exe>]
       alles, was Updater und Anwender vom Zip erwarten (siehe pruefe()); mit
-      --q3map2 muss bhed_q3map2.exe samt Lizenztexten dabei sein.
+      --q3map2 muss bhed_q3map2.exe samt Lizenztexten dabei sein; mit
+      --starter: der Starter ist eine x64-exe mit nur Windows-DLLs, klein.
+  release_paket.py manifest <zip> <ziel.txt> [--fassung rcNNN]
+      REL-TEMPO: JK-Studio-rcNNN-manifest.txt - jede Datei des Zips (ohne den
+      Ordner JK-Studio/) mit SHA-256, Groesse und Pfad, nach Pfad sortiert. Die
+      Fassung aus version.txt im Zip, bei alten Paketen (bis rc612) --fassung.
+  release_paket.py delta <neu.zip> <alt-manifest.txt> <ziel.delta> [--fassung rcNNN]
+      REL-TEMPO: JK-Studio-<neu>-from-<alt>.delta - ein Zip mit delta.txt (von,
+      nach, die weggefallenen Pfade) und inhalt/<sha256> fuer jeden Inhalt des
+      neuen Pakets, den die alte Fassung nicht hat (gleiche Inhalte einmal).
+  release_paket.py delta-pruefen <delta> <alt-manifest.txt> <neu-manifest.txt>
+      REL-TEMPO: macht das Delta aus der alten genau die neue Fassung (jeder
+      neue Inhalt im Delta oder schon in der alten, jeder Inhalt mit der Summe
+      aus dem Manifest, weg = alt ohne neu)?
   release_paket.py notizen rcNNN <ziel.md>
       die Release-Notizen: zuerst die Download-Zeilen, dann der [en]-Block der
       obersten Fassung in tools/changelog.txt - oder release-notes/rcNNN.md,
@@ -66,6 +82,13 @@ import warnings
 import zipfile
 
 HIER = os.path.dirname(os.path.abspath(__file__))
+# REL-TEMPO: der Starter (starter/starter_win32.cpp) ist der eine Download-Link; die Fassung im Paket;
+# die Formate von Manifest und Delta (src/update_delta.cpp liest sie).
+STARTER = "JK-Studio-Starter.exe"
+VERSION = "version.txt"
+MANIFEST_KOPF = "# JK Studio manifest 1"
+DELTA_KOPF = "# JK Studio delta 1"
+STARTER_MAX = 2 * 1024 * 1024   # "klein": der Starter bindet weder ImGui noch die Uebersetzungstabelle
 WURZEL = os.path.dirname(HIER)
 # Stufe 8c: das Programm heisst JK Studio. Ordner im Zip und Namen der Dateien
 # des Releases; die Programmdatei jkstudio.exe und - fuer die Updater bis rc605,
@@ -225,6 +248,8 @@ def lizenz_eintraege(wurzel):
 
 def zip_bauen(exe, ziel, wurzel, handbuch=None, q3map2=None):
     eintraege = [(OBER + "/" + PROGRAMM, exe), (OBER + "/" + UEBERGANG, exe)]
+    # REL-TEMPO: die Fassung als Datei im Ordner - der Starter liest sie (Delta von genau dieser Fassung).
+    eintraege.append((OBER + "/" + VERSION, (fassung_lesen(wurzel) + "\n").encode("ascii")))
     if q3map2 is not None:
         # Stufe 3: das Programm fuer Build-Menue (Karten bauen) neben jkstudio.exe,
         # dazu die Lizenztexte (Bytes statt Pfad)
@@ -311,7 +336,7 @@ def _pe_maengel(exe, daten, imp, name=PROGRAMM):
     return maengel
 
 
-def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print, q3map2=False):
+def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print, q3map2=False, starter=None):
     """Gibt die Liste der Beanstandungen zurueck (leer = in Ordnung)."""
     maengel = []
 
@@ -440,6 +465,12 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print, q3map2=False):
             elif daten and all(nach_name.get(OBER + "/data/%s/%s" % (ordner, n)) for n, _ in daten):
                 gut("data/%s: %d Dateien, Byte fuer Byte wie im Repo" % (ordner, len(daten)))
             alle_daten += daten
+        # REL-TEMPO: version.txt nennt genau diese Fassung (der Starter liest sie)
+        fassung_datei = lies(VERSION)
+        if fassung_datei == (rc + "\n").encode("ascii"):
+            gut("%s: %s" % (VERSION, rc))
+        else:
+            melde("%s fehlt oder nennt nicht %s (%r) - der Starter erkennte die Fassung nicht" % (VERSION, rc, fassung_datei))
         seiten = ["handbuch/index.html"] + ["handbuch/%s/index.html" % s for s in SPRACHEN]
         fehlen = [s for s in seiten if OBER + "/" + s not in nach_name]
         if fehlen:
@@ -489,7 +520,158 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print, q3map2=False):
                     gut("eigenstaendige exe gleicht %s im Zip" % PROGRAMM)
                 else:
                     melde("eigenstaendige exe weicht von %s im Zip ab" % PROGRAMM)
+    if starter is not None:
+        # REL-TEMPO: der Starter - der Name des Assets, x64, nur Windows-DLLs, klein
+        if os.path.basename(starter) != STARTER:
+            melde("der Starter heisst %s - erwartet %s (fester Name: releases/latest/download/%s)"
+                  % (os.path.basename(starter), STARTER, STARTER))
+        try:
+            with open(starter, "rb") as f:
+                st = f.read()
+        except OSError as e:
+            st = None
+            melde("Starter nicht lesbar: %s" % e)
+        if st is not None:
+            m = _pe_maengel(st, [], _importpruefung(), STARTER)
+            for x in m:
+                melde(x)
+            if len(st) > STARTER_MAX:
+                melde("%s hat %d Bytes - mehr als %d (er soll klein bleiben)" % (STARTER, len(st), STARTER_MAX))
+            if not m and len(st) <= STARTER_MAX:
+                gut("%s: x64, nur Windows-DLLs fest gebunden, %d KB" % (STARTER, len(st) // 1024))
     ausgabe("Paketpruefung: " + ("ok" if not maengel else "%d Beanstandung(en)" % len(maengel)))
+    return maengel
+
+
+# --- REL-TEMPO: Manifest und Delta ---------------------------------------------------
+#
+# Formate wie src/update_delta.cpp (parseManifest, parseDeltaKopf). Ein Delta enthaelt jeden Inhalt
+# (nach SHA-256) des neuen Pakets, den die alte Fassung nicht hat - einmal, auch wenn ihn mehrere
+# Dateien haben (jkstudio.exe = behaved.exe). Was die alte Fassung schon hat (gleich geblieben oder
+# verschoben), holt der Updater aus dem Ordner; jede Datei prueft er gegen das neue Manifest.
+
+def _zip_dateien(zip_pfad):
+    """[(Pfad ohne JK-Studio/, Bytes)] aller Dateien des Pakets."""
+    aus = []
+    with zipfile.ZipFile(zip_pfad) as z:
+        for i in z.infolist():
+            n = i.orig_filename.replace("\\", "/")
+            if n.endswith("/"):
+                continue
+            if not n.startswith(OBER + "/"):
+                raise Fehler("%s: Eintrag %s liegt nicht unter %s/" % (zip_pfad, n, OBER))
+            aus.append((n[len(OBER) + 1:], z.read(i)))
+    return aus
+
+
+def manifest_text(dateien, rc):
+    zeilen = [MANIFEST_KOPF, "fassung " + rc]
+    for pfad, b in sorted(dateien, key=lambda d: d[0]):
+        zeilen.append("%s %d %s" % (hashlib.sha256(b).hexdigest(), len(b), pfad))
+    return "\n".join(zeilen) + "\n"
+
+
+def manifest_aus_zip(zip_pfad, rc=None):
+    dateien = _zip_dateien(zip_pfad)
+    v = dict(dateien).get(VERSION)
+    if v is not None:
+        aus_datei = v.decode("ascii", "replace").strip()
+        if rc is not None and rc != aus_datei:
+            raise Fehler("%s nennt %s, nicht %s" % (VERSION, aus_datei, rc))
+        rc = aus_datei
+    if not rc or not re.fullmatch(r"rc\d+", rc):
+        raise Fehler("%s: ohne %s - die Fassung mit --fassung rcNNN angeben" % (zip_pfad, VERSION))
+    return manifest_text(dateien, rc)
+
+
+def manifest_lesen(text):
+    """{'fassung': rc, 'dateien': {pfad: (sha256, groesse)}} - streng wie parseManifest."""
+    zeilen = text.replace("\r\n", "\n").split("\n")
+    if not zeilen or zeilen[0] != MANIFEST_KOPF:
+        raise Fehler("Manifest: unbekannter Kopf")
+    rc = None
+    dateien = {}
+    for z in zeilen[1:]:
+        if not z or z.startswith("#"):
+            continue
+        if z.startswith("fassung "):
+            rc = z[8:]
+            continue
+        m = re.fullmatch(r"([0-9a-f]{64}) (\d+) (.+)", z)
+        if m is None:
+            raise Fehler("Manifest: kaputte Zeile %r" % z)
+        if m.group(3) in dateien:
+            raise Fehler("Manifest: %s doppelt" % m.group(3))
+        dateien[m.group(3)] = (m.group(1), int(m.group(2)))
+    if not rc or not dateien:
+        raise Fehler("Manifest: ohne Fassung oder ohne Dateien")
+    return {"fassung": rc, "dateien": dateien}
+
+
+def delta_bauen(neu_zip, alt_manifest, ziel, neu_rc=None):
+    """Schreibt das Delta; Rueckgabe (Zahl der Inhalte, Zahl weg, Groesse in Bytes). neu_rc nur fuer Pakete ohne version.txt
+    (Messungen an alten Releases)."""
+    alt = manifest_lesen(alt_manifest)
+    dateien = _zip_dateien(neu_zip)
+    neu = manifest_lesen(manifest_aus_zip(neu_zip, neu_rc))
+    alt_inhalte = {s for s, _g in alt["dateien"].values()}
+    inhalte = {}
+    for pfad, b in dateien:
+        s = hashlib.sha256(b).hexdigest()
+        if s not in alt_inhalte:
+            inhalte[s] = b
+    weg = sorted(p for p in alt["dateien"] if p not in neu["dateien"])
+    kopf = [DELTA_KOPF, "von " + alt["fassung"], "nach " + neu["fassung"]] + ["weg " + p for p in weg]
+    os.makedirs(os.path.dirname(os.path.abspath(ziel)), exist_ok=True)
+    fest = _zeitstempel() or (2026, 1, 1, 0, 0, 0)
+    with zipfile.ZipFile(ziel, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        z.writestr(zipfile.ZipInfo("delta.txt", date_time=fest), ("\n".join(kopf) + "\n").encode("utf-8"),
+                   compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+        for s in sorted(inhalte):
+            z.writestr(zipfile.ZipInfo("inhalt/" + s, date_time=fest), inhalte[s], compress_type=zipfile.ZIP_DEFLATED,
+                       compresslevel=9)
+    return len(inhalte), len(weg), os.path.getsize(ziel)
+
+
+def delta_pruefen(delta, alt_manifest, neu_manifest):
+    """Beanstandungen (leer = das Delta macht aus der alten genau die neue Fassung)."""
+    maengel = []
+    alt = manifest_lesen(alt_manifest)
+    neu = manifest_lesen(neu_manifest)
+    with zipfile.ZipFile(delta) as z:
+        namen = z.namelist()
+        if "delta.txt" not in namen:
+            return ["delta.txt fehlt"]
+        kopf = z.read("delta.txt").decode("utf-8").split("\n")
+        if kopf[0] != DELTA_KOPF:
+            maengel.append("delta.txt: unbekannter Kopf")
+        werte = [k for k in kopf[1:] if k]
+        if "von " + alt["fassung"] not in werte or "nach " + neu["fassung"] not in werte:
+            maengel.append("delta.txt nennt nicht von %s nach %s" % (alt["fassung"], neu["fassung"]))
+        weg = sorted(k[4:] for k in werte if k.startswith("weg "))
+        soll_weg = sorted(p for p in alt["dateien"] if p not in neu["dateien"])
+        if weg != soll_weg:
+            maengel.append("weg: %d Pfade, erwartet %d (alt ohne neu)" % (len(weg), len(soll_weg)))
+        inhalte = {}
+        for n in namen:
+            if n == "delta.txt":
+                continue
+            if not re.fullmatch(r"inhalt/[0-9a-f]{64}", n):
+                maengel.append("unerwarteter Eintrag %s" % n)
+                continue
+            b = z.read(n)
+            if hashlib.sha256(b).hexdigest() != n[7:]:
+                maengel.append("%s: Inhalt passt nicht zur Summe im Namen" % n)
+            inhalte[n[7:]] = len(b)
+        alt_inhalte = {s for s, _g in alt["dateien"].values()}
+        for pfad, (s, g) in sorted(neu["dateien"].items()):
+            if s not in inhalte and s not in alt_inhalte:
+                maengel.append("%s: Inhalt weder im Delta noch in %s" % (pfad, alt["fassung"]))
+            elif s in inhalte and inhalte[s] != g:
+                maengel.append("%s: Groesse %d statt %d" % (pfad, inhalte[s], g))
+        noetig = {s for s, _g in neu["dateien"].values()} - alt_inhalte
+        for s in sorted(set(inhalte) - noetig):
+            maengel.append("inhalt/%s ist unnoetig (die alte Fassung hat ihn, oder niemand braucht ihn)" % s)
     return maengel
 
 
@@ -499,21 +681,30 @@ def pruefe(zip_pfad, rc, wurzel, exe_pfad=None, ausgabe=print, q3map2=False):
 # Text unformatiert (gui/update_win32.cpp, TextUnformatted) - er muss also
 # auch ohne Markdown gut lesbar sein. Gedankenstrich, Pfeil und Auslassung als
 # \u-Folgen, damit diese Datei reines ASCII bleibt.
+# REL-TEMPO (shank 14.11.: "lassen wir die aktuelle exe einfach weg in Zukunft und bieten eine zentrale an
+# und der Rest wird automatisch geupdated"): der Starter ist der eine Download, das .zip der Rettungsweg.
 KOPF = (
-    "**Download:** `JK-Studio-{rc}-windows-x64.zip` (under **Assets** below) \u2013 "
+    "**Download:** `JK-Studio-Starter.exe` (under **Assets** below) \u2013 "
     "Windows 10/11, 64-bit. JK Studio \u2013 mod tools for Jedi Knight: Jedi Academy and Jedi Outcast "
     "(BehavEd scripts, cutscene preview, map editor). Not affiliated with Lucasfilm, Disney or Raven Software.\n"
     "\n"
-    "- Unzip it (right-click \u2192 Extract All\u2026), open the `JK-Studio` folder and "
-    "start `jkstudio.exe`. Nothing is installed; keep `jkstudio.exe` next to its `data` folder.\n"
-    "- Just the program: `JK-Studio-{rc}-windows-x64.exe` also runs on its own "
-    "(the offline guide and the map compiler `bhed_q3map2.exe` are only in the zip).\n"
+    "- Put `JK-Studio-Starter.exe` into a folder of your own (for example Documents) and start it: it downloads "
+    "JK Studio into a `JK-Studio` folder next to it, checks the download (SHA-256 and signature), starts the program and "
+    "keeps it up to date. No administrator rights, nothing is installed elsewhere. Start JK Studio with the starter "
+    "or with `JK-Studio\\jkstudio.exe`.\n"
+    "- Updates load only what has changed since your version (the `.delta` files); if that does not fit, the complete "
+    "package. JK Studio also updates itself (Help \u2192 Check for updates\u2026).\n"
+    "- Without the starter: `JK-Studio-{rc}-windows-x64.zip` is the complete program \u2013 unzip it "
+    "(right-click \u2192 Extract All\u2026), open the `JK-Studio` folder and start `jkstudio.exe`; keep it next to "
+    "its `data` folder.\n"
     "- Already using BehavEd-Remake? It updates itself to JK Studio (Help \u2192 Check for updates\u2026) "
     "and keeps your settings; `behaved.exe` stays as a starter for old shortcuts.\n"
     "- \"Source code (zip)\" and \"Source code (tar.gz)\" are for developers \u2013 they "
     "contain no program.\n"
     "- Windows SmartScreen may warn because the program is not code-signed: "
     "More info \u2192 Run anyway.\n"
+    "- `SHA256SUMS.txt` lists every file of the release (signed: `SHA256SUMS.txt.sig`); the `-manifest.txt` and "
+    "`.delta` files are for the updater.\n"
 )
 
 
@@ -734,7 +925,7 @@ def selbsttest():
             namen = z.namelist()
             verfahren = {i.compress_type for i in z.infolist()}
         erwarte("zip: %d Eintraege, sortiert, jkstudio.exe und behaved.exe zuletzt, Deflate, ohne Ordnereintraege" % n,
-                n == 2 + len(daten) + len(handbuch) and namen[:-2] == sorted(namen[:-2])
+                n == 3 + len(daten) + len(handbuch) and namen[:-2] == sorted(namen[:-2])
                 and namen[-2:] == [OBER + "/" + PROGRAMM, OBER + "/" + UEBERGANG] and verfahren == {8}
                 and not any(x.endswith("/") for x in namen))
         with zipfile.ZipFile(gut_zip) as z:
@@ -743,6 +934,8 @@ def selbsttest():
                 all(x.startswith(OBER + "/") for x in namen) and gleich)
         erwarte("zip: eine Seite, die git nicht kennt, bleibt draussen",
                 OBER + "/handbuch/en/entwurf.html" not in namen)
+        with zipfile.ZipFile(gut_zip) as z:
+            erwarte("zip: version.txt nennt rc900 (der Starter liest sie)", z.read(OBER + "/" + VERSION) == b"rc900\n")
         m = pruefe(gut_zip, rc, wurzel, ausgabe=still)
         erwarte("pruefe: das gebaute Zip besteht", not m, m)
         allein = os.path.join(tmp, "JK-Studio-rc900-windows-x64.exe")
@@ -809,6 +1002,8 @@ def selbsttest():
         kaputt("behaved.exe ist nicht dieselbe Datei wie jkstudio.exe", ersetze(OBER + "/" + UEBERGANG, b"MZ anders"),
                "weicht von jkstudio.exe ab")
         kaputt("Handbuch ohne Japanisch", [(n, b) for n, b in grund if "/ja/" not in n], "handbuch/ja/index.html")
+        kaputt("version.txt fehlt (REL-TEMPO)", [(n, b) for n, b in grund if not n.endswith("/" + VERSION)], VERSION)
+        kaputt("version.txt nennt eine andere Fassung", ersetze(OBER + "/" + VERSION, b"rc899\n"), VERSION)
         kaputt("data/base weicht ab", ersetze(OBER + "/data/base/anims.h", b"anders"), "weicht vom Repo ab")
         kaputt("data/base unvollstaendig", [(n, b) for n, b in grund if not n.endswith("supplement.bhc")],
                "data/base/supplement.bhc fehlt")
@@ -855,11 +1050,11 @@ def selbsttest():
         ziel = os.path.join(tmp, "notizen.md")
         text = notizen(rc, ziel, wurzel)
         erste = text.splitlines()[0]
-        erwarte("notizen: die erste Zeile ist die Download-Zeile mit dem Zip",
-                erste.startswith("**Download:** `JK-Studio-rc900-windows-x64.zip`"))
-        erwarte("notizen: nennen die eigenstaendige exe, 'Source code' und SmartScreen",
-                "JK-Studio-rc900-windows-x64.exe" in text and "Source code" in text and "Not affiliated" in text
-                and "SmartScreen" in text)
+        erwarte("notizen: die erste Zeile ist die Download-Zeile mit dem Starter (REL-TEMPO)",
+                erste.startswith("**Download:** `JK-Studio-Starter.exe`"))
+        erwarte("notizen: nennen das Zip als Weg ohne Starter, Deltas, 'Source code' und SmartScreen - keine eigenstaendige exe",
+                "JK-Studio-rc900-windows-x64.zip" in text and ".delta" in text and "Source code" in text
+                and "Not affiliated" in text and "SmartScreen" in text and "windows-x64.exe" not in text)
         erwarte("notizen: der [en]-Block von rc900, nicht [de] und nicht rc899",
                 "- New: a thing." in text and "- Fixed: another one." in text and "Neu: etwas" not in text
                 and "- Old." not in text)
@@ -894,6 +1089,57 @@ def selbsttest():
                 len(zeilen) == 2 and all(re.fullmatch(r"[0-9a-f]{64}  \S+\n", z) for z in zeilen)
                 and zeilen[0].endswith("windows-x64.exe\n") and b"\r" not in roh
                 and hashlib.sha256(open(gut_zip, "rb").read()).hexdigest() in zeilen[1])
+        # --- REL-TEMPO: Manifest, Delta, Starter
+        man = manifest_aus_zip(gut_zip)
+        mz = manifest_lesen(man)
+        erwarte("manifest: Kopf, Fassung aus version.txt, jede Datei des Zips ohne JK-Studio/, sortiert, LF",
+                man.startswith(MANIFEST_KOPF + "\nfassung rc900\n") and len(mz["dateien"]) == n
+                and "jkstudio.exe" in mz["dateien"] and list(mz["dateien"]) == sorted(mz["dateien"]) and "\r" not in man)
+        erwarte("manifest: Summe und Groesse wie die Datei im Zip",
+                mz["dateien"]["data/base/anims.h"] == (hashlib.sha256(daten["anims.h"]).hexdigest(), len(daten["anims.h"])))
+        alt_zip = os.path.join(tmp, "alt", "JK-Studio-rc899-windows-x64.zip")
+        os.makedirs(os.path.dirname(alt_zip), exist_ok=True)
+        _zip_aus(alt_zip, [(nm, b) for nm, b in grund if not nm.endswith("/" + VERSION) and not nm.endswith("/supplement.bhc")]
+                 + [(OBER + "/data/base/veraltet.txt", b"weg damit"), (OBER + "/handbuch/verschoben.html", daten["anims.h"])])
+        erwarte("manifest: altes Paket ohne version.txt nur mit --fassung", _wirft(lambda: manifest_aus_zip(alt_zip))
+                and manifest_lesen(manifest_aus_zip(alt_zip, "rc899"))["fassung"] == "rc899")
+        alt_man = manifest_aus_zip(alt_zip, "rc899")
+        # rc900 aendert jkstudio.exe/behaved.exe nicht, bringt supplement.bhc und version.txt, veraltet.txt faellt weg
+        dpfad = os.path.join(tmp, "JK-Studio-rc900-from-rc899.delta")
+        ni, nw, _gr = delta_bauen(gut_zip, alt_man, dpfad)
+        with zipfile.ZipFile(dpfad) as z:
+            dnamen = z.namelist()
+            dkopf = z.read("delta.txt").decode("utf-8")
+        erwarte("delta: delta.txt (von, nach, weg) und genau die neuen Inhalte - %d Inhalte, %d weg" % (ni, nw),
+                ni == 2 and nw == 2 and dkopf.startswith(DELTA_KOPF + "\nvon rc899\nnach rc900\n")
+                and "weg data/base/veraltet.txt" in dkopf and "weg handbuch/verschoben.html" in dkopf
+                and "inhalt/" + hashlib.sha256(daten["supplement.bhc"]).hexdigest() in dnamen
+                and "inhalt/" + hashlib.sha256(b"rc900\n").hexdigest() in dnamen and len(dnamen) == 3
+                and not dpfad.endswith(".zip"))
+        m = delta_pruefen(dpfad, alt_man, man)
+        erwarte("delta-pruefen: das gebaute Delta macht aus rc899 genau rc900", not m, m)
+        kaputt_d = os.path.join(tmp, "kaputt.delta")
+        _zip_aus(kaputt_d, [("delta.txt", ("%s\nvon rc899\nnach rc900\nweg data/base/veraltet.txt\n" % DELTA_KOPF).encode()),
+                            ("inhalt/" + hashlib.sha256(daten["supplement.bhc"]).hexdigest(), b"falsch")])
+        m = delta_pruefen(kaputt_d, alt_man, man)
+        erwarte("delta-pruefen weist ab: falscher Inhalt, fehlender Inhalt (version.txt), weg unvollstaendig",
+                any("passt nicht zur Summe" in x for x in m) and any("version.txt: Inhalt weder" in x for x in m)
+                and any(x.startswith("weg:") for x in m), m)
+        st = os.path.join(tmp, "st", STARTER)
+        schreibe(st, _probe_exe(["KERNEL32.dll", "USER32.dll", "GDI32.dll", "WINHTTP.dll", "bcrypt.dll"]))
+        m = pruefe(gut_zip, rc, wurzel, ausgabe=still, starter=st)
+        erwarte("pruefe --starter: ein kleiner Starter mit Windows-DLLs besteht", not m, m)
+        dick = os.path.join(tmp, "dick", STARTER)
+        schreibe(dick, _probe_exe(["KERNEL32.dll", "VCRUNTIME140.dll"], anhang=b"x" * (STARTER_MAX + 1)))
+        m = pruefe(gut_zip, rc, wurzel, ausgabe=still, starter=dick)
+        erwarte("pruefe --starter weist ab: VC-Laufzeit und zu gross",
+                any("VCRUNTIME140" in x for x in m) and any("mehr als" in x for x in m), m)
+        falsch_st = os.path.join(tmp, "fst", "setup.exe")
+        os.makedirs(os.path.dirname(falsch_st), exist_ok=True)
+        shutil.copyfile(st, falsch_st)
+        m = pruefe(gut_zip, rc, wurzel, ausgabe=still, starter=falsch_st)
+        erwarte("pruefe --starter weist ab: anderer Name als JK-Studio-Starter.exe", any("erwartet " + STARTER in x for x in m), m)
+
         # Stufe 8d: der oeffentliche Schluessel aus openssl (SPKI, DER) -> kSignaturSchluessel
         punkt = "04" + "11" * 64
         erwarte("schluessel: SPKI-DER -> 04+X+Y, Muell abgelehnt, update.h lesbar",
@@ -924,6 +1170,20 @@ def main(argv=None, ausgabe=print):
     q.add_argument("--fassung", required=True)
     q.add_argument("--exe")
     q.add_argument("--q3map2", action="store_true")
+    q.add_argument("--starter")
+    mf = unter.add_parser("manifest")
+    mf.add_argument("zip")
+    mf.add_argument("ziel")
+    mf.add_argument("--fassung")
+    d = unter.add_parser("delta")
+    d.add_argument("neu_zip")
+    d.add_argument("alt_manifest")
+    d.add_argument("ziel")
+    d.add_argument("--fassung", help="nur fuer alte Pakete ohne version.txt (Messung)")
+    dp = unter.add_parser("delta-pruefen")
+    dp.add_argument("delta")
+    dp.add_argument("alt_manifest")
+    dp.add_argument("neu_manifest")
     n = unter.add_parser("notizen")
     n.add_argument("rc")
     n.add_argument("ziel")
@@ -955,7 +1215,30 @@ def main(argv=None, ausgabe=print):
             ausgabe("Zip: %s (%d Eintraege)" % (a.ziel, anzahl))
             return 0
         if a.befehl == "pruefe":
-            return 1 if pruefe(a.zip, a.fassung, wurzel, exe_pfad=a.exe, ausgabe=ausgabe, q3map2=a.q3map2) else 0
+            return 1 if pruefe(a.zip, a.fassung, wurzel, exe_pfad=a.exe, ausgabe=ausgabe, q3map2=a.q3map2,
+                               starter=a.starter) else 0
+        if a.befehl == "manifest":
+            text = manifest_aus_zip(a.zip, a.fassung)
+            with open(a.ziel, "w", encoding="utf-8", newline="\n") as f:
+                f.write(text)
+            ausgabe("Manifest: %s (%d Dateien)" % (a.ziel, len(manifest_lesen(text)["dateien"])))
+            return 0
+        if a.befehl == "delta":
+            with open(a.alt_manifest, encoding="utf-8") as f:
+                alt_text = f.read()
+            ni, nw, gr = delta_bauen(a.neu_zip, alt_text, a.ziel, a.fassung)
+            ausgabe("Delta: %s (%d Inhalte, %d weg, %.1f MB)" % (a.ziel, ni, nw, gr / 1e6))
+            return 0
+        if a.befehl == "delta-pruefen":
+            with open(a.alt_manifest, encoding="utf-8") as f:
+                alt_text = f.read()
+            with open(a.neu_manifest, encoding="utf-8") as f:
+                neu_text = f.read()
+            m = delta_pruefen(a.delta, alt_text, neu_text)
+            for x in m:
+                ausgabe("  FEHL  " + x)
+            ausgabe("Deltapruefung %s: %s" % (os.path.basename(a.delta), "ok" if not m else "%d Beanstandung(en)" % len(m)))
+            return 1 if m else 0
         if a.befehl == "notizen":
             notizen(a.rc, a.ziel, wurzel)
             ausgabe("Notizen: %s" % a.ziel)
