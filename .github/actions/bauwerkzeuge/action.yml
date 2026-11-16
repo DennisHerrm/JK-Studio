@@ -1,0 +1,101 @@
+# REL-TEMPO: die Werkzeuge fuer den Bau im Runner - gemeinsam fuer release.yml und ci.yml, damit beide
+# dieselben Objektdateien bauen (der Release-Lauf einer Marke nimmt sie aus dem Cache des letzten CI-Laufs
+# auf main).
+#
+#   - LLVM 23.1.4 (clang-cl fuer bhed_q3map2.exe, Stufe 5 Punkt 6). Klappt das Laden nicht, baut MSVC wie
+#     bisher (Warnung; q3map2_uebersetzer erwartet dann msvc).
+#   - ccache 4.14.3 (fest, mit SHA-256 geprueft): je Datei ein cl-Aufruf ueber den Cache
+#     (CMakeLists.txt BEHAVED_CCACHE, /Z7). Klappt das Laden nicht: Bau ohne Cache wie bisher (Warnung).
+#   - den Cache-Ordner (actions/cache/restore): Schluessel je Werkzeugkette - Runner-Abbild, Visual Studio,
+#     MSVC-Fassung, LLVM, ccache -, dahinter der Commit; wiederhergestellt wird der neueste mit demselben Anfang.
+#     ccache prueft selbst jeden Treffer (Compiler, Schalter, Quelle und Kopfdateien).
+name: Bauwerkzeuge
+description: LLVM fuer bhed_q3map2, ccache und sein Cache
+outputs:
+  llvm-bin:
+    description: LLVM-bin-Ordner (leer = MSVC baut bhed_q3map2)
+    value: ${{ steps.llvm.outputs.bin }}
+  ccache:
+    description: Pfad zu ccache.exe (leer = ohne Cache)
+    value: ${{ steps.ccache.outputs.exe }}
+  schluessel:
+    description: Schluessel des Caches (ohne den Commit)
+    value: ${{ steps.kette.outputs.schluessel }}
+runs:
+  using: composite
+  steps:
+    - name: Toolchain key
+      id: kette
+      shell: pwsh
+      run: |
+        $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationVersion
+        $pfad = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+        $msvc = (Get-Content "$pfad\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt" -ErrorAction SilentlyContinue | Select-Object -First 1)
+        $schluessel = "ccache-$($env:ImageOS)-vs$vs-msvc$("$msvc".Trim())-llvm23.1.4-cc4.14.3"
+        Write-Host "Cache key: $schluessel"
+        "schluessel=$schluessel" >> $env:GITHUB_OUTPUT
+        # Beginn des Laufs: was der Bau danach nicht benutzt, kann vor dem Speichern weg (ci.yml).
+        "BHED_LAUF_BEGINN=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" >> $env:GITHUB_ENV
+
+    - name: LLVM for the map compiler
+      # Stufe 5 Punkt 6: bhed_q3map2.exe mit clang-cl statt MSVC - dieselben Ergebnisse (q3map2_vergleich), -light 14-21 % und
+      # -vis bis 25 % schneller (docs/intern/NOTIZEN_karte5.md). Fest LLVM 23.1.4: mit dieser Fassung ist verglichen.
+      id: llvm
+      shell: pwsh
+      run: |
+        $ver = '23.1.4'
+        $setup = "$env:RUNNER_TEMP\LLVM-$ver-win64.exe"
+        $ziel = "$env:RUNNER_TEMP\llvm"
+        try {
+          Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-$ver/LLVM-$ver-win64.exe" -OutFile $setup
+          Start-Process -Wait -FilePath $setup -ArgumentList '/S', "/D=$ziel"
+          $v = & "$ziel\bin\clang-cl.exe" --version
+          if (-not "$v".Contains("clang version $ver")) { throw "clang-cl: '$v'" }
+          Write-Host $v
+          "bin=$("$ziel\bin" -replace '\\', '/')" >> $env:GITHUB_OUTPUT
+        } catch {
+          Write-Host "::warning::LLVM $ver not available, bhed_q3map2.exe is built with MSVC: $_"
+        }
+
+    - name: ccache (compiler cache)
+      id: ccache
+      shell: pwsh
+      run: |
+        $ver = '4.14.3'
+        $sha = 'c845c3d65be81954c75659145a522a793a27586bf940c5dcfe18af33fa1a67dd'
+        $zip = "$env:RUNNER_TEMP\ccache-$ver.zip"
+        $ziel = "$env:RUNNER_TEMP\ccache-bin"
+        try {
+          Invoke-WebRequest -Uri "https://github.com/ccache/ccache/releases/download/v$ver/ccache-$ver-windows-x86_64.zip" -OutFile $zip
+          $ist = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($ist -ne $sha) { throw "SHA-256 $ist, expected $sha" }
+          Expand-Archive -Path $zip -DestinationPath $ziel -Force
+          $exe = Join-Path $ziel "ccache-$ver-windows-x86_64\ccache.exe"
+          & $exe --version | Select-Object -First 1
+          "exe=$($exe -replace '\\', '/')" >> $env:GITHUB_OUTPUT
+          # Der Cache: 10 GB Obergrenze je Repository bei GitHub - ein voller Bau braucht gepackt etwa 2 GB (Messung in
+          # docs/intern/NOTIZEN_reltempo_1511.md).
+          "CCACHE_DIR=$env:RUNNER_TEMP\ccache" >> $env:GITHUB_ENV
+          "CCACHE_MAXSIZE=4G" >> $env:GITHUB_ENV
+        } catch {
+          Write-Host "::warning::ccache $ver not available, building without the compiler cache: $_"
+        }
+
+    - name: Restore the compiler cache
+      if: steps.ccache.outputs.exe != ''
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ runner.temp }}/ccache
+        key: ${{ steps.kette.outputs.schluessel }}-${{ github.sha }}
+        restore-keys: ${{ steps.kette.outputs.schluessel }}-
+
+    - name: Configure ccache and reset its statistics
+      # msvc_utf8=false: sonst haengt ccache beim Vorverarbeiten /utf-8 an - assimp setzt /source-charset:utf-8, cl lehnt
+      # beides zusammen ab (D8016), und ccache nimmt die Datei nicht ("Preprocessing failed", gemessen 16.11.). Unser
+      # eigener Code hat /utf-8 ohnehin selbst.
+      if: steps.ccache.outputs.exe != ''
+      shell: pwsh
+      run: |
+        & '${{ steps.ccache.outputs.exe }}' --set-config msvc_utf8=false
+        & '${{ steps.ccache.outputs.exe }}' --zero-stats
+        & '${{ steps.ccache.outputs.exe }}' --show-stats

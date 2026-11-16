@@ -32,6 +32,51 @@ if(MSVC AND NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
+# --- REL-TEMPO: Uebersetzungs-Cache (ccache) ----------------------------------
+#
+# shank 14.11.: ein Release soll nicht jedes Mal alles neu uebersetzen ("nur der neue
+# Code"). rc612 brauchte im Runner 55-60 min Bau, und im Visual-Studio-Generator
+# uebersetzt cl die Dateien eines Projekts nacheinander (kein /MP: bhed_core allein).
+# Mit -DBEHAVED_CCACHE=<ccache.exe> wird jede Datei ein eigener cl-Aufruf (MSBuild
+# MultiToolTask, parallel wie /MP) ueber ccache; dafuer stehen die Debug-Infos in der
+# .obj (/Z7 statt /Zi - eine gemeinsame Compiler-PDB kann kein Cache liefern). Der Code
+# bleibt derselbe, die PDB schreibt weiter der Linker (Vergleich und Messung:
+# docs/intern/NOTIZEN_reltempo_1511.md). Gedacht fuer frische Bauordner wie im Runner.
+# Leer (Vorgabe): alles wie bisher.
+set(BEHAVED_CCACHE "" CACHE FILEPATH "ccache.exe: Uebersetzungs-Cache (je Datei ein cl-Aufruf, /Z7 statt /Zi)")
+set(BHED_DEBUGINFO /Zi)
+if(BEHAVED_CCACHE)
+  if(NOT EXISTS "${BEHAVED_CCACHE}")
+    message(FATAL_ERROR "BEHAVED_CCACHE=${BEHAVED_CCACHE}: die Datei fehlt")
+  endif()
+  if(CMAKE_GENERATOR MATCHES "^Visual Studio")
+    # ccache als "cl.exe": MSBuild ruft es statt cl auf, ccache findet das echte cl im
+    # PATH, den MSBuild fuer die Werkzeuge setzt. MultiToolTask: eine Datei je Aufruf
+    # (ccache kann keine Buendel), EnforceProcessCountAcrossBuilds: zusammen hoechstens
+    # so viele cl wie Kerne, auch wenn mehrere Projekte gleichzeitig bauen.
+    # TrackFileAccess=false: sonst verbucht der FileTracker die Dateien, die ccache in
+    # seinen Cache schreibt, als Ausgaben des Projekts, und "Clean" loescht sie wieder
+    # (gemessen 15.11.: jeder Neubau ein Fehlgriff). Ohne Tracker uebersetzt MSBuild bei
+    # jedem Bau jede Datei - ueber den Cache, also schnell und nie veraltet.
+    set(BHED_CCACHE_CL ${CMAKE_BINARY_DIR}/ccache_cl)
+    configure_file(${BEHAVED_CCACHE} ${BHED_CCACHE_CL}/cl.exe COPYONLY)
+    set(CMAKE_VS_GLOBALS "CLToolExe=cl.exe" "CLToolPath=${BHED_CCACHE_CL}" "UseMultiToolTask=true"
+                         "EnforceProcessCountAcrossBuilds=true" "TrackFileAccess=false")
+  else()
+    set(CMAKE_C_COMPILER_LAUNCHER ${BEHAVED_CCACHE})
+    set(CMAKE_CXX_COMPILER_LAUNCHER ${BEHAVED_CCACHE})
+    # clang-cl unter Ninja (bhed_q3map2): CMake laesst die Abhaengigkeiten mit -clang:-MD/-MF schreiben (gcc-Form) - die
+    # kennt ccache nicht (gemessen 16.11.: alle 429 Aufrufe "unsupported compiler option"). Mit /showIncludes wie bei cl;
+    # dieselben Abhaengigkeiten, an den Objektdateien aendert das nichts. C: src/q3map2/CMakeLists.txt nach enable_language(C).
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+      set(CMAKE_DEPFILE_FLAGS_CXX "/showIncludes")
+      set(CMAKE_CXX_DEPFILE_FORMAT msvc)
+    endif()
+  endif()
+  set(BHED_DEBUGINFO /Z7)
+  message(STATUS "Uebersetzungs-Cache: ${BEHAVED_CCACHE} (/Z7)")
+endif()
+
 add_library(bhed_core STATIC
   src/script.cpp
   src/update.cpp
@@ -427,6 +472,7 @@ if(MSVC AND BEHAVED_Q3MAP2)
     add_custom_target(bhed_q3map2_clang ALL
       COMMAND ${CMAKE_COMMAND} -DQUELLE=${CMAKE_CURRENT_SOURCE_DIR} -DBAU=${BHED_Q3_CLANG_BAU} -DLLVM=${BEHAVED_Q3MAP2_LLVM}
               -DNINJA=${BHED_NINJA} -DZIEL=${CMAKE_BINARY_DIR}/bin/$<CONFIG>/bhed_q3map2.exe
+              "-DCCACHE=${BEHAVED_CCACHE}"
               -P ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_clang.cmake
       COMMENT "bhed_q3map2 (clang-cl)"
       USES_TERMINAL VERBATIM)
@@ -480,7 +526,15 @@ if(NOT TARGET assimp)
   set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
   set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
   set(ASSIMP_IGNORE_GIT_HASH ON CACHE BOOL "" FORCE)
+  # REL-TEMPO: mit dem Uebersetzungs-Cache dieselben Debug-Infos als /Z7 statt assimps /Zi (ASSIMP_INSTALL_PDB) - sonst
+  # nimmt ccache keine der ~400 Dateien von assimp (gemessen: "Compiler option /Zi is unsupported").
+  if(BEHAVED_CCACHE)
+    set(ASSIMP_INSTALL_PDB OFF CACHE BOOL "" FORCE)
+  endif()
   add_subdirectory(${BHED_TP9}/assimp ${CMAKE_BINARY_DIR}/assimp_editor EXCLUDE_FROM_ALL)
+  if(BEHAVED_CCACHE AND MSVC)
+    target_compile_options(assimp PRIVATE $<$<CONFIG:Release>:/Z7>)
+  endif()
 endif()
 target_link_libraries(bhed_core PRIVATE assimp)
 
@@ -695,9 +749,10 @@ if(WIN32 AND IMGUI_DIR AND EXISTS "${IMGUI_DIR}/imgui.cpp")
     # (behaved-absturz.dmp, gui/wache.h) kaum zu lesen. Am Code aendert das
     # nichts; /OPT:REF und /OPT:ICF stehen ausdruecklich da, weil /DEBUG sie
     # sonst abschaltet. Die PDB wird nicht ausgeliefert, nur aufbewahrt.
-    target_compile_options(behaved PRIVATE $<$<CONFIG:Release>:/Zi>)
-    target_compile_options(bhed_core PRIVATE $<$<CONFIG:Release>:/Zi>)
-    target_compile_options(imgui PRIVATE $<$<CONFIG:Release>:/Zi>)
+    # REL-TEMPO: mit BEHAVED_CCACHE /Z7 (die Debug-Infos in der .obj) - die PDB schreibt der Linker.
+    target_compile_options(behaved PRIVATE $<$<CONFIG:Release>:${BHED_DEBUGINFO}>)
+    target_compile_options(bhed_core PRIVATE $<$<CONFIG:Release>:${BHED_DEBUGINFO}>)
+    target_compile_options(imgui PRIVATE $<$<CONFIG:Release>:${BHED_DEBUGINFO}>)
     target_link_options(behaved PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF>)
     # Der Selbsttest ist eine einzige grosse Datei voller Lambdas - mehr als
     # die 65536 Abschnitte einer normalen Objektdatei (C1128).
@@ -1397,7 +1452,7 @@ if(BEHAVED_TESTS)
       # neben anderen Laeufen 44 + 634 + 1213 + 239 s). q3map2_teilbau: VIS und Licht-Cache
       # ohne Bounce (a-d); _bounce: Licht-Cache je Durchgang (e); _geometrie: nach Geometrie-Aenderungen (f); _offen:
       # der Hof unter dem Himmel (g).
-      foreach(teil karten bounce geometrie offen)
+      foreach(teil karten bounce offen)
         if(teil STREQUAL "karten")
           set(bhed_teilbau q3map2_teilbau)
         else()
@@ -1409,6 +1464,17 @@ if(BEHAVED_TESTS)
                          ${CMAKE_CURRENT_BINARY_DIR}/${bhed_teilbau})
         # rc612: auf dem GitHub-Runner (4 Kerne) brauchte _geometrie ueber 1800 s (lokal 104 s) - Grenze 3600 s.
         set_tests_properties(${bhed_teilbau} PROPERTIES TIMEOUT 3600 ENVIRONMENT "BHED_TEILBAU_NUR=${teil}")
+      endforeach()
+      # REL-TEMPO: _geometrie (im Runner 2237 s, die Haelfte aller Unit-Tests) als vier Tests, je eine Reihe von f)
+      # (BHED_TEILBAU_REIHE) - die Reihen hingen nicht voneinander ab; zusammen dieselben 52 Pruefzeilen wie vorher
+      # (docs/intern/NOTIZEN_reltempo_1511.md). So laufen sie bei ctest -j nebeneinander.
+      foreach(reihe 0 1 2 3)
+        add_test(NAME q3map2_teilbau_geometrie_${reihe}
+                 COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/karte/q3map2_teilbau.py
+                         $<TARGET_FILE_DIR:behaved>/bhed_q3map2.exe ${CMAKE_CURRENT_SOURCE_DIR}/tests/karte/q3map2
+                         ${CMAKE_CURRENT_BINARY_DIR}/q3map2_teilbau_geometrie_${reihe})
+        set_tests_properties(q3map2_teilbau_geometrie_${reihe} PROPERTIES TIMEOUT 3600
+                             ENVIRONMENT "BHED_TEILBAU_NUR=geometrie;BHED_TEILBAU_REIHE=${reihe}")
       endforeach()
       # Stufe 8a Punkt 5c: Zur fertigen Karte hinzufuegen (-mergebsp -world -fixnames, Pruefungen, Kollision)
       add_test(NAME q3map2_zusammen
@@ -2383,4 +2449,23 @@ if(BEHAVED_TESTS)
   add_executable(modellcwskelettest tests/modell_cwskelett.cpp)
   target_link_libraries(modellcwskelettest PRIVATE bhed_core)
   add_test(NAME modell_cwskelett COMMAND modellcwskelettest ${CMAKE_CURRENT_SOURCE_DIR}/data/fixtures/model.glm)
+endif()
+
+# REL-TEMPO (15.11.): ctest -j im Runner startet die langen Tests zuerst. COST = Sekunden des Runners beim Release
+# rc612 (Lauf 43587844560, seriell, ohne GPU) - ohne sie kaemen die vier langen q3map2-Tests in der Reihenfolge der
+# Liste als letzte, und der Lauf dauerte am Ende so lange wie sie allein. Nur die Reihenfolge, kein Test faellt weg.
+if(BEHAVED_TESTS)
+  # q3map2_teilbau_geometrie (2237 s) ist seit REL-TEMPO in vier Reihen geteilt - je Reihe ein Viertel als Schaetzung.
+  # updater_uebergang hat seit REL-TEMPO den Updater von rc612 dazu (lokal allein 75 s statt 44 s): 72 x 75 / 44.
+  foreach(bhed_kosten q3map2_teilbau_geometrie_0=560 q3map2_teilbau_geometrie_1=560 q3map2_teilbau_geometrie_2=560
+                      q3map2_teilbau_geometrie_3=560 q3map2_teilbau_bounce=724 q3map2_gpubake=571 q3map2_teilbau_offen=430
+                      defgpu=77 defgpu_grafikkarte=74 updater_uebergang=123 hlsl=68 q3map2_baupause=56 q3map2_determinismus=31
+                      turbgpu=24 bewegung=22 hilfe_orte=21)
+    string(REPLACE "=" ";" bhed_kosten "${bhed_kosten}")
+    list(GET bhed_kosten 0 bhed_kosten_test)
+    list(GET bhed_kosten 1 bhed_kosten_sek)
+    if(TEST ${bhed_kosten_test})
+      set_tests_properties(${bhed_kosten_test} PROPERTIES COST ${bhed_kosten_sek})
+    endif()
+  endforeach()
 endif()

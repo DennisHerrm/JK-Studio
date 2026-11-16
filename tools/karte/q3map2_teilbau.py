@@ -22,6 +22,9 @@ g) lcb2: dasselbe auf einer offenen Karte unter dem Himmel (eine Sonne, Himmelsl
    Ecke verschoben (Struktur, Detail, mit Licht dazu) - der groesste Teil des Hofs kommt aus dem Cache; eine hohe Saeule
    dazu bzw. geloescht, deren Schatten weit faellt. BHED_TEILBAU_NUR=offen.
 BHED_TEILBAU_NUR=karten: nur a) bis d). ctest startet die vier Teile als q3map2_teilbau, _bounce, _geometrie und _offen.
+REL-TEMPO: BHED_TEILBAU_REIHE=<n> mit BHED_TEILBAU_NUR=geometrie: nur die Reihe n von f) (0: -fast, 1: -bounce 1, 2: [Final]
+Fast, 3: [Final] Fast mit GPU-Backen) - die Reihen hingen schon vorher nicht voneinander ab (jede baut ihren eigenen ersten
+Bau); ctest startet sie als q3map2_teilbau_geometrie_0 bis _3 nebeneinander (der Teil allein brauchte im Runner 2237 s).
 Die Karten aus tests/karte/q3map2 brauchen kein Spiel (-game quake3 nicht, sondern ja
 ohne Spielordner: die Shader fehlen, die Geometrie ist trotzdem dieselbe).
 """
@@ -431,8 +434,9 @@ if NUR in ('', 'geometrie') and os.path.exists(ZWEI):
               (LICHT + ['-bounce', '1'], aenderungen),
               (final_fast, [aenderungen[0], aenderungen[3], aenderungen[4], aenderungen[7]]),
               (final_fast + gpu if GPU else None, [aenderungen[1], aenderungen[4], aenderungen[5], aenderungen[8]])]
+    reihe = os.environ.get('BHED_TEILBAU_REIHE', '')   # REL-TEMPO: nur diese Reihe (ctest: je Reihe ein Test)
     for r, (schalter, liste) in enumerate(reihen):
-        if schalter is None:
+        if schalter is None or (reihe != '' and str(r) != reihe):
             continue
         erst = os.path.join(ARBEIT, 'f%d_erst' % r)
         shutil.rmtree(erst, ignore_errors=True)

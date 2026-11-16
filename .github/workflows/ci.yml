@@ -1,7 +1,10 @@
 # CI: bauen und die Unit-Tests ohne Spieldaten bei jedem Push und Pull Request (Stufe 8d Punkt 7).
 #
-# Wie der Bau in release.yml (Visual Studio 2026, imgui als Submodul), aber ohne LLVM fuer die
-# q3map2 (MSVC baut bhed_q3map2.exe genauso, nur langsamer im Ergebnis), ohne Paket und Release.
+# REL-TEMPO (15.11.): derselbe Bau wie in release.yml (Visual Studio 2026, imgui als Submodul, LLVM fuer
+# bhed_q3map2 - bis rc612 baute CI sie mit MSVC), ueber ccache (.github/actions/bauwerkzeuge). Auf main
+# speichert dieser Lauf den Cache; der Release-Lauf einer Marke nimmt ihn (Marken koennen Caches nur lesen),
+# so uebersetzt er nur, was sich seit dem letzten Push auf main geaendert hat. Ohne Paket und Release.
+# Die Unit-Tests laufen parallel (ctest -j, die langen zuerst: COST in CMakeLists.txt), alle.
 # Tests, die Spieldaten, eine GPU oder Ton brauchen, ueberspringen sich selbst. Der grosse
 # Selbsttest des Programms laeuft weiter von Hand (TESTING.md).
 
@@ -43,13 +46,18 @@ jobs:
           python tools/lint_fassung.py
           python tools/lint_sources.py
 
+      - name: Build tools (LLVM, ccache and its cache)
+        id: werkzeuge
+        uses: ./.github/actions/bauwerkzeuge
+
       - name: Configure
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           $imgui = "$env:GITHUB_WORKSPACE/imgui" -replace '\\', '/'
-          cmake -S . -B build -G "Visual Studio 18 2026" -A x64 "-DIMGUI_DIR=$imgui"
+          cmake -S . -B build -G "Visual Studio 18 2026" -A x64 "-DIMGUI_DIR=$imgui" "-DBEHAVED_Q3MAP2_LLVM=${{ steps.werkzeuge.outputs.llvm-bin }}" "-DBEHAVED_CCACHE=${{ steps.werkzeuge.outputs.ccache }}"
 
       - name: Build
+        id: bau
         run: |
           cmake --build build --config Release --parallel
           if ($LASTEXITCODE -ne 0) {
@@ -57,7 +65,33 @@ jobs:
             cmake -S . -B build -DBEHAVED_MSVC_SAFE_CODEGEN=ON
             cmake --build build --config Release --parallel
           }
-          exit $LASTEXITCODE
+          $rc = $LASTEXITCODE
+          if ('${{ steps.werkzeuge.outputs.ccache }}' -ne '') { & '${{ steps.werkzeuge.outputs.ccache }}' --show-stats }
+          exit $rc
+
+      - name: Trim the compiler cache to this build
+        # Nur was dieser Bau benutzt hat, bleibt (ccache merkt sich den letzten Zugriff) - so waechst der Cache nicht mit
+        # jedem Lauf, und die 10 GB je Repository reichen.
+        if: github.ref == 'refs/heads/main' && steps.werkzeuge.outputs.ccache != '' && steps.bau.outcome == 'success'
+        run: |
+          $alter = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - [long]$env:BHED_LAUF_BEGINN + 600
+          & '${{ steps.werkzeuge.outputs.ccache }}' --evict-older-than "$($alter)s"
+          & '${{ steps.werkzeuge.outputs.ccache }}' --show-stats
+          # die GPU-Shader von bhed_q3map2 (tools/karte/fxc_cache.cmake): jeder Treffer frischt die Zeit auf
+          $grenze = [DateTimeOffset]::FromUnixTimeSeconds([long]$env:BHED_LAUF_BEGINN - 600).UtcDateTime
+          $fxc = Join-Path $env:CCACHE_DIR 'bhed_fxc'
+          if (Test-Path $fxc) {
+            Get-ChildItem $fxc -File | Where-Object { $_.LastWriteTimeUtc -lt $grenze } | Remove-Item -Force
+            Write-Host "fxc cache: $(@(Get-ChildItem $fxc -File).Count) shaders"
+          }
+
+      - name: Save the compiler cache (main only)
+        if: github.ref == 'refs/heads/main' && steps.werkzeuge.outputs.ccache != '' && steps.bau.outcome == 'success'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: ${{ steps.werkzeuge.outputs.schluessel }}-${{ github.sha }}
 
       - name: Unit tests (no game data, no GPU, no sound)
-        run: ctest --test-dir build -C Release --output-on-failure --timeout 900
+        # REL-TEMPO: alle Tests, parallel (so viele wie Kerne); die langen zuerst (COST).
+        run: ctest --test-dir build -C Release --output-on-failure --timeout 900 -j $env:NUMBER_OF_PROCESSORS

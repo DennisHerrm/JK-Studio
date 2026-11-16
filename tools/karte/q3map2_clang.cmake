@@ -5,7 +5,7 @@
 # aendern). Kein ExternalProject: dessen Stempel-Regeln erzeugen mit dem
 # Visual-Studio-Generator die Warnung MSB8064.
 #
-#   cmake -DQUELLE=<repo> -DBAU=<ordner> -DLLVM=<llvm-bin> -DNINJA=<ninja.exe> -DZIEL=<exe> -P q3map2_clang.cmake
+#   cmake -DQUELLE=<repo> -DBAU=<ordner> -DLLVM=<llvm-bin> -DNINJA=<ninja.exe> -DZIEL=<exe> [-DCCACHE=<ccache.exe>] -P q3map2_clang.cmake
 #
 #   Copyright (C) 2026 BehavEd-Remake contributors. GPL v2 (LICENSE).
 foreach(v QUELLE BAU LLVM NINJA ZIEL)
@@ -19,6 +19,12 @@ if(NOT EXISTS "${BAU}/build.ninja")
   if(EXISTS "${LLVM}/llvm-mt.exe")
     set(mt "-DCMAKE_MT=${LLVM}/llvm-mt.exe")
   endif()
+  # REL-TEMPO: mit -DCCACHE=<ccache.exe> (BEHAVED_CCACHE des aeusseren Baus) laufen auch die
+  # clang-cl-Aufrufe ueber den Uebersetzungs-Cache (Ninja: CMAKE_<LANG>_COMPILER_LAUNCHER).
+  set(cc "")
+  if(DEFINED CCACHE AND NOT CCACHE STREQUAL "")
+    set(cc "-DBEHAVED_CCACHE=${CCACHE}")
+  endif()
   execute_process(
     COMMAND "${CMAKE_COMMAND}" -S "${QUELLE}" -B "${BAU}" -G Ninja
             -DCMAKE_BUILD_TYPE=Release
@@ -28,7 +34,7 @@ if(NOT EXISTS "${BAU}/build.ninja")
             "-DCMAKE_LINKER=${LLVM}/lld-link.exe"
             "-DCMAKE_AR=${LLVM}/llvm-lib.exe"
             "-DCMAKE_RC_COMPILER=${LLVM}/llvm-rc.exe"
-            ${mt}
+            ${mt} ${cc}
             -DBEHAVED_TESTS=OFF -DBEHAVED_D3D11=OFF -DBEHAVED_Q3MAP2_LLVM= -DIMGUI_DIR=
     RESULT_VARIABLE rc)
   if(NOT rc EQUAL 0)

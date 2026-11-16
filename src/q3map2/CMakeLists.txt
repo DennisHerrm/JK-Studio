@@ -15,6 +15,13 @@
 #   Copyright (C) 2026 BehavEd-Remake contributors. GPL v2 (LICENSE).
 
 enable_language(C)
+# REL-TEMPO: mit dem Uebersetzungs-Cache unter Ninja und clang-cl die Abhaengigkeiten per /showIncludes statt -clang:-MD
+# (ccache kennt die gcc-Form bei clang-cl nicht) - wie fuer C++ im CMakeLists.txt oben.
+if(BEHAVED_CCACHE AND NOT CMAKE_GENERATOR MATCHES "^Visual Studio" AND CMAKE_C_COMPILER_ID STREQUAL "Clang"
+   AND CMAKE_C_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+  set(CMAKE_DEPFILE_FLAGS_C "/showIncludes")
+  set(CMAKE_C_DEPFILE_FORMAT msvc)
+endif()
 
 set(TP ${CMAKE_SOURCE_DIR}/third_party)
 set(Q3 ${TP}/q3map2)
@@ -162,7 +169,14 @@ set(ASSIMP_BUILD_DRACO OFF CACHE BOOL "" FORCE)
 set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
 set(ASSIMP_IGNORE_GIT_HASH ON CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_USE_CCACHE OFF CACHE BOOL "" FORCE)
+# REL-TEMPO: mit dem Uebersetzungs-Cache (BEHAVED_CCACHE) /Z7 statt assimps /Zi - dieselben Debug-Infos, nur fuer ccache lesbar
+if(BEHAVED_CCACHE)
+  set(ASSIMP_INSTALL_PDB OFF CACHE BOOL "" FORCE)
+endif()
 add_subdirectory(${TP}/assimp ${CMAKE_CURRENT_BINARY_DIR}/assimp EXCLUDE_FROM_ALL)
+if(BEHAVED_CCACHE AND MSVC)
+  target_compile_options(assimp PRIVATE $<$<CONFIG:Release>:/Z7>)
+endif()
 # llvm-rc (clang-cl-Bau) lehnt das (c) in assimp.rc ab ("Non-ASCII 8-bit
 # codepoint", trotz #pragma code_page(1252)). Die Versionsressource landet
 # ohnehin nicht in bhed_q3map2.exe (eine .res in einer statischen Bibliothek
@@ -265,13 +279,25 @@ function(bhed_fxc name quelle einstieg)
     list(APPEND makros /D ${m})
   endforeach()
   set(aus ${BHED_HLSL_AUS}/${name}.h)
-  add_custom_command(OUTPUT ${aus}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${BHED_HLSL_AUS}
-    COMMAND ${BHED_FXC} /nologo /T cs_5_0 /E ${einstieg} /O3 /Gis /Qstrip_reflect /Qstrip_debug ${makros}
-            /Vn ${name} /Fh ${aus} ${CMAKE_CURRENT_SOURCE_DIR}/${quelle}
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${quelle}
-    COMMENT "fxc ${name}"
-    VERBATIM)
+  if(BEHAVED_CCACHE)
+    # REL-TEMPO: mit dem Uebersetzungs-Cache auch fxc ueber einen Cache (tools/karte/fxc_cache.cmake) - dieselben Schalter
+    set(schalter /nologo /T cs_5_0 /E ${einstieg} /O3 /Gis /Qstrip_reflect /Qstrip_debug ${makros} /Vn ${name})
+    string(REPLACE ";" "|" schalter_text "${schalter}")
+    add_custom_command(OUTPUT ${aus}
+      COMMAND ${CMAKE_COMMAND} -DFXC=${BHED_FXC} -DQUELLE=${CMAKE_CURRENT_SOURCE_DIR}/${quelle} -DAUS=${aus}
+              -DSCHALTER_TEXT=${schalter_text} -P ${CMAKE_SOURCE_DIR}/tools/karte/fxc_cache.cmake
+      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${quelle} ${CMAKE_SOURCE_DIR}/tools/karte/fxc_cache.cmake
+      COMMENT "fxc ${name} (Cache)"
+      VERBATIM)
+  else()
+    add_custom_command(OUTPUT ${aus}
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${BHED_HLSL_AUS}
+      COMMAND ${BHED_FXC} /nologo /T cs_5_0 /E ${einstieg} /O3 /Gis /Qstrip_reflect /Qstrip_debug ${makros}
+              /Vn ${name} /Fh ${aus} ${CMAKE_CURRENT_SOURCE_DIR}/${quelle}
+      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${quelle}
+      COMMENT "fxc ${name}"
+      VERBATIM)
+  endif()
   set(BHED_HLSL_HEADER ${BHED_HLSL_HEADER} ${aus} PARENT_SCOPE)
 endfunction()
 # Stufe 8g: sechs Einstiege (Erstabtastung, Vorhersage, Unterabtastung, Stempellauf,
