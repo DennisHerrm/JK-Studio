@@ -307,6 +307,15 @@ void lageInTab(std::vector<Schritt>& s, int modus, const char* name, int uebersp
     auto l = std::make_shared<Lage>();
     s.push_back(tu(std::string("REST9: Tab ") + name, [modus] { g_app->leftMode = modus; }));
     s.push_back(mausWeg());   // REST10: kein Tooltip eines Knopfs der Leiste unter der stehenden Maus (wechselt die Elemente mitten in der Ruhepruefung)
+    if (modus == 3) {
+        // REL613: der Karten-Editor laedt beim ersten Zeigen Shader und Entity-Klassen des Spiels im Hintergrund (spielPruefen, Movie Duels
+        // 0,5 s). Kam das mitten in eine Ruhepruefung, wechselten Elemente (Wettlauf: "Map Editor wieder mit Leiste: 2 unruhige Bilder",
+        // allein 3 von 3 rot, im Protokoll "254 entity classes" in diesem Fenster) - erst warten, bis das Spiel da ist
+        s.push_back(warteBis(std::string("REST9: ") + name + " - Spiel des Karten-Editors geladen", [] {
+            karteneditor::spielPruefen();
+            return karteneditor::spielBereit();
+        }, 6000));
+    }
     s.push_back(stabil(std::string("REST9 ") + name + " mit Leiste", 40));
     s.push_back(foto("r9_lage_" + std::to_string(modus)));
     s.push_back(tu(std::string("REST9: ") + name + " messen (mit Leiste)", [l] {

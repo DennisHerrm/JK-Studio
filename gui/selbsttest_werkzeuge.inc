@@ -2755,8 +2755,13 @@ std::vector<Schritt> modellSchritte() {
     add(klick(tr(Str::ModelAnimAll), "", 0, false));
     add(pause(0.3));
     // Transport: Schleife erzwingen, abspielen, anhalten
-    add(klick(tr(Str::MzSchleife), "###main"));   // AP1: in der Zeitleiste (Ansehen/Pruefen) als Text "Force loop"
+    // AP1: in der Zeitleiste (Ansehen/Pruefen) als Text "Force loop". REL613: seit TEST1411 G steht "Force loop" im Modus 3ds Max wie
+    // in 3ds Max nur noch in der Zeitkonfiguration (im Modus Blender auch in der Knopfreihe, ap1 Z9) - hier ueber die Zeitkonfiguration
+    add(tu("Zeitkonfiguration oeffnen (TEST1411 G)", [] { modellZeit().konfigOffen = true; }));
+    add(pause(0.3));
+    add(klick(std::string(tr(Str::MzSchleife)) + "##mzk"));
     add(pruefe("Schleife: erzwungen", [] { return g_app->loopMode == 1; }));
+    add(tu("Zeitkonfiguration zu", [] { modellZeit().konfigOffen = false; }));
     add(tu("angehalten", [] { g_app->animPlaying = false; }));
     add(pause(0.1));
     add(klick(tr(Str::ModelPlay), "###main"));

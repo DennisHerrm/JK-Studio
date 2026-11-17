@@ -42,6 +42,7 @@
 #include "bhed/modell/malen_mess.h"   // MBMAL: selbsttest_pt.inc (ptlang)
 #include "bhed/gpucam.h"   // mb1a2: selbsttest_mb1a2.inc
 #include "bhed/modell/animcfg.h"    // Stufe 2: selbsttest_mb2.inc
+#include "bhed/modell/animnamen.h"  // REL613: selbsttest_mb2.inc (Namen der animTable des Zielspiels)
 #include "bhed/modell/glmdatei.h"   // Stufe 2: selbsttest_mb2.inc
 #include "bhed/modell/md3datei.h"   // Modell-Block 1d: selbsttest_md.inc
 #include "bhed/modell/rig.h"        // Stufe 3: selbsttest_mb3.inc

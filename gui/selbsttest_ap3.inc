@@ -487,11 +487,25 @@ void rahmenSchritte(std::vector<Schritt>& s) {
         add(pruefe(zeile("R4", modus, "im rechten Feld steht kein Schalter des Bedienmodus mehr"), [] {
             return feldFrisch() && imFeld(tr(Str::MbWieMax)) == nullptr && imFeld(tr(Str::MbWieBlender)) == nullptr;
         }));
+        // REL613: seit TEST1411 G steht die Zeile mit dem Bedienmodus im Modus 3ds Max wie in 3ds Max nur auf Wunsch unter der Statuszeile
+        // (Einstellung modellTastenzeile; dazu das Untermenue im [+]-Menue der Ansicht) - fuer diese Pruefung an, wie in ap1 R8
+        auto tastenzeile = std::make_shared<bool>(false);
+        if (modus == 0) {
+            add(tu("AP3 R4: die Tastenzeile auf Wunsch an (TEST1411 G)", [=] {
+                *tastenzeile = g_app->settings.modellTastenzeile;
+                g_app->settings.modellTastenzeile = true;
+            }));
+            add(pause(0.2));
+        }
         add(pruefe(zeile("R4", modus, "der Bedienmodus bleibt erreichbar: Statuszeile, Alle Aktionen suchen"), [] {
             bool suche = false;
             for (int i = 0; i < modellZusatzZahl(); ++i) { suche = suche || std::string(modellZusatzText(i)).find(tr(Str::MbWieBlender)) != std::string::npos; }
             return finde("##mzmodus", "", 0, false) != nullptr && suche;
         }));
+        if (modus == 0) {
+            add(tu("AP3 R4: Tastenzeile wie vorher", [=] { g_app->settings.modellTastenzeile = *tastenzeile; }));
+            add(pause(0.2));
+        }
         // --- F13: Breite des Felds ---
         add(pruefe(zeile("F13", modus, "das Feld ist ab Werk 22 Zeichenhoehen breit"), [] {
             melde("F13 Breite " + std::to_string(feldBreiteEm()) + " Zeichenhoehen");
@@ -577,6 +591,9 @@ void rahmenSchritte(std::vector<Schritt>& s) {
         modellBedienungSetzen(0);
         g_app->mtab.bereich = ModellBereich::Animation;
         modellGlaZielSetzen(0);
+        // REL613: seit TEST1411 N stehen GLA, animation.cfg, Ziel-GLA und Plaetze im Animationsmodus wie in 3ds Max im Reiter
+        // Dienstprogramme (wie in selbsttest_mb2.inc)
+        modellFeldReiter(MbReiter::Dienste, MbReiterBl::Daten);
     }));
     add(pause(0.6));
     add(pruefe("AP3 UIFORM: in der Gruppe Karten-GLA beginnen die Felder Ziel und Karte an derselben Kante und enden am selben Rand", [] {

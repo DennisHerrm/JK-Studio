@@ -614,8 +614,11 @@ bool punktUnter(const ModellAnsicht& a, ImVec2 maus, float out[3]) {
 // Der Knochen, dessen Gelenk auf dem Schirm am naechsten an der Maus liegt (hoechstens eine Zeichenhoehe), sichtbar und nicht
 // eingefroren; -1 keiner.
 int knochenUnter(const ModellAnsicht& a, ImVec2 maus) {
-    // AP13K: zuerst die gezeichnete Form des Knochens (Oktaeder, Stick, Kasten ...), sonst wie bisher das naechste Gelenk
-    if (const int form = modellKdKnochenUnter(a, maus); form >= 0) { return form; }
+    // AP13K: zuerst die gezeichnete Form des Knochens (Oktaeder, Stick, Kasten ...), sonst wie bisher das naechste Gelenk.
+    // REL613: ein Klick genau auf ein Gelenk (in der Treffergrenze der Formen, formUnter) waehlt den Knochen dieses Gelenks (Entwurf AP4
+    // P8). Seit TEST1411 H endet die Form eines Knochens am Folgegelenk (lclavical -> lhumerus) - dort lag sonst die Form des vorigen
+    // Knochens der Kette oben, und der Klick aufs Gelenk von lhumerus waehlte lclavical.
+    const int form = modellKdKnochenUnter(a, maus);
     const std::vector<BoneMatrix>& welt = g_app->modellWelt;
     const std::size_t n = std::min(welt.size(), g_app->anim.bones.size());
     const float grenze = ImGui::GetFontSize();
@@ -632,7 +635,9 @@ int knochenUnter(const ModellAnsicht& a, ImVec2 maus) {
             wahl = static_cast<int>(b);
         }
     }
-    return wahl;
+    const float tol = std::max(5.0F, ImGui::GetFontSize() * 0.3F);   // wie formUnter (app_modelltab_knochen.cpp)
+    if (wahl >= 0 && best <= tol * tol) { return wahl; }
+    return form >= 0 ? form : wahl;
 }
 
 float abstandVon(const float a[3], const float b[3]) { return std::sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2])); }

@@ -2774,15 +2774,18 @@ std::vector<Schritt> schritteM7() {
     add(pruefe("M7 Punkt 14: alle ownerdraws und Feeder der Original-Menues haben eine Darstellung (0 Platzhalter)", [] {
         const std::vector<std::string> offen = me::platzhalterImSpiel();
         // Movie Duels MP 340-350 (UI_FORCE_RANK_STASIS ..): ohne Quellcode der MD-MP-Oberflaeche nicht nachbildbar
-        // (NOTIZEN_menue6.md, Punkt 14) - gezaehlt, aber nicht als Fehler
+        // (NOTIZEN_menue6.md, Punkt 14) - gezaehlt, aber nicht als Fehler.
+        // REL613: dazu 351 - die Spieldaten MD/Update9.pk3 (auf dieser Platte seit 15.11., Menues vom 09.11.) nutzen in
+        // ui/MD_MP/ingame_charforce.menu und ingame_playerforce.menu eine zwoelfte Kraft; die Quelle von Update 9 hier
+        // (BEHAVED_MD_QUELLEN, Stand 03.11.) kennt nur 340-350 (codemp/ui/menudef.h bis UI_FORCE_RANK_DARK_STASIS)
         int ohneQuelle = 0;
         for (const std::string& o : offen) {
             diag::info("Menue-Editor M7 Platzhalter: " + o);
             const bool mdMp = o.rfind("MP ownerdraw 3", 0) == 0 && o.find("(ui/MD_MP/") != std::string::npos &&
-                              std::atoi(o.c_str() + 13) >= 340 && std::atoi(o.c_str() + 13) <= 350;
+                              std::atoi(o.c_str() + 13) >= 340 && std::atoi(o.c_str() + 13) <= 351;
             ohneQuelle += mdMp ? 1 : 0;
         }
-        diag::info("Menue-Editor M7 Platzhalter gesamt: " + std::to_string(offen.size()) + ", davon ohne Quelle (MD-MP 340-350): " +
+        diag::info("Menue-Editor M7 Platzhalter gesamt: " + std::to_string(offen.size()) + ", davon ohne Quelle (MD-MP 340-351): " +
                    std::to_string(ohneQuelle));
         return static_cast<int>(offen.size()) == ohneQuelle;
     }));

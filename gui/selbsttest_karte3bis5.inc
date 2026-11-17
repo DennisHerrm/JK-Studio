@@ -5716,13 +5716,16 @@ std::vector<Schritt> karteneditorFotoSchritte() {
         // + Stufe 8b (Abweichung): Trenner 7 + "Play in editor", "Play: start at info_player_start",
         // "Camera view modes", "Logic view...", "Mirror mode", "Undo history..." je 24 (der laengste
         // Text "Play: start at info_player_start" mit Hakenspalte: 262 -> 292)
-        {"View", {"View"}, 292, 333 + 7 + 5 * 24 + 7 + 6 * 24 + 24},   // Stufe 9 Punkte 4-9: ein Untermenue "Map tools"
+        // CW-IMPORT Punkt 1 (Abweichung): + das Untermenue "Test figure" 24 (eigene Funktion, ab Werk aus; kuerzer als 292)
+        {"View", {"View"}, 292, 333 + 7 + 5 * 24 + 7 + 6 * 24 + 24 + 24},   // Stufe 9 Punkte 4-9: ein Untermenue "Map tools"
         {"View__Camera", {"View", "Camera"}, 255, 216},
         {"View__Orthographic", {"View", "Orthographic"}, 307, 240},
         {"View__Show", {"View", "Show"}, 253, 401},
         {"View__Filter", {"View", "Filter"}, 270, 593},
         {"View__Region", {"View", "Region"}, 264, 106},
-        {"Modify", {"Modify"}, 258, 230},
+        // Modify: NRC + CW-IMPORT Punkte 3-6 (Abweichung): Trenner 7 + das Untermenue "Clone Wars tools" 24 (eigene Werkzeuge,
+        // wirken nur beim Aufruf; kuerzer als 258)
+        {"Modify", {"Modify"}, 258, 230 + 7 + 24},
         {"Modify__Components", {"Modify", "Components"}, 177, 82},
         {"Modify__Nudge", {"Modify", "Nudge"}, 218, 161},
         {"Modify__Rotate", {"Modify", "Rotate"}, 206, 137},

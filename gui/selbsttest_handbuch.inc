@@ -1003,7 +1003,17 @@ bool laufPfad(const std::string& s) {
     return false;
 }
 Schritt keinLaufpfad(const std::string& bild, std::function<std::string()> pfad) {
-    return pruefe("Handbuch: " + bild + " zeigt keinen Pfad des Laufs (Arbeitsbereich, Laufordner, Benutzerordner)", [bild, pfad] {
+    const std::string text = "Handbuch: " + bild + " zeigt keinen Pfad des Laufs (Arbeitsbereich, Laufordner, Benutzerordner)";
+    // REL613: die volle Testrunde (tools/testrunde.py, Lauf handbuch) hat kein Laufwerk X: wie der Bildlauf - ihre Bilder gehen nicht ins
+    // Handbuch. Sie setzt BHED_HB_TESTRUNDE=1: die Zeile steht als uebersprungen da (mit dem Pfad im Protokoll); der Bildlauf
+    // (skripte/ab/bilder.sh) setzt die Variable nicht und prueft wie bisher.
+    if (const char* t = std::getenv("BHED_HB_TESTRUNDE"); t != nullptr && std::strcmp(t, "1") == 0) {
+        return tu("Handbuch: " + bild + " - Pfadpruefung nur im Bildlauf", [bild, text, pfad] {
+            diag::detail("Knopftest: Handbuch - Pfad in " + bild + ": " + pfad());
+            meldeUebersprungen(text, "Testrunde ohne Laufwerk X: (BHED_HB_TESTRUNDE=1), die Bilder gehen nicht ins Handbuch");
+        });
+    }
+    return pruefe(text, [bild, pfad] {
         const std::string p = pfad();
         diag::detail("Knopftest: Handbuch - Pfad in " + bild + ": " + p);
         return !laufPfad(p);

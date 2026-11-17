@@ -780,7 +780,15 @@ std::vector<Schritt> funktionenSchritte() {
     add(pause(0.2));
     add(pruefe("MB1 Ansichten: Alt+W - wieder eine", [] { return !g_app->mtab.vierAnsichten; }));
     // --- Bedienmodus --------------------------------------------------------------------
-    // AP3: der Schalter steht nicht mehr im rechten Feld - Klick auf den Bedienmodus in der Statuszeile, Wahl im Menue
+    // AP3: der Schalter steht nicht mehr im rechten Feld - Klick auf den Bedienmodus in der Statuszeile, Wahl im Menue.
+    // REL613: seit TEST1411 G steht diese Zeile (Bedienmodus, Tasten, Undo) im Modus 3ds Max wie in 3ds Max nur auf Wunsch unter der
+    // Statuszeile (Einstellung modellTastenzeile, ab Werk aus; im Modus Blender ist sie die Statuszeile) - fuer den Klick an, wie in ap1 R8
+    auto tastenzeile = std::make_shared<bool>(false);
+    add(tu("MB1 Bedienmodus: die Tastenzeile auf Wunsch an (TEST1411 G)", [=] {
+        *tastenzeile = g_app->settings.modellTastenzeile;
+        g_app->settings.modellTastenzeile = true;
+    }));
+    add(pause(0.2));
     add(klick("##mzmodus"));
     add(pause(0.3));
     add(klick(tr(Str::MbWieBlender)));
@@ -789,6 +797,7 @@ std::vector<Schritt> funktionenSchritte() {
     add(pause(0.3));
     add(klick(tr(Str::MbWieMax)));
     add(pruefe("MB1 Bedienmodus: wieder wie 3ds Max", [] { return g_app->settings.modellBedienung == 0; }));
+    add(tu("MB1 Bedienmodus: Tastenzeile wie vorher", [=] { g_app->settings.modellTastenzeile = *tastenzeile; }));
     add(tu("MB1: zurueck", [] {
         g_app->leftMode = 1;
         g_app->doc.markSaved();

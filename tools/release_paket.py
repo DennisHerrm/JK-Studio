@@ -684,7 +684,8 @@ def delta_pruefen(delta, alt_manifest, neu_manifest):
 # REL-TEMPO (shank 14.11.: "lassen wir die aktuelle exe einfach weg in Zukunft und bieten eine zentrale an
 # und der Rest wird automatisch geupdated"): der Starter ist der eine Download, das .zip der Rettungsweg.
 KOPF = (
-    "**Download:** `JK-Studio-Starter.exe` (under **Assets** below) \u2013 "
+    "**Download:** `JK-Studio-Starter.exe` (under **Assets** below; this link always gives the newest one: "
+    "https://github.com/DennisHerrm/JK-Studio/releases/latest/download/JK-Studio-Starter.exe) \u2013 "
     "Windows 10/11, 64-bit. JK Studio \u2013 mod tools for Jedi Knight: Jedi Academy and Jedi Outcast "
     "(BehavEd scripts, cutscene preview, map editor). Not affiliated with Lucasfilm, Disney or Raven Software.\n"
     "\n"
@@ -1052,6 +1053,9 @@ def selbsttest():
         erste = text.splitlines()[0]
         erwarte("notizen: die erste Zeile ist die Download-Zeile mit dem Starter (REL-TEMPO)",
                 erste.startswith("**Download:** `JK-Studio-Starter.exe`"))
+        # REL613: dazu der feste Link, der immer den neuesten Starter gibt (README, Handbuch "Install and update")
+        erwarte("notizen: die Download-Zeile nennt den festen Link releases/latest/download/JK-Studio-Starter.exe",
+                "https://github.com/DennisHerrm/JK-Studio/releases/latest/download/JK-Studio-Starter.exe" in erste)
         erwarte("notizen: nennen das Zip als Weg ohne Starter, Deltas, 'Source code' und SmartScreen - keine eigenstaendige exe",
                 "JK-Studio-rc900-windows-x64.zip" in text and ".delta" in text and "Source code" in text
                 and "Not affiliated" in text and "SmartScreen" in text and "windows-x64.exe" not in text)

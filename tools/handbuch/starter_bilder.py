@@ -2,13 +2,14 @@
 """REL-TEMPO: die Handbuchbilder des Starters (Seite installation) - h_starter_laden und h_starter_delta in allen Sprachen.
 
 Der Starter laeuft ausserhalb des Schirms im Fotomodus (BHED_STARTER_FOTO, BHED_STARTER_FOTO_BEI=laden:40,
-BHED_STARTER_SKALA=4: 480 Punkte breit -> 1920 Pixel) gegen einen lokalen Testserver (BHED_UPDATE_API, nur 127.0.0.1), der
-ein Release v1.0.0-rc613 nachbildet: das volle Paket so gross wie das von rc612 (470.475.290 Bytes), das Delta von rc612 so
-gross wie das gemessene rc611 -> rc612 (DELTA_BYTES). Die Bytes sind Fuellung - bei 40 % macht der Starter das Foto und bricht
-ab, er installiert und startet nichts. Kein Pfad im Bild: waehrend des Ladens zeigt der Starter nur die Megabyte.
+BHED_STARTER_SKALA=4: 480 Punkte breit -> 1920 Pixel) gegen lokale Testserver (BHED_UPDATE_API, nur 127.0.0.1), die
+ein Release nachbilden: das volle Paket so gross wie das von rc612 (470.475.290 Bytes), das Delta so gross wie das gemessene
+rc611 -> rc612 (DELTA_BYTES). Die Bytes sind Fuellung - bei 40 % macht der Starter das Foto und bricht ab, er installiert und
+startet nichts. Kein Pfad im Bild: waehrend des Ladens zeigt der Starter nur die Megabyte.
 
-  h_starter_laden  erster Start in einem leeren Ordner: das volle Paket
-  h_starter_delta  installiert ist rc612 (version.txt): das Delta auf rc613
+  h_starter_laden  erster Start in einem leeren Ordner: das volle Paket von rc613 (dem ersten Release mit Starter)
+  h_starter_delta  installiert ist rc613 (version.txt): das Delta auf rc614. REL613: rc612 und aelter haben kein Manifest
+                   (und keine version.txt) - ein Delta rc612 -> rc613 gibt es nicht, das erste Delta kommt mit rc614.
 
   python tools/handbuch/starter_bilder.py <JK-Studio-Starter.exe> [<handbuch/bilder>] [--sprachen en,de]
 """
@@ -35,19 +36,20 @@ class Server(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
 
-def server_starten():
+def server_starten(neu, alt):
+    """Testserver fuer ein Release v1.0.0-<neu> mit einem Delta von <alt>."""
     class H(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a):
             pass
 
         def do_GET(self):
             basis = "http://127.0.0.1:%d" % self.server.server_port
-            marke = "v1.0.0-rc613"
-            dateien = {"JK-Studio-Starter.exe": 700000, "JK-Studio-rc613-windows-x64.zip": ZIP_BYTES,
-                       "JK-Studio-rc613-manifest.txt": 600000, "JK-Studio-rc613-from-rc612.delta": DELTA_BYTES,
+            marke = "v1.0.0-" + neu
+            dateien = {"JK-Studio-Starter.exe": 700000, "JK-Studio-%s-windows-x64.zip" % neu: ZIP_BYTES,
+                       "JK-Studio-%s-manifest.txt" % neu: 600000, "JK-Studio-%s-from-%s.delta" % (neu, alt): DELTA_BYTES,
                        "SHA256SUMS.txt": 400}
             if self.path == "/repos/DennisHerrm/JK-Studio/releases/latest":
-                text = json.dumps({"tag_name": marke, "name": "JK Studio 1.0.0-rc613", "body": "", "html_url": basis,
+                text = json.dumps({"tag_name": marke, "name": "JK Studio 1.0.0-" + neu, "body": "", "html_url": basis,
                                    "assets": [{"name": n, "size": g, "url": basis + "/a/" + n, "browser_download_url": basis + "/dl/" + n}
                                               for n, g in dateien.items()]}).encode()
                 self.send_response(200)
@@ -104,20 +106,22 @@ def main():
         return 2
     starter = os.path.abspath(args[0])
     ziel = args[1] if len(args) > 1 else os.path.join(WURZEL, "handbuch", "bilder")
-    server = server_starten()
-    api = "http://127.0.0.1:%d/repos/" % server.server_port
+    # erster Start: rc613 voll; Update: installiert rc613, das Release rc614 bringt das Delta von rc613
+    server = {"h_starter_laden": server_starten("rc613", "rc612"), "h_starter_delta": server_starten("rc614", "rc613")}
+    installiert = {"h_starter_laden": None, "h_starter_delta": "rc613"}
     fehler = 0
     try:
         with tempfile.TemporaryDirectory(prefix="bhed_starterbilder_") as t:
             for sp in sprachen:
-                for name, installiert in (("h_starter_laden", False), ("h_starter_delta", True)):
+                for name in ("h_starter_laden", "h_starter_delta"):
+                    api = "http://127.0.0.1:%d/repos/" % server[name].server_port
                     o = os.path.join(t, sp, name)
                     os.makedirs(o)
-                    if installiert:
+                    if installiert[name]:
                         prog = os.path.join(o, "JK-Studio")
                         os.makedirs(prog)
                         open(os.path.join(prog, "jkstudio.exe"), "wb").write(b"MZ")
-                        open(os.path.join(prog, "version.txt"), "w", newline="\n").write("rc612\n")
+                        open(os.path.join(prog, "version.txt"), "w", newline="\n").write(installiert[name] + "\n")
                     bmp = os.path.join(t, "%s_%s.bmp" % (sp, name))
                     if not foto(starter, o, sp, bmp, api):
                         print("FEHL  %s %s: kein Foto" % (sp, name))
@@ -131,7 +135,8 @@ def main():
                         print("FEHL  %s %s: nur %d Pixel breit" % (sp, name, b.width))
                         fehler += 1
     finally:
-        server.shutdown()
+        for s in server.values():
+            s.shutdown()
     print("starter_bilder: %d Fehler" % fehler)
     return 1 if fehler else 0
 

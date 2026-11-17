@@ -975,7 +975,7 @@ std::vector<Schritt> kopfZusatzSchritte() {
         diag::detail(z);
         return linse >= 20 && anders <= 2;
     }));
-    // (b) ViewCube mit Kompass, Maus auf dem Wuerfel (deckend): jeder Buchstabe ist zu sehen
+    // (b) ViewCube mit Kompass, Maus auf dem Wuerfel (deckend): jeder Buchstabe vor dem Wuerfel ist zu sehen (seit TEST1411 L der dahinter nicht)
     add(tu("MBKOPF B: Max, Kompass an, von vorne 25 Grad von oben (N liegt hinter dem Wuerfel)", [] {
         modellBedienungSetzen(0);
         g_app->settings.modellKompass = true;
@@ -1000,7 +1000,9 @@ std::vector<Schritt> kopfZusatzSchritte() {
     add(pause(0.3));
     add(fensterFoto("kompass_aus", ohne));
     add(tu("MBKOPF B: Kompass wieder an", [] { g_app->settings.modellKompass = true; }));
-    add(pruefe("MBKOPF B: alle vier Buchstaben N, O, S, W sind zu lesen - auch der, vor dem der ViewCube steht", [=] {
+    // REL613: seit TEST1411 L (Rueckmeldung 14.11.: der verdeckte Buchstabe schien durch, ein Klick traf ihn statt des Wuerfels) verdeckt
+    // der Wuerfel den Buchstaben hinter sich wie in 3ds Max - erwartet: O, S, W zu lesen, N (hinter dem Wuerfel) unsichtbar
+    add(pruefe("MBKOPF B: die Buchstaben O, S, W sind zu lesen, N hinter dem ViewCube ist verdeckt (TEST1411 L)", [=] {
         if (!mit->da() || !ohne->da() || mit->w != ohne->w) { return false; }
         const Str namen[4] = {Str::MkKompassN, Str::MkKompassO, Str::MkKompassS, Str::MkKompassW};
         bool ok = true;
@@ -1021,7 +1023,7 @@ std::vector<Schritt> kopfZusatzSchritte() {
                 }
             }
             zeile += std::string(" ") + tr(namen[i]) + ": " + std::to_string(anders) + " Punkte, Kontrast " + std::to_string(hi - lo) + ";";
-            ok = ok && anders >= 4 && hi - lo >= 80;
+            ok = ok && (i == 0 ? anders == 0 : anders >= 4 && hi - lo >= 80);   // i 0: N hinter dem Wuerfel
         }
         diag::detail("Knopftest: MBKOPF B Kompass -" + zeile);
         return ok;

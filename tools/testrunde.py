@@ -241,7 +241,9 @@ BEREICH = {
 # einzel (ein zweiter Start reicht an den laufenden weiter) prueft nur mit BHED_EINZEL=<Name>: ohne den Namen nimmt sich der
 # Selbsttest von der Einzelinstanz aus, der zweite Start laeuft dann als eigenes Programm weiter und alle sechs Pruefungen sind
 # rot (so in der Runde rc611 und am 11.11.). Der Name ist je Lauf eigen, damit zwei Runden nebeneinander sich nicht treffen.
-EIGENE_VAR = {"einzel": ["BHED_EINZEL=<EIGEN>"]}
+# REL613: handbuch prueft seit TEST1411e, dass die Dialogbilder keinen Laufpfad zeigen - das gilt dem Bildlauf (skripte/ab/bilder.sh
+# legt Missionen und Zielarchiv auf ein Laufwerk X:); die Runde hat kein X:, ihre Bilder gehen nicht ins Handbuch (BHED_HB_TESTRUNDE)
+EIGENE_VAR = {"einzel": ["BHED_EINZEL=<EIGEN>"], "handbuch": ["BHED_HB_TESTRUNDE=1"]}
 # Runde 2: nach den Messfenstern in karte ("Ruhe: ...") und der Bedingung am Tutorial-Fenster (reiter) nachgewiesen
 NACH_BILDERN = {"karte", "reiter"}
 for bereich_, namen_ in BEREICH.items():
@@ -303,6 +305,13 @@ lauf("mb_klein2", "modellblock", 1500, MB + ["BHED_MODELL_NUR=klein2"], bereich=
 # fix612babsturz einzeln), FIX612C (nur FK, Knochen waehlen, Gizmo/Q, Explorer)
 for g in "ent3a ent3b fix612 fix612b fix612babsturz fix612c".split():
     lauf("mb_" + g, "modellblock", 1800, MB + ["BHED_MODELL_NUR=" + g, "BHED_FOTOS=<FOTOS>"], bereich="modell")
+# REL613: die Gruppen nach rc612, die bis zur Release-Runde rc613 in keinem Lauf der Runde standen - TEST1411 (die Testrueckmeldungen
+# A-P mit TEST1411b-e) und CW-MODELL (Detailstufen, Bolts, eigenes Skelett; nicht im Pool: der Bildlauf cwmodellhb). TEST1411 in drei
+# Teilen mit frischem Programm (BHED_T1411), wie die Abschnitte gebaut und geprueft wurden; zusammen alle Abschnitte des Laufs ohne
+# BHED_T1411 (in EINEM Programm war am 17.11. nach a/z der Mauspunkt der Statuszeile leer und der leere Model-Tab ohne NPC-Browser)
+for t_, ab_ in (("mb_test1411", "d,i,f,h,g,j,l,m,k,c,n,o,p,e"), ("mb_test1411b", "a,z"), ("mb_test1411c", "x,s,w,b,fotos")):
+    lauf(t_, "modellblock", 3600, MB + ["BHED_MODELL_NUR=test1411", "BHED_T1411=" + ab_, "BHED_FOTOS=<FOTOS>"], bereich="modell")
+lauf("mb_cwmodell", "modellblock", 1800, MB + ["BHED_MODELL_NUR=cwmodell", "BHED_FOTOS=<FOTOS>"], bereich="modell")
 # FIX612 R3: Bauen fortsetzen startet nichts aus dem Zwischenstand, Verwerfen/Fortsetzen nach dem Verschieben des Kartenordners
 lauf("ke_fix612", "karteneditor", 1500, ["BHED_KARTE_NUR=fix612"], bereich="karteneditor")
 # D3D12 Stufe 1-3: Wahl der Grafikschnittstelle, Rueckfall und Geraeteverlust (Modus grafik) - unter der Vorgabe, unter Direct3D 11

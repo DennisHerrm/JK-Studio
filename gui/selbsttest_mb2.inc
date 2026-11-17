@@ -12,6 +12,33 @@
 // Eingebunden in selbsttest.cpp (nach selbsttest_mb1a2.inc).
 namespace mb3 {
 
+// REL613: die Zeilen der animation.cfg des Dokuments, deren Namen die animTable des Zielspiels nicht kennt - unabhaengig von
+// modell::cfgPruefen gezaehlt (ROOT liest das Spiel vorab, G_ParseAnimationFile). Seit CW-MODELL meldet der Model-Tab sie ohne
+// Profil (das Spiel uebergeht solche Zeilen): die _humanoid/animation.cfg von Movie Duels (MD_Assets2.pk3) hat 7 davon
+// (BOTH_INV_USE, BOTH_PARRY_WALK_DUAL/_STAFF, BOTH_RUN3_MP, BOTH_SPRINT_MP, BOTH_SPRINT_SABER/_MP - in der Quelle von Update 9 nur
+// in Kommentaren, nicht in cgame/animtable.h).
+int unbekannteNamen() {
+    const std::vector<std::string>& tab = modell::animNamenSpiel(static_cast<modell::Zielspiel>(g_app->mtab.zielspiel));
+    const auto gleich = [](const std::string& a, const std::string& b) {
+        return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](char x, char y) {
+                   return std::toupper(static_cast<unsigned char>(x)) == std::toupper(static_cast<unsigned char>(y));
+               });
+    };
+    int n = 0;
+    for (const AnimEntry& e : g_app->mtab.dok.inhalt().cfg.eintraege()) {
+        if (e.name == "ROOT") { continue; }
+        n += std::any_of(tab.begin(), tab.end(), [&](const std::string& t) { return gleich(t, e.name); }) ? 0 : 1;
+    }
+    return n;
+}
+
+// Befunde der animation.cfg des Dokuments ohne die unbekannten Namen
+int befundeOhneNamen() {
+    int n = 0;
+    for (const modell::CfgBefund& b : modellCfgBefunde()) { n += b.art == modell::CfgBefundArt::Unbekannt ? 0 : 1; }
+    return n;
+}
+
 // Alles, was readGlm zum Zeichnen liefert, gleich?
 bool glmDatenGleich(const GlmModel& a, const GlmModel& b, std::string& wo) {
     const auto ecken = [](const std::vector<GlmVertex>& x, const std::vector<GlmVertex>& y) {
@@ -290,9 +317,13 @@ std::vector<Schritt> uiSchritte() {
     // TEST1411 N: GLA, animation.cfg, Ziel-GLA und Plaetze stehen im Animationsmodus wie in 3ds Max im Reiter Dienstprogramme
     add(tu("MB3 Animation: Reiter Dienstprogramme", [] { modellFeldReiter(MbReiter::Dienste, MbReiterBl::Daten); }));
     add(pause(0.6));
-    add(pruefe("MB3 Animation: die animation.cfg der GLA im Dokument, keine Befunde fuer Movie Duels SP", [] {
-        diag::detail("Knopftest: MB3 cfg " + g_app->mtab.dok.inhalt().cfgPfad + ", Befunde " + std::to_string(g_app->mtab.cfgBefunde));
-        return !g_app->mtab.dok.inhalt().cfgPfad.empty() && g_app->mtab.cfgBefunde == 0 &&
+    // REL613: seit CW-MODELL zaehlen die Namen, die das Zielspiel nicht kennt, mit - erwartet genau sie (unabhaengig gezaehlt), sonst keinen
+    add(pruefe("MB3 Animation: die animation.cfg der GLA im Dokument, fuer Movie Duels SP nur die Namen, die das Spiel nicht kennt", [] {
+        const int unbekannt = unbekannteNamen();
+        diag::detail("Knopftest: MB3 cfg " + g_app->mtab.dok.inhalt().cfgPfad + ", Befunde " + std::to_string(g_app->mtab.cfgBefunde) +
+                     ", davon andere als unbekannte Namen " + std::to_string(befundeOhneNamen()) + ", unbekannte Namen gezaehlt " +
+                     std::to_string(unbekannt));
+        return !g_app->mtab.dok.inhalt().cfgPfad.empty() && g_app->mtab.cfgBefunde == unbekannt && befundeOhneNamen() == 0 &&
                g_app->mtab.dok.inhalt().cfg.eintraege().size() == g_app->animList.size();
     }));
     auto walk = std::make_shared<AnimEntry>();
@@ -347,10 +378,16 @@ std::vector<Schritt> uiSchritte() {
         (void)modellMarkerAendern(w);
     }));
     add(pause(0.3));
-    add(pruefe("MB3 Pruefen: animation.cfg mit einem Frame hinter dem Ende wird gemeldet", [] { return g_app->mtab.cfgBefunde >= 1; }));
+    // REL613: der Befund des Frames hinter dem Ende selbst (die unbekannten Namen zaehlen seit CW-MODELL schon vorher mit)
+    add(pruefe("MB3 Pruefen: animation.cfg mit einem Frame hinter dem Ende wird gemeldet", [] {
+        const std::vector<modell::CfgBefund> b = modellCfgBefunde();
+        return std::any_of(b.begin(), b.end(), [](const modell::CfgBefund& x) { return x.art == modell::CfgBefundArt::HinterGla; });
+    }));
     add(tasteKombi(ImGuiMod_Ctrl | ImGuiKey_Z, "Strg+Z"));
     add(pause(0.3));
-    add(pruefe("MB3 Pruefen: nach Strg+Z kein Befund", [] { return g_app->mtab.cfgBefunde == 0; }));
+    add(pruefe("MB3 Pruefen: nach Strg+Z kein Befund (ausser den Namen, die das Spiel nicht kennt)", [] {
+        return befundeOhneNamen() == 0 && g_app->mtab.cfgBefunde == unbekannteNamen();
+    }));
     // --- Plaetze: Ziehen aus der Animationsliste, Rechtsklick-Weg, Karten-GLA bauen ------------------------------------------
     add(tu("MB3 Plaetze: Karte mb3test, die Zeile BOTH_WALK1 ins Bild", [] {
         std::snprintf(g_app->mtab.kgKarte, sizeof g_app->mtab.kgKarte, "%s", "mb3test");
@@ -437,6 +474,19 @@ std::vector<Schritt> uiSchritte() {
             diag::detail("Knopftest: MB3 Ziel " + std::to_string(ziel) + " - " + g_app->mtab.meldung);
         }));
         add(pause(0.2));
+        if (ziel == 1) {
+            // REL613: den ganzen Satz ersetzen schreibt die animation.cfg des Modells - fuer Movie Duels mit den Namen, die das Spiel nicht
+            // kennt. Seit CW-MODELL fragt das Bauen dann im Programm (Befunde, Trotzdem/Abbrechen); die Frage nennt genau diese Namen.
+            add(pruefe("MB3 Ziel 1: die Frage nennt genau die Namen der animation.cfg, die das Zielspiel nicht kennt", [] {
+                const int unbekannt = unbekannteNamen();
+                diag::detail("Knopftest: MB3 Ziel 1 - Frage " + std::to_string(g_app->mtab.frageArt) + ", Zeilen " +
+                             std::to_string(g_app->mtab.frageZeilen.size()) + ", unbekannte Namen " + std::to_string(unbekannt));
+                return unbekannt > 0 ? g_app->mtab.frageArt == 2 && g_app->mtab.frageZeilen.size() == static_cast<std::size_t>(unbekannt)
+                                     : g_app->mtab.frageArt == 0;
+            }));
+            add(klick(tr(Str::MbSpTrotzdem), "###mbfrage"));
+            add(pause(0.2));
+        }
         add(pruefe("MB3 Ziel " + std::to_string(ziel) + ": neu geladen spielt BOTH_CIN_3 Bild fuer Bild die Pose von BOTH_WALK1", [=] {
             const std::string n = ziel == 0 ? "_humanoid_mb3test.gla" : ziel == 1 ? "_humanoid.gla" : "mb3skelett.gla";
             GlaAnimation k;

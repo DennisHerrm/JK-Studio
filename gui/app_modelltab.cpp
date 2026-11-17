@@ -843,6 +843,9 @@ const std::vector<LeereGruppe>& leereGruppenListe(ModellBereich b) {
         {Str::MbRGla, Str::MbRGla, [] { return modellAnimReiter(true, modellReiter(R::Dienste, B::Daten)); }},
         {Str::MbRCfg, Str::MbRCfg, [] { return modellAnimReiter(true, modellReiter(R::Dienste, B::Daten)); }},
         {Str::MbRKartenGla, Str::MbRKartenGla, [] { return modellAnimReiter(true, modellReiter(R::Dienste, B::Daten)); }},
+        // REL613: die Gruppe "eigenes Skelett" von CW-MODELL (drawModellSkelettGruppe, nach den Gruppen oben) steht mit einer .glm da -
+        // ohne Modell fehlte sie, und die leere Szene hatte einen belegten Reiter weniger (Selbsttest test1411 B)
+        {Str::CwSkelettGruppeMax, Str::CwSkelettGruppeBl, [] { return modellAnimReiter(true, modellReiter(R::Erstellen, B::Knochen, false)); }},
     };
     static const std::vector<LeereGruppe> kKeine;
     switch (b) {
