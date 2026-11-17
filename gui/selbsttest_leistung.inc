@@ -35,8 +35,15 @@ inline std::string zahlen(std::vector<double> v, const char* format) {
 }
 
 // D3D12-5: wo die Zuteilungen des Prozesses liegen (Windows): Grafikspeicher, Arbeitsspeicher der Karte, nicht im bevorzugten
-// Segment, herabgestuft. Eine eigene Zeile je Messpunkt und je gemessener Ansicht.
+// Segment, herabgestuft. Eine eigene Zeile je Messpunkt und je gemessener Ansicht - nur mit BHED_LEISTUNG_SPEICHERLAGE=1: die
+// Abfrage (VirtualQuery ueber den Adressraum, DXGI-Fabrik, D3DKMTQueryStatistics je Segment) kostet ein Bild von 20-30 ms, und
+// danach hatte das naechste Messfenster oefter ein langes Bild (Gegenprobe gp_k/gp_v, NOTIZEN_dx12e Abschnitt 4).
 inline void speicherLage(const std::string& wann) {
+    static const bool an = [] {
+        const char* v = std::getenv("BHED_LEISTUNG_SPEICHERLAGE");
+        return v != nullptr && v[0] == '1';
+    }();
+    if (!an) { return; }
     if (const render::GrafikSpeicherSystem w = render::grafikSpeicherSystem(); w.gueltig) {
         char z[340];
         std::snprintf(z, sizeof(z), "Leistung: Speicherlage %s | lokal %llu MB, nicht lokal %llu MB, Apertur %llu MB, nicht im bevorzugten Segment %lu / %llu MB, "
@@ -60,7 +67,8 @@ inline void speicher(const std::string& wann) {
     std::snprintf(z, sizeof(z), "Leistung: Grafikspeicher-Budget %s | %lld MB", wann.c_str(), static_cast<long long>(kartegpu::grafikBudget() / 1048576U));
     diag::detail(z);
     // D3D12-5: Grafikspeicher und von der Karte gelesener Arbeitsspeicher nach Windows, unter beiden Grafikschnittstellen gleich
-    if (const render::GrafikSpeicherSystem w = render::grafikSpeicherSystem(); w.gueltig) {
+    // (nur QueryVideoMemoryInfo; die Lage der Zuteilungen steht mit BHED_LEISTUNG_SPEICHERLAGE=1 in der Zeile darueber)
+    if (const render::GrafikSpeicherSystem w = render::grafikSpeicherSystem(false); w.gueltig) {
         std::snprintf(z, sizeof(z), "Leistung: Grafikspeicher Windows %s | lokal %llu MB, nicht lokal %llu MB; Heaps des Prozesses zugeteilt %lld MB, belegt %lld MB",
                       wann.c_str(), w.lokal / 1048576ULL, w.nichtLokal / 1048576ULL, g.heapZugeteilt / 1048576, g.heapBelegt / 1048576);
         diag::detail(z);

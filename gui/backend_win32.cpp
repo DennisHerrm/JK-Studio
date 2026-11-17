@@ -1218,10 +1218,10 @@ GpuSystemZeit gpuSystemZeit() {
     return z;
 }
 
-GrafikSpeicherSystem grafikSpeicherSystem() {
+GrafikSpeicherSystem grafikSpeicherSystem(bool lage) {
     GrafikSpeicherSystem s;
 #ifdef BHED_WITH_D3D11
-    {
+    if (lage) {
         MEMORY_BASIC_INFORMATION mbi{};
         const unsigned char* a = nullptr;
         while (VirtualQuery(a, &mbi, sizeof(mbi)) == sizeof(mbi)) {
@@ -1249,6 +1249,7 @@ GrafikSpeicherSystem grafikSpeicherSystem() {
         karte->Release();
     }
     fabrik->Release();
+    if (!lage) { return s; }
     // Lage der Zuteilungen nach dem Planer der Karte (D3DKMTQueryStatistics)
     HMODULE gdi = GetModuleHandleW(L"gdi32.dll");
     const auto statistik = gdi != nullptr ? reinterpret_cast<PFND3DKMT_QUERYSTATISTICS>(reinterpret_cast<void*>(GetProcAddress(gdi, "D3DKMTQueryStatistics"))) : nullptr;

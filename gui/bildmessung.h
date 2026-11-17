@@ -32,7 +32,8 @@ struct GrafikSpeicherSystem {
     // Zuteilungen der Grafikkarte stehen als festgelegter Adressraum im Prozess.
     unsigned long long privatSichtbar = 0;
 };
-[[nodiscard]] GrafikSpeicherSystem grafikSpeicherSystem();
+// lage = false: nur QueryVideoMemoryInfo (lokal, nicht lokal, Budget) - ohne VirtualQuery und D3DKMTQueryStatistics.
+[[nodiscard]] GrafikSpeicherSystem grafikSpeicherSystem(bool lage = true);
 // D3D12-5: Direct3D 12 - die meisten Zeichenbefehle einer abgeschickten Befehlsliste seit dem Start und die Grenze je Liste
 // (BHED_D3D12_LISTE, 0: keine). Unter Direct3D 11 beides 0.
 struct ListenGroesse {
